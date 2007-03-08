@@ -104,7 +104,7 @@ TYPE
 
 '''
 .fat format:
-    some kinda header
+    first the surf file header?
     for buffer in buffers:
         stream flag (PS or PC or VD or MS or MU) (2 bytes)
         stream id (int16, 0 for 1st stream, 1 for 2nd, etc)
@@ -114,8 +114,21 @@ TYPE
 '''
 import numpy as np
 import os
+import cPickle
 
+# Surf header constants, field sizes in bytes
+UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
 UFF_NAME_LEN = 10
+UFF_OSNAME_LEN = 12
+UFF_NODENAME_LEN = 32
+UFF_DEVICE_LEN = 32
+UFF_PATH_LEN = 160
+UFF_FILENAME_LEN = 32
+UFF_FH_PAD_LEN = 76  # pad area to bring uff area to 512, this really should be calculated, not hard-coded
+UFF_APPINFO_LEN = 32
+UFF_OWNER_LEN = 14
+UFF_FILEDESC_LEN = 64
+UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
 
 class SurfFile(object): # or should I inherit from file?
     """Opens the .srf file. If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
@@ -123,58 +136,69 @@ class SurfFile(object): # or should I inherit from file?
     def __init__(self, fname='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
         self.f = file(fname, 'rb')
 
-    def close(self)
-        f.close()
+    def close(self):
+        self.f.close()
 
     def parse(self):
-        self.pfname = os.path.splitext(self.f.name)[0] + '.parse'
-        try:
-            pf = file(pfname, 'rb')
-            u = cPickle.Unpickler(pf)
+        fatfname = os.path.splitext(self.f.name)[0] + '.fat'
+        try: # recover SurfFat object pickled in .fat file
+            ff = file(fatfname, 'rb')
+            u = cPickle.Unpickler(ff)
             fat = u.load()
-            #fat = unpickle(pf) # pf.read() # read in all the parse info. This should be a pickled Parse object?
-        except: # .parse file doesn't exist, or something's wrong with it. Parse the .srf file
+            self.surfheader = fat.surfheader
+        except: # .fat file doesn't exist, or something's wrong with it. Parse the .srf file
+            # Parse the Surf header
             sh = SurfHeader()
             (sh.FH_rec_type,) = struct.unpack('B', f.read(1)) # must be 1
-            assert self.FH_rec_type == 1
+            assert sh.FH_rec_type == 1
             (sh.FH_rec_type_ext,) = struct.unpack('B', f.read(1)) # must be 0
-            assert self.FH_rec_type_ext == 0
+            assert sh.FH_rec_type_ext == 0
             (sh.UFF_name,) = struct.unpack('c', f.read(UFF_NAME_LEN)) # must be 'UFF'
-            assert self.UFF_name == 'UFF'
+            assert sh.UFF_name == 'UFF'
+            (sh.UFF_major,) = struct.unpack('B', f.read(1)) # major UFF ver
+            (sh.UFF_minor,) = struct.unpack('B', f.read(1)) # minor UFF ver
+            (sh.FH_rec_len,) = struct.unpack('H', f.read(2)) # FH record length in bytes
+            (sh.DRDB_rec_len,) = struct.unpack('H', f.read(2)) # DBRD record length in bytes
+            (sh.bi_di_seeks,) = struct.unpack('H', f.read(2)) # 2 bi-directional seeks format - what's word boolean's length?
+            (sh.OS_name,) = struct.unpack('c', f.read(UFF_OSNAME_LEN)) # OS name ie "WINDOWS 2000"
+            (sh.OS_major,) = struct.unpack('B', f.read(1)) # OS major rev
+            (sh.OS_minor,) = struct.unpack('B', f.read(1)) # OS minor rev
+            (sh.create,) = struct.unpack('H', f.read(18)) # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+            (sh.append,) = struct.unpack('H', f.read(18)) # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+            (sh.node,) = struct.unpack('c', f.read(UFF_NODENAME_LEN)) # system node name - same as BDT
+            (sh.device,) = struct.unpack('c', f.read(UFF_DEVICE_LEN)) # device name - same as BDT
+            (sh.path,) = struct.unpack('c', f.read(UFF_PATH_LEN)) # path name
+            (sh.filename,) = struct.unpack('c', f.read(UFF_FILENAME_LEN)) # original file name at creation
+            (sh.pad,) = struct.unpack('c', f.read(UFF_FH_PAD_LEN)) # pad area to bring uff area to 512
+            (sh.app_info,) = struct.unpack('c', f.read(UFF_APPINFO_LEN)) # application task name & version
+            (sh.user_name,) = struct.unpack('c', f.read(UFF_OWNER_LEN)) # user's name as owner of file
+            (sh.file_desc,) = struct.unpack('c', f.read(UFF_FILEDESC_LEN)) # description of file/exp
+            (sh.user_area,) = struct.unpack('B', f.read(UFF_FH_USERAREA_LEN)) # additional user area
+            (sh.bd_FH_rec_type,) = struct.unpack('B', f.read(1)) # record type, must be 1 BIDIRECTIONAL SUPPORT
+            assert sh.bd_FH_rec_type == 1
+            (sh.bd_FH_rec_type_ext,) = struct.unpack('B', f.read(1)) # record type extension, must be 0 BIDIRECTIONAL SUPPORT
+            assert sh.bd_FH_rec_type_ext == 0
+            self.surfheader = sh
 
+            # Now parse whatever comes next...
 
-            UFF_name : array[0..UFF_NAME_LEN-1] of CHAR; // 10 must be "UFF" sz
-            UFF_major                         : BYTE;  // 1 major UFF ver
-            UFF_minor                         : BYTE;  // 1 minor UFF ver
-            FH_rec_len                        : WORD;  // 2 FH record length in bytes
-            DRDB_rec_len                      : WORD;  // 2 DBRD record length in bytes
-            bi_di_seeks                       : WORDBOOL; // 2 bi-directional seeks format
-            OS_name : array[0..UFF_OSNAME_LEN-1] of CHAR;  // 12 OS name ie "MS-DOS"
-            OS_major                          : BYTE;  // 1 OS major rev
-            OS_minor                          : BYTE;  // 1 OS minor rev
-            create                            : TIMEDATE; // 18 creation time & date
-            append                            : TIMEDATE; // 18 last append time & date
-            node      : array[0..UFF_NODENAME_LEN-1]    of CHAR;  // 32 system node name - same as BDT
-            device    : array[0..UFF_DEVICE_LEN-1]      of CHAR;  // 32 device name - same as BDT
-            path      : array[0..UFF_PATH_LEN-1]        of CHAR;  // 160 path name
-            filename  : array[0..UFF_FILENAME_LEN-1]    of CHAR;  // 32 original file name at creation
-            pad       : array[0..UFF_FH_PAD_LEN-1]      of CHAR;  // 76 pad area to bring uff area to 512
-            app_info  : array[0..UFF_APPINFO_LEN-1]     of CHAR;  // 32 application task name & version
-            user_name : array[0..UFF_OWNER_LEN-1]       of CHAR;  // 14 user''s name as owner of file
-            file_desc : array[0..UFF_FILEDESC_LEN-1]    of CHAR;  // 64 description of file/exp
-            user_area : array[0..UFF_FH_USERAREA_LEN-1] of BYTE;  // 1536 additional user area
-            bd_FH_rec_type                    : BYTE;     // record type; must be 1 BIDIRECTIONAL SUPPORT
-            bd_FH_rec_type_ext                : BYTE;     // record type extension; must be 0 BIDIRECTIONAL SUPPORT
-
+            # Create a fat for mapping between stream position and file position
+            fat = SurfFat()
+            fat.surfheader = self.surfheader
+            ff = file(fatfname, 'wb')
+            p = cPickle.Pickler(ff, protocol=-1) # make a Pickler, use most efficient (least readable) protocol
+            p.dump(fat) # pickle fat to file
+            ff.close()
+        self.fat = fat
 
 class SurfHeader(object):
     """Just a place to store srf file header fields"""
     def __init__(self):
         pass # init attribs here
 
-class Fat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
+class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
     def __init__(self):
-        self.sh = None # srf header
+        self.surfheader = None # srf header
         # fill in other stuff here
 
 class SurfStream(object): # or should I inherit from np.ndarray?
@@ -188,10 +212,11 @@ class SurfStream(object): # or should I inherit from np.ndarray?
     def __getitem__(self, key):
         """Use the fat to decide where the item is in the file, return it"""
         return self.data.__getitem__(key)
-
-    def __getslice__(self, i, j):
+    '''
+    def __getslice__(self, i, j): # not necessary? __getitem__ already supports slice objects as keys
         """Use the fat to decide where the ith and j-1th items are in the file, return everything between them"""
         return self.data.__getslice__(i, j)
+    '''
 '''
 class HighPass(SurfStream): # or call this SpikeStream?
     pass
