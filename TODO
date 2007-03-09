@@ -18,14 +18,17 @@
         - make some kind of buffer array
         - or, forget inheriting, use a 2d array as the underlying data storage of a buffer object, give that buffer object the same indexing capabilities with magic methods?
             - can ndarray indexing/slicing abilities be exposed as magic methods?
+        - what about interpolation?
 
 - have a log window at bottom that details everything going on behind the scenes
-- maybe integrate pyshell, so you can mess with internals
+    - this could simply be an integrated pyshell window, so you can do things from command line instead of being forced to use interface
+        - also, use it to examine and mess with internals, including wxpy internals
 - make it importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy.
     - use if __name__ == '__main__'
 
 - need to look into just how complex and slow the (automated) sorting will be
     - can it all be done in Python?
+    - start with manual template definition
 
 - how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
 
@@ -41,14 +44,18 @@
 ----------------------------------------------------
 - questions for programmer
     - how well do you know python?
-    - done any larger project in python?
+    - done any larger projects in python?
         - how many lines of code?
+        - could you show it to us?
     - know anything about scipy/numpy?
     - know what it means to do things pythonically?
     - know python style guidelines?
         - spacing, capitalization, docstrings
     - used wxpython?
+    - used wxGlade?
     - used/willing to learn version control (SVN)?
+        - TortoiseSVN in windows
 
     - know any Delphi? enough to understand what Delphi code is doing?
     - have a windows machine to develop on, comfortable doing so?
+    - dev in python 2.4, wxpy 2.6 (or 2.8? can reuse numpy data w/o copy?), latest numpy/scipy

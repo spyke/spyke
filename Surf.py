@@ -115,6 +115,7 @@ TYPE
 import numpy as np
 import os
 import cPickle
+import struct
 
 # Surf header constants, field sizes in bytes
 UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
@@ -131,7 +132,8 @@ UFF_FILEDESC_LEN = 64
 UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
 
 class SurfFile(object): # or should I inherit from file?
-    """Opens the .srf file. If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
+    """Opens a .srf file and exposes all of its data as attribs.
+    If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
     Stores as attribs: recording header (with electrode info), stimulus headers, high and low pass stream data, stimulus data, message data"""
     def __init__(self, fname='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
         self.f = file(fname, 'rb')
@@ -146,37 +148,41 @@ class SurfFile(object): # or should I inherit from file?
             u = cPickle.Unpickler(ff)
             fat = u.load()
             self.surfheader = fat.surfheader
+            print 'Recovered fat from r' % fatfname
         except: # .fat file doesn't exist, or something's wrong with it. Parse the .srf file
+            print 'Parsing %r' % self.f.name
             # Parse the Surf header
+            f = self.f
             sh = SurfHeader()
-            (sh.FH_rec_type,) = struct.unpack('B', f.read(1)) # must be 1
+            sh.FH_rec_type, = struct.unpack('B', f.read(1)) # must be 1
             assert sh.FH_rec_type == 1
-            (sh.FH_rec_type_ext,) = struct.unpack('B', f.read(1)) # must be 0
+            sh.FH_rec_type_ext, = struct.unpack('B', f.read(1)) # must be 0
             assert sh.FH_rec_type_ext == 0
-            (sh.UFF_name,) = struct.unpack('c', f.read(UFF_NAME_LEN)) # must be 'UFF'
+            sh.UFF_name = f.read(UFF_NAME_LEN).rstrip('\x00') # must be 'UFF'
             assert sh.UFF_name == 'UFF'
-            (sh.UFF_major,) = struct.unpack('B', f.read(1)) # major UFF ver
-            (sh.UFF_minor,) = struct.unpack('B', f.read(1)) # minor UFF ver
-            (sh.FH_rec_len,) = struct.unpack('H', f.read(2)) # FH record length in bytes
-            (sh.DRDB_rec_len,) = struct.unpack('H', f.read(2)) # DBRD record length in bytes
-            (sh.bi_di_seeks,) = struct.unpack('H', f.read(2)) # 2 bi-directional seeks format - what's word boolean's length?
-            (sh.OS_name,) = struct.unpack('c', f.read(UFF_OSNAME_LEN)) # OS name ie "WINDOWS 2000"
-            (sh.OS_major,) = struct.unpack('B', f.read(1)) # OS major rev
-            (sh.OS_minor,) = struct.unpack('B', f.read(1)) # OS minor rev
-            (sh.create,) = struct.unpack('H', f.read(18)) # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
-            (sh.append,) = struct.unpack('H', f.read(18)) # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
-            (sh.node,) = struct.unpack('c', f.read(UFF_NODENAME_LEN)) # system node name - same as BDT
-            (sh.device,) = struct.unpack('c', f.read(UFF_DEVICE_LEN)) # device name - same as BDT
-            (sh.path,) = struct.unpack('c', f.read(UFF_PATH_LEN)) # path name
-            (sh.filename,) = struct.unpack('c', f.read(UFF_FILENAME_LEN)) # original file name at creation
-            (sh.pad,) = struct.unpack('c', f.read(UFF_FH_PAD_LEN)) # pad area to bring uff area to 512
-            (sh.app_info,) = struct.unpack('c', f.read(UFF_APPINFO_LEN)) # application task name & version
-            (sh.user_name,) = struct.unpack('c', f.read(UFF_OWNER_LEN)) # user's name as owner of file
-            (sh.file_desc,) = struct.unpack('c', f.read(UFF_FILEDESC_LEN)) # description of file/exp
-            (sh.user_area,) = struct.unpack('B', f.read(UFF_FH_USERAREA_LEN)) # additional user area
-            (sh.bd_FH_rec_type,) = struct.unpack('B', f.read(1)) # record type, must be 1 BIDIRECTIONAL SUPPORT
+            sh.UFF_major, = struct.unpack('B', f.read(1)) # major UFF ver
+            sh.UFF_minor, = struct.unpack('B', f.read(1)) # minor UFF ver
+            sh.FH_rec_len, = struct.unpack('H', f.read(2)) # FH record length in bytes
+            sh.DRDB_rec_len, = struct.unpack('H', f.read(2)) # DBRD record length in bytes
+            sh.bi_di_seeks, = struct.unpack('H', f.read(2)) # 2 bi-directional seeks format - what's word boolean's length?
+            sh.OS_name = f.read(UFF_OSNAME_LEN).rstrip('\x00') # OS name, ie "WINDOWS 2000"
+            sh.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
+            sh.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
+            sh.create = struct.unpack('H'*(18/2), f.read(18)) # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+            sh.append = struct.unpack('H'*(18/2), f.read(18)) # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+            sh.node = f.read(UFF_NODENAME_LEN).rstrip('\x00') # system node name - same as BDT
+            sh.device = f.read(UFF_DEVICE_LEN).rstrip('\x00') # device name - same as BDT
+            sh.path = f.read(UFF_PATH_LEN).rstrip('\x00') # path name
+            # this has some kinda problem in .srf file '81 - track 7c mseq16exps.srfcula'
+            sh.filename = f.read(UFF_FILENAME_LEN).rstrip('\x00') # original file name at creation
+            sh.pad = f.read(UFF_FH_PAD_LEN).replace('\x00', ' ') # pad area to bring uff area to 512
+            sh.app_info = f.read(UFF_APPINFO_LEN).rstrip('\x00') # application task name & version
+            sh.user_name = f.read(UFF_OWNER_LEN).rstrip('\x00') # user's name as owner of file
+            sh.file_desc = f.read(UFF_FILEDESC_LEN).rstrip('\x00') # description of file/exp
+            sh.user_area = struct.unpack('B'*UFF_FH_USERAREA_LEN, f.read(UFF_FH_USERAREA_LEN)) # additional user area
+            sh.bd_FH_rec_type, = struct.unpack('B', f.read(1)) # record type, must be 1 BIDIRECTIONAL SUPPORT
             assert sh.bd_FH_rec_type == 1
-            (sh.bd_FH_rec_type_ext,) = struct.unpack('B', f.read(1)) # record type extension, must be 0 BIDIRECTIONAL SUPPORT
+            sh.bd_FH_rec_type_ext, = struct.unpack('B', f.read(1)) # record type extension, must be 0 BIDIRECTIONAL SUPPORT
             assert sh.bd_FH_rec_type_ext == 0
             self.surfheader = sh
 
@@ -202,25 +208,31 @@ class SurfFat(object): # stores all the stuff to be pickled into a .fat and then
         # fill in other stuff here
 
 class SurfStream(object): # or should I inherit from np.ndarray?
-    """Returns stream data based on mapping between stream index and file position"""
-    def __init__(self):
+    """Returns stream data based on mapping between stream index and file position.
+    Returns either raw or interpolated, depending on interp attrib"""
+    def __init__(self, interp=False):
         self.data = np.random.randint(0, 9, 10)
+        self.interp = interp
 
     def __len__(self):
+        """Should this return length in time? Number of data points? Interp'd or raw?"""
         return len(self.data)
 
     def __getitem__(self, key):
-        """Use the fat to decide where the item is in the file, return it"""
+        """Use the fat to decide where the item is in the file, return it according to interp"""
         return self.data.__getitem__(key)
     '''
     def __getslice__(self, i, j): # not necessary? __getitem__ already supports slice objects as keys
         """Use the fat to decide where the ith and j-1th items are in the file, return everything between them"""
         return self.data.__getslice__(i, j)
     '''
-'''
+
 class HighPass(SurfStream): # or call this SpikeStream?
-    pass
+    def __init__(self, interp=50000):
+        super(HighPass, self).__init__(interp=interp)
+
 
 class LowPass(SurfStream): # or call this LFPStream?
-    pass
-'''
+    def __init__(self, interp=False):
+        super(LowPass, self).__init__(interp=interp)
+
