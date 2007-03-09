@@ -142,17 +142,19 @@ class SurfFile(object): # or should I inherit from file?
         self.f.close()
 
     def parse(self):
-        fatfname = os.path.splitext(self.f.name)[0] + '.fat'
+        fatfname = os.path.splitext(self.f.name)[0] + '.pickled.fat'
         try: # recover SurfFat object pickled in .fat file
             ff = file(fatfname, 'rb')
             u = cPickle.Unpickler(ff)
             fat = u.load()
+            ff.close()
             self.surfheader = fat.surfheader
-            print 'Recovered fat from r' % fatfname
+            print 'Recovered fat from %r' % fatfname
         except: # .fat file doesn't exist, or something's wrong with it. Parse the .srf file
             print 'Parsing %r' % self.f.name
             # Parse the Surf header
             f = self.f
+            f.seek(0) # make sure we're at the start of the srf file before trying to parse the srf header
             sh = SurfHeader()
             sh.FH_rec_type, = struct.unpack('B', f.read(1)) # must be 1
             assert sh.FH_rec_type == 1
