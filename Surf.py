@@ -147,6 +147,17 @@ TYPE
     ProbeWinLayout : TProbeWinLayout; //MOVE BELOW CHANLIST FOR CAT 9 v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
     pad            : array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE; {pad for future expansion/modification}
   end;
+
+  SURF_MSG_REC = record // Message record
+    UffType    : char; //1 byte -- SURF_MSG_REC_UFFTYPE
+    SubType    : char; //1 byte -- 'U' user or 'S' Surf-generated
+    TimeStamp  : INT64; //Cardinal, 64 bit signed int
+    DateTime   : TDateTime; //8 bytes -- double
+    MsgLength  : integer;//4 bytes -- length of the msg string
+    Msg        : string{shortstring - for cat9!!!}; //any length message
+  end;
+
+
 '''
 '''
 Tim's .fat format:
@@ -170,7 +181,7 @@ import os
 import cPickle
 import struct
 
-# Surf header constants, field sizes in bytes
+# Surf file header constants, field sizes in bytes
 UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
 UFF_NAME_LEN = 10
 UFF_OSNAME_LEN = 12
@@ -191,7 +202,7 @@ UFF_DRDB_PAD_LEN = 16
 UFF_RSFD_PER_DRDB = 77
 UFF_DRDB_RSFD_NAME_LEN = 20
 
-# Surf layour record constants
+# Surf layout record constants
 SURF_MAX_CHANNELS = 64 # currently supports one or two DT3010 boards, could be higher
 
 
@@ -224,7 +235,6 @@ class SurfFile(object): # or should I inherit from file?
             self.surfheader.parse()
 
             # Parse the DRDBs (Data Record Descriptor Blocks)
-            # starts at offset 2050
             self.drdbs = []
             while 1:
                 drdb = DRDB(f)
@@ -237,6 +247,7 @@ class SurfFile(object): # or should I inherit from file?
 
             # Parse all the records in the file
             self.layoutrecords = []
+            self.messagerecords = []
             while 1:
                 flag = f.read(2) # returns empty string when EOF is reached
                 if flag == '':
@@ -246,8 +257,12 @@ class SurfFile(object): # or should I inherit from file?
                     layoutrecord = LayoutRecord(f)
                     layoutrecord.parse()
                     self.layoutrecords.append(layoutrecord)
+                elif flag[0] == 'M': # message record
+                    messagerecord = MessageRecord(f)
+                    messagerecord.parse()
+                    self.messagerecords.append(messagerecord)
                 else:
-                    raise IOError
+                    raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
 
 
             # Now parse whatever comes next...
@@ -256,6 +271,7 @@ class SurfFile(object): # or should I inherit from file?
             fat = SurfFat()
             fat.surfheader = self.surfheader
             fat.drdbs = self.drdbs
+            # Don't save to .fat for now, to make testing easier...
             #ff = file(fatfname, 'wb')
             #p = cPickle.Pickler(ff, protocol=-1) # make a Pickler, use most efficient (least readable) protocol
             #p.dump(fat) # pickle fat to file
@@ -263,8 +279,7 @@ class SurfFile(object): # or should I inherit from file?
         self.fat = fat
 
 class SurfHeader(object):
-    """Surf file header.
-    Takes an open file, parses in from current file pointer position,
+    """Surf file header. Takes an open file, parses in from current file pointer position,
     stores header fields as attibs"""
     def __init__(self, f):
         self.f = f
@@ -285,8 +300,10 @@ class SurfHeader(object):
         self.OS_name = f.read(UFF_OSNAME_LEN).rstrip('\x00') # OS name, ie "WINDOWS 2000"
         self.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
-        self.create = struct.unpack('H'*(18/2), f.read(18)) # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
-        self.append = struct.unpack('H'*(18/2), f.read(18)) # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+        self.create = TimeDate(f)
+        self.create.parse() # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+        self.append = TimeDate(f)
+        self.append.parse() # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes, although this tends to be identical to creation time for some reason
         self.node = f.read(UFF_NODENAME_LEN).rstrip('\x00') # system node name - same as BDT
         self.device = f.read(UFF_DEVICE_LEN).rstrip('\x00') # device name - same as BDT
         self.path = f.read(UFF_PATH_LEN).rstrip('\x00') # path name
@@ -307,10 +324,23 @@ class SurfHeader(object):
         self.length = f.tell() - self.offset # total length is 2050 bytes
         assert self.length == 2050
 
+class TimeDate(object):
+    """TimeDate record, reverse of C'S DateTime"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f
+        self.offset = f.tell()
+        self.sec, = struct.unpack('H', f.read(2))
+        self.min, = struct.unpack('H', f.read(2))
+        self.hour, = struct.unpack('H', f.read(2))
+        self.day, = struct.unpack('H', f.read(2))
+        self.month, = struct.unpack('H', f.read(2))
+        self.year, = struct.unpack('H', f.read(2))
+        self.junk = struct.unpack('B'*6, f.read(6)) # junk data at end
+
 class DRDB(object):
-    """Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK in SurfBawd.
-    Takes an open file, parses in from current file pointer position,
-    stores header fields as attibs"""
+    """Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK in SurfBawd"""
     def __init__(self, f):
         self.f = f
     def parse(self):
@@ -348,9 +378,7 @@ class DRDBError(ValueError):
     pass
 
 class RSFD(object):
-    """Record Subfield Descriptor for Data Record Descriptor Block
-    Takes an open file, parses in from current file pointer position,
-    stores header fields as attibs"""
+    """Record Subfield Descriptor for Data Record Descriptor Block"""
     def __init__(self, f):
         self.f = f
     def parse(self):
@@ -426,6 +454,20 @@ class ProbeWinLayout(object):
         self.width, = struct.unpack('l', f.read(4))
         self.height, = struct.unpack('l', f.read(4))
 
+class MessageRecord(object):
+    """Message record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell()
+        self.UffType = f.read(1) # 1 byte -- SURF_MSG_REC_UFFTYPE: 'M'
+        self.SubType = f.read(1) # 1 byte -- 'U' user or 'S' Surf-generated
+        f.seek(6, 1) # hack to skip next 6 bytes
+        self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
+        self.DateTime, = struct.unpack('d', f.read(8)) # 8 bytes -- double - number of days (integral and fractional) since 30 Dec 1899, I think
+        self.MsgLength, = struct.unpack('l', f.read(4)) # 4 bytes -- length of the msg string
+        self.Msg = f.read(self.MsgLength) # any length message {shortstring - for cat9!!!}
 
 class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
     def __init__(self):
