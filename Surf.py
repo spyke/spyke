@@ -1,5 +1,14 @@
 """Handles parsing and streaming of .srf files"""
 
+'''from SurfPublicTypes.pas:
+  SHRT   = SmallInt;{2 bytes} // signed short (from DTxPascal.pas)
+  LNG    = LongInt;{4 bytes}  // signed long  (from DTxPascal.pas)
+
+LongInt is guaranteed to be 4 bytes
+
+'''
+
+
 '''from UFFTYPES.pas:
 
 (* File Header definitions - denotes the size of fields in BYTES *)
@@ -100,8 +109,45 @@ TYPE
 
    NVS_PARAM_LEN            = 749;
    PYTHON_TBL_LEN           = 50000;
-'''
 
+  TChanList = array[0..SURF_MAX_CHANNELS-1] of SHRT;
+
+  TProbeWinLayout = record
+    left,top,width,height : integer;
+  end;
+
+
+'''
+'''from SurfTypes.pas:
+  SURF_LAYOUT_REC = record { Type for all probe layout records }
+    UffType         : CHAR; // Record type 'L'
+    TimeStamp       : INT64;// Time stamp, 64 bit signed int
+    SurfMajor       : BYTE; // SURF major version number
+    SurfMinor       : BYTE; // SURF minor version number
+    MasterClockFreq : LNG;  // ADC/precision CT master clock frequency (1Mhz for DT3010)
+    BaseSampleFreq  : LNG;  // undecimated base sample frequency per channel
+    DINAcquired     : Boolean; //true if Stimulus DIN acquired
+
+    Probe          : SHRT; // probe number
+    ProbeSubType   : CHAR; // =E,S,C for epochspike, spikestream, or continuoustype
+    nchans         : SHRT; // number of channels in the probe
+    pts_per_chan   : SHRT; // number of samples per waveform per channel (display)
+    pts_per_buffer : LNG;  // {n/a to cat9} total number of samples per file buffer for this probe (redundant with SS_REC.NumSamples)
+    trigpt         : SHRT; // pts before trigger
+    lockout        : SHRT; // Lockout in pts
+    threshold      : SHRT; // A/D board threshold for trigger
+    skippts        : SHRT; // A/D sampling decimation factor
+    sh_delay_offset: SHRT; // S:H delay offset for first channel of this probe
+    sampfreqperchan: LNG;  // A/D sampling frequency specific to this probe (ie. after decimation, if any)
+    extgain        : array[0..SURF_MAX_CHANNELS-1] of WORD; // MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21'99
+    intgain        : SHRT; // A/D board internal gain <--MOVE BELOW extgain after finished with CAT9!!!!!
+    chanlist       : TChanList; //v1.0 had chanlist to be an array of 32 ints.  Now it is an array of 64, so delete 32*4=128 bytes from end
+    probe_descrip  : ShortString;
+    electrode_name : ShortString;
+    ProbeWinLayout : TProbeWinLayout; //MOVE BELOW CHANLIST FOR CAT 9 v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
+    pad            : array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE; {pad for future expansion/modification}
+  end;
+'''
 '''
 Tim's .fat format:
     first the surf file header?
@@ -112,6 +158,13 @@ Tim's .fat format:
         timestamp (int64)
         == total of 16 bytes per buffer
 '''
+
+'''
+ad-hoc delphi packing rules:
+    - single CHARs: pack 8 bytes at a time? if several consecutive, pack within the 8 bytes?
+    - arrays of chars are the length you'd expect
+'''
+
 import numpy as np
 import os
 import cPickle
@@ -137,6 +190,10 @@ UFF_DRDB_NAME_LEN = 20
 UFF_DRDB_PAD_LEN = 16
 UFF_RSFD_PER_DRDB = 77
 UFF_DRDB_RSFD_NAME_LEN = 20
+
+# Surf layour record constants
+SURF_MAX_CHANNELS = 64 # currently supports one or two DT3010 boards, could be higher
+
 
 class SurfFile(object): # or should I inherit from file?
     """Opens a .srf file and exposes all of its data as attribs.
@@ -172,11 +229,26 @@ class SurfFile(object): # or should I inherit from file?
             while 1:
                 drdb = DRDB(f)
                 try:
-                    drdb.parse() # 158 too many extra bytes in file
+                    drdb.parse()
                     self.drdbs.append(drdb)
                 except DRDBError: # we've gone past the last DRDB
                     f.seek(drdb.offset) # set file pointer back to where we were
                     break
+
+            # Parse all the records in the file
+            self.layoutrecords = []
+            while 1:
+                flag = f.read(2) # returns empty string when EOF is reached
+                if flag == '':
+                    break
+                f.seek(-2, 1) # go back
+                if flag[0] == 'L': # polytrode layout record
+                    layoutrecord = LayoutRecord(f)
+                    layoutrecord.parse()
+                    self.layoutrecords.append(layoutrecord)
+                else:
+                    raise IOError
+
 
             # Now parse whatever comes next...
 
@@ -262,7 +334,7 @@ class DRDB(object):
             self.DR_subfields.append(rsfd)
         assert f.tell() - self.offset == UFF_DRDB_BLOCK_LEN
         # this is the end of the original DRDB I think, the next two fields seem to have been added on to the end by Tim:
-        f.seek(156, 1) # hack to skip past unexplained extra 156 bytes (happens to be 6*RSFD.length)
+        f.seek(156, 1) # hack to skip past unexplained extra 156 bytes (happens to equal 6*RSFD.length)
         self.bd_DRDB_rec_type, = struct.unpack('B', f.read(1)) # record type; must be 2 BIDIRECTIONAL SUPPORT
         assert self.bd_DRDB_rec_type == 2
         self.bd_DRDB_rec_type_ext, = struct.unpack('B', f.read(1)) # record type extension; must be 0 BIDIRECTIONAL SUPPORT
@@ -289,6 +361,71 @@ class RSFD(object):
         self.subfield_size, = struct.unpack('l', f.read(4)) # sub field size in bytes, signed
         self.length = f.tell() - self.offset
         assert self.length == 26
+
+class LayoutRecord(object):
+    """Polytrode layout record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell()
+        self.UffType = f.read(1) # Record type 'L'
+        f.seek(7, 1) # hack to skip next 7 bytes
+        self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
+        self.SurfMajor, = struct.unpack('B', f.read(1)) # SURF major version number (2)
+        self.SurfMinor, = struct.unpack('B', f.read(1)) # SURF minor version number (1)
+        f.seek(2, 1) # hack to skip next 2 bytes
+        self.MasterClockFreq, = struct.unpack('l', f.read(4)) # ADC/precision CT master clock frequency (1Mhz for DT3010)
+        self.BaseSampleFreq, = struct.unpack('l', f.read(4)) # undecimated base sample frequency per channel (25kHz)
+        self.DINAcquired, = struct.unpack('B', f.read(1)) # true (1) if Stimulus DIN acquired
+        f.seek(1, 1) # hack to skip next byte
+
+        self.Probe, = struct.unpack('h', f.read(2)) # probe number
+        self.ProbeSubType = f.read(1) # =E,S,C for epochspike, spikestream, or continuoustype
+        f.seek(1, 1) # hack to skip next byte
+        self.nchans, = struct.unpack('h', f.read(2)) # number of channels in the probe (54)
+        self.pts_per_chan, = struct.unpack('h', f.read(2)) # number of samples per waveform per channel (display) (25, 100)
+        f.seek(2, 1) # hack to skip next 2 bytes
+        self.pts_per_buffer, = struct.unpack('l', f.read(4)) # {n/a to cat9} total number of samples per file buffer for this probe (redundant with SS_REC.NumSamples) (135000, 100)
+        self.trigpt, = struct.unpack('h', f.read(2)) # pts before trigger (7)
+        self.lockout, = struct.unpack('h', f.read(2)) # Lockout in pts (2)
+        self.threshold, = struct.unpack('h', f.read(2)) # A/D board threshold for trigger (0-4096)
+        self.skippts, = struct.unpack('h', f.read(2)) # A/D sampling decimation factor (1, 25)
+        self.sh_delay_offset, = struct.unpack('h', f.read(2)) # S:H delay offset for first channel of this probe (1)
+        f.seek(2, 1) # hack to skip next 2 bytes
+        self.sampfreqperchan, = struct.unpack('l', f.read(4)) # A/D sampling frequency specific to this probe (ie. after decimation, if any) (25000, 1000)
+        self.extgain = struct.unpack('H'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999 - only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
+        self.extgain = self.extgain[:self.nchans] # throw away the junk values
+        self.intgain, = struct.unpack('h', f.read(2)) # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
+        self.chanlist = struct.unpack('h'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it is an array of 64, so delete 32*4=128 bytes from end
+        self.chanlist = self.chanlist[:self.nchans] # throw away the junk values
+        f.seek(1, 1) # hack to skip next byte
+        self.probe_descrip = f.read(255).rstrip('\x00') # ShortString (uMap54_2a, 65um spacing)
+        f.seek(1, 1) # hack to skip next byte
+        self.electrode_name = f.read(255).rstrip('\x00') # ShortString (uMap54_2a)
+        f.seek(2, 1) # hack to skip next 2 bytes
+        self.probewinlayout = ProbeWinLayout(f)
+        self.probewinlayout.parse() # MOVE BELOW CHANLIST FOR CAT 9 v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
+        self.pad = struct.unpack('B'*(880-4-2), f.read(880-4-2)) # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE; {pad for future expansion/modification}
+        f.seek(6, 1) # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
+
+    """
+    with SurfRecord do
+      m_ProbeWaveFormLength[probe]:= nchans * pts_per_chan; //necessary, others here too?
+    """
+
+class ProbeWinLayout(object):
+    """Probe window layout"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell()
+        self.left, = struct.unpack('l', f.read(4))
+        self.top, = struct.unpack('l', f.read(4))
+        self.width, = struct.unpack('l', f.read(4))
+        self.height, = struct.unpack('l', f.read(4))
+
 
 class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
     def __init__(self):
