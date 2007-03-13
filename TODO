@@ -31,6 +31,7 @@
     - start with manual template definition
 
 - how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
+    - email wxpython list on displaying time series data. Borrow something from MPL?
 
 - lfp data need to be corrected for offsets induced by low-pass filters
     - Tim mentioned Hilbert transforms are useful for this, or more generally for looking at peaks in lfps?
