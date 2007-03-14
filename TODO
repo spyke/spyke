@@ -59,4 +59,5 @@
 
     - know any Delphi? enough to understand what Delphi code is doing?
     - have a windows machine to develop on, comfortable doing so?
+        - conscious of trying to keep it cross-platform
     - dev in python 2.4, wxpy 2.6 (or 2.8? can reuse numpy data w/o copy?), latest numpy/scipy

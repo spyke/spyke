@@ -157,6 +157,17 @@ TYPE
     Msg        : string{shortstring - for cat9!!!}; //any length message
   end;
 
+  SURF_SS_REC    = record // SpikeStream record
+    UffType      : char;    {1 byte} {SURF_PT_REC_UFFTYPE}
+    SubType      : char;    {1 byte} {=E,S,C for spike epoch, continuous spike or other continuous }
+    TimeStamp    : INT64;   {Cardinal, 64 bit signed int}
+    Probe        : shrt;    {2 bytes -- the probe number}
+    CRC32        : {u}LNG;  {4 bytes -- PKZIP-compatible CRC}
+    NumSamples   : integer; {4 bytes -- the # of samples in this file buffer record}
+    ADCWaveform  : TWaveForm{ADC Waveform type; dynamic array of SHRT (signed 16 bit)}
+  end;
+
+
 
 '''
 '''
@@ -245,9 +256,11 @@ class SurfFile(object): # or should I inherit from file?
                     f.seek(drdb.offset) # set file pointer back to where we were
                     break
 
-            # Parse all the records in the file
+            # Parse all the records in the file, but don't load any waveforms
             self.layoutrecords = []
             self.messagerecords = []
+            self.highpassrecords = []
+            self.lowpassrecords = []
             while 1:
                 flag = f.read(2) # returns empty string when EOF is reached
                 if flag == '':
@@ -261,11 +274,22 @@ class SurfFile(object): # or should I inherit from file?
                     messagerecord = MessageRecord(f)
                     messagerecord.parse()
                     self.messagerecords.append(messagerecord)
+                elif flag[0] == 'P': # polytrode waveform record
+                    if flag[1] == 'S': # spike stream (highpass) record
+                        highpassrecord = HighPassRecord(f)
+                        highpassrecord.parse()
+                        self.highpassrecords.append(highpassrecord)
+                    elif flag[1] == 'C': # continuous (lowpass) record
+                        lowpassrecord = LowPassRecord(f)
+                        lowpassrecord.parse()
+                        self.lowpassrecords.append(lowpassrecord)
+                    elif flag[1] == 'E': # spike epoch record
+                        raise ValueError, 'Spike epochs (non-continous) recordings currently unsupported'
                 else:
                     raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
 
 
-            # Now parse whatever comes next...
+            # Make sure to sort each record type list according to timestamp...
 
             # Create a fat for mapping between stream position and file position
             fat = SurfFat()
@@ -469,6 +493,51 @@ class MessageRecord(object):
         self.MsgLength, = struct.unpack('l', f.read(4)) # 4 bytes -- length of the msg string
         self.Msg = f.read(self.MsgLength) # any length message {shortstring - for cat9!!!}
 
+class PolytrodeRecord(object):
+    """Base Polytrode record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell()
+        self.UffType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'P'
+
+class ContinuousRecord(PolytrodeRecord):
+    """Continuous waveform recording"""
+    def __init__(self, f):
+        super(ContinuousRecord, self).__init__(f)
+    def parse(self):
+        super(ContinuousRecord, self).parse()
+        f = self.f # abbrev
+        self.SubType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'S' for spikestream (highpass), 'C' for other continuous (lowpass)}
+        f.seek(6, 1) # hack to skip next 6 bytes
+        self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
+        self.Probe, = struct.unpack('h', f.read(2)) # {2 bytes -- the probe number}
+        f.seek(2, 1) # hack to skip next 2 bytes - guessing this should be before the CRC????????????????????????????????????
+        self.CRC32, = struct.unpack('l', f.read(4)) # {4 bytes -- PKZIP-compatible CRC} - is this always 0??????????????????????
+        self.NumSamples, = struct.unpack('l', f.read(4)) # {4 bytes -- the # of samples in this file buffer record}
+        self.waveformoffset = f.tell()
+        f.seek(self.NumSamples*2, 1) # skip the waveform data for now
+    def load(self):
+        """Loads waveform data for this continuous record"""
+        f = self.f # abbrev
+        f.seek(self.waveformoffset)
+        self.waveform = np.asarray(struct.unpack('h'*self.NumSamples, f.read(2*self.NumSamples))) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - convert this to an ndarray - this needs to be reshaped according to sf.layoutrecords[self.Probe].nchans
+
+class HighPassRecord(ContinuousRecord):
+    pass
+
+class LowPassRecord(ContinuousRecord):
+    pass
+
+class EpochRecord(PolytrodeRecord):
+    def __init__(self, f):
+        super(EpochRecord, self).__init__(f)
+
+
+
+
+
 class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
     def __init__(self):
         pass
@@ -500,6 +569,8 @@ class SurfStream(object): # or should I inherit from np.ndarray?
 class HighPass(SurfStream): # or call this SpikeStream?
     def __init__(self, interp=50000):
         super(HighPass, self).__init__(interp=interp)
+
+
 
 
 class LowPass(SurfStream): # or call this LFPStream?
