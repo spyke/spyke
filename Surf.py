@@ -1,4 +1,4 @@
-"""Handles parsing and streaming of .srf files"""
+"""Handles parsing and streaming of SURF-generated .srf files"""
 
 '''from SurfPublicTypes.pas:
   SHRT   = SmallInt;{2 bytes} // signed short (from DTxPascal.pas)
@@ -190,6 +190,13 @@ TYPE
     Header     : TStimulusHeader;
   end;
 
+  SURF_SV_REC = record // Single value record
+    UffType   : char; //1 byte -- SURF_SV_REC_UFFTYPE
+    SubType   : char; //1 byte -- 'D' digital or 'A' analog
+    TimeStamp : INT64;//Cardinal, 64 bit signed int
+    SVal      : word; //2 bytes -- 16 bit single value
+  end;
+
 
 '''
 '''
@@ -245,8 +252,9 @@ PYTHON_TBL_LEN = 50000
 
 class SurfFile(object): # or should I inherit from file?
     """Opens a .srf file and exposes all of its data as attribs.
-    If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
-    Stores as attribs: srf header, electrode layout records, high and low pass stream data, stimulus display headers, stimulus digital vals, message data"""
+    If no synonymous .pickled.fat file exists, parses the .srf file, stores parsing in a .pickled.fat file.
+    Stores as attribs: srf header, srf data record descriptor blocks, electrode layout records,
+    message records, high and low pass stream records, stimulus display header records, and stimulus digital val records."""
     def __init__(self, fname='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
         self.f = file(fname, 'rb')
 
@@ -288,12 +296,13 @@ class SurfFile(object): # or should I inherit from file?
             self.highpassrecords = []
             self.lowpassrecords = []
             self.displayrecords = []
+            self.digitalsvalrecords = []
             while 1:
                 flag = f.read(2) # returns empty string when EOF is reached
                 if flag == '':
                     print 'Done parsing'
                     break
-                f.seek(-2, 1) # go back
+                f.seek(-2, 1) # put file pointer back to start of flag
                 if flag[0] == 'L': # polytrode layout record
                     layoutrecord = LayoutRecord(f)
                     layoutrecord.parse()
@@ -313,10 +322,21 @@ class SurfFile(object): # or should I inherit from file?
                         self.lowpassrecords.append(lowpassrecord)
                     elif flag[1] == 'E': # spike epoch record
                         raise ValueError, 'Spike epochs (non-continous) recordings currently unsupported'
+                    else:
+                        raise ValueError, 'Unknown polytrode waveform record type %s' % flag[1]
                 elif flag[0] == 'D': # stimulus display header record
                     displayrecord = DisplayRecord(f)
                     displayrecord.parse()
                     self.displayrecords.append(displayrecord)
+                elif flag[0] == 'V': # single value record
+                    if flag[1] == 'D': # digital single value record
+                        digitalsvalrecord = DigitalSValRecord(f)
+                        digitalsvalrecord.parse()
+                        self.digitalsvalrecords.append(digitalsvalrecord)
+                    elif flag[1] == 'A': # analog single value record
+                        raise ValueError, 'Analog single value recordings currently unsupported'
+                    else:
+                        raise ValueError, 'Unknown single value record type %s' % flag[1]
                 else:
                     raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
 
@@ -603,7 +623,7 @@ class StimulusHeader(object):
         self.parameter_tbl = list(struct.unpack('f'*NVS_PARAM_LEN, f.read(4*NVS_PARAM_LEN))) # NVS binary header, array of single floats
         for parami, param in enumerate(self.parameter_tbl):
             if str(param) == '1.#QNAN':
-                self.parameter_tbl[parami] = None # replace 'Quiet NANs' with Nones
+                self.parameter_tbl[parami] = None # replace 'Quiet NAN' floats with Nones
         self.python_tbl = f.read(PYTHON_TBL_LEN).rstrip() # Dimstim's text header
         self.screen_width, = struct.unpack('f', f.read(4)) # cm, single float
         self.screen_height, = struct.unpack('f', f.read(4)) # cm
@@ -613,6 +633,28 @@ class StimulusHeader(object):
         self.gamma_offset, = struct.unpack('f', f.read(4))
         self.est_runtime, = struct.unpack('H', f.read(2)) # in seconds
         self.checksum, = struct.unpack('H', f.read(2))
+
+class SValRecord(object):
+    """Single value record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell() # not really necessary, wastes memory cuz there's so many of these records
+        self.UffType = f.read(1) # 1 byte -- SURF_SV_REC_UFFTYPE: 'V'
+        self.SubType = f.read(1) # 1 byte -- 'D' digital or 'A' analog
+        f.seek(6, 1) # hack to skip next 6 bytes
+        self.TimeStamp, = struct.unpack('q', f.read(8)) # Cardinal, 64 bit signed int
+
+class DigitalSValRecord(SValRecord):
+    """Digital single value record"""
+    def __init__(self, f):
+        super(DigitalSValRecord, self).__init__(f)
+    def parse(self):
+        super(DigitalSValRecord, self).parse()
+        f = self.f # abbrev
+        self.SVal, = struct.unpack('H', f.read(2)) # 2 bytes -- 16 bit single value
+        f.seek(6, 1) # hack to skip next 6 bytes
 
 class SurfStream(object): # or should I inherit from np.ndarray?
     """Returns stream data based on mapping between stream index and file position.
