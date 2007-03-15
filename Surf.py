@@ -116,6 +116,22 @@ TYPE
     left,top,width,height : integer;
   end;
 
+  TStimulusHeader = {packed}record
+    header        : array[0..1] of char;
+    version       : word;
+    filename      : array[0..63] of char;
+    parameter_tbl : array[0..NVS_PARAM_LEN - 1]  of single;
+    python_tbl    : array[0..PYTHON_TBL_LEN - 1] of char;  //added by MAS
+    screen_width  : single;
+    screen_height : single;
+    view_distance : single;
+    frame_rate    : single;
+    gamma_correct : single;
+    gamma_offset  : single;
+    est_runtime   : word;
+    checksum      : word;
+  end;
+
 
 '''
 '''from SurfTypes.pas:
@@ -167,6 +183,12 @@ TYPE
     ADCWaveform  : TWaveForm{ADC Waveform type; dynamic array of SHRT (signed 16 bit)}
   end;
 
+  SURF_DSP_REC = record // Stimulus display header record
+    UffType    : char;  //1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
+    TimeStamp  : INT64;  //Cardinal, 64 bit signed int
+    DateTime   : TDateTime; //double, 8 bytes
+    Header     : TStimulusHeader;
+  end;
 
 
 '''
@@ -216,6 +238,10 @@ UFF_DRDB_RSFD_NAME_LEN = 20
 # Surf layout record constants
 SURF_MAX_CHANNELS = 64 # currently supports one or two DT3010 boards, could be higher
 
+# Stimulus header constants
+STIMULUS_HEADER_FILENAME_LEN = 64
+NVS_PARAM_LEN = 749
+PYTHON_TBL_LEN = 50000
 
 class SurfFile(object): # or should I inherit from file?
     """Opens a .srf file and exposes all of its data as attribs.
@@ -261,9 +287,11 @@ class SurfFile(object): # or should I inherit from file?
             self.messagerecords = []
             self.highpassrecords = []
             self.lowpassrecords = []
+            self.displayrecords = []
             while 1:
                 flag = f.read(2) # returns empty string when EOF is reached
                 if flag == '':
+                    print 'Done parsing'
                     break
                 f.seek(-2, 1) # go back
                 if flag[0] == 'L': # polytrode layout record
@@ -285,16 +313,29 @@ class SurfFile(object): # or should I inherit from file?
                         self.lowpassrecords.append(lowpassrecord)
                     elif flag[1] == 'E': # spike epoch record
                         raise ValueError, 'Spike epochs (non-continous) recordings currently unsupported'
+                elif flag[0] == 'D': # stimulus display header record
+                    displayrecord = DisplayRecord(f)
+                    displayrecord.parse()
+                    self.displayrecords.append(displayrecord)
                 else:
                     raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
 
-
-            # Make sure to sort each record type list according to timestamp...
+            # Make sure timestamps of all records are in causal (increasing) order. If not, sort them I guess?
+            assert causalorder(self.layoutrecords)
+            assert causalorder(self.messagerecords)
+            assert causalorder(self.highpassrecords)
+            assert causalorder(self.lowpassrecords)
+            assert causalorder(self.displayrecords)
 
             # Create a fat for mapping between stream position and file position
             fat = SurfFat()
             fat.surfheader = self.surfheader
             fat.drdbs = self.drdbs
+            fat.layoutrecords = self.layoutrecords
+            fat.messagerecords = self.messagerecords
+            fat.highpassrecords = self.highpassrecords
+            fat.lowpassrecords = self.lowpassrecords
+            fat.displayrecords = self.displayrecords
             # Don't save to .fat for now, to make testing easier...
             #ff = file(fatfname, 'wb')
             #p = cPickle.Pickler(ff, protocol=-1) # make a Pickler, use most efficient (least readable) protocol
@@ -489,7 +530,7 @@ class MessageRecord(object):
         self.SubType = f.read(1) # 1 byte -- 'U' user or 'S' Surf-generated
         f.seek(6, 1) # hack to skip next 6 bytes
         self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
-        self.DateTime, = struct.unpack('d', f.read(8)) # 8 bytes -- double - number of days (integral and fractional) since 30 Dec 1899, I think
+        self.DateTime, = struct.unpack('d', f.read(8)) # 8 bytes -- double - number of days (integral and fractional) since 30 Dec 1899
         self.MsgLength, = struct.unpack('l', f.read(4)) # 4 bytes -- length of the msg string
         self.Msg = f.read(self.MsgLength) # any length message {shortstring - for cat9!!!}
 
@@ -534,17 +575,44 @@ class EpochRecord(PolytrodeRecord):
     def __init__(self, f):
         super(EpochRecord, self).__init__(f)
 
+class DisplayRecord(object):
+    """Stimulus display header record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell()
+        self.UffType = f.read(1) # 1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
+        f.seek(7, 1) # hack to skip next 7 bytes
+        self.TimeStamp, = struct.unpack('q', f.read(8)) # Cardinal, 64 bit signed int
+        self.DateTime, = struct.unpack('d', f.read(8)) # double, 8 bytes - number of days (integral and fractional) since 30 Dec 1899
+        self.Header = StimulusHeader(f)
+        self.Header.parse()
+        f.seek(4, 1) # hack to skip next 4 bytes
 
-
-
-
-class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
-    def __init__(self):
-        pass
-        # initing these to None ain't really necessary:
-        #self.surfheader = None # srf header
-        #self.drdbs = None # list of DRDBs
-        # fill in other stuff here
+class StimulusHeader(object):
+    """Stimulus display header"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        self.offset = f.tell()
+        self.header = f.read(2).rstrip('\x00') # always 'DS'?
+        self.version, = struct.unpack('H', f.read(2))
+        self.filename = f.read(STIMULUS_HEADER_FILENAME_LEN).rstrip('\x00')
+        self.parameter_tbl = list(struct.unpack('f'*NVS_PARAM_LEN, f.read(4*NVS_PARAM_LEN))) # NVS binary header, array of single floats
+        for parami, param in enumerate(self.parameter_tbl):
+            if str(param) == '1.#QNAN':
+                self.parameter_tbl[parami] = None # replace 'Quiet NANs' with Nones
+        self.python_tbl = f.read(PYTHON_TBL_LEN).rstrip() # Dimstim's text header
+        self.screen_width, = struct.unpack('f', f.read(4)) # cm, single float
+        self.screen_height, = struct.unpack('f', f.read(4)) # cm
+        self.view_distance, = struct.unpack('f', f.read(4)) # cm
+        self.frame_rate, = struct.unpack('f', f.read(4)) # Hz
+        self.gamma_correct, = struct.unpack('f', f.read(4))
+        self.gamma_offset, = struct.unpack('f', f.read(4))
+        self.est_runtime, = struct.unpack('H', f.read(2)) # in seconds
+        self.checksum, = struct.unpack('H', f.read(2))
 
 class SurfStream(object): # or should I inherit from np.ndarray?
     """Returns stream data based on mapping between stream index and file position.
@@ -566,14 +634,22 @@ class SurfStream(object): # or should I inherit from np.ndarray?
         return self.data.__getslice__(i, j)
     '''
 
+class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
+    def __init__(self):
+        pass
+
 class HighPass(SurfStream): # or call this SpikeStream?
     def __init__(self, interp=50000):
         super(HighPass, self).__init__(interp=interp)
-
-
-
 
 class LowPass(SurfStream): # or call this LFPStream?
     def __init__(self, interp=False):
         super(LowPass, self).__init__(interp=interp)
 
+def causalorder(recordlist):
+    """Checks to see if the timestamps of all the records in recordlist are in
+    causal (increasing) order. Returns True or False"""
+    for record1, record2 in zip(recordlist[:-1], recordlist[1:]):
+        if record1.TimeStamp > record2.TimeStamp:
+            return False
+    return True
