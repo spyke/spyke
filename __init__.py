@@ -1,1 +1,1 @@
-from Surf import *
+import Surf

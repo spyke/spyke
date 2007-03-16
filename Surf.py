@@ -36,8 +36,8 @@ PYTHON_TBL_LEN = 50000
 
 
 class SurfFile(object):
-    """Opens a .srf file and exposes all of its data as attribs.
-    If no synonymous .pickled.fat file exists, parses the .srf file, stores parsing in a .pickled.fat file.
+    """Opens a .srf file and exposes all of its headers and records as attribs.
+    If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
     Stores as attribs: srf header, srf data record descriptor blocks, electrode layout records,
     message records, high and low pass stream records, stimulus display header records, and stimulus digital val records."""
     def __init__(self, fname='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
@@ -47,16 +47,23 @@ class SurfFile(object):
         self.f.close()
 
     def parse(self):
-        fatfname = os.path.splitext(self.f.name)[0] + '.pickled.fat'
-        try: # recover SurfFat object pickled in .fat file
+        fatfname = os.path.splitext(self.f.name)[0] + '.parse'
+        try: # recover SurfFat object pickled in .parse file
             ff = file(fatfname, 'rb')
             u = cPickle.Unpickler(ff)
+            def persistent_load(persid): # required to restore the .srf file object as an existing open file for reading
+                if persid == self.f.name:
+                    return self.f
+                else:
+                    raise cPickle.UnpicklingError, 'Invalid persistent id'
+            u.persistent_load = persistent_load # add this method to the unpickler
             fat = u.load()
             ff.close()
-            # put code here that takes all normal attribs of fat and assigns them to self...
-            #self.fat = fat
-            #print 'Recovered fat from %r' % fatfname
-        except: # .fat file doesn't exist, or something's wrong with it. Parse the .srf file
+            # Grab all normal attribs of fat and assign them to self
+            for key, val in fat.__dict__.items():
+                self.__setattr__(key, val)
+            print 'Recovered parse info from %r' % fatfname
+        except IOError: # .parse file doesn't exist, or something's wrong with it. Parse the .srf file
             print 'Parsing %r' % self.f.name
             f = self.f # abbrev
             f.seek(0) # make sure we're at the start of the srf file before trying to parse it
@@ -86,7 +93,6 @@ class SurfFile(object):
             while 1:
                 flag = f.read(2) # returns empty string when EOF is reached
                 if flag == '':
-                    print 'Done parsing'
                     break
                 f.seek(-2, 1) # put file pointer back to start of flag
                 if flag[0] == 'L': # polytrode layout record
@@ -132,14 +138,17 @@ class SurfFile(object):
             assert causalorder(self.highpassrecords)
             assert causalorder(self.lowpassrecords)
             assert causalorder(self.displayrecords)
+            assert causalorder(self.digitalsvalrecords)
 
             # connect the appropriate probe layout to each high and lowpass record
             for record in self.highpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
             for record in self.lowpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
-            '''
-            # Create and pickle a fat object to save all the parsed info
+
+            print 'Done parsing'
+
+            # Create a fat object, save all the parsed headers and records to it, and pickle it to a file
             fat = SurfFat()
             fat.surfheader = self.surfheader
             fat.drdbs = self.drdbs
@@ -148,11 +157,18 @@ class SurfFile(object):
             fat.highpassrecords = self.highpassrecords
             fat.lowpassrecords = self.lowpassrecords
             fat.displayrecords = self.displayrecords
+            fat.digitalsvalrecords = self.digitalsvalrecords
             ff = file(fatfname, 'wb')
-            p = cPickle.Pickler(ff, protocol=-1) # make a Pickler, use most efficient (least readable) protocol
-            p.dump(fat) # pickle fat to file
+            p = cPickle.Pickler(ff, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
+            def persistent_id(obj): # required to make the .srf file object persistent and remain open for reading when unpickled
+                if hasattr(obj, 'name'):
+                    return obj.name
+                else:
+                    return None
+            p.persistent_id = persistent_id # assign this method to the pickler
+            p.dump(fat) # pickle fat to .parse file
             ff.close()
-            '''
+            print 'Saved parse info to %r' % fatfname
 
 class SurfHeader(object):
     """Surf file header. Takes an open file, parses in from current file pointer position,
@@ -375,7 +391,7 @@ class ContinuousRecord(PolytrodeRecord):
         appropriate probe layout record has been assigned as a .layout attrib"""
         f = self.f # abbrev
         f.seek(self.waveformoffset)
-        self.waveform = np.asarray(struct.unpack('h'*self.NumSamples, f.read(2*self.NumSamples))) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
+        self.waveform = np.asarray(struct.unpack('h'*self.NumSamples, f.read(2*self.NumSamples)), dtype=np.int16) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
         self.waveform = self.waveform.reshape(self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
 
 class HighPassRecord(ContinuousRecord):
@@ -462,15 +478,15 @@ class SurfStream(object):
         return len(self.data)
 
     def __getitem__(self, key):
-        """Use the fat to decide where the item is in the file, return it according to interp"""
+        """Use the parse info to decide where the item is in the file, return it according to interp"""
         return self.data.__getitem__(key)
     '''
     def __getslice__(self, i, j): # not necessary? __getitem__ already supports slice objects as keys
-        """Use the fat to decide where the ith and j-1th items are in the file, return everything between them"""
+        """Use the parse info to decide where the ith and j-1th items are in the file, return everything between them"""
         return self.data.__getslice__(i, j)
     '''
 
-class SurfFat(object): # stores all the stuff to be pickled into a .fat and then unpickled as saved parse info
+class SurfFat(object): # stores all the stuff to be pickled into a .parse file and then unpickled as saved parse info
     def __init__(self):
         pass
 
