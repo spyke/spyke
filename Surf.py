@@ -567,6 +567,36 @@ class Stream(object):
         wf.data = waveform[:, lo:hi+endinclusive]
         wf.ts = ts[lo:hi+endinclusive]
         return wf
+    def plot(self, chanis=None, trange=None):
+        """Does a simple matplotlib plot of the specified chanis over trange"""
+        import pylab as pl
+        from pylab import get_current_fig_manager as gcfm
+        from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
+        if chanis == None:
+            chanis = range(self.records[0].layout.nchans)
+        if trange == None:
+            trange = (self.rts[0], self.rts[0]+100000)
+        wf = self[trange[0]:trange[1]] # make a waveform object
+        nchans = len(chanis)
+        figheight = 1.25+0.2*nchans
+        self.f = pl.figure(figsize=(16, figheight))
+        self.a = self.f.add_subplot(111)
+        gcfm().frame.SetTitle(lastcmd())
+        self.formatter = neuropyScalarFormatter() # better behaved tick label formatter
+        self.formatter.thousandsSep = ',' # use a thousands separator
+        self.a.xaxis.set_major_locator(neuropyAutoLocator()) # better behaved tick locator
+        self.a.xaxis.set_major_formatter(self.formatter)
+        for chanii, chani in enumerate(chanis):
+            self.a.plot(wf.ts/1e3, (np.int32(wf.data[chani])-2048+500*chanii)/500., '-', label=str(chani)) # upcast to int32 to prevent int16 overflow
+        #self.a.legend()
+        self.a.set_xlabel('time (ms)')
+        self.a.set_ylabel('channel id')
+        self.a.set_ylim(-1, nchans)
+        bottominches = 0.75
+        heightinches = 0.15+0.2*nchans
+        bottom = bottominches / figheight
+        height = heightinches / figheight
+        self.a.set_position([0.035, bottom, 0.94, height])
 
 class WaveForm(object):
     """Waveform object, has data and ts attribs"""

@@ -1,37 +1,21 @@
-- make srf file object that inherits from file object, parses .srf file
-    - instantiate: srf = SurfFile('blah.srf')
-        - parsing results saved as .fat file as does surfbawd? maybe not use the same format
-            - call it a .parse file
-            - use pickling to create this file
-        - din and log all loaded in at once
-    - srf has attribs like spike data (highpass) object, lfp data (lowpass) object, din, log, others?
-        - er, maybe refer to spike waveforms as highpass data, and lfp as lowpass data
-    - maybe srf has seek, read and tell methods, where you specify time in us
-        - srf.seek(t=10003924) # this updates file pointers of spike and lfp data
-        - or srf.seek(i=5000) # takes you to the 5000th (spike waveform?) timepoint
-        - or srf.seek(buffer=10) # takes you to the 10th buffer
-        - srf.tell()
-        - this should automatically load the appropriate buffer(s)
-        - then when you go to read either spike or lfp data, it returns data from that offset
-        - maybe spike and lfp should be unlinked?
-    - or, inherit from ndarray so you can stream from .srf file, get easy access to data using normal ndarray indexing and slicing?
-        - make some kind of buffer array
-        - or, forget inheriting, use a 2d array as the underlying data storage of a buffer object, give that buffer object the same indexing capabilities with magic methods?
-            - can ndarray indexing/slicing abilities be exposed as magic methods?
-        - what about interpolation?
+- interpolation
 
 - have a log window at bottom that details everything going on behind the scenes
     - this could simply be an integrated pyshell window, so you can do things from command line instead of being forced to use interface
-        - also, use it to examine and mess with internals, including wxpy internals
-- make it importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy.
-    - use if __name__ == '__main__'
+    - also, use it to examine and mess with internals, including wxpy internals
+
+- make spyke importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy.
 
 - need to look into just how complex and slow the (automated) sorting will be
-    - can it all be done in Python?
+    - can it all be done in pure Python?
     - start with manual template definition
 
 - how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
-    - email wxpython list on displaying time series data. Borrow something from MPL?
+    - email wxpython list on displaying time series data.
+    - wxpy 2.8 should be faster, doesn't need to copy data
+    - borrow something from MPL?
+
+- spike (and lfp?) data need to be corrected for S+H delay offsets!!! do this during interpolation as in Surfbawd?
 
 - lfp data need to be corrected for offsets induced by low-pass filters
     - what are the spectral phase and amplitude characteristics of the filters?
