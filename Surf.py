@@ -5,6 +5,8 @@ import os
 import cPickle
 import struct
 
+NULL = '\x00'
+
 # Surf file header constants, field sizes in bytes
 UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
 UFF_NAME_LEN = 10
@@ -35,42 +37,53 @@ NVS_PARAM_LEN = 749
 PYTHON_TBL_LEN = 50000
 
 
-class SurfFile(object):
+class File(object):
     """Opens a .srf file and exposes all of its headers and records as attribs.
     If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
-    Stores as attribs: srf header, srf data record descriptor blocks, electrode layout records,
-    message records, high and low pass stream records, stimulus display header records, and stimulus digital val records."""
-    def __init__(self, fname='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
-        self.f = file(fname, 'rb')
+    Stores as attribs: Surf file header, Surf data record descriptor blocks, electrode layout records,
+    message records, high and low pass continuous waveform records, stimulus display header records,
+    and stimulus digital single val records"""
+    def __init__(self, name='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
+        self.name = name
+        self.open()
+        self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
+
+    def open(self):
+        """Opens the .srf file"""
+        self.f = file(self.name, 'rb')
 
     def close(self):
+        """Closes the .srf file"""
         self.f.close()
 
-    def parse(self):
-        fatfname = os.path.splitext(self.f.name)[0] + '.parse'
-        try: # recover SurfFat object pickled in .parse file
-            ff = file(fatfname, 'rb')
-            u = cPickle.Unpickler(ff)
+    def parse(self, force=True, save=False):
+        """Parses the .srf file"""
+        try: # recover Fat object pickled in .parse file
+            if force: # force a new parsing
+                raise IOError # make the try fail, skip to the except
+            print 'Trying to recover parse info from %r' % self.parsefname
+            pf = file(self.parsefname, 'rb')
+            u = cPickle.Unpickler(pf)
             def persistent_load(persid): # required to restore the .srf file object as an existing open file for reading
                 if persid == self.f.name:
                     return self.f
                 else:
-                    raise cPickle.UnpicklingError, 'Invalid persistent id'
+                    raise cPickle.UnpicklingError, 'Invalid persistent id: %r' % persid
             u.persistent_load = persistent_load # add this method to the unpickler
             fat = u.load()
-            ff.close()
+            pf.close()
             # Grab all normal attribs of fat and assign them to self
             for key, val in fat.__dict__.items():
                 self.__setattr__(key, val)
-            print 'Recovered parse info from %r' % fatfname
-        except IOError: # .parse file doesn't exist, or something's wrong with it. Parse the .srf file
+            print 'Recovered parse info from %r' % self.parsefname
+        except IOError: # parsing is being forced, or .parse file doesn't exist, or something's wrong with it. Parse the .srf file
             print 'Parsing %r' % self.f.name
             f = self.f # abbrev
             f.seek(0) # make sure we're at the start of the srf file before trying to parse it
 
-            # Parse the Surf header
-            self.surfheader = SurfHeader(f)
-            self.surfheader.parse()
+            # Parse the Surf file header
+            self.fileheader = FileHeader(f)
+            self.fileheader.parse()
 
             # Parse the DRDBs (Data Record Descriptor Blocks)
             self.drdbs = []
@@ -131,8 +144,10 @@ class SurfFile(object):
                         raise ValueError, 'Unknown single value record type %s' % flag[1]
                 else:
                     raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
+            print 'Done parsing %r' % self.f.name
 
             # Make sure timestamps of all records are in causal (increasing) order. If not, sort them I guess?
+            print 'Asserting increasing record order'
             assert causalorder(self.layoutrecords)
             assert causalorder(self.messagerecords)
             assert causalorder(self.highpassrecords)
@@ -141,38 +156,42 @@ class SurfFile(object):
             assert causalorder(self.digitalsvalrecords)
 
             # connect the appropriate probe layout to each high and lowpass record
+            print 'Connecting probe layouts to waveform records'
             for record in self.highpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
             for record in self.lowpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
 
-            print 'Done parsing'
+            if save:
+                self.save()
 
-            # Create a fat object, save all the parsed headers and records to it, and pickle it to a file
-            fat = SurfFat()
-            fat.surfheader = self.surfheader
-            fat.drdbs = self.drdbs
-            fat.layoutrecords = self.layoutrecords
-            fat.messagerecords = self.messagerecords
-            fat.highpassrecords = self.highpassrecords
-            fat.lowpassrecords = self.lowpassrecords
-            fat.displayrecords = self.displayrecords
-            fat.digitalsvalrecords = self.digitalsvalrecords
-            ff = file(fatfname, 'wb')
-            p = cPickle.Pickler(ff, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
-            def persistent_id(obj): # required to make the .srf file object persistent and remain open for reading when unpickled
-                if hasattr(obj, 'name'):
-                    return obj.name
-                else:
-                    return None
-            p.persistent_id = persistent_id # assign this method to the pickler
-            p.dump(fat) # pickle fat to .parse file
-            ff.close()
-            print 'Saved parse info to %r' % fatfname
+    def save(self):
+        """Creates a Fat object, saves all the parsed headers and records to it, and pickles it to a file"""
+        print 'Saving parse info to %r' % self.parsefname
+        fat = Fat()
+        fat.fileheader = self.fileheader
+        fat.drdbs = self.drdbs
+        fat.layoutrecords = self.layoutrecords
+        fat.messagerecords = self.messagerecords
+        fat.highpassrecords = self.highpassrecords
+        fat.lowpassrecords = self.lowpassrecords
+        fat.displayrecords = self.displayrecords
+        fat.digitalsvalrecords = self.digitalsvalrecords
+        pf = file(self.parsefname, 'wb')
+        p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
+        def persistent_id(obj): # required to make the .srf file object persistent and remain open for reading when unpickled
+            if hasattr(obj, 'name'):
+                return obj.name # the file object's filename defines its persistent id for pickling purposes
+            else:
+                return None
+        p.persistent_id = persistent_id # assign this method to the pickler
+        p.dump(fat) # pickle fat to .parse file
+        pf.close()
+        print 'Saved parse info to %r' % self.parsefname
 
-class SurfHeader(object):
+class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file pointer position,
-    stores header fields as attibs"""
+    stores header fields as attribs"""
     def __init__(self, f):
         self.f = f
     def parse(self):
@@ -182,29 +201,28 @@ class SurfHeader(object):
         assert self.FH_rec_type == 1
         self.FH_rec_type_ext, = struct.unpack('B', f.read(1)) # must be 0
         assert self.FH_rec_type_ext == 0
-        self.UFF_name = f.read(UFF_NAME_LEN).rstrip('\x00') # must be 'UFF'
+        self.UFF_name = f.read(UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
         assert self.UFF_name == 'UFF'
         self.UFF_major, = struct.unpack('B', f.read(1)) # major UFF ver
         self.UFF_minor, = struct.unpack('B', f.read(1)) # minor UFF ver
         self.FH_rec_len, = struct.unpack('H', f.read(2)) # FH record length in bytes
         self.DRDB_rec_len, = struct.unpack('H', f.read(2)) # DBRD record length in bytes
         self.bi_di_seeks, = struct.unpack('H', f.read(2)) # 2 bi-directional seeks format
-        self.OS_name = f.read(UFF_OSNAME_LEN).rstrip('\x00') # OS name, ie "WINDOWS 2000"
+        self.OS_name = f.read(UFF_OSNAME_LEN).rstrip(NULL) # OS name, ie "WINDOWS 2000"
         self.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
         self.create = TimeDate(f)
         self.create.parse() # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
         self.append = TimeDate(f)
         self.append.parse() # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes, although this tends to be identical to creation time for some reason
-        self.node = f.read(UFF_NODENAME_LEN).rstrip('\x00') # system node name - same as BDT
-        self.device = f.read(UFF_DEVICE_LEN).rstrip('\x00') # device name - same as BDT
-        self.path = f.read(UFF_PATH_LEN).rstrip('\x00') # path name
-        # this has some kinda problem in .srf file '81 - track 7c mseq16exps.srfcula'
-        self.filename = f.read(UFF_FILENAME_LEN).rstrip('\x00') # original file name at creation
-        self.pad = f.read(UFF_FH_PAD_LEN).replace('\x00', ' ') # pad area to bring uff area to 512
-        self.app_info = f.read(UFF_APPINFO_LEN).rstrip('\x00') # application task name & version
-        self.user_name = f.read(UFF_OWNER_LEN).rstrip('\x00') # user's name as owner of file
-        self.file_desc = f.read(UFF_FILEDESC_LEN).rstrip('\x00') # description of file/exp
+        self.node = f.read(UFF_NODENAME_LEN).rstrip(NULL) # system node name - same as BDT
+        self.device = f.read(UFF_DEVICE_LEN).rstrip(NULL) # device name - same as BDT
+        self.path = f.read(UFF_PATH_LEN).rstrip(NULL) # path name
+        self.filename = f.read(UFF_FILENAME_LEN).rstrip(NULL) # original file name at creation
+        self.pad = f.read(UFF_FH_PAD_LEN).replace(NULL, ' ') # pad area to bring uff area to 512
+        self.app_info = f.read(UFF_APPINFO_LEN).rstrip(NULL) # application task name & version
+        self.user_name = f.read(UFF_OWNER_LEN).rstrip(NULL) # user's name as owner of file
+        self.file_desc = f.read(UFF_FILEDESC_LEN).rstrip(NULL) # description of file/exp
         assert f.tell() - self.offset == 512 # non user area of UFF header should be 512 bytes
         self.user_area = struct.unpack('B'*UFF_FH_USERAREA_LEN, f.read(UFF_FH_USERAREA_LEN)) # additional user area
         assert f.tell() - self.offset == UFF_FILEHEADER_LEN
@@ -222,7 +240,7 @@ class TimeDate(object):
         self.f = f
     def parse(self):
         f = self.f
-        self.offset = f.tell()
+        #self.offset = f.tell() # not really necessary, comment out to save memory
         self.sec, = struct.unpack('H', f.read(2))
         self.min, = struct.unpack('H', f.read(2))
         self.hour, = struct.unpack('H', f.read(2))
@@ -246,7 +264,7 @@ class DRDB(object):
         assert int(struct.unpack('B', self.DR_rec_type)[0]) in range(3, 256) # don't know quite why SurfBawd required these byte values, this is more than the normal set of ASCII chars
         self.DR_rec_type_ext, = struct.unpack('B', f.read(1)) # Data Record type ext; ignored
         self.DR_size, = struct.unpack('l', f.read(4)) # Data Record size in bytes, signed, -1 means dynamic
-        self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip('\x00') # Data Record name
+        self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip(NULL) # Data Record name
         self.DR_num_fields, = struct.unpack('H', f.read(2)) # number of sub-fields in Data Record
         self.DR_pad = struct.unpack('B'*UFF_DRDB_PAD_LEN, f.read(UFF_DRDB_PAD_LEN)) # pad bytes for expansion
         self.DR_subfields = [] # sub fields desc. RSFD = Record Subfield Descriptor
@@ -276,7 +294,7 @@ class RSFD(object):
     def parse(self):
         f = self.f # abbrev
         self.offset = f.tell()
-        self.subfield_name = f.read(UFF_DRDB_RSFD_NAME_LEN).rstrip('\x00') # DRDB subfield name
+        self.subfield_name = f.read(UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL) # DRDB subfield name
         self.subfield_data_type, = struct.unpack('H', f.read(2)) # underlying data type
         self.subfield_size, = struct.unpack('l', f.read(4)) # sub field size in bytes, signed
         self.length = f.tell() - self.offset
@@ -288,7 +306,7 @@ class LayoutRecord(object):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell()
+        #self.offset = f.tell() # not really necessary, comment out to save memory
         self.UffType = f.read(1) # Record type 'L'
         f.seek(7, 1) # hack to skip next 7 bytes
         self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
@@ -303,8 +321,8 @@ class LayoutRecord(object):
         self.Probe, = struct.unpack('h', f.read(2)) # probe number
         self.ProbeSubType = f.read(1) # =E,S,C for epochspike, spikestream, or continuoustype
         f.seek(1, 1) # hack to skip next byte
-        self.nchans, = struct.unpack('h', f.read(2)) # number of channels in the probe (54)
-        self.pts_per_chan, = struct.unpack('h', f.read(2)) # number of samples per waveform per channel (display) (25, 100)
+        self.nchans, = struct.unpack('h', f.read(2)) # number of channels in the probe (54, 1)
+        self.pts_per_chan, = struct.unpack('h', f.read(2)) # number of samples displayed per waveform per channel (25, 100)
         f.seek(2, 1) # hack to skip next 2 bytes
         self.pts_per_buffer, = struct.unpack('l', f.read(4)) # {n/a to cat9} total number of samples per file buffer for this probe (redundant with SS_REC.NumSamples) (135000, 100)
         self.trigpt, = struct.unpack('h', f.read(2)) # pts before trigger (7)
@@ -314,25 +332,21 @@ class LayoutRecord(object):
         self.sh_delay_offset, = struct.unpack('h', f.read(2)) # S:H delay offset for first channel of this probe (1)
         f.seek(2, 1) # hack to skip next 2 bytes
         self.sampfreqperchan, = struct.unpack('l', f.read(4)) # A/D sampling frequency specific to this probe (ie. after decimation, if any) (25000, 1000)
+        self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6)) # us, store it here for convenience
         self.extgain = struct.unpack('H'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999 - only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
         self.extgain = self.extgain[:self.nchans] # throw away the junk values
         self.intgain, = struct.unpack('h', f.read(2)) # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
         self.chanlist = struct.unpack('h'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it is an array of 64, so delete 32*4=128 bytes from end
         self.chanlist = self.chanlist[:self.nchans] # throw away the junk values
         f.seek(1, 1) # hack to skip next byte
-        self.probe_descrip = f.read(255).rstrip('\x00') # ShortString (uMap54_2a, 65um spacing)
+        self.probe_descrip = f.read(255).rstrip(NULL) # ShortString (uMap54_2a, 65um spacing)
         f.seek(1, 1) # hack to skip next byte
-        self.electrode_name = f.read(255).rstrip('\x00') # ShortString (uMap54_2a)
+        self.electrode_name = f.read(255).rstrip(NULL) # ShortString (uMap54_2a)
         f.seek(2, 1) # hack to skip next 2 bytes
         self.probewinlayout = ProbeWinLayout(f)
         self.probewinlayout.parse() # MOVE BELOW CHANLIST FOR CAT 9 v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
-        self.pad = struct.unpack('B'*(880-4-2), f.read(880-4-2)) # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE; {pad for future expansion/modification}
+        self.pad = struct.unpack(str(880-4-2)+'B', f.read(880-4-2)) # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE; {pad for future expansion/modification}
         f.seek(6, 1) # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
-
-    """
-    with SurfRecord do
-      m_ProbeWaveFormLength[probe]:= nchans * pts_per_chan; //necessary, others here too?
-    """
 
 class ProbeWinLayout(object):
     """Probe window layout"""
@@ -340,7 +354,7 @@ class ProbeWinLayout(object):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell()
+        #self.offset = f.tell() # not really necessary, comment out to save memory
         self.left, = struct.unpack('l', f.read(4))
         self.top, = struct.unpack('l', f.read(4))
         self.width, = struct.unpack('l', f.read(4))
@@ -352,7 +366,7 @@ class MessageRecord(object):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell()
+        #self.offset = f.tell() # not really necessary, comment out to save memory
         self.UffType = f.read(1) # 1 byte -- SURF_MSG_REC_UFFTYPE: 'M'
         self.SubType = f.read(1) # 1 byte -- 'U' user or 'S' Surf-generated
         f.seek(6, 1) # hack to skip next 6 bytes
@@ -360,25 +374,27 @@ class MessageRecord(object):
         self.DateTime, = struct.unpack('d', f.read(8)) # 8 bytes -- double - number of days (integral and fractional) since 30 Dec 1899
         self.MsgLength, = struct.unpack('l', f.read(4)) # 4 bytes -- length of the msg string
         self.Msg = f.read(self.MsgLength) # any length message {shortstring - for cat9!!!}
-
+'''
 class PolytrodeRecord(object):
     """Base Polytrode record"""
     def __init__(self, f):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell()
-        self.UffType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'P'
+        #self.offset = f.tell() # not really necessary, comment out to save memory
+        f.seek(8, 1) # for speed and memory, skip reading the UffType and SubType
+        #self.UffType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'P'
 
 class ContinuousRecord(PolytrodeRecord):
-    """Continuous waveform recording"""
+    """Continuous waveform record"""
     def __init__(self, f):
         super(ContinuousRecord, self).__init__(f)
     def parse(self):
         super(ContinuousRecord, self).parse()
         f = self.f # abbrev
-        self.SubType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'S' for spikestream (highpass), 'C' for other continuous (lowpass)}
-        f.seek(6, 1) # hack to skip next 6 bytes
+        # for speed and memory, skip reading the UffType and SubType
+        #self.SubType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'S' for spikestream (highpass), 'C' for other continuous (lowpass)}
+        #f.seek(6, 1) # hack to skip next 6 bytes
         self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
         self.Probe, = struct.unpack('h', f.read(2)) # {2 bytes -- the probe number}
         f.seek(2, 1) # hack to skip next 2 bytes - guessing this should be before the CRC????????????????????????????????????
@@ -391,26 +407,47 @@ class ContinuousRecord(PolytrodeRecord):
         appropriate probe layout record has been assigned as a .layout attrib"""
         f = self.f # abbrev
         f.seek(self.waveformoffset)
-        self.waveform = np.asarray(struct.unpack('h'*self.NumSamples, f.read(2*self.NumSamples)), dtype=np.int16) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
+        self.waveform = np.asarray(struct.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
+        self.waveform = self.waveform.reshape(self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
+'''
+class ContinuousRecord(object):
+    """Continuous waveform record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        # for speed and memory, read all 28 bytes at a time, skip reading UffType, SubType, and CRC32 (which is always 0 anyway?)
+        (junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples) = struct.unpack('qqhhll', f.read(28))
+        self.waveformoffset = f.tell()
+        f.seek(self.NumSamples*2, 1) # skip the waveform data for now
+    def load(self):
+        """Loads waveform data for this continuous record, assumes that the
+        appropriate probe layout record has been assigned as a .layout attrib"""
+        f = self.f # abbrev
+        f.seek(self.waveformoffset)
+        self.waveform = np.asarray(struct.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
         self.waveform = self.waveform.reshape(self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
 
 class HighPassRecord(ContinuousRecord):
+    """High-pass continuous waveform record"""
     pass
 
 class LowPassRecord(ContinuousRecord):
+    """Low-pass continuous waveform record"""
     pass
-
+'''
 class EpochRecord(PolytrodeRecord):
+    """Epoch waveform record, currently unsupported"""
     def __init__(self, f):
         super(EpochRecord, self).__init__(f)
-
+'''
 class DisplayRecord(object):
     """Stimulus display header record"""
     def __init__(self, f):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell()
+        #self.offset = f.tell() # not really necessary, comment out to save memory
         self.UffType = f.read(1) # 1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
         f.seek(7, 1) # hack to skip next 7 bytes
         self.TimeStamp, = struct.unpack('q', f.read(8)) # Cardinal, 64 bit signed int
@@ -425,10 +462,10 @@ class StimulusHeader(object):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell()
-        self.header = f.read(2).rstrip('\x00') # always 'DS'?
+        #self.offset = f.tell() # not really necessary, comment out to save memory
+        self.header = f.read(2).rstrip(NULL) # always 'DS'?
         self.version, = struct.unpack('H', f.read(2))
-        self.filename = f.read(STIMULUS_HEADER_FILENAME_LEN).rstrip('\x00')
+        self.filename = f.read(STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
         self.parameter_tbl = list(struct.unpack('f'*NVS_PARAM_LEN, f.read(4*NVS_PARAM_LEN))) # NVS binary header, array of single floats
         for parami, param in enumerate(self.parameter_tbl):
             if str(param) == '1.#QNAN':
@@ -442,17 +479,18 @@ class StimulusHeader(object):
         self.gamma_offset, = struct.unpack('f', f.read(4))
         self.est_runtime, = struct.unpack('H', f.read(2)) # in seconds
         self.checksum, = struct.unpack('H', f.read(2))
-
+'''
 class SValRecord(object):
     """Single value record"""
     def __init__(self, f):
         self.f = f
     def parse(self):
         f = self.f # abbrev
-        self.offset = f.tell() # not really necessary, wastes memory cuz there's so many of these records
-        self.UffType = f.read(1) # 1 byte -- SURF_SV_REC_UFFTYPE: 'V'
-        self.SubType = f.read(1) # 1 byte -- 'D' digital or 'A' analog
-        f.seek(6, 1) # hack to skip next 6 bytes
+        #self.offset = f.tell() # not really necessary, comment out to save memory
+        f.seek(8, 1) # for speed and memory, skip reading the UffType and SubType
+        #self.UffType = f.read(1) # 1 byte -- SURF_SV_REC_UFFTYPE: 'V'
+        #self.SubType = f.read(1) # 1 byte -- 'D' digital or 'A' analog
+        #f.seek(6, 1) # hack to skip next 6 bytes
         self.TimeStamp, = struct.unpack('q', f.read(8)) # Cardinal, 64 bit signed int
 
 class DigitalSValRecord(SValRecord):
@@ -462,46 +500,100 @@ class DigitalSValRecord(SValRecord):
     def parse(self):
         super(DigitalSValRecord, self).parse()
         f = self.f # abbrev
-        self.SVal, = struct.unpack('H', f.read(2)) # 2 bytes -- 16 bit single value
-        f.seek(6, 1) # hack to skip next 6 bytes
+        # read 8 bytes at a time for speed:
+        self.SVal = struct.unpack('HHL', f.read(8))[0] # 2 bytes -- 16 bit single value
+        #self.SVal, = struct.unpack('H', f.read(2)) # 2 bytes -- 16 bit single value
+        #f.seek(6, 1) # hack to skip next 6 bytes
+'''
+class DigitalSValRecord(object):
+    """Digital single value record"""
+    def __init__(self, f):
+        self.f = f
+    def parse(self):
+        f = self.f # abbrev
+        # for speed and memory, read all 24 bytes at a time, skip UffType and SubType
+        (junk, self.TimeStamp, self.SVal, junk, junk) = struct.unpack('QQHHL', f.read(24)) # Cardinal, 64 bit signed int; 16 bit single value
 
-class SurfStream(object):
-    """Maps between timestamps and record index of stream data to retrieve
-    the approriate range of waveform data from disk.
-    Returns either raw or interpolated, depending on interp attrib"""
-    def __init__(self, interp=False):
-        self.data = np.random.randint(0, 9, 10)
-        self.interp = interp
+class Stream(object):
+    """Streaming object. Maps between timestamps and record index of stream data to retrieve
+    the approriate range of waveform data from disk."""
+    def __init__(self, records=None):
+        """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording) sequence of ContinuousRecords"""
+        self.records = records
+        self.rts = np.asarray([record.TimeStamp for record in self.records]) # array of record timestamps
 
     def __len__(self):
-        """Should this return length in time? Number of data points? Interp'd or raw?"""
-        return len(self.data)
+        """Total number of timepoints? Length in time? Interp'd or raw?"""
+        pass
 
-    def __getitem__(self, key):
-        """Use the parse info to decide where the item is in the file, return it according to interp"""
-        return self.data.__getitem__(key)
-    '''
-    def __getslice__(self, i, j): # not necessary? __getitem__ already supports slice objects as keys
-        """Use the parse info to decide where the ith and j-1th items are in the file, return everything between them"""
-        return self.data.__getslice__(i, j)
-    '''
+    def __getitem__(self, key, endinclusive=False):
+        """Called when Stream object is indexed into using [] or with a slice object,
+        indicating start and end timepoints in us. Returns the corresponding 2D multichannel waveform arrays,
+        as well as their timepoints, potentially spanning multiple ContinuousRecords"""
+        assert key.__class__ == slice # for now, just accept slice objects as keys
 
-class SurfFat(object): # stores all the stuff to be pickled into a .parse file and then unpickled as saved parse info
+        lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right') # find the first and last records corresponding to the slice. If the start of the slice matches a record's timestamp, start with that record. If the end of the slice matches a record's timestamp, end with that record (even though you'll only potentially use the one timepoint from that record, depending on the value of 'endinclusive')
+        cutrecords = self.records[max(lorec-1, 0):max(hirec, 1)] # we always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do lower bounds checking (don't go less than 0), but not upper bounds checking
+
+        for record in cutrecords:
+            try:
+                record.waveform
+            except AttributeError:
+                record.load() # to save time, only load the waveform if not already loaded
+        waveform = np.concatenate([record.waveform for record in cutrecords], axis=1) # join all waveforms, returns a copy
+        tres = cutrecords[0].layout.tres # all records should be using the same layout, use tres from the first one
+        # build up waveform timestamps, taking into account any time gaps in between records due to pauses in recording
+        ts = []
+        for record in cutrecords:
+            tstart = record.TimeStamp
+            nt = record.waveform.shape[-1] # number of timepoints (columns) in this record's waveform
+            ts.extend(range(tstart, tstart + nt*tres, tres))
+        '''
+        # this code would be faster, but wouldn't take into account pauses in recording:
+        tres = cutrecords[0].layout.tres # all records should be using the same layout, use tres from the first one
+        tstart = cutrecords[0].TimeStamp
+        tend = tstart + len(waveform)*tres
+        ts = np.arange(tstart, tend, tres)
+        '''
+        ts = np.asarray(ts)
+        lo, hi = ts.searchsorted([key.start, key.stop])
+        '''
+        # clean up stuff that isn't needed anymore
+        for record in cutrecords:
+            del record.waveform
+        '''
+        #import pdb; pdb.set_trace()
+        wf = WaveForm()
+        wf.data = waveform[:, lo:hi+endinclusive]
+        wf.ts = ts[lo:hi+endinclusive]
+        return wf
+
+class WaveForm(object):
+    """Waveform object, has data and ts attribs"""
+    def __init__(self):
+        self.data = None
+        self.ts = None
+    def interp(self, f=50000):
+        """Returns a new waveform object with data and timepoints interpolated from this one"""
+        pass
+
+class Fat(object):
+    """Stores all the stuff to be pickled into a .parse file and then unpickled as saved parse info"""
     def __init__(self):
         pass
 
-class HighPass(SurfStream): # or call this SpikeStream?
+class HighPass(Stream): # or call this SpikeStream?
     def __init__(self, interp=50000):
         super(HighPass, self).__init__(interp=interp)
 
-class LowPass(SurfStream): # or call this LFPStream?
+class LowPass(Stream): # or call this LFPStream?
     def __init__(self, interp=False):
         super(LowPass, self).__init__(interp=interp)
 
-def causalorder(recordlist):
-    """Checks to see if the timestamps of all the records in recordlist are in
+def causalorder(records):
+    """Checks to see if the timestamps of all the records are in
     causal (increasing) order. Returns True or False"""
-    for record1, record2 in zip(recordlist[:-1], recordlist[1:]):
+    for record1, record2 in zip(records[:-1], records[1:]):
         if record1.TimeStamp > record2.TimeStamp:
             return False
     return True
