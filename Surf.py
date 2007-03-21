@@ -101,6 +101,7 @@ class File(object):
             self.messagerecords = []
             self.highpassrecords = []
             self.lowpassrecords = []
+            self.lowpassmultirecords = []
             self.displayrecords = []
             self.digitalsvalrecords = []
             while 1:
@@ -162,6 +163,16 @@ class File(object):
             for record in self.lowpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
 
+            # arrange single channel lowpass records into multichannel lowpass records
+            print 'Rearranging single lowpass records into multichannel lowpass records'
+            rts = np.asarray([record.TimeStamp for record in self.lowpassrecords]) # array of lowpass record timestamps
+            rtsis, = np.diff(rts).nonzero() # find at which records the timestamps change
+            rtsis = np.concatenate([[0], rtsis+1, [len(rts)]]) # convert to edge values appropriate for getting slices of records with the same timestamp
+            for rtsii in range(1, len(rtsis)): # start with the second rtsi
+                lo = rtsis[rtsii-1]
+                hi = rtsis[rtsii]
+                self.lowpassmultirecords.append(LowPassMultiRecord(self.lowpassrecords[lo:hi]))
+
             if save:
                 self.save()
 
@@ -175,6 +186,7 @@ class File(object):
         fat.messagerecords = self.messagerecords
         fat.highpassrecords = self.highpassrecords
         fat.lowpassrecords = self.lowpassrecords
+        fat.lowpassmultirecords = self.lowpassmultirecords
         fat.displayrecords = self.displayrecords
         fat.digitalsvalrecords = self.digitalsvalrecords
         pf = file(self.parsefname, 'wb')
@@ -435,6 +447,31 @@ class HighPassRecord(ContinuousRecord):
 class LowPassRecord(ContinuousRecord):
     """Low-pass continuous waveform record"""
     pass
+
+class LowPassMultiRecord(object):
+    """Low-pass multichannel (usually 10) continuous waveform record"""
+    def __init__(self, lowpassrecords):
+        """Takes several low pass records, all at the same timestamp"""
+        self.lowpassrecords = toiter(lowpassrecords)
+        self.TimeStamp = self.lowpassrecords[0].TimeStamp
+        self.tres = self.lowpassrecords[0].layout.tres
+        self.chanis = []
+        #self.waveformoffsets = []
+        for recordi, record in enumerate(self.lowpassrecords):
+            assert record.TimeStamp == self.TimeStamp # make sure all passed lowpassrecords have the same timestamp
+            assert record.layout.tres == self.tres # ditto
+            newchanis = [ chani for chani in record.layout.chanlist if chani not in self.chanis ]
+            assert newchanis != [] # make sure there aren't any duplicate channels
+            self.chanis.extend(newchanis)
+
+    def load(self):
+        """Load waveform data for each lowpass record, appending it as channel(s) to a single
+        2D waveform array"""
+        self.waveform = []
+        for record in self.lowpassrecords:
+            record.load()
+            self.waveform.append(record.waveform) # shouldn't matter if record.waveform is one channel (row) or several
+        self.waveform = np.squeeze(self.waveform) # save as array, removing singleton dimensions
 '''
 class EpochRecord(PolytrodeRecord):
     """Epoch waveform record, currently unsupported"""
@@ -518,7 +555,8 @@ class Stream(object):
     """Streaming object. Maps between timestamps and record index of stream data to retrieve
     the approriate range of waveform data from disk."""
     def __init__(self, records=None):
-        """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording) sequence of ContinuousRecords"""
+        """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
+        sequence of ContinuousRecords: either HighPassRecords or LowPassMultiRecords"""
         self.records = records
         self.rts = np.asarray([record.TimeStamp for record in self.records]) # array of record timestamps
 
@@ -531,30 +569,24 @@ class Stream(object):
         indicating start and end timepoints in us. Returns the corresponding 2D multichannel waveform arrays,
         as well as their timepoints, potentially spanning multiple ContinuousRecords"""
         assert key.__class__ == slice # for now, just accept slice objects as keys
-
         lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right') # find the first and last records corresponding to the slice. If the start of the slice matches a record's timestamp, start with that record. If the end of the slice matches a record's timestamp, end with that record (even though you'll only potentially use the one timepoint from that record, depending on the value of 'endinclusive')
         cutrecords = self.records[max(lorec-1, 0):max(hirec, 1)] # we always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do lower bounds checking (don't go less than 0), but not upper bounds checking
-
         for record in cutrecords:
             try:
                 record.waveform
             except AttributeError:
                 record.load() # to save time, only load the waveform if not already loaded
         waveform = np.concatenate([record.waveform for record in cutrecords], axis=1) # join all waveforms, returns a copy
-        tres = cutrecords[0].layout.tres # all records should be using the same layout, use tres from the first one
+        try:
+            tres = cutrecords[0].layout.tres # all highpass records should be using the same layout, use tres from the first one
+        except AttributeError:
+            tres = cutrecords[0].tres # records are lowpassmulti
         # build up waveform timestamps, taking into account any time gaps in between records due to pauses in recording
         ts = []
         for record in cutrecords:
             tstart = record.TimeStamp
             nt = record.waveform.shape[-1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
-        '''
-        # this code would be faster, but wouldn't take into account pauses in recording:
-        tres = cutrecords[0].layout.tres # all records should be using the same layout, use tres from the first one
-        tstart = cutrecords[0].TimeStamp
-        tend = tstart + len(waveform)*tres
-        ts = np.arange(tstart, tend, tres)
-        '''
         ts = np.asarray(ts)
         lo, hi = ts.searchsorted([key.start, key.stop])
         '''
@@ -562,7 +594,6 @@ class Stream(object):
         for record in cutrecords:
             del record.waveform
         '''
-        #import pdb; pdb.set_trace()
         wf = WaveForm()
         wf.data = waveform[:, lo:hi+endinclusive]
         wf.ts = ts[lo:hi+endinclusive]
@@ -573,11 +604,16 @@ class Stream(object):
         from pylab import get_current_fig_manager as gcfm
         from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
         if chanis == None:
-            chanis = range(self.records[0].layout.nchans)
+            if self.records[0].__class__ == HighPassRecord: # all high pass records should have the same chanlist
+                chanis = self.records[0].layout.chanlist
+            elif self.records[0].__class__ == LowPassMultiRecord: # same goes for lowpassmutlirecords, each has its own set of chanis, derived previously from multiple single layout.chanlists
+                chanis = self.records[0].chanis
+            else:
+                raise ValueError, 'unknown record type %s in self.records' % self.records[0].__class__
+        nchans = len(chanis)
         if trange == None:
             trange = (self.rts[0], self.rts[0]+100000)
         wf = self[trange[0]:trange[1]] # make a waveform object
-        nchans = len(chanis)
         figheight = 1.25+0.2*nchans
         self.f = pl.figure(figsize=(16, figheight))
         self.a = self.f.add_subplot(111)
@@ -587,11 +623,11 @@ class Stream(object):
         self.a.xaxis.set_major_locator(neuropyAutoLocator()) # better behaved tick locator
         self.a.xaxis.set_major_formatter(self.formatter)
         for chanii, chani in enumerate(chanis):
-            self.a.plot(wf.ts/1e3, (np.int32(wf.data[chani])-2048+500*chanii)/500., '-', label=str(chani)) # upcast to int32 to prevent int16 overflow
+            self.a.plot(wf.ts/1e3, (np.int32(wf.data[chanii])-2048+500*chani)/500., '-', label=str(chani)) # upcast to int32 to prevent int16 overflow
         #self.a.legend()
         self.a.set_xlabel('time (ms)')
         self.a.set_ylabel('channel id')
-        self.a.set_ylim(-1, nchans)
+        self.a.set_ylim(chanis[0]-1, chanis[-1]+1)
         bottominches = 0.75
         heightinches = 0.15+0.2*nchans
         bottom = bottominches / figheight
@@ -627,3 +663,21 @@ def causalorder(records):
         if record1.TimeStamp > record2.TimeStamp:
             return False
     return True
+
+def iterable(x):
+    """Check if the input is iterable, stolen from numpy.iterable()"""
+    try:
+        iter(x)
+        return True
+    except:
+        return False
+
+def toiter(x):
+    """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
+    Useful when you want to iterate over an object (like in a for loop),
+    and you don't want to have to do type checking or handle exceptions
+    when the object isn't a sequence"""
+    if iterable(x):
+        return x
+    else:
+        return [x]
