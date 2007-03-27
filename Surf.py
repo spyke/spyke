@@ -6,6 +6,7 @@ import cPickle
 import struct
 
 NULL = '\x00'
+DEFAULTSURFFNAME = 'C:/data/Cat 15/81 - track 7c mseq16exps.srf'
 
 # Surf file header constants, field sizes in bytes
 UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
@@ -39,11 +40,11 @@ PYTHON_TBL_LEN = 50000
 
 class File(object):
     """Opens a .srf file and exposes all of its headers and records as attribs.
-    If no synonymous .parse file exists, parses the .srf file, stores parsing in a .parse file.
+    If no synonymous .parse file exists, parses the .srf file and saves the parsing in a .parse file.
     Stores as attribs: Surf file header, Surf data record descriptor blocks, electrode layout records,
     message records, high and low pass continuous waveform records, stimulus display header records,
     and stimulus digital single val records"""
-    def __init__(self, name='C:/data/Cat 15/81 - track 7c mseq16exps.srf'):
+    def __init__(self, name=DEFAULTSURFFNAME):
         self.name = name
         self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
@@ -105,7 +106,7 @@ class File(object):
             self.displayrecords = []
             self.digitalsvalrecords = []
             while 1:
-                flag = f.read(2) # returns empty string when EOF is reached
+                flag = f.read(2) # returns an empty string when EOF is reached
                 if flag == '':
                     break
                 f.seek(-2, 1) # put file pointer back to start of flag
@@ -156,14 +157,14 @@ class File(object):
             assert causalorder(self.displayrecords)
             assert causalorder(self.digitalsvalrecords)
 
-            # connect the appropriate probe layout to each high and lowpass record
+            # Connect the appropriate probe layout to each high and lowpass record
             print 'Connecting probe layouts to waveform records'
             for record in self.highpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
             for record in self.lowpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
 
-            # arrange single channel lowpass records into multichannel lowpass records
+            # Rearrange single channel lowpass records into multichannel lowpass records
             print 'Rearranging single lowpass records into multichannel lowpass records'
             rts = np.asarray([record.TimeStamp for record in self.lowpassrecords]) # array of lowpass record timestamps
             rtsis, = np.diff(rts).nonzero() # find at which records the timestamps change
@@ -507,7 +508,7 @@ class StimulusHeader(object):
         for parami, param in enumerate(self.parameter_tbl):
             if str(param) == '1.#QNAN':
                 self.parameter_tbl[parami] = None # replace 'Quiet NAN' floats with Nones
-        self.python_tbl = f.read(PYTHON_TBL_LEN).rstrip() # Dimstim's text header
+        self.python_tbl = f.read(PYTHON_TBL_LEN).rstrip() # dimstim's text header
         self.screen_width, = struct.unpack('f', f.read(4)) # cm, single float
         self.screen_height, = struct.unpack('f', f.read(4)) # cm
         self.view_distance, = struct.unpack('f', f.read(4)) # cm
@@ -566,9 +567,10 @@ class Stream(object):
 
     def __getitem__(self, key, endinclusive=False):
         """Called when Stream object is indexed into using [] or with a slice object,
-        indicating start and end timepoints in us. Returns the corresponding 2D multichannel waveform arrays,
-        as well as their timepoints, potentially spanning multiple ContinuousRecords"""
-        assert key.__class__ == slice # for now, just accept slice objects as keys
+        indicating start and end timepoints in us. Returns the corresponding WaveForm object,
+        which has as its attribs the 2D multichannel waveform array as well as the timepoints,
+        potentially spanning multiple ContinuousRecords"""
+        assert key.__class__ == slice # for now, accept only slice objects as keys
         lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right') # find the first and last records corresponding to the slice. If the start of the slice matches a record's timestamp, start with that record. If the end of the slice matches a record's timestamp, end with that record (even though you'll only potentially use the one timepoint from that record, depending on the value of 'endinclusive')
         cutrecords = self.records[max(lorec-1, 0):max(hirec, 1)] # we always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do lower bounds checking (don't go less than 0), but not upper bounds checking
         for record in cutrecords:
@@ -599,7 +601,7 @@ class Stream(object):
         wf.ts = ts[lo:hi+endinclusive]
         return wf
     def plot(self, chanis=None, trange=None):
-        """Does a simple matplotlib plot of the specified chanis over trange"""
+        """Creates a simple matplotlib plot of the specified chanis over trange"""
         import pylab as pl
         from pylab import get_current_fig_manager as gcfm
         from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
@@ -627,7 +629,7 @@ class Stream(object):
         #self.a.legend()
         self.a.set_xlabel('time (ms)')
         self.a.set_ylabel('channel id')
-        self.a.set_ylim(chanis[0]-1, chanis[-1]+1)
+        self.a.set_ylim(chanis[0]-1, chanis[-1]+1) # assumes chanis are sorted
         bottominches = 0.75
         heightinches = 0.15+0.2*nchans
         bottom = bottominches / figheight

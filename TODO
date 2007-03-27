@@ -15,12 +15,12 @@
     - wxpy 2.8 should be faster, doesn't need to copy data
     - borrow something from MPL?
 
-- spike (and lfp?) data need to be corrected for S+H delay offsets. do this during interpolation as in Surfbawd?
+- spike (and lfp?) data need to be corrected for S+H delay offsets. Do this during interpolation as in Surfbawd?
 
 - lfp data need to be corrected for offsets induced by low-pass filters
     - what are the spectral phase and amplitude characteristics of the filters?
     - Tim mentioned Hilbert transforms are useful for this
-
+    - want to do CSDs as well - I guess these don't need to be filter offset corrected, since you're just comparing between lfp chans, not between lfp and spike chans
 
 ----------------------------------------------------
 - parsing progress bar
