@@ -1,4 +1,4 @@
-"""Handles parsing and streaming of SURF-generated .srf files"""
+"""Handles parsing and streaming of Surf-generated .srf files"""
 
 import numpy as np
 import os
@@ -6,7 +6,7 @@ import cPickle
 import struct
 
 NULL = '\x00'
-DEFAULTSURFFNAME = 'C:/data/Cat 15/81 - track 7c mseq16exps.srf'
+DEFAULTSRFFNAME = 'C:/data/Cat 15/81 - track 7c mseq16exps.srf'
 
 # Surf file header constants, field sizes in bytes
 UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
@@ -40,11 +40,11 @@ PYTHON_TBL_LEN = 50000
 
 class File(object):
     """Opens a .srf file and exposes all of its headers and records as attribs.
-    If no synonymous .parse file exists, parses the .srf file and saves the parsing in a .parse file.
+    Disabled: If no synonymous .parse file exists, parses the .srf file and saves the parsing in a .parse file.
     Stores as attribs: Surf file header, Surf data record descriptor blocks, electrode layout records,
     message records, high and low pass continuous waveform records, stimulus display header records,
     and stimulus digital single val records"""
-    def __init__(self, name=DEFAULTSURFFNAME):
+    def __init__(self, name=DEFAULTSRFFNAME):
         self.name = name
         self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
@@ -61,7 +61,7 @@ class File(object):
         """Parses the .srf file"""
         try: # recover Fat object pickled in .parse file
             if force: # force a new parsing
-                raise IOError # make the try fail, skip to the except
+                raise IOError # make the try fail, skip to the except block
             print 'Trying to recover parse info from %r' % self.parsefname
             pf = file(self.parsefname, 'rb')
             u = cPickle.Unpickler(pf)
@@ -88,7 +88,7 @@ class File(object):
 
             # Parse the DRDBs (Data Record Descriptor Blocks)
             self.drdbs = []
-            while 1:
+            while True:
                 drdb = DRDB(f)
                 try:
                     drdb.parse()
@@ -105,7 +105,7 @@ class File(object):
             self.lowpassmultirecords = []
             self.displayrecords = []
             self.digitalsvalrecords = []
-            while 1:
+            while True:
                 flag = f.read(2) # returns an empty string when EOF is reached
                 if flag == '':
                     break
@@ -128,9 +128,9 @@ class File(object):
                         lowpassrecord.parse()
                         self.lowpassrecords.append(lowpassrecord)
                     elif flag[1] == 'E': # spike epoch record
-                        raise ValueError, 'Spike epochs (non-continous) recordings currently unsupported'
+                        raise NotImplementedError, 'Spike epochs (non-continous) recordings currently unsupported'
                     else:
-                        raise ValueError, 'Unknown polytrode waveform record type %s' % flag[1]
+                        raise ValueError, 'Unknown polytrode waveform record type %r' % flag[1]
                 elif flag[0] == 'D': # stimulus display header record
                     displayrecord = DisplayRecord(f)
                     displayrecord.parse()
@@ -141,9 +141,9 @@ class File(object):
                         digitalsvalrecord.parse()
                         self.digitalsvalrecords.append(digitalsvalrecord)
                     elif flag[1] == 'A': # analog single value record
-                        raise ValueError, 'Analog single value recordings currently unsupported'
+                        raise NotImplementedError, 'Analog single value recordings currently unsupported'
                     else:
-                        raise ValueError, 'Unknown single value record type %s' % flag[1]
+                        raise ValueError, 'Unknown single value record type %r' % flag[1]
                 else:
                     raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
             print 'Done parsing %r' % self.f.name
@@ -552,8 +552,9 @@ class DigitalSValRecord(object):
         # for speed and memory, read all 24 bytes at a time, skip UffType and SubType
         (junk, self.TimeStamp, self.SVal, junk, junk) = struct.unpack('QQHHL', f.read(24)) # Cardinal, 64 bit signed int; 16 bit single value
 
+
 class Stream(object):
-    """Streaming object. Maps between timestamps and record index of stream data to retrieve
+    """Streaming object. Maps from timestamps to record index of stream data to retrieve
     the approriate range of waveform data from disk."""
     def __init__(self, records=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
@@ -571,8 +572,10 @@ class Stream(object):
         which has as its attribs the 2D multichannel waveform array as well as the timepoints,
         potentially spanning multiple ContinuousRecords"""
         assert key.__class__ == slice # for now, accept only slice objects as keys
-        lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right') # find the first and last records corresponding to the slice. If the start of the slice matches a record's timestamp, start with that record. If the end of the slice matches a record's timestamp, end with that record (even though you'll only potentially use the one timepoint from that record, depending on the value of 'endinclusive')
-        cutrecords = self.records[max(lorec-1, 0):max(hirec, 1)] # we always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do lower bounds checking (don't go less than 0), but not upper bounds checking
+        # find the first and last records corresponding to the slice. If the start of the slice matches a record's timestamp, start with that record. If the end of the slice matches a record's timestamp, end with that record (even though you'll only potentially use the one timepoint from that record, depending on the value of 'endinclusive')
+        lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right')
+        # we always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do lower bounds checking (don't go less than 0), but not upper bounds checking
+        cutrecords = self.records[max(lorec-1, 0):max(hirec, 1)]
         for record in cutrecords:
             try:
                 record.waveform
@@ -600,9 +603,10 @@ class Stream(object):
         wf.data = waveform[:, lo:hi+endinclusive]
         wf.ts = ts[lo:hi+endinclusive]
         return wf
+
     def plot(self, chanis=None, trange=None):
         """Creates a simple matplotlib plot of the specified chanis over trange"""
-        import pylab as pl
+        import pylab as pl # wouldn't otherwise need this
         from pylab import get_current_fig_manager as gcfm
         from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
         if chanis == None:
@@ -636,8 +640,9 @@ class Stream(object):
         height = heightinches / figheight
         self.a.set_position([0.035, bottom, 0.94, height])
 
+
 class WaveForm(object):
-    """Waveform object, has data and ts attribs"""
+    """Waveform object, has data and timestamp attribs"""
     def __init__(self):
         self.data = None
         self.ts = None
@@ -647,8 +652,7 @@ class WaveForm(object):
 
 class Fat(object):
     """Stores all the stuff to be pickled into a .parse file and then unpickled as saved parse info"""
-    def __init__(self):
-        pass
+    pass
 
 class HighPass(Stream): # or call this SpikeStream?
     def __init__(self, interp=50000):
