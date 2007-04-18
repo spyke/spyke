@@ -1,3 +1,5 @@
+- move code to /spyke subfolder, make a setup.py in root, keep TODO in root
+
 - interpolation
 
 - have a log window at bottom that details everything going on behind the scenes
@@ -12,7 +14,7 @@
 
 - how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
     - email wxpython list on displaying time series data.
-    - wxpy 2.8 should be faster, doesn't need to copy data
+    - wxpy 2.8 should be faster, doesn't need to copy data, can use numpy data directly?
     - borrow something from MPL?
 
 - spike (and lfp?) data need to be corrected for S+H delay offsets. Do this during interpolation as in Surfbawd?
