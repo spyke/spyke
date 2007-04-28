@@ -39,7 +39,7 @@ PYTHON_TBL_LEN = 50000
 
 
 class File(object):
-    """Opens a .srf file and exposes all of its headers and records as attribs.
+    """Open a .srf file and, after parsing, expose all of its headers and records as attribs.
     Disabled: If no synonymous .parse file exists, parses the .srf file and saves the parsing in a .parse file.
     Stores as attribs: Surf file header, Surf data record descriptor blocks, electrode layout records,
     message records, high and low pass continuous waveform records, stimulus display header records,
@@ -50,15 +50,15 @@ class File(object):
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
 
     def open(self):
-        """Opens the .srf file"""
+        """Open the .srf file"""
         self.f = file(self.name, 'rb')
 
     def close(self):
-        """Closes the .srf file"""
+        """Close the .srf file"""
         self.f.close()
 
     def parse(self, force=True, save=False):
-        """Parses the .srf file"""
+        """Parse the .srf file"""
         try: # recover Fat object pickled in .parse file
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
@@ -97,55 +97,7 @@ class File(object):
                     f.seek(drdb.offset) # set file pointer back to where we were
                     break
 
-            # Parse all the records in the file, but don't load any waveforms
-            self.layoutrecords = []
-            self.messagerecords = []
-            self.highpassrecords = []
-            self.lowpassrecords = []
-            self.lowpassmultirecords = []
-            self.displayrecords = []
-            self.digitalsvalrecords = []
-            while True:
-                flag = f.read(2) # returns an empty string when EOF is reached
-                if flag == '':
-                    break
-                f.seek(-2, 1) # put file pointer back to start of flag
-                if flag[0] == 'L': # polytrode layout record
-                    layoutrecord = LayoutRecord(f)
-                    layoutrecord.parse()
-                    self.layoutrecords.append(layoutrecord)
-                elif flag[0] == 'M': # message record
-                    messagerecord = MessageRecord(f)
-                    messagerecord.parse()
-                    self.messagerecords.append(messagerecord)
-                elif flag[0] == 'P': # polytrode waveform record
-                    if flag[1] == 'S': # spike stream (highpass) record
-                        highpassrecord = HighPassRecord(f)
-                        highpassrecord.parse()
-                        self.highpassrecords.append(highpassrecord)
-                    elif flag[1] == 'C': # continuous (lowpass) record
-                        lowpassrecord = LowPassRecord(f)
-                        lowpassrecord.parse()
-                        self.lowpassrecords.append(lowpassrecord)
-                    elif flag[1] == 'E': # spike epoch record
-                        raise NotImplementedError, 'Spike epochs (non-continous) recordings currently unsupported'
-                    else:
-                        raise ValueError, 'Unknown polytrode waveform record type %r' % flag[1]
-                elif flag[0] == 'D': # stimulus display header record
-                    displayrecord = DisplayRecord(f)
-                    displayrecord.parse()
-                    self.displayrecords.append(displayrecord)
-                elif flag[0] == 'V': # single value record
-                    if flag[1] == 'D': # digital single value record
-                        digitalsvalrecord = DigitalSValRecord(f)
-                        digitalsvalrecord.parse()
-                        self.digitalsvalrecords.append(digitalsvalrecord)
-                    elif flag[1] == 'A': # analog single value record
-                        raise NotImplementedError, 'Analog single value recordings currently unsupported'
-                    else:
-                        raise ValueError, 'Unknown single value record type %r' % flag[1]
-                else:
-                    raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
+            self._parserecords()
             print 'Done parsing %r' % self.f.name
 
             # Make sure timestamps of all records are in causal (increasing) order. If not, sort them I guess?
@@ -172,10 +124,62 @@ class File(object):
             for rtsii in range(1, len(rtsis)): # start with the second rtsi
                 lo = rtsis[rtsii-1]
                 hi = rtsis[rtsii]
-                self.lowpassmultirecords.append(LowPassMultiRecord(self.lowpassrecords[lo:hi]))
+                self.lowpassmultichanrecords.append(LowPassMultiChanRecord(self.lowpassrecords[lo:hi]))
 
             if save:
                 self.save()
+
+    def _parserecords(self):
+        """Parse all the records in the file, but don't load any waveforms"""
+        f = self.f # abbrev
+        self.layoutrecords = []
+        self.messagerecords = []
+        self.highpassrecords = []
+        self.lowpassrecords = []
+        self.lowpassmultichanrecords = []
+        self.displayrecords = []
+        self.digitalsvalrecords = []
+        while True:
+            flag = f.read(2) # returns an empty string when EOF is reached
+            if flag == '':
+                break
+            f.seek(-2, 1) # put file pointer back to start of flag
+            if flag[0] == 'L': # polytrode layout record
+                layoutrecord = LayoutRecord(f)
+                layoutrecord.parse()
+                self.layoutrecords.append(layoutrecord)
+            elif flag[0] == 'M': # message record
+                messagerecord = MessageRecord(f)
+                messagerecord.parse()
+                self.messagerecords.append(messagerecord)
+            elif flag[0] == 'P': # polytrode waveform record
+                if flag[1] == 'S': # spike stream (highpass) record
+                    highpassrecord = HighPassRecord(f)
+                    highpassrecord.parse()
+                    self.highpassrecords.append(highpassrecord)
+                elif flag[1] == 'C': # continuous (lowpass) record
+                    lowpassrecord = LowPassRecord(f)
+                    lowpassrecord.parse()
+                    self.lowpassrecords.append(lowpassrecord)
+                elif flag[1] == 'E': # spike epoch record
+                    raise NotImplementedError, 'Spike epochs (non-continous) recordings currently unsupported'
+                else:
+                    raise ValueError, 'Unknown polytrode waveform record type %r' % flag[1]
+            elif flag[0] == 'D': # stimulus display header record
+                displayrecord = DisplayRecord(f)
+                displayrecord.parse()
+                self.displayrecords.append(displayrecord)
+            elif flag[0] == 'V': # single value record
+                if flag[1] == 'D': # digital single value record
+                    digitalsvalrecord = DigitalSValRecord(f)
+                    digitalsvalrecord.parse()
+                    self.digitalsvalrecords.append(digitalsvalrecord)
+                elif flag[1] == 'A': # analog single value record
+                    raise NotImplementedError, 'Analog single value recordings currently unsupported'
+                else:
+                    raise ValueError, 'Unknown single value record type %r' % flag[1]
+            else:
+                raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
 
     def save(self):
         """Creates a Fat object, saves all the parsed headers and records to it, and pickles it to a file"""
@@ -187,7 +191,7 @@ class File(object):
         fat.messagerecords = self.messagerecords
         fat.highpassrecords = self.highpassrecords
         fat.lowpassrecords = self.lowpassrecords
-        fat.lowpassmultirecords = self.lowpassmultirecords
+        fat.lowpassmultichanrecords = self.lowpassmultichanrecords
         fat.displayrecords = self.displayrecords
         fat.digitalsvalrecords = self.digitalsvalrecords
         pf = file(self.parsefname, 'wb')
@@ -449,7 +453,7 @@ class LowPassRecord(ContinuousRecord):
     """Low-pass continuous waveform record"""
     pass
 
-class LowPassMultiRecord(object):
+class LowPassMultiChanRecord(object):
     """Low-pass multichannel (usually 10) continuous waveform record"""
     def __init__(self, lowpassrecords):
         """Takes several low pass records, all at the same timestamp"""
@@ -558,7 +562,7 @@ class Stream(object):
     the approriate range of waveform data from disk."""
     def __init__(self, records=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
-        sequence of ContinuousRecords: either HighPassRecords or LowPassMultiRecords"""
+        sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords"""
         self.records = records
         self.rts = np.asarray([record.TimeStamp for record in self.records]) # array of record timestamps
 
@@ -612,7 +616,7 @@ class Stream(object):
         if chanis == None:
             if self.records[0].__class__ == HighPassRecord: # all high pass records should have the same chanlist
                 chanis = self.records[0].layout.chanlist
-            elif self.records[0].__class__ == LowPassMultiRecord: # same goes for lowpassmutlirecords, each has its own set of chanis, derived previously from multiple single layout.chanlists
+            elif self.records[0].__class__ == LowPassMultiChanRecord: # same goes for lowpassmultichanrecords, each has its own set of chanis, derived previously from multiple single layout.chanlists
                 chanis = self.records[0].chanis
             else:
                 raise ValueError, 'unknown record type %s in self.records' % self.records[0].__class__
