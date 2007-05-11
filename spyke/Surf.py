@@ -6,7 +6,8 @@ import cPickle
 import struct
 
 NULL = '\x00'
-DEFAULTSRFFNAME = 'C:/data/Cat 15/81 - track 7c mseq16exps.srf'
+DEFAULTSRFFNAME = '/data/Cat 15/81 - track 7c mseq16exps.srf'
+DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
 
 # Surf file header constants, field sizes in bytes
 UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
@@ -125,6 +126,9 @@ class File(object):
                 lo = rtsis[rtsii-1]
                 hi = rtsis[rtsii]
                 self.lowpassmultichanrecords.append(LowPassMultiChanRecord(self.lowpassrecords[lo:hi]))
+
+            self.highpassstream = Stream(records=self.highpassrecords, sampfreq=DEFAULTINTERPSAMPFREQ)
+            self.lowpassstream = Stream(records=self.lowpassrecords)
 
             if save:
                 self.save()
@@ -560,11 +564,15 @@ class DigitalSValRecord(object):
 class Stream(object):
     """Streaming object. Maps from timestamps to record index of stream data to retrieve
     the approriate range of waveform data from disk."""
-    def __init__(self, records=None):
+    def __init__(self, records=None, sampfreq=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords"""
         self.records = records
         self.rts = np.asarray([record.TimeStamp for record in self.records]) # array of record timestamps
+        if sampfreq == None:
+            self.sampfreq = records[0].layout.sampfreqperchan # use sampfreq of the raw data
+        else:
+            self.sampfreq = sampfreq
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
@@ -585,34 +593,42 @@ class Stream(object):
                 record.waveform
             except AttributeError:
                 record.load() # to save time, only load the waveform if not already loaded
-        waveform = np.concatenate([record.waveform for record in cutrecords], axis=1) # join all waveforms, returns a copy
+        data = np.concatenate([record.waveform for record in cutrecords], axis=1) # join all waveforms, returns a copy
         try:
             tres = cutrecords[0].layout.tres # all highpass records should be using the same layout, use tres from the first one
         except AttributeError:
             tres = cutrecords[0].tres # records are lowpassmulti
-        # build up waveform timestamps, taking into account any time gaps in between records due to pauses in recording
+        # build up waveform timepoints, taking into account any time gaps in between records due to pauses in recording
         ts = []
         for record in cutrecords:
             tstart = record.TimeStamp
             nt = record.waveform.shape[-1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
+            #del record.waveform # save memory by unloading waveform data from records that aren't needed anymore
         ts = np.asarray(ts)
         lo, hi = ts.searchsorted([key.start, key.stop])
-        '''
-        # clean up stuff that isn't needed anymore
-        for record in cutrecords:
-            del record.waveform
-        '''
-        wf = WaveForm()
-        wf.data = waveform[:, lo:hi+endinclusive]
-        wf.ts = ts[lo:hi+endinclusive]
-        return wf
+        data = data[:, lo:hi+endinclusive]
+        ts = ts[lo:hi+endinclusive]
+        data, ts = self.interp(data, ts, self.sampfreq) # interp and s+h correct here
+        return WaveForm(data=data, ts=ts, sampfreq=self.sampfreq) # return a WaveForm object
+
+    def interp(self, data, ts, sampfreq=None, kind='nyquist'):
+        """Returns interpolated and sample-and-hold corrected data and timepoints, at the given sample frequency"""
+        if kind == 'nyquist':
+            # do Nyquist interpolation and S+H correction here
+            # find a scipy function that'll do Nyquist interpolation?
+            return data, ts
+        else:
+            raise ValueError, 'Unknown kind of interpolation %r' % kind
 
     def plot(self, chanis=None, trange=None):
         """Creates a simple matplotlib plot of the specified chanis over trange"""
         import pylab as pl # wouldn't otherwise need this
         from pylab import get_current_fig_manager as gcfm
-        from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
+        try: # see if neuropy is available
+            from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
+        except ImportError:
+            pass
         if chanis == None:
             if self.records[0].__class__ == HighPassRecord: # all high pass records should have the same chanlist
                 chanis = self.records[0].layout.chanlist
@@ -627,11 +643,17 @@ class Stream(object):
         figheight = 1.25+0.2*nchans
         self.f = pl.figure(figsize=(16, figheight))
         self.a = self.f.add_subplot(111)
-        gcfm().frame.SetTitle(lastcmd())
-        self.formatter = neuropyScalarFormatter() # better behaved tick label formatter
-        self.formatter.thousandsSep = ',' # use a thousands separator
-        self.a.xaxis.set_major_locator(neuropyAutoLocator()) # better behaved tick locator
-        self.a.xaxis.set_major_formatter(self.formatter)
+        try:
+            gcfm().frame.SetTitle(lastcmd())
+        except NameError:
+            pass
+        try:
+            self.formatter = neuropyScalarFormatter() # better behaved tick label formatter
+            self.formatter.thousandsSep = ',' # use a thousands separator
+            self.a.xaxis.set_major_locator(neuropyAutoLocator()) # better behaved tick locator
+            self.a.xaxis.set_major_formatter(self.formatter)
+        except NameError:
+            pass
         for chanii, chani in enumerate(chanis):
             self.a.plot(wf.ts/1e3, (np.int32(wf.data[chanii])-2048+500*chani)/500., '-', label=str(chani)) # upcast to int32 to prevent int16 overflow
         #self.a.legend()
@@ -646,25 +668,27 @@ class Stream(object):
 
 
 class WaveForm(object):
-    """Waveform object, has data and timestamp attribs"""
-    def __init__(self):
-        self.data = None
-        self.ts = None
-    def interp(self, f=50000):
-        """Returns a new waveform object with data and timepoints interpolated from this one"""
-        pass
+    """Waveform object, has data, timestamps and sample frequency attribs"""
+    def __init__(self, data=None, ts=None, sampfreq=None):
+        self.data = data
+        self.ts = ts # array of timestamps, one for each sample (column) in self.data
+        self.sampfreq = sampfreq
+
 
 class Fat(object):
     """Stores all the stuff to be pickled into a .parse file and then unpickled as saved parse info"""
     pass
 
-class HighPass(Stream): # or call this SpikeStream?
-    def __init__(self, interp=50000):
-        super(HighPass, self).__init__(interp=interp)
+'''
+class HighPassStream(Stream): # or call this SpikeStream?
+    def __init__(self, records=None, sampfreq=DEFAULTINTERPSAMPFREQ):
+        super(HighPassStream, self).__init__(records=records, sampfreq=sampfreq)
 
-class LowPass(Stream): # or call this LFPStream?
-    def __init__(self, interp=False):
-        super(LowPass, self).__init__(interp=interp)
+
+class LowPassStream(Stream): # or call this LFPStream?
+    def __init__(self, records=None), sampfreq=None:
+        super(LowPassStream, self).__init__(records=records, sampfreq=sampfreq)
+'''
 
 def causalorder(records):
     """Checks to see if the timestamps of all the records are in
@@ -691,3 +715,4 @@ def toiter(x):
         return x
     else:
         return [x]
+

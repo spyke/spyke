@@ -1,4 +1,4 @@
-- move code to /spyke subfolder, make a setup.py in root, keep TODO in root
+GENERAL:
 
 - interpolation
 
@@ -6,7 +6,7 @@
     - this could simply be an integrated pyshell window, so you can do things from command line instead of being forced to use interface
     - also, use it to examine and mess with internals, including wxpy internals
 
-- make spyke importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy.
+- keep spyke importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy.
 
 - need to look into just how complex and slow the (automated) sorting will be
     - can it all be done in pure Python?
@@ -17,36 +17,31 @@
     - wxpy 2.8 should be faster, doesn't need to copy data, can use numpy data directly?
     - borrow something from MPL?
 
-- spike (and lfp?) data need to be corrected for S+H delay offsets. Do this during interpolation as in Surfbawd?
+- spike (and lfp?) data need to be corrected for sample and hold (S+H) delay offsets
+    - do this during interpolation as in Surfbawd?
 
 - lfp data need to be corrected for offsets induced by low-pass filters
     - what are the spectral phase and amplitude characteristics of the filters?
     - Tim mentioned Hilbert transforms are useful for this
     - want to do CSDs as well - I guess these don't need to be filter offset corrected, since you're just comparing between lfp chans, not between lfp and spike chans
 
-----------------------------------------------------
-- parsing progress bar
-
-
-
+- can latest wxPy 2.8 can reuse numpy data w/o copy?
 
 
 ----------------------------------------------------
-- questions for programmer
-    - how well do you know python?
-    - done any larger projects in python?
-        - how many lines of code?
-        - could you show it to us?
-    - know anything about scipy/numpy?
-    - know what it means to do things pythonically?
-    - know python style guidelines?
-        - spacing, capitalization, docstrings
-    - used wxpython?
-    - used wxGlade?
-    - used/willing to learn version control (SVN)?
-        - TortoiseSVN in windows
+SPECIFICS:
 
-    - know any Delphi? enough to understand what Delphi code is doing?
-    - have a windows machine to develop on, comfortable doing so?
-        - conscious of trying to keep it cross-platform
-    - dev in python 2.4, wxpy 2.6 (or 2.8? can reuse numpy data w/o copy?), latest numpy/scipy
+- add parsing progress bar
+- move simple matplotlib plot() method from Stream class to WaveForm class, that way, you no longer need to pass a trange argument
+    - instead of:
+        f.highpassstream.plot(chanis=None, trange=(135e6, 135.1e6))
+      you'd slice instead:
+        f.highpassstream[135e6:135.1e6].plot(chanis=None)
+    - would have to add more stuff as attribs to WaveForm class, such as .records and .rts
+
+
+
+----------------------------------------------------
+DONE:
+
+- move code to /spyke subfolder, make a setup.py in root, keep TODO in root
