@@ -1,0 +1,178 @@
+Author: Reza Lotun
+Date:   May 14, 2007
+
+Introduction 
+
+This document is a listing of coding conventions for source files associated 
+with this project. These are essentially rules of thumb - sometimes there may 
+be very good reasons to ignore one or more of these quasi-commandments. For the 
+vast majority of the time you should follow them. They are quite painless, and 
+will make our code look nice and uniform. Don't worry about retrofitting code 
+you've already written to this 'standard' - though if you're bored one day feel 
+free to try. A caveat however - consistency within a module is most important. 
+If you only half-convert an old module to this style, then it's worse than not 
+converting it. All new code should of course try as hard as possible to comply 
+with this document.
+
+
+Python Source Files 
+-------------------
+
+Tabs
+====
+
+Convert tabs to spaces. 4-spaces per tab. Never mix tabs and spaces.
+
+In your ~/.emacs file:
+
+ (setq-default indent-tabs-mode nil)
+
+In your ~/.vimrc file:
+
+ set expandtab
+ set autoindent
+ set shiftwidth=4
+ set smarttab
+ " smart indenting - very useful
+ autocmd BufRead *.py set smartindent cinwords=if,elif,else,for,while,try,
+            except,finally,def,class
+
+Maximum Line Length
+===================
+
+Set the maximum horizontal line length to 79 characters. This makes it easy to 
+have four source files open at once without making things look ugly.
+
+Add this to your ~/.vimrc file:
+
+ set textwidth=78
+
+The preferred way of wrapping long lines is by using Python's implied line 
+continuation inside parentheses, brackets and braces. For Example:
+
+ class Rectangle(Blob):
+     def __init__(self, width, height,
+                  color='black', emphasis=None, highlight=0):
+         if (width == 0 and height == 0 and 
+             color == 'red' and emphasis == 'strong' or 
+             highlight > 100):
+             raise ValueError("sorry, you lose")
+         if width == 0 and height == 0 and (color == 'red' or
+                                            emphasis is None):
+             raise ValueError("I don't think so")
+         Blob.__init__(self, width, height,
+                       color, emphasis, highlight)
+
+File Headers and Docstrings
+===========================
+
+Always use docstrings for classes, functions and modules. For example, say we 
+have the file foo.py:
+
+"""Module foo
+
+Provides interface and accessor functions to area foo.
+"""
+__revision__ = '$Id$'
+
+class Foo:
+    """ Foo provides access to the Foo database tables. """
+    def __init__(self, arg=None):
+        """ The constructor initializes Foo.
+
+        This is a multiline comment. The expanded explanation
+        goes here. Notice how the triple quote ends on a line
+        by itself.
+        """
+        return
+
+This way we can run pydoc foo and have source documentation generated 
+automatically for us. NOTE: to make sure $Id$ is expanded, you must execute the 
+following one time only:
+
+svn propset svn:keywords "Id" foo.py
+
+This way $Id$ will be expanded to something like $Id: foo.py 451 2005-09-19 
+02:53:56Z rlotun $ which says foo.py is at version 451 and was last changed on 
+Sept. 19 2005 by user rlotun.
+
+Comments
+========
+
+Use a single # followed by a space. Include TODO in your comments to indicate 
+whether something needs to be done.
+
+def someFunction(a, b, list):
+    # some weird math
+    a = b + 2*a    
+    for item in list:
+        # add a to item
+        # TODO: check if a is bad
+        item.add(a)
+
+Imports
+=======
+
+Like this:
+
+import sys
+import os
+
+Please NOT like this:
+
+import sys, os
+
+Whitespace
+==========
+
+- Don't put whitespace around everything.
+
+spam( ham[ 1 ], { eggs: 2 } )
+
+Always write this as:
+
+spam(ham[1], {eggs: 2})
+
+- Insert a whitespace after commas.
+
+- Don't use spaces around the '=' sign when used to indicate a keyword argument 
+or a default parameter value. For instance:
+
+def complex(real, imag=0.0):
+    return magic(r=real, i=imag)
+
+Naming Conventions
+==================
+
+Classes begin with a capital letter. User the CamelHumps naming scheme. Use 
+descriptive variable names. Use the prefix '_' to indicate private variables 
+and functions.
+
+When writing any sort of pickled object file, always end its name in .pickle, 
+likewise when writing a marshalled data file end in .marshal - this way our 
+current svn configuration will ignore them if you decide to do a svn add to the 
+current directory.
+
+Idioms 
+======
+
+Some python idioms to avoid, and their suggested replacements
+
+has_key() 
+
+Always use elem in dct rather than dct.has_key(elem). It is faster and nicer.
+
+enumerate() 
+
+Bad:
+
+for i in range(len(lst)):
+    item = lst[i]
+    print 'item #', i, 'is', item
+
+Good:
+
+for i, item in enumerate(lst):
+    print 'item #', i, 'is', item
+
+
