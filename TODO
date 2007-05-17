@@ -27,6 +27,7 @@ GENERAL:
 
 - can latest wxPy 2.8 can reuse numpy data w/o copy?
 
+- could eventually add monopole and dipole modelling for 3d localization and to distinguish between pyramidal and stellate cells
 
 ----------------------------------------------------
 SPECIFICS:
