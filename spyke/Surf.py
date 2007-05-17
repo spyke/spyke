@@ -40,26 +40,27 @@ PYTHON_TBL_LEN = 50000
 
 
 class File(object):
-    """Open a .srf file and, after parsing, expose all of its headers and records as attribs.
+    """ Open a .srf file and, after parsing, expose all of its headers and records as attribs.
     Disabled: If no synonymous .parse file exists, parses the .srf file and saves the parsing in a .parse file.
     Stores as attribs: Surf file header, Surf data record descriptor blocks, electrode layout records,
     message records, high and low pass continuous waveform records, stimulus display header records,
-    and stimulus digital single val records"""
+    and stimulus digital single val records 
+    """
     def __init__(self, name=DEFAULTSRFFNAME):
         self.name = name
         self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
 
     def open(self):
-        """Open the .srf file"""
+        """ Open the .srf file """
         self.f = file(self.name, 'rb')
 
     def close(self):
-        """Close the .srf file"""
+        """ Close the .srf file """
         self.f.close()
 
     def parse(self, force=True, save=False):
-        """Parse the .srf file"""
+        """ Parse the .srf file """
         try: # recover Fat object pickled in .parse file
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
