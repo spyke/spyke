@@ -1,5 +1,7 @@
 """Handles parsing and streaming of Surf-generated .srf files"""
 
+__author__ = 'Martin Spacek and Reza Lotun'
+
 import numpy as np
 import os
 import cPickle
@@ -17,7 +19,8 @@ UFF_NODENAME_LEN = 32
 UFF_DEVICE_LEN = 32
 UFF_PATH_LEN = 160
 UFF_FILENAME_LEN = 32
-UFF_FH_PAD_LEN = 76  # pad area to bring uff area to 512, this really should be calculated, not hard-coded
+UFF_FH_PAD_LEN = 76  # pad area to bring uff area to 512, 
+                     # this really should be calculated, not hard-coded
 UFF_APPINFO_LEN = 32
 UFF_OWNER_LEN = 14
 UFF_FILEDESC_LEN = 64
@@ -31,7 +34,8 @@ UFF_RSFD_PER_DRDB = 77
 UFF_DRDB_RSFD_NAME_LEN = 20
 
 # Surf layout record constants
-SURF_MAX_CHANNELS = 64 # currently supports one or two DT3010 boards, could be higher
+SURF_MAX_CHANNELS = 64 # currently supports one or two 
+                       # DT3010 boards, could be higher
 
 # Stimulus header constants
 STIMULUS_HEADER_FILENAME_LEN = 64
@@ -40,14 +44,15 @@ PYTHON_TBL_LEN = 50000
 
 
 class File(object):
-    """ Open a .srf file and, after parsing, expose all of its headers and records as attribs.
-    Disabled: If no synonymous .parse file exists, parses the .srf file and saves the parsing in a .parse file.
-    Stores as attribs: Surf file header, Surf data record descriptor blocks, electrode layout records,
-    message records, high and low pass continuous waveform records, stimulus display header records,
-    and stimulus digital single val records 
-    """
-    def __init__(self, name=DEFAULTSRFFNAME):
-        self.name = name
+    """ Open a .srf file and, after parsing, expose all of its headers and
+    records as attribs. Disabled: If no synonymous .parse file exists, parses
+    the .srf file and saves the parsing in a .parse file.Stores as attribs:
+    Surf file header, Surf data record descriptor blocks, electrode layout
+    records, message records, high and low pass continuous waveform records,
+    stimulus display header records, and stimulus digital single val records
+    """ 
+    def __init__(self, name=DEFAULTSRFFNAME): 
+        self.name = name 
         self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
 
@@ -61,28 +66,50 @@ class File(object):
 
     def parse(self, force=True, save=False):
         """ Parse the .srf file """
-        try: # recover Fat object pickled in .parse file
-            if force: # force a new parsing
-                raise IOError # make the try fail, skip to the except block
+
+        # recover Fat object pickled in .parse file
+        try:             
+            # force a new parsing
+            if force:                 
+                # make the try fail, skip to the except block
+                raise IOError
+
             print 'Trying to recover parse info from %r' % self.parsefname
+
             pf = file(self.parsefname, 'rb')
             u = cPickle.Unpickler(pf)
-            def persistent_load(persid): # required to restore the .srf file object as an existing open file for reading
+
+            def persistent_load(persid):
+                """ required to restore the .srf file object as an existing 
+                open file for reading
+                """
                 if persid == self.f.name:
                     return self.f
                 else:
-                    raise cPickle.UnpicklingError, 'Invalid persistent id: %r' % persid
-            u.persistent_load = persistent_load # add this method to the unpickler
+                    raise cPickle.UnpicklingError, 
+                                'Invalid persistent id: %r' % persid
+
+            # add this method to the unpickler
+            u.persistent_load = persistent_load
             fat = u.load()
             pf.close()
+
             # Grab all normal attribs of fat and assign them to self
             for key, val in fat.__dict__.items():
                 self.__setattr__(key, val)
+
             print 'Recovered parse info from %r' % self.parsefname
-        except IOError: # parsing is being forced, or .parse file doesn't exist, or something's wrong with it. Parse the .srf file
+
+        # parsing is being forced, or .parse file doesn't exist, or something's
+        # wrong with it. Parse the .srf file
+        except IOError:
+
             print 'Parsing %r' % self.f.name
             f = self.f # abbrev
-            f.seek(0) # make sure we're at the start of the srf file before trying to parse it
+
+            # make sure we're at the start of the srf file before trying to
+            # parse it
+            f.seek(0) 
 
             # Parse the Surf file header
             self.fileheader = FileHeader(f)
@@ -95,14 +122,18 @@ class File(object):
                 try:
                     drdb.parse()
                     self.drdbs.append(drdb)
-                except DRDBError: # we've gone past the last DRDB
-                    f.seek(drdb.offset) # set file pointer back to where we were
+                
+                except DRDBError: 
+                    # we've gone past the last DRDB
+                    # set file pointer back to where we were
+                    f.seek(drdb.offset)                     
                     break
 
             self._parserecords()
             print 'Done parsing %r' % self.f.name
 
-            # Make sure timestamps of all records are in causal (increasing) order. If not, sort them I guess?
+            # Make sure timestamps of all records are in causal (increasing) 
+            # order. If not, sort them I guess?
             print 'Asserting increasing record order'
             assert causalorder(self.layoutrecords)
             assert causalorder(self.messagerecords)
@@ -111,18 +142,28 @@ class File(object):
             assert causalorder(self.displayrecords)
             assert causalorder(self.digitalsvalrecords)
 
-            # Connect the appropriate probe layout to each high and lowpass record
+            # Connect the appropriate probe layout to each high 
+            # and lowpass record
             print 'Connecting probe layouts to waveform records'
             for record in self.highpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
             for record in self.lowpassrecords:
                 record.layout = self.layoutrecords[record.Probe]
 
-            # Rearrange single channel lowpass records into multichannel lowpass records
-            print 'Rearranging single lowpass records into multichannel lowpass records'
-            rts = np.asarray([record.TimeStamp for record in self.lowpassrecords]) # array of lowpass record timestamps
-            rtsis, = np.diff(rts).nonzero() # find at which records the timestamps change
-            rtsis = np.concatenate([[0], rtsis+1, [len(rts)]]) # convert to edge values appropriate for getting slices of records with the same timestamp
+            # Rearrange single channel lowpass records into 
+            # multichannel lowpass records
+            print 'Rearranging single lowpass records into ' \
+                    'multichannel lowpass records'
+            rts = np.asarray([record.TimeStamp for record in \
+                    self.lowpassrecords]) # array of lowpass record timestamps
+
+            # find at which records the timestamps change
+            rtsis, = np.diff(rts).nonzero()             
+
+            # convert to edge values appropriate for getting slices of records
+            # with the same timestamp
+
+            rtsis = np.concatenate([[0], rtsis+1, [len(rts)]])             
             for rtsii in range(1, len(rtsis)): # start with the second rtsi
                 lo = rtsis[rtsii-1]
                 hi = rtsis[rtsii]
@@ -212,12 +253,14 @@ class File(object):
         print 'Saved parse info to %r' % self.parsefname
 
 class FileHeader(object):
-    """Surf file header. Takes an open file, parses in from current file pointer position,
-    stores header fields as attribs"""
+    """ Surf file header. Takes an open file, parses in from current file
+    pointer position, stores header fields as attribs
+    """
     def __init__(self, f):
         self.f = f
+
     def parse(self):
-        f = self.f # abbrev
+        f = self.f 
         self.offset = f.tell()
         self.FH_rec_type, = struct.unpack('B', f.read(1)) # must be 1
         assert self.FH_rec_type == 1
@@ -225,44 +268,95 @@ class FileHeader(object):
         assert self.FH_rec_type_ext == 0
         self.UFF_name = f.read(UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
         assert self.UFF_name == 'UFF'
-        self.UFF_major, = struct.unpack('B', f.read(1)) # major UFF ver
-        self.UFF_minor, = struct.unpack('B', f.read(1)) # minor UFF ver
-        self.FH_rec_len, = struct.unpack('H', f.read(2)) # FH record length in bytes
-        self.DRDB_rec_len, = struct.unpack('H', f.read(2)) # DBRD record length in bytes
-        self.bi_di_seeks, = struct.unpack('H', f.read(2)) # 2 bi-directional seeks format
-        self.OS_name = f.read(UFF_OSNAME_LEN).rstrip(NULL) # OS name, ie "WINDOWS 2000"
+
+
+        # major UFF ver
+        self.UFF_major, = struct.unpack('B', f.read(1))
+        
+        # minor UFF ver
+        self.UFF_minor, = struct.unpack('B', f.read(1))
+       
+        # FH record length in bytes
+        self.FH_rec_len, = struct.unpack('H', f.read(2))
+        
+        # DBRD record length in bytes
+        self.DRDB_rec_len, = struct.unpack('H', f.read(2))
+        
+        # 2 bi-directional seeks format
+        self.bi_di_seeks, = struct.unpack('H', f.read(2))
+        
+        # OS name, ie "WINDOWS 2000"
+        self.OS_name = f.read(UFF_OSNAME_LEN).rstrip(NULL)
         self.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
+
+
+        # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
         self.create = TimeDate(f)
-        self.create.parse() # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
+        self.create.parse()
+        
+        # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes,
+        # although this tends to be identical to creation time for some reason
         self.append = TimeDate(f)
-        self.append.parse() # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes, although this tends to be identical to creation time for some reason
-        self.node = f.read(UFF_NODENAME_LEN).rstrip(NULL) # system node name - same as BDT
-        self.device = f.read(UFF_DEVICE_LEN).rstrip(NULL) # device name - same as BDT
-        self.path = f.read(UFF_PATH_LEN).rstrip(NULL) # path name
-        self.filename = f.read(UFF_FILENAME_LEN).rstrip(NULL) # original file name at creation
-        self.pad = f.read(UFF_FH_PAD_LEN).replace(NULL, ' ') # pad area to bring uff area to 512
-        self.app_info = f.read(UFF_APPINFO_LEN).rstrip(NULL) # application task name & version
-        self.user_name = f.read(UFF_OWNER_LEN).rstrip(NULL) # user's name as owner of file
-        self.file_desc = f.read(UFF_FILEDESC_LEN).rstrip(NULL) # description of file/exp
-        assert f.tell() - self.offset == 512 # non user area of UFF header should be 512 bytes
-        self.user_area = struct.unpack('B'*UFF_FH_USERAREA_LEN, f.read(UFF_FH_USERAREA_LEN)) # additional user area
+        self.append.parse()         
+
+        # system node name - same as BDT
+        self.node = f.read(UFF_NODENAME_LEN).rstrip(NULL)
+
+        # device name - same as BDT
+        self.device = f.read(UFF_DEVICE_LEN).rstrip(NULL)
+
+        # path name
+        self.path = f.read(UFF_PATH_LEN).rstrip(NULL)
+
+        # original file name at creation
+        self.filename = f.read(UFF_FILENAME_LEN).rstrip(NULL)         
+        
+        # pad area to bring uff area to 512
+        self.pad = f.read(UFF_FH_PAD_LEN).replace(NULL, ' ')
+        
+        # application task name & version
+        self.app_info = f.read(UFF_APPINFO_LEN).rstrip(NULL)         
+        
+        # user's name as owner of file
+        self.user_name = f.read(UFF_OWNER_LEN).rstrip(NULL)
+        
+        # description of file/exp
+        self.file_desc = f.read(UFF_FILEDESC_LEN).rstrip(NULL)         
+
+        # non user area of UFF header should be 512 bytes
+        assert f.tell() - self.offset == 512 
+        
+        # additional user area
+        self.user_area = struct.unpack('B'*UFF_FH_USERAREA_LEN, 
+                                        f.read(UFF_FH_USERAREA_LEN))         
         assert f.tell() - self.offset == UFF_FILEHEADER_LEN
-        # this is the end of the original UFF header I think, the next two fields seem to have been added on to the end by Tim:
-        self.bd_FH_rec_type, = struct.unpack('B', f.read(1)) # record type, must be 1 BIDIRECTIONAL SUPPORT
+        
+        # this is the end of the original UFF header I think, 
+        # the next two fields seem to have been added on to the end by Tim:
+        # record type, must be 1 BIDIRECTIONAL SUPPORT
+        self.bd_FH_rec_type, = struct.unpack('B', f.read(1))
         assert self.bd_FH_rec_type == 1
-        self.bd_FH_rec_type_ext, = struct.unpack('B', f.read(1)) # record type extension, must be 0 BIDIRECTIONAL SUPPORT
+
+        # record type extension, must be 0 BIDIRECTIONAL SUPPORT
+        self.bd_FH_rec_type_ext, = struct.unpack('B', f.read(1))
         assert self.bd_FH_rec_type_ext == 0
-        self.length = f.tell() - self.offset # total length is 2050 bytes
+        
+        # total length is 2050 bytes
+        self.length = f.tell() - self.offset
         assert self.length == 2050
 
+
 class TimeDate(object):
-    """TimeDate record, reverse of C'S DateTime"""
+    """ TimeDate record, reverse of C'S DateTime """
+
     def __init__(self, f):
         self.f = f
+
     def parse(self):
         f = self.f
-        #self.offset = f.tell() # not really necessary, comment out to save memory
+        # not really necessary, comment out to save memory
+        #self.offset = f.tell()
         self.sec, = struct.unpack('H', f.read(2))
         self.min, = struct.unpack('H', f.read(2))
         self.hour, = struct.unpack('H', f.read(2))
@@ -271,20 +365,37 @@ class TimeDate(object):
         self.year, = struct.unpack('H', f.read(2))
         self.junk = struct.unpack('B'*6, f.read(6)) # junk data at end
 
+
 class DRDB(object):
-    """Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK in SurfBawd"""
+    """ Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK 
+    in SurfBawd 
+    """
     def __init__(self, f):
         self.f = f
+
     def parse(self):
-        f = self.f # abbrev
+        f = self.f 
         self.offset = f.tell()
-        self.DRDB_rec_type, = struct.unpack('B', f.read(1)) # record type; must be 2
-        if self.DRDB_rec_type != 2: # SurfBawd uses this to detect that it's passed the last DRDB, not exactly failsafe...
+        
+        # record type; must be 2
+        self.DRDB_rec_type, = struct.unpack('B', f.read(1))
+
+        # SurfBawd uses this to detect that it's passed the last DRDB, 
+        # not exactly failsafe...
+        if self.DRDB_rec_type != 2: 
             raise DRDBError
-        self.DRDB_rec_type_ext, = struct.unpack('B', f.read(1)) # record type extension
-        self.DR_rec_type = f.read(1) # Data Record type for DBRD 3-255, ie 'P' or 'V' or 'M', etc..
-        assert int(struct.unpack('B', self.DR_rec_type)[0]) in range(3, 256) # don't know quite why SurfBawd required these byte values, this is more than the normal set of ASCII chars
-        self.DR_rec_type_ext, = struct.unpack('B', f.read(1)) # Data Record type ext; ignored
+
+        # record type extension
+        self.DRDB_rec_type_ext, = struct.unpack('B', f.read(1))
+
+        # Data Record type for DBRD 3-255, ie 'P' or 'V' or 'M', etc..
+        # don't know quite why SurfBawd required these byte values, this is 
+        # more than the normal set of ASCII chars
+        self.DR_rec_type = f.read(1) 
+        assert int(struct.unpack('B', self.DR_rec_type)[0]) in range(3, 256)
+
+        # Data Record type ext; ignored
+        self.DR_rec_type_ext, = struct.unpack('B', f.read(1)) 
         self.DR_size, = struct.unpack('l', f.read(4)) # Data Record size in bytes, signed, -1 means dynamic
         self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip(NULL) # Data Record name
         self.DR_num_fields, = struct.unpack('H', f.read(2)) # number of sub-fields in Data Record
