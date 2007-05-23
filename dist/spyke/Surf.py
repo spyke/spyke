@@ -2,10 +2,12 @@
 
 __author__ = 'Martin Spacek and Reza Lotun'
 
+import itertools
 import numpy as np
 import os
 import cPickle
 import struct
+import unittest
 
 NULL = '\x00'
 DEFAULTSRFFNAME = '/data/Cat 15/81 - track 7c mseq16exps.srf'
@@ -41,6 +43,13 @@ SURF_MAX_CHANNELS = 64 # currently supports one or two
 STIMULUS_HEADER_FILENAME_LEN = 64
 NVS_PARAM_LEN = 749
 PYTHON_TBL_LEN = 50000
+
+
+class DRDBError(ValueError):
+    """ Used to indicate when you've passed the last DRDB at the start of the 
+    .srf file
+    """
+    pass
 
 
 class File(object):
@@ -176,8 +185,10 @@ class File(object):
                 self.save()
 
     def _parserecords(self):
-        """Parse all the records in the file, but don't load any waveforms"""
-        f = self.f # abbrev
+        """ Parse all the records in the file, but don't load any waveforms """
+
+        f = self.f
+
         self.layoutrecords = []
         self.messagerecords = []
         self.highpassrecords = []
@@ -185,32 +196,49 @@ class File(object):
         self.lowpassmultichanrecords = []
         self.displayrecords = []
         self.digitalsvalrecords = []
+
         while True:
-            flag = f.read(2) # returns an empty string when EOF is reached
+
+            # returns an empty string when EOF is reached
+            flag = f.read(2) 
             if flag == '':
                 break
-            f.seek(-2, 1) # put file pointer back to start of flag
-            if flag[0] == 'L': # polytrode layout record
+
+            # put file pointer back to start of flag
+            f.seek(-2, 1)
+
+            if flag[0] == 'L': 
+                # polytrode layout record
                 layoutrecord = LayoutRecord(f)
                 layoutrecord.parse()
                 self.layoutrecords.append(layoutrecord)
-            elif flag[0] == 'M': # message record
+
+            elif flag[0] == 'M': 
+                # message record
                 messagerecord = MessageRecord(f)
                 messagerecord.parse()
                 self.messagerecords.append(messagerecord)
-            elif flag[0] == 'P': # polytrode waveform record
-                if flag[1] == 'S': # spike stream (highpass) record
+
+            elif flag[0] == 'P': 
+                # polytrode waveform record
+                if flag[1] == 'S': 
+                    # spike stream (highpass) record
                     highpassrecord = HighPassRecord(f)
                     highpassrecord.parse()
                     self.highpassrecords.append(highpassrecord)
-                elif flag[1] == 'C': # continuous (lowpass) record
+                elif flag[1] == 'C': 
+                    # continuous (lowpass) record
                     lowpassrecord = LowPassRecord(f)
                     lowpassrecord.parse()
                     self.lowpassrecords.append(lowpassrecord)
-                elif flag[1] == 'E': # spike epoch record
-                    raise NotImplementedError, 'Spike epochs (non-continous) recordings currently unsupported'
+                elif flag[1] == 'E': 
+                    # spike epoch record
+                    raise NotImplementedError, 'Spike epochs (non-continous)' \
+                                            ' recordings currently unsupported'
                 else:
-                    raise ValueError, 'Unknown polytrode waveform record type %r' % flag[1]
+                    raise ValueError, 'Unknown polytrode waveform' \
+                                        'record type %r' % flag[1]
+
             elif flag[0] == 'D': # stimulus display header record
                 displayrecord = DisplayRecord(f)
                 displayrecord.parse()
@@ -396,74 +424,155 @@ class DRDB(object):
 
         # Data Record type ext; ignored
         self.DR_rec_type_ext, = struct.unpack('B', f.read(1)) 
-        self.DR_size, = struct.unpack('l', f.read(4)) # Data Record size in bytes, signed, -1 means dynamic
-        self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip(NULL) # Data Record name
-        self.DR_num_fields, = struct.unpack('H', f.read(2)) # number of sub-fields in Data Record
-        self.DR_pad = struct.unpack('B'*UFF_DRDB_PAD_LEN, f.read(UFF_DRDB_PAD_LEN)) # pad bytes for expansion
-        self.DR_subfields = [] # sub fields desc. RSFD = Record Subfield Descriptor
-        for rsfdi in range(UFF_RSFD_PER_DRDB):
+
+        # Data Record size in bytes, signed, -1 means dynamic
+        self.DR_size, = struct.unpack('l', f.read(4)) 
+
+        # Data Record name
+        self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip(NULL) 
+
+        # number of sub-fields in Data Record
+        self.DR_num_fields, = struct.unpack('H', f.read(2)) 
+
+        # pad bytes for expansion
+        self.DR_pad = struct.unpack('B'*UFF_DRDB_PAD_LEN, 
+                        f.read(UFF_DRDB_PAD_LEN)) 
+
+        # sub fields desc. RSFD = Record Subfield Descriptor
+        self.DR_subfields = [] 
+        for rsfdi in xrange(UFF_RSFD_PER_DRDB):
             rsfd = RSFD(f)
             rsfd.parse()
             self.DR_subfields.append(rsfd)
         assert f.tell() - self.offset == UFF_DRDB_BLOCK_LEN
-        # this is the end of the original DRDB I think, the next two fields seem to have been added on to the end by Tim:
-        f.seek(156, 1) # hack to skip past unexplained extra 156 bytes (happens to equal 6*RSFD.length)
-        self.bd_DRDB_rec_type, = struct.unpack('B', f.read(1)) # record type; must be 2 BIDIRECTIONAL SUPPORT
+
+        # this is the end of the original DRDB I think, the next two fields
+        # seem to have been added on to the end by Tim:
+        
+        # hack to skip past unexplained extra 156 bytes (happens to equal
+        # 6*RSFD.length)
+        f.seek(156, 1) 
+
+        # record type; must be 2 BIDIRECTIONAL SUPPORT
+        self.bd_DRDB_rec_type, = struct.unpack('B', f.read(1)) 
         assert self.bd_DRDB_rec_type == 2
-        self.bd_DRDB_rec_type_ext, = struct.unpack('B', f.read(1)) # record type extension; must be 0 BIDIRECTIONAL SUPPORT
+
+        # record type extension; must be 0 BIDIRECTIONAL SUPPORT
+        self.bd_DRDB_rec_type_ext, = struct.unpack('B', f.read(1)) 
         assert self.bd_DRDB_rec_type_ext == 0
-        f.seek(2, 1) # hack to skip past unexplained extra 2 bytes, sometimes they're 0s, sometimes not
-        self.length = f.tell() - self.offset # total length should be 2050 bytes, but with above skip hacks, it's 2208 bytes
+
+        # hack to skip past unexplained extra 2 bytes, sometimes they're 0s,
+        # sometimes not
+        f.seek(2, 1)
+
+        # total length should be 2050 bytes, but with above skip hacks, 
+        # it's 2208 bytes
+        self.length = f.tell() - self.offset 
         assert self.length == 2208
 
-class DRDBError(ValueError):
-    """Used to indicate when you've passed the last DRDB at the start of the .srf file"""
-    pass
 
 class RSFD(object):
-    """Record Subfield Descriptor for Data Record Descriptor Block"""
+    """ Record Subfield Descriptor for Data Record Descriptor Block """
     def __init__(self, f):
         self.f = f
+
     def parse(self):
-        f = self.f # abbrev
+        f = self.f 
         self.offset = f.tell()
-        self.subfield_name = f.read(UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL) # DRDB subfield name
-        self.subfield_data_type, = struct.unpack('H', f.read(2)) # underlying data type
-        self.subfield_size, = struct.unpack('l', f.read(4)) # sub field size in bytes, signed
+
+        # DRDB subfield name
+        self.subfield_name = f.read(UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL) 
+
+        # underlying data type
+        self.subfield_data_type, = struct.unpack('H', f.read(2)) 
+        
+        # sub field size in bytes, signed
+        self.subfield_size, = struct.unpack('l', f.read(4)) 
+
         self.length = f.tell() - self.offset
         assert self.length == 26
 
+
 class LayoutRecord(object):
-    """Polytrode layout record"""
+    """ Polytrode layout record """
     def __init__(self, f):
         self.f = f
-    def parse(self):
-        f = self.f # abbrev
-        #self.offset = f.tell() # not really necessary, comment out to save memory
-        self.UffType = f.read(1) # Record type 'L'
-        f.seek(7, 1) # hack to skip next 7 bytes
-        self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
-        self.SurfMajor, = struct.unpack('B', f.read(1)) # SURF major version number (2)
-        self.SurfMinor, = struct.unpack('B', f.read(1)) # SURF minor version number (1)
-        f.seek(2, 1) # hack to skip next 2 bytes
-        self.MasterClockFreq, = struct.unpack('l', f.read(4)) # ADC/precision CT master clock frequency (1Mhz for DT3010)
-        self.BaseSampleFreq, = struct.unpack('l', f.read(4)) # undecimated base sample frequency per channel (25kHz)
-        self.DINAcquired, = struct.unpack('B', f.read(1)) # true (1) if Stimulus DIN acquired
-        f.seek(1, 1) # hack to skip next byte
 
-        self.Probe, = struct.unpack('h', f.read(2)) # probe number
-        self.ProbeSubType = f.read(1) # =E,S,C for epochspike, spikestream, or continuoustype
-        f.seek(1, 1) # hack to skip next byte
-        self.nchans, = struct.unpack('h', f.read(2)) # number of channels in the probe (54, 1)
-        self.pts_per_chan, = struct.unpack('h', f.read(2)) # number of samples displayed per waveform per channel (25, 100)
-        f.seek(2, 1) # hack to skip next 2 bytes
-        self.pts_per_buffer, = struct.unpack('l', f.read(4)) # {n/a to cat9} total number of samples per file buffer for this probe (redundant with SS_REC.NumSamples) (135000, 100)
-        self.trigpt, = struct.unpack('h', f.read(2)) # pts before trigger (7)
-        self.lockout, = struct.unpack('h', f.read(2)) # Lockout in pts (2)
-        self.threshold, = struct.unpack('h', f.read(2)) # A/D board threshold for trigger (0-4096)
-        self.skippts, = struct.unpack('h', f.read(2)) # A/D sampling decimation factor (1, 25)
-        self.sh_delay_offset, = struct.unpack('h', f.read(2)) # S:H delay offset for first channel of this probe (1)
-        f.seek(2, 1) # hack to skip next 2 bytes
+    def parse(self):
+        f = self.f 
+
+        # not really necessary, comment out to save memory
+        #self.offset = f.tell() 
+
+        # Record type 'L'
+        self.UffType = f.read(1) 
+
+        # hack to skip next 7 bytes
+        f.seek(7, 1) 
+
+        # Time stamp, 64 bit signed int
+        self.TimeStamp, = struct.unpack('q', f.read(8)) 
+
+        # SURF major version number (2)
+        self.SurfMajor, = struct.unpack('B', f.read(1)) 
+        # SURF minor version number (1)
+        self.SurfMinor, = struct.unpack('B', f.read(1)) 
+
+        # hack to skip next 2 bytes
+        f.seek(2, 1)
+
+        # ADC/precision CT master clock frequency (1Mhz for DT3010)
+        self.MasterClockFreq, = struct.unpack('l', f.read(4)) 
+
+        # undecimated base sample frequency per channel (25kHz)
+        self.BaseSampleFreq, = struct.unpack('l', f.read(4)) 
+
+        # true (1) if Stimulus DIN acquired
+        self.DINAcquired, = struct.unpack('B', f.read(1)) 
+
+        # hack to skip next byte
+        f.seek(1, 1) 
+
+        # probe number
+        self.Probe, = struct.unpack('h', f.read(2)) 
+
+        # =E,S,C for epochspike, spikestream, or continuoustype
+        self.ProbeSubType = f.read(1) 
+
+        # hack to skip next byte
+        f.seek(1, 1) 
+
+        # number of channels in the probe (54, 1)
+        self.nchans, = struct.unpack('h', f.read(2)) 
+
+        # number of samples displayed per waveform per channel (25, 100)
+        self.pts_per_chan, = struct.unpack('h', f.read(2)) 
+
+        # hack to skip next 2 bytes
+        f.seek(2, 1) 
+
+        # {n/a to cat9} total number of samples per file buffer for this probe
+        # (redundant with SS_REC.NumSamples) (135000, 100)
+        self.pts_per_buffer, = struct.unpack('l', f.read(4)) 
+
+        # pts before trigger (7)
+        self.trigpt, = struct.unpack('h', f.read(2)) 
+
+        # Lockout in pts (2)
+        self.lockout, = struct.unpack('h', f.read(2)) 
+
+        # A/D board threshold for trigger (0-4096)
+        self.threshold, = struct.unpack('h', f.read(2)) 
+
+        # A/D sampling decimation factor (1, 25)
+        self.skippts, = struct.unpack('h', f.read(2)) 
+
+        # S:H delay offset for first channel of this probe (1)
+        self.sh_delay_offset, = struct.unpack('h', f.read(2)) 
+
+        # hack to skip next 2 bytes
+        f.seek(2, 1) 
+
         self.sampfreqperchan, = struct.unpack('l', f.read(4)) # A/D sampling frequency specific to this probe (ie. after decimation, if any) (25000, 1000)
         self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6)) # us, store it here for convenience
         self.extgain = struct.unpack('H'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999 - only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
@@ -805,7 +914,7 @@ class LowPassStream(Stream): # or call this LFPStream?
 def causalorder(records):
     """Checks to see if the timestamps of all the records are in
     causal (increasing) order. Returns True or False"""
-    for record1, record2 in zip(records[:-1], records[1:]):
+    for record1, record2 in itertools.izip(records[:-1], records[1:]):
         if record1.TimeStamp > record2.TimeStamp:
             return False
     return True
@@ -827,4 +936,9 @@ def toiter(x):
         return x
     else:
         return [x]
+
+
+if __name__ == '__main__':
+    # insert unittests here
+    pass
 
