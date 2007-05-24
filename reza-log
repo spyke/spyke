@@ -1,0 +1,16 @@
+reza-log - Log of work by Reza Lotun for spyke project
+-------------------------------------------------------
+
+24-May :    - More code cleanup.
+
+22-May :    - More tracing through Surf.py (almost done!)
+
+18-May :    - Read numpy manual and more wxPython stuff
+
+17-May :    - First log entry
+            - Reorganized svn repository to create a distinct distribution
+              directory.
+            - Went through Surf.py in depth to trace layout of Surf file, 
+              and to reformat code so it's easier to read
+            - Studied some wxPython stuff
+
