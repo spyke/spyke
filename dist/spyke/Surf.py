@@ -573,30 +573,71 @@ class LayoutRecord(object):
         # hack to skip next 2 bytes
         f.seek(2, 1) 
 
-        self.sampfreqperchan, = struct.unpack('l', f.read(4)) # A/D sampling frequency specific to this probe (ie. after decimation, if any) (25000, 1000)
-        self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6)) # us, store it here for convenience
-        self.extgain = struct.unpack('H'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999 - only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
-        self.extgain = self.extgain[:self.nchans] # throw away the junk values
-        self.intgain, = struct.unpack('h', f.read(2)) # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
-        self.chanlist = struct.unpack('h'*SURF_MAX_CHANNELS, f.read(2*SURF_MAX_CHANNELS)) # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it is an array of 64, so delete 32*4=128 bytes from end
-        self.chanlist = self.chanlist[:self.nchans] # throw away the junk values
-        f.seek(1, 1) # hack to skip next byte
-        self.probe_descrip = f.read(255).rstrip(NULL) # ShortString (uMap54_2a, 65um spacing)
-        f.seek(1, 1) # hack to skip next byte
-        self.electrode_name = f.read(255).rstrip(NULL) # ShortString (uMap54_2a)
-        f.seek(2, 1) # hack to skip next 2 bytes
+        # A/D sampling frequency specific to this probe (ie. after decimation,
+        # if any) (25000, 1000)
+        self.sampfreqperchan, = struct.unpack('l', f.read(4)) 
+
+        # us, store it here for convenience
+        self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6)) 
+
+        # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21,
+        # 1999 - only the first self.nchans are filled (5000), the rest are
+        # junk values that pad to 64 channels
+        self.extgain = struct.unpack('H'*SURF_MAX_CHANNELS, 
+                                        f.read(2*SURF_MAX_CHANNELS)) 
+        # throw away the junk values
+        self.extgain = self.extgain[:self.nchans] 
+
+        # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after
+        # finished with CAT9!!!!!
+        self.intgain, = struct.unpack('h', f.read(2)) 
+
+        # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad
+        # to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it
+        # is an array of 64, so delete 32*4=128 bytes from end
+        self.chanlist = struct.unpack('h'*SURF_MAX_CHANNELS, 
+                                        f.read(2 * SURF_MAX_CHANNELS)) 
+
+        # throw away the junk values
+        self.chanlist = self.chanlist[:self.nchans] 
+
+        # hack to skip next byte
+        f.seek(1, 1) 
+
+        # ShortString (uMap54_2a, 65um spacing)
+        self.probe_descrip = f.read(255).rstrip(NULL) 
+
+        # hack to skip next byte
+        f.seek(1, 1) 
+
+        # ShortString (uMap54_2a)
+        self.electrode_name = f.read(255).rstrip(NULL) 
+
+        # hack to skip next 2 bytes
+        f.seek(2, 1) 
+
+        # MOVE BELOW CHANLIST FOR CAT 9 v1.0 had ProbeWinLayout to be
+        # 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
         self.probewinlayout = ProbeWinLayout(f)
-        self.probewinlayout.parse() # MOVE BELOW CHANLIST FOR CAT 9 v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
-        self.pad = struct.unpack(str(880-4-2)+'B', f.read(880-4-2)) # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE; {pad for future expansion/modification}
-        f.seek(6, 1) # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
+        self.probewinlayout.parse() 
+
+        # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} -
+        # 2{SHOffset}] of BYTE; {pad for future expansion/modification}
+        self.pad = struct.unpack(str(880-4-2)+'B', f.read(880-4-2)) 
+        
+        # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
+        f.seek(6, 1) 
 
 class ProbeWinLayout(object):
-    """Probe window layout"""
+    """ Probe window layout """
     def __init__(self, f):
         self.f = f
+
     def parse(self):
-        f = self.f # abbrev
-        #self.offset = f.tell() # not really necessary, comment out to save memory
+        f = self.f 
+        # not really necessary, comment out to save memory 
+        #self.offset = f.tell() 
+
         self.left, = struct.unpack('l', f.read(4))
         self.top, = struct.unpack('l', f.read(4))
         self.width, = struct.unpack('l', f.read(4))
