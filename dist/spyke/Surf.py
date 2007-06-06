@@ -60,8 +60,7 @@ class File(object):
     Stores as attribs:
         - Surf file header
         - Surf data record descriptor blocks
-        - electrode layout
-        - records
+        - electrode layout records
         - message records
         - high and low pass continuous waveform records
         - stimulus display header records
@@ -326,7 +325,6 @@ class FileHeader(object):
         self.UFF_name = f.read(UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
         assert self.UFF_name == 'UFF'
 
-
         # major UFF ver
         self.UFF_major, = struct.unpack('B', f.read(1))
 
@@ -346,7 +344,6 @@ class FileHeader(object):
         self.OS_name = f.read(UFF_OSNAME_LEN).rstrip(NULL)
         self.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
-
 
         # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
         self.create = TimeDate(f)
@@ -1191,4 +1188,3 @@ def toiter(x):
 if __name__ == '__main__':
     # insert unittests here
     pass
-
