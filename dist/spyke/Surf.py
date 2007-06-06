@@ -144,7 +144,7 @@ class File(object):
                     # set file pointer back to where we were
                     f.seek(drdb.offset)
                     break
-
+            print 'After DRDB'
             self._parserecords()
             print 'Done parsing %r' % self.f.name
 
@@ -428,7 +428,15 @@ class DRDB(object):
     in SurfBawd
     """
     def __init__(self, f):
+        self.DR_subfields = []
         self.f = f
+
+    def __str__(self):
+        info = "Record type: %s size: %s name: %s\n" % \
+                            (self.DR_rec_type, self.DR_size, self.DR_name)
+        #for sub in self.DR_subfields:
+        #    info += "\t" + str(sub) + "\n"
+        return info
 
     def parse(self):
         f = self.f
@@ -445,7 +453,7 @@ class DRDB(object):
         # record type extension
         self.DRDB_rec_type_ext, = struct.unpack('B', f.read(1))
 
-        # Data Record type for DBRD 3-255, ie 'P' or 'V' or 'M', etc..
+        # Data Record type for DRDB 3-255, ie 'P' or 'V' or 'M', etc..
         # don't know quite why SurfBawd required these byte values, this is
         # more than the normal set of ASCII chars
         self.DR_rec_type = f.read(1)
@@ -468,7 +476,6 @@ class DRDB(object):
                         f.read(UFF_DRDB_PAD_LEN))
 
         # sub fields desc. RSFD = Record Subfield Descriptor
-        self.DR_subfields = []
         for rsfdi in xrange(UFF_RSFD_PER_DRDB):
             rsfd = RSFD(f)
             rsfd.parse()
@@ -504,6 +511,11 @@ class RSFD(object):
     """ Record Subfield Descriptor for Data Record Descriptor Block """
     def __init__(self, f):
         self.f = f
+
+    def __str__(self):
+        return "%s of type: %s with field size: %s" % (self.subfield_name,
+                                            self.subfield_data_type,
+                                            self.subfield_size)
 
     def parse(self):
         f = self.f
