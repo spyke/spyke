@@ -429,7 +429,7 @@ class DRDB(object):
         self.f = f
 
     def __str__(self):
-        info = "Record type: %s size: %s name: %s\n" % \
+        info = "Record type: %s size: %s name: %s" % \
                             (self.DR_rec_type, self.DR_size, self.DR_name)
         #for sub in self.DR_subfields:
         #    info += "\t" + str(sub) + "\n"
@@ -968,11 +968,8 @@ class Stream(object):
         # array of record timestamps
         self.rts = np.asarray([record.TimeStamp for record in self.records])
 
-        if sampfreq == None:
-            # use sampfreq of the raw data
-            self.sampfreq = records[0].layout.sampfreqperchan
-        else:
-            self.sampfreq = sampfreq
+        # if no sampfreq passed in, use sampfreq of the raw data
+        self.sampfreq = sampfreq or records[0].layout.sampfreqperchan
 
     def __len__(self):
         """ Total number of timepoints? Length in time? Interp'd or raw? """
@@ -1098,6 +1095,8 @@ class Stream(object):
             gcfm().frame.SetTitle(lastcmd())
         except NameError:
             pass
+        except AttributeError:
+            pass
 
         try:
 
@@ -1129,6 +1128,7 @@ class Stream(object):
         bottom = bottominches / figheight
         height = heightinches / figheight
         self.a.set_position([0.035, bottom, 0.94, height])
+        pl.show()
 
 
 class WaveForm(object):
