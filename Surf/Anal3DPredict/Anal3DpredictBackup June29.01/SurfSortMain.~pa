@@ -1,0 +1,443 @@
+unit SurfSortMain;
+//A unit for the automatic spike sorting of Surf polytrode data
+//Also for location prediction?
+
+interface
+
+uses Windows, Classes, Messages, Dialogs, Menus, Controls, ComCtrls, Forms,
+     ShellApi, SurfPublicTypes, SysUtils, StdCtrls, Graphics, ExtCtrls,
+     Gauges, WaveFormUnit, SurfLocateAndSort, Spin, V2D, ElectrodeTypes,
+  SurfAnal;
+
+type
+  TChanObj = class(TWaveFormWin)
+    public
+      Procedure ThreshChange(pid,cid : integer; ShiftDown,CtrlDown : boolean); override;
+    end;
+
+  TSurfSortForm = class(TForm)
+    OpenDialog: TOpenDialog;
+    SaveDialog: TSaveDialog;
+    StatusBar: TStatusBar;
+    MainMenu1: TMainMenu;
+    File1: TMenuItem;
+    FileOpenItem: TMenuItem;
+    FileSaveAsItem: TMenuItem;
+    N1: TMenuItem;
+    FileExitItem: TMenuItem;
+    Edit1: TMenuItem;
+    CutItem: TMenuItem;
+    CopyItem: TMenuItem;
+    PasteItem: TMenuItem;
+    Help1: TMenuItem;
+    HelpAboutItem: TMenuItem;
+    Guage: TGauge;
+    Label1: TLabel;
+    nspikeprobes: TLabel;
+    Label4: TLabel;
+    nspikes: TLabel;
+    ProbeLabel: TLabel;
+    Label7: TLabel;
+    time: TLabel;
+    StopButton: TButton;
+    Overlay: TCheckBox;
+    Pause: TCheckBox;
+    Display: TCheckBox;
+    WaveForms: TPanel;
+    AveWaveforms: TCheckBox;
+    ExtGain: TSpinEdit;
+    StaticText3: TStaticText;
+    EstV2D: TCheckBox;
+    Step: TButton;
+    Label2: TStaticText;
+    Lm: TEdit;
+    LVinf: TEdit;
+    StaticText1: TStaticText;
+    ElectrodePick: TComboBox;
+    SurfAnal: TSurfAnal;
+    StaticText2: TStaticText;
+    LOffset: TEdit;
+    StaticText4: TStaticText;
+    lcritmedian: TEdit;
+    procedure FileNew1Execute(Sender: TObject);
+    procedure FileOpen1Execute(Sender: TObject);
+    procedure FileSave1Execute(Sender: TObject);
+    procedure FileExit1Execute(Sender: TObject);
+    procedure HelpAbout1Execute(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure StopButtonClick(Sender: TObject);
+    procedure StepClick(Sender: TObject);
+    procedure SurfAnalSurfFile(SurfFile: TSurfFileInfo);
+  private
+    { Private declarations }
+    HaltRead : boolean;
+    tdbm : TBitmap;
+    StepNext : boolean;
+    MaxWavePt,ChanWithMaxPeak : integer;
+    Function SpikeIsArtifact(var Spike : TSpike) : boolean;
+    Procedure ComputeWaveformParams(var Spike : TSpike);
+  public
+    { Public declarations }
+    procedure AcceptFiles( var msg : TMessage ); message WM_DROPFILES;
+  end;
+
+var
+  SurfSortForm: TSurfSortForm;
+
+implementation
+
+uses About;
+
+{$R *.DFM}
+
+{==========================================================}
+procedure TSurfSortForm.AcceptFiles( var msg : TMessage );
+const
+  cnMaxFileNameLen = 255;var  i,  nCount     : integer;
+  acFileName : array [0..cnMaxFileNameLen] of char;
+begin
+  // find out how many files we're accepting
+  nCount := DragQueryFile( msg.WParam,$FFFFFFFF,acFileName,cnMaxFileNameLen );
+  // query Windows one at a time for the file name
+  for i := 0 to nCount-1 do
+  begin
+    DragQueryFile( msg.WParam, i, acFileName, cnMaxFileNameLen );
+    // do your thing with the acFileName
+    {MessageBox( Handle, acFileName, '', MB_OK );}
+    //ReadDataFile(acFileName);
+    SurfAnal.SendFileRequestToSurf(acFileName);
+  end;
+  // let Windows know that you're done
+  DragFinish( msg.WParam );
+end;
+
+{==========================================================}
+Function TSurfSortForm.SpikeIsArtifact(var Spike : TSpike) : boolean;
+var i,j,p,n : integer;
+    median,crit : single;
+    sortedparams : array of SmallInt;
+begin
+  //Check for all maxed out spikes
+  {For i := 0 to Length(Spike.Param) div 2 do
+  begin
+  end;}
+  //Check for little or no variance, which will also catch all maxed out spikes
+  //sum := 0;
+  //sumsqr := 0;
+  n := Length(Spike.Param) div 2;
+  SetLength(SortedParams,n);
+  For i := 0 to n-1 do
+  begin
+    p := Spike.Param[i*2];
+    //sum := sum + p;
+    //sumsqr := sumsqr + p*p;
+    SortedParams[i] := p;
+  end;
+  //mean := sum/n;
+  //std := sqrt(sumsqr/n - sqr(mean));
+  For i := 0 to n div 2{-2} do
+    For j := i+1 to n-1 do
+      if SortedParams[i] < SortedParams[j] then
+      begin
+        p := SortedParams[i];
+        SortedParams[i] := SortedParams[j];
+        SortedParams[j] := p;
+      end;
+  Median := (SortedParams[n div 2-1] + SortedParams[n div 2])/2;
+  //LTemp.Caption := Inttostr(round(mean))+','+Inttostr(round(median))+','+Inttostr(round(std));
+  //Check for a zeroed out spike
+  For i := 0 to Length(Spike.Param) div 2 do
+  begin
+  end;
+  try
+    crit := V2uV*strtofloat(lcritmedian.text);
+  except
+    crit := 225;
+    beep;
+  end;
+
+  if abs(Median) > crit
+    then SpikeIsArtifact := TRUE
+    else SpikeIsArtifact := FALSE;
+
+  SortedParams := nil;
+end;
+
+{==========================================================}
+procedure TSurfSortForm.ComputeWaveformParams(var Spike : TSpike);
+var c,pt,nchans,npts,max,maxpt,maxchan : integer;
+begin
+  With Spike do
+  begin
+    nchans := Length(waveform);
+    SetLength(param,nchans*2);
+    npts := length(waveform[0]);
+    //Fnd the largest and smallest values
+    max := -1;
+    maxpt := 0;
+    maxchan := 0;
+    For c := 0 to nchans-1 do
+      For pt := 0 to npts-1 do
+        if max < {abs}(waveform[c,pt]-2048) then
+        begin
+          max := {abs}(waveform[c,pt]-2048);
+          maxpt := pt;
+          maxchan := c;
+        end;
+    //Now assign all the params
+    For c := 0 to nchans-1 do
+      param[c*2] := waveform[c,maxpt]-2048;
+  end;
+  MaxWavePt := maxpt;
+  ChanWithMaxPeak := maxchan;
+end;
+
+{==========================================================}
+procedure TSurfSortForm.SurfAnalSurfFile(SurfFile: TSurfFileInfo);
+type
+  WaveFormRec = record
+    exists : boolean;
+    Win : TChanObj;
+  end;
+var
+  spikeprobeindex : array[0..32] of boolean;
+  c,np,p,e,i,nsp,OrigHeight,OrigWidth : integer;
+  WaveForm : array[0..32] of WaveFormRec;
+  Electrode : ElectrodeRec;
+  m,offset,v0 : double;
+begin
+  Show;
+
+  tdbm := TBitmap.Create;
+  tdbm.Width := LocSortForm.ClientWidth;
+  tdbm.Height := LocSortForm.ClientHeight;
+  tdbm.PixelFormat := pf24bit;
+
+  if EstV2d.Checked
+    then v2dform.Show;
+  LocSortForm.Show;
+  SurfSortForm.BringToFront;
+
+  for p := 0 to 32 do
+    spikeprobeindex[p] := FALSE;
+
+  HaltRead := FALSE;
+
+  nspikeprobes.caption := inttostr(0);
+  nspikes.caption := inttostr(0);
+
+  For c := 0 to 32 do
+    WaveForm[c].exists := FALSE;
+
+  OrigWidth := SurfSortForm.ClientWidth;
+  OrigHeight := SurfSortForm.ClientHeight;
+
+  With SurfFile do
+  begin
+    extgain.value := ProbeArray[0].extgain[0];
+
+    if not LocSortForm.CreateElectrode(ElectrodePick.Text,ProbeArray[0].intgain,ExtGain.Value)
+    then begin
+      ShowMessage('Electrode not defined');
+      tdbm.Free;
+      LocSortForm.Hide;
+      V2DForm.Hide;
+      exit;
+    end;
+    if ElectrodePick.ItemIndex <0 then ElectrodePick.ItemIndex := 0;
+    GetElectrode(Electrode,ElectrodePick.Items[ElectrodePick.ItemIndex]);
+
+    //Compute params
+    for e := 0 to NEvents-1 do
+      With SurfEventArray[e] do
+        If (EventType = SURF_PT_REC_UFFTYPE) and (subtype = SPIKETYPE) then
+          ComputeWaveformParams(ProbeArray[probe].spike[Index]);
+
+    Vinfinite := StrToFloat(LVinf.text);
+    v0 := Vinfinite;
+    m := StrToFloat(lm.text);
+    Offset := StrToFloat(lOffset.text);
+
+    if EstV2d.Checked then
+    begin
+      for e := 0 to NEvents-1 do
+        With SurfEventArray[e] do
+          If (EventType = SURF_PT_REC_UFFTYPE)
+          and (subtype = SPIKETYPE) then
+            if not SpikeIsArtifact(ProbeArray[probe].spike[Index])
+              then V2DForm.Plot(Electrode,ProbeArray[probe].spike[Index],ProbeArray[probe].intgain,extgain.value);
+
+      V2DForm.ComputeV2d(m,Offset,V0);
+
+      Vinfinite := V0;
+      LVinf.text := floattostrf(V0,fffixed,6,0);
+      lm.text := floattostrf(m,fffixed,4,2);
+      LOffset.Text := floattostrf(Offset,fffixed,5,1);
+    end;
+
+    //Setup windows
+    np := length(ProbeArray);
+    //Setup WaveForm Windows
+    for p := 0 to np-1 do
+      case ProbeArray[p].ProbeSubType of
+        SPIKETYPE :
+          begin
+            spikeprobeindex[p] := TRUE;
+            for c := 0 to ProbeArray[p].numchans-1 do
+            begin
+              WaveForm[ProbeArray[p].chanlist[c]].exists := TRUE;
+              WaveForm[ProbeArray[p].chanlist[c]].win := TChanObj.CreateParented(WaveForms.Handle);
+              WaveForm[ProbeArray[p].chanlist[c]].win.InitPlotWin({npts}ProbeArray[p].pts_per_chan,
+                                                           {left}ProbeArray[p].screenlayout[c].x,
+                                                           {top} ProbeArray[p].screenlayout[C].y,
+                                                       {bmheight}50,
+                                                        {intgain}ProbeArray[p].intgain,
+                                                         {thresh}ProbeArray[p].threshold,
+                                                         {trigpt}ProbeArray[p].trigpt,
+                                                        {probeid}p,
+                                                         {chanid}ProbeArray[p].chanlist[c],
+                                                      {probetype}ProbeArray[p].ProbeSubType,
+                                                          {title}'Chan '+inttostr(ProbeArray[p].chanlist[c]),
+                                                           {view}TRUE,
+                                                {acquisitionmode}FALSE);
+              WaveForm[ProbeArray[p].chanlist[c]].win.MarkerV.Visible := TRUE;
+              WaveForm[ProbeArray[p].chanlist[c]].win.MarkerH.Visible := FALSE;
+              if SurfSortForm.ClientWidth < ProbeArray[p].screenlayout[c].x + WaveForm[ProbeArray[p].chanlist[c]].win.width
+                then SurfSortForm.ClientWidth := ProbeArray[p].screenlayout[c].x + WaveForm[ProbeArray[p].chanlist[c]].win.width;
+              if SurfSortForm.ClientHeight      < StatusBar.height + Guage.Height + WaveForms.Top + WaveForm[ProbeArray[p].chanlist[c]].win.top + WaveForm[ProbeArray[p].chanlist[c]].win.height
+                then SurfSortForm.ClientHeight := StatusBar.height + Guage.Height + WaveForms.Top + WaveForm[ProbeArray[p].chanlist[c]].win.top + WaveForm[ProbeArray[p].chanlist[c]].win.height;
+            end;
+          end;
+      end{case};
+
+    // Now read the data using the event array
+    Guage.MinValue := 0;
+    Guage.MaxValue := NEvents-1;
+    nsp := 0;
+    for e := 0 to NEvents-1 do
+    begin
+      p := SurfEventArray[e].probe;
+      i := SurfEventArray[e].Index;
+      case SurfEventArray[e].EventType of
+        SURF_PT_REC_UFFTYPE {'N'}: //handle spikes and continuous records
+          case SurfEventArray[e].subtype of
+            SPIKETYPE  {'S'}:
+              begin //spike record found
+                if nsp mod 10 = 0 then time.caption := inttostr(ProbeArray[p].spike[i].time_stamp);
+                inc(nsp);
+                //if TicSound.Checked then tic.play;
+                if SpikeIsArtifact(ProbeArray[p].spike[i]) then ProbeArray[p].spike[i].Cluster := -1;
+                if Display.Checked then
+                begin
+                  ComputeWaveformParams(ProbeArray[p].spike[i]);
+                  for c := 0 to ProbeArray[p].numchans-1 do
+                  begin
+                    WaveForm[ProbeArray[p].chanlist[c]].win.MarkerV.Left := WaveForm[ProbeArray[p].chanlist[c]].win.plot.left + MaxWavePt*2;
+                    if c=ChanWithMaxPeak
+                      then WaveForm[ProbeArray[p].ChanList[c]].win.PlotWaveForm(ProbeArray[p].spike[i].WaveForm[c],1,overlay.checked)
+                      else WaveForm[ProbeArray[p].ChanList[c]].win.PlotWaveForm(ProbeArray[p].spike[i].WaveForm[c],0,overlay.checked);
+                  end;
+                end;
+                try
+                  Vinfinite := StrToFloat(lVinf.text);
+                  m := StrToFloat(lm.text);
+                  Offset := StrToFloat(lOffset.text);
+                except
+                  beep;
+                end;
+                //LocSortForm.AddAPixel(random(300),random(500),random(100),prb[p].spike[i].Cluster);
+                //canvas.FillRect(rect(350,0,550,4*12));
+                //for c := 0 to prb[p].numchans-1 do
+                  //canvas.textout(350 + (c div 4)*40,(c mod 4)*12,inttostr(prb[p].spike[i].param[c*2]));
+                if  ProbeArray[p].spike[i].Cluster >= 0 then
+                begin
+                  LocSortForm.ComputeLoc(ProbeArray[p].spike[i],m,offset);
+                  nspikes.caption := inttostr(nsp);
+                end;
+              end;
+          end;
+      end {case};
+      Guage.Progress := e;
+      Application.ProcessMessages;
+      if HaltRead then break;
+      While pause.checked do
+      begin
+        Application.ProcessMessages;
+        if StepNext then begin StepNext := FALSE; break; end;
+      end;
+    end{event loop};
+    //tic.close;
+  end;
+  pause.Checked := TRUE;
+  While pause.checked do
+  begin
+    Application.ProcessMessages;
+    if HaltRead then break;
+  end;
+
+  For c := 0 to 32 do
+    if WaveForm[c].exists then WaveForm[c].win.free;
+
+  nsp := 0;
+  //ncp := 0;
+  for p := 0 to 32 do
+    if spikeprobeindex[p] then inc(nsp);
+  nspikeprobes.caption := inttostr(nsp);
+
+  SurfSortForm.ClientWidth := OrigWidth;
+  SurfSortForm.ClientHeight := OrigHeight;
+  Guage.Progress := 0;
+
+  tdbm.Free;
+  LocSortForm.Hide;
+  V2DForm.Hide;
+end;
+
+procedure TSurfSortForm.FileNew1Execute(Sender: TObject);
+begin
+  { Do nothing }
+end;
+
+procedure TSurfSortForm.FileOpen1Execute(Sender: TObject);
+begin
+  If OpenDialog.Execute then
+    SurfAnal.SendFileRequestToSurf(OpenDialog.FileName);
+end;
+
+procedure TSurfSortForm.FileSave1Execute(Sender: TObject);
+begin
+  //SaveDialog.Execute;
+end;
+
+procedure TSurfSortForm.FileExit1Execute(Sender: TObject);
+begin
+  Close;
+end;
+
+procedure TSurfSortForm.HelpAbout1Execute(Sender: TObject);
+begin
+  AboutBox.ShowModal;
+end;
+
+procedure TSurfSortForm.FormCreate(Sender: TObject);
+begin
+  DragAcceptFiles( Handle, True );
+end;
+
+procedure TSurfSortForm.StopButtonClick(Sender: TObject);
+begin
+  HaltRead := TRUE;
+end;
+
+Procedure TChanObj.ThreshChange(pid,cid : integer; ShiftDown,CtrlDown : boolean);
+begin
+end;
+
+procedure TSurfSortForm.StepClick(Sender: TObject);
+begin
+  StepNext := TRUE;
+end;
+
+
+
+end.

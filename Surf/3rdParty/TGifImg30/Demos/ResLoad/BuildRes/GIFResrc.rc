@@ -1,0 +1,6 @@
+// Resource file to link GIF files into the Executable
+
+// GIF Files
+Smile         GIF   "Smile.gif"
+RedButton     GIF   "RedBtn.gif"
+GreenButton   GIF   "GrnBtn.gif"

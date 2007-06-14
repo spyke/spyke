@@ -1,0 +1,43 @@
+unit About;
+
+interface
+
+uses Windows, Classes, Graphics, Forms, Controls, StdCtrls,
+  Buttons, ExtCtrls, Animate, GIFCtrl;
+
+type
+  TAboutBox = class(TForm)
+    Panel1: TPanel;
+    OKButton: TButton;
+    ProductName: TLabel;
+    Version: TLabel;
+    Copyright: TLabel;
+    Comments: TLabel;
+    Spin: TRxGIFAnimator;
+    procedure FormShow(Sender: TObject);
+    procedure FormHide(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  AboutBox: TAboutBox;
+
+implementation
+
+{$R *.DFM}
+
+procedure TAboutBox.FormShow(Sender: TObject);
+begin
+  Spin.Animate := TRUE;
+end;
+
+procedure TAboutBox.FormHide(Sender: TObject);
+begin
+  Spin.Animate := FALSE;
+end;
+
+end.
+

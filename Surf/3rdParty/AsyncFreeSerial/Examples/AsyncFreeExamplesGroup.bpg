@@ -1,0 +1,40 @@
+#------------------------------------------------------------------------------
+VERSION = BWS.01
+#------------------------------------------------------------------------------
+!ifndef ROOT
+ROOT = $(MAKEDIR)\..
+!endif
+#------------------------------------------------------------------------------
+MAKE = $(ROOT)\bin\make.exe -$(MAKEFLAGS) -f$**
+DCC = $(ROOT)\bin\dcc32.exe $**
+BRCC = $(ROOT)\bin\brcc32.exe $**
+#------------------------------------------------------------------------------
+PROJECTS = FileViewerExample.exe LineViewerExample.exe SimplePortExample.exe \
+  TerminalPortExample.exe DataAwareExample.exe NonsyncEventsExample.exe \
+  NonVCLExample.exe
+#------------------------------------------------------------------------------
+default: $(PROJECTS)
+#------------------------------------------------------------------------------
+
+DataAwareExample.exe: DataAwareExample.dpr
+  $(DCC)
+
+FileViewerExample.exe: FileViewerExample.dpr
+  $(DCC)
+
+LineViewerExample.exe: LineViewerExample.dpr
+  $(DCC)
+
+NonVCLExample.exe: NonVCLExample.dpr
+  $(DCC)
+
+SimplePortExample.exe: SimplePortExample.dpr
+  $(DCC)
+
+TerminalPortExample.exe: TerminalPortExample.dpr
+  $(DCC)
+
+NonsyncEventsExample.exe: NonsyncEventsExample.dpr
+  $(DCC)
+
+

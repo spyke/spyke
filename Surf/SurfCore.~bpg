@@ -1,0 +1,45 @@
+#------------------------------------------------------------------------------
+VERSION = BWS.01
+#------------------------------------------------------------------------------
+!ifndef ROOT
+ROOT = $(MAKEDIR)\..
+!endif
+#------------------------------------------------------------------------------
+MAKE = $(ROOT)\bin\make.exe -$(MAKEFLAGS) -f$**
+DCC = $(ROOT)\bin\dcc32.exe $**
+BRCC = $(ROOT)\bin\brcc32.exe $**
+#------------------------------------------------------------------------------
+PROJECTS = dclusr50.bpl Surf.exe MSeqAnal.exe MBarAnal.exe GratAnal.exe \
+  Anal3DPredict.exe ElectroPlate.exe ReadSurf.exe SurfBawd.exe
+#------------------------------------------------------------------------------
+default: $(PROJECTS)
+#------------------------------------------------------------------------------
+
+Surf.exe: Surf\Surf.dpr
+  $(DCC)
+
+MSeqAnal.exe: AnalMseq\MSeqAnal.dpr
+  $(DCC)
+
+MBarAnal.exe: AnalMBar\MBarAnal.dpr
+  $(DCC)
+
+GratAnal.exe: AnalGrat\GratAnal.dpr
+  $(DCC)
+
+Anal3DPredict.exe: Anal3DPredict\Anal3DPredict.dpr
+  $(DCC)
+
+ElectroPlate.exe: ElectroPlate\ElectroPlate.dpr
+  $(DCC)
+
+ReadSurf.exe: ReadSurf\ReadSurf.dpr
+  $(DCC)
+
+dclusr50.bpl: ..\..\program files\borland\delphi5\Lib\dclusr50.dpk
+  $(DCC)
+
+SurfBawd.exe: SurfBawd\SurfBawd.dpr
+  $(DCC)
+
+

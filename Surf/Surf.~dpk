@@ -1,0 +1,46 @@
+package Surf;
+
+{$R *.RES}
+{$R '..\..\Program Files\Borland\Delphi5\Imports\DTAcq32Lib_TLB.dcr'}
+{$ALIGN OFF}
+{$ASSERTIONS OFF}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA OFF}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS OFF}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO OFF}
+{$SAFEDIVIDE ON}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST ON}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$IMPLICITBUILD OFF}
+
+requires
+  VCL50,
+  VCLSMP50,
+  dclusr50;
+
+contains
+  SuperTimer,
+  SurfAcq in 'Components\SurfAcq.pas',
+  SurfAnal in 'Components\SurfAnal.pas',
+  SurfShared in 'Surf\SurfShared.pas',
+  SurfTypes in 'Surf\SurfTypes.pas',
+  SurfFile in 'Surf\SurfFile.pas',
+  UFFTYPES in 'Surf\UFFTYPES.pas',
+  FileProgressUnit in 'Surf\FileProgressUnit.pas' {FileProgressWin},
+  SurfPublicTypes in 'Public\SurfPublicTypes.pas',
+  DTAcq32Lib_TLB in '..\..\Program Files\Borland\Delphi5\Imports\DTAcq32Lib_TLB.pas',
+  SurfFileAccess in 'Components\SurfFileAccess.pas';
+
+end.

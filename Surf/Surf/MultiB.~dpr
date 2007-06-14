@@ -1,0 +1,13 @@
+program MultiB;
+
+uses
+  Forms,
+  Multiboard in 'Multiboard.pas' {DTConfig};
+
+{$R *.RES}
+
+begin
+  Application.Initialize;
+  Application.CreateForm(TDTConfig, DTConfig);
+  Application.Run;
+end.

@@ -55,19 +55,18 @@ VERIFICATION:
     - Nick had some other kind of idea for verification...
 
 
-- while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
+- mini rips: while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
     - this would allow you to quickly increase the number of spikes in each template, and would reveal which spikes in your subset are still very different from any templates you've generated so far, so you can prioritize and focus on those next
     - more importantly, this will aid in sweeping up spikes from those cells that fire a lot and distract you from those that fire rarely
     - a degenerate version of this would be to do a self rip, where you rip across only the set of spikes that are currently members of the template. This would allow you to adjust the error thresh until the self rip just barely returns all of the current members of the template
-    - as for a normal rip, you'll first need to set an error thresh for the template
+    - just as for a normal rip, you'll first need to set an error thresh for the template
     - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
 
-- event collections: general purpose widget/slot that represents a specific collection of event times - or maybe be more specific and just call them spike collections?
-    - have a display mode, where you can cycle through the events (spikes) in that collection one by one, or show them 10 at a time or all at once in an overplot, or spread out in a grid fashion (scrollable if need be). Or just a truncated/scrollable list of the spike times in us
-    - event collections could be results from a spike detection run, members of templates, results from a rip, or any sort of collection of spikes you might generate. Could even be a collection of random times in the recording (noise times) that have nothing to do with spikes
+- event collection: class that represents a specific collection of event times - or maybe be more specific and just call it a spike collection?
+    - the event collection class could be results from a spike detection run, members of templates, results from a rip, or any sort of collection of spikes you might generate. Could even be a collection of random times in the recording (noise times) that have nothing to do with spikes
     - event collections should have methods such that you can easily reveal times that two (or more?) collections have or don't have in common (venn diagrams)
-        - implement this in GUI using drag and drop? right mouse button drag one collection widget onto another, up pops a menu with options like:
+        - implement this in GUI using drag and drop? right mouse button drag one collection window onto another, up pops a menu with options like:
             - merge collections
             - copy event times to collection
             - generate new collection of event times in source but not destination
@@ -78,12 +77,38 @@ VERIFICATION:
     - should be able to name event collections
     - the collections themselves would technically only consist of event times in us
         - copies of waveforms wouldn't be stored in spike collections, displaying the waveforms in a collection would require going back to the waveform data, armed with the spike time
-    - would want to have
-    - is spike time in us good enough for uniquely identifying a spike? should we also associate a channel list with it? what exactly is the output of the spike detection algorithm? just a spike time, or a list of significant channels as well? Perhaps channel designation should only be allowed in templates. An event/spike is a 54 channel waveform. A template is an event collection plus:
+    - is spike time in us good enough for uniquely identifying a spike? should we also associate a channel list with it? what exactly is the output of the spike detection algorithm? just spike times, or a list of significant channels as well? Perhaps channel designation should only be allowed in templates. An event/spike is a 54 channel waveform.
+    - A template is an event collection plus:
         - channel designation
         - error threshold designation
     - so a template is a subclass of an event collection
+    - should ultimately be able to do collections and templates on any of the layouts in the file, not just the main polytrode layout. This means potentially LFP data (lowpassrecords and lowpassmultichanrecords)...
 
+    - maybe "File:New event collection" and "File:New template" items in the main menu, and maybe corresponding main toolbar buttons
+
+    - event collection window GUI:
+        - After a round of spike detection, an event collection window pops up. An event collection window has a full channel layout display. It has a combo box that lets you choose an event, labelled by its timepoint and a colour. Choosing it displays the event. To the right of the waveform display, there's a button corresponding to the event, with its timestamp and color in it. The button has a right click context menu that lets you:
+            - delete the event
+            - remove the event and make a new collection from it
+            - remove it and make a new template from it
+            - move it to the current template (see below)
+        - Or, you can just drag and drop the button to another template or event/collection window to move it to that template/collection
+        - dragging the event button off into space removes the event and pops open a new event collection window
+        - Clicking the event button toggles its display. Also, there's a spin edit box next to the combo box that allows you to control how many events to display at once. If n > 1, the current event chosen in the combo box is used as the first event, and the n-1 subsequent events are also displayed, and also get their own button next to the waveform display. Each event is given a different colour. Make the color of the first (or only) event always the same, say red.
+        - the GUI also has another combo box to the left of the waveform display for selecting the current template to overplot on top of the event(s) in the waveform display. As for events, there's a spin edit box, and buttons representing templates, so you can overplot multiple templates on top of the events, though you normally wouldn't do that much
+            - dragging the template buttons off into space would pop open a new template window...
+
+    - template window GUI:
+        - pretty much the same as the event collection window, except now events in the combo box on the right are members of the currently selected template. If more than one template is selected, the event combo box and event buttons gray out or disappear completely, and you're in a mode where you're just overplotting and comparing templates.
+        - some way of merging currently selected templates
+        - some widget for controlling rip error threshold for current template
+        - to designate which channels to include in the current template when it comes time to use it for ripping, just click each channel in the waveform display to toggle that channel
+
+- closing a collection or template window just closes its GUI, doesn't delete it. Can bring it back by selecting it from the main window's view menu, or something.
+
+- transparency would be good for overplots
+
+- hard to do?: would be good to have undo/redo for all the collection/template membership manipulations
 
 - what kind of window should we have around the spike time? Does the spike time represent the time of absolute value of peak voltage on the channel with the biggest signal? Then the temporal window around that is -0.25 ms and + 0.75 ms for a total of 1 ms window? I think that's roughly the standard in surfbawd. Temporal window parameters (-ve and +ve offset from spike time) should be a global setting that everything uses, but one that you can change at will (at least when spyke isn't currently doing a rip) to accomodate the display of the occasional long slow spike
 

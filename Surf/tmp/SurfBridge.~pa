@@ -1,0 +1,278 @@
+unit SurfBridge;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs;
+
+const
+  WM_SURF_IN = WM_USER + 100;
+  WM_SURF_OUT = WM_USER + 101;
+
+{$I 'C:\DelphiApps\Surf\SurfDllData.inc'}
+
+type
+  TSurfSpikeEvent = Procedure(Spike : TSpike) of Object;
+  TSurfCrEvent = Procedure(Cr : TCr) of Object;
+  TSurfSVEvent = Procedure(SV : TSVal) of Object;
+  TSurfMsgEvent = Procedure(Msg : TSurfMsg) of Object;
+  TSurfProbeEvent = Procedure(Probe : TProbe) of Object;
+
+    //TCustomControl
+    //TWinControl
+  TSurfBridge = class(TControl{TComponent})
+  private
+    { Private declarations }
+    //FBufferSize : Integer;            { Actual buffer used }
+    FOnSpike: TSurfSpikeEvent;
+    FOnCr: TSurfCrEvent;
+    FOnSV: TSurfSVEvent;
+    FOnMsg: TSurfMsgEvent;
+    FOnProbe: TSurfProbeEvent;
+
+    ReadIndex : Integer;
+    GlobData   : PGlobalDLLData;
+
+    SurfParentExists : boolean;
+    SurfHandle : THandle;
+
+    Procedure OnAppMessage(var Msg: TMsg; var Handled : Boolean);
+     Function NextWritePosition(size : integer) : integer;
+    Procedure WriteToBuffer(data : pchar; buf : pchar; size : integer; var writeindex : integer);
+    Procedure ReadFromBuffer(data : pchar; buf : pchar; size : integer; var readindex : integer);
+
+    //Procedures for SurfBridge
+    Procedure GetSpikeFromSurf(var Spike : TSpike; ReadIndex : integer);
+    Procedure GetCrFromSurf(var Cr : TCr; ReadIndex : integer);
+    Procedure GetSvFromSurf(var Sv : TSVal; ReadIndex : integer);
+  protected
+    { Protected declarations }
+  public
+    { Public declarations }
+    Constructor Create(AOwner: TComponent); Override;
+    Destructor  Destroy; Override;
+    //Methods
+    Procedure SendSpikeToSurf(Spike : TSpike);
+    Procedure SendSVToSurf(Sval : TSVal);
+    Procedure SendD2AToSurf(D2A : TD2A);
+  published
+    { Published declarations }
+
+    //properties
+    //Property BufferSize : Integer read FBufferSize write SetBufferSize Default 8192;
+
+    //Events
+    property OnSpike: TSurfSpikeEvent read FOnSpike write FOnSpike;
+    property OnCR: TSurfCREvent read FOnCR write FOnCr;
+    property OnSV: TSurfSVEvent read FOnSV write FOnSV;
+    property OnMsg: TSurfMsgEvent read FOnMsg write FOnMsg;
+    property OnProbe: TSurfProbeEvent read FOnProbe write FOnProbe;
+  end;
+
+procedure Register;
+{ Define the DLL's exported procedure }
+procedure GetDLLData(var AGlobalData: PGlobalDLLData); StdCall External 'C:\DelphiApps\Surf\SURFBRIDGE.DLL';//'C:\DelphiApps\TestCom Stuff\SHARELIB.DLL';
+
+implementation
+
+procedure Register;
+begin
+  RegisterComponents('SURF', [TSurfBridge]);
+end;
+Destructor TSurfBridge.Destroy;
+begin
+  Inherited Destroy;
+end;
+
+{-----------------------------------------------------------------------------}
+Constructor TSurfBridge.Create(AOwner: TComponent);
+begin
+  Inherited Create(AOwner);
+
+  //don't process anymore if just designing
+  if (csDesigning in ComponentState) then exit;
+
+  ReadIndex := 0;
+
+  //if running in standalone then getoutahere
+  if ParamCount<>2 then //Looking for version info and Surf's handle
+  begin
+    beep;
+    ShowMessage('SurfBridge will only run when the application is called from Surf.');
+  end else
+  begin
+    if ParamStr(1) = 'SURFv1.0' then  //got the surf version
+    begin
+      SurfHandle := strtoint(ParamStr(2)); //and now the handle
+      if SurfHandle > 0 then SurfParentExists := TRUE;
+      GetDllData(GlobData);
+
+      //Intercept applicaiton messages and send them to SurfBridge message handler
+      Application.OnMessage := OnAppMessage; //intercepts postmessages
+      PostMessage(SurfHandle,WM_SURF_IN,SURF_IN_HANDLE,(AOwner as TForm).Handle);//send it back to Surf
+    end;
+  end;
+end;
+
+{-----------------------------------------------------------------------------}
+Procedure TSurfBridge.OnAppMessage(var Msg: TMsg; var Handled : Boolean);
+var Spike : TSpike;
+    Cr : TCr;
+    SVal : TSVal;
+    c,ReadIndex : integer;
+begin
+  Handled := FALSE;
+  if Msg.Message <> WM_SURF_OUT
+    then exit//only handle those messages from surf
+    else Handled := TRUE; //intercept
+  ReadIndex := Msg.LParam;
+  Case Msg.WParam of
+    SURF_OUT_SPIKE    : begin
+                          GetSpikeFromSurf(Spike,ReadIndex);
+
+                          if Assigned(FOnSpike) then //see if user is actually calling this method
+                            FOnSpike(Spike); //send it to user
+
+                          //this unit is responsible for clearing the spike memory
+                          For c := 0 to Length(Spike.WaveForm)-1 do
+                            Spike.waveform[c] := nil;
+                          Spike.waveform := nil;
+                          Spike.param := nil;
+                        end;
+    SURF_OUT_CR       : begin
+                          GetCRFromSurf(Cr,ReadIndex);
+                          if Assigned(FOnCR) then //see if user is actually calling this method
+                            FOnCr(Cr); //send it to user
+                          //this unit is responsible for clearing the waveform memory
+                          Cr.waveform := nil;
+                        end;
+    SURF_OUT_SV       : begin
+                          GetSVFromSurf(SVal,ReadIndex);
+                          if Assigned(FOnSv) then //see if user is actually calling this method
+                            FOnSv(SVal); //send it to user
+                        end;
+    SURF_OUT_DONEREAD : ;
+  end{case};
+end;
+
+{========================= WRITING FUNCTIONS ==================================}
+Function TSurfBridge.NextWritePosition(size : integer) : integer;
+var i : integer;
+begin
+  While GlobData^.Writing do;//pause if another process is currently writing
+  GlobData^.Writing := TRUE;
+  i := GlobData^.WriteIndex;
+  if (i + size) > GLOBALDATARINGBUFSIZE-1 {wrap around}
+    then i := 0;
+  GlobData^.WriteIndex := i + size;
+  RESULT := i;
+  GlobData^.Writing := FALSE;
+end;
+
+Procedure TSurfBridge.WriteToBuffer(data : pchar; buf : pchar; size : integer; var writeindex : integer);
+begin
+  Move(data^,buf^,size);
+  inc(writeindex,size);
+end;
+{----------------------------- SEND SPIKE ------------------------------------}
+Procedure TSurfBridge.SendSpikeToSurf(Spike : TSpike);
+var origindex,curindex : integer;
+    size,c : integer;
+    bufdesc : TBufDesc;
+begin
+  GetDllData(GlobData);
+
+  bufdesc.d1{nchans} := Length(Spike.Waveform);
+  bufdesc.d2{npts} := Length(Spike.Waveform[0]);
+  bufdesc.d3{nparams} := Length(Spike.Param);
+
+  Size :=  sizeof(bufdesc) //desc info
+         + sizeof(Spike) - 8 {the waveform and param pointers}
+         + bufdesc.d1 * bufdesc.d2*2 //the waveform
+         + bufdesc.d3*2;  //the parameters
+
+  CurIndex := NextWritePosition(size);
+  origindex := curindex;
+
+  //copy the spike to the global data array
+  WriteToBuffer(@Spike,@GlobData^.data[curindex],sizeof(Spike) - 8,curindex);
+  WriteToBuffer(@bufdesc,@GlobData^.data[curindex],sizeof(bufdesc),curindex);
+  For c := 0 to bufdesc.d1-1 do
+    WriteToBuffer(@Spike.WaveForm[c,0],@GlobData^.data[curindex],bufdesc.d2*2,curindex);
+  WriteToBuffer(@Spike.Param[0],@GlobData^.data[curindex],bufdesc.d3*2,curindex);
+
+  //tell surf it is there
+  PostMessage(SurfHandle,WM_SURF_IN,SURF_IN_SPIKE,origindex);
+end;
+{------------------------- SEND SV  ----------------------------------------}
+Procedure TSurfBridge.SendSVToSurf(SVal : TSVal);
+var origindex,curindex : integer;
+    size : integer;
+begin
+  Size := sizeof(SVal); //the sv record
+  //get the next write position
+  CurIndex := NextWritePosition(size);
+  origindex := curindex;
+
+  //copy the sv to the global data array
+  WriteToBuffer(@SVal,@GlobData^.data[curindex],size,curindex);
+  //tell surf it is there
+  PostMessage(SurfHandle,WM_SURF_IN,SURF_IN_SV,origindex);
+end;
+{------------------------- SEND D2A  ----------------------------------------}
+Procedure TSurfBridge.SendD2AToSurf(D2A : TD2A);
+var origindex,curindex : integer;
+    size : integer;
+begin
+  Size := sizeof(D2A); //the sv record
+  //get the next write position
+  CurIndex := NextWritePosition(size);
+  origindex := curindex;
+
+  //copy the D2A to the global data array
+  WriteToBuffer(@D2A,@GlobData^.data[curindex],size,curindex);
+  //tell surf it is there
+  PostMessage(SurfHandle,WM_SURF_IN,SURF_IN_D2A,origindex);
+end;
+
+{========================= READING FUNCTIONS ==================================}
+Procedure TSurfBridge.ReadFromBuffer(data : pchar; buf : pchar; size : integer; var readindex : integer);
+begin
+  Move(buf^,data^,size);
+  inc(readindex,size);
+end;
+{------------------------  GET SPIKE ------------------------------------------}
+Procedure TSurfBridge.GetSpikeFromSurf(var Spike : TSpike; ReadIndex : integer);
+var bufdesc : TBufDesc;
+    c : integer;
+begin
+  ReadFromBuffer(@Spike,@GlobData^.data[readindex],sizeof(Spike)-8,readindex);
+  ReadFromBuffer(@bufdesc,@GlobData^.data[readindex],sizeof(bufdesc),readindex);
+  SetLength(Spike.waveform,bufdesc.d1{nchans});
+  For c := 0 to bufdesc.d1{nchans}-1 do
+  begin
+    SetLength(Spike.WaveForm[c],bufdesc.d2{npts});
+    ReadFromBuffer(@Spike.WaveForm[c,0],@GlobData^.data[readindex],bufdesc.d2{npts}*2,readindex);
+  end;
+  ReadFromBuffer(@Spike.Param[0],@GlobData^.data[readindex],bufdesc.d3{nparams}*2,readindex);
+end;
+
+{------------------------  GET CR ------------------------------------------}
+Procedure TSurfBridge.GetCrFromSurf(var Cr : TCr; ReadIndex : integer);
+var bufdesc : TBufDesc;
+begin
+  Move(GlobData^.data[readindex],Cr,sizeof(Cr)-4);
+  readindex := readindex + sizeof(Cr) - 4;
+  Move(GlobData^.data[readindex],bufdesc,sizeof(bufdesc));
+  inc(readindex,sizeof(bufdesc));
+  SetLength(Cr.waveform,bufdesc.d2{npts});
+  Move(GlobData^.data[readindex],Cr.WaveForm[0],bufdesc.d2{npts}*2);
+end;
+{------------------------  GET SV ------------------------------------------}
+Procedure TSurfBridge.GetSvFromSurf(var Sv : TSVal; ReadIndex : integer);
+begin
+  Move(GlobData^.data[readindex],Sv,sizeof(Sv));
+end;
+
+
+end.

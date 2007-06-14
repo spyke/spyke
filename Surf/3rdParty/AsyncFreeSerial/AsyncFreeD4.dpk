@@ -1,0 +1,44 @@
+package AsyncFreeD4;
+
+{$R *.RES}
+{$ALIGN ON}
+{$ASSERTIONS OFF}
+{$BOOLEVAL OFF}
+{$DEBUGINFO ON}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS OFF}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $00400000}
+{$DESCRIPTION 'AsyncFree'}
+{$DESIGNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  vcl40;
+
+contains
+  AfSafeSync in 'AfSafeSync.pas',
+  AfComPort in 'AfComPort.pas',
+  AfComPortCore in 'AfComPortCore.pas',
+  AfCircularBuffer in 'AfCircularBuffer.pas',
+  AfRegister in 'AfRegister.pas',
+  AfPortControls in 'AfPortControls.pas',
+  AfViewers in 'AfViewers.pas',
+  AfDataDispatcher in 'AfDataDispatcher.pas',
+  AfDataTerminal in 'AfDataTerminal.pas',
+  AfUtils in 'AfUtils.pas';
+
+end.

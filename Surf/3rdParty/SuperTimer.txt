@@ -1,0 +1,186 @@
+TSuperTimer is a 32-bit Delphi component that is a highly advanced version of
+the standard TTimer component.
+
+TSuperTimer is copyright (C) 1996-1998, by Jan Goyvaerts.
+You may freely use this component in your public domain, freeware and
+shareware applications. If you wish to use it in a commercial applications,
+please contact the author. Expensive applications should not be built with
+free components.
+
+The standard TTimer is excellent when you need to program a delay (like
+displaying a splash screen for a few seconds) or when you need to do something
+repetitively without much timing accuracy.
+If your mission is more time-critical, TTimer won't help you. Depending on
+how busy the system is doing other things, your WM_TIMER messages won't come
+on steady intervals. If there is already an unprocessed WM_TIMER message in
+the message queue, Windows will simply merge new ones with it.
+
+TSuperTimer is designed for these more time-critical missions. You use it
+just like the TTimer but behind the scenes, things go differently.
+TSuperTimer uses its own thread. The priority of the thread can be set using
+the ThreadPriority property. See TThreadPriority in the VCL Help for more
+details.
+TSuperTimer does have some extra features. First it keeps track of the time
+it has been enabled. You can retrieve this time using the Now* series of
+properties. (NowMS is the fastest.) You can also assign a value to Now to
+change the timer time. This means you can use the timer as a stopwatch.
+Note that the TSuperTimer uses the timeGetTime function, which is accurate to
+the millisecond, to update the Now* properties and not just an ordinary 
+addition. This means that the time indicated will always be correct even if 
+Windows fails to give the thread enough attention.
+If you assign a value to any of the Stop* properties, the timer will
+automatically stop if Now* >= Stop* and generate an OnStop event. Assign a
+negative value to disable auto-stopping. (default)
+If you set Countdown to True, the timer will decrease Now* until
+Now* <= Stop* or Now* <= 0.
+
+Below you find the source code of the interface section of the SuperTimer unit.
+
+If you wish, you may also purchase the entire TSuperTimer source code at
+http://www.ping.be/jg/register.shtml
+See the README.txt file for more information.
+
+If you have any comments, questions or anything else concerning this
+component, please feel free to contact me at jg@ping.be
+Also feel free to visit my home page at http://www.ping.be/jg/
+
+Happy programming!
+John.
+
+
+{***********************************************************}
+{                                                           }
+{        TSuperTimer Component                              }
+{                                                           }
+{        Copyright (C) 1996, by Jan Goyvaerts               }
+{        All rights reserved                                }
+{                                                           }
+{***********************************************************}
+
+{***********************************************************}
+{                                                           }
+{        Delphi 32-bit component unit                       }
+{           - TSuperTimer                                   }
+{        -> JG page                                         }
+{                                                           }
+{***********************************************************}
+
+unit SuperTimer;
+
+{$B-,Q-,R-,S-}
+{$D-,L-,Y-}
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs;
+
+type
+  TSuperTimer = class;
+
+  TTimerThread = class(TThread)
+    OwnerTimer: TSuperTimer;
+    procedure Execute; override;
+  end;
+
+  TSuperTimer = class(TComponent)
+  private
+    // ...
+  protected
+    StartNow: Longint;                                     // Value of NowMS when Enabled became True
+    StartTime: Longint;                                    // System time (timeGetTime) when Enabled became True
+    procedure Timer; dynamic;                              // Like TTimer.Timer: calls OnTimer
+  public                                                      // also updates NowMS and checks for Stop
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    // Current timer time in milliseconds. Automatically increased by timer thread
+    property NowMS: Longint read FNowMS write SetNowMS;
+    // Amount of times the OnTimer event has (should have) been triggered until now
+    property NowTimer: Longint read GetNowTimer write SetNowTimer;
+    // Current timer time in TDateTime format
+    property Now: TDateTime read GetNow write SetNow;
+    // StopTimer in milliseconds
+    property StopMS: Longint read GetStopMS write SetStopMS;
+    // Timer becomes disabled automatically if NowTimer >= Stop. No stopping if Stop < 0 (default)
+    property StopTimer: Longint read FStopTimer write FStopTimer;
+    // StopTimer in TDateTime format
+    property Stop: TDateTime read GetStop write SetStop;
+  published
+    // TTimer-like properties
+    property Enabled: Boolean read FEnabled write SetEnabled default False;
+    property Interval: Word read FInterval write SetInterval default 1000;
+    property OnTimer: TNotifyEvent read FOnTimer write FOnTimer;
+    // Priority of the timer's thread. Adjust as needed.
+    property ThreadPriority: TThreadPriority read FThreadPriority write SetThreadPriority default tpHigher;
+    // When True, NowMS decreases instead of increasing. If NowTimer <= Stop or NowTimer <= 0 the timer stops.
+    property CountDown: Boolean read FCountDown write FCountDown default False;
+    // Event triggered when timer stops automatically
+    property OnStop: TNotifyEvent read FOnStop write FOnStop;
+  end;
+
+procedure Register;
+
+implementation
+
+
+         { ********* TTimerThread thread ********* }
+
+procedure TTimerThread.Execute;
+var
+  NowTime: Longint;
+begin
+  Priority := OwnerTimer.FThreadPriority;
+  with OwnerTimer do
+    repeat
+      if FInterval > 50 then SleepEx(FInterval-50, False);
+      repeat
+        NowTime := timeGetTime
+      until NowTime >= ThreadNextTime;
+      ThreadNextTime := NowTime + FInterval;
+      if FCountDown then FNowMS := StartNow - (NowTime - StartTime)
+        else FNowMS := NowTime - StartTime + StartNow;
+      Synchronize(Timer)
+    until Terminated
+end;
+
+
+         { ********* TSuperTimer component ********* }
+
+      { ****** TSuperTimer private methods ****** }
+
+// ...
+
+      { ****** TSuperTimer protected methods ****** }
+
+{ If you override this method you don't have to waste time on calling the
+  inherited method if you don't use the OnTimer and OnStop events. }
+procedure TSuperTimer.Timer;
+begin
+  if Assigned(FOnTimer) then FOnTimer(Self);
+  if FCountDown then begin
+    if (NowTimer <= FStopTimer) or (FNowMS <= 0) then begin
+      Enabled := False;
+      if Assigned(FOnStop) then FOnStop(Self)
+    end
+  end
+  else begin
+    if (NowTimer >= FStopTimer) and (FStopTimer > 0) then begin
+      Enabled := False;
+      if Assigned(FOnStop) then FOnStop(Self)
+    end
+  end
+end;
+
+
+      { ****** TSuperTimer public methods ****** }
+
+// ...
+
+         { ********* Unit support routines ********* }
+
+procedure Register;
+begin
+  RegisterComponents('JG', [TSuperTimer]);
+end;
+
+end.

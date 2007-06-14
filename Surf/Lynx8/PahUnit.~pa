@@ -1,0 +1,51 @@
+unit PahUnit;
+interface
+uses
+  SysUtils, Windows, Classes, Graphics, Forms,
+  Controls, Buttons, StdCtrls, ExtCtrls;
+
+const
+  MAXCLUSTERS = 11;
+  COLOR_TABLE : array[0..MAXCLUSTERS] of TColor = (clLtGray,clFuchsia,clLime,clBlue,
+                                                   clYellow,clAqua,clTeal,
+                                                   clTeal,clPurple,clRed,
+                                                   clGreen,clWhite);
+
+procedure Delay (Seconds, MilliSec: Word);
+procedure Gray2YB(Gray : single; var R,G,B : integer; checkbounds : boolean);
+
+implementation
+
+{==============================================================================}
+procedure Delay (Seconds, MilliSec: Word);
+var
+  TimeOut: TDateTime;
+begin
+  TimeOut := Now + EncodeTime (0,
+    Seconds div 60, Seconds mod 60, MilliSec);
+  // wait until he TimeOut time
+  while Now < TimeOut do
+    Application.ProcessMessages;
+end;
+
+{==============================================================================}
+procedure Gray2YB(Gray : single; var R,G,B : integer; checkbounds : boolean);
+var igr : integer;
+procedure check (var x : integer);
+begin
+  if x < 0 then x := 0;
+  if x > 255 then x := 255;
+end;
+begin
+  igr := round(Gray-128);
+  R := 128 + igr; {yellow}
+  B := 128 - igr; {blue}
+  if checkbounds then
+  begin
+    check (R);
+    check (B);
+  end;  
+  G := R;                 {yellow}
+end;
+
+end.

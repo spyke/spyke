@@ -1,0 +1,143 @@
+{ (c) 1994-98 Phil Hetherington, P&M Research Technologies, Inc.}
+unit SurfPublicTypes;
+INTERFACE
+USES Windows,Graphics,Messages;
+CONST
+   MAXCLUSTERS = 32;
+   COLORTABLE : array[0..MAXCLUSTERS] of TColor = ({0}clLtGray,
+       {1}clFuchsia,{2}clLime,{3}clBlue,{4}clYellow,{5}clPurple,{6}clTeal,{7}clMaroon,{8}clOlive,
+       {9}clFuchsia,{10}clLime,{11}clBlue,{12}clYellow,{13}clPurple,{14}clTeal,{15}clMaroon,{16}clOlive,
+       {17}clFuchsia,{18}clLime,{19}clBlue,{20}clYellow,{21}clPurple,{22}clTeal,{23}clMaroon,{24}clOlive,
+       {25}clFuchsia,{26}clLime,{26}clBlue,{28}clYellow,{29}clPurple,{30}clTeal,{31}clMaroon,{32}clOlive);
+
+CONST
+   SURF_PT_REC_UFFTYPE      = 'N';  //Polytrode Records for spikes and continuous recordings
+     SPIKETYPE      = 'S'; //was 'P'
+     CONTINUOUSTYPE = 'C';
+   SURF_SV_REC_UFFTYPE      = 'V';  //Single Value Record
+     SURF_DIGITAL    = 'D';
+   SURF_PL_REC_UFFTYPE      = 'L';  //Probe Layout Record
+   SURF_MSG_REC_UFFTYPE     = 'M';  //Message Record
+
+   SURF_MAX_CHANNELS        = 32;
+   SURF_MAX_PROBES          = 32;
+   SURF_MAX_WAVEFORM_PTS    = 1024;
+
+TYPE
+{ Surf uses a format similar to DW's uff data file structure.  The major difference is the
+  absense of most of th records, and the unification of all spike and continuous records into
+  one called the POLYTRODE record.  The POLYTRODE record can have 2 subtypes, the SPIKETYPE and
+  the CONTINUOUSTYPE.  Both can have any length waveform.  The SPIKETYPE can have any number of
+  channels, but the CONTINUOUSTYPE can have only one channel. In addition there are singlevalue
+  records, for the storage of single 2B words, and mesg records, for the storage of 256B ShortStrings}
+  TPoint = record  //graphics
+    x,y : integer;
+  end;
+
+  SHRT   = SmallInt;{2 bytes} // short (from DTxPascal.pas)
+  LNG    = LongInt;{4 bytes}  // long  (from DTxPascal.pas)
+
+  TWaveform = array of SHRT;
+  TScreenLayout = array[0..SURF_MAX_CHANNELS-1] of TPoint;
+  TChanList = array[0..SURF_MAX_CHANNELS-1] of SHRT;
+
+  //SPIKE DATA ANALYSIS RECORD-----------------------------
+  TSpike = record
+    time_stamp    : LNG;{4 bytes}
+    cluster       : SHRT;{2 bytes}
+    EventNum      : Integer;{4 bytes}
+    waveform      : array{nchans}of TWaveform;
+    param         : array{nparams}of SHRT;
+  end;
+  TSpikeArray = array of TSpike;
+
+  //CONTINUOUS RECORD ANALYSIS RECORD----------------------
+  TCr = record
+    time_stamp    : LNG;{4 bytes}
+    EventNum      : LNG;{4 bytes}
+    waveform      : TWaveform;
+  end;
+  TCrArray = array of TCr;
+
+  //THE MAIN PROBE RECORD----------------------------------
+  TProbe = record
+    ProbeSubType   : CHAR; {=S,C for spike or continuous }
+    numchans       : SHRT; //number of channels in this spike waveform
+    pts_per_chan   : SHRT; //number of pts per waveform
+    trigpt         : SHRT; // pts before trigger
+    lockout        : SHRT; // Lockout in pts
+    intgain        : SHRT; // A/D board internal gain
+    threshold      : SHRT; // A/D board threshold for trigger
+    skippts        : SHRT;
+    sampfreqperchan: LNG;  // A/D sampling frequency
+    chanlist       : TChanList;//= array[0..SURF_MAX_CHANNELS-1] of SHRT;
+    screenlayout   : TScreenLayout;//= array[0..SURF_MAX_CHANNELS-1] of TPoint;
+    probe_descrip  : ShortString;
+    numparams      : LNG;
+    paramname      : array{numparams}of String[32];
+    numspikes      : LNG;
+    numcr          : LNG;
+    Spike          : TSpikeArray;
+    CR             : TCrArray;
+    extgain        : array[0..SURF_MAX_CHANNELS-1] of WORD;//added May21'99
+  end;
+  TProbeArray = array of TProbe;
+
+  //SINGLE VALUE ANALYSIS RECORD-----------------------------
+  TSVal = record
+    time_stamp    : LNG; //4 bytes
+    subtype       : CHAR;//1 byte -- can be used for different values
+    EventNum      : LNG;//4 bytes
+    sval          : WORD;//2 bytes -- 16 bit unsigned value
+  end;
+  TSValArray = array of TSVal;
+
+  //DAC ACQUISITION RECORD-----------------------------
+  TDAC = record  //Digital Analog Conversion
+    channel    : Byte;//1 or 2
+    frequency  : smallint;//if zero, the signal will be dc at the voltage
+    voltage    : Single;// +/- 10V
+  end;
+
+  //DIO ACQUISITION RECORD-----------------------------
+  TDIO = record  //For Digital Output
+    //mask    : WORD;//i.e., $0000FFFF for port 1 only, $FFFF0000 for port 0 only
+    val     : WORD;//2 bytes -- 16 bit unsigned value, e.g., $00FF00FF
+  end;
+
+  //Message record-------------------------------------------
+  TSurfMsg = record
+    time_stamp    : LNG; //4 bytes
+    EventNum      : LNG;{4 bytes}
+    msg           : ShortString;//256 bytes
+  end;
+  TSurfMsgArray = array of TSurfMsg;
+
+  TStim = record
+    posx,posy,len,wid,sfreq,contrast : SHRT;
+  end;
+  TStimulus = record
+    timediv : double;
+    time : array of TStim;
+  end;
+
+  TSurfEvent = record
+    Time_Stamp    : LNG; //4 bytes
+    EventType     : CHAR;//e.g., POLYTRODE, SINGLE VALUE, MESSAGE...
+    SubType       : CHAR;//e.g., S,C for spike or continuous
+    Probe         : SHRT;//if used, the probe number
+    Index         : LNG;//the index into the data array-- e.g., prb[probe].spike[index]....
+  end;
+  TSurfEventArray = array of TSurfEvent;
+
+  TSurfFileInfo = Record
+    NEvents        : Integer;
+    FileNAme       : String;
+    SurfEventArray : TSurfEventArray;
+    ProbeArray     : TProbeArray;
+    SValArray      : TSValArray;
+    SurfMsgArray   : TSurfMsgArray;
+  end;
+
+IMPLEMENTATION
+END.
