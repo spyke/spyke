@@ -63,7 +63,7 @@ VERIFICATION:
     - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
 
-- event collection: class that represents a specific collection of event times - or maybe be more specific and just call it a spike collection?
+- event collection: a class that represents a specific collection of event times - or maybe be more specific and just call it a spike collection?
     - the event collection class could be results from a spike detection run, members of templates, results from a rip, or any sort of collection of spikes you might generate. Could even be a collection of random times in the recording (noise times) that have nothing to do with spikes
     - event collections should have methods such that you can easily reveal times that two (or more?) collections have or don't have in common (venn diagrams)
         - implement this in GUI using drag and drop? right mouse button drag one collection window onto another, up pops a menu with options like:
