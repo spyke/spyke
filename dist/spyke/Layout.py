@@ -7,7 +7,8 @@ class BaseLayout(object):
 class Polytrode_1a(BaseLayout):
     def __init__(self):
         self.layout = '1a'
-        self.description = 'uMap54_1a, 65um spacing, 3 column hexagonal'
+        self.name = '\xb5Map54_1a'
+        self.description = '\xb5Map54_1a, 65\xb5m spacing, 3 column hexagonal'
         SiteLoc = {}
         SiteLoc[0] = (-56, 1170)
         SiteLoc[1] = (-56, 1105)
@@ -68,7 +69,8 @@ class Polytrode_1a(BaseLayout):
 class Polytrode_1b(BaseLayout):
     def __init__(self):
         self.layout = '1b'
-        self.description = 'uMap54_1b, 50um horzontal/46um vertical spacing, 3 column collinear'
+        self.name = '\xb5Map54_1b'
+        self.description = '\xb5Map54_1b, 50\xb5m horzontal/46\xb5m vertical spacing, 3 column collinear'
         SiteLoc = {}
         SiteLoc[0] = (-43, 900)
         SiteLoc[1] = (-43, 850)
@@ -130,7 +132,8 @@ class Polytrode_1b(BaseLayout):
 class Polytrode_1c(BaseLayout):
     def __init__(self):
         self.layout = '1c'
-        self.description = 'uMap54_1c, 75um spacing, 3 column, hexagonal'
+        self.name = '\xb5Map54_1c'
+        self.description = '\xb5Map54_1c, 75\xb5m spacing, 3 column, hexagonal'
         SiteLoc = {}
         SiteLoc[0] = (-65, 1251)
         SiteLoc[1] = (-65, 1101)
@@ -192,7 +195,8 @@ class Polytrode_1c(BaseLayout):
 class Polytrode_2a(BaseLayout):
     def __init__(self):
         self.layout = '2a'
-        self.description = 'uMap54_2a, 65um spacing, 2 column, staggered'
+        self.name = '\xb5Map54_2a'
+        self.description = '\xb5Map54_2a, 65\xb5m spacing, 2 column, staggered'
         SiteLoc = {}
         SiteLoc[0] = (-28, 1235)
         SiteLoc[1] = (-28, 1170)
@@ -254,7 +258,8 @@ class Polytrode_2a(BaseLayout):
 class Polytrode_2b(BaseLayout):
     def __init__(self):
         self.layout = '2b'
-        self.description = 'uMap54_2b, 50um spacing, 2 column, staggered'
+        self.name = '\xb5Map54_2b'
+        self.description = '\xb5Map54_2b, 50\xb5m spacing, 2 column, staggered'
         SiteLoc = {}
         SiteLoc[0] = (-25, 1275)
         SiteLoc[1] = (-25, 1175)
