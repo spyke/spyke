@@ -64,6 +64,7 @@ class Polytrode_1a(BaseLayout):
         SiteLoc[51] = (56, 1105)
         SiteLoc[52] = (56, 1170)
         SiteLoc[53] = (56, 1040)
+        self.SiteLoc = SiteLoc
 
 
 class Polytrode_1b(BaseLayout):
