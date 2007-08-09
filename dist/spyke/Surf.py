@@ -975,7 +975,7 @@ class Stream(object):
 
     def __len__(self):
         """ Total number of timepoints? Length in time? Interp'd or raw? """
-        pass
+        raise NotImplementedError()
 
     def __getitem__(self, key, endinclusive=False):
         """ Called when Stream object is indexed into using [] or with a slice
