@@ -130,6 +130,8 @@ class File(object):
             self.fileheader = FileHeader(f)
             self.fileheader.parse()
 
+            print 'Parsed fileheader'
+
             # Parse the DRDBs (Data Record Descriptor Blocks)
             self.drdbs = []
             while True:
@@ -460,7 +462,7 @@ class DRDB(object):
         self.DR_rec_type_ext, = struct.unpack('B', f.read(1))
 
         # Data Record size in bytes, signed, -1 means dynamic
-        self.DR_size, = struct.unpack('l', f.read(4))
+        self.DR_size, = struct.unpack('i', f.read(4))
 
         # Data Record name
         self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip(NULL)
@@ -525,7 +527,7 @@ class RSFD(object):
         self.subfield_data_type, = struct.unpack('H', f.read(2))
 
         # sub field size in bytes, signed
-        self.subfield_size, = struct.unpack('l', f.read(4))
+        self.subfield_size, = struct.unpack('i', f.read(4))
 
         self.length = f.tell() - self.offset
         assert self.length == 26
@@ -560,10 +562,10 @@ class LayoutRecord(object):
         f.seek(2, 1)
 
         # ADC/precision CT master clock frequency (1Mhz for DT3010)
-        self.MasterClockFreq, = struct.unpack('l', f.read(4))
+        self.MasterClockFreq, = struct.unpack('i', f.read(4))
 
         # undecimated base sample frequency per channel (25kHz)
-        self.BaseSampleFreq, = struct.unpack('l', f.read(4))
+        self.BaseSampleFreq, = struct.unpack('i', f.read(4))
 
         # true (1) if Stimulus DIN acquired
         self.DINAcquired, = struct.unpack('B', f.read(1))
@@ -591,7 +593,7 @@ class LayoutRecord(object):
 
         # {n/a to cat9} total number of samples per file buffer for this probe
         # (redundant with SS_REC.NumSamples) (135000, 100)
-        self.pts_per_buffer, = struct.unpack('l', f.read(4))
+        self.pts_per_buffer, = struct.unpack('i', f.read(4))
 
         # pts before trigger (7)
         self.trigpt, = struct.unpack('h', f.read(2))
@@ -613,7 +615,7 @@ class LayoutRecord(object):
 
         # A/D sampling frequency specific to this probe (ie. after decimation,
         # if any) (25000, 1000)
-        self.sampfreqperchan, = struct.unpack('l', f.read(4))
+        self.sampfreqperchan, = struct.unpack('i', f.read(4))
 
         # us, store it here for convenience
         self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6))
@@ -676,10 +678,10 @@ class ProbeWinLayout(object):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
 
-        self.left, = struct.unpack('l', f.read(4))
-        self.top, = struct.unpack('l', f.read(4))
-        self.width, = struct.unpack('l', f.read(4))
-        self.height, = struct.unpack('l', f.read(4))
+        self.left, = struct.unpack('i', f.read(4))
+        self.top, = struct.unpack('i', f.read(4))
+        self.width, = struct.unpack('i', f.read(4))
+        self.height, = struct.unpack('i', f.read(4))
 
 class MessageRecord(object):
     """Message record"""
@@ -708,7 +710,7 @@ class MessageRecord(object):
         self.DateTime, = struct.unpack('d', f.read(8))
 
         # 4 bytes -- length of the msg string
-        self.MsgLength, = struct.unpack('l', f.read(4))
+        self.MsgLength, = struct.unpack('i', f.read(4))
 
         # any length message {shortstring - for cat9!!!}
         self.Msg = f.read(self.MsgLength)
@@ -737,8 +739,8 @@ class ContinuousRecord(PolytrodeRecord):
         self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
         self.Probe, = struct.unpack('h', f.read(2)) # {2 bytes -- the probe number}
         f.seek(2, 1) # hack to skip next 2 bytes - guessing this should be before the CRC????????????????????????????????????
-        self.CRC32, = struct.unpack('l', f.read(4)) # {4 bytes -- PKZIP-compatible CRC} - is this always 0??????????????????????
-        self.NumSamples, = struct.unpack('l', f.read(4)) # {4 bytes -- the # of samples in this file buffer record}
+        self.CRC32, = struct.unpack('i', f.read(4)) # {4 bytes -- PKZIP-compatible CRC} - is this always 0??????????????????????
+        self.NumSamples, = struct.unpack('i', f.read(4)) # {4 bytes -- the # of samples in this file buffer record}
         self.waveformoffset = f.tell()
         f.seek(self.NumSamples*2, 1) # skip the waveform data for now
     def load(self):
@@ -762,7 +764,7 @@ class ContinuousRecord(object):
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
 
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = \
-                                            struct.unpack('qqhhll', f.read(28))
+                                            struct.unpack('qqhhii', f.read(28))
         self.waveformoffset = f.tell()
 
         # skip the waveform data for now
@@ -951,7 +953,7 @@ class DigitalSValRecord(object):
         # SubType
         # Cardinal, 64 bit signed int; 16 bit single value
         junk, self.TimeStamp, self.SVal, junk, junk = \
-                struct.unpack('QQHHL', f.read(24))
+                struct.unpack('QQHHI', f.read(24))
 
 
 class Stream(object):
