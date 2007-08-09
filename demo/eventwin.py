@@ -1,3 +1,5 @@
+from __future__ import division
+
 """
 eventwin.py
 
@@ -6,7 +8,6 @@ A smattering of code demonstrating an event window for spyke
 
 __author__ = 'Reza Lotun'
 
-from __future__ import division
 
 import wx
 import wxmpl
