@@ -52,6 +52,15 @@ class DRDBError(ValueError):
     pass
 
 
+class Section(object):
+    """ Represents a block of bytes denoting a 'section' of the Surf file. """
+    def __init__(self, sec):
+        self.id = sec.__class__.__name__
+        self.len = len(sec)
+
+    def __len__(self):
+        return self.len
+
 class File(object):
     """ Open a .srf file and, after parsing, expose all of its headers and
     records as attribs.
@@ -70,6 +79,15 @@ class File(object):
         self.name = name
         self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
+        self.sections = []
+
+    def __str__(self):
+        if len(self.sections) == 0:
+            return self.name + ' has not been parsed yet.'
+        else:
+            # we assume the file has been parsed correctly
+            for sec in self.sections:
+                print sec.id, len(sec)
 
     def open(self):
         """ Open the .srf file """
@@ -78,6 +96,68 @@ class File(object):
     def close(self):
         """ Close the .srf file """
         self.f.close()
+
+    def _deserialize(self):
+        """ Old deserialization code factored out as a method. Potentially on
+        its way to deprecation.
+        """
+        print 'Trying to recover parse info from %r' % self.parsefname
+
+        pf = file(self.parsefname, 'rb')
+        u = cPickle.Unpickler(pf)
+
+        def persistent_load(persid):
+            """ required to restore the .srf file object as an existing
+            open file for reading
+            """
+            if persid == self.f.name:
+                return self.f
+            else:
+                raise cPickle.UnpicklingError,  \
+                            'Invalid persistent id: %r' % persid
+
+        # add this method to the unpickler
+        u.persistent_load = persistent_load
+        fat = u.load()
+        pf.close()
+
+        # Grab all normal attribs of fat and assign them to self
+        for key, val in fat.__dict__.items():
+            self.__setattr__(key, val)
+
+        print 'Recovered parse info from %r' % self.parsefname
+
+    def _parseFileHeader(self):
+        # Parse the Surf file header
+        self.fileheader = FileHeader(self.f)
+        self.fileheader.parse()
+        self.sections.append(Section(self.fileheader))
+        print 'Parsed fileheader'
+
+    def _parseDRDBS(self):
+        # Parse the DRDBs (Data Record Descriptor Blocks)
+        self.drdbs = []
+        while True:
+            drdb = DRDB(self.f)
+            try:
+                drdb.parse()
+                self.drdbs.append(drdb)
+                self.sections.append(Section(drdb))
+
+            except DRDBError:
+                # we've gone past the last DRDB
+                # set file pointer back to where we were
+                self.f.seek(drdb.offset)
+                break
+
+    def _verifyParsing(self):
+        # Make sure timestamps of all records are in causal (increasing)
+        # order. If not, sort them I guess?
+        print 'Asserting increasing record order'
+        for item in self.__dict__:
+            if item.endswith('records'):
+                print 'Asserting ' + item + ' is in causal order'
+                assert causalorder(self.__dict__[item])
 
     def parse(self, force=True, save=False):
         """ Parse the .srf file """
@@ -89,31 +169,7 @@ class File(object):
                 # make the try fail, skip to the except block
                 raise IOError
 
-            print 'Trying to recover parse info from %r' % self.parsefname
-
-            pf = file(self.parsefname, 'rb')
-            u = cPickle.Unpickler(pf)
-
-            def persistent_load(persid):
-                """ required to restore the .srf file object as an existing
-                open file for reading
-                """
-                if persid == self.f.name:
-                    return self.f
-                else:
-                    raise cPickle.UnpicklingError,  \
-                                'Invalid persistent id: %r' % persid
-
-            # add this method to the unpickler
-            u.persistent_load = persistent_load
-            fat = u.load()
-            pf.close()
-
-            # Grab all normal attribs of fat and assign them to self
-            for key, val in fat.__dict__.items():
-                self.__setattr__(key, val)
-
-            print 'Recovered parse info from %r' % self.parsefname
+            self._deserialize()
 
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it. Parse the .srf file
@@ -126,153 +182,97 @@ class File(object):
             # parse it
             f.seek(0)
 
-            # Parse the Surf file header
-            self.fileheader = FileHeader(f)
-            self.fileheader.parse()
-
-            print 'Parsed fileheader'
-
-            # Parse the DRDBs (Data Record Descriptor Blocks)
-            self.drdbs = []
-            while True:
-                drdb = DRDB(f)
-                try:
-                    drdb.parse()
-                    self.drdbs.append(drdb)
-
-                except DRDBError:
-                    # we've gone past the last DRDB
-                    # set file pointer back to where we were
-                    f.seek(drdb.offset)
-                    break
-            print 'After DRDB'
+            self._parseFileHeader()
+            self._parseDRDBS()
             self._parserecords()
+
+
             print 'Done parsing %r' % self.f.name
 
-            # Make sure timestamps of all records are in causal (increasing)
-            # order. If not, sort them I guess?
-            print 'Asserting increasing record order'
-            assert causalorder(self.layoutrecords)
-            assert causalorder(self.messagerecords)
-            assert causalorder(self.highpassrecords)
-            assert causalorder(self.lowpassrecords)
-            assert causalorder(self.displayrecords)
-            assert causalorder(self.digitalsvalrecords)
-
-            # Connect the appropriate probe layout to each high
-            # and lowpass record
-            print 'Connecting probe layouts to waveform records'
-            for record in self.highpassrecords:
-                record.layout = self.layoutrecords[record.Probe]
-            for record in self.lowpassrecords:
-                record.layout = self.layoutrecords[record.Probe]
-
-            # Rearrange single channel lowpass records into
-            # multichannel lowpass records
-            print 'Rearranging single lowpass records into ' \
-                    'multichannel lowpass records'
-            rts = np.asarray([record.TimeStamp for record in \
-                    self.lowpassrecords]) # array of lowpass record timestamps
-
-            # find at which records the timestamps change
-            rtsis, = np.diff(rts).nonzero()
-
-            # convert to edge values appropriate for getting slices of records
-            # with the same timestamp
-
-            rtsis = np.concatenate([[0], rtsis+1, [len(rts)]])
-            for rtsii in range(1, len(rtsis)): # start with the second rtsi
-                lo = rtsis[rtsii-1]
-                hi = rtsis[rtsii]
-                lpass = LowPassMultiChanRecord(self.lowpassrecords[lo:hi])
-                self.lowpassmultichanrecords.append(lpass)
-
-            self.highpassstream = Stream(records=self.highpassrecords,
-                                            sampfreq=DEFAULTINTERPSAMPFREQ)
-            self.lowpassstream = Stream(records=self.lowpassrecords)
+            self._verifyParsing()
+            self._connectRecords()
 
             if save:
-                self.save()
+                self.serialize()
 
     def _parserecords(self):
         """ Parse all the records in the file, but don't load any waveforms """
 
         f = self.f
 
-        self.layoutrecords = []
-        self.messagerecords = []
-        self.highpassrecords = []
-        self.lowpassrecords = []
-        self.lowpassmultichanrecords = []
-        self.displayrecords = []
-        self.digitalsvalrecords = []
+        # mapping of flag values to appropriate records
+        records = {
+                    'L'     :   LayoutRecord,
+                    'M'     :   MessageRecord,
+                    'MS'    :   MessageRecord,
+                    'PS'    :   HighPassRecord,
+                    'PC'    :   LowPassRecord,
+                    'PE'    :   EpochRecord,
+                    'D'     :   DisplayRecord,
+                    'VD'    :   DigitalSValRecord,
+                    'VA'    :   AnalogSingleValRecord,
+                  }
 
         while True:
-
             # returns an empty string when EOF is reached
-            flag = f.read(2)
+            flag = f.read(2).replace('\0', '')
             if flag == '':
                 break
 
             # put file pointer back to start of flag
             f.seek(-2, 1)
 
-            if flag[0] == 'L':
-                # polytrode layout record
-                layoutrecord = LayoutRecord(f)
-                layoutrecord.parse()
-                self.layoutrecords.append(layoutrecord)
+            if flag in records:
+                rec = records[flag](f)
+                rec.parse()
 
-            elif flag[0] == 'M':
-                # message record
-                messagerecord = MessageRecord(f)
-                messagerecord.parse()
-                self.messagerecords.append(messagerecord)
+                # our list of the collected records
+                lis = ''.join([rec.__class__.__name__.lower(), 's'])
+                if lis not in self.__dict__:
+                    self.__dict__[lis] = []
+                self.__dict__[lis].append(rec)
 
-            elif flag[0] == 'P':
-                # polytrode waveform record
-                if flag[1] == 'S':
-                    # spike stream (highpass) record
-                    highpassrecord = HighPassRecord(f)
-                    highpassrecord.parse()
-                    self.highpassrecords.append(highpassrecord)
-                elif flag[1] == 'C':
-                    # continuous (lowpass) record
-                    lowpassrecord = LowPassRecord(f)
-                    lowpassrecord.parse()
-                    self.lowpassrecords.append(lowpassrecord)
-                elif flag[1] == 'E':
-                    # spike epoch record
-                    raise NotImplementedError, 'Spike epochs (non-continous)' \
-                                            ' recordings currently unsupported'
-                else:
-                    raise ValueError, 'Unknown polytrode waveform' \
-                                        'record type %r' % flag[1]
+                self.sections.append(Section(rec))
 
-            elif flag[0] == 'D':
-                # stimulus display header record
-                displayrecord = DisplayRecord(f)
-                displayrecord.parse()
-                self.displayrecords.append(displayrecord)
-            elif flag[0] == 'V':
-                # single value record
-                if flag[1] == 'D':
-                    # digital single value record
-                    digitalsvalrecord = DigitalSValRecord(f)
-                    digitalsvalrecord.parse()
-                    self.digitalsvalrecords.append(digitalsvalrecord)
-                elif flag[1] == 'A':
-                    # analog single value record
-                    raise NotImplementedError, \
-                        'Analog single value recordings currently unsupported'
-                else:
-                    raise ValueError, \
-                            'Unknown single value record type %r' % flag[1]
             else:
-                raise ValueError, \
-                        'Unexpected flag %r at offset %d' % (flag, f.tell())
+                print flag, flag[0], flag[1], len(flag), ord(flag[0]), ord(flag[1])
+                #raise ValueError, \
+                #        'Unexpected flag %r at offset %d' % (flag, f.tell())
 
-    def save(self):
+    def _connectRecords(self):
+        # Connect the appropriate probe layout to each high
+        # and lowpass record
+        print 'Connecting probe layouts to waveform records'
+        for record in self.highpassrecords:
+            record.layout = self.layoutrecords[record.Probe]
+        for record in self.lowpassrecords:
+            record.layout = self.layoutrecords[record.Probe]
+
+        # Rearrange single channel lowpass records into
+        # multichannel lowpass records
+        print 'Rearranging single lowpass records into ' \
+                'multichannel lowpass records'
+        rts = np.asarray([record.TimeStamp for record in \
+                self.lowpassrecords]) # array of lowpass record timestamps
+
+        # find at which records the timestamps change
+        rtsis, = np.diff(rts).nonzero()
+
+        # convert to edge values appropriate for getting slices of records
+        # with the same timestamp
+
+        rtsis = np.concatenate([[0], rtsis+1, [len(rts)]])
+        for rtsii in range(1, len(rtsis)): # start with the second rtsi
+            lo = rtsis[rtsii-1]
+            hi = rtsis[rtsii]
+            lpass = LowPassMultiChanRecord(self.lowpassrecords[lo:hi])
+            self.lowpassmultichanrecords.append(lpass)
+
+        self.highpassstream = Stream(records=self.highpassrecords,
+                                        sampfreq=DEFAULTINTERPSAMPFREQ)
+        self.lowpassstream = Stream(records=self.lowpassrecords)
+
+    def serialize(self):
         """ Creates a Fat object, saves all the parsed headers and records to
         it, and pickles it to a file
         """
@@ -310,12 +310,16 @@ class File(object):
         pf.close()
         print 'Saved parse info to %r' % self.parsefname
 
+
 class FileHeader(object):
     """ Surf file header. Takes an open file, parses in from current file
     pointer position, stores header fields as attribs
     """
     def __init__(self, f):
         self.f = f
+
+    def __len__(self):
+        return 2050
 
     def parse(self):
         f = self.f
@@ -409,6 +413,9 @@ class TimeDate(object):
     def __init__(self, f):
         self.f = f
 
+    def __len__(self):
+        return 18
+
     def parse(self):
         f = self.f
         # not really necessary, comment out to save memory
@@ -429,6 +436,9 @@ class DRDB(object):
     def __init__(self, f):
         self.DR_subfields = []
         self.f = f
+
+    def __len__(self):
+        return 2208
 
     def __str__(self):
         info = "Record type: %s size: %s name: %s" % \
@@ -511,6 +521,9 @@ class RSFD(object):
     def __init__(self, f):
         self.f = f
 
+    def __len__(self):
+        return 26
+
     def __str__(self):
         return "%s of type: %s with field size: %s" % (self.subfield_name,
                                             self.subfield_data_type,
@@ -537,6 +550,9 @@ class LayoutRecord(object):
     """ Polytrode layout record """
     def __init__(self, f):
         self.f = f
+
+    def __len__(self):
+        return 1725
 
     def parse(self):
         f = self.f
@@ -673,6 +689,9 @@ class ProbeWinLayout(object):
     def __init__(self, f):
         self.f = f
 
+    def __len__(self):
+        return 16
+
     def parse(self):
         f = self.f
         # not really necessary, comment out to save memory
@@ -683,10 +702,24 @@ class ProbeWinLayout(object):
         self.width, = struct.unpack('i', f.read(4))
         self.height, = struct.unpack('i', f.read(4))
 
+class EpochRecord(object):
+    def __init__(self):
+        raise NotImplementedError('Spike epochs (non-continous)'  \
+                                  ' recordings currently unsupported')
+
+class AnalogSingleValRecord(object):
+    def __init__(self):
+        raise NotImplementedError('Analog single value recordings' \
+                                  ' currently unsupported')
+
 class MessageRecord(object):
     """Message record"""
     def __init__(self, f):
         self.f = f
+
+    def __len__(self):
+        return 28 + self.MsgLength
+
     def parse(self):
         f = self.f # abbrev
 
@@ -756,6 +789,9 @@ class ContinuousRecord(object):
     """ Continuous waveform record """
     def __init__(self, f):
         self.f = f
+
+    def __len__(self):
+        return 28 + self.NumSamples*2
 
     def parse(self):
         f = self.f
@@ -845,6 +881,9 @@ class DisplayRecord(object):
     def __init__(self, f):
         self.f = f
 
+    def __len__(self):
+        return 53092 + 28
+
     def parse(self):
         f = self.f
         # not really necessary, comment out to save memory
@@ -919,6 +958,10 @@ class SValRecord(object):
     """Single value record"""
     def __init__(self, f):
         self.f = f
+
+    def __len__(self):
+        return 16
+
     def parse(self):
         f = self.f # abbrev
         #self.offset = f.tell() # not really necessary, comment out to save memory
@@ -945,6 +988,9 @@ class DigitalSValRecord(object):
     """ Digital single value record """
     def __init__(self, f):
         self.f = f
+
+    def __len__(self):
+        return 24
 
     def parse(self):
         f = self.f
