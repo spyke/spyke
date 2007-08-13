@@ -78,10 +78,10 @@ class File(object):
     def __init__(self, name=DEFAULTSRFFNAME):
         self.name = name
         self.fileSize = os.stat(self.name)[6]
-        self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
         self.sections = []
         self.sectionSummary = {}
+        self.open()
 
     def __str__(self):
         if len(self.sections) == 0:
