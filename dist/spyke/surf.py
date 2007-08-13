@@ -99,14 +99,15 @@ class File(object):
     def open(self):
         """ Open the .srf file """
         self.f = file(self.name, 'rb')
+        self._parseFileHeader()
 
     def close(self):
         """ Close the .srf file """
         self.f.close()
 
     def _deserialize(self):
-        """ Old deserialization code factored out as a method. Potentially on
-        its way to deprecation.
+        """ Old deserialization code factored out as a method. Potentially
+        on its way to deprecation.
         """
         print 'Trying to recover parse info from %r' % self.parsefname
 
@@ -189,7 +190,6 @@ class File(object):
             # parse it
             f.seek(0)
 
-            self._parseFileHeader()
             self._parseDRDBS()
             self._parserecords()
 
@@ -220,11 +220,9 @@ class File(object):
                     'VA'    :   AnalogSingleValRecord,
                   }
 
-        i = 0
         while True:
-            i += 1
             # returns an empty string when EOF is reached
-            flag = f.read(2).replace('\0', '')
+            flag = f.read(2).strip('\0')
             if flag == '':
                 break
 
@@ -236,7 +234,7 @@ class File(object):
                 rec.parse()
 
                 # our list of the collected records
-                lis = ''.join([rec.__class__.__name__.lower(), 's'])
+                lis = rec.__class__.__name__.lower() + 's'
                 if lis not in self.__dict__:
                     self.__dict__[lis] = []
                 self.__dict__[lis].append(rec)
@@ -244,9 +242,8 @@ class File(object):
                 self.sections.append(Section(rec))
 
             else:
-                print flag, flag[0], flag[1], len(flag), ord(flag[0]), ord(flag[1])
-                #raise ValueError, \
-                #        'Unexpected flag %r at offset %d' % (flag, f.tell())
+                raise ValueError, \
+                        'Unexpected flag %r at offset %d' % (flag, f.tell())
 
             self.percentParsed = f.tell() * 100 / self.fileSize
 
@@ -761,43 +758,6 @@ class MessageRecord(object):
         # any length message {shortstring - for cat9!!!}
         self.Msg = f.read(self.MsgLength)
 
-'''
-class PolytrodeRecord(object):
-    """Base Polytrode record"""
-    def __init__(self, f):
-        self.f = f
-    def parse(self):
-        f = self.f # abbrev
-        #self.offset = f.tell() # not really necessary, comment out to save memory
-        f.seek(8, 1) # for speed and memory, skip reading the UffType and SubType
-        #self.UffType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'P'
-
-class ContinuousRecord(PolytrodeRecord):
-    """Continuous waveform record"""
-    def __init__(self, f):
-        super(ContinuousRecord, self).__init__(f)
-    def parse(self):
-        super(ContinuousRecord, self).parse()
-        f = self.f # abbrev
-        # for speed and memory, skip reading the UffType and SubType
-        #self.SubType = f.read(1) # {1 byte} {SURF_PT_REC_UFFTYPE}: 'S' for spikestream (highpass), 'C' for other continuous (lowpass)}
-        #f.seek(6, 1) # hack to skip next 6 bytes
-        self.TimeStamp, = struct.unpack('q', f.read(8)) # Time stamp, 64 bit signed int
-        self.Probe, = struct.unpack('h', f.read(2)) # {2 bytes -- the probe number}
-        f.seek(2, 1) # hack to skip next 2 bytes - guessing this should be before the CRC????????????????????????????????????
-        self.CRC32, = struct.unpack('i', f.read(4)) # {4 bytes -- PKZIP-compatible CRC} - is this always 0??????????????????????
-        self.NumSamples, = struct.unpack('i', f.read(4)) # {4 bytes -- the # of samples in this file buffer record}
-        self.waveformoffset = f.tell()
-        f.seek(self.NumSamples*2, 1) # skip the waveform data for now
-    def load(self):
-        """Loads waveform data for this continuous record, assumes that the
-        appropriate probe layout record has been assigned as a .layout attrib"""
-        f = self.f # abbrev
-        f.seek(self.waveformoffset)
-        self.waveform = np.asarray(struct.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16) # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
-        self.waveform = self.waveform.reshape(self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
-'''
-
 class ContinuousRecord(object):
     """ Continuous waveform record """
     def __init__(self, f):
@@ -881,14 +841,6 @@ class LowPassMultiChanRecord(object):
         self.waveform = np.squeeze(self.waveform)
 
 
-'''
-class EpochRecord(PolytrodeRecord):
-    """Epoch waveform record, currently unsupported"""
-    def __init__(self, f):
-        super(EpochRecord, self).__init__(f)
-'''
-
-
 class DisplayRecord(object):
     """ Stimulus display header record """
     def __init__(self, f):
@@ -966,36 +918,6 @@ class StimulusHeader(object):
         self.est_runtime, = struct.unpack('H', f.read(2))
         self.checksum, = struct.unpack('H', f.read(2))
 
-'''
-class SValRecord(object):
-    """Single value record"""
-    def __init__(self, f):
-        self.f = f
-
-    def __len__(self):
-        return 16
-
-    def parse(self):
-        f = self.f # abbrev
-        #self.offset = f.tell() # not really necessary, comment out to save memory
-        f.seek(8, 1) # for speed and memory, skip reading the UffType and SubType
-        #self.UffType = f.read(1) # 1 byte -- SURF_SV_REC_UFFTYPE: 'V'
-        #self.SubType = f.read(1) # 1 byte -- 'D' digital or 'A' analog
-        #f.seek(6, 1) # hack to skip next 6 bytes
-        self.TimeStamp, = struct.unpack('q', f.read(8)) # Cardinal, 64 bit signed int
-
-class DigitalSValRecord(SValRecord):
-    """Digital single value record"""
-    def __init__(self, f):
-        super(DigitalSValRecord, self).__init__(f)
-    def parse(self):
-        super(DigitalSValRecord, self).parse()
-        f = self.f # abbrev
-        # read 8 bytes at a time for speed:
-        self.SVal = struct.unpack('HHL', f.read(8))[0] # 2 bytes -- 16 bit single value
-        #self.SVal, = struct.unpack('H', f.read(2)) # 2 bytes -- 16 bit single value
-        #f.seek(6, 1) # hack to skip next 6 bytes
-'''
 
 class DigitalSValRecord(object):
     """ Digital single value record """
@@ -1015,8 +937,6 @@ class DigitalSValRecord(object):
                 struct.unpack('QQHHI', f.read(24))
 
 
-
-
 class Fat(object):
     """Stores all the stuff to be pickled into a .parse file and then
     unpickled as saved parse info
@@ -1024,8 +944,6 @@ class Fat(object):
     # TODO
     pass
 
-'''
-'''
 
 def causalorder(records):
     """Checks to see if the timestamps of all the records are in
