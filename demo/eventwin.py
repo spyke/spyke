@@ -10,6 +10,8 @@ __author__ = 'Reza Lotun'
 
 import random
 import wx
+import matplotlib
+matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 import matplotlib.numerix as nx
@@ -47,9 +49,9 @@ class EventWin(wx.Frame):
         #wxmpl.EVT_SELECTION(self, self.plotPanel.GetId(), self._on_selection)
         #wxmpl.EVT_POINT(self, self.plotPanel.GetId(), self._on_point)
 
+        self.channels = {}
         self._initSpyke()
         #self._layout()
-        self._replot()
         self.timer.Start(100)
 
     def _initSpyke(self):
@@ -63,8 +65,7 @@ class EventWin(wx.Frame):
         self.curr = self.dstream.records[0].TimeStamp
         self.incr = 1000
 
-    def onTimerEvent(self, evt):
-        self._replot()
+        self.init_plot()
 
     def _layout(self):
         btnSizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -79,21 +80,18 @@ class EventWin(wx.Frame):
         self.SetSizer(sizer)
         self.Fit()
 
-    def _replot(self):
-        _gr = {}
-        _ax = 0
-        def _drawGraph(chan, col, sp, axisbg, frameon):
-            global _ax
-            a = fig.add_axes(sp,
-                             axisbg,
-                             frameon=False)
-            a.clear()
-            #_gr[_ax] = a
-            #_ax += 1
-            a.plot(self.t, self.v, col, antialiased=False, linewidth=0.05)
-            a.grid(True)
-            a.set_xticks([])
-            a.set_yticks([])
+    def onEraseBackground(self, evt):
+        # prevent redraw flicker
+        pass
+
+    def onTimerEvent(self, evt):
+        self.window = self.dstream[self.curr:self.curr+self.incr]
+        self.curr += self.incr
+        for chan in self.channels:
+            self.channels[chan].set_ydata(self.window.data[chan])
+        self.plotPanel.draw(True)
+
+    def init_plot(self):
 
         ############
         #
@@ -117,20 +115,43 @@ class EventWin(wx.Frame):
         self.window = self.dstream[self.curr:self.curr+self.incr]
         self.curr += self.incr
 
+        print len(self.window.data)
         for i in range(num // 2):
-            self.v = self.window.data[chan]
-            self.t = self.window.ts
-            _drawGraph(chan, self.colours[chan], sp=[horizMargin, bot - offset, width, height],
-                     axisbg='y',
-                     frameon=False)
+            sp=[horizMargin, bot - offset, width, height]
+            a = fig.add_axes(sp, axisbg='y', frameon=False)
+            a.plot(self.window.ts,
+                   self.window.data[chan],
+                   self.colours[chan],
+                   antialiased=False,
+                   linewidth=0.05)
+            self.channels[chan] = a.get_lines()[0]
+            a.grid(True)
+            a.set_xticks([])
+            a.set_yticks([])
 
+            # next channel
             chan += 1
 
-            self.v = self.window.data[chan]
-            _drawGraph(chan, self.colours[chan], sp=[horizMargin + width + hSep - overlap,
-                                        bot, width, height],
-                      axisbg='y', frameon=False)
+            # XXX: duplicate code here - find a graceful way to code this
+            # once
+            sp=[horizMargin + width + hSep - overlap,
+                                        bot, width, height]
+
+
+            a = fig.add_axes(sp, axisbg='y', frameon=False)
+            a.plot(self.window.ts,
+                   self.window.data[chan],
+                   self.colours[chan],
+                   antialiased=False,
+                   linewidth=0.05)
+            self.channels[chan] = a.get_lines()[0]
+            a.grid(True)
+            a.set_xticks([])
+            a.set_yticks([])
             bot += height + vSep
+
+            # next channel
+            chan += 1
 
         if self.borderAxes:
             a = fig.sca(self.borderAxes)
