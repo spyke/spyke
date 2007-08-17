@@ -186,10 +186,6 @@ class File(object):
             print 'Parsing %r' % self.f.name
             f = self.f # abbrev
 
-            # make sure we're at the start of the srf file before trying to
-            # parse it
-            f.seek(0)
-
             self._parseDRDBS()
             self._parserecords()
 
