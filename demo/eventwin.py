@@ -28,10 +28,10 @@ class Demo(wx.App):
 
 class EventWin(wx.Frame):
     def __init__(self, parent, id, title, **kwds):
-        self.filename = '/media/windows/Documents and Settings/Reza ' \
-                        'Lotun/Desktop/Surfdata/' \
-                        '87 - track 7c spontaneous craziness.srf'
-
+        #self.filename = '/media/windows/Documents and Settings/Reza ' \
+        #                'Lotun/Desktop/Surfdata/' \
+        #                '87 - track 7c spontaneous craziness.srf'
+        self.filename = '../data/smallSurf'
         wx.Frame.__init__(self, parent, id, title, **kwds)
         self.plotPanel = FigureCanvasWxAgg(self, -1, Figure((16.0, 13.70), 96))
         self.plotPanel.figure.set_edgecolor('white')
@@ -52,7 +52,7 @@ class EventWin(wx.Frame):
         self.channels = {}
         self._initSpyke()
         #self._layout()
-        self.timer.Start(100)
+        self.timer.Start(200)
 
     def _initSpyke(self):
         self.datafile = spyke.surf.File(self.filename)
@@ -89,6 +89,9 @@ class EventWin(wx.Frame):
         self.curr += self.incr
         for chan in self.channels:
             self.channels[chan].set_ydata(self.window.data[chan])
+            self.axes[chan].set_ylim((1650, 2400))
+            #print self.axes[chan].get_ylim()
+            #print self.axes[chan].get_autoscale_on()
         self.plotPanel.draw(True)
 
     def init_plot(self):
@@ -114,16 +117,27 @@ class EventWin(wx.Frame):
 
         self.window = self.dstream[self.curr:self.curr+self.incr]
         self.curr += self.incr
-
+        self.axes = {}
+        MAXY = 2200 
         print len(self.window.data)
         for i in range(num // 2):
             sp=[horizMargin, bot - offset, width, height]
-            a = fig.add_axes(sp, axisbg='y', frameon=False)
-            a.plot(self.window.ts,
-                   self.window.data[chan],
+            a = fig.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
+            #a.set_ylim((0, MAXY))
+            #a.plot(self.window.ts,
+            #       self.window.data[chan],
+            #       self.colours[chan],
+            #       antialiased=False,
+            #       linewidth=0.05)
+            #a.set_aspect('equal')
+            #a.set_adjustable('box')
+            a.plot(self.window.data[chan],
                    self.colours[chan],
                    antialiased=False,
-                   linewidth=0.05)
+                   linewidth=0.05,)
+                   #scaley=False)
+            #a.set_autoscale_on(False)
+            self.axes[chan] = a
             self.channels[chan] = a.get_lines()[0]
             a.grid(True)
             a.set_xticks([])
@@ -138,13 +152,23 @@ class EventWin(wx.Frame):
                                         bot, width, height]
 
 
-            a = fig.add_axes(sp, axisbg='y', frameon=False)
-            a.plot(self.window.ts,
-                   self.window.data[chan],
+            a = fig.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
+            a.set_adjustable('box')
+            #a.set_aspect('equal')
+            #a.set_ylim((0, MAXY))
+            #a.plot(self.window.ts,
+            #       self.window.data[chan],
+            #       self.colours[chan],
+            #       antialiased=False,
+            #       linewidth=0.05)
+            a.plot(self.window.data[chan],
                    self.colours[chan],
                    antialiased=False,
-                   linewidth=0.05)
+                   linewidth=0.05,)
+                   #scaley=False)
+            #a.set_autoscale_on(False)
             self.channels[chan] = a.get_lines()[0]
+            self.axes[chan] = a
             a.grid(True)
             a.set_xticks([])
             a.set_yticks([])
