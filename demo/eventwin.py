@@ -10,19 +10,17 @@ __author__ = 'Reza Lotun'
 
 import random
 import wx
-import matplotlib
-matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 import matplotlib.numerix as nx
-import matplotlib.patches
 
 import spyke.surf
 import spyke.stream
 
 class Demo(wx.App):
     def OnInit(self):
-        self.frame = panel = EventWin(None, -1, 'Events', size=(800,600))
+        self.frame = panel = EventWin(None, -1, 'Events', size=(500,600))
+        #self.frame = panel = EventWin(None, -1, 'Events')
         self.frame.Show(True)
         return True
 
@@ -33,8 +31,8 @@ class EventWin(wx.Frame):
         #                '87 - track 7c spontaneous craziness.srf'
         self.filename = '../data/smallSurf'
         wx.Frame.__init__(self, parent, id, title, **kwds)
-        self.plotPanel = FigureCanvasWxAgg(self, -1, Figure((16.0, 13.70), 96))
-        self.plotPanel.figure.set_edgecolor('white')
+        self.plotPanel = FigureCanvasWxAgg(self, -1, Figure())
+        #self.plotPanel.figure.set_edgecolor('white')
         self.plotPanel.figure.set_facecolor('black')
         self.plotPanel.SetBackgroundColour(wx.BLACK)
 
@@ -43,48 +41,30 @@ class EventWin(wx.Frame):
         self.data = None
         self.points = []
         self.selectionPoints = []
-        #self.plotPanel = wxmpl.PlotPanel(self, -1)
         self.borderAxes = None
-
-        #wxmpl.EVT_SELECTION(self, self.plotPanel.GetId(), self._on_selection)
-        #wxmpl.EVT_POINT(self, self.plotPanel.GetId(), self._on_point)
 
         self.channels = {}
         self._initSpyke()
-        #self._layout()
-        self.timer.Start(200)
+        self.timer.Start(300)
 
     def _initSpyke(self):
         self.datafile = spyke.surf.File(self.filename)
         self.datafile.parse()
         self.colours = []
-        col = ['r', 'g', 'b']
-        for i in xrange(54):
-            self.colours.append(col[i % 3])
+        #col = ['r', 'g', 'b']
+        #for i in xrange(54):
+        #    self.colours.append(col[i % 3])
         self.dstream = spyke.stream.Stream(self.datafile.highpassrecords)
         self.curr = self.dstream.records[0].TimeStamp
         self.incr = 1000
 
         self.init_plot()
 
-    def _layout(self):
-        btnSizer = wx.BoxSizer(wx.HORIZONTAL)
-        btnSizer.Add((1, 1), 1, 0, 0)
-        btnSizer.Add(self.regionButton, 0, wx.BOTTOM|wx.RIGHT, 5)
-        btnSizer.Add(self.pointButton,  0, wx.BOTTOM|wx.RIGHT, 5)
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.plotPanel, 0, wx.ALL, 5)
-        sizer.Add(btnSizer, 0, wx.EXPAND, 0)
-
-        self.SetSizer(sizer)
-        self.Fit()
-
     def onEraseBackground(self, evt):
         # prevent redraw flicker
         pass
 
-    def onTimerEvent(self, evt):
+    def update(self):
         self.window = self.dstream[self.curr:self.curr+self.incr]
         self.curr += self.incr
         for chan in self.channels:
@@ -94,14 +74,19 @@ class EventWin(wx.Frame):
             #print self.axes[chan].get_autoscale_on()
         self.plotPanel.draw(True)
 
+    def onTimerEvent(self, evt):
+        self.update()
+
     def init_plot(self):
 
         ############
         #
         num = 54
-        spacing = [0.3, 0.05, 0.01, 0.01]
-        offset = 0.02
-        overlap = 0.02
+        spacing = [0.00, 0.00, 0.00, 0.00]
+        #offset = 0.02
+        #overlap = 0.02
+        offset = 0.0
+        overlap = 0.0
         #
         #############
 
@@ -118,8 +103,6 @@ class EventWin(wx.Frame):
         self.window = self.dstream[self.curr:self.curr+self.incr]
         self.curr += self.incr
         self.axes = {}
-        MAXY = 2200 
-        print len(self.window.data)
         for i in range(num // 2):
             sp=[horizMargin, bot - offset, width, height]
             a = fig.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
@@ -132,7 +115,7 @@ class EventWin(wx.Frame):
             #a.set_aspect('equal')
             #a.set_adjustable('box')
             a.plot(self.window.data[chan],
-                   self.colours[chan],
+                   'g',
                    antialiased=False,
                    linewidth=0.05,)
                    #scaley=False)
@@ -162,7 +145,7 @@ class EventWin(wx.Frame):
             #       antialiased=False,
             #       linewidth=0.05)
             a.plot(self.window.data[chan],
-                   self.colours[chan],
+                   'g',
                    antialiased=False,
                    linewidth=0.05,)
                    #scaley=False)
@@ -183,26 +166,6 @@ class EventWin(wx.Frame):
 
         # redraw the disply
         self.plotPanel.draw(True)
-
-    def _on_regionButton(self, evt):
-        if self.regionButton.GetValue():
-            self.plotPanel.set_zoom(False)
-        else:
-            self.plotPanel.set_zoom(True)
-
-    def _on_selection(self, evt):
-        self.plotPanel.set_zoom(True)
-        #self.regionButton.SetValue(False)
-
-        x1, y1 = evt.x1data, evt.y1data
-        x2, y2 = evt.x2data, evt.y2data
-
-        self.selectionPoints.append(((x1, y1), x2-x1, y2-y1))
-        self._replot()
-
-    def _on_point(self, evt):
-        self.borderAxes = evt.axes
-        self._replot()
 
 app = Demo()
 app.MainLoop()
