@@ -45,7 +45,7 @@ class EventWin(wx.Frame):
 
         self.channels = {}
         self._initSpyke()
-        self.timer.Start(300)
+        self.timer.Start(100)
 
     def _initSpyke(self):
         self.datafile = spyke.surf.File(self.filename)
