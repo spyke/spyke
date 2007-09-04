@@ -1,3 +1,5 @@
+from __future__ import division
+
 """ Provides convenient stream interface to .srf files """
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
@@ -6,6 +8,7 @@ import spyke.surf
 import numpy as np
 
 DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
+
 
 class Stream(object):
     """ Streaming object. Maps from timestamps to record index of stream
@@ -91,8 +94,22 @@ class Stream(object):
         # interp and s+h correct here
         data, ts = self.interp(data, ts, self.sampfreq)
 
+        # transform AD values to uV
+        extgain = self.records[0].layout.extgain
+        intgain = self.records[0].layout.intgain
+        data = self.ADVal_to_uV(data, intgain, extgain)
+
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, sampfreq=self.sampfreq)
+
+
+    def ADVal_to_uV(self, adval, intgain, extgain):
+        """ Convert AD values to micro-volts """
+        #Round((ADValue - 2048)*(10 / (2048
+        #                 * ProbeArray[m_ProbeIndex].IntGain
+        #                 * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
+        #                 * V2uV);
+        return (adval - 2048) * (10 / (2048 * intgain * extgain[0]) * 1e6)
 
     def interp(self, data, ts, sampfreq=None, kind='nyquist'):
         """ Returns interpolated and sample-and-hold corrected data and

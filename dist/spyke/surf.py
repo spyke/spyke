@@ -10,40 +10,7 @@ import struct
 import unittest
 
 NULL = '\x00'
-DEFAULTSRFFNAME = '/data/Cat 15/81 - track 7c mseq16exps.srf'
 DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
-
-# Surf file header constants, field sizes in bytes
-UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
-UFF_NAME_LEN = 10
-UFF_OSNAME_LEN = 12
-UFF_NODENAME_LEN = 32
-UFF_DEVICE_LEN = 32
-UFF_PATH_LEN = 160
-UFF_FILENAME_LEN = 32
-UFF_FH_PAD_LEN = 76  # pad area to bring uff area to 512,
-                     # this really should be calculated, not hard-coded
-UFF_APPINFO_LEN = 32
-UFF_OWNER_LEN = 14
-UFF_FILEDESC_LEN = 64
-UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
-
-# Surf DRDB constants
-UFF_DRDB_BLOCK_LEN = 2048
-UFF_DRDB_NAME_LEN = 20
-UFF_DRDB_PAD_LEN = 16
-UFF_RSFD_PER_DRDB = 77
-UFF_DRDB_RSFD_NAME_LEN = 20
-
-# Surf layout record constants
-SURF_MAX_CHANNELS = 64 # currently supports one or two
-                       # DT3010 boards, could be higher
-
-# Stimulus header constants
-STIMULUS_HEADER_FILENAME_LEN = 64
-NVS_PARAM_LEN = 749
-PYTHON_TBL_LEN = 50000
-
 
 class DRDBError(ValueError):
     """ Used to indicate when you've passed the last DRDB at the start of the
@@ -75,6 +42,7 @@ class File(object):
         - stimulus display header records
         - stimulus digital single val records
     """
+
     def __init__(self, name=DEFAULTSRFFNAME):
         self.name = name
         self.fileSize = os.stat(self.name)[6]
@@ -321,6 +289,21 @@ class FileHeader(object):
     """ Surf file header. Takes an open file, parses in from current file
     pointer position, stores header fields as attribs
     """
+    # Surf file header constants, field sizes in bytes
+    UFF_FILEHEADER_LEN = 2048 # 'UFF' == 'Universal File Format'
+    UFF_NAME_LEN = 10
+    UFF_OSNAME_LEN = 12
+    UFF_NODENAME_LEN = 32
+    UFF_DEVICE_LEN = 32
+    UFF_PATH_LEN = 160
+    UFF_FILENAME_LEN = 32
+    UFF_FH_PAD_LEN = 76  # pad area to bring uff area to 512,
+                         # this really should be calculated, not hard-coded
+    UFF_APPINFO_LEN = 32
+    UFF_OWNER_LEN = 14
+    UFF_FILEDESC_LEN = 64
+    UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
+
     def __init__(self, f):
         self.f = f
 
@@ -334,7 +317,7 @@ class FileHeader(object):
         assert self.FH_rec_type == 1
         self.FH_rec_type_ext, = struct.unpack('B', f.read(1)) # must be 0
         assert self.FH_rec_type_ext == 0
-        self.UFF_name = f.read(UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
+        self.UFF_name = f.read(self.UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
         assert self.UFF_name == 'UFF'
 
         # major UFF ver
@@ -353,7 +336,7 @@ class FileHeader(object):
         self.bi_di_seeks, = struct.unpack('H', f.read(2))
 
         # OS name, ie "WINDOWS 2000"
-        self.OS_name = f.read(UFF_OSNAME_LEN).rstrip(NULL)
+        self.OS_name = f.read(self.UFF_OSNAME_LEN).rstrip(NULL)
         self.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
 
@@ -367,36 +350,36 @@ class FileHeader(object):
         self.append.parse()
 
         # system node name - same as BDT
-        self.node = f.read(UFF_NODENAME_LEN).rstrip(NULL)
+        self.node = f.read(self.UFF_NODENAME_LEN).rstrip(NULL)
 
         # device name - same as BDT
-        self.device = f.read(UFF_DEVICE_LEN).rstrip(NULL)
+        self.device = f.read(self.UFF_DEVICE_LEN).rstrip(NULL)
 
         # path name
-        self.path = f.read(UFF_PATH_LEN).rstrip(NULL)
+        self.path = f.read(self.UFF_PATH_LEN).rstrip(NULL)
 
         # original file name at creation
-        self.filename = f.read(UFF_FILENAME_LEN).rstrip(NULL)
+        self.filename = f.read(self.UFF_FILENAME_LEN).rstrip(NULL)
 
         # pad area to bring uff area to 512
-        self.pad = f.read(UFF_FH_PAD_LEN).replace(NULL, ' ')
+        self.pad = f.read(self.UFF_FH_PAD_LEN).replace(NULL, ' ')
 
         # application task name & version
-        self.app_info = f.read(UFF_APPINFO_LEN).rstrip(NULL)
+        self.app_info = f.read(self.UFF_APPINFO_LEN).rstrip(NULL)
 
         # user's name as owner of file
-        self.user_name = f.read(UFF_OWNER_LEN).rstrip(NULL)
+        self.user_name = f.read(self.UFF_OWNER_LEN).rstrip(NULL)
 
         # description of file/exp
-        self.file_desc = f.read(UFF_FILEDESC_LEN).rstrip(NULL)
+        self.file_desc = f.read(self.UFF_FILEDESC_LEN).rstrip(NULL)
 
         # non user area of UFF header should be 512 bytes
         assert f.tell() - self.offset == 512
 
         # additional user area
-        self.user_area = struct.unpack('B'*UFF_FH_USERAREA_LEN,
-                                        f.read(UFF_FH_USERAREA_LEN))
-        assert f.tell() - self.offset == UFF_FILEHEADER_LEN
+        self.user_area = struct.unpack('B'*self.UFF_FH_USERAREA_LEN,
+                                        f.read(self.UFF_FH_USERAREA_LEN))
+        assert f.tell() - self.offset == self.UFF_FILEHEADER_LEN
 
         # this is the end of the original UFF header I think,
         # the next two fields seem to have been added on to the end by Tim:
@@ -439,6 +422,12 @@ class DRDB(object):
     """ Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK
     in SurfBawd
     """
+    # Surf DRDB constants
+    UFF_DRDB_BLOCK_LEN = 2048
+    UFF_DRDB_NAME_LEN = 20
+    UFF_DRDB_PAD_LEN = 16
+    UFF_RSFD_PER_DRDB = 77
+
     def __init__(self, f):
         self.DR_subfields = []
         self.f = f
@@ -481,21 +470,21 @@ class DRDB(object):
         self.DR_size, = struct.unpack('i', f.read(4))
 
         # Data Record name
-        self.DR_name = f.read(UFF_DRDB_NAME_LEN).rstrip(NULL)
+        self.DR_name = f.read(self.UFF_DRDB_NAME_LEN).rstrip(NULL)
 
         # number of sub-fields in Data Record
         self.DR_num_fields, = struct.unpack('H', f.read(2))
 
         # pad bytes for expansion
-        self.DR_pad = struct.unpack('B'*UFF_DRDB_PAD_LEN,
-                        f.read(UFF_DRDB_PAD_LEN))
+        self.DR_pad = struct.unpack('B'*self.UFF_DRDB_PAD_LEN,
+                        f.read(self.UFF_DRDB_PAD_LEN))
 
         # sub fields desc. RSFD = Record Subfield Descriptor
-        for rsfdi in xrange(UFF_RSFD_PER_DRDB):
+        for rsfdi in xrange(self.UFF_RSFD_PER_DRDB):
             rsfd = RSFD(f)
             rsfd.parse()
             self.DR_subfields.append(rsfd)
-        assert f.tell() - self.offset == UFF_DRDB_BLOCK_LEN
+        assert f.tell() - self.offset == self.UFF_DRDB_BLOCK_LEN
 
         # this is the end of the original DRDB I think, the next two fields
         # seem to have been added on to the end by Tim:
@@ -524,6 +513,8 @@ class DRDB(object):
 
 class RSFD(object):
     """ Record Subfield Descriptor for Data Record Descriptor Block """
+    UFF_DRDB_RSFD_NAME_LEN = 20
+
     def __init__(self, f):
         self.f = f
 
@@ -540,7 +531,7 @@ class RSFD(object):
         self.offset = f.tell()
 
         # DRDB subfield name
-        self.subfield_name = f.read(UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
+        self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
 
         # underlying data type
         self.subfield_data_type, = struct.unpack('H', f.read(2))
@@ -554,6 +545,11 @@ class RSFD(object):
 
 class LayoutRecord(object):
     """ Polytrode layout record """
+
+    # Surf layout record constants
+    SURF_MAX_CHANNELS = 64 # currently supports one or two
+                           # DT3010 boards, could be higher
+
     def __init__(self, f):
         self.f = f
 
@@ -645,8 +641,8 @@ class LayoutRecord(object):
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21,
         # 1999 - only the first self.nchans are filled (5000), the rest are
         # junk values that pad to 64 channels
-        self.extgain = struct.unpack('H'*SURF_MAX_CHANNELS,
-                                        f.read(2*SURF_MAX_CHANNELS))
+        self.extgain = struct.unpack('H'*self.SURF_MAX_CHANNELS,
+                                        f.read(2*self.SURF_MAX_CHANNELS))
         # throw away the junk values
         self.extgain = self.extgain[:self.nchans]
 
@@ -657,8 +653,8 @@ class LayoutRecord(object):
         # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad
         # to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it
         # is an array of 64, so delete 32*4=128 bytes from end
-        self.chanlist = struct.unpack('h'*SURF_MAX_CHANNELS,
-                                        f.read(2 * SURF_MAX_CHANNELS))
+        self.chanlist = struct.unpack('h'*self.SURF_MAX_CHANNELS,
+                                        f.read(2 * self.SURF_MAX_CHANNELS))
 
         # throw away the junk values
         self.chanlist = self.chanlist[:self.nchans]
@@ -870,6 +866,12 @@ class DisplayRecord(object):
 
 class StimulusHeader(object):
     """ Stimulus display header """
+
+    # Stimulus header constants
+    STIMULUS_HEADER_FILENAME_LEN = 64
+    NVS_PARAM_LEN = 749
+    PYTHON_TBL_LEN = 50000
+
     def __init__(self, f):
         self.f = f
 
@@ -882,11 +884,11 @@ class StimulusHeader(object):
         # always 'DS'?
         self.header = f.read(2).rstrip(NULL)
         self.version, = struct.unpack('H', f.read(2))
-        self.filename = f.read(STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
+        self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
 
         # NVS binary header, array of single floats
-        self.parameter_tbl = list(struct.unpack('f'*NVS_PARAM_LEN,
-                                                    f.read(4*NVS_PARAM_LEN)))
+        self.parameter_tbl = list(struct.unpack('f'*self.NVS_PARAM_LEN,
+                                                    f.read(4*self.NVS_PARAM_LEN)))
 
         for parami, param in enumerate(self.parameter_tbl):
             if str(param) == '1.#QNAN':
@@ -894,7 +896,7 @@ class StimulusHeader(object):
                 self.parameter_tbl[parami] = None
 
         # dimstim's text header
-        self.python_tbl = f.read(PYTHON_TBL_LEN).rstrip()
+        self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
 
         # cm, single float
         self.screen_width, = struct.unpack('f', f.read(4))

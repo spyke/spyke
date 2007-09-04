@@ -103,6 +103,11 @@ class PlotPanel(FigureCanvasWxAgg):
     def set_channel_layout(self):
         pass
 
+    def redrawPlots(self):
+        for chan in self.channels:
+            self.figure.draw_artist(self.axes[chan])
+        #self.draw(True)
+
     def update(self):
         self.window = self.dstream[self.curr:self.curr+self.incr]
         self.curr += self.incr
@@ -110,10 +115,11 @@ class PlotPanel(FigureCanvasWxAgg):
             #data = self.window.data[chan] - 2048+500*chan / 500.
             #self.channels[chan].set_ydata(data)
             self.channels[chan].set_ydata(self.window.data[chan])
-            self.axes[chan].set_ylim((1650, 2400))
+            self.axes[chan].set_ylim((-150, 150))
             #print self.axes[chan].get_ylim()
             #print self.axes[chan].get_autoscale_on()
         self.draw(True)
+        #self.redrawPlots()
 
     def onTimerEvent(self, evt):
         self.update()
@@ -249,12 +255,12 @@ class EventWindow(PlotPanel):
         self.curr += self.incr
         self.axes = {}
         for i in range(num // 2):
-            self.pos[chan]=[horizMargin, bot - offset, width, height]
+            self.pos[chan]=[horizMargin, bot - offset, width, height + 0.07]
             # next channel
             chan += 1
 
             self.pos[chan]=[horizMargin + width + hSep - overlap,
-                                        bot, width, height]
+                                        bot, width, height + 0.07]
 
             bot += height + vSep
             # next channel
