@@ -43,7 +43,7 @@ class File(object):
         - stimulus digital single val records
     """
 
-    def __init__(self, name=DEFAULTSRFFNAME):
+    def __init__(self, name):
         self.name = name
         self.fileSize = os.stat(self.name)[6]
         self.sections = []
