@@ -17,7 +17,7 @@ import numpy as np
 
 import spyke.surf
 import spyke.stream
-from spyke.plot import EventWindow, ChartWindow
+from spyke.gui.plot import EventWindow, ChartWindow
 
 class Demo(wx.App):
     def OnInit(self):
