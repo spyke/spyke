@@ -1,6 +1,6 @@
 from __future__ import division
 """
-spyke.plot - Plotting elements
+spyke.gui.plot - Plotting elements
 """
 
 __author__ = 'Reza Lotun'
@@ -14,41 +14,22 @@ import matplotlib.numerix as nx
 import spyke.surf
 import spyke.stream
 
-def _initSpyke(self):
-    self.datafile = spyke.surf.File(self.filename)
-    self.datafile.parse()
-    self.colours = []
-    col = ['g', 'g', 'g']  # XXX: clean this up!
-    for i in xrange(54):
-        self.colours.append(col[i % 3])
-    self.dstream = spyke.stream.Stream(self.datafile.highpassrecords)
-    self.curr = self.dstream.records[0].TimeStamp
-    self.incr = 1000
-
-def update(self):
-    self.window = self.dstream[self.curr:self.curr+self.incr]
-    self.curr += self.incr
-    for chan in self.channels:
-        self.channels[chan].set_ydata(self.window.data[chan])
-        self.axes[chan].set_ylim((-150, 150))
-    self.draw(True)
-
 class PlotPanel(FigureCanvasWxAgg):
     """ A generic set of spyke plots. Meant to be a superclass of specific
     implementations of a plot panel (e.g. ChartPanel, EventPanel, etc.)
     """
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
-
-        self.num_channels = len(layout)
-        self.set_channel_layout(layout)
-
+        self._plot_setup = False
+        
         self.pos = {}               # position of plots
         self.channels = {}          # plot y-data for each channel
         self.axes = {}              # axes for each channel
+        
+        self.num_channels = len(layout)
+        self.set_plot_layout(layout)
 
         self.set_params()
-        self.set_channel_layout()
 
     def set_params(self):
         self.figure.set_facecolor('black')
@@ -57,23 +38,14 @@ class PlotPanel(FigureCanvasWxAgg):
 
         self.colours = ['g'] * self.num_channels
 
-    def set_channel_layout(self, layout):
+    def set_plot_layout(self, layout):
         pass
 
-    def plot(self, data):
-        for chan in self.channels:
-            self.channels[chan].set_ydata(data[chan])
-            self.axes[chan].set_ylim(self.yrange)
-        self.draw(True)
-
-    def init_plot(self, timesteps, ynum):
-
-        ywindow = [0] * ynum
-
+    def init_plot(self, wave):
         for chan, sp in self.pos.iteritems():
             a = self.figure.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
-            a.plot(timesteps,
-                   ywindow,
+            a.plot(wave.ts,
+                   wave.data[chan],
                    self.colours[chan],
                    antialiased=False,
                    linewidth=0.005,)
@@ -87,10 +59,22 @@ class PlotPanel(FigureCanvasWxAgg):
         # redraw the disply
         self.draw(True)
 
+    def plot(self, waveforms):
+        if not self._plot_setup:
+            self.init_plot(waveforms)
+            self._plot_setup = True
+            return
+
+        for chan in self.channels:
+            self.channels[chan].set_ydata(waveforms.data[chan])
+            self.axes[chan].set_ylim(self.yrange)
+        self.draw(True)
+
+
 class ChartPanel(PlotPanel):
     """ Chart window widget. Presents all channels layout out vertically. """
 
-    def set_channel_layout(self):
+    def set_plot_layout(self):
         num = self.num_channels
         hMargin = 0.05
         vMargin = 0.05
@@ -115,7 +99,7 @@ class EventPanel(PlotPanel):
         for i in xrange(54):
             self.colours.append(col[i % 3])
 
-    def set_channel_layout(self, layout):
+    def _set_plot_layout(self, layout):
         """ Map from polytrode locations given as (x, y) coordinates
         into position information for the spike plots, which are stored
         as a list of four values [l, b, w, h]. To illustrate this, consider
@@ -176,7 +160,7 @@ class EventPanel(PlotPanel):
             #x = x - xmin + rl_margin_l + plotwidth / 2
             #y = y - ymin + tb_margin_l +
 
-    def set_channel_layout(self):
+    def set_plot_layout(self, layout):
         # XXX: working on mapping actually layout we'll play with this
         # hack for now
         ############
@@ -197,8 +181,6 @@ class EventPanel(PlotPanel):
         bot = vertMargin
         chan = 0
 
-        self.window = self.dstream[self.curr:self.curr+self.incr]
-        self.curr += self.incr
         self.axes = {}
         for i in range(num // 2):
             self.pos[chan]=[horizMargin, bot - offset, width, height + 0.07]
