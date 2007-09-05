@@ -21,11 +21,11 @@ class PlotPanel(FigureCanvasWxAgg):
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
-        
+
         self.pos = {}               # position of plots
         self.channels = {}          # plot y-data for each channel
         self.axes = {}              # axes for each channel
-        
+
         self.num_channels = len(layout)
         self.set_plot_layout(layout)
 
@@ -74,7 +74,7 @@ class PlotPanel(FigureCanvasWxAgg):
 class ChartPanel(PlotPanel):
     """ Chart window widget. Presents all channels layout out vertically. """
 
-    def set_plot_layout(self):
+    def set_plot_layout(self, layout):
         num = self.num_channels
         hMargin = 0.05
         vMargin = 0.05

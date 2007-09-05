@@ -12,6 +12,10 @@ class Spike(WaveForm):
     """ A spike event """
     pass
 
+class Template(set):
+    """ A collection of Spikes represent a template. """
+    pass
+
 class Detector(object):
     """ Spike detection superclass. """
     def __init__(self, stream, init_time):
