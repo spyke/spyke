@@ -30,6 +30,17 @@ class Template(set):
             pass
         return None
 
+    def __str__(self):
+        return 'Template'
+
+class Collection(object):
+    """ A container for Templates. Collections are associated with
+    Surf Files.
+    """
+    def __init__(self, file):
+        # XXX: populate this with pertitent info
+        self.templates = []
+
 class Detector(object):
     """ Spike detection superclass. """
     def __init__(self, stream, init_time):

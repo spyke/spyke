@@ -1,7 +1,7 @@
 
 import wx
 
-from spyke.detect import Spike, Template
+from spyke.detect import Spike, Template, Collection
 
 tree1 = [
         "Event 1",
@@ -25,7 +25,7 @@ class SpikeDropSource(wx.DropSource):
         pass
 
 class SpikeSorter(wx.Frame):
-    def __init__(self, parent, id, title, spikes=None, templates=None, **kwds):
+    def __init__(self, parent, id, title, templates=None, spikes=None, **kwds):
         wx.Frame.__init__(self, parent, id, title, **kwds)
 
         # set up our tree controls
@@ -53,17 +53,21 @@ class SpikeSorter(wx.Frame):
         self.roots = (self.templateRoot, self.spikeRoot)
         self.trees = (self.tree_Templates, self.tree_Spikes)
 
-    def setData(self, spikes, templates):
+    def setData(self, templates, spikes):
         """ Set up our template data structures. We'd like to be able to
         support two use cases:
             1) We're passed in a collection of spikes that we want to manually
-               organized into a collection of templates.
+               organize into a collection of templates.
             2) We're passed in a a collection of templates that we want to
-               refine manually.
+               refine.
         """
         self.spikes = spikes or Template()
-        self.templates = templates or Template()
+        self.templates = templates or Collection()
 
+        if not spikes.__class__.__name__  == Spike.__name__:
+            raise Exception()   # XXX: clean this up
+        if not templates.__class__.__name__ == Template.__name__:
+            raise Exception()   # XXX
         # attached to each root will be a spike template. Informally
         # the tree on the right is a temporary holding window for unsorted
         # spikes, and the tree on the left denotes either 'final' templates
