@@ -68,6 +68,7 @@ class EventWin(wx.Frame):
         #waveforms = self.dstream[self.curr:self.curr+self.incr]
         #self.curr += self.incr
         waveforms = self.event_iter.next()
+        print waveforms
         #print waveforms.data.shape, len(waveforms.ts)
         self.plotPanel.plot(waveforms)
 
