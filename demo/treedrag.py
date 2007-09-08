@@ -32,7 +32,7 @@ class SpikeSorter(wx.Frame):
         self.setUpTrees()
 
         # initial template of spikes we want to sort
-        self.setData(spikes, templates)
+        self.setData(templates, spikes)
 
         #self.AddTreeNodes(self.tree_Templates, self.templateRoot, tree1)
         #self.AddTreeNodes(self.tree_Spikes, self.spikeRoot, tree2)
@@ -62,11 +62,11 @@ class SpikeSorter(wx.Frame):
                refine.
         """
         self.spikes = spikes or Template()
-        self.templates = templates or Collection()
+        self.templates = templates or Collection(None)
 
-        if not spikes.__class__.__name__  == Spike.__name__:
+        if self.spikes.__class__.__name__  != Template.__name__:
             raise Exception()   # XXX: clean this up
-        if not templates.__class__.__name__ == Template.__name__:
+        if self.templates.__class__.__name__ != Collection.__name__:
             raise Exception()   # XXX
         # attached to each root will be a spike template. Informally
         # the tree on the right is a temporary holding window for unsorted
@@ -74,8 +74,10 @@ class SpikeSorter(wx.Frame):
         # that are being built from the spikes on the right, or a set of
         # existing templates that are to be refined and or/viewed
 
-
-
+        # add all the spikes to the root node
+        self.spikeItem = self.tree_Spikes.AppendItem(self.spikeRoot, str(self.spikes))
+        for spike in self.spikes
+            self.
 
     def registerEvents(self):
         for tree in self.trees:
@@ -151,7 +153,7 @@ class SpikeSorter(wx.Frame):
 
 class TestApp(wx.App):
     def OnInit(self):
-        sorter = SpikeSorter(None, -1, 'Spike Sorter', None, size=(500, 600))
+        sorter = SpikeSorter(None, -1, 'Spike Sorter', None, None, size=(500, 600))
         self.SetTopWindow(sorter)
         sorter.Show(True)
         return True

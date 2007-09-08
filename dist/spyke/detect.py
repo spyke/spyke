@@ -22,24 +22,35 @@ class Spike(WaveForm):
         return 'Channel ' + str(self.channel) + ' time: ' + \
                 str(self.event_time)
 
+
 class Template(set):
     """ A spike template is simply a collection of spikes. """
+    def __init__(self, *args):
+        set.__init__(self, *args)
+        self.name = str(self)
+
     def mean():
         if len(self) > 0:
-            # return mean spike
+            # TODO: return mean spike
             pass
         return None
 
     def __str__(self):
-        return 'Template'
+        return 'Template (' + str(len(self)) + ')'
+
 
 class Collection(object):
     """ A container for Templates. Collections are associated with
     Surf Files.
     """
     def __init__(self, file):
-        # XXX: populate this with pertitent info
+        # XXX: populate this with pertinent info
         self.templates = []
+
+    def __iter__(self):
+        for spike in self.templates:
+            yield spike
+
 
 class Detector(object):
     """ Spike detection superclass. """
@@ -61,6 +72,7 @@ class Detector(object):
 
     def find(self):
         pass
+
 
 class SimpleThreshold(Detector):
     """ Bipolar amplitude threshold, with fixed lockout on all channels."""
