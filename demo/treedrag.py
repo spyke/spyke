@@ -76,8 +76,9 @@ class SpikeSorter(wx.Frame):
 
         # add all the spikes to the root node
         self.spikeItem = self.tree_Spikes.AppendItem(self.spikeRoot, str(self.spikes))
-        for spike in self.spikes
-            self.
+        for spike in self.spikes:
+            #self.
+            pass
 
     def registerEvents(self):
         for tree in self.trees:

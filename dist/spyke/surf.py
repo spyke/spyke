@@ -12,6 +12,7 @@ import unittest
 NULL = '\x00'
 DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
 
+
 class DRDBError(ValueError):
     """ Used to indicate when you've passed the last DRDB at the start of the
     .srf file
@@ -28,7 +29,24 @@ class Section(object):
     def __len__(self):
         return self.len
 
-class File(object):
+
+class Record(object):
+    """ Used to explicity represent the endianness of the surf file and that
+    of the machine. The machine endianness doesn't strictly have to be known
+    but it might come in useful.
+    """
+    SURF_ENDIANNESS = '<'
+    def __init__(self):
+        if struct.pack('i', 1)[0] == '\x01':
+            self.endianness = '<'
+        else:
+            self.endianness = '>'
+
+    def unpack(self, format, bytes):
+        return struct.unpack(self.SURF_ENDIANNESS + format, bytes)
+
+
+class File(Record):
     """ Open a .srf file and, after parsing, expose all of its headers and
     records as attribs.
     Disabled: If no synonymous .parse file exists, parses
@@ -44,6 +62,8 @@ class File(object):
     """
 
     def __init__(self, name):
+        Record.__init__(self)
+
         self.name = name
         self.fileSize = os.stat(self.name)[6]
         self.sections = []
@@ -83,7 +103,7 @@ class File(object):
         u = cPickle.Unpickler(pf)
 
         def persistent_load(persid):
-            """ required to restore the .srf file object as an existing
+            """ required to restore the .srf file Record as an existing
             open file for reading
             """
             if persid == self.f.name:
@@ -138,7 +158,7 @@ class File(object):
     def parse(self, force=True, save=False):
         """ Parse the .srf file """
 
-        # recover Fat object pickled in .parse file
+        # recover Fat Record pickled in .parse file
         try:
             # force a new parsing
             if force:
@@ -247,7 +267,7 @@ class File(object):
         #self.lowpassstream = Stream(records=self.lowpassrecords)
 
     def serialize(self):
-        """ Creates a Fat object, saves all the parsed headers and records to
+        """ Creates a Fat Record, saves all the parsed headers and records to
         it, and pickles it to a file
         """
         print 'Saving parse info to %r' % self.parsefname
@@ -266,11 +286,11 @@ class File(object):
         # make a Pickler, use most efficient (least human readable) protocol
         p = cPickle.Pickler(pf, protocol=-1)
 
-        # required to make the .srf file object persistent and remain open for
+        # required to make the .srf file Record persistent and remain open for
         # reading when unpickled
         def persistent_id(obj):
             if hasattr(obj, 'name'):
-                # the file object's filename defines its persistent id for
+                # the file Record's filename defines its persistent id for
                 # pickling purposes
                 return obj.name
             else:
@@ -285,7 +305,7 @@ class File(object):
         print 'Saved parse info to %r' % self.parsefname
 
 
-class FileHeader(object):
+class FileHeader(Record):
     """ Surf file header. Takes an open file, parses in from current file
     pointer position, stores header fields as attribs
     """
@@ -305,6 +325,7 @@ class FileHeader(object):
     UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
 
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -313,32 +334,32 @@ class FileHeader(object):
     def parse(self):
         f = self.f
         self.offset = f.tell()
-        self.FH_rec_type, = struct.unpack('B', f.read(1)) # must be 1
+        self.FH_rec_type, = self.unpack('B', f.read(1)) # must be 1
         assert self.FH_rec_type == 1
-        self.FH_rec_type_ext, = struct.unpack('B', f.read(1)) # must be 0
+        self.FH_rec_type_ext, = self.unpack('B', f.read(1)) # must be 0
         assert self.FH_rec_type_ext == 0
         self.UFF_name = f.read(self.UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
         assert self.UFF_name == 'UFF'
 
         # major UFF ver
-        self.UFF_major, = struct.unpack('B', f.read(1))
+        self.UFF_major, = self.unpack('B', f.read(1))
 
         # minor UFF ver
-        self.UFF_minor, = struct.unpack('B', f.read(1))
+        self.UFF_minor, = self.unpack('B', f.read(1))
 
         # FH record length in bytes
-        self.FH_rec_len, = struct.unpack('H', f.read(2))
+        self.FH_rec_len, = self.unpack('H', f.read(2))
 
         # DBRD record length in bytes
-        self.DRDB_rec_len, = struct.unpack('H', f.read(2))
+        self.DRDB_rec_len, = self.unpack('H', f.read(2))
 
         # 2 bi-directional seeks format
-        self.bi_di_seeks, = struct.unpack('H', f.read(2))
+        self.bi_di_seeks, = self.unpack('H', f.read(2))
 
         # OS name, ie "WINDOWS 2000"
         self.OS_name = f.read(self.UFF_OSNAME_LEN).rstrip(NULL)
-        self.OS_major, = struct.unpack('B', f.read(1)) # OS major rev
-        self.OS_minor, = struct.unpack('B', f.read(1)) # OS minor rev
+        self.OS_major, = self.unpack('B', f.read(1)) # OS major rev
+        self.OS_minor, = self.unpack('B', f.read(1)) # OS minor rev
 
         # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
         self.create = TimeDate(f)
@@ -377,18 +398,18 @@ class FileHeader(object):
         assert f.tell() - self.offset == 512
 
         # additional user area
-        self.user_area = struct.unpack('B'*self.UFF_FH_USERAREA_LEN,
+        self.user_area = self.unpack('B'*self.UFF_FH_USERAREA_LEN,
                                         f.read(self.UFF_FH_USERAREA_LEN))
         assert f.tell() - self.offset == self.UFF_FILEHEADER_LEN
 
         # this is the end of the original UFF header I think,
         # the next two fields seem to have been added on to the end by Tim:
         # record type, must be 1 BIDIRECTIONAL SUPPORT
-        self.bd_FH_rec_type, = struct.unpack('B', f.read(1))
+        self.bd_FH_rec_type, = self.unpack('B', f.read(1))
         assert self.bd_FH_rec_type == 1
 
         # record type extension, must be 0 BIDIRECTIONAL SUPPORT
-        self.bd_FH_rec_type_ext, = struct.unpack('B', f.read(1))
+        self.bd_FH_rec_type_ext, = self.unpack('B', f.read(1))
         assert self.bd_FH_rec_type_ext == 0
 
         # total length is 2050 bytes
@@ -396,10 +417,11 @@ class FileHeader(object):
         assert self.length == 2050
 
 
-class TimeDate(object):
+class TimeDate(Record):
     """ TimeDate record, reverse of C'S DateTime """
 
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -409,16 +431,16 @@ class TimeDate(object):
         f = self.f
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
-        self.sec, = struct.unpack('H', f.read(2))
-        self.min, = struct.unpack('H', f.read(2))
-        self.hour, = struct.unpack('H', f.read(2))
-        self.day, = struct.unpack('H', f.read(2))
-        self.month, = struct.unpack('H', f.read(2))
-        self.year, = struct.unpack('H', f.read(2))
-        self.junk = struct.unpack('B'*6, f.read(6)) # junk data at end
+        self.sec, = self.unpack('H', f.read(2))
+        self.min, = self.unpack('H', f.read(2))
+        self.hour, = self.unpack('H', f.read(2))
+        self.day, = self.unpack('H', f.read(2))
+        self.month, = self.unpack('H', f.read(2))
+        self.year, = self.unpack('H', f.read(2))
+        self.junk = self.unpack('B'*6, f.read(6)) # junk data at end
 
 
-class DRDB(object):
+class DRDB(Record):
     """ Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK
     in SurfBawd
     """
@@ -429,6 +451,7 @@ class DRDB(object):
     UFF_RSFD_PER_DRDB = 77
 
     def __init__(self, f):
+        Record.__init__(self)
         self.DR_subfields = []
         self.f = f
 
@@ -447,7 +470,7 @@ class DRDB(object):
         self.offset = f.tell()
 
         # record type; must be 2
-        self.DRDB_rec_type, = struct.unpack('B', f.read(1))
+        self.DRDB_rec_type, = self.unpack('B', f.read(1))
 
         # SurfBawd uses this to detect that it's passed the last DRDB,
         # not exactly failsafe...
@@ -455,28 +478,28 @@ class DRDB(object):
             raise DRDBError
 
         # record type extension
-        self.DRDB_rec_type_ext, = struct.unpack('B', f.read(1))
+        self.DRDB_rec_type_ext, = self.unpack('B', f.read(1))
 
         # Data Record type for DRDB 3-255, ie 'P' or 'V' or 'M', etc..
         # don't know quite why SurfBawd required these byte values, this is
         # more than the normal set of ASCII chars
         self.DR_rec_type = f.read(1)
-        assert int(struct.unpack('B', self.DR_rec_type)[0]) in range(3, 256)
+        assert int(self.unpack('B', self.DR_rec_type)[0]) in range(3, 256)
 
         # Data Record type ext; ignored
-        self.DR_rec_type_ext, = struct.unpack('B', f.read(1))
+        self.DR_rec_type_ext, = self.unpack('B', f.read(1))
 
         # Data Record size in bytes, signed, -1 means dynamic
-        self.DR_size, = struct.unpack('i', f.read(4))
+        self.DR_size, = self.unpack('i', f.read(4))
 
         # Data Record name
         self.DR_name = f.read(self.UFF_DRDB_NAME_LEN).rstrip(NULL)
 
         # number of sub-fields in Data Record
-        self.DR_num_fields, = struct.unpack('H', f.read(2))
+        self.DR_num_fields, = self.unpack('H', f.read(2))
 
         # pad bytes for expansion
-        self.DR_pad = struct.unpack('B'*self.UFF_DRDB_PAD_LEN,
+        self.DR_pad = self.unpack('B'*self.UFF_DRDB_PAD_LEN,
                         f.read(self.UFF_DRDB_PAD_LEN))
 
         # sub fields desc. RSFD = Record Subfield Descriptor
@@ -494,11 +517,11 @@ class DRDB(object):
         f.seek(156, 1)
 
         # record type; must be 2 BIDIRECTIONAL SUPPORT
-        self.bd_DRDB_rec_type, = struct.unpack('B', f.read(1))
+        self.bd_DRDB_rec_type, = self.unpack('B', f.read(1))
         assert self.bd_DRDB_rec_type == 2
 
         # record type extension; must be 0 BIDIRECTIONAL SUPPORT
-        self.bd_DRDB_rec_type_ext, = struct.unpack('B', f.read(1))
+        self.bd_DRDB_rec_type_ext, = self.unpack('B', f.read(1))
         assert self.bd_DRDB_rec_type_ext == 0
 
         # hack to skip past unexplained extra 2 bytes, sometimes they're 0s,
@@ -511,11 +534,12 @@ class DRDB(object):
         assert self.length == 2208
 
 
-class RSFD(object):
+class RSFD(Record):
     """ Record Subfield Descriptor for Data Record Descriptor Block """
     UFF_DRDB_RSFD_NAME_LEN = 20
 
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -534,16 +558,16 @@ class RSFD(object):
         self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
 
         # underlying data type
-        self.subfield_data_type, = struct.unpack('H', f.read(2))
+        self.subfield_data_type, = self.unpack('H', f.read(2))
 
         # sub field size in bytes, signed
-        self.subfield_size, = struct.unpack('i', f.read(4))
+        self.subfield_size, = self.unpack('i', f.read(4))
 
         self.length = f.tell() - self.offset
         assert self.length == 26
 
 
-class LayoutRecord(object):
+class LayoutRecord(Record):
     """ Polytrode layout record """
 
     # Surf layout record constants
@@ -551,6 +575,7 @@ class LayoutRecord(object):
                            # DT3010 boards, could be higher
 
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -569,30 +594,30 @@ class LayoutRecord(object):
         f.seek(7, 1)
 
         # Time stamp, 64 bit signed int
-        self.TimeStamp, = struct.unpack('q', f.read(8))
+        self.TimeStamp, = self.unpack('q', f.read(8))
 
         # SURF major version number (2)
-        self.SurfMajor, = struct.unpack('B', f.read(1))
+        self.SurfMajor, = self.unpack('B', f.read(1))
         # SURF minor version number (1)
-        self.SurfMinor, = struct.unpack('B', f.read(1))
+        self.SurfMinor, = self.unpack('B', f.read(1))
 
         # hack to skip next 2 bytes
         f.seek(2, 1)
 
         # ADC/precision CT master clock frequency (1Mhz for DT3010)
-        self.MasterClockFreq, = struct.unpack('i', f.read(4))
+        self.MasterClockFreq, = self.unpack('i', f.read(4))
 
         # undecimated base sample frequency per channel (25kHz)
-        self.BaseSampleFreq, = struct.unpack('i', f.read(4))
+        self.BaseSampleFreq, = self.unpack('i', f.read(4))
 
         # true (1) if Stimulus DIN acquired
-        self.DINAcquired, = struct.unpack('B', f.read(1))
+        self.DINAcquired, = self.unpack('B', f.read(1))
 
         # hack to skip next byte
         f.seek(1, 1)
 
         # probe number
-        self.Probe, = struct.unpack('h', f.read(2))
+        self.Probe, = self.unpack('h', f.read(2))
 
         # =E,S,C for epochspike, spikestream, or continuoustype
         self.ProbeSubType = f.read(1)
@@ -601,39 +626,39 @@ class LayoutRecord(object):
         f.seek(1, 1)
 
         # number of channels in the probe (54, 1)
-        self.nchans, = struct.unpack('h', f.read(2))
+        self.nchans, = self.unpack('h', f.read(2))
 
         # number of samples displayed per waveform per channel (25, 100)
-        self.pts_per_chan, = struct.unpack('h', f.read(2))
+        self.pts_per_chan, = self.unpack('h', f.read(2))
 
         # hack to skip next 2 bytes
         f.seek(2, 1)
 
         # {n/a to cat9} total number of samples per file buffer for this probe
         # (redundant with SS_REC.NumSamples) (135000, 100)
-        self.pts_per_buffer, = struct.unpack('i', f.read(4))
+        self.pts_per_buffer, = self.unpack('i', f.read(4))
 
         # pts before trigger (7)
-        self.trigpt, = struct.unpack('h', f.read(2))
+        self.trigpt, = self.unpack('h', f.read(2))
 
         # Lockout in pts (2)
-        self.lockout, = struct.unpack('h', f.read(2))
+        self.lockout, = self.unpack('h', f.read(2))
 
         # A/D board threshold for trigger (0-4096)
-        self.threshold, = struct.unpack('h', f.read(2))
+        self.threshold, = self.unpack('h', f.read(2))
 
         # A/D sampling decimation factor (1, 25)
-        self.skippts, = struct.unpack('h', f.read(2))
+        self.skippts, = self.unpack('h', f.read(2))
 
         # S:H delay offset for first channel of this probe (1)
-        self.sh_delay_offset, = struct.unpack('h', f.read(2))
+        self.sh_delay_offset, = self.unpack('h', f.read(2))
 
         # hack to skip next 2 bytes
         f.seek(2, 1)
 
         # A/D sampling frequency specific to this probe (ie. after decimation,
         # if any) (25000, 1000)
-        self.sampfreqperchan, = struct.unpack('i', f.read(4))
+        self.sampfreqperchan, = self.unpack('i', f.read(4))
 
         # us, store it here for convenience
         self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6))
@@ -641,19 +666,19 @@ class LayoutRecord(object):
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21,
         # 1999 - only the first self.nchans are filled (5000), the rest are
         # junk values that pad to 64 channels
-        self.extgain = struct.unpack('H'*self.SURF_MAX_CHANNELS,
+        self.extgain = self.unpack('H'*self.SURF_MAX_CHANNELS,
                                         f.read(2*self.SURF_MAX_CHANNELS))
         # throw away the junk values
         self.extgain = self.extgain[:self.nchans]
 
         # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after
         # finished with CAT9!!!!!
-        self.intgain, = struct.unpack('h', f.read(2))
+        self.intgain, = self.unpack('h', f.read(2))
 
         # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad
         # to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it
         # is an array of 64, so delete 32*4=128 bytes from end
-        self.chanlist = struct.unpack('h'*self.SURF_MAX_CHANNELS,
+        self.chanlist = self.unpack('h'*self.SURF_MAX_CHANNELS,
                                         f.read(2 * self.SURF_MAX_CHANNELS))
 
         # throw away the junk values
@@ -681,14 +706,15 @@ class LayoutRecord(object):
 
         # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} -
         # 2{SHOffset}] of BYTE; {pad for future expansion/modification}
-        self.pad = struct.unpack(str(880-4-2)+'B', f.read(880-4-2))
+        self.pad = self.unpack(str(880-4-2)+'B', f.read(880-4-2))
 
         # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
         f.seek(6, 1)
 
-class ProbeWinLayout(object):
+class ProbeWinLayout(Record):
     """ Probe window layout """
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -699,24 +725,25 @@ class ProbeWinLayout(object):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
 
-        self.left, = struct.unpack('i', f.read(4))
-        self.top, = struct.unpack('i', f.read(4))
-        self.width, = struct.unpack('i', f.read(4))
-        self.height, = struct.unpack('i', f.read(4))
+        self.left, = self.unpack('i', f.read(4))
+        self.top, = self.unpack('i', f.read(4))
+        self.width, = self.unpack('i', f.read(4))
+        self.height, = self.unpack('i', f.read(4))
 
-class EpochRecord(object):
+class EpochRecord(Record):
     def __init__(self):
         raise NotImplementedError('Spike epochs (non-continous)'  \
                                   ' recordings currently unsupported')
 
-class AnalogSingleValRecord(object):
+class AnalogSingleValRecord(Record):
     def __init__(self):
         raise NotImplementedError('Analog single value recordings' \
                                   ' currently unsupported')
 
-class MessageRecord(object):
+class MessageRecord(Record):
     """Message record"""
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -738,21 +765,22 @@ class MessageRecord(object):
         f.seek(6, 1)
 
         # Time stamp, 64 bit signed int
-        self.TimeStamp, = struct.unpack('q', f.read(8))
+        self.TimeStamp, = self.unpack('q', f.read(8))
 
         # 8 bytes -- double - number of days (integral and fractional) since 30
         # Dec 1899
-        self.DateTime, = struct.unpack('d', f.read(8))
+        self.DateTime, = self.unpack('d', f.read(8))
 
         # 4 bytes -- length of the msg string
-        self.MsgLength, = struct.unpack('i', f.read(4))
+        self.MsgLength, = self.unpack('i', f.read(4))
 
         # any length message {shortstring - for cat9!!!}
         self.Msg = f.read(self.MsgLength)
 
-class ContinuousRecord(object):
+class ContinuousRecord(Record):
     """ Continuous waveform record """
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -765,7 +793,7 @@ class ContinuousRecord(object):
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
 
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = \
-                                            struct.unpack('qqhhii', f.read(28))
+                                            self.unpack('qqhhii', f.read(28))
         self.waveformoffset = f.tell()
 
         # skip the waveform data for now
@@ -780,7 +808,7 @@ class ContinuousRecord(object):
 
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} -
         # converted to an ndarray
-        self.waveform = np.asarray(struct.unpack(str(self.NumSamples)+'h',
+        self.waveform = np.asarray(self.unpack(str(self.NumSamples)+'h',
                         f.read(2*self.NumSamples)), dtype=np.int16)
 
         # reshape to have nchans rows, as indicated in layout
@@ -794,10 +822,11 @@ class LowPassRecord(ContinuousRecord):
     """Low-pass continuous waveform record"""
     pass
 
-class LowPassMultiChanRecord(object):
+class LowPassMultiChanRecord(Record):
     """ Low-pass multichannel (usually 10) continuous waveform record """
     def __init__(self, lowpassrecords):
         """ Takes several low pass records, all at the same timestamp """
+        Record.__init__(self)
         self.lowpassrecords = toiter(lowpassrecords)
         self.TimeStamp = self.lowpassrecords[0].TimeStamp
         self.tres = self.lowpassrecords[0].layout.tres
@@ -833,9 +862,10 @@ class LowPassMultiChanRecord(object):
         self.waveform = np.squeeze(self.waveform)
 
 
-class DisplayRecord(object):
+class DisplayRecord(Record):
     """ Stimulus display header record """
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -853,18 +883,18 @@ class DisplayRecord(object):
         f.seek(7, 1)
 
         # Cardinal, 64 bit signed int
-        self.TimeStamp, = struct.unpack('q', f.read(8))
+        self.TimeStamp, = self.unpack('q', f.read(8))
 
         # double, 8 bytes - number of days (integral and fractional) since 30
         # Dec 1899
-        self.DateTime, = struct.unpack('d', f.read(8))
+        self.DateTime, = self.unpack('d', f.read(8))
         self.Header = StimulusHeader(f)
         self.Header.parse()
 
         # hack to skip next 4 bytes
         f.seek(4, 1)
 
-class StimulusHeader(object):
+class StimulusHeader(Record):
     """ Stimulus display header """
 
     # Stimulus header constants
@@ -873,6 +903,7 @@ class StimulusHeader(object):
     PYTHON_TBL_LEN = 50000
 
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def parse(self):
@@ -883,11 +914,11 @@ class StimulusHeader(object):
 
         # always 'DS'?
         self.header = f.read(2).rstrip(NULL)
-        self.version, = struct.unpack('H', f.read(2))
+        self.version, = self.unpack('H', f.read(2))
         self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
 
         # NVS binary header, array of single floats
-        self.parameter_tbl = list(struct.unpack('f'*self.NVS_PARAM_LEN,
+        self.parameter_tbl = list(self.unpack('f'*self.NVS_PARAM_LEN,
                                                     f.read(4*self.NVS_PARAM_LEN)))
 
         for parami, param in enumerate(self.parameter_tbl):
@@ -899,27 +930,28 @@ class StimulusHeader(object):
         self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
 
         # cm, single float
-        self.screen_width, = struct.unpack('f', f.read(4))
+        self.screen_width, = self.unpack('f', f.read(4))
 
         # cm
-        self.screen_height, = struct.unpack('f', f.read(4))
+        self.screen_height, = self.unpack('f', f.read(4))
 
         # cm
-        self.view_distance, = struct.unpack('f', f.read(4))
+        self.view_distance, = self.unpack('f', f.read(4))
 
         # Hz
-        self.frame_rate, = struct.unpack('f', f.read(4))
-        self.gamma_correct, = struct.unpack('f', f.read(4))
-        self.gamma_offset, = struct.unpack('f', f.read(4))
+        self.frame_rate, = self.unpack('f', f.read(4))
+        self.gamma_correct, = self.unpack('f', f.read(4))
+        self.gamma_offset, = self.unpack('f', f.read(4))
 
         # in seconds
-        self.est_runtime, = struct.unpack('H', f.read(2))
-        self.checksum, = struct.unpack('H', f.read(2))
+        self.est_runtime, = self.unpack('H', f.read(2))
+        self.checksum, = self.unpack('H', f.read(2))
 
 
-class DigitalSValRecord(object):
+class DigitalSValRecord(Record):
     """ Digital single value record """
     def __init__(self, f):
+        Record.__init__(self)
         self.f = f
 
     def __len__(self):
@@ -932,10 +964,10 @@ class DigitalSValRecord(object):
         # SubType
         # Cardinal, 64 bit signed int; 16 bit single value
         junk, self.TimeStamp, self.SVal, junk, junk = \
-                struct.unpack('QQHHI', f.read(24))
+                self.unpack('QQHHI', f.read(24))
 
 
-class Fat(object):
+class Fat(Record):
     """Stores all the stuff to be pickled into a .parse file and then
     unpickled as saved parse info
     """
@@ -961,9 +993,9 @@ def iterable(x):
 
 def toiter(x):
     """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
-    Useful when you want to iterate over an object (like in a for loop),
+    Useful when you want to iterate over an Record (like in a for loop),
     and you don't want to have to do type checking or handle exceptions
-    when the object isn't a sequence"""
+    when the Record isn't a sequence"""
     if iterable(x):
         return x
     else:

@@ -41,15 +41,18 @@ class Template(set):
 
 class Collection(object):
     """ A container for Templates. Collections are associated with
-    Surf Files.
+    Surf Files. By default a Collection represents a single sorting session.
+    Initially detected spikes will be added to a default set of spikes in a
+    collection - these spikes will be differentiated through a combination
+    of algorithmic and/or manual sorting.
     """
     def __init__(self, file):
         # XXX: populate this with pertinent info
         self.templates = []
 
     def __iter__(self):
-        for spike in self.templates:
-            yield spike
+        for template in self.templates:
+            yield template
 
 
 class Detector(object):
