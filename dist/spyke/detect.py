@@ -10,7 +10,7 @@ from numpy import where
 
 class Spike(WaveForm):
     """ A spike event """
-    def __init__(self, waveform, channel, event_time):
+    def __init__(self, waveform=None, channel=None, event_time=None):
         self.data = waveform.data
         self.ts = waveform.ts
         self.sampfreq = waveform.sampfreq
@@ -21,6 +21,12 @@ class Spike(WaveForm):
     def __str__(self):
         return 'Channel ' + str(self.channel) + ' time: ' + \
                 str(self.event_time)
+
+    def __hash__(self):
+        return hash(str(self.channel) + str(self.event_time))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
 
 
 class Template(set):
@@ -46,9 +52,10 @@ class Collection(object):
     collection - these spikes will be differentiated through a combination
     of algorithmic and/or manual sorting.
     """
-    def __init__(self, file):
+    def __init__(self, file=None):
         # XXX: populate this with pertinent info
         self.templates = []
+        self.unsorted_spikes = []        # these represent unsorted spikes
 
     def __iter__(self):
         for template in self.templates:
@@ -90,7 +97,8 @@ class SimpleThreshold(Detector):
         """ Used to determine threshold and set initial state. """
 
         # get the stdeviation for each channel along a 10s window
-        ten_seconds = 1e7
+        #ten_seconds = 1e7
+        ten_seconds = 1e3
         chunk = self.stream[self.init_time:self.init_time + ten_seconds]
         self.std = {}
         for chan, d in enumerate(chunk.data):
