@@ -33,11 +33,11 @@ class Demo(wx.App):
 
 class Opener(object):
     def __init__(self):
-        #filename = '/media/windows/Documents and Settings/Reza ' \
-        #                'Lotun/Desktop/Surfdata/' \
-        #                '87 - track 7c spontaneous craziness.srf'
+        filename = '/media/windows/Documents and Settings/Reza ' \
+                        'Lotun/Desktop/Surfdata/' \
+                        '87 - track 7c spontaneous craziness.srf'
         #filename = '/home/rlotun/spyke/data/smallSurf'
-        filename = '/Users/rlotun/work/spyke/data/smallSurf'
+        #filename = '/Users/rlotun/work/spyke/data/smallSurf'
         surf_file = spyke.surf.File(filename)
         surf_file.parse()
         self.dstream = spyke.stream.Stream(surf_file.highpassrecords)

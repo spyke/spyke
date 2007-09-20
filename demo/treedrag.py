@@ -2,7 +2,10 @@
 import cPickle
 import wx
 
-from spyke.detect import Spike, Template, Collection
+import spyke
+from spyke.layout import *
+from spyke.detect import Spike, Template, Collection, SimpleThreshold
+from spyke.gui.plot import SortPanel
 
 tree1 = [
         "Event 1",
@@ -20,10 +23,86 @@ tree2 = [
         "Spike 23",
         ]
 
+class PlotEvent(wx.PyCommandEvent):
+    def __init__(self, evtType, id):
+        wx.PyCommandEvent.__init__(self, evtType, id)
+        self.plot = None
+        self.remove = None
+
+myEVT_PLOT = wx.NewEventType()
+EVT_PLOT = wx.PyEventBinder(myEVT_PLOT, 1)
+
+class TestApp(wx.App):
+    def OnInit(self):
+        op = Opener()
+        self.op = op
+        col = self.makeCol()
+        self.sorter = SpikeSorter(None, -1, 'Spike Sorter', col, size=(500, 600))
+        self.plotter = SorterWin(None, -1, 'Plot Sorter', op, size=(500, 600))
+        self.SetTopWindow(self.sorter)
+        self.sorter.Show(True)
+        self.plotter.Show(True)
+
+        self.Bind(EVT_PLOT, self.handlePlot, self.sorter)
+        return True
+
+    def handlePlot(self, evt):
+        if evt.plot:
+            self.plotter.plotPanel.add(evt.plot)
+        elif evt.remove:
+            self.plotter.plotPanel.remove(evt.remove)
+
+    def makeCol(self):
+        from spyke.stream import WaveForm
+        from random import randint
+        simp = SimpleThreshold(self.op.dstream, self.op.dstream.records[0].TimeStamp)
+        spikes = []
+        for i, spike in enumerate(simp):
+            spikes.append(spike)
+            if i > 20:
+                break
+        col = Collection()
+        temp = Template()
+        temp.add(Spike(WaveForm(), channel=20, event_time=1337))
+        col.templates.append(temp)
+
+        #for i in range(10):
+        #    col.unsorted_spikes.append(Spike(WaveForm(), channel=i, event_time=randint(1, 10000)))
+        col.unsorted_spikes = spikes
+        return col
+
+
+class Opener(object):
+    def __init__(self):
+        filename = '/media/windows/Documents and Settings/Reza ' \
+                        'Lotun/Desktop/Surfdata/' \
+                        '87 - track 7c spontaneous craziness.srf'
+        #filename = '/home/rlotun/spyke/data/smallSurf'
+        #filename = '/Users/rlotun/work/spyke/data/smallSurf'
+        surf_file = spyke.surf.File(filename)
+        surf_file.parse()
+        self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
+        layout_name = surf_file.layoutrecords[0].electrode_name
+        self.layout = eval('Polytrode' + layout_name[-3:])()
+        self.curr = self.dstream.records[0].TimeStamp
+
+class SorterWin(wx.Frame):
+    def __init__(self, parent, id, title, op, **kwds):
+        wx.Frame.__init__(self, parent, id, title, **kwds)
+        self.op = op
+
+        self.plotPanel = SortPanel(self, self.op.layout.SiteLoc)
+
+    def onEraseBackground(self, evt):
+        # prevent redraw flicker
+        pass
+
+
 
 class SpikeDropSource(wx.DropSource):
     def __init__(self, tree):
         pass
+
 
 class SpikeSorter(wx.Frame):
     def __init__(self, parent, id, title, collection=None, **kwds):
@@ -92,6 +171,26 @@ class SpikeSorter(wx.Frame):
             wx.EVT_TREE_ITEM_COLLAPSING(tree, tree.GetId(), self.onCollapsing)
             wx.EVT_TREE_BEGIN_LABEL_EDIT(tree, tree.GetId(), self.beginEdit)
             wx.EVT_TREE_END_LABEL_EDIT(tree, tree.GetId(), self.endEdit)
+            wx.EVT_TREE_ITEM_RIGHT_CLICK(tree, tree.GetId(), self.onRightClick)
+
+
+    def onRightClick(self, evt):
+        if self._evtRootVeto(evt):
+            return
+
+        event = PlotEvent(myEVT_PLOT, self.GetId())
+        it = evt.GetItem()
+        tree = self._getTreeId(it)
+        tree.ToggleItemSelection(it)
+        data = tree.GetPyData(it)
+
+        if not tree.IsBold(it):
+            tree.SetItemBold(it)
+            event.plot = data
+        else:
+            tree.SetItemBold(it, False)
+            event.remove = data
+        self.GetEventHandler().ProcessEvent(event)
 
 
     def _evtRootVeto(self, evt):
@@ -209,25 +308,6 @@ class SpikeSorter(wx.Frame):
         #sizer_1.Fit(self)
         self.Layout()
 
-class TestApp(wx.App):
-    def OnInit(self):
-        col = self.makeCol()
-        sorter = SpikeSorter(None, -1, 'Spike Sorter', col, size=(500, 600))
-        self.SetTopWindow(sorter)
-        sorter.Show(True)
-        return True
-
-    def makeCol(self):
-        from spyke.stream import WaveForm
-        from random import randint
-        col = Collection()
-        temp = Template()
-        temp.add(Spike(WaveForm(), channel=20, event_time=1337))
-        col.templates.append(temp)
-
-        for i in range(10):
-            col.unsorted_spikes.append(Spike(WaveForm(), channel=i, event_time=randint(1, 10000)))
-        return col
 
 if __name__ == "__main__":
     app = TestApp()

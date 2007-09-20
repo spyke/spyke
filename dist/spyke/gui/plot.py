@@ -5,14 +5,26 @@ spyke.gui.plot - Plotting elements
 
 __author__ = 'Reza Lotun'
 
+import itertools
 import random
+
 import wx
+
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 import matplotlib.numerix as nx
+
 
 import spyke.surf
 import spyke.stream
+
+class SpykeLine(Line2D):
+    def __hash__(self):
+        return hash(str(self._y))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
 
 class PlotPanel(FigureCanvasWxAgg):
     """ A generic set of spyke plots. Meant to be a superclass of specific
@@ -44,11 +56,19 @@ class PlotPanel(FigureCanvasWxAgg):
     def init_plot(self, wave):
         for chan, sp in self.pos.iteritems():
             a = self.figure.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
-            a.plot(wave.ts,
-                   wave.data[chan],
-                   self.colours[chan],
-                   antialiased=False,
-                   linewidth=0.005,)
+            line = SpykeLine(wave.ts,
+                             wave.data[chan],
+                             linewidth=0.005,
+                             color=self.colours[chan],
+                             antialiased=False)
+            #a.plot(wave.ts,
+            #       wave.data[chan],
+            #       self.colours[chan],
+            #       antialiased=False,
+            #       linewidth=0.005,)
+            a.cla()
+            a.add_line(line)
+            a.autoscale_view()
             a.set_ylim(self.yrange)
             self.axes[chan] = a
             self.channels[chan] = a.get_lines()[0]
@@ -68,6 +88,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for chan in self.channels:
             self.channels[chan].set_ydata(waveforms.data[chan])
             self.axes[chan].set_ylim(self.yrange)
+            #self.channels[chan].draw()
         self.draw(True)
 
 
@@ -199,5 +220,42 @@ class SortPanel(EventPanel):
     to the passed in layout. Also allows overplotting and some user
     interaction
     """
-    pass
+    def __init__(self, *args, **kwargs):
+        EventPanel.__init__(self, *args, **kwargs)
+        self.cycle_colours = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
+        self.spikes = {}  # spike -> [SpykeLine]s
+        self.x_vals = None
+
+    def add(self, spike):
+        if len(self.spikes.keys()) == 0:
+            # initialize our plot
+            self.init_plot(spike)
+            self.x_vals = spike.ts
+            lines = []
+            for num, channel in self.channels.iteritems():
+                lines.append(channel)
+            self.spikes[spike] = lines
+
+        if spike not in self.spikes:
+            lines = []
+            colour = self.cycle_colours.next()
+            for chan, axis in self.axes.iteritems():
+                line = SpykeLine(self.x_vals,
+                                 spike.data[chan],
+                                 linewidth=0.005,
+                                 color=colour,
+                                 antialiased=False)
+                axis.add_line(line)
+                axis.autoscale_view()
+                axis.set_ylim(self.yrange)
+                lines.append(line)
+            self.spikes[spike] = lines
+        self.draw(True)
+
+    def remove(self, spike):
+        lines = self.spikes.pop(spike)
+        for chan, axis in self.axes.iteritems():
+            axis.lines.remove(lines[chan])
+        self.draw(True)
+
 
