@@ -20,11 +20,15 @@ import spyke.surf
 import spyke.stream
 
 class SpykeLine(Line2D):
+    """ Line2D's that can be compared to each other for equality. """
+
     def __hash__(self):
+        """ Hash the string representation of the y data. """
         return hash(str(self._y))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
+
 
 class PlotPanel(FigureCanvasWxAgg):
     """ A generic set of spyke plots. Meant to be a superclass of specific
@@ -61,11 +65,6 @@ class PlotPanel(FigureCanvasWxAgg):
                              linewidth=0.005,
                              color=self.colours[chan],
                              antialiased=False)
-            #a.plot(wave.ts,
-            #       wave.data[chan],
-            #       self.colours[chan],
-            #       antialiased=False,
-            #       linewidth=0.005,)
             a.cla()
             a.add_line(line)
             a.autoscale_view()
@@ -120,7 +119,7 @@ class EventPanel(PlotPanel):
         for i in xrange(54):
             self.colours.append(col[i % 3])
 
-    def _set_plot_layout(self, layout):
+    def set_plot_layout(self, layout):
         """ Map from polytrode locations given as (x, y) coordinates
         into position information for the spike plots, which are stored
         as a list of four values [l, b, w, h]. To illustrate this, consider
@@ -143,77 +142,29 @@ class EventPanel(PlotPanel):
         ycoords = [y for x, y in layout.itervalues()]
         xmin, xmax = min(xcoords), max(xcoords)
         ymin, ymax = min(ycoords), max(ycoords)
-        boxwidth, boxheight = xmax - xmin, ymax - ymin
-        numchannels = len(xcoords)
-        columns = len(set(xcoords))
-        num_per_column = numchannels / columns
 
-        ########
-        rl_margin, tb_margin, hsep, vsep = 0.01, 0.01, 0.01, 0.01
-        w = (1 - 2 * rl_margin - hsep) / columns
-        h = (1 - 2 * tb_margin - (num_per_column - 1) * vsep) / num_per_column
-        ########
+        # base this on heuristics eventually
+        bh = 100
+        bw = 75
 
-        plotwidth = w * boxwidth
-        plotheight = h * boxheight
-        rl_margin_l = rl_margin * box_width
-        tb_margin_l = tb_margin * box_height
-        hsep_l = hsep * boxwidth
-        vsep_l = vsep * boxheigth
+        bound_xmin = xmin - bw / 2.
+        bound_xmax = xmax + bw / 2.
+        bound_ymin = ymin - bh / 2.
+        bound_ymax = ymax + bh / 2.
 
-        new_box_width = plotwidth * columns + hsep_l + 2 * rl_margin_l
-        new_box_height = plotheight * num_per_column  \
-                            * (num_per_column -1) * vsep_l \
-                            * tb_margin_l * 2
+        bound_width = bound_xmax - bound_xmin
+        bound_height = bound_ymax - bound_ymin
 
-        pos = {}
-        for chan, loc in layout.iteritems():
-            x, y = loc
+        self.pos = {}
+        for chan, coords in layout.iteritems():
+            x, y = coords
+            l = abs(bound_xmin - (x - bw / 2.)) / bound_width
+            b = abs(bound_ymin - (y - bh / 2.)) / bound_height
+            w = bw / bound_width
+            h = bh / bound_height
+            self.pos[chan] = [l, b, w, h]
+            print chan, [l, b, w, h]
 
-            # XXX: make this better
-            if x == xmin:
-                col = 1
-            elif x == xmax:
-                col = numcols
-            elif x < xmax:
-                col = numcols - 1
-
-            #x = x - xmin + rl_margin_l + plotwidth / 2
-            #y = y - ymin + tb_margin_l +
-
-    def set_plot_layout(self, layout):
-        # XXX: working on mapping actually layout we'll play with this
-        # hack for now
-        ############
-        #
-        num = 54
-        spacing = [0.00, 0.00, 0.00, 0.00]
-        #offset = 0.02
-        #overlap = 0.02
-        offset = 0.0
-        overlap = 0.0
-        #
-        #############
-
-        horizMargin, vertMargin, hSep, vSep = spacing
-        width = (1 - 2 * horizMargin - hSep) / 2
-        n = num / 2
-        height = (1 - 2 * vertMargin - (n - 1) * vSep) / n
-        bot = vertMargin
-        chan = 0
-
-        self.axes = {}
-        for i in range(num // 2):
-            self.pos[chan]=[horizMargin, bot - offset, width, height + 0.07]
-            # next channel
-            chan += 1
-
-            self.pos[chan]=[horizMargin + width + hSep - overlap,
-                                        bot, width, height + 0.07]
-
-            bot += height + vSep
-            # next channel
-            chan += 1
 
 class SortPanel(EventPanel):
     """ Sorting window widget. Presents all channels layed out according
