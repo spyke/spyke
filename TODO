@@ -6,6 +6,7 @@ GENERAL:
 
 - spike detection
     - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
+    - be able to specify time ranges within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
 
 - have a log window at bottom that details everything going on behind the scenes
     - this could simply be an integrated pyshell window, so you can do things from command line instead of being forced to use the GUI
