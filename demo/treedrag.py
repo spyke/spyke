@@ -74,9 +74,10 @@ class TestApp(wx.App):
 
 class Opener(object):
     def __init__(self):
-        filename = '/media/windows/Documents and Settings/Reza ' \
-                        'Lotun/Desktop/Surfdata/' \
-                        '87 - track 7c spontaneous craziness.srf'
+        filename = 'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf'
+        #filename = '/media/windows/Documents and Settings/Reza ' \
+        #                'Lotun/Desktop/Surfdata/' \
+        #                '87 - track 7c spontaneous craziness.srf'
         #filename = '/home/rlotun/spyke/data/smallSurf'
         #filename = '/Users/rlotun/work/spyke/data/smallSurf'
         surf_file = spyke.surf.File(filename)
@@ -126,6 +127,9 @@ class SpikeSorter(wx.Frame):
 
         self.__set_properties()
         self.__do_layout()
+
+        for tree in self.trees:
+            tree.Unselect()
 
     def setUpTrees(self):
         # keep references to our trees and roots
@@ -180,8 +184,11 @@ class SpikeSorter(wx.Frame):
 
         event = PlotEvent(myEVT_PLOT, self.GetId())
         it = evt.GetItem()
-        tree = self._getTreeId(it)
-        tree.ToggleItemSelection(it)
+
+        print 'Event item: ', it
+        point = evt.GetPoint()
+        tree = self._getTreeId(point)
+        #tree.ToggleItemSelection(it)
         data = tree.GetPyData(it)
 
         if not tree.IsBold(it):
@@ -190,6 +197,8 @@ class SpikeSorter(wx.Frame):
         else:
             tree.SetItemBold(it, False)
             event.remove = data
+
+        tree.UnselectAll()
         self.GetEventHandler().ProcessEvent(event)
 
 
@@ -229,39 +238,48 @@ class SpikeSorter(wx.Frame):
         if self._evtRootVeto(evt):
             return
 
-        iteminfo = []
-        for tree in self.trees:
-            items = tree.GetSelections()
+        tree = self._getTreeId(evt.GetPoint())
+        it = evt.GetItem()
 
-            for item in items:
-                # get info
-                data = tree.GetPyData(item)
-                text = tree.GetItemText(item)
-                iteminfo.append((text, data))
+        # get info
+        data = tree.GetPyData(item)
+        text = tree.GetItemText(item)
+        iteminfo.append((text, data))
 
-            if len(items) > 0:
-                break
-
-        #item = evt.GetItem()
-        for item in items:
-            tree.Delete(item)
-
+        #     if len(items) > 0:
+        #         break
 
 
         evt.Allow()
 
-        # now we have to determine what tree we're under
 
-
-
-
-    def _getTreeId(self, item):
+    def _getTreeId(self, point):
         """ Get the tree id that item is under - this is useful since this widget
         is comprised of two trees.
         """
+
+        hittest_flags = (wx.TREE_HITTEST_ONITEM,
+                         wx.TREE_HITTEST_ONITEMBUTTON,
+                         wx.TREE_HITTEST_ONITEMICON,
+                         wx.TREE_HITTEST_ONITEMINDENT,
+                         wx.TREE_HITTEST_ONITEMLABEL,
+                         wx.TREE_HITTEST_ONITEMRIGHT)
+        # HIT TEST
         for tree in self.trees:
-            if tree.GetSelection() == item:
+            sel_item, flags = tree.HitTest(point)
+            print sel_item, flags
+            if flags in hittest_flags:
                 return tree
+
+
+        ####### end hit test
+        #for tree in self.trees:
+        #    print 'TREE selections: ', tree.GetSelections()
+        #    print 'We are looking for this item: ', item
+        #    if item in tree.GetSelections():
+        #        return tree
+        raise Exception('Tree not found??!!')
+        
 
     def onActivate(self, evt):
         pass
@@ -270,12 +288,12 @@ class SpikeSorter(wx.Frame):
         tempKwds, spikeKwds = {}, {}
         tempKwds['style'] = wx.TR_HAS_BUTTONS | wx.TR_DEFAULT_STYLE | \
                            wx.SUNKEN_BORDER | wx.TR_EDIT_LABELS | \
-                           wx.TR_EXTENDED | wx.TR_MULTIPLE #| wx.TR_HIDE_ROOT
+                           wx.TR_EXTENDED | wx.TR_SINGLE #| wx.TR_HIDE_ROOT
         self.tree_Templates = wx.TreeCtrl(self, -1, **tempKwds)
 
         spikeKwds['style'] = wx.TR_HAS_BUTTONS | wx.TR_DEFAULT_STYLE | \
                            wx.SUNKEN_BORDER | wx.TR_EDIT_LABELS | \
-                           wx.TR_EXTENDED | wx.TR_MULTIPLE #| wx.TR_HIDE_ROOT
+                           wx.TR_EXTENDED | wx.TR_SINGLE #| wx.TR_HIDE_ROOT
         self.tree_Spikes = wx.TreeCtrl(self, -1, **spikeKwds)
 
         self.templateRoot = self.tree_Templates.AddRoot('Templates')
