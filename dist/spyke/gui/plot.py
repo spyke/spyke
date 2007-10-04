@@ -115,41 +115,43 @@ class ChartPanel(PlotPanel):
     def set_plot_layout(self, layout):
         """ Chartpanel plots are laid out vertically:
 
-           (0,0)                                  (0,1)
+           (0,1)                                  (1,1)
               +-------------------------------------+
               |             ^ 
               |             | vMargin  
               |             v
               |         +----------------...
               |         |
-              |<------->|        Plot 1
-              | vMargin |
-              |         +----------------...
-              |                    ^
-              |                    | vSpace
-              |                    v
-              |         +----------------...
-              |         |
-              |         |        Plot 2
+              |<------->|        center 1             =
+              | vMargin |                              |
+              |         +----------------...           | alpha
+              |         |                              |
+              |         +---- ..............overlap    |
+              |         |        center 2             =
               .
               |
               +
-
+           (0,0)
         """
         num = self.num_channels
 
         # XXX: some magic numbers that should be tweaked as desired
         hMargin = 0.05
-        vMargin = 0.05
-        vSpace = 0.001
+        vMargin = 0.03
 
+        box_height = 0.1
+
+        # total amout of vertical buffer space (that is, vertical margins)
+        vBuf = 2 * vMargin + box_height / 2 # XXX - heuristic/hack
+        alpha = (1 - vBuf) / (num - 1)      # distance between centers
         width = 1 - 2 * hMargin
-        height = (1 - 2 * vMargin - (num - 1) * vSpace) / num
-        bot = vMargin
 
+        # the first channel starts at the top
+        center = 1 - vMargin - box_height / 4
         for chan, coords in layout.iteritems():
-            self.pos[chan] = [hMargin, bot, width, height]
-            bot += height + vSpace
+            bot = center - box_height / 2
+            self.pos[chan] = [hMargin, bot, width, box_height]
+            center -= alpha
 
 
 class EventPanel(PlotPanel):
@@ -166,7 +168,7 @@ class EventPanel(PlotPanel):
         as a list of four values [l, b, w, h]. To illustrate this, consider
         loc_i = (x, y) are the coordinates for the polytrode on channel i.
         We want to map these coordinates to the unit square.
-           (0,0)                          (0,1)
+           (0,1)                          (1,1)
               +------------------------------+
               |        +--(w)--+
               |<-(l)-> |       |
@@ -177,7 +179,7 @@ class EventPanel(PlotPanel):
               |            | (b)
               |            v
               +------------------------------+
-             (1,0)                          (1,1)
+             (0,0)                          (0,1)
         """
         # project coordinates onto x and y axes repsectively
         xcoords = [x for x, y in layout.itervalues()]
@@ -298,14 +300,16 @@ class TestWindows(wx.App):
     def OnInit(self):
         op = Opener()
         self.events = panel = TestEventWin(None, -1, 'Events', op, 
-                                                            size=(200,1000))
+                                                            size=(200,900))
         self.chart = panel2 = TestChartWin(None, -1, 'Chart', op, 
                                                             size=(500,600))
         self.sort = panel3 = TestSortWin(None, -1, 'Data', op, 
-                                                            size=(200,1000))
+                                                            size=(200,900))
         self.SetTopWindow(self.events)
+        self.events.Show(True)
         self.chart.Show(True)
         self.sort.Show(True)
+        
         return True
 
 
@@ -339,7 +343,7 @@ class TestSortWin(PlayWin):
 
         self.event_iter = iter(simp)
 
-        self.plotPanel = SortPanel(self, self.op.layout.SiteLoc)
+        self.plotPanel = SortPanel(self, self.layout.SiteLoc)
 
         self.data = None
         self.points = []

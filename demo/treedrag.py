@@ -7,21 +7,6 @@ from spyke.layout import *
 from spyke.detect import Spike, Template, Collection, SimpleThreshold
 from spyke.gui.plot import SortPanel
 
-tree1 = [
-        "Event 1",
-        ["Event 2", [
-            "Spike 1",
-            "Spike 2",
-            "Spike 3",
-            ]],
-        "Event 3",
-        ]
-
-tree2 = [
-        "Spike 235",
-        "Spike 73",
-        "Spike 23",
-        ]
 
 class PlotEvent(wx.PyCommandEvent):
     def __init__(self, evtType, id):
@@ -38,7 +23,7 @@ class TestApp(wx.App):
         self.op = op
         col = self.makeCol()
         self.sorter = SpikeSorter(None, -1, 'Spike Sorter', col, size=(500, 600))
-        self.plotter = SorterWin(None, -1, 'Plot Sorter', op, size=(500, 600))
+        self.plotter = SorterWin(None, -1, 'Plot Sorter', op, size=(200, 900))
         self.SetTopWindow(self.sorter)
         self.sorter.Show(True)
         self.plotter.Show(True)
@@ -241,17 +226,23 @@ class SpikeSorter(wx.Frame):
         tree = self._getTreeId(evt.GetPoint())
         it = evt.GetItem()
 
+
         # get info
-        data = tree.GetPyData(item)
-        text = tree.GetItemText(item)
-        iteminfo.append((text, data))
+        data = tree.GetPyData(it)
+        text = tree.GetItemText(it)
+        #iteminfo.append((text, data))
+
+        spike_drag = wx.CustomDataObject(wx.CustomDataFormat('spike'))
+        spike_drag.SetData(cPickle.dumps(data, 1))
+
+        spike_source = wx.DropSource(tree)
+        spike_source.SetData(spike_drag)
+
+        res = spike_source.DoDragDrop(True)
 
         #     if len(items) > 0:
         #         break
-
-
         evt.Allow()
-
 
     def _getTreeId(self, point):
         """ Get the tree id that item is under - this is useful since this widget
@@ -326,6 +317,29 @@ class SpikeSorter(wx.Frame):
         #sizer_1.Fit(self)
         self.Layout()
 
+#class TreeDrop(wx.DropSource):
+#    def __init__(self, trees):
+#        # XXX
+#        wx.DropSource.__init__(self, tree)
+    
+class SpikeDrop(wx.DropTarget):
+    def __init__(self, trees):
+        wx.DropTarget.__init__(self)
+        self.trees = tree
+
+        sel.df = wx.CustomDataFormat('spike')
+        self.cdo = wx.CustomDataObject(self.df)
+        self.SetDataObject(self.cdo)
+
+    def OnDrop(self, x, y):
+        for tree in self.trees:
+            id, flag = tree.HitTest((x, y))
+
+        # XXX: do some stuff
+        return True
+
+    def onData(self, x, y, d):
+        pass
 
 if __name__ == "__main__":
     app = TestApp()
