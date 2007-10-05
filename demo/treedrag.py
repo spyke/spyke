@@ -18,6 +18,13 @@ myEVT_PLOT = wx.NewEventType()
 EVT_PLOT = wx.PyEventBinder(myEVT_PLOT, 1)
 
 class TestApp(wx.App):
+    def __init__(self, *args, **kwargs):
+        #if not kwargs:
+        #    kwargs = {}
+        #kwargs['redirect'] = True
+        #kwargs['filename'] = 'debug_out'
+        wx.App.__init__(self, *args, **kwargs)
+
     def OnInit(self):
         op = Opener()
         self.op = op
@@ -57,20 +64,7 @@ class TestApp(wx.App):
         return col
 
 
-class Opener(object):
-    def __init__(self):
-        filename = 'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf'
-        #filename = '/media/windows/Documents and Settings/Reza ' \
-        #                'Lotun/Desktop/Surfdata/' \
-        #                '87 - track 7c spontaneous craziness.srf'
-        #filename = '/home/rlotun/spyke/data/smallSurf'
-        #filename = '/Users/rlotun/work/spyke/data/smallSurf'
-        surf_file = spyke.surf.File(filename)
-        surf_file.parse()
-        self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
-        layout_name = surf_file.layoutrecords[0].electrode_name
-        self.layout = eval('Polytrode' + layout_name[-3:])()
-        self.curr = self.dstream.records[0].TimeStamp
+from spyke.gui.plot import Opener
 
 class SorterWin(wx.Frame):
     def __init__(self, parent, id, title, op, **kwds):
@@ -115,6 +109,10 @@ class SpikeSorter(wx.Frame):
 
         for tree in self.trees:
             tree.Unselect()
+            # set drop target
+            dt = TreeDropTarget(tree)
+            tree.SetDropTarget(dt)
+
 
     def setUpTrees(self):
         # keep references to our trees and roots
@@ -238,6 +236,11 @@ class SpikeSorter(wx.Frame):
         spike_source = wx.DropSource(tree)
         spike_source.SetData(spike_drag)
 
+        # this is BLOCKED until drop is either blocked or accepted
+        # wx.DragCancel
+        # wx.DragCopy
+        # wx.DragMove
+        # wx.DragNone
         res = spike_source.DoDragDrop(True)
 
         #     if len(items) > 0:
@@ -322,24 +325,51 @@ class SpikeSorter(wx.Frame):
 #        # XXX
 #        wx.DropSource.__init__(self, tree)
     
-class SpikeDrop(wx.DropTarget):
-    def __init__(self, trees):
+class TreeDropTarget(wx.DropTarget):
+    def __init__(self, tree):
         wx.DropTarget.__init__(self)
-        self.trees = tree
-
-        sel.df = wx.CustomDataFormat('spike')
+        self.tree = tree
+        self.df = wx.CustomDataFormat('spike')
         self.cdo = wx.CustomDataObject(self.df)
         self.SetDataObject(self.cdo)
 
-    def OnDrop(self, x, y):
-        for tree in self.trees:
-            id, flag = tree.HitTest((x, y))
+    def OnEnter(self, x, y, default):
+        # figure out what tree we're in
+        # cache it
+        #hittest_flags = (wx.TREE_HITTEST_ONITEM,
+        #                 wx.TREE_HITTEST_ONITEMBUTTON,
+        #                 wx.TREE_HITTEST_ONITEMICON,
+        #                 wx.TREE_HITTEST_ONITEMINDENT,
+        #                 wx.TREE_HITTEST_ONITEMLABEL,
+        #                 wx.TREE_HITTEST_ONITEMRIGHT)
+        # HIT TEST
+        #for tree in self.trees:
+        #    sel_item, flags = tree.HitTest(point)
+        #    print sel_item, flags
+        #    if flags in hittest_flags:
+        #        return tree
+        print self.tree
+        return default
 
-        # XXX: do some stuff
-        return True
-
-    def onData(self, x, y, d):
+    def OnLeave(self):
+        # reset our cached tree
+        #print self.tree
         pass
+
+    #def OnDrop(self, x, y):
+    #    for tree in self.trees:
+    #        id, flag = tree.HitTest((x, y))
+    #
+    # XXX: do some stuff
+    #    return True
+
+    def OnDragOver(self, x, y, default):
+        sel_item, flags = self.tree.HitTest((x, y))
+        print flags
+        return default
+
+    def onData(self, x, y, default):
+        return default
 
 if __name__ == "__main__":
     app = TestApp()
