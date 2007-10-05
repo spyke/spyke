@@ -107,10 +107,10 @@ class SpikeSorter(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
-        for tree in self.trees:
+        for tree, root in zip(self.trees, self.roots):
             tree.Unselect()
             # set drop target
-            dt = TreeDropTarget(tree)
+            dt = TreeDropTarget(tree, root)
             tree.SetDropTarget(dt)
 
 
@@ -326,12 +326,21 @@ class SpikeSorter(wx.Frame):
 #        wx.DropSource.__init__(self, tree)
     
 class TreeDropTarget(wx.DropTarget):
-    def __init__(self, tree):
+    def __init__(self, tree, root):
         wx.DropTarget.__init__(self)
         self.tree = tree
+        self.root = root
         self.df = wx.CustomDataFormat('spike')
         self.cdo = wx.CustomDataObject(self.df)
         self.SetDataObject(self.cdo)
+        self.new_template = None
+        self.new_coords = None
+        self.hittest_flags = (wx.TREE_HITTEST_ONITEM,
+                         wx.TREE_HITTEST_ONITEMBUTTON,
+                         wx.TREE_HITTEST_ONITEMICON,
+                         wx.TREE_HITTEST_ONITEMINDENT,
+                         wx.TREE_HITTEST_ONITEMLABEL,
+                         wx.TREE_HITTEST_ONITEMRIGHT)
 
     def OnEnter(self, x, y, default):
         # figure out what tree we're in
@@ -365,7 +374,17 @@ class TreeDropTarget(wx.DropTarget):
 
     def OnDragOver(self, x, y, default):
         sel_item, flags = self.tree.HitTest((x, y))
-        print flags
+        # is it off our list of templates? create a new one
+        if flags == wx.TREE_HITTEST_NOWHERE:
+            print 'temp!: ', self.new_template
+            if not self.new_template:
+                self.new_coords = (x, y)
+                self.new_template = self.tree.AppendItem(self.root, 'temp')
+        elif flags in self.hittest_flags:
+            if (x, y) != self.new_coords and self.new_template:
+                self.tree.Delete(self.new_template)
+                self.new_template = None
+                self.new_coords = None
         return default
 
     def onData(self, x, y, default):

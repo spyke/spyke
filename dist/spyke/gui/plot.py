@@ -405,7 +405,7 @@ class TestChartWin(PlayWin):
         self.borderAxes = None
         self.curr = op.curr
         self.incr = 5000
-        self.timer.Start(200)
+        self.timer.Start(100)
 
     def onTimerEvent(self, evt):
         waveforms = self.stream[self.curr:self.curr+self.incr]
