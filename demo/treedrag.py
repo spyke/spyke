@@ -366,10 +366,6 @@ class TreeDropTarget(wx.DropTarget):
         pass
 
     #def OnDrop(self, x, y):
-    #    for tree in self.trees:
-    #        id, flag = tree.HitTest((x, y))
-    #
-    # XXX: do some stuff
     #    return True
 
     def OnDragOver(self, x, y, default):
@@ -387,7 +383,12 @@ class TreeDropTarget(wx.DropTarget):
                 self.new_coords = None
         return default
 
-    def onData(self, x, y, default):
+    def OnData(self, x, y, default):
+        print 'Data!'
+        print self.GetData()
+        print self.cdo
+        self.new_template = None
+        self.new_coords = None
         return default
 
 if __name__ == "__main__":
