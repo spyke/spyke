@@ -277,22 +277,36 @@ class SortPanel(EventPanel):
 
 #####----- Tests
 
-from spyke.layout import *
 import spyke.detect
+import os
 
 class Opener(object):
     def __init__(self):
-        filename = 'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf'
-        #filename = '/media/windows/Documents and Settings/Reza ' \
-         #               'Lotun/Desktop/Surfdata/' \
-         #               '87 - track 7c spontaneous craziness.srf'
-        #filename = '/home/rlotun/spyke/data/smallSurf'
-        #filename = '/Users/rlotun/work/spyke/data/smallSurf'
+
+        # XXX: the following is dumb but I'm drunk...on power
+        try:
+            filename = 'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf'
+            stat = os.stat(filename)
+        except:
+            try:
+                filename = '/media/windows/Documents and Settings/Reza ' \
+                                'Lotun/Desktop/Surfdata/' \
+                                '87 - track 7c spontaneous craziness.srf'
+                stat = os.stat(filename)
+            except:
+                try:
+                    filename = '/Users/rlotun/work/spyke/data/smallSurf'
+                    stat = os.stat(filename)
+                except:
+                    filename = '/home/rlotun/spyke/data/smallSurf'
+
+        import spyke.surf
         surf_file = spyke.surf.File(filename)
         surf_file.parse()
         self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
         layout_name = surf_file.layoutrecords[0].electrode_name
-        self.layout = eval('Polytrode' + layout_name[-3:])()
+        import spyke.layout
+        self.layout = eval('spyke.layout.Polytrode' + layout_name[-3:])()
         self.curr = self.dstream.records[0].TimeStamp
 
 
