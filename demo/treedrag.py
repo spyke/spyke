@@ -262,7 +262,8 @@ class SpikeSorter(wx.Frame):
         for tree in self.trees:
             sel_item, flags = tree.HitTest(point)
             print sel_item, flags
-            if flags in hittest_flags:
+            #if flags in hittest_flags:
+            if not flags == wx.TREE_HITTEST_NOWHERE:
                 return tree
 
 
@@ -273,7 +274,7 @@ class SpikeSorter(wx.Frame):
         #    if item in tree.GetSelections():
         #        return tree
         raise Exception('Tree not found??!!')
-        
+
 
     def onActivate(self, evt):
         pass
@@ -324,7 +325,7 @@ class SpikeSorter(wx.Frame):
 #    def __init__(self, trees):
 #        # XXX
 #        wx.DropSource.__init__(self, tree)
-    
+
 class TreeDropTarget(wx.DropTarget):
     def __init__(self, tree, root):
         wx.DropTarget.__init__(self)

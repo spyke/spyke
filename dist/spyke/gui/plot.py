@@ -82,7 +82,7 @@ class PlotPanel(FigureCanvasWxAgg):
 
             self.axes[chan] = a
             self.channels[chan] = a.get_lines()[0]
-            
+
 
         # redraw the disply
         self.draw(True)
@@ -117,8 +117,8 @@ class ChartPanel(PlotPanel):
 
            (0,1)                                  (1,1)
               +-------------------------------------+
-              |             ^ 
-              |             | vMargin  
+              |             ^
+              |             | vMargin
               |             v
               |         +----------------...
               |         |
@@ -156,7 +156,7 @@ class ChartPanel(PlotPanel):
 
 class EventPanel(PlotPanel):
     """ Event window widget. Presents all channels layed out according
-    to the passed in layout. 
+    to the passed in layout.
     """
     def set_params(self):
         PlotPanel.set_params(self)
@@ -246,7 +246,7 @@ class SortPanel(EventPanel):
 
             # always plot w.r.t. these x points
             self.x_vals = spike.ts
-            
+
             lines = []
             for num, channel in self.channels.iteritems():
                 lines.append(channel)
@@ -295,10 +295,14 @@ class Opener(object):
                 stat = os.stat(filename)
             except:
                 try:
-                    filename = '/Users/rlotun/work/spyke/data/smallSurf'
+                    filename = '/data/87 - track 7c spontaneous craziness.srf'
                     stat = os.stat(filename)
                 except:
-                    filename = '/home/rlotun/spyke/data/smallSurf'
+                    try:
+                        filename = '/Users/rlotun/work/spyke/data/smallSurf'
+                        stat = os.stat(filename)
+                    except:
+                        filename = '/home/rlotun/spyke/data/smallSurf'
 
         import spyke.surf
         surf_file = spyke.surf.File(filename)
@@ -313,17 +317,17 @@ class Opener(object):
 class TestWindows(wx.App):
     def OnInit(self):
         op = Opener()
-        self.events = panel = TestEventWin(None, -1, 'Events', op, 
+        self.events = panel = TestEventWin(None, -1, 'Events', op,
                                                             size=(200,900))
-        self.chart = panel2 = TestChartWin(None, -1, 'Chart', op, 
+        self.chart = panel2 = TestChartWin(None, -1, 'Chart', op,
                                                             size=(500,600))
-        self.sort = panel3 = TestSortWin(None, -1, 'Data', op, 
+        self.sort = panel3 = TestSortWin(None, -1, 'Data', op,
                                                             size=(200,900))
         self.SetTopWindow(self.events)
         self.events.Show(True)
         self.chart.Show(True)
         self.sort.Show(True)
-        
+
         return True
 
 
@@ -352,7 +356,7 @@ class TestSortWin(PlayWin):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
 
         self.incr = 1000
-        simp = spyke.detect.SimpleThreshold(self.stream, 
+        simp = spyke.detect.SimpleThreshold(self.stream,
                                             self.stream.records[0].TimeStamp)
 
         self.event_iter = iter(simp)
@@ -372,7 +376,7 @@ class TestSortWin(PlayWin):
         waveforms = self.event_iter.next()
         print waveforms
         #print waveforms.data.shape, len(waveforms.ts)
-        self.plotPanel.add(waveforms)
+        self.plotPanel.plot(waveforms)
 
 
 class TestEventWin(PlayWin):
@@ -380,7 +384,7 @@ class TestEventWin(PlayWin):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
 
         self.plotPanel = EventPanel(self, self.layout.SiteLoc)
-        
+
         self.data = None
         self.points = []
         self.selectionPoints = []
@@ -398,7 +402,7 @@ class TestChartWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
         self.plotPanel = ChartPanel(self, self.layout.SiteLoc)
-        
+
         self.data = None
         self.points = []
         self.selectionPoints = []
