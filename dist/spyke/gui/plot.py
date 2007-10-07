@@ -21,10 +21,15 @@ import spyke.stream
 
 class SpykeLine(Line2D):
     """ Line2D's that can be compared to each other for equality. """
+    def __init__(self, *args, **kwargs):
+        self._cached_hash = None
+        Line2D.__init__(self, *args, **kwargs)
 
     def __hash__(self):
         """ Hash the string representation of the y data. """
-        return hash(str(self._y))
+        if not self._cached_hash:
+            self._cached_hash = hash(str(self._y))
+        return self._cached_hash
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -229,18 +234,27 @@ class SortPanel(EventPanel):
     """
     def __init__(self, *args, **kwargs):
         EventPanel.__init__(self, *args, **kwargs)
-        self.spikes = {}  # spike -> [SpykeLine]s
+        self.spikes = {}  # spike -> [[SpykeLine], visible]
         self.x_vals = None
+        self._initialized = False
 
     def set_params(self):
         PlotPanel.set_params(self)
         self.colours = ['g'] * self.num_channels
 
+    def _toggleVisible(self, spike):
+        lines, curr_visible = self.spikes[spike]
+        curr_visible = not curr_visible
+        for line in lines:
+            line._visible = curr_visible
+        self.spikes[spike][1] = curr_visible
+
     def add(self, spike):
         """ (Over)plot a given spike. """
 
         # initialize
-        if len(self.spikes.keys()) == 0:
+        if not self._initialized:
+            self._initialized = True
 
             self.init_plot(spike)
 
@@ -250,9 +264,12 @@ class SortPanel(EventPanel):
             lines = []
             for num, channel in self.channels.iteritems():
                 lines.append(channel)
-            self.spikes[spike] = lines
+            self.spikes[spike] = [lines, True]
 
-        if spike not in self.spikes:
+        elif spike in self.spikes:
+            self._toggleVisible(spike)
+            
+        elif spike not in self.spikes:
             lines = []
             for chan, axis in self.axes.iteritems():
                 line = SpykeLine(self.x_vals,
@@ -264,14 +281,13 @@ class SortPanel(EventPanel):
                 axis.autoscale_view()
                 axis.set_ylim(self.yrange)
                 lines.append(line)
-            self.spikes[spike] = lines
+            self.spikes[spike] = [lines, True]
+
         self.draw(True)
 
     def remove(self, spike):
         """ Remove the selected spike from the plot display. """
-        lines = self.spikes.pop(spike)
-        for chan, axis in self.axes.iteritems():
-            axis.lines.remove(lines[chan])
+        self._toggleVisible(spike)
         self.draw(True)
 
 
@@ -374,7 +390,7 @@ class TestSortWin(PlayWin):
         #waveforms = self.dstream[self.curr:self.curr+self.incr]
         #self.curr += self.incr
         waveforms = self.event_iter.next()
-        print waveforms
+        #print waveforms
         #print waveforms.data.shape, len(waveforms.ts)
         self.plotPanel.plot(waveforms)
 
