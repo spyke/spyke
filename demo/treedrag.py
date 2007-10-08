@@ -5,7 +5,7 @@ import wx
 import spyke
 from spyke.layout import *
 from spyke.detect import Spike, Template, Collection, SimpleThreshold
-import spyke.gui
+from spyke.gui.events import *
 from spyke.gui.plot import SortPanel
 
 
@@ -28,7 +28,7 @@ class TestApp(wx.App):
         self.sorter.Show(True)
         self.plotter.Show(True)
 
-        self.Bind(spyke.gui.EVT_PLOT, self.handlePlot, self.sorter)
+        self.Bind(EVT_PLOT, self.handlePlot, self.sorter)
         return True
 
     def handlePlot(self, evt):
@@ -199,7 +199,7 @@ class SpikeSorter(wx.Frame):
             wx.EVT_TREE_KEY_DOWN(tree, tree.GetId(), self.onKeyDown)
 
     def vetoOnRoot(handler):
-        """ Decorator which vetoes a certain event if it occurs on 
+        """ Decorator which vetoes a certain event if it occurs on
         a root node.
         """
         def new_handler(obj, evt):
@@ -224,7 +224,7 @@ class SpikeSorter(wx.Frame):
             pass
 
     def _modifyPlot(self, point, tree, item):
-        event = spyke.gui.PlotEvent(spyke.gui.myEVT_PLOT, self.GetId())
+        event = PlotEvent(myEVT_PLOT, self.GetId())
         #print 'Event item: ', it
         #tree.ToggleItemSelection(it)
         data = tree.GetPyData(item)
@@ -304,27 +304,19 @@ class SpikeSorter(wx.Frame):
         is comprised of two trees.
         """
 
-        hittest_flags = (wx.TREE_HITTEST_ONITEM,
+        hittest_flags = set([wx.TREE_HITTEST_ONITEM,
                          wx.TREE_HITTEST_ONITEMBUTTON,
                          wx.TREE_HITTEST_ONITEMICON,
                          wx.TREE_HITTEST_ONITEMINDENT,
                          wx.TREE_HITTEST_ONITEMLABEL,
-                         wx.TREE_HITTEST_ONITEMRIGHT)
+                         wx.TREE_HITTEST_ONITEMRIGHT])
         # HIT TEST
         for tree in self.trees:
             sel_item, flags = tree.HitTest(point)
-            #print sel_item, flags
-            if flags in hittest_flags:
-            #if not flags == wx.TREE_HITTEST_NOWHERE:
-                return tree
+            for flag in hittest_flags:
+                if flag & flags:
+                    return tree
 
-
-        ####### end hit test
-        #for tree in self.trees:
-        #    print 'TREE selections: ', tree.GetSelections()
-        #    print 'We are looking for this item: ', item
-        #    if item in tree.GetSelections():
-        #        return tree
         raise Exception('Tree not found??!!')
 
 

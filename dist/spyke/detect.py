@@ -2,6 +2,8 @@
 
 __authors__ = ['Reza Lotun']
 
+import itertools
+
 import spyke.surf
 from spyke.stream import WaveForm
 
@@ -130,8 +132,15 @@ class SimpleThreshold(Detector):
                 # this will only be along one dimension
                 _ev = where(numpy.abs(self.window.data[chan]) > thresh)[0]
                 if len(_ev) > 0:
-                    ev_inds = [(ind, chan) for ind in _ev.tolist()]
-                    chan_events.extend(ev_inds)
+                    # scan forward to find local max
+                    #                    x  <----  want to find this
+                    #  have inds ---{ x     x
+                    #      ---------x----------------  threshold
+                    #ev_inds = [(ind, chan) for ind in _ev.tolist()]
+                    thresh_vals = [(abs(self.window.data[chan][ind]), ind) \
+                                        for ind in _ev.tolist()]
+                    max_val, max_ind = max(thresh_vals)
+                    chan_events.append((max_ind, chan))
 
             # sort event indices
             chan_events.sort()
