@@ -103,10 +103,18 @@ class SpikeSorter(wx.Frame):
         for tree, root in zip(self.trees, self.roots):
             tree.Unselect()
             # set drop target
-            dt = TreeDropTarget(tree, root)
-            tree.SetDropTarget(dt)
             tree.SelectItem(root, select=True)
 
+
+        dt = TreeTemplateDropTarget(self.tree_Templates,
+                            self.templateRoot,
+                            self.collection)
+        self.tree_Templates.SetDropTarget(dt)
+
+        dt = TreeSpikeDropTarget(self.tree_Spikes,
+                                 self.spikeRoot,
+                                 self.collection)
+        self.tree_Spikes.SetDropTarget(dt)
 
     def setUpTrees(self):
         # keep references to our trees and roots
@@ -286,6 +294,7 @@ class SpikeSorter(wx.Frame):
         spike_drag.SetData(cPickle.dumps(data, 1))
 
         spike_source = wx.DropSource(tree)
+        spike_source.text = text
         spike_source.SetData(spike_drag)
 
         # this is BLOCKED until drop is either blocked or accepted
@@ -293,11 +302,12 @@ class SpikeSorter(wx.Frame):
         # wx.DragCopy
         # wx.DragMove
         # wx.DragNone
-        res = spike_source.DoDragDrop(True)
+        tree.Delete(it)
+        res = spike_source.DoDragDrop(wx.Drag_AllowMove)
 
-        #     if len(items) > 0:
-        #         break
-        evt.Allow()
+        print 'Res', res
+        if res == wx.DragCancel:
+            tree.Delete(it)
 
     def _getTreeId(self, point):
         """ Get the tree id that item is under - this is useful since this widget
@@ -324,76 +334,220 @@ class SpikeSorter(wx.Frame):
         pass
 
 
-#class TreeDrop(wx.DropSource):
-#    def __init__(self, trees):
-#        # XXX
-#        wx.DropSource.__init__(self, tree)
-
 class TreeDropTarget(wx.DropTarget):
-    def __init__(self, tree, root):
+    def __init__(self, tree, root, collection):
         wx.DropTarget.__init__(self)
         self.tree = tree
         self.root = root
+        self.collection = collection
         self.df = wx.CustomDataFormat('spike')
         self.cdo = wx.CustomDataObject(self.df)
         self.SetDataObject(self.cdo)
-        self.new_template = None
+
+        self.new_item = None
         self.new_coords = None
-        self.hittest_flags = (wx.TREE_HITTEST_ONITEM,
+
+        flags = (wx.TREE_HITTEST_ONITEM,
                          wx.TREE_HITTEST_ONITEMBUTTON,
                          wx.TREE_HITTEST_ONITEMICON,
                          wx.TREE_HITTEST_ONITEMINDENT,
                          wx.TREE_HITTEST_ONITEMLABEL,
-                         wx.TREE_HITTEST_ONITEMRIGHT)
+                         wx.TREE_HITTEST_ONITEMRIGHT,
+                         wx.TREE_HITTEST_ONITEMUPPERPART,
+                         wx.TREE_HITTEST_ONITEMSTATEICON,
+                         wx.TREE_HITTEST_ONITEMLOWERPART)
+        self.hittest_flags = 0
+        for f in flags:
+            self.hittest_flags = self.hittest_flags | f
 
-    def OnEnter(self, x, y, default):
-        # figure out what tree we're in
-        # cache it
-        #hittest_flags = (wx.TREE_HITTEST_ONITEM,
-        #                 wx.TREE_HITTEST_ONITEMBUTTON,
-        #                 wx.TREE_HITTEST_ONITEMICON,
-        #                 wx.TREE_HITTEST_ONITEMINDENT,
-        #                 wx.TREE_HITTEST_ONITEMLABEL,
-        #                 wx.TREE_HITTEST_ONITEMRIGHT)
-        # HIT TEST
-        #for tree in self.trees:
-        #    sel_item, flags = tree.HitTest(point)
-        #    print sel_item, flags
-        #    if flags in hittest_flags:
-        #        return tree
-        #print self.tree
-        return default
+    #def OnEnter(self, x, y, default):
+    #    self.new_item = self.tree.InsertItem(self.root, sel_item, 'spike')
+    #    self.new_coords = (x, y)
 
-    def OnLeave(self):
-        # reset our cached tree
-        #print self.tree
-        pass
+    #def OnLeave(self):
+    #    self.tree.Delete(self.new_item)
+    #    self.new_item = None
+    #    self.new_coords = None
 
     #def OnDrop(self, x, y):
     #    return True
 
+    def mouseOnItem(self, hflag):
+        if hflag & self.hittest_flags:
+            return True
+        return False
+
+    def setTempItem(self, x, y, prev_item):
+        pass
+
     def OnDragOver(self, x, y, default):
         sel_item, flags = self.tree.HitTest((x, y))
-        # is it off our list of templates? create a new one
-        if flags == wx.TREE_HITTEST_NOWHERE:
-            print 'temp!: ', self.new_template
-            if not self.new_template:
-                self.new_coords = (x, y)
-                self.new_template = self.tree.AppendItem(self.root, 'temp')
-        elif flags in self.hittest_flags:
-            if (x, y) != self.new_coords and self.new_template:
-                self.tree.Delete(self.new_template)
-                self.new_template = None
-                self.new_coords = None
+        if self.mouseOnItem(flags):
+            self.setTempItem(x, y, flags, sel_item)
+
         return default
 
     def OnData(self, x, y, default):
-        print 'Data!'
-        print self.GetData()
-        print self.cdo
+        if self.GetData():
+            data = cPickle.loads(self.cdo.GetData())
+            self.tree.SetItemText(self.new_item, data.name)
+            self.tree.SetPyData(self.new_item, data)
+            self.tree.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
+            self.tree.SelectItem(self.new_item)
+            self.new_item = None
+            self.new_coords = None
+        else:
+            return wx.DragCancel
+
+
+class TreeTemplateDropTarget(TreeDropTarget):
+    """ Logic behind dragging and dropping onto list of templates """
+    def __init__(self, *args, **kwargs):
+        TreeDropTarget.__init__(self, *args, **kwargs)
         self.new_template = None
-        self.new_coords = None
+
+    def OnDragOver(self, x, y, default):
+        sel_item, flags = self.tree.HitTest((x, y))
+        if self.mouseOnItem(flags):
+            # check if we should create a new *template*
+            # first, check if we're the last child of our parent, and check if
+            # our parent is the last child of the root
+            par = self.tree.GetItemParent(sel_item)
+            if self.tree.GetLastChild(par) == sel_item:
+                # we're the last child
+                if self.tree.GetLastChild(self.root) == par:
+                    # we're in the last template
+                    self.createNewTemplate(x, y, flags, sel_item)
+                    #self.setTempItem(x, y, flags, self.new_template)
+
+
+            # we have to check if the item we're hovering over is
+            # 1) A template item. If so, we have to expand the template to
+            #    reveal the spikes contained within in it and enter mode 2
+            # 2) A spike item within a template. If so, we have to add a new
+            #    spike after it.
+            if self.tree.GetItemParent(sel_item) == self.root:
+                # we're over a template - make sure we expand
+                self.tree.Expand(sel_item)
+            else:
+                # we're *within* a template
+                self.setTempItem(x, y, flags, sel_item)
+
         return default
+
+    def createNewTemplate(self, x, y, flags, sel_item):
+        self.new_template = self.tree.AppendItem(self.root, 'New Template')
+        self.deleteTempItem()
+        self.new_template_child = self.tree.AppendItem(self.new_template, 'New Spike')
+        #self.new_item = self.tree.AppendItem(self.new_template, 'New Spike')
+        #self.new_coords
+
+    def deleteTempItem(self):
+        if self.new_item:
+            self.tree.Delete(self.new_item)
+            self.new_item = None
+            self.new_coords = None
+
+    def deleteTemplate(self):
+        if self.new_template:
+            self.tree.Delete(self.new_template_child)
+            self.tree.Delete(self.new_template)
+            self.new_template = None
+
+    def setTempItem(self, x, y, flags, sel_item):
+        def createItem():
+            #if self.tree.GetLastChild(self.root) == sel_item:
+            #    # we're
+            #if self.tree.GetItemParent(sel_item) == self.root:
+            #    # we're over a template - make sure we expand
+            #    self.tree.Expand(sel_item)
+            #    self.new_item = self.tree.AppendItem(sel_item, 'new spike')
+            #else:
+
+            template = self.tree.GetItemParent(sel_item)
+            self.new_item = self.tree.InsertItem(template, sel_item, 'new spike')
+            self.new_coords = (x, y)
+
+
+        if not self.new_item:
+            createItem()
+
+        if self.new_item:
+            it_x, it_y = self.new_coords
+            upper = it_y - 5
+            lower = it_y + 20
+            if y <= upper or y >= lower:
+                self.deleteTempItem()
+                self.deleteTemplate()
+                createItem()
+
+    def OnData(self, x, y, default):
+        if self.GetData():
+            data = cPickle.loads(self.cdo.GetData())
+            self.tree.SetItemText(self.new_item, data.name)
+            self.tree.SetPyData(self.new_item, data)
+            self.tree.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
+            self.tree.SelectItem(self.new_item)
+            self.new_item = None
+            self.new_coords = None
+        else:
+            return wx.DragCancel
+
+class TreeSpikeDropTarget(TreeDropTarget):
+    """ Logic behind dragging and dropping onto list of spikes """
+
+    def mouseOnItem(self, hflag):
+        if hflag & self.hittest_flags:
+            return True
+        return False
+
+    def OnDragOver(self, x, y, default):
+        sel_item, flags = self.tree.HitTest((x, y))
+        if self.mouseOnItem(flags):
+            self.setTempItem(x, y, flags, sel_item)
+
+        return default
+
+    def OnData(self, x, y, default):
+        if self.GetData():
+            data = cPickle.loads(self.cdo.GetData())
+            self.tree.SetItemText(self.new_item, data.name)
+            self.tree.SetPyData(self.new_item, data)
+            self.tree.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
+            self.tree.SelectItem(self.new_item)
+            self.new_item = None
+            self.new_coords = None
+        else:
+            return wx.DragCancel
+
+    #def OnLeave(self):
+    #    print 'LEAVING!'
+    #    if self.new_item:
+    #        self.tree.Delete(self.new_item)
+    #        self.new_item = None
+    #        self.new_coords = None
+
+    def setTempItem(self, x, y, flags, sel_item):
+        print x, y
+
+        def createItem():
+            self.new_item = self.tree.InsertItem(self.root, sel_item, 'spike')
+            self.new_coords = (x, y)
+            self.tree.SelectItem(self.new_item)
+
+        if not self.new_item:
+            createItem()
+
+        if self.new_item:
+            it_x, it_y = self.new_coords
+            upper = it_y - 5
+            lower = it_y + 20
+            if y <= upper or y >= lower:
+                self.tree.Delete(self.new_item)
+                self.new_item = None
+                self.new_coords = None
+                createItem()
+
 
 if __name__ == "__main__":
     app = TestApp()
