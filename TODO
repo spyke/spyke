@@ -19,12 +19,7 @@ GENERAL:
         - can it all be done in pure Python?
     - stick to manual template generation for now
 
-- how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
-    - email wxpython list on displaying time series data.
-    - wxpy 2.8 should be faster, doesn't need to copy data, can use numpy data directly?
-    - borrow something from MPL?
-
-- spike (and lfp?) data need to be corrected for sample and hold (S+H) delay offsets
+- spike (and lfp? hardly worth it?) data need to be corrected for sample and hold (S+H) delay offsets
     - do this during interpolation as in Surfbawd?
 
 - lfp data need to be corrected for offsets induced by low-pass filters
@@ -42,8 +37,6 @@ GENERAL:
                                     B) you need to do something, can't remember what I was gonna write
     - maybe have ability to go from bins in spike size histogram (say its tail, or some weird peak) back to a display of the individual spike(s) that contributed to that bin
 
-- need ability to take a spike that's assigned to an existing template and remove it and generate a new template from it
-    - this is trivial: when removing a spike from a template, instead of deleting it outright from the display (and returning it back to the list of unprocessed subset of spikes), move it to a sort of temporary visual holding pen, at which point then you can decide if you want to make a new template out of it, or cycle through the existing templates to look for a match
 
 - need to be able to select which channels to enable in the template before doing a rip
     - for each template, use mouse controlled bounding box/clicking to pick out significant channels
@@ -66,6 +59,10 @@ VERIFICATION:
     - just as for a normal rip, you'll first need to set an error thresh for the template
     - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
+- have a stop and a pause button during ripping, since this step can take hours
+
+
+much of this might be outdated, since a Collection class instance now includes all spikes and all templates:
 
 - event collection: a class that represents a specific collection of event times - or maybe be more specific and just call it a spike collection?
     - the event collection class could be results from a spike detection run, members of templates, results from a rip, or any sort of collection of spikes you might generate. Could even be a collection of random times in the recording (noise times) that have nothing to do with spikes
@@ -108,7 +105,6 @@ VERIFICATION:
         - some way of merging currently selected templates
         - some widget for controlling rip error threshold for current template
         - to designate which channels to include in the current template when it comes time to use it for ripping, just click each channel in the waveform display to toggle that channel
-
 - closing a collection or template window just closes its GUI, doesn't delete it. Can bring it back by selecting it from the main window's view menu, or something.
 
 - transparency would be good for overplots
@@ -117,8 +113,7 @@ VERIFICATION:
 
 - what kind of window should we have around the spike time? Does the spike time represent the time of absolute value of peak voltage on the channel with the biggest signal? Then the temporal window around that is -0.25 ms and + 0.75 ms for a total of 1 ms window? I think that's roughly the standard in surfbawd. Temporal window parameters (-ve and +ve offset from spike time) should be a global setting that everything uses, but one that you can change at will (at least when spyke isn't currently doing a rip) to accomodate the display of the occasional long slow spike
 
-- dumb question?: should neuron ids be purely increasing ints starting from 0, or should we make 'em alphanum so the can carry more info, such as the chan number of the channel with the biggest signal
-    - any extra info should really be stored in a template file, separate from the spike time files
+- neuron ids should be incrementing integers. When you delete a template, the following templates' ids and colours should remain unchanged, until you hit a toolbar button (or something) to indicate that you want to renumber (and recolour) the whole lot, which will effectively only renumber and recolour those templates following the one that was deleted
 
 - template files
     - contain python syntax that can be eval'd, or config file format, to get you everything you might ever want to know about the template:
@@ -127,20 +122,23 @@ VERIFICATION:
         - date time it was last modified
         - ...
     - store all templates in one file ala surfbawd? or one file per template?
+    - store it all in a single SQL database file?
+    - or, pickle the whole Collection class instance to file, but also make it possible to export to separate binary spike files (plus the binary .din file)
 
 - do we want to allow templates to be generated from spikes from multiple recordings? this could add annoying complexity, but might be handly for getting enough spikes from those rarely firing neurons - some neurons might fire only during one stimulus type and not the other. Neurons might have opposing preferences, such that you never see them all fire within the same recording
 
-- export stimulus header
-
 - low probability: in case of electrode drift within a recording, allow user to make executive decision that two templates that are significantly different in voltage+channel space due to drift, yet sufficiently similar to the eye, that they should be assigned the same neuron id (keep their template ids separate?)
-    - should there be a distinction between template and neuron ids just in case we want to do something like the above?
+    - should there be a distinction between template and neuron ids just in case we want to do something like the above? Maybe the template id should become alphanumeric, with a number followed by a letter, say 12a, 12b, etc.
 
 ----------------------------------------------------
 SPECIFICS:
 
 - goto feature: CTRL+G pops up a dialog where you can enter the time (in us or ms or s) that you want to jump to
 
-- add parsing progress bar
+- parsing progress bar
+
+- ripping progress bar
+
 - move simple matplotlib plot() method from Stream class to WaveForm class, that way, you no longer need to pass a trange argument
     - instead of:
         f.highpassstream.plot(chanis=None, trange=(135e6, 135.1e6))
@@ -154,3 +152,10 @@ SPECIFICS:
 DONE:
 
 - move code to /spyke subfolder, make a setup.py in root, keep TODO in root
+
+- how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
+    - email wxpython list on displaying time series data.
+    - wxpy 2.8 should be faster, doesn't need to copy data, can use numpy data directly?
+    - borrow something from MPL?
+
+- need ability to take a spike that's assigned to an existing template and remove it and generate a new template from it
