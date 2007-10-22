@@ -233,8 +233,6 @@ class SpikeSorter(wx.Frame):
 
     def _modifyPlot(self, point, tree, item):
         event = PlotEvent(myEVT_PLOT, self.GetId())
-        #print 'Event item: ', it
-        #tree.ToggleItemSelection(it)
         data = tree.GetPyData(item)
 
         if not tree.IsBold(item):
@@ -278,48 +276,53 @@ class SpikeSorter(wx.Frame):
 
     @vetoOnRoot
     def onBeginDrag(self, evt):
-        #print evt.__class__.__dict__
-        #print self.tree.GetSelections()
         # consider a single node drag for now
         tree = self._getTreeId(evt.GetPoint())
         it = evt.GetItem()
 
-
         # get info
         data = tree.GetPyData(it)
         text = tree.GetItemText(it)
-        #iteminfo.append((text, data))
 
+        # package up data and state
+        dragged = DraggedSpike()
+        dragged.spike = data
+        dragged.bold = tree.IsBold(it)
         spike_drag = wx.CustomDataObject(wx.CustomDataFormat('spike'))
-        spike_drag.SetData(cPickle.dumps(data, 1))
+        spike_drag.SetData(cPickle.dumps(dragged, 1))
 
         spike_source = wx.DropSource(tree)
         spike_source.text = text
         spike_source.SetData(spike_drag)
+
+        # XXX indicate that current node is undergoing a transition
 
         # this is BLOCKED until drop is either blocked or accepted
         # wx.DragCancel
         # wx.DragCopy
         # wx.DragMove
         # wx.DragNone
-        tree.Delete(it)
         res = spike_source.DoDragDrop(wx.Drag_AllowMove)
 
         print 'Res', res
-        if res == wx.DragCancel:
+
+        if res == wx.DragMove:
             tree.Delete(it)
 
-    def _getTreeId(self, point):
-        """ Get the tree id that item is under - this is useful since this widget
-        is comprised of two trees.
-        """
+        if res == wx.DragCancel:
+            pass
 
+
+    def _getTreeId(self, point):
+        """ Get the tree id that item is under - this is useful since this
+        widget is comprised of two trees.
+        """
         hittest_flags = set([wx.TREE_HITTEST_ONITEM,
-                         wx.TREE_HITTEST_ONITEMBUTTON,
-                         wx.TREE_HITTEST_ONITEMICON,
-                         wx.TREE_HITTEST_ONITEMINDENT,
-                         wx.TREE_HITTEST_ONITEMLABEL,
-                         wx.TREE_HITTEST_ONITEMRIGHT])
+                             wx.TREE_HITTEST_ONITEMBUTTON,
+                             wx.TREE_HITTEST_ONITEMICON,
+                             wx.TREE_HITTEST_ONITEMINDENT,
+                             wx.TREE_HITTEST_ONITEMLABEL,
+                             wx.TREE_HITTEST_ONITEMRIGHT])
         # HIT TEST
         for tree in self.trees:
             sel_item, flags = tree.HitTest(point)
@@ -329,9 +332,18 @@ class SpikeSorter(wx.Frame):
 
         raise Exception('Tree not found??!!')
 
-
     def onActivate(self, evt):
         pass
+
+
+
+class DraggedSpike(object):
+    """ Represents the dragged data. We need to store the actual data itself
+    and its state in the tree - namely whether it's bold or not.
+    """
+    def __init__(self):
+        self.spike = None
+        self.bold = None
 
 
 class TreeDropTarget(wx.DropTarget):
@@ -360,18 +372,6 @@ class TreeDropTarget(wx.DropTarget):
         for f in flags:
             self.hittest_flags = self.hittest_flags | f
 
-    #def OnEnter(self, x, y, default):
-    #    self.new_item = self.tree.InsertItem(self.root, sel_item, 'spike')
-    #    self.new_coords = (x, y)
-
-    #def OnLeave(self):
-    #    self.tree.Delete(self.new_item)
-    #    self.new_item = None
-    #    self.new_coords = None
-
-    #def OnDrop(self, x, y):
-    #    return True
-
     def mouseOnItem(self, hflag):
         if hflag & self.hittest_flags:
             return True
@@ -379,25 +379,6 @@ class TreeDropTarget(wx.DropTarget):
 
     def setTempItem(self, x, y, prev_item):
         pass
-
-    def OnDragOver(self, x, y, default):
-        sel_item, flags = self.tree.HitTest((x, y))
-        if self.mouseOnItem(flags):
-            self.setTempItem(x, y, flags, sel_item)
-
-        return default
-
-    def OnData(self, x, y, default):
-        if self.GetData():
-            data = cPickle.loads(self.cdo.GetData())
-            self.tree.SetItemText(self.new_item, data.name)
-            self.tree.SetPyData(self.new_item, data)
-            self.tree.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
-            self.tree.SelectItem(self.new_item)
-            self.new_item = None
-            self.new_coords = None
-        else:
-            return wx.DragCancel
 
 
 class TreeTemplateDropTarget(TreeDropTarget):
@@ -493,39 +474,66 @@ class TreeTemplateDropTarget(TreeDropTarget):
         else:
             return wx.DragCancel
 
+
 class TreeSpikeDropTarget(TreeDropTarget):
     """ Logic behind dragging and dropping onto list of spikes """
 
-    def mouseOnItem(self, hflag):
-        if hflag & self.hittest_flags:
-            return True
-        return False
-
     def OnDragOver(self, x, y, default):
+        # when we begin dragging, we have left our original item with
+        # the mouse still down. The user is now hunting for the spot in
+        # which to dropped the dragged data. At this time instant, we should
+        # first check where we are
         sel_item, flags = self.tree.HitTest((x, y))
+
+        if flags & wx.TREE_HITTEST_NOWHERE:
+            return
+
+        # as we move our mouse pointer, candidate spike nodes should be
+        # created under where our current mouse position is. As we leave
+        # these candidate nodes should be removed. We must only have one
+        # candidate node at one time
+
+        # explicitly check if we are over the root. We can only add a
+        # candidate node as a *child* of the root.
+        if sel_item == self.root:
+            if self.new_item:
+                self.tree.Delete(self.new_item)
+                self.new_item = None
+                self.new_coords = None
+            # create a new item that is a child of root
+            self.new_item = self.tree.InsertItemBefore(self.root, 0, 'spike')
+            self.new_coords = (x, y)
+            self.tree.SelectItem(self.new_item)
+
+
         if self.mouseOnItem(flags):
             self.setTempItem(x, y, flags, sel_item)
 
         return default
 
     def OnData(self, x, y, default):
+        sel_item, flags = self.tree.HitTest((x, y))
+        if flags & wx.TREE_HITTEST_NOWHERE:
+            # we dropping on nothing revoke all our actions
+            if self.new_item:
+                self.tree.Delete(self.new_item)
+                self.new_item = None
+                self.new_coords = None
+            return wx.DragCancel
+
         if self.GetData():
-            data = cPickle.loads(self.cdo.GetData())
+            dragged_data = cPickle.loads(self.cdo.GetData())
+            data = dragged_data.spike
             self.tree.SetItemText(self.new_item, data.name)
             self.tree.SetPyData(self.new_item, data)
+            self.tree.SetItemBold(self.new_item, dragged_data.bold)
             self.tree.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
             self.tree.SelectItem(self.new_item)
             self.new_item = None
             self.new_coords = None
+            return default
         else:
             return wx.DragCancel
-
-    #def OnLeave(self):
-    #    print 'LEAVING!'
-    #    if self.new_item:
-    #        self.tree.Delete(self.new_item)
-    #        self.new_item = None
-    #        self.new_coords = None
 
     def setTempItem(self, x, y, flags, sel_item):
         print x, y
@@ -535,18 +543,18 @@ class TreeSpikeDropTarget(TreeDropTarget):
             self.new_coords = (x, y)
             self.tree.SelectItem(self.new_item)
 
-        if not self.new_item:
+        if self.new_item:
+            #it_x, it_y = self.new_coords
+            #upper = it_y - 5
+            #lower = it_y + 20
+            #if y <= upper or y >= lower:
+            self.tree.Delete(self.new_item)
+            self.new_item = None
+            self.new_coords = None
             createItem()
 
-        if self.new_item:
-            it_x, it_y = self.new_coords
-            upper = it_y - 5
-            lower = it_y + 20
-            if y <= upper or y >= lower:
-                self.tree.Delete(self.new_item)
-                self.new_item = None
-                self.new_coords = None
-                createItem()
+        if not self.new_item:
+            createItem()
 
 
 if __name__ == "__main__":
