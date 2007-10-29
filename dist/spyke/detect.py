@@ -39,8 +39,8 @@ class Template(set):
 
     def mean():
         if len(self) > 0:
-            # TODO: return mean spike
             pass
+
         return None
 
     def __str__(self):
