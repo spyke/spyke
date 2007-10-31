@@ -116,6 +116,8 @@ class SpikeSorter(wx.Frame):
                                  self.collection)
         self.tree_Spikes.SetDropTarget(dt)
 
+        self.garbageBin = None
+
     def setUpTrees(self):
         # keep references to our trees and roots
         self.tree_Templates, self.tree_Spikes = None, None
@@ -228,6 +230,8 @@ class SpikeSorter(wx.Frame):
         tree = self.FindFocus()
         it = tree.GetSelection()
 
+        # XXX represent state machine as as dict
+
         if code == wx.WXK_RETURN:       # if we hit the enter key
             self._modifyPlot(point, tree, it)
 
@@ -275,6 +279,12 @@ class SpikeSorter(wx.Frame):
                 # append to selected template
                 self._addToTemplate(it, tree)
 
+            elif key == 'r':
+                # remove from selected template
+                self._removeFromTemplate(it, tree)
+            elif key == 'd':
+                self._deleteSpike(it, tree)
+
         evt.Skip()
 
     def _toggleTreeFocus(self, currTree):
@@ -285,6 +295,15 @@ class SpikeSorter(wx.Frame):
             if tr != currTree:
                 tr.SetFocus()
         return tr
+
+    def _deleteSpike(self, it, tree):
+        if not self.garbageBin:
+            self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
+        self._copySpike(tree, self.garbageBin, it)
+        tree.Delete(it)
+        self.tree_Spikes.Collapse(self.garbageBin)
+        pi = self.tree_Spikes.GetNextSibling(it)
+        self.tree_Spikes.SelectItem(pi)
 
     def _copySpike(self, source_tree, par, it):
         # get info for copied spike
@@ -297,22 +316,78 @@ class SpikeSorter(wx.Frame):
         self.tree_Templates.SetItemBold(ns, bold)
         return ns
 
+    def _isTemplate(self, item):
+        par = self.tree_Templates.GetItemParent(item)
+        return par == self.templateRoot
+
+    # XXX: should use functools.partial on the following two
+
+    def onlyOnSpikes(handler):
+        """ Decorator which only permits actions on the spike tree
+        """
+        def new_handler(obj, it, tree):
+            if not tree == obj.tree_Spikes:
+                return
+            return handler(obj, it, tree)
+        return new_handler
+
+    def onlyOnTemplates(handler):
+        """ Decorator which only permits actions on the template tree
+        """
+        def new_handler(obj, it, tree):
+            if not tree == obj.tree_Templates:
+                return
+            return handler(obj, it, tree)
+        return new_handler
+    ###
+
+    # XXX
+    def _removeFromTemplate(it, tree):
+        pass
+
+    @onlyOnSpikes
     def _addToTemplate(self, it, tree):
         """ Add selected item to the currently selected template. """
+
+        # the semantics of 'a' are as follows:
+        #   1) In the spike tree, 'a' on the root nodes does nothing
+        #   2) In the spike tree, 'a' on any other node (a spike) works
+        #      differently depending on what area of the template tree
+        #      is highlighted
+        #          i) The Root - create new template
+        #         ii) A template - add to that currently selected template
+        #        iii) A spike - add to the same template (i.e. make a child
+        #             of the parent template of spike.
+
+        # check if item is the spike root - do nothing
+        if it == self.spikeRoot:
+            return
+
         # get the currently selected template
-        # XXX: check if this is already a template
         curr = self.tree_Templates.GetSelection()
-        par = self.tree_Templates.GetItemParent(curr)
+
+        # check if curr is a template, otherwise, it's a spike so get
+        # it's parent template
+        if self._isTemplate(curr):
+            dest = curr
+        elif curr == self.templateRoot:
+            return self._createTemplate(it, tree)
+        else:
+            dest = self.tree_Templates.GetItemParent(curr)
 
         # copy spike to this template
-        self._copySpike(tree, par, it)
+        self._copySpike(tree, dest, it)
 
-        # make sure we select the previous spike, so we don't jump to root
-        pi = self.tree_Spikes.GetPrevSibling(it)
+        # make sure we select the next spike, so we don't jump to root
+        pi = self.tree_Spikes.GetNextSibling(it)
         self.tree_Spikes.SelectItem(pi)
         self.tree_Spikes.Delete(it)
 
+    @onlyOnSpikes
     def _createTemplate(self, it, tree):
+        # check if item is the spike root - do nothing
+        if it == self.spikeRoot:
+            return
 
         # create new template
         nt = self.tree_Templates.AppendItem(self.templateRoot, 'Template')
@@ -325,7 +400,7 @@ class SpikeSorter(wx.Frame):
         self.tree_Templates.SelectItem(ns)
 
         # make sure we select the previous spike, so we don't jump to root
-        pi = self.tree_Spikes.GetPrevSibling(it)
+        pi = self.tree_Spikes.GetNextSibling(it)
         self.tree_Spikes.SelectItem(pi)
         self.tree_Spikes.Delete(it)
 
