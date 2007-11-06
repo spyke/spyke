@@ -228,81 +228,87 @@ class SpikeSorter(wx.Frame):
         code = key_event.GetKeyCode()
         point = key_event.GetPosition()
         tree = self.FindFocus()
+        self.currentTree = tree
         it = tree.GetSelection()
 
-        # XXX represent state machine as as dict
 
-        if code == wx.WXK_RETURN:       # if we hit the enter key
-            self._modifyPlot(point, tree, it)
+        nothing = lambda *args: None
 
-        if code == wx.WXK_UP:
-            # print 'UP!'
-            pass
+        # XXX represent state machine as a dict
+        keyCommands = {
+                        wx.WXK_RETURN   : self._modifyPlot,
+                        wx.WXK_SPACE    : self._modifyPlot,
+                        wx.WXK_UP       : self._selectPrevItem,
+                        wx.WXK_LEFT     : nothing,
+                        wx.WXK_RIGHT    : nothing,
+                        wx.WXK_DOWN     : self._selectNextItem,
+                        wx.WXK_TAB      : self._toggleTreeFocus,
+                        ord('j')        : self._selectNextItem,
+                        ord('k')        : self._selectPrevItem,
+                        ord('h')        : self._selectParent,
+                        ord('l')        : self._selectFirstChild,
+                        ord('t')        : self._createTemplate,
+                        ord('a')        : self._addToTemplate,
+                        ord('r')        : self._removeFromTemplate,
+                        ord('d')        : self._deleteSpike,
+                    }
 
-        if code == wx.WXK_DOWN:
-            # print 'DOWN!'
-            pass
 
-        if code == wx.WXK_TAB:
-            # toggle focus
-            tr = self._toggleTreeFocus(tree)
 
-        if code < 256:
-            key = chr(code)
+        for cmd, action in keyCommands.iteritems():
+            if code == cmd:
+                action(tree, it)
 
-            # quick navigation keys
-            if key == 'j':
-                ni = tree.GetNextSibling(it)
-                tree.SelectItem(ni)
+        #evt.Skip()
 
-            elif key == 'k':
-                pi = tree.GetPrevSibling(it)
-                tree.SelectItem(pi)
+    def _selectNextItem(self, currTree, it):
+        ni = self.currentTree.GetNextSibling(it)
+        self.currentTree.SelectItem(ni)
 
-            elif key == 'h':
-                # go to parent
-                par = tree.GetItemParent(it)
-                tree.SelectItem(par)
+    def _selectPrevItem(self, currTree, it):
+        pi = self.currentTree.GetPrevSibling(it)
+        self.currentTree.SelectItem(pi)
 
-            elif key == 'l':
-                # go to first child
-                chil, cookie = tree.GetFirstChild(it)
-                if chil.IsOk():
-                    tree.SelectItem(chil)
+    def _selectParent(self, currTree, it):
+        # go to parent
+        par = self.currentTree.GetItemParent(it)
+        self.currentTree.SelectItem(par)
 
-            # movement of spikes
-            elif key == 't':
-                # create new template
-                self._createTemplate(it, tree)
+    def _selectFirstChild(self, currTree, it):
+        chil, cookie = self.currentTree.GetFirstChild(it)
+        if chil.IsOk():
+            self.currentTree.SelectItem(chil)
 
-            elif key == 'a':
-                # append to selected template
-                self._addToTemplate(it, tree)
-
-            elif key == 'r':
-                # remove from selected template
-                self._removeFromTemplate(it, tree)
-            elif key == 'd':
-                self._deleteSpike(it, tree)
-
-        evt.Skip()
-
-    def _toggleTreeFocus(self, currTree):
+    def _toggleTreeFocus(self, currTree, it=None):
         """ Toggles focus between the two trees and returns the newly
         focused-upon tree.
         """
         for tr in self.trees:
             if tr != currTree:
                 tr.SetFocus()
+        self.currentTree = tr
         return tr
 
-    def _deleteSpike(self, it, tree):
+    def _modifyPlot(self, tree, item):
+        event = PlotEvent(myEVT_PLOT, self.GetId())
+        data = self.currentTree.GetPyData(item)
+
+        if not tree.IsBold(item):
+            self.currentTree.SetItemBold(item)
+            event.plot = data
+        else:
+            self.currentTree.SetItemBold(item, False)
+            event.remove = data
+        self.GetEventHandler().ProcessEvent(event)
+
+
+    def _deleteSpike(self, tree, it):
         if not self.garbageBin:
             self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
         self._copySpike(tree, self.garbageBin, it)
-        tree.Delete(it)
+        self.currenttree.Delete(it)
         self.tree_Spikes.Collapse(self.garbageBin)
-        pi = self.tree_Spikes.GetNextSibling(it)
+        pi = self.self.currentTree_Spikes.GetNextSibling(it)
         self.tree_Spikes.SelectItem(pi)
 
     def _copySpike(self, source_tree, par, it):
@@ -325,28 +331,28 @@ class SpikeSorter(wx.Frame):
     def onlyOnSpikes(handler):
         """ Decorator which only permits actions on the spike tree
         """
-        def new_handler(obj, it, tree):
+        def new_handler(obj, tree, it):
             if not tree == obj.tree_Spikes:
                 return
-            return handler(obj, it, tree)
+            return handler(obj, tree, it)
         return new_handler
 
     def onlyOnTemplates(handler):
         """ Decorator which only permits actions on the template tree
         """
-        def new_handler(obj, it, tree):
+        def new_handler(obj, tree, it):
             if not tree == obj.tree_Templates:
                 return
-            return handler(obj, it, tree)
+            return handler(obj, tree, it)
         return new_handler
     ###
 
     # XXX
-    def _removeFromTemplate(it, tree):
+    def _removeFromTemplate(tree, it):
         pass
 
     @onlyOnSpikes
-    def _addToTemplate(self, it, tree):
+    def _addToTemplate(self, tree, it):
         """ Add selected item to the currently selected template. """
 
         # the semantics of 'a' are as follows:
@@ -371,7 +377,7 @@ class SpikeSorter(wx.Frame):
         if self._isTemplate(curr):
             dest = curr
         elif curr == self.templateRoot:
-            return self._createTemplate(it, tree)
+            return self._createTemplate(tree, it)
         else:
             dest = self.tree_Templates.GetItemParent(curr)
 
@@ -384,7 +390,7 @@ class SpikeSorter(wx.Frame):
         self.tree_Spikes.Delete(it)
 
     @onlyOnSpikes
-    def _createTemplate(self, it, tree):
+    def _createTemplate(self, tree, it):
         # check if item is the spike root - do nothing
         if it == self.spikeRoot:
             return
@@ -404,24 +410,13 @@ class SpikeSorter(wx.Frame):
         self.tree_Spikes.SelectItem(pi)
         self.tree_Spikes.Delete(it)
 
-    def _modifyPlot(self, point, tree, item):
-        event = PlotEvent(myEVT_PLOT, self.GetId())
-        data = tree.GetPyData(item)
-
-        if not tree.IsBold(item):
-            tree.SetItemBold(item)
-            event.plot = data
-        else:
-            tree.SetItemBold(item, False)
-            event.remove = data
-        self.GetEventHandler().ProcessEvent(event)
 
     @vetoOnRoot
     def onRightClick(self, evt):
         it = evt.GetItem()
         point = evt.GetPoint()
         tree = self._getTreeId(point)
-        self._modifyPlot(point, tree, it)
+        self._modifyPlot(tree, it)
         tree.SelectItem(it)
         #tree.SetItemDropHighlight(it, True)
 
