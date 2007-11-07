@@ -790,7 +790,7 @@ class TestApp(wx.App):
         if evt.plot:
             self.plotter.plotPanel.add(evt.plot, evt.isTemplate)
         elif evt.remove:
-            self.plotter.plotPanel.remove(evt.remove)
+            self.plotter.plotPanel.remove(evt.remove, evt.isTemplate)
 
     def makeCol(self):
         from spyke.stream import WaveForm

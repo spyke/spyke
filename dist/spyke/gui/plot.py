@@ -256,6 +256,7 @@ class SortPanel(EventPanel):
         if template:
             # XXX: colour this something else
             colours = ['r'] * len(self.colours)
+            spike = spike.mean()
 
         # initialize
         if not self._initialized:
@@ -290,8 +291,10 @@ class SortPanel(EventPanel):
 
         self.draw(True)
 
-    def remove(self, spike):
+    def remove(self, spike, template=False):
         """ Remove the selected spike from the plot display. """
+        if template:
+            spike = spike.mean()
         self._toggleVisible(spike)
         self.draw(True)
 

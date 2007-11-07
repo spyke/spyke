@@ -44,7 +44,7 @@ class TestApp(wx.App):
         spikes = []
         for i, spike in enumerate(simp):
             spikes.append(spike)
-            if i > 20:
+            if i > 500:
                 break
         col = Collection()
         temp = Template()
