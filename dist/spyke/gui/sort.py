@@ -176,27 +176,31 @@ class SpikeSorter(wx.Frame):
         keyCommands = {
                         wx.WXK_RETURN   : self._modifyPlot,
                         wx.WXK_SPACE    : self._modifyPlot,
-                        wx.WXK_UP       : self._selectPrevItem,
+                        #wx.WXK_UP       : self._selectPrevItem,
                         wx.WXK_LEFT     : nothing,
                         wx.WXK_RIGHT    : nothing,
-                        wx.WXK_DOWN     : self._selectNextItem,
+                        #wx.WXK_DOWN     : self._selectNextItem,
                         wx.WXK_TAB      : self._toggleTreeFocus,
                         ord('j')        : self._selectNextItem,
                         ord('k')        : self._selectPrevItem,
                         ord('h')        : self._selectParent,
                         ord('l')        : self._selectFirstChild,
                         ord('t')        : self._createTemplate,
+                        ord('T')        : self._createTemplate,
                         ord('a')        : self._addToTemplate,
+                        ord('A')        : self._addToTemplate,
                         ord('r')        : self._removeFromTemplate,
                         ord('d')        : self._deleteSpike,
+                        ord('D')        : self._deleteSpike,
                         ord('s')        : self._serialize,
+                        ord('S')        : self._serialize,
                     }
 
         for cmd, action in keyCommands.iteritems():
             if code == cmd:
                 action(tree, it)
 
-        #evt.Skip()
+        evt.Skip()
 
     def _serialize(self, *args):
         """ Serialize our collection """
