@@ -203,7 +203,8 @@ class SpikeSorter(wx.Frame):
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
             f = file(self.fname, 'w')
-            cPickle.dump(self.collection, f)
+            # use highest pickle protocol available
+            cPickle.dump(self.collection, f, -1)
         except:
             # XXX
             raise
@@ -243,9 +244,7 @@ class SpikeSorter(wx.Frame):
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.currentTree.GetPyData(item)
 
-        if self._isTemplate(item):
-            data = data.mean()
-            event.isTemplate = True
+        event.isTemplate = self._isTemplate(item)
 
         if not tree.IsBold(item):
             self.currentTree.SetItemBold(item)
@@ -258,13 +257,25 @@ class SpikeSorter(wx.Frame):
 
     def _deleteSpike(self, tree, it):
         """ Delete spike ... """
+        if tree == self.tree_Templates:
+            # XXX clean this up!
+            spike = tree.GetPyData(it)
+
+            # remove it from it's original collection
+            for template in self.collection.templates:
+                if spike in template:
+                    template.remove(spike)
+
+            #self.tree_Templates.Delete(it)
+
+
         if not self.garbageBin:
             self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
         self._copySpikeNode(tree, self.garbageBin, it)
-        self.currenttree.Delete(it)
+        self.currentTree.Delete(it)
         self.tree_Spikes.Collapse(self.garbageBin)
-        pi = self.self.currentTree_Spikes.GetNextSibling(it)
-        self.tree_Spikes.SelectItem(pi)
+        pi = self.currentTree.GetNextSibling(it)
+        self.currentTree.SelectItem(pi)
 
     def _copySpikeNode(self, source_tree, parent_node, it):
         """ Copy spike node it from source_tree to parent_node, transferring

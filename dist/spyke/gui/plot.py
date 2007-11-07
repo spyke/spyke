@@ -327,6 +327,7 @@ class Opener(object):
 
         import spyke.surf
         surf_file = spyke.surf.File(filename)
+        self.surf_file = surf_file
         surf_file.parse()
         self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
         layout_name = surf_file.layoutrecords[0].electrode_name
