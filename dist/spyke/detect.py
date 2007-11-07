@@ -1,3 +1,5 @@
+from __future__ import division
+
 """ Spike detection algorithms """
 
 __authors__ = ['Reza Lotun']
@@ -25,7 +27,8 @@ class Spike(WaveForm):
                 str(self.event_time)
 
     def __hash__(self):
-        return hash(str(self.channel) + str(self.event_time))
+        return hash(str(self.channel) + str(self.event_time) + \
+                                                        str(self.data))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -37,11 +40,22 @@ class Template(set):
         set.__init__(self, *args)
         self.name = str(self)
 
-    def mean():
-        if len(self) > 0:
-            pass
+    def mean(self):
+        """ Returns the mean of all the contained spikes. """
+        if len(self) == 0:
+            return None
 
-        return None
+        sample = iter(self).next()
+        dim = sample.data.shape
+        _mean = Spike(sample)
+        _mean.data = numpy.asarray([0.0] * dim[0] * dim[1]).reshape(dim)
+
+        for num, spike in enumerate(self):
+            _mean.data += spike.data
+
+        _mean.data = _mean.data / (num + 1)
+
+        return _mean
 
     def __str__(self):
         return 'Template (' + str(len(self)) + ')'

@@ -239,8 +239,13 @@ class SpikeSorter(wx.Frame):
         return tr
 
     def _modifyPlot(self, tree, item):
+
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.currentTree.GetPyData(item)
+
+        if self._isTemplate(item):
+            data = data.mean()
+            event.isTemplate = True
 
         if not tree.IsBold(item):
             self.currentTree.SetItemBold(item)
@@ -252,6 +257,7 @@ class SpikeSorter(wx.Frame):
 
 
     def _deleteSpike(self, tree, it):
+        """ Delete spike ... """
         if not self.garbageBin:
             self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
         self._copySpikeNode(tree, self.garbageBin, it)
@@ -363,6 +369,9 @@ class SpikeSorter(wx.Frame):
         pi = self.tree_Spikes.GetNextSibling(it)
         self.tree_Spikes.SelectItem(pi)
         self.tree_Spikes.Delete(it)
+
+        print 'Collection: '
+        print str(self.collection)
 
     @onlyOnSpikes
     def _createTemplate(self, tree, it):
@@ -768,7 +777,7 @@ class TestApp(wx.App):
 
     def handlePlot(self, evt):
         if evt.plot:
-            self.plotter.plotPanel.add(evt.plot)
+            self.plotter.plotPanel.add(evt.plot, evt.isTemplate)
         elif evt.remove:
             self.plotter.plotPanel.remove(evt.remove)
 

@@ -1,4 +1,4 @@
-""" spyke.gui.events 
+""" spyke.gui.events
 
 Custom wx events used for communication between spyke gui components
 """
@@ -9,6 +9,7 @@ class PlotEvent(wx.PyCommandEvent):
         wx.PyCommandEvent.__init__(self, evtType, id)
         self.plot = None
         self.remove = None
+        self.isTemplate = False
 
 myEVT_PLOT = wx.NewEventType()
 EVT_PLOT = wx.PyEventBinder(myEVT_PLOT, 1)

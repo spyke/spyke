@@ -249,8 +249,13 @@ class SortPanel(EventPanel):
             line._visible = curr_visible
         self.spikes[spike][1] = curr_visible
 
-    def add(self, spike):
+    def add(self, spike, template=False):
         """ (Over)plot a given spike. """
+        colours = self.colours
+
+        if template:
+            # XXX: colour this something else
+            colours = ['r'] * len(self.colours)
 
         # initialize
         if not self._initialized:
@@ -268,14 +273,14 @@ class SortPanel(EventPanel):
 
         elif spike in self.spikes:
             self._toggleVisible(spike)
-            
+
         elif spike not in self.spikes:
             lines = []
             for chan, axis in self.axes.iteritems():
                 line = SpykeLine(self.x_vals,
                                  spike.data[chan],
                                  linewidth=0.005,
-                                 color=self.colours[chan],
+                                 color=colours[chan],
                                  antialiased=False)
                 axis.add_line(line)
                 axis.autoscale_view()
