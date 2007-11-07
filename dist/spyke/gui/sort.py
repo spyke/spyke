@@ -16,29 +16,10 @@ from spyke.gui.events import *
 from spyke.gui.plot import SortPanel
 
 
-
-class SorterWin(wx.Frame):
-    def __init__(self, parent, id, title, op, **kwds):
-        wx.Frame.__init__(self, parent, id, title, **kwds)
-        self.op = op
-
-        self.plotPanel = SortPanel(self, self.op.layout.SiteLoc)
-
-    def onEraseBackground(self, evt):
-        # prevent redraw flicker
-        pass
-
-
-
-class SpikeDropSource(wx.DropSource):
-    def __init__(self, tree):
-        pass
-
-
 class SpikeSorter(wx.Frame):
-    def __init__(self, parent, id, title, collection=None, **kwds):
+    def __init__(self, parent, id, title, fname, collection=None, **kwds):
         wx.Frame.__init__(self, parent, id, title, **kwds)
-
+        self.fname = fname or 'collection.pickle'   # name of serialized obj
         self.collection = collection
 
         # set up our tree controls
@@ -189,10 +170,9 @@ class SpikeSorter(wx.Frame):
         self.currentTree = tree
         it = tree.GetSelection()
 
-
+        # dummy function
         nothing = lambda *args: None
 
-        # XXX represent state machine as a dict
         keyCommands = {
                         wx.WXK_RETURN   : self._modifyPlot,
                         wx.WXK_SPACE    : self._modifyPlot,
@@ -209,15 +189,25 @@ class SpikeSorter(wx.Frame):
                         ord('a')        : self._addToTemplate,
                         ord('r')        : self._removeFromTemplate,
                         ord('d')        : self._deleteSpike,
+                        ord('s')        : self._serialize,
                     }
-
-
 
         for cmd, action in keyCommands.iteritems():
             if code == cmd:
                 action(tree, it)
 
         #evt.Skip()
+
+    def _serialize(self, *args):
+        """ Serialize our collection """
+        try:
+            f = file(self.fname, 'w')
+            cPickle.dump(self.collection, f)
+        except:
+            # XXX
+            raise
+        finally:
+            f.close()
 
     def _selectNextItem(self, currTree, it):
         ni = self.currentTree.GetNextSibling(it)
@@ -263,22 +253,42 @@ class SpikeSorter(wx.Frame):
     def _deleteSpike(self, tree, it):
         if not self.garbageBin:
             self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
-        self._copySpike(tree, self.garbageBin, it)
+        self._copySpikeNode(tree, self.garbageBin, it)
         self.currenttree.Delete(it)
         self.tree_Spikes.Collapse(self.garbageBin)
         pi = self.self.currentTree_Spikes.GetNextSibling(it)
         self.tree_Spikes.SelectItem(pi)
 
-    def _copySpike(self, source_tree, par, it):
+    def _copySpikeNode(self, source_tree, parent_node, it):
+        """ Copy spike node it from source_tree to parent_node, transferring
+        state (such as currently plotted) as well.
+        """
         # get info for copied spike
         data = source_tree.GetPyData(it)
         text = source_tree.GetItemText(it)
 
-        ns = self.tree_Templates.AppendItem(par, text)
+        # new spike node
+        ns = self.tree_Templates.AppendItem(parent_node, text)
+
         self.tree_Templates.SetPyData(ns, data)
         bold = self.tree_Templates.IsBold(it)
         self.tree_Templates.SetItemBold(ns, bold)
+
         return ns
+
+    def _moveSpike(self, src_tree, src_node, dest_template):
+        """ Used to manage collection data structure """
+        # get the actual spike
+        spike = src_tree.GetPyData(src_node)
+
+        # remove it from it's original collection
+        for template in self.collection.templates:
+            if spike in template:
+                template.remove(data)
+
+        # update the destination template
+        dest_template.add(spike)
+
 
     def _isTemplate(self, item):
         par = self.tree_Templates.GetItemParent(item)
@@ -339,8 +349,14 @@ class SpikeSorter(wx.Frame):
         else:
             dest = self.tree_Templates.GetItemParent(curr)
 
+        # get the template we're going to add to
+        template = self.tree_Templates.GetPyData(dest)
+
         # copy spike to this template
-        self._copySpike(tree, dest, it)
+        self._copySpikeNode(tree, dest, it)
+
+        # move spike to template
+        self._moveSpike(tree, it, template)
 
         # make sure we select the next spike, so we don't jump to root
         pi = self.tree_Spikes.GetNextSibling(it)
@@ -353,21 +369,33 @@ class SpikeSorter(wx.Frame):
         if it == self.spikeRoot:
             return
 
-        # create new template
+        # create new template node
         nt = self.tree_Templates.AppendItem(self.templateRoot, 'Template')
 
         # copy spike
-        ns = self._copySpike(tree, nt, it)
+        ns = self._copySpikeNode(tree, nt, it)
 
         # make sure template is expanded and new spike selected
         self.tree_Templates.Expand(nt)
         self.tree_Templates.SelectItem(ns)
+
+        # create new template and update our collection
+        new_template = Template()
+        self.collection.templates.append(new_template)
+
+        # move spike to template
+        self._moveSpike(tree, it, new_template)
 
         # make sure we select the previous spike, so we don't jump to root
         pi = self.tree_Spikes.GetNextSibling(it)
         self.tree_Spikes.SelectItem(pi)
         self.tree_Spikes.Delete(it)
 
+        # set the data for the new template node
+        self.tree_Templates.SetPyData(nt, new_template)
+
+        print 'Collection: '
+        print str(self.collection)
 
     @vetoOnRoot
     def onRightClick(self, evt):
@@ -376,10 +404,6 @@ class SpikeSorter(wx.Frame):
         tree = self._getTreeId(point)
         self._modifyPlot(tree, it)
         tree.SelectItem(it)
-        #tree.SetItemDropHighlight(it, True)
-
-
-        #tree.UnselectAll()
 
     def endEdit(self, evt):
         # change the name of the spike/template
@@ -486,6 +510,9 @@ class SpikeSorter(wx.Frame):
         pass
 
 
+class SpikeDropSource(wx.DropSource):
+    def __init__(self, tree):
+        pass
 
 class DraggedSpike(object):
     """ Represents the dragged data. We need to store the actual data itself
@@ -638,25 +665,6 @@ class TreeSpikeDropTarget(TreeDropTarget):
         if flags & wx.TREE_HITTEST_NOWHERE:
             return
 
-        # as we move our mouse pointer, candidate spike nodes should be
-        # created under where our current mouse position is. As we leave
-        # these candidate nodes should be removed. We must only have one
-        # candidate node at one time
-
-        # explicitly check if we are over the root. We can only add a
-        # candidate node as a *child* of the root.
-        #if sel_item == self.root:
-        #    if self.new_item:
-        #        #self.tree.Delete(self.new_item)
-        #        self.new_item = None
-        #        self.new_coords = None
-        #    # create a new item that is a child of root
-        #    #self.new_item = self.tree.InsertItemBefore(self.root, 0, 'spike')
-        #    self.new_item = sel_item
-        #    self.new_coords = (x, y)
-            #self.tree.SelectItem(self.new_item)
-
-
         if self.mouseOnItem(flags):
             #self.setTempItem(x, y, flags, sel_item)
             if self.new_item:
@@ -713,21 +721,42 @@ class TreeSpikeDropTarget(TreeDropTarget):
         if not self.new_item:
             createItem()
 
+
 #####----- Tests
 
+from spyke.gui.plot import Opener
+
+class SorterWin(wx.Frame):
+    def __init__(self, parent, id, title, op, **kwds):
+        wx.Frame.__init__(self, parent, id, title, **kwds)
+        self.op = op
+
+        self.plotPanel = SortPanel(self, self.op.layout.SiteLoc)
+
+    def onEraseBackground(self, evt):
+        # prevent redraw flicker
+        pass
+
 class TestApp(wx.App):
-    def __init__(self, *args, **kwargs):
-        #if not kwargs:
-        #    kwargs = {}
-        #kwargs['redirect'] = True
-        #kwargs['filename'] = 'debug_out'
+    def __init__(self, fname, *args, **kwargs):
+        self.fname = fname
         wx.App.__init__(self, *args, **kwargs)
 
     def OnInit(self):
         op = Opener()
         self.op = op
-        col = self.makeCol()
-        self.sorter = SpikeSorter(None, -1, 'Spike Sorter', col, size=(500, 600))
+        if self.fname:
+            try:
+                f = file(self.fname)
+                col = cPickle.load(f)
+            except:
+                # XXX do something clever here
+                raise
+            finally:
+                f.close()
+        else:
+            col = self.makeCol()
+        self.sorter = SpikeSorter(None, -1, 'Spike Sorter', self.fname, col, size=(500, 600))
         self.plotter = SorterWin(None, -1, 'Plot Sorter', op, size=(200, 900))
         self.SetTopWindow(self.sorter)
         self.sorter.Show(True)
@@ -749,12 +778,9 @@ class TestApp(wx.App):
         spikes = []
         for i, spike in enumerate(simp):
             spikes.append(spike)
-            if i > 20:
+            if i > 200:
                 break
         col = Collection()
-        temp = Template()
-        temp.add(Spike(WaveForm(), channel=20, event_time=1337))
-        col.templates.append(temp)
 
         #for i in range(10):
         #    col.unsorted_spikes.append(Spike(WaveForm(), channel=i, event_time=randint(1, 10000)))
@@ -762,8 +788,13 @@ class TestApp(wx.App):
         return col
 
 
-from spyke.gui.plot import Opener
 if __name__ == "__main__":
-    app = TestApp()
+    import sys
+
+    fname = None
+    if len(sys.argv) > 1:
+        fname = sys.argv[1]
+
+    app = TestApp(fname)
     app.MainLoop()
 
