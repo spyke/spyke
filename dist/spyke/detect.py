@@ -59,6 +59,18 @@ class Collection(object):
         self.templates = []
         self.unsorted_spikes = []        # these represent unsorted spikes
 
+    def __len__(self):
+        return len(self.templates)
+
+    def __str__(self):
+        """ Pretty print the contents of the Collection."""
+        s = []
+        for t in self:
+            s.extend([str(t), '\n'])
+            for sp in t:
+                s.extend(['\t', str(sp), '\n'])
+        return ''.join(s)
+
     def __iter__(self):
         for template in self.templates:
             yield template

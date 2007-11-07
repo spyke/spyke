@@ -200,6 +200,7 @@ class SpikeSorter(wx.Frame):
 
     def _serialize(self, *args):
         """ Serialize our collection """
+        print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
             f = file(self.fname, 'w')
             cPickle.dump(self.collection, f)
