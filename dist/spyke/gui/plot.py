@@ -305,6 +305,7 @@ class Opener(object):
     def __init__(self):
 
         # XXX: the following is dumb but I'm drunk...on power
+        '''
         try:
             filename = 'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf'
             stat = os.stat(filename)
@@ -324,6 +325,22 @@ class Opener(object):
                         stat = os.stat(filename)
                     except:
                         filename = '/home/rlotun/spyke/data/smallSurf'
+        '''
+        filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
+                     'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf',
+                     '/media/windows/Documents and Settings/Reza ' \
+                                'Lotun/Desktop/Surfdata/' \
+                                '87 - track 7c spontaneous craziness.srf',
+                     '/data/87 - track 7c spontaneous craziness.srf',
+                     '/Users/rlotun/work/spyke/data/smallSurf',
+                     '/home/rlotun/spyke/data/smallSurf',
+                    ]
+        for filename in filenames:
+            try:
+                stat = os.stat(filename)
+                break
+            except:
+                continue
 
         import spyke.surf
         surf_file = spyke.surf.File(filename)
