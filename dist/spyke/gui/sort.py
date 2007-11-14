@@ -136,7 +136,7 @@ class SpikeSorter(wx.Frame):
 
     def registerEvents(self):
         for tree in self.trees:
-            self.Bind(wx.EVT_TREE_BEGIN_DRAG, self.onBeginDrag, tree)
+            #self.Bind(wx.EVT_TREE_BEGIN_DRAG, self.onBeginDrag, tree)
             #wx.EVT_TREE_END_DRAG(tree, tree.GetId(), self.OnEndDrag)
             #wx.EVT_TREE_BEGIN_RDRAG(tree, tree.GetId(), self.testDrag)
             #wx.EVT_TREE_SEL_CHANGING(tree, tree.GetId(), self.maintain)
@@ -182,9 +182,13 @@ class SpikeSorter(wx.Frame):
                         #wx.WXK_DOWN     : self._selectNextItem,
                         wx.WXK_TAB      : self._toggleTreeFocus,
                         ord('j')        : self._selectNextItem,
+                        ord('J')        : self._selectNextItem,
                         ord('k')        : self._selectPrevItem,
+                        ord('K')        : self._selectPrevItem,
                         ord('h')        : self._selectParent,
+                        ord('H')        : self._selectParent,
                         ord('l')        : self._selectFirstChild,
+                        ord('L')        : self._selectFirstChild,
                         ord('t')        : self._createTemplate,
                         ord('T')        : self._createTemplate,
                         ord('a')        : self._addToTemplate,
@@ -196,7 +200,6 @@ class SpikeSorter(wx.Frame):
                         ord('S')        : self._serialize,
                     }
 
-        print key_event.ControlDown(), code
         for cmd, action in keyCommands.iteritems():
             if code == cmd:
                 action(evt, tree, it)
@@ -206,7 +209,9 @@ class SpikeSorter(wx.Frame):
     def _serialize(self, evt, *args):
         """ Serialize our collection """
         evt = evt.GetKeyEvent()
-        print evt.ControlDown()
+        if not evt.ControlDown():
+            return
+
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
             f = file(self.fname, 'w')
@@ -371,7 +376,7 @@ class SpikeSorter(wx.Frame):
         if self._isTemplate(curr):
             dest = curr
         elif curr == self.templateRoot:
-            return self._createTemplate(tree, it)
+            return self._createTemplate(evt, tree, it)
         else:
             dest = self.tree_Templates.GetItemParent(curr)
 
@@ -769,6 +774,8 @@ class SorterWin(wx.Frame):
 class TestApp(wx.App):
     def __init__(self, fname, *args, **kwargs):
         self.fname = fname
+        # XXX - turn of redirection of stdout to wx display window
+        kwargs['redirect'] = False
         wx.App.__init__(self, *args, **kwargs)
 
     def OnInit(self):

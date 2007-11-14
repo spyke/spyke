@@ -196,7 +196,7 @@ class EventPanel(PlotPanel):
 
         # base this on heuristics eventually XXX
         # define the width and height of the bounding boxes
-        bh = 120
+        bh = 130
         bw = 75
 
         # Each plot chan is contained within a bounding box which
