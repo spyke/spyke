@@ -196,44 +196,48 @@ class SpikeSorter(wx.Frame):
                         ord('S')        : self._serialize,
                     }
 
+        print key_event.ControlDown(), code
         for cmd, action in keyCommands.iteritems():
             if code == cmd:
-                action(tree, it)
+                action(evt, tree, it)
 
-        evt.Skip()
+        #evt.Skip()
 
-    def _serialize(self, *args):
+    def _serialize(self, evt, *args):
         """ Serialize our collection """
+        evt = evt.GetKeyEvent()
+        print evt.ControlDown()
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
             f = file(self.fname, 'w')
             # use highest pickle protocol available
             cPickle.dump(self.collection, f, -1)
+            self.currentTree.SelectItem(args[1])
         except:
             # XXX
             raise
         finally:
             f.close()
 
-    def _selectNextItem(self, currTree, it):
+    def _selectNextItem(self, evt, currTree, it):
         ni = self.currentTree.GetNextSibling(it)
         self.currentTree.SelectItem(ni)
 
-    def _selectPrevItem(self, currTree, it):
+    def _selectPrevItem(self, evt, currTree, it):
         pi = self.currentTree.GetPrevSibling(it)
         self.currentTree.SelectItem(pi)
 
-    def _selectParent(self, currTree, it):
+    def _selectParent(self, evt, currTree, it):
         # go to parent
         par = self.currentTree.GetItemParent(it)
         self.currentTree.SelectItem(par)
 
-    def _selectFirstChild(self, currTree, it):
+    def _selectFirstChild(self, evt, currTree, it):
         chil, cookie = self.currentTree.GetFirstChild(it)
         if chil.IsOk():
             self.currentTree.SelectItem(chil)
 
-    def _toggleTreeFocus(self, currTree, it=None):
+    def _toggleTreeFocus(self, evt, currTree, it=None):
         """ Toggles focus between the two trees and returns the newly
         focused-upon tree.
         """
@@ -243,7 +247,7 @@ class SpikeSorter(wx.Frame):
         self.currentTree = tr
         return tr
 
-    def _modifyPlot(self, tree, item):
+    def _modifyPlot(self, evt, tree, item):
 
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.currentTree.GetPyData(item)
@@ -259,7 +263,7 @@ class SpikeSorter(wx.Frame):
         self.GetEventHandler().ProcessEvent(event)
 
 
-    def _deleteSpike(self, tree, it):
+    def _deleteSpike(self, evt, tree, it):
         """ Delete spike ... """
         if tree == self.tree_Templates:
             # XXX clean this up!
@@ -321,19 +325,19 @@ class SpikeSorter(wx.Frame):
     def onlyOnSpikes(handler):
         """ Decorator which only permits actions on the spike tree
         """
-        def new_handler(obj, tree, it):
+        def new_handler(obj, evt, tree, it):
             if not tree == obj.tree_Spikes:
                 return
-            return handler(obj, tree, it)
+            return handler(obj, evt, tree, it)
         return new_handler
 
     def onlyOnTemplates(handler):
         """ Decorator which only permits actions on the template tree
         """
-        def new_handler(obj, tree, it):
+        def new_handler(obj, evt, tree, it):
             if not tree == obj.tree_Templates:
                 return
-            return handler(obj, tree, it)
+            return handler(obj, evt, tree, it)
         return new_handler
     ###
 
@@ -342,7 +346,7 @@ class SpikeSorter(wx.Frame):
         pass
 
     @onlyOnSpikes
-    def _addToTemplate(self, tree, it):
+    def _addToTemplate(self, evt, tree, it):
         """ Add selected item to the currently selected template. """
 
         # the semantics of 'a' are as follows:
@@ -389,7 +393,7 @@ class SpikeSorter(wx.Frame):
         print str(self.collection)
 
     @onlyOnSpikes
-    def _createTemplate(self, tree, it):
+    def _createTemplate(self, evt, tree, it):
         # check if item is the spike root - do nothing
         if it == self.spikeRoot:
             return
@@ -427,7 +431,7 @@ class SpikeSorter(wx.Frame):
         it = evt.GetItem()
         point = evt.GetPoint()
         tree = self._getTreeId(point)
-        self._modifyPlot(tree, it)
+        self._modifyPlot(evt, tree, it)
         tree.SelectItem(it)
 
     def endEdit(self, evt):
