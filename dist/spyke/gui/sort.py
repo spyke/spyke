@@ -281,16 +281,15 @@ class SpikeSorter(wx.Frame):
     # XXX: change name
     def _deleteSpike(self, evt, tree, it):
         """ Delete spike ... """
+        def isTemplatePlotted(templateNode):
+            return self.tree_Templates.IsBold(templateNode)
+
         if it in self.roots:
             return
 
         if it == self.garbageBin:
             return
 
-        # XXX
-        if not self.garbageBin:
-            self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 
-                                                            'Recycle Bin')
 
         if tree == self.tree_Templates:
             # We have two cases
@@ -299,30 +298,59 @@ class SpikeSorter(wx.Frame):
             # to check if the current template is empty, at which point it
             # needs to be removed
             if not self._isTemplate(it):
-                template = tree.GetItemParent(it)
-                count = tree.GetChildrenCount(template)
+                templateNode = tree.GetItemParent(it)
+                template = tree.GetPyData(templateNode)
+                count = tree.GetChildrenCount(templateNode)
 
-                if count - 1 == 0:
-                    # we're deleting the last spike in this template
-                    pass
+                isPlotted = isTemplatePlotted(templateNode)
+                if isPlotted:
+                    self._modifyPlot(evt, tree, templateNode)
 
                 spike = tree.GetPyData(it)
 
                 # remove it from its original collection
-                for template in self.collection.templates:
-                    if spike in template:
-                        template.remove(spike)
-                
+                self._moveSpike(tree, it) 
                 self._copySpikeNode(tree, self.spikeRoot, it)
-                #self._
-
                 
+                self._removeCurrentSelection(it, tree)
+                
+                if count - 1 == 0:
+                    # we're deleting the last spike in this template
+                    self.collection.templates.remove(template)
+                    tree.Delete(templateNode)
+                    return
+
+                # replot
+                if isPlotted:
+                    self._modifyPlot(evt, tree, templateNode)
 
             # CASE 2: we're deleting a template. In this case we should move
             # all the spikes within the template to the spike list
-            # XXX clean this up!
+            else:
+                if isTemplatePlotted(it):
+                    self._modifyPlot(evt, tree, it)
+
+                child, cookie = tree.GetFirstChild(it)
+                template = tree.GetPyData(it)
+
+                # move all the children to the spike pane
+                if child.IsOk():
+                    self._moveSpike(tree, child)
+                    self._copySpikeNode(tree, self.spikeRoot, child)
+                    while True:
+                        nextitem, cookie = tree.GetNextChild(it, cookie)
+                        if not nextitem.IsOk():
+                            break
+                        self._moveSpike(tree, nextitem)
+                        self._copySpikeNode(tree, self.spikeRoot, nextitem)
+                    tree.DeleteChildren(it)
+                    tree.Delete(it)
+                    self.collection.templates.remove(template)
 
         if tree == self.tree_Spikes:
+            if not self.garbageBin:
+                self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 
+                                                                'Recycle Bin')
             self._copySpikeNode(tree, self.garbageBin, it)
             self._removeCurrentSelection(it, tree)
             self.tree_Spikes.Collapse(self.garbageBin)
@@ -339,8 +367,12 @@ class SpikeSorter(wx.Frame):
             if not tree == source_tree:
                 dest_tree = tree
 
+        if dest_tree == self.tree_Spikes and self.garbageBin:
         # new spike node
-        ns = dest_tree.AppendItem(parent_node, text)
+            ns = dest_tree.InsertItemBefore(parent_node, self.garbageBin,
+                    text)    
+        else:
+            ns = dest_tree.AppendItem(parent_node, text)
 
         dest_tree.SetPyData(ns, data)
         bold = dest_tree.IsBold(it)
@@ -364,7 +396,7 @@ class SpikeSorter(wx.Frame):
                     template.remove(spike)
                     break
 
-        if dest_template:
+        if not dest_template is None:
             # update the destination template
             dest_template.add(spike)
         else:
@@ -445,7 +477,11 @@ class SpikeSorter(wx.Frame):
         template = self.tree_Templates.GetPyData(dest)
 
         # copy spike to this template
-        self._copySpikeNode(tree, dest, it)
+        ns = self._copySpikeNode(tree, dest, it)
+        
+        # make sure template is expanded and new spike selected
+        self.tree_Templates.Expand(curr)
+        self.tree_Templates.SelectItem(ns)
 
         # move spike to template
         self._moveSpike(tree, it, template)
@@ -462,6 +498,10 @@ class SpikeSorter(wx.Frame):
         if it == self.spikeRoot:
             return
 
+        # create new template and update our collection
+        new_template = Template()
+        self.collection.templates.append(new_template)
+
         # create new template node
         nt = self.tree_Templates.AppendItem(self.templateRoot, 'Template')
 
@@ -472,18 +512,16 @@ class SpikeSorter(wx.Frame):
         self.tree_Templates.Expand(nt)
         self.tree_Templates.SelectItem(ns)
 
-        # create new template and update our collection
-        new_template = Template()
-        self.collection.templates.append(new_template)
 
         # move spike to template
         self._moveSpike(tree, it, new_template)
 
+        # set the data for the new template node
+        self.tree_Templates.SetPyData(nt, new_template)
+
         #XXX
         self._removeCurrentSelection(it)
 
-        # set the data for the new template node
-        self.tree_Templates.SetPyData(nt, new_template)
 
         print 'Collection: '
         print str(self.collection)
