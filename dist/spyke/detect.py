@@ -57,6 +57,10 @@ class Template(set):
 
         return _mean
 
+    def __hash__(self):
+        # XXX hmmm how probable would collisions be using this...?
+        return hash(str(self.mean()) + str(self))
+
     def __str__(self):
         return 'Template (' + str(len(self)) + ')'
 

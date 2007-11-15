@@ -193,7 +193,6 @@ class SpikeSorter(wx.Frame):
                         ord('T')        : self._createTemplate,
                         ord('a')        : self._addToTemplate,
                         ord('A')        : self._addToTemplate,
-                        ord('r')        : self._removeFromTemplate,
                         ord('d')        : self._deleteSpike,
                         ord('D')        : self._deleteSpike,
                         ord('s')        : self._serialize,
@@ -203,8 +202,9 @@ class SpikeSorter(wx.Frame):
         for cmd, action in keyCommands.iteritems():
             if code == cmd:
                 action(evt, tree, it)
+                break
 
-        #evt.Skip()
+        evt.Skip()
 
     def _serialize(self, evt, *args):
         """ Serialize our collection """
@@ -214,28 +214,33 @@ class SpikeSorter(wx.Frame):
 
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
-            f = file(self.fname, 'w')
-            # use highest pickle protocol available
-            cPickle.dump(self.collection, f, -1)
-            self.currentTree.SelectItem(args[1])
-        except:
-            # XXX
-            raise
+            try:
+                f = file(self.fname, 'w')
+                # use highest pickle protocol available
+                cPickle.dump(self.collection, f, -1)
+                self.currentTree.SelectItem(args[1])
+            except:
+                # XXX
+                raise
         finally:
             f.close()
 
+    # XXX can use code generation to auto-make these _select* methods
     def _selectNextItem(self, evt, currTree, it):
         ni = self.currentTree.GetNextSibling(it)
-        self.currentTree.SelectItem(ni)
+        if ni.IsOk():
+            self.currentTree.SelectItem(ni)
 
     def _selectPrevItem(self, evt, currTree, it):
         pi = self.currentTree.GetPrevSibling(it)
-        self.currentTree.SelectItem(pi)
+        if pi.IsOk():
+            self.currentTree.SelectItem(pi)
 
     def _selectParent(self, evt, currTree, it):
         # go to parent
         par = self.currentTree.GetItemParent(it)
-        self.currentTree.SelectItem(par)
+        if par.IsOk():
+            self.currentTree.SelectItem(par)
 
     def _selectFirstChild(self, evt, currTree, it):
         chil, cookie = self.currentTree.GetFirstChild(it)
@@ -254,6 +259,12 @@ class SpikeSorter(wx.Frame):
 
     def _modifyPlot(self, evt, tree, item):
 
+        if item in self.roots:
+            return
+
+        if item == self.garbageBin:
+            return
+
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.currentTree.GetPyData(item)
 
@@ -267,28 +278,54 @@ class SpikeSorter(wx.Frame):
             event.remove = data
         self.GetEventHandler().ProcessEvent(event)
 
-
+    # XXX: change name
     def _deleteSpike(self, evt, tree, it):
         """ Delete spike ... """
-        if tree == self.tree_Templates:
-            # XXX clean this up!
-            spike = tree.GetPyData(it)
+        if it in self.roots:
+            return
 
-            # remove it from it's original collection
-            for template in self.collection.templates:
-                if spike in template:
-                    template.remove(spike)
+        if it == self.garbageBin:
+            return
 
-            #self.tree_Templates.Delete(it)
-
-
+        # XXX
         if not self.garbageBin:
-            self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
-        self._copySpikeNode(tree, self.garbageBin, it)
-        self.currentTree.Delete(it)
-        self.tree_Spikes.Collapse(self.garbageBin)
-        pi = self.currentTree.GetNextSibling(it)
-        self.currentTree.SelectItem(pi)
+            self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 
+                                                            'Recycle Bin')
+
+        if tree == self.tree_Templates:
+            # We have two cases
+            # CASE 1: we're deleting a spike. If so, we have to remove
+            # the spike and place it in the spike list. We then also have
+            # to check if the current template is empty, at which point it
+            # needs to be removed
+            if not self._isTemplate(it):
+                template = tree.GetItemParent(it)
+                count = tree.GetChildrenCount(template)
+
+                if count - 1 == 0:
+                    # we're deleting the last spike in this template
+                    pass
+
+                spike = tree.GetPyData(it)
+
+                # remove it from its original collection
+                for template in self.collection.templates:
+                    if spike in template:
+                        template.remove(spike)
+                
+                self._copySpikeNode(tree, self.spikeRoot, it)
+                #self._
+
+                
+
+            # CASE 2: we're deleting a template. In this case we should move
+            # all the spikes within the template to the spike list
+            # XXX clean this up!
+
+        if tree == self.tree_Spikes:
+            self._copySpikeNode(tree, self.garbageBin, it)
+            self._removeCurrentSelection(it, tree)
+            self.tree_Spikes.Collapse(self.garbageBin)
 
     def _copySpikeNode(self, source_tree, parent_node, it):
         """ Copy spike node it from source_tree to parent_node, transferring
@@ -298,59 +335,83 @@ class SpikeSorter(wx.Frame):
         data = source_tree.GetPyData(it)
         text = source_tree.GetItemText(it)
 
-        # new spike node
-        ns = self.tree_Templates.AppendItem(parent_node, text)
+        for tree in self.trees:
+            if not tree == source_tree:
+                dest_tree = tree
 
-        self.tree_Templates.SetPyData(ns, data)
-        bold = self.tree_Templates.IsBold(it)
-        self.tree_Templates.SetItemBold(ns, bold)
+        # new spike node
+        ns = dest_tree.AppendItem(parent_node, text)
+
+        dest_tree.SetPyData(ns, data)
+        bold = dest_tree.IsBold(it)
+        dest_tree.SetItemBold(ns, bold)
 
         return ns
 
-    def _moveSpike(self, src_tree, src_node, dest_template):
+    def _moveSpike(self, src_tree, src_node, dest_template=None):
         """ Used to manage collection data structure """
         # get the actual spike
         spike = src_tree.GetPyData(src_node)
 
-        # remove it from it's original collection
-        for template in self.collection.templates:
-            if spike in template:
-                template.remove(data)
 
-        # update the destination template
-        dest_template.add(spike)
+        if src_tree == self.tree_Spikes:
+            # we're moving a spike from the unsorted spikes
+            self.collection.unsorted_spikes.remove(spike)
+        else:
+            # remove it from its original collection
+            for template in self.collection.templates:
+                if spike in template:
+                    template.remove(spike)
+                    break
+
+        if dest_template:
+            # update the destination template
+            dest_template.add(spike)
+        else:
+            # we're moving a spike OUT of a template. Thus we should
+            # add it to unsorted_spikes
+            self.collection.unsorted_spikes.append(spike)
 
 
     def _isTemplate(self, item):
         par = self.tree_Templates.GetItemParent(item)
         return par == self.templateRoot
 
-    # XXX: should use functools.partial on the following two
-
-    def onlyOnSpikes(handler):
-        """ Decorator which only permits actions on the spike tree
-        """
-        def new_handler(obj, evt, tree, it):
-            if not tree == obj.tree_Spikes:
-                return
-            return handler(obj, evt, tree, it)
-        return new_handler
-
-    def onlyOnTemplates(handler):
-        """ Decorator which only permits actions on the template tree
-        """
-        def new_handler(obj, evt, tree, it):
-            if not tree == obj.tree_Templates:
-                return
-            return handler(obj, evt, tree, it)
-        return new_handler
-    ###
+    def onlyOn(permitree):
+        """ Will create a decorator which only permits actions on permitree """
+        def decor_func(handler):
+            def new_handler(obj, evt, tree, it):
+                if not tree == getattr(obj, permitree):
+                    return
+                return handler(obj, evt, tree, it)
+            return new_handler
+        return decor_func
 
     # XXX
     def _removeFromTemplate(tree, it):
         pass
 
-    @onlyOnSpikes
+    def _removeCurrentSelection(self, it, tree=None):
+        # XXX hackish
+        if tree is None:
+            tree = self.tree_Spikes
+        # make sure we select the next spike, so we don't jump to root
+        ni = tree.GetNextSibling(it)
+        if ni.IsOk():
+            tree.SelectItem(ni)
+            tree.Delete(it)
+        else:
+            # we're the last item in the list - select previous item
+            pi = tree.GetPrevSibling(it)
+            if pi.IsOk():
+                tree.SelectItem(pi)
+                tree.Delete(it)
+            else:
+                # we're the last item of all - in that case select the root
+                tree.SelectItem(self.spikeRoot)
+                tree.Delete(it)
+
+    @onlyOn('tree_Spikes')
     def _addToTemplate(self, evt, tree, it):
         """ Add selected item to the currently selected template. """
 
@@ -389,15 +450,13 @@ class SpikeSorter(wx.Frame):
         # move spike to template
         self._moveSpike(tree, it, template)
 
-        # make sure we select the next spike, so we don't jump to root
-        pi = self.tree_Spikes.GetNextSibling(it)
-        self.tree_Spikes.SelectItem(pi)
-        self.tree_Spikes.Delete(it)
+        self._removeCurrentSelection(it)
 
         print 'Collection: '
         print str(self.collection)
 
-    @onlyOnSpikes
+
+    @onlyOn('tree_Spikes')
     def _createTemplate(self, evt, tree, it):
         # check if item is the spike root - do nothing
         if it == self.spikeRoot:
@@ -420,10 +479,8 @@ class SpikeSorter(wx.Frame):
         # move spike to template
         self._moveSpike(tree, it, new_template)
 
-        # make sure we select the previous spike, so we don't jump to root
-        pi = self.tree_Spikes.GetNextSibling(it)
-        self.tree_Spikes.SelectItem(pi)
-        self.tree_Spikes.Delete(it)
+        #XXX
+        self._removeCurrentSelection(it)
 
         # set the data for the new template node
         self.tree_Templates.SetPyData(nt, new_template)
@@ -783,11 +840,12 @@ class TestApp(wx.App):
         self.op = op
         if self.fname:
             try:
-                f = file(self.fname)
-                col = cPickle.load(f)
-            except:
-                # XXX do something clever here
-                raise
+                try:
+                    f = file(self.fname)
+                    col = cPickle.load(f)
+                except:
+                    # XXX do something clever here
+                    raise
             finally:
                 f.close()
         else:
