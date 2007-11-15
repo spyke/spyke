@@ -249,17 +249,21 @@ class SortPanel(EventPanel):
             line._visible = curr_visible
         self.spikes[spike][1] = curr_visible
 
-    def add(self, spike, template=False):
+    def add(self, spike, template=False, selected=False):
         """ (Over)plot a given spike. """
         colours = self.colours
 
-        if template:
+        if selected:
+            colours = ['y'] * len(self.colours)
+
+        elif template:
             # XXX: colour this something else
             colours = ['r'] * len(self.colours)
             spike = spike.mean()
 
         # initialize
         if not self._initialized:
+            colours = ['g'] * len(self.colours)
             self._initialized = True
 
             self.init_plot(spike)

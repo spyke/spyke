@@ -56,6 +56,7 @@ class SpikeSorter(wx.Frame):
         self.tree_Spikes.SetDropTarget(dt)
 
         self.garbageBin = None
+        self.currSelected = None
 
     def setUpTrees(self):
         # keep references to our trees and roots
@@ -142,6 +143,8 @@ class SpikeSorter(wx.Frame):
             #wx.EVT_TREE_SEL_CHANGING(tree, tree.GetId(), self.maintain)
             #wx.EVT_TREE_ITEM_ACTIVATED(tree, tree.GetId(), self.onActivate)
             self.Bind(wx.EVT_TREE_ITEM_COLLAPSING, self.onCollapsing, tree)
+            self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
+            self.Bind(wx.EVT_TREE_SEL_CHANGED, self.onSelChanged, tree)
             self.Bind(wx.EVT_TREE_BEGIN_LABEL_EDIT, self.beginEdit, tree)
             self.Bind(wx.EVT_TREE_END_LABEL_EDIT, self.endEdit, tree)
             self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.onRightClick, tree)
@@ -149,6 +152,20 @@ class SpikeSorter(wx.Frame):
             self.Bind(wx.EVT_TREE_KEY_DOWN, self.onKeyDown, tree)
             #self.Bind(wx.EVT_TREE_DELETE_ITEM, self.onDelete, tree)
 
+    def onSelChanging(self, evt):
+        # remove currently plotted
+        if self.currSelected:
+            tree = self.FindFocus()
+            self._cmdPlot(evt, tree, self.currSelected, False)
+            self.currSelected = None
+
+    def onSelChanged(self, evt):
+        # plot currently selected
+        it = evt.GetItem()
+        tree = self.FindFocus()
+        if it.IsOk():
+            self.currSelected = it
+            self._cmdPlot(evt, tree, it, True)
 
     def vetoOnRoot(handler):
         """ Decorator which vetoes a certain event if it occurs on
@@ -172,7 +189,7 @@ class SpikeSorter(wx.Frame):
 
         # dummy function
         nothing = lambda *args: None
-
+        # XXX : 'j' == wx.WXK_J?
         keyCommands = {
                         wx.WXK_RETURN   : self._modifyPlot,
                         wx.WXK_SPACE    : self._modifyPlot,
@@ -215,7 +232,7 @@ class SpikeSorter(wx.Frame):
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
             try:
-                f = file(self.fname, 'w')
+                f = file(self.fname, 'wb')
                 # use highest pickle protocol available
                 cPickle.dump(self.collection, f, -1)
                 self.currentTree.SelectItem(args[1])
@@ -256,6 +273,19 @@ class SpikeSorter(wx.Frame):
                 tr.SetFocus()
         self.currentTree = tr
         return tr
+
+    #XXX merge the following two methods
+    def _cmdPlot(self, evt, tree, item, visible=True):
+        if item in self.roots:
+            return
+        event = PlotEvent(myEVT_PLOT, self.GetId())
+        data = tree.GetPyData(item)
+        event.isSelected = True
+        if visible:
+            event.plot = data
+        else:
+            event.remove = data
+        self.GetEventHandler().ProcessEvent(event)
 
     def _modifyPlot(self, evt, tree, item):
 
@@ -309,11 +339,11 @@ class SpikeSorter(wx.Frame):
                 spike = tree.GetPyData(it)
 
                 # remove it from its original collection
-                self._moveSpike(tree, it) 
+                self._moveSpike(tree, it)
                 self._copySpikeNode(tree, self.spikeRoot, it)
-                
+
                 self._removeCurrentSelection(it, tree)
-                
+
                 if count - 1 == 0:
                     # we're deleting the last spike in this template
                     self.collection.templates.remove(template)
@@ -349,7 +379,7 @@ class SpikeSorter(wx.Frame):
 
         if tree == self.tree_Spikes:
             if not self.garbageBin:
-                self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot, 
+                self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot,
                                                                 'Recycle Bin')
             self._copySpikeNode(tree, self.garbageBin, it)
             self._removeCurrentSelection(it, tree)
@@ -370,7 +400,7 @@ class SpikeSorter(wx.Frame):
         if dest_tree == self.tree_Spikes and self.garbageBin:
         # new spike node
             ns = dest_tree.InsertItemBefore(parent_node, self.garbageBin,
-                    text)    
+                    text)
         else:
             ns = dest_tree.AppendItem(parent_node, text)
 
@@ -478,7 +508,7 @@ class SpikeSorter(wx.Frame):
 
         # copy spike to this template
         ns = self._copySpikeNode(tree, dest, it)
-        
+
         # make sure template is expanded and new spike selected
         self.tree_Templates.Expand(curr)
         self.tree_Templates.SelectItem(ns)
@@ -636,7 +666,7 @@ class SpikeSorter(wx.Frame):
         raise Exception('Tree not found??!!')
 
     def onActivate(self, evt):
-        pass
+        print 'selected!'
 
 
 class SpikeDropSource(wx.DropSource):
@@ -879,7 +909,7 @@ class TestApp(wx.App):
         if self.fname:
             try:
                 try:
-                    f = file(self.fname)
+                    f = file(self.fname, 'rb')
                     col = cPickle.load(f)
                 except:
                     # XXX do something clever here
@@ -899,7 +929,7 @@ class TestApp(wx.App):
 
     def handlePlot(self, evt):
         if evt.plot:
-            self.plotter.plotPanel.add(evt.plot, evt.isTemplate)
+            self.plotter.plotPanel.add(evt.plot, evt.isTemplate, evt.isSelected)
         elif evt.remove:
             self.plotter.plotPanel.remove(evt.remove, evt.isTemplate)
 
