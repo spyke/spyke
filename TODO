@@ -48,8 +48,8 @@ VERIFICATION:
         B) something else I forgot to write down
 
     - plot autocorrelograms for each template, and cross-correlograms for all template pairs, make sure the bin heights are ~0 for abs(deltaT) < 1ms for autocorrs, make sure you don't have ridiculously huge peaks in xcorrs
-    - wasn't there some other related test that we should be doing?
-    - Nick had some other kind of idea for verification...
+        - wasn't there some other related test that we should be doing?
+    - Nick: create a distance/similarity metric that, for all pairs of templates, for all overlapping channels, measures the difference between the signals, normalized by, say, the number of overlapping channels and the number of points per channel. This would help confirm that two templates are indeed two separate cells
 
 
 - mini rips: while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.

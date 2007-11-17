@@ -143,8 +143,8 @@ class SpikeSorter(wx.Frame):
             #wx.EVT_TREE_SEL_CHANGING(tree, tree.GetId(), self.maintain)
             #wx.EVT_TREE_ITEM_ACTIVATED(tree, tree.GetId(), self.onActivate)
             self.Bind(wx.EVT_TREE_ITEM_COLLAPSING, self.onCollapsing, tree)
-            self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
-            self.Bind(wx.EVT_TREE_SEL_CHANGED, self.onSelChanged, tree)
+            #self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
+            #self.Bind(wx.EVT_TREE_SEL_CHANGED, self.onSelChanged, tree)
             self.Bind(wx.EVT_TREE_BEGIN_LABEL_EDIT, self.beginEdit, tree)
             self.Bind(wx.EVT_TREE_END_LABEL_EDIT, self.endEdit, tree)
             self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.onRightClick, tree)
@@ -940,7 +940,7 @@ class TestApp(wx.App):
         spikes = []
         for i, spike in enumerate(simp):
             spikes.append(spike)
-            if i > 200:
+            if i > 500:
                 break
         col = Collection()
 
