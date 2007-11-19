@@ -212,6 +212,7 @@ class SpikeSorter(wx.Frame):
                         ord('A')        : self._addToTemplate,
                         ord('d')        : self._deleteSpike,
                         ord('D')        : self._deleteSpike,
+                        wx.WXK_DELETE   : self._deleteSpike,
                         ord('s')        : self._serialize,
                         ord('S')        : self._serialize,
                     }
