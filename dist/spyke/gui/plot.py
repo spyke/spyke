@@ -238,22 +238,27 @@ class SortPanel(EventPanel):
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         self.x_vals = None
         self._initialized = False
+        self.top = 10
 
     def set_params(self):
         PlotPanel.set_params(self)
         self.colours = ['g'] * self.num_channels
 
-    def _toggleVisible(self, spike, colour):
+    def _toggleVisible(self, spike, colour, top=None):
         lines, curr_visible = self.spikes[(spike, colour)]
         curr_visible = not curr_visible
+
         for line in lines:
             line._visible = curr_visible
+            line.zorder = self.top
+
         self.spikes[(spike, colour)][1] = curr_visible
 
-    def add(self, spike, colour):
+    def add(self, spike, colour, top=False):
         """ (Over)plot a given spike. """
         colours = [colour] * self.num_channels
-
+        if top:
+            self.top += 0.1
         # initialize
         if not self._initialized:
 
@@ -269,7 +274,7 @@ class SortPanel(EventPanel):
             self._initialized = True
 
         elif (spike, colour) in self.spikes:
-            self._toggleVisible(spike, colour)
+            self._toggleVisible(spike, colour, top)
 
         elif (spike, colour) not in self.spikes:
             lines = []

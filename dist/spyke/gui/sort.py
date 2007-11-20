@@ -285,6 +285,7 @@ class SpikeSorter(wx.Frame):
             data = data.mean()
         if visible:
             event.plot = data
+            event.top = True
         else:
             event.remove = data
         event.colour = 'y'
@@ -938,7 +939,7 @@ class TestApp(wx.App):
 
     def handlePlot(self, evt):
         if evt.plot:
-            self.plotter.plotPanel.add(evt.plot, evt.colour)
+            self.plotter.plotPanel.add(evt.plot, evt.colour, evt.top)
         elif evt.remove:
             self.plotter.plotPanel.remove(evt.remove, evt.colour)
 

@@ -10,6 +10,7 @@ class PlotEvent(wx.PyCommandEvent):
         self.plot = None
         self.remove = None
         self.colour = None
+        self.top = False
 
 myEVT_PLOT = wx.NewEventType()
 EVT_PLOT = wx.PyEventBinder(myEVT_PLOT, 1)
