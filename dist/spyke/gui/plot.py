@@ -22,14 +22,12 @@ import spyke.stream
 class SpykeLine(Line2D):
     """ Line2D's that can be compared to each other for equality. """
     def __init__(self, *args, **kwargs):
-        self._cached_hash = None
         Line2D.__init__(self, *args, **kwargs)
+        self.colour = 'none'
 
     def __hash__(self):
         """ Hash the string representation of the y data. """
-        if not self._cached_hash:
-            self._cached_hash = hash(str(self._y))
-        return self._cached_hash
+        return hash(self.colour + str(self._y))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -57,33 +55,37 @@ class PlotPanel(FigureCanvasWxAgg):
         """ Set extra parameters. """
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
-        self.yrange = (-150, 150)
+        self.yrange = (-180, 180)
         self.colours = ['g'] * self.num_channels
 
     def set_plot_layout(self, layout):
         """ Override in subclasses. """
         pass
 
-    def init_plot(self, wave):
+    def init_plot(self, wave, colour='g'):
         """ Set up axes """
         # self.pos is a map from channel -> [l, b, w, h] positions for plots
         for chan, sp in self.pos.iteritems():
             a = self.figure.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
 
+            colours = [colour] * self.num_channels
             # create an instance of a searchable line
             line = SpykeLine(wave.ts,
                              wave.data[chan],
                              linewidth=0.005,
-                             color=self.colours[chan],
+                             color=colours[chan],
                              antialiased=False)
+            line.colour = colour
 
             # add line, initialize properties
+            a._visible = False
             a.add_line(line)
             a.autoscale_view()
             a.set_ylim(self.yrange)
             a.grid(True)
             a.set_xticks([])
             a.set_yticks([])
+            a._visible = True
 
             self.axes[chan] = a
             self.channels[chan] = a.get_lines()[0]
@@ -98,7 +100,6 @@ class PlotPanel(FigureCanvasWxAgg):
         if not self._plot_setup:
             self.init_plot(waveforms)
             self._plot_setup = True
-            return
 
         # update plots with new data
         for chan in self.channels:
@@ -234,7 +235,7 @@ class SortPanel(EventPanel):
     """
     def __init__(self, *args, **kwargs):
         EventPanel.__init__(self, *args, **kwargs)
-        self.spikes = {}  # spike -> [[SpykeLine], visible]
+        self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         self.x_vals = None
         self._initialized = False
 
@@ -242,31 +243,21 @@ class SortPanel(EventPanel):
         PlotPanel.set_params(self)
         self.colours = ['g'] * self.num_channels
 
-    def _toggleVisible(self, spike):
-        lines, curr_visible = self.spikes[spike]
+    def _toggleVisible(self, spike, colour):
+        lines, curr_visible = self.spikes[(spike, colour)]
         curr_visible = not curr_visible
         for line in lines:
             line._visible = curr_visible
-        self.spikes[spike][1] = curr_visible
+        self.spikes[(spike, colour)][1] = curr_visible
 
-    def add(self, spike, template=False, selected=False):
+    def add(self, spike, colour):
         """ (Over)plot a given spike. """
-        colours = self.colours
-
-        if selected:
-            colours = ['y'] * len(self.colours)
-
-        elif template:
-            # XXX: colour this something else
-            colours = ['r'] * len(self.colours)
-            spike = spike.mean()
+        colours = [colour] * self.num_channels
 
         # initialize
         if not self._initialized:
-            colours = ['g'] * len(self.colours)
-            self._initialized = True
 
-            self.init_plot(spike)
+            self.init_plot(spike, colour)
 
             # always plot w.r.t. these x points
             self.x_vals = spike.ts
@@ -274,12 +265,13 @@ class SortPanel(EventPanel):
             lines = []
             for num, channel in self.channels.iteritems():
                 lines.append(channel)
-            self.spikes[spike] = [lines, True]
+            self.spikes[(spike, colour)] = [lines, True]
+            self._initialized = True
 
-        elif spike in self.spikes:
-            self._toggleVisible(spike)
+        elif (spike, colour) in self.spikes:
+            self._toggleVisible(spike, colour)
 
-        elif spike not in self.spikes:
+        elif (spike, colour) not in self.spikes:
             lines = []
             for chan, axis in self.axes.iteritems():
                 line = SpykeLine(self.x_vals,
@@ -287,19 +279,20 @@ class SortPanel(EventPanel):
                                  linewidth=0.005,
                                  color=colours[chan],
                                  antialiased=False)
+                line._visible = False
+                line.colour = colour
                 axis.add_line(line)
                 axis.autoscale_view()
                 axis.set_ylim(self.yrange)
+                line._visible = True
                 lines.append(line)
-            self.spikes[spike] = [lines, True]
+            self.spikes[(spike, colour)] = [lines, True]
 
         self.draw(True)
 
-    def remove(self, spike, template=False):
+    def remove(self, spike, colour):
         """ Remove the selected spike from the plot display. """
-        if template:
-            spike = spike.mean()
-        self._toggleVisible(spike)
+        self._toggleVisible(spike, colour)
         self.draw(True)
 
 

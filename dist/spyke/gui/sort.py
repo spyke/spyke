@@ -125,11 +125,11 @@ class SpikeSorter(wx.Frame):
 
         # The left pane represents our currently (sorted) templates
         for template in self.collection:
-            item = self.tree_Templates.AppendItem(self.templateRoot, template.name)
+            item = self.tree_Templates.AppendItem(self.templateRoot, str(template))
 
             # add all the spikes within the templates
             for spike in template:
-                sp_item = self.tree_Templates.AppendItem(item, spike.name)
+                sp_item = self.tree_Templates.AppendItem(item, str(spike))
                 self.tree_Templates.SetPyData(sp_item, spike)
             self.tree_Templates.Expand(item)
 
@@ -143,8 +143,8 @@ class SpikeSorter(wx.Frame):
             #wx.EVT_TREE_SEL_CHANGING(tree, tree.GetId(), self.maintain)
             #wx.EVT_TREE_ITEM_ACTIVATED(tree, tree.GetId(), self.onActivate)
             self.Bind(wx.EVT_TREE_ITEM_COLLAPSING, self.onCollapsing, tree)
-            #self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
-            #self.Bind(wx.EVT_TREE_SEL_CHANGED, self.onSelChanged, tree)
+            self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
+            self.Bind(wx.EVT_TREE_SEL_CHANGED, self.onSelChanged, tree)
             self.Bind(wx.EVT_TREE_BEGIN_LABEL_EDIT, self.beginEdit, tree)
             self.Bind(wx.EVT_TREE_END_LABEL_EDIT, self.endEdit, tree)
             self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.onRightClick, tree)
@@ -281,11 +281,13 @@ class SpikeSorter(wx.Frame):
             return
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = tree.GetPyData(item)
-        event.isSelected = True
+        if self._isTemplate(item):
+            data = data.mean()
         if visible:
             event.plot = data
         else:
             event.remove = data
+        event.colour = 'y'
         self.GetEventHandler().ProcessEvent(event)
 
     def _modifyPlot(self, evt, tree, item):
@@ -299,14 +301,20 @@ class SpikeSorter(wx.Frame):
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.currentTree.GetPyData(item)
 
-        event.isTemplate = self._isTemplate(item)
-
+        #event.isTemplate = self._isTemplate(item)
+        # we're plotting a template
+        if self._isTemplate(item):
+            colour = 'r'
+            data = data.mean()
+        else:
+            colour = 'g'
         if not tree.IsBold(item):
             self.currentTree.SetItemBold(item)
             event.plot = data
         else:
             self.currentTree.SetItemBold(item, False)
             event.remove = data
+        event.colour = colour
         self.GetEventHandler().ProcessEvent(event)
 
     # XXX: change name
@@ -930,9 +938,9 @@ class TestApp(wx.App):
 
     def handlePlot(self, evt):
         if evt.plot:
-            self.plotter.plotPanel.add(evt.plot, evt.isTemplate, evt.isSelected)
+            self.plotter.plotPanel.add(evt.plot, evt.colour)
         elif evt.remove:
-            self.plotter.plotPanel.remove(evt.remove, evt.isTemplate)
+            self.plotter.plotPanel.remove(evt.remove, evt.colour)
 
     def makeCol(self):
         from spyke.stream import WaveForm
