@@ -16,14 +16,30 @@ from spyke.gui.events import *
 from spyke.gui.plot import SortPanel
 
 
+class SpikeTreeCtrl(wx.TreeCtrl):
+    def __init__(self, layout, *args, **kwargs):
+        wx.TreeCtrl.__init__(self, *args, **kwargs)
+        self.layout = layout
+
+    def OnCompareItems(self, item1, item2):
+        data1 = self.GetItemPyData(item1)
+        data2 = self.GetItemPyData(item2)
+
+        rank1 = self.layout[data1.channel][1]       # y coord
+        rank2 = self.layout[data2.channel][1]       # y coord
+        return cmp(rank1, rank2) * -1
+
+class TemplateTreeCtrl(wx.TreeCtrl):
+    pass
+
 class SpikeSorter(wx.Frame):
-    def __init__(self, parent, id, title, fname, collection=None, **kwds):
+    def __init__(self, parent, id, title, layout, fname, collection=None, **kwds):
         wx.Frame.__init__(self, parent, id, title, **kwds)
         self.fname = fname or 'collection.pickle'   # name of serialized obj
         self.collection = collection
         self.garbageBin = None
         self.currSelected = None
-
+        self.layout = layout        # to order spikes appropriately
         # set up our tree controls
         self.setUpTrees()
 
@@ -71,12 +87,12 @@ class SpikeSorter(wx.Frame):
         tempKwds['style'] = wx.TR_HAS_BUTTONS | wx.TR_DEFAULT_STYLE | \
                            wx.SUNKEN_BORDER | wx.TR_EDIT_LABELS | \
                            wx.TR_EXTENDED | wx.TR_SINGLE #| wx.TR_HIDE_ROOT
-        self.tree_Templates = wx.TreeCtrl(self, -1, **tempKwds)
+        self.tree_Templates = TemplateTreeCtrl(self, -1, **tempKwds)
 
         spikeKwds['style'] = wx.TR_HAS_BUTTONS | wx.TR_DEFAULT_STYLE | \
                            wx.SUNKEN_BORDER | wx.TR_EDIT_LABELS | \
                            wx.TR_EXTENDED | wx.TR_SINGLE #| wx.TR_HIDE_ROOT
-        self.tree_Spikes = wx.TreeCtrl(self, -1, **spikeKwds)
+        self.tree_Spikes = SpikeTreeCtrl(self.layout, self, -1, **spikeKwds)
 
         self.templateRoot = self.tree_Templates.AddRoot('Templates')
         self.spikeRoot = self.tree_Spikes.AddRoot('Spikes')
@@ -124,11 +140,16 @@ class SpikeSorter(wx.Frame):
             self.tree_Spikes.SetPyData(item, spike)
 
         # restore recycle bin
-        if self.collection.recycle_bin:
-            rbin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
-            for spike in self.collection.recycle_bin:
-                item = self.tree_Spikes.AppendItem(rbin, str(spike))
-                self.tree_Spikes.SetPyData(item, spike)
+        try:
+            self.collection.recycle_bin
+            if self.collection.recycle_bin:
+                rbin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
+                for spike in self.collection.recycle_bin:
+                    item = self.tree_Spikes.AppendItem(rbin, str(spike))
+                    self.tree_Spikes.SetPyData(item, spike)
+        except AttributeError:
+            # XXX: backwards compatibility
+            pass
 
         # The left pane represents our currently (sorted) templates
         for template in self.collection:
@@ -141,6 +162,8 @@ class SpikeSorter(wx.Frame):
             self.tree_Templates.Expand(item)
 
             self.tree_Templates.SetPyData(item, template)
+
+        self.tree_Spikes.SortChildren(self.spikeRoot)
 
     def registerEvents(self):
         for tree in self.trees:
@@ -331,6 +354,9 @@ class SpikeSorter(wx.Frame):
         def isTemplatePlotted(templateNode):
             return self.tree_Templates.IsBold(templateNode)
 
+        def isSpikePlotted(node):
+            return self.tree_Spikes.IsBold(node)
+
         if it in self.roots:
             return
 
@@ -398,6 +424,8 @@ class SpikeSorter(wx.Frame):
             if not self.garbageBin:
                 self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot,
                                                                 'Recycle Bin')
+            if isSpikePlotted(it):
+               self._modifyPlot(evt, tree, it)
             self._moveSpike(tree, it)
             self._copySpikeNode(tree, self.garbageBin, it)
             self._removeCurrentSelection(it, tree)
@@ -949,7 +977,7 @@ class TestApp(wx.App):
                 f.close()
         else:
             col = self.makeCol()
-        self.sorter = SpikeSorter(None, -1, 'Spike Sorter', self.fname, col, size=(500, 600))
+        self.sorter = SpikeSorter(None, -1, 'Spike Sorter', op.layout.SiteLoc, self.fname, col, size=(500, 600))
         self.plotter = SorterWin(None, -1, 'Plot Sorter', op, size=(200, 900))
         self.SetTopWindow(self.sorter)
         self.sorter.Show(True)
