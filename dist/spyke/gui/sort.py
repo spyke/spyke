@@ -21,6 +21,8 @@ class SpikeSorter(wx.Frame):
         wx.Frame.__init__(self, parent, id, title, **kwds)
         self.fname = fname or 'collection.pickle'   # name of serialized obj
         self.collection = collection
+        self.garbageBin = None
+        self.currSelected = None
 
         # set up our tree controls
         self.setUpTrees()
@@ -55,8 +57,6 @@ class SpikeSorter(wx.Frame):
                                  self.collection)
         self.tree_Spikes.SetDropTarget(dt)
 
-        self.garbageBin = None
-        self.currSelected = None
 
     def setUpTrees(self):
         # keep references to our trees and roots
@@ -120,8 +120,15 @@ class SpikeSorter(wx.Frame):
         """
         # The right pane displays the unordered spikes
         for spike in self.collection.unsorted_spikes:
-            item = self.tree_Spikes.AppendItem(self.spikeRoot, spike.name)
+            item = self.tree_Spikes.AppendItem(self.spikeRoot, str(spike))
             self.tree_Spikes.SetPyData(item, spike)
+
+        # restore recycle bin
+        if self.collection.recycle_bin:
+            rbin = self.tree_Spikes.AppendItem(self.spikeRoot, 'Recycle Bin')
+            for spike in self.collection.recycle_bin:
+                item = self.tree_Spikes.AppendItem(rbin, str(spike))
+                self.tree_Spikes.SetPyData(item, spike)
 
         # The left pane represents our currently (sorted) templates
         for template in self.collection:
@@ -227,8 +234,8 @@ class SpikeSorter(wx.Frame):
     def _serialize(self, evt, *args):
         """ Serialize our collection """
         evt = evt.GetKeyEvent()
-        if not evt.ControlDown():
-            return
+        #if not evt.ControlDown():
+        #    return
 
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:
@@ -391,6 +398,7 @@ class SpikeSorter(wx.Frame):
             if not self.garbageBin:
                 self.garbageBin = self.tree_Spikes.AppendItem(self.spikeRoot,
                                                                 'Recycle Bin')
+            self._moveSpike(tree, it)
             self._copySpikeNode(tree, self.garbageBin, it)
             self._removeCurrentSelection(it, tree)
             self.tree_Spikes.Collapse(self.garbageBin)
@@ -427,19 +435,22 @@ class SpikeSorter(wx.Frame):
 
 
         if src_tree == self.tree_Spikes:
-            # we're moving a spike from the unsorted spikes
-            self.collection.unsorted_spikes.remove(spike)
+            if dest_template is None:
+                # we're going to the recycle bin
+                self.collection.unsorted_spikes.remove(spike)
+                self.collection.recycle_bin.append(spike)
+            else:
+                # there IS a dest template, so update the destination template
+                dest_template.add(spike)
+
         else:
-            # remove it from its original collection
+            # we're dealing with the template tree
+            # remove spike from its original template
             for template in self.collection.templates:
                 if spike in template:
                     template.remove(spike)
                     break
 
-        if not dest_template is None:
-            # update the destination template
-            dest_template.add(spike)
-        else:
             # we're moving a spike OUT of a template. Thus we should
             # add it to unsorted_spikes
             self.collection.unsorted_spikes.append(spike)
@@ -497,6 +508,8 @@ class SpikeSorter(wx.Frame):
         #        iii) A spike - add to the same template (i.e. make a child
         #             of the parent template of spike.
 
+        def isTemplatePlotted(templateNode):
+            return self.tree_Templates.IsBold(templateNode)
         # check if item is the spike root - do nothing
         if it == self.spikeRoot:
             return
@@ -513,6 +526,12 @@ class SpikeSorter(wx.Frame):
         else:
             dest = self.tree_Templates.GetItemParent(curr)
 
+                #templateNode = tree.GetItemParent(it)
+                #template = tree.GetPyData(templateNode)
+
+        isPlotted = isTemplatePlotted(dest)
+        if isPlotted:
+            self._modifyPlot(evt, self.tree_Templates, dest)
         # get the template we're going to add to
         template = self.tree_Templates.GetPyData(dest)
 
@@ -527,6 +546,8 @@ class SpikeSorter(wx.Frame):
         self._moveSpike(tree, it, template)
 
         self._removeCurrentSelection(it)
+        if isPlotted:
+            self._modifyPlot(evt, self.tree_Templates, dest)
 
         print 'Collection: '
         print str(self.collection)

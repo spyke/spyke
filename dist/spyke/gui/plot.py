@@ -55,7 +55,7 @@ class PlotPanel(FigureCanvasWxAgg):
         """ Set extra parameters. """
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
-        self.yrange = (-180, 180)
+        self.yrange = (-260, 260)
         self.colours = ['g'] * self.num_channels
 
     def set_plot_layout(self, layout):

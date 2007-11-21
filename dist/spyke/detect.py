@@ -76,6 +76,7 @@ class Collection(object):
         # XXX: populate this with pertinent info
         self.templates = []
         self.unsorted_spikes = []        # these represent unsorted spikes
+        self.recycle_bin = []
 
     def __len__(self):
         return len(self.templates)
