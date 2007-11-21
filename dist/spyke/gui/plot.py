@@ -12,6 +12,7 @@ import wx
 
 from matplotlib import rcParams
 rcParams['lines.linestyle'] = '-'
+rcParams['lines.marker'] = ''
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
