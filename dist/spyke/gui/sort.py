@@ -27,7 +27,7 @@ class SpikeTreeCtrl(wx.TreeCtrl):
 
         rank1 = self.layout[data1.channel][1]       # y coord
         rank2 = self.layout[data2.channel][1]       # y coord
-        return cmp(rank1, rank2) * -1
+        return cmp(rank1, rank2) * -1               # reverse
 
 class TemplateTreeCtrl(wx.TreeCtrl):
     pass
@@ -257,8 +257,8 @@ class SpikeSorter(wx.Frame):
     def _serialize(self, evt, *args):
         """ Serialize our collection """
         evt = evt.GetKeyEvent()
-        #if not evt.ControlDown():
-        #    return
+        if not evt.ControlDown():
+            return
 
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:

@@ -10,6 +10,8 @@ import random
 
 import wx
 
+from matplotlib import rcParams
+rcParams['lines.linestyle'] = '-'
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
