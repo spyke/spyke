@@ -303,6 +303,17 @@ class SortPanel(EventPanel):
         self._toggleVisible(spike, colour)
         self.draw(True)
 
+class ClickableSortPanel(SortPanel):
+    def __init__(self, *args, **kwargs):
+        SortPanel.__init__(self, *args, **kwargs)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
+        self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown, self)
+
+    def onDoubleClick(self, evt):
+        print 'Double clicked!'
+
+    def onLeftDown(self, evt):
+        print 'Left Down!'
 
 #####----- Tests
 

@@ -13,7 +13,7 @@ import spyke
 from spyke.layout import *
 from spyke.detect import Spike, Template, Collection, SimpleThreshold
 from spyke.gui.events import *
-from spyke.gui.plot import SortPanel
+from spyke.gui.plot import ClickableSortPanel
 
 
 class SpikeTreeCtrl(wx.TreeCtrl):
@@ -949,7 +949,7 @@ class SorterWin(wx.Frame):
         wx.Frame.__init__(self, parent, id, title, **kwds)
         self.op = op
 
-        self.plotPanel = SortPanel(self, self.op.layout.SiteLoc)
+        self.plotPanel = ClickableSortPanel(self, self.op.layout.SiteLoc)
 
     def onEraseBackground(self, evt):
         # prevent redraw flicker
