@@ -39,6 +39,7 @@ class Template(set):
     def __init__(self, *args):
         set.__init__(self, *args)
         self.name = str(self)
+        self.active_channels = None
 
     def mean(self):
         """ Returns the mean of all the contained spikes. """

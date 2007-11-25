@@ -13,6 +13,7 @@ import wx
 from matplotlib import rcParams
 rcParams['lines.linestyle'] = '-'
 rcParams['lines.marker'] = ''
+
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -20,6 +21,26 @@ import matplotlib.numerix as nx
 
 import spyke.surf
 import spyke.stream
+from spyke.gui.events import *
+
+
+class AxesWrapper(object):
+    """ A wrapper around an axes that delegates access to attributes to an
+    actual axes object. Really meant to make axes hashable.
+    """
+    def __init__(self, axes):
+        self._spyke_axes = axes
+
+    def __getattr__(self, name):
+        # delegate access to attribs to wrapped axes
+        return getattr(self._spyke_axes, name)
+
+    def __hash__(self):
+        # base the hash function on the position rect
+        return hash(str(self.get_position(original=True)))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
 
 
 class SpykeLine(Line2D):
@@ -46,7 +67,8 @@ class PlotPanel(FigureCanvasWxAgg):
 
         self.pos = {}               # position of plots
         self.channels = {}          # plot y-data for each channel
-        self.axes = {}              # axes for each channel
+        self.axes = {}              # axes for each channel, chan -> axes
+        self.axesToChan = {}        # axes -> chan
 
         self.num_channels = len(layout)
 
@@ -93,6 +115,8 @@ class PlotPanel(FigureCanvasWxAgg):
             self.axes[chan] = a
             self.channels[chan] = a.get_lines()[0]
 
+            # maintain reverse mapping of axes -> channels
+            self.axesToChan[AxesWrapper(a)] = chan
 
         # redraw the disply
         self.draw(True)
@@ -257,9 +281,18 @@ class SortPanel(EventPanel):
 
         self.spikes[(spike, colour)][1] = curr_visible
 
-    def add(self, spike, colour, top=False):
+    def _toggleChannels(self, spike, colour, channels):
+        lines, curr_visible = self.spikes[(spike, colour)]
+        for line, isVisible in zip(lines, channels):
+            line._visible = isVisible
+
+    def add(self, spike, colour, top=False, channels=None):
         """ (Over)plot a given spike. """
         colours = [colour] * self.num_channels
+
+        if not channels:
+            channels = self.num_channels * [True]
+
         if top:
             self.top += 0.1
         # initialize
@@ -278,6 +311,7 @@ class SortPanel(EventPanel):
 
         elif (spike, colour) in self.spikes:
             self._toggleVisible(spike, colour, top)
+            self._toggleChannels(spike, colour, channels)
 
         elif (spike, colour) not in self.spikes:
             lines = []
@@ -307,13 +341,25 @@ class ClickableSortPanel(SortPanel):
     def __init__(self, *args, **kwargs):
         SortPanel.__init__(self, *args, **kwargs)
         self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
-        self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown, self)
+        self.mpl_connect('button_press_event', self.onLeftDown)
+
+    def _sendEvent(self, channels):
+        event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
+        event.channels = channels
+        self.GetEventHandler().ProcessEvent(event)
 
     def onDoubleClick(self, evt):
-        print 'Double clicked!'
+        channels = [False] * len(self.axesToChan)
+        self._sendEvent(channels)
 
-    def onLeftDown(self, evt):
-        print 'Left Down!'
+    def onLeftDown(self, event):
+        a = event.inaxes
+        b = AxesWrapper(a)
+        chan = self.axesToChan[b]
+        channels = [False] * len(self.axesToChan)
+        channels[chan] = True
+        self._sendEvent(channels)
+
 
 #####----- Tests
 
@@ -323,28 +369,6 @@ import os
 class Opener(object):
     def __init__(self):
 
-        # XXX: the following is dumb but I'm drunk...on power
-        '''
-        try:
-            filename = 'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf'
-            stat = os.stat(filename)
-        except:
-            try:
-                filename = '/media/windows/Documents and Settings/Reza ' \
-                                'Lotun/Desktop/Surfdata/' \
-                                '87 - track 7c spontaneous craziness.srf'
-                stat = os.stat(filename)
-            except:
-                try:
-                    filename = '/data/87 - track 7c spontaneous craziness.srf'
-                    stat = os.stat(filename)
-                except:
-                    try:
-                        filename = '/Users/rlotun/work/spyke/data/smallSurf'
-                        stat = os.stat(filename)
-                    except:
-                        filename = '/home/rlotun/spyke/data/smallSurf'
-        '''
         filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
                      'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf',
                      '/media/windows/Documents and Settings/Reza ' \
