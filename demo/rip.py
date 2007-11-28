@@ -3,8 +3,12 @@
 __author__ = 'Reza Lotun'
 
 import cPickle
+import struct
 
 import numpy
+
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 import spyke.surf
 import spyke.stream
@@ -38,6 +42,23 @@ class Ripper(object):
         f = file(temp_ripped, 'wb')
         cPickle.dump(self.collection, f, -1)
 
+        self.plot()
+
+    def plot(self):
+        for i, template in enumerate(self.collection.templates):
+            fig = Figure()
+            canvas = FigureCanvas(fig)
+            ax = fig.add_subplot(111)
+            ax.plot(template.ripped_match)
+            ax.set_title(str(template))
+            canvas.print_figure(str(i)+str(template))
+
+            fig = Figure()
+            canvas = FigureCanvas(fig)
+            ax = fig.add_subplot(111)
+            ax.hist(template.ripped_match)
+            canvas.print_figure(str(i)+'hist'+str(template))
+
     def rip(self):
         print 'Starting ripping process...'
         self.reset()
@@ -49,7 +70,7 @@ class Ripper(object):
         self.cleanup()
 
     def fitTemplate(self, template):
-        window = 1e3     # ten seconds
+        window = int(1e6)     # ten seconds
 
         start = self.itime
 
@@ -65,22 +86,29 @@ class Ripper(object):
             while True:
                 # fit to whole file
                 chunk = self.surf_stream[start:start + window].data
-                print chunk
-                for i in xrange(start, last_point + 1):
-                    print i
+                buf_size = chunk.shape[1]
+                end_point = buf_size - width
+                #print chunk
+                for i in xrange(end_point):
+                    #print i
                     data = template.mean().data
-                    error = sum(sum((chunk[i:i + width] - data) ** 2))
+                    #print chunk[:,i: i + width].shape, data.shape
+                    error = sum(sum((chunk[:,i:i + width] - data) ** 2))
                     template.ripped_match.append(error)
-                    print error
+                    #print error
                 start = last_point + 1
                 last_point = start + window - width
-        except:
+        except struct.error:
             # XXX: end of file?
+            print 'Done!'
             return
+        except:
+            raise
 
 
 if __name__ == '__main__':
     import sys
+    import os
     from spyke.gui.plot import filenames as FILENAMES
     if len(sys.argv) > 2:
         surf_name = sys.argv[1]
@@ -89,12 +117,14 @@ if __name__ == '__main__':
         collection_name = 'collection.pickle'
         for surf_name in FILENAMES:
             try:
-                stat = os.stat(filename)
+                stat = os.stat(surf_name)
+                print surf_name
                 break
             except:
                 continue
 
     collection = cPickle.load(file(collection_name))
+    print surf_name
     ripper = Ripper(collection, surf_name)
     ripper.rip()
 
