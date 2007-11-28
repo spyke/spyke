@@ -247,8 +247,8 @@ class SpikeSorter(wx.Frame):
     def _serialize(self, evt, *args):
         """ Serialize our collection """
         evt = evt.GetKeyEvent()
-        if not evt.ControlDown():
-            return
+        #if not evt.ControlDown():
+        #    return
 
         print '\n*************  Saving to ', self.fname, '  ************\n'
         try:

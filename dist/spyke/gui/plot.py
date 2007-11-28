@@ -366,18 +366,20 @@ class ClickableSortPanel(SortPanel):
 import spyke.detect
 import os
 
+filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
+             'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf',
+             '/media/windows/Documents and Settings/Reza ' \
+                        'Lotun/Desktop/Surfdata/' \
+                        '87 - track 7c spontaneous craziness.srf',
+             '/home/rlotun/data_spyke/'\
+                        '87 - track 7c spontaneous craziness.srf',
+             '/data/87 - track 7c spontaneous craziness.srf',
+             '/Users/rlotun/work/spyke/data/smallSurf',
+             '/home/rlotun/spyke/data/smallSurf',
+            ]
 class Opener(object):
     def __init__(self):
 
-        filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
-                     'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf',
-                     '/media/windows/Documents and Settings/Reza ' \
-                                'Lotun/Desktop/Surfdata/' \
-                                '87 - track 7c spontaneous craziness.srf',
-                     '/data/87 - track 7c spontaneous craziness.srf',
-                     '/Users/rlotun/work/spyke/data/smallSurf',
-                     '/home/rlotun/spyke/data/smallSurf',
-                    ]
         for filename in filenames:
             try:
                 stat = os.stat(filename)

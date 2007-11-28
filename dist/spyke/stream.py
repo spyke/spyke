@@ -208,3 +208,4 @@ class WaveForm(object):
         # array of timestamps, one for each sample (column) in self.data
         self.ts = ts
         self.sampfreq = sampfreq
+
