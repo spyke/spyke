@@ -91,7 +91,7 @@ class PlotPanel(FigureCanvasWxAgg):
         """ Set up axes """
         # self.pos is a map from channel -> [l, b, w, h] positions for plots
         for chan, sp in self.pos.iteritems():
-            a = self.figure.add_axes(sp, axisbg='y', frameon=False, alpha=1.)
+            a = self.figure.add_axes(sp, axisbg='b', frameon=False, alpha=1.)
 
             colours = [colour] * self.num_channels
             # create an instance of a searchable line
@@ -337,20 +337,26 @@ class SortPanel(EventPanel):
         self._toggleVisible(spike, colour)
         self.draw(True)
 
+
 class ClickableSortPanel(SortPanel):
     def __init__(self, *args, **kwargs):
         SortPanel.__init__(self, *args, **kwargs)
         self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
-        self.mpl_connect('button_press_event', self.onLeftDown)
+        self.Bind(wx.EVT_LEFT_DOWN, self.onClick, self)
+        #self.mpl_connect('button_press_event', self.onLeftDown)
 
-    def _sendEvent(self, channels):
+    def _sendEvent(self, coords):
         event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
-        event.channels = channels
+        event.coords = coords
         self.GetEventHandler().ProcessEvent(event)
 
     def onDoubleClick(self, evt):
-        channels = [False] * len(self.axesToChan)
-        self._sendEvent(channels)
+        coords = evt.GetPosition()
+        self._sendEvent(coords)
+
+    def onClick(self, evt):
+        coords = evt.GetPosition()
+        self._sendEvent(coords)
 
     def onLeftDown(self, event):
         a = event.inaxes
@@ -358,6 +364,7 @@ class ClickableSortPanel(SortPanel):
         chan = self.axesToChan[b]
         channels = [False] * len(self.axesToChan)
         channels[chan] = True
+        print 'Sending event!'
         self._sendEvent(channels)
 
 

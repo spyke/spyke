@@ -19,7 +19,7 @@ EVT_PLOT = wx.PyEventBinder(myEVT_PLOT, 1)
 class ClickedChannelEvent(wx.PyCommandEvent):
     def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)
-        self.channels = None
+        self.coords = None
 
 myEVT_CLICKED_CHANNEL = wx.NewEventType()
 EVT_CLICKED_CHANNEL = wx.PyEventBinder(myEVT_CLICKED_CHANNEL, 1)

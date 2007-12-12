@@ -40,6 +40,7 @@ class SpikeSorter(wx.Frame):
         self.collection = collection
         self.recycleBinNode = None
         self.currSelected = None
+        self.currentlyPlotted = {}  # keep track of currently selected
         self.layout = layout        # to order spikes appropriately
 
         self.SetTitle('Spike Sorter')
@@ -149,7 +150,7 @@ class SpikeSorter(wx.Frame):
         for tree in self.trees:
 
             # Node activation and transition
-            self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.onActivate, tree)
+            #self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.onActivate, tree)
             self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
             self.Bind(wx.EVT_TREE_SEL_CHANGED, self.onSelChanged, tree)
             self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.onRightClick, tree)
@@ -172,6 +173,7 @@ class SpikeSorter(wx.Frame):
             #self.Bind(wx.EVT_TREE_BEGIN_LABEL_EDIT, self.beginEdit, tree)
             #self.Bind(wx.EVT_TREE_END_LABEL_EDIT, self.endEdit, tree)
 
+
     def onSelChanging(self, evt):
         # remove currently plotted
         if self.currSelected:
@@ -180,12 +182,12 @@ class SpikeSorter(wx.Frame):
             self.currSelected = None
 
     def onSelChanged(self, evt):
-        # plot currently selected
-        it = evt.GetItem()
-        tree = self.FindFocus()
-        if it.IsOk():
-            self.currSelected = it
-            self._cmdPlot(evt, tree, it, True)
+        if not self.currSelected:
+            it = evt.GetItem()
+            tree = self.FindFocus()
+            if it.IsOk():
+                self.currSelected = it
+                self._cmdPlot(evt, tree, it, True)
 
     def vetoOnRoot(handler):
         """ Decorator which vetoes a certain event if it occurs on
@@ -313,6 +315,7 @@ class SpikeSorter(wx.Frame):
 
     # XXX: merge
     def clickedChannel(self, channels):
+        print 'Handling click!'
         curr = self.tree_Templates.GetSelection()
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.tree_Templates.GetPyData(curr)
@@ -726,9 +729,6 @@ class SpikeSorter(wx.Frame):
 
         raise Exception('Tree not found??!!')
 
-    def onActivate(self, evt):
-        print 'selected!'
-
 
 class SpikeDropSource(wx.DropSource):
     def __init__(self, tree):
@@ -996,7 +996,19 @@ class TestApp(wx.App):
             self.plotter.plotPanel.remove(evt.remove, evt.colour)
 
     def handleClickedChannel(self, evt):
-        self.sorter.clickedChannel(evt.channels)
+        window_size = self.plotter.GetSize()
+        #print 'size ', size.x, size.y
+        #print self.sorter.ScreenToClient
+
+
+        print window_size
+        print evt.coords
+        channels = self.getChannelMapping(window_size, evt.coords)
+        #self.sorter.clickedChannel(channels)
+
+
+    def getChannelMapping(self, window_size, point):
+        pass
 
     def makeCol(self):
         from spyke.stream import WaveForm
