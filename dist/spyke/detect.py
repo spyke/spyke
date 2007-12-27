@@ -131,8 +131,7 @@ class SimpleThreshold(Detector):
         """ Used to determine threshold and set initial state. """
 
         # get the stdeviation for each channel along a 10s window
-        #ten_seconds = 1e7
-        ten_seconds = 1e3
+        ten_seconds = 1e7
         chunk = self.stream[self.init_time:self.init_time + ten_seconds]
         self.std = {}
         for chan, d in enumerate(chunk.data):

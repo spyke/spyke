@@ -384,6 +384,7 @@ filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
              '/Users/rlotun/work/spyke/data/smallSurf',
              '/home/rlotun/spyke/data/smallSurf',
             ]
+
 class Opener(object):
     def __init__(self):
 
