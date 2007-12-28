@@ -12,7 +12,8 @@ import wx
 
 import spyke
 from spyke.layout import *
-from spyke.detect import Spike, Template, Collection, SimpleThreshold
+from spyke.detect import Spike, Template, Collection, SimpleThreshold, \
+                         MultiPhasic, DynamicMultiPhasic
 from spyke.gui.events import *
 from spyke.gui.plot import ClickableSortPanel
 
@@ -1024,7 +1025,8 @@ class TestApp(wx.App):
     def makeCol(self):
         from spyke.stream import WaveForm
         from random import randint
-        simp = SimpleThreshold(self.op.dstream, self.op.dstream.records[0].TimeStamp)
+        #simp = SimpleThreshold(self.op.dstream, self.op.dstream.records[0].TimeStamp)
+        simp = DynamicMultiPhasic(self.op.dstream, self.op.dstream.records[0].TimeStamp)
         spikes = []
         for i, spike in enumerate(simp):
             spikes.append(spike)
