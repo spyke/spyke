@@ -8,6 +8,8 @@ __author__ = 'Reza Lotun'
 import itertools
 import random
 
+import numpy
+
 import wx
 
 from matplotlib import rcParams
@@ -55,6 +57,86 @@ class SpykeLine(Line2D):
 
     def __eq__(self, other):
         return hash(self) == hash(other)
+
+
+class OneAxisPlotPanel(FigureCanvasWxAgg):
+    """ One axis plot panel. """
+    def __init__(self, frame, layout):
+        FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
+        self._plot_setup = False
+
+        self.pos = {}               # position of plots
+        self.channels = {}          # plot y-data for each channel
+        self.axes = {}              # axes for each channel, chan -> axes
+        self.axesToChan = {}        # axes -> chan
+
+        self.num_channels = len(layout)
+
+        # set layouts of the plot on the screen
+        self.set_plot_layout(layout)
+        self.set_params()
+
+    def set_params(self):
+        """ Set extra parameters. """
+        self.figure.set_facecolor('black')
+        self.SetBackgroundColour(wx.BLACK)
+        self.yrange = (-50, 50)
+        self.colours = ['g'] * self.num_channels
+
+    def init_plot(self, wave):
+        pos = [0, 0, 1, 1]
+        self.ax = self.figure.add_axes(pos,
+                                         axisbg='b',
+                                         frameon=False,
+                                         alpha=1.)
+        self.ax._visible = False
+        self.ax.autoscale_view()
+        self.ax.set_ylim(self.yrange)
+        self.ax.grid(True)
+        self.ax.set_xticks([])
+        self.ax.set_yticks([])
+        self.ax._visible = True
+        self.x_val = wave.ts
+        self.lines = {}
+        for chan, sp in self.pos.iteritems():
+            self.axes[chan] = self.ax
+            line = SpykeLine(self.x_val,
+                             wave.data[chan],
+                             linewidth=0.005,
+                             color=self.colours[chan],
+                             antialiased=False)
+            self.lines[chan] = line
+            self.ax.add_line(line)
+
+            self.channels[chan] = self.ax.get_lines()[0]
+
+            # maintain reverse mapping of axes -> channels
+            self.axesToChan[AxesWrapper(self.ax)] = chan
+
+        # redraw the disply
+        self.draw(True)
+
+    def plot(self, waveforms):
+        """ Plot waveforms """
+        # check if we've set up our axes yet
+        if not self._plot_setup:
+            self.init_plot(waveforms)
+            self._plot_setup = True
+
+        # update plots with new data
+        for chan in self.channels:
+            self.lines[chan]._visible = False
+            line = SpykeLine(self.x_val,
+                             waveforms.data[chan] + self.pos[chan],
+                             linewidth=0.005,
+                             color=self.colours[chan],
+                             antialiased=False)
+            self.ax.add_line(line)
+            self.lines[chan] = line
+            #self.channels[chan].set_ydata(waveforms.data[chan] + self.pos[chan] )
+            #print waveforms.data[chan] + 100
+            self.ax.set_ylim(self.yrange)
+        self.draw(True)
 
 
 class PlotPanel(FigureCanvasWxAgg):
@@ -168,6 +250,17 @@ class ChartPanel(PlotPanel):
         """
         num = self.num_channels
 
+        # project coordinates onto x and y axes repsectively
+        xcoords = [x for x, y in layout.itervalues()]
+        ycoords = [y for x, y in layout.itervalues()]
+
+        # get limits on coordinates
+        xmin, xmax = min(xcoords), max(xcoords)
+        ymin, ymax = min(ycoords), max(ycoords)
+
+
+
+
         # XXX: some magic numbers that should be tweaked as desired
         hMargin = 0.05
         vMargin = 0.03
@@ -184,6 +277,37 @@ class ChartPanel(PlotPanel):
         for chan, coords in layout.iteritems():
             bot = center - box_height / 2
             self.pos[chan] = [hMargin, bot, width, box_height]
+            center -= alpha
+
+
+class OneAxisChartPanel(OneAxisPlotPanel):
+    def set_params(self):
+        OneAxisPlotPanel.set_params(self)
+        colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
+        self.colours = []
+        for chan in xrange(self.num_channels):
+            self.colours.append(colgen.next())
+
+    def set_plot_layout(self, layout):
+        num = self.num_channels
+
+        # XXX: some magic numbers that should be tweaked as desired
+        hMargin = 0.05
+        vMargin = 0.03
+
+        box_height = 0.1
+
+        # total amout of vertical buffer space (that is, vertical margins)
+        vBuf = 2 * vMargin + box_height / 2 # XXX - heuristic/hack
+        alpha = (1 - vBuf) / (num - 1)      # distance between centers
+        width = 1 - 2 * hMargin
+
+        # the first channel starts at the top
+        center = 1 - vMargin - box_height / 4
+        for chan, coords in layout.iteritems():
+            bot = center - box_height / 2
+            #self.pos[chan] = [hMargin, bot, width, box_height]
+            self.pos[chan] = bot * 10
             center -= alpha
 
 
@@ -407,6 +531,10 @@ class Opener(object):
 
 
 class TestWindows(wx.App):
+    def __init__(self, *args, **kwargs):
+        kwargs['redirect'] = False
+        wx.App.__init__(self, *args, **kwargs)
+
     def OnInit(self):
         op = Opener()
         self.events = panel = TestEventWin(None, -1, 'Events', op,
@@ -415,10 +543,13 @@ class TestWindows(wx.App):
                                                             size=(500,600))
         self.sort = panel3 = TestSortWin(None, -1, 'Data', op,
                                                             size=(200,900))
+        self.chart2 = panel4 = TestOneAxisChartWin(None, -1, 'Chart One Axis', op,
+                                                            size=(500,600))
         self.SetTopWindow(self.events)
         self.events.Show(True)
         self.chart.Show(True)
         self.sort.Show(True)
+        self.chart2.Show(True)
 
         return True
 
@@ -494,6 +625,25 @@ class TestChartWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
         self.plotPanel = ChartPanel(self, self.layout.SiteLoc)
+
+        self.data = None
+        self.points = []
+        self.selectionPoints = []
+        self.borderAxes = None
+        self.curr = op.curr
+        self.incr = 5000
+        self.timer.Start(100)
+
+    def onTimerEvent(self, evt):
+        waveforms = self.stream[self.curr:self.curr+self.incr]
+        self.curr += self.incr
+        self.plotPanel.plot(waveforms)
+
+
+class TestOneAxisChartWin(PlayWin):
+    def __init__(self, parent, id, title, op, **kwds):
+        PlayWin.__init__(self, parent, id, title, op, **kwds)
+        self.plotPanel = OneAxisChartPanel(self, self.layout.SiteLoc)
 
         self.data = None
         self.points = []

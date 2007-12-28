@@ -291,10 +291,21 @@ class SpikeSorter(wx.Frame):
         """ Toggles focus between the two trees and returns the newly
         focused-upon tree.
         """
+        self.onSelChanging(evt)
         for tr in self.trees:
             if tr != currTree:
                 tr.SetFocus()
+                break
         self.currentTree = tr
+        #self.onSelChanged(evt)
+        if not self.currSelected:
+            #it = evt.GetItem()
+            tree = self.FindFocus()
+            it = tree.GetSelection()
+            if it.IsOk():
+                self.currSelected = it
+                self._cmdPlot(evt, tree, it, True)
+
         return tr
 
     #XXX merge the following two methods
