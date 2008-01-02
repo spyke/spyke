@@ -148,10 +148,62 @@ class FixedThreshold(Detector):
 
         self.lockout = self.LOCKOUT
 
+    def yield_events(self, chan_events):
+        # sort event indices
+        chan_events.sort()
+
+        for event_index, chan in chan_events:
+
+            # if the event is firing before our current location
+            # then we're in lockout mode and should just continue
+            if self.window.ts[event_index] < self.curr:
+                continue
+
+            # reposition window for each event
+            self.curr = self.window.ts[event_index] - self.SPIKE_PRE
+            spike = self.stream[self.curr:self.curr + \
+                                self.SPIKE_PRE + self.SPIKE_POST]
+            self.curr = self.curr + self.SPIKE_PRE + \
+                            self.SPIKE_POST + self.lockout
+            #self.window = self.stream[self.curr:self.curr + \
+            #                                    self.search_span]
+            yield Spike(spike, chan, self.window.ts[event_index])
+
+
+class SimpleThreshold(FixedThreshold):
+    """ Bipolar amplitude threshold, with fixed lockout on all channels."""
+
+    def find(self):
+        # maintain state and search forward for a spike
+
+        # keep on sliding our search window forward to find spikes
+        while True:
+
+            # check if we have a channel firing above threshold
+            chan_events = []
+            for chan, thresh in self.thresholds.iteritems():
+                # this will only be along one dimension
+                _ev = where(numpy.abs(self.window.data[chan]) > thresh)[0]
+                if len(_ev) > 0:
+                    # scan forward to find local max
+                    #                    x  <----  want to find this
+                    #  have inds ---{ x     x
+                    #      ---------x----------------  threshold
+                    thresh_vals = [(abs(self.window.data[chan][ind]), ind) \
+                                        for ind in _ev.tolist()]
+                    max_val, max_ind = max(thresh_vals)
+                    chan_events.append((max_ind, chan))
+
+                for evt in self.yield_events(chan_events):
+                    yield evt
+
+            self.curr += self.search_span
+            self.window = self.stream[self.curr:self.curr + self.search_span]
+
 
 class MultiPhasic(FixedThreshold):
     """ Multiphasic filter - spikes triggered only when consecutive
-    thresholds of opposite polarity occured on a given channel within
+    thresholds of opposite polarity occur on a given channel within
     a specified time window delta_t
 
     That is, either:
@@ -167,7 +219,7 @@ class MultiPhasic(FixedThreshold):
     SPIKE_POST = 750
     SEARCH_SPAN = 1e3
     LOCKOUT = 1e3
-    delta_t = 1e2
+    delta_t = 3e2
 
     def find(self):
         # maintain state and search forward for a spike
@@ -203,25 +255,8 @@ class MultiPhasic(FixedThreshold):
                             chan_events.append((ind, chan))
                             break
 
-            # sort event indices
-            chan_events.sort()
-
-            for event_index, chan in chan_events:
-
-                # if the event is firing before our current location
-                # then we're in lockout mode and should just continue
-                if self.window.ts[event_index] < self.curr:
-                    continue
-
-                # reposition window for each event
-                self.curr = self.window.ts[event_index] - self.SPIKE_PRE
-                spike = self.stream[self.curr:self.curr + \
-                                    self.SPIKE_PRE + self.SPIKE_POST]
-                self.curr = self.curr + self.SPIKE_PRE + \
-                                self.SPIKE_POST + self.lockout
-                #self.window = self.stream[self.curr:self.curr + \
-                #                                    self.search_span]
-                yield Spike(spike, chan, self.window.ts[event_index])
+                for evt in self.yield_events(chan_events):
+                    yield evt
 
             self.curr += self.search_span
             self.window = self.stream[self.curr:self.curr + self.search_span]
@@ -248,15 +283,14 @@ class DynamicMultiPhasic(FixedThreshold):
     SPIKE_POST = 750
     SEARCH_SPAN = 1e3
     LOCKOUT = 1e3
-    delta_t = 1e2
-    f_inflect = None
+    delta_t = 3e2
 
     def setup(self):
         FixedThreshold.setup(self)
         self.f_inflect = {}
         # set f' to be 3.5 * standard deviation (see paper)
         for chan, val in self.std.iteritems():
-            self.f_inflect[chan] = 3.5 * self.THRESH_MULT
+            self.f_inflect[chan] = 3.5 * val
 
     def find(self):
         # maintain state and search forward for a spike
@@ -282,117 +316,52 @@ class DynamicMultiPhasic(FixedThreshold):
 
                     # scan forward to find local max or local min
                     extremal_ind = ind
-                    extremal_val = self.window.data[chan][extremal_ind]
-                    while True:
-                        next_ind = extremal_ind + 1
-                        next_val = self.window.data[chan][next_ind]
-                        if abs(next_val) < abs(extremal_val):
-                            break
-                        extremal_val, extremal_ind = next_val, next_ind
-
-                    print 'extreme: ', extremal_val, extremal_ind
+                    extremal_val = val
+                    #while True:
+                    #    next_ind = extremal_ind + 1
+                    #    next_val = self.window.data[chan][next_ind]
+                    #    if abs(next_val) < abs(extremal_val):
+                    #        break
+                    #    extremal_val, extremal_ind = next_val, next_ind
 
                     # calculate our dynamic threshold
                     # TODO: make this more compact
-                    if extremal_val < val:
+                    if extremal_val < 0:
                         # a valley
                         dyn_thresh = extremal_val + self.f_inflect[chan]
                         dyn_events = where(self.window.data[chan] \
                                                         > dyn_thresh)[0]
-                        dyn_vals = [(self.window.data[chan][_ind], _ind) \
-                                        for _ind in dyn_events.tolist()]
-                        print dyn_vals
-
                     else:
                         # a peak
                         dyn_thresh = extremal_val - self.f_inflect[chan]
                         dyn_events = where(self.window.data[chan] \
                                                         < dyn_thresh)[0]
-                        dyn_vals = [(self.window.data[chan][_ind], _ind) \
-                                        for _ind in dyn_events.tolist()]
-                        print dyn_vals
 
-
-                    t = self.window.ts[ind]
+                    dyn_vals = [(self.window.data[chan][_ind], _ind) \
+                                    for _ind in dyn_events.tolist()]
+                    t = self.window.ts[extremal_ind]
                     # check for next inflection
                     for dyn_val, t_ind in dyn_vals:
-                        # check ahead only within +/- delt_t
+                        # check ahead only within +/- delta_t
                         t_prime = self.window.ts[t_ind]
-                        if abs(t_prime - t) > self.delta_t:
+                        if (t_prime > t - self.delta_t) and \
+                                (t_prime <= t + self.delta_t):
                             break
 
-                        chan_events.append((extremal_ind, chan))
-                        print 'events: ', chan_events
+                        event_val = extremal_val
+                        event_ind = extremal_ind
+                        if abs(dyn_val) > abs(extremal_val):
+                            event_val = dyn_val
+                            event_ind = t_ind
+                        chan_events.append((event_ind, chan))
                         break
 
-            # sort event indices
-            chan_events.sort()
-
-            for event_index, chan in chan_events:
-
-                # if the event is firing before our current location
-                # then we're in lockout mode and should just continue
-                if self.window.ts[event_index] < self.curr:
-                    continue
-
-                # reposition window for each event
-                self.curr = self.window.ts[event_index] - self.SPIKE_PRE
-                spike = self.stream[self.curr:self.curr + \
-                                    self.SPIKE_PRE + self.SPIKE_POST]
-                self.curr = self.curr + self.SPIKE_PRE + \
-                                self.SPIKE_POST + self.lockout
-                #self.window = self.stream[self.curr:self.curr + \
-                #                                    self.search_span]
-                yield Spike(spike, chan, self.window.ts[event_index])
+                # yield all the events we've found
+                for evt in self.yield_events(chan_events):
+                    yield evt
 
             self.curr += self.search_span
             self.window = self.stream[self.curr:self.curr + self.search_span]
 
 
-class SimpleThreshold(FixedThreshold):
-    """ Bipolar amplitude threshold, with fixed lockout on all channels."""
-
-    def find(self):
-        # maintain state and search forward for a spike
-
-        # keep on sliding our search window forward to find spikes
-        while True:
-
-            # check if we have a channel firing above threshold
-            chan_events = []
-            for chan, thresh in self.thresholds.iteritems():
-                # this will only be along one dimension
-                _ev = where(numpy.abs(self.window.data[chan]) > thresh)[0]
-                if len(_ev) > 0:
-                    # scan forward to find local max
-                    #                    x  <----  want to find this
-                    #  have inds ---{ x     x
-                    #      ---------x----------------  threshold
-                    thresh_vals = [(abs(self.window.data[chan][ind]), ind) \
-                                        for ind in _ev.tolist()]
-                    max_val, max_ind = max(thresh_vals)
-                    chan_events.append((max_ind, chan))
-
-            # sort event indices
-            chan_events.sort()
-
-            for event_index, chan in chan_events:
-
-                # if the event is firing before our current location
-                # then we're in lockout mode and should just continue
-                if self.window.ts[event_index] < self.curr:
-                    continue
-
-                # reposition window for each event
-                self.curr = self.window.ts[event_index] - self.SPIKE_PRE
-                spike = self.stream[self.curr:self.curr + \
-                                    self.SPIKE_PRE + self.SPIKE_POST]
-                self.curr = self.curr + self.SPIKE_PRE + \
-                                self.SPIKE_POST + self.lockout
-                #self.window = self.stream[self.curr:self.curr + \
-                #                                    self.search_span]
-                yield Spike(spike, chan, self.window.ts[event_index])
-
-            self.curr += self.search_span
-            self.window = self.stream[self.curr:self.curr + self.search_span]
 
