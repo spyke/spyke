@@ -64,8 +64,16 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
+        self.layout = layout
 
-        self.pos = {}               # position of plots
+        # create our one axis to rule them all
+        pos = [0, 0, 1, 1]
+        self.ax = self.figure.add_axes(pos,
+                                       axisbg='b',
+                                       frameon=False,
+                                       alpha=1.)
+
+        self.pos = {}               # position of lines
         self.channels = {}          # plot y-data for each channel
         self.axes = {}              # axes for each channel, chan -> axes
         self.axesToChan = {}        # axes -> chan
@@ -73,7 +81,7 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         self.num_channels = len(layout)
 
         # set layouts of the plot on the screen
-        self.set_plot_layout(layout)
+        #self.set_plot_layout(layout)
         self.set_params()
 
     def set_params(self):
@@ -84,15 +92,10 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         self.colours = ['g'] * self.num_channels
 
     def init_plot(self, wave):
-        pos = [0, 0, 1, 1]
-        self.ax = self.figure.add_axes(pos,
-                                         axisbg='b',
-                                         frameon=False,
-                                         alpha=1.)
+        self.set_plot_layout(wave)
         self.ax._visible = False
-        self.ax.autoscale_view()
-        self.ax.set_ylim(self.yrange)
-        self.ax.grid(True)
+        #self.ax.autoscale_view()
+        #self.ax.grid(True)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         self.ax._visible = True
@@ -100,8 +103,9 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         self.lines = {}
         for chan, sp in self.pos.iteritems():
             self.axes[chan] = self.ax
-            line = SpykeLine(self.x_val,
-                             wave.data[chan],
+            x_off, y_off = self.pos[chan]
+            line = SpykeLine(self.x_val + x_off,
+                             wave.data[chan] + y_off,
                              linewidth=0.005,
                              color=self.colours[chan],
                              antialiased=False)
@@ -126,8 +130,9 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         # update plots with new data
         for chan in self.channels:
             self.lines[chan]._visible = False
-            line = SpykeLine(self.x_val,
-                             waveforms.data[chan] + self.pos[chan],
+            x_off, y_off = self.pos[chan]
+            line = SpykeLine(self.x_val + x_off,
+                             waveforms.data[chan] + y_off,
                              linewidth=0.005,
                              color=self.colours[chan],
                              antialiased=False)
@@ -135,7 +140,7 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
             self.lines[chan] = line
             #self.channels[chan].set_ydata(waveforms.data[chan] + self.pos[chan] )
             #print waveforms.data[chan] + 100
-            self.ax.set_ylim(self.yrange)
+            #self.ax.set_ylim(self.yrange)
         self.draw(True)
 
 
@@ -258,9 +263,6 @@ class ChartPanel(PlotPanel):
         xmin, xmax = min(xcoords), max(xcoords)
         ymin, ymax = min(ycoords), max(ycoords)
 
-
-
-
         # XXX: some magic numbers that should be tweaked as desired
         hMargin = 0.05
         vMargin = 0.03
@@ -288,27 +290,72 @@ class OneAxisChartPanel(OneAxisPlotPanel):
         for chan in xrange(self.num_channels):
             self.colours.append(colgen.next())
 
-    def set_plot_layout(self, layout):
+    def set_plot_layout(self, wave):
         num = self.num_channels
-
-        # XXX: some magic numbers that should be tweaked as desired
-        hMargin = 0.05
-        vMargin = 0.03
-
-        box_height = 0.1
-
-        # total amout of vertical buffer space (that is, vertical margins)
-        vBuf = 2 * vMargin + box_height / 2 # XXX - heuristic/hack
-        alpha = (1 - vBuf) / (num - 1)      # distance between centers
-        width = 1 - 2 * hMargin
-
         # the first channel starts at the top
-        center = 1 - vMargin - box_height / 4
+        self.ax.set_ylim(-50, 54*100 - 50)
+        self.ax.set_xlim(min(wave.ts), max(wave.ts))
+        for chan, coords in self.layout.iteritems():
+            self.pos[chan] = (0, chan * 100)
+
+
+class OneAxisEventPanel(OneAxisPlotPanel):
+    """ Event window widget. Presents all channels layed out according
+    to the passed in layout.
+    """
+    def set_params(self):
+        OneAxisPlotPanel.set_params(self)
+        self.colours = ['y'] * self.num_channels
+
+    def set_plot_layout(self, wave):
+        """ Map from polytrode locations given as (x, y) coordinates
+        into position information for the spike plots, which are stored
+        as a list of four values [l, b, w, h]. To illustrate this, consider
+        loc_i = (x, y) are the coordinates for the polytrode on channel i.
+        We want to map these coordinates to the unit square.
+           (0,1)                          (1,1)
+              +------------------------------+
+              |        +--(w)--+
+              |<-(l)-> |       |
+              |        |  x,y (h)
+              |        |       |
+              |        +-------+
+              |            ^
+              |            | (b)
+              |            v
+              +------------------------------+
+             (0,0)                          (0,1)
+        """
+        layout = self.layout
+        # project coordinates onto x and y axes repsectively
+        xcoords = [x for x, y in layout.itervalues()]
+        ycoords = [y for x, y in layout.itervalues()]
+
+
+        # get limits on coordinates
+        xmin, xmax = min(xcoords), max(xcoords)
+        ymin, ymax = min(ycoords), max(ycoords)
+
+        self.ax.set_ylim(ymin, ymax)
+        col_width = max(wave.ts) - min(wave.ts)
+        x_cols = list(set(xcoords))
+        num_cols = len(x_cols)
+
+        #        x           x           x
+        #  -------------- ----------  -----------
+        # each x should be the center of the columns
+        # each columb should be min(wave.ts) - max(wave.ts)
+        self.ax.set_xlim(min(wave.ts), num_cols*max(wave.ts))
+        self.pos = {}
+        x_offsets = {}
+        for i, x in enumerate(sorted(x_cols)):
+            x_offsets[x] = i * col_width
+
         for chan, coords in layout.iteritems():
-            bot = center - box_height / 2
-            #self.pos[chan] = [hMargin, bot, width, box_height]
-            self.pos[chan] = bot * 10
-            center -= alpha
+            x, y = coords
+            x_off = x_offsets[x]
+            y_off = y
+            self.pos[chan] = (x_off, y_off)
 
 
 class EventPanel(PlotPanel):
@@ -537,19 +584,16 @@ class TestWindows(wx.App):
 
     def OnInit(self):
         op = Opener()
-        self.events = panel = TestEventWin(None, -1, 'Events', op,
+        self.events = panel = TestOneAxisEventWin(None, -1, 'Events', op,
                                                             size=(200,900))
-        self.chart = panel2 = TestChartWin(None, -1, 'Chart', op,
-                                                            size=(500,600))
         self.sort = panel3 = TestSortWin(None, -1, 'Data', op,
                                                             size=(200,900))
-        self.chart2 = panel4 = TestOneAxisChartWin(None, -1, 'Chart One Axis', op,
+        self.chart = panel4 = TestOneAxisChartWin(None, -1, 'Chart One Axis', op,
                                                             size=(500,600))
         self.SetTopWindow(self.events)
         self.events.Show(True)
-        self.chart.Show(True)
         self.sort.Show(True)
-        self.chart2.Show(True)
+        self.chart.Show(True)
 
         return True
 
@@ -620,6 +664,23 @@ class TestEventWin(PlayWin):
         self.curr += self.incr
         self.plotPanel.plot(waveforms)
 
+class TestOneAxisEventWin(PlayWin):
+    def __init__(self, parent, id, title, op, **kwds):
+        PlayWin.__init__(self, parent, id, title, op, **kwds)
+
+        self.plotPanel = OneAxisEventPanel(self, self.layout.SiteLoc)
+
+        self.data = None
+        self.points = []
+        self.selectionPoints = []
+        self.borderAxes = None
+        self.curr = op.curr
+        self.timer.Start(200)
+
+    def onTimerEvent(self, evt):
+        waveforms = self.stream[self.curr:self.curr+self.incr]
+        self.curr += self.incr
+        self.plotPanel.plot(waveforms)
 
 class TestChartWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
