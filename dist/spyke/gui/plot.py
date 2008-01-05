@@ -91,7 +91,7 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         self.yrange = (-50, 50)
         self.colours = ['g'] * self.num_channels
 
-    def init_plot(self, wave):
+    def init_plot(self, wave, colour='g'):
         self.set_plot_layout(wave)
         self.ax._visible = False
         #self.ax.autoscale_view()
@@ -99,20 +99,22 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         self.ax._visible = True
-        self.x_val = wave.ts
-        self.lines = {}
+        self.x_vals = wave.ts
+        colours = [colour] * self.num_channels
+        self.rza_lines = {}
         for chan, sp in self.pos.iteritems():
             self.axes[chan] = self.ax
             x_off, y_off = self.pos[chan]
-            line = SpykeLine(self.x_val + x_off,
+            line = SpykeLine(self.x_vals + x_off,
                              wave.data[chan] + y_off,
                              linewidth=0.005,
                              color=self.colours[chan],
                              antialiased=False)
-            self.lines[chan] = line
+            line.colour = colour
+            self.rza_lines[chan] = line
             self.ax.add_line(line)
 
-            self.channels[chan] = self.ax.get_lines()[0]
+            self.channels[chan] = line
 
             # maintain reverse mapping of axes -> channels
             self.axesToChan[AxesWrapper(self.ax)] = chan
@@ -129,18 +131,15 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
 
         # update plots with new data
         for chan in self.channels:
-            self.lines[chan]._visible = False
+            self.rza_lines[chan]._visible = False
             x_off, y_off = self.pos[chan]
-            line = SpykeLine(self.x_val + x_off,
+            line = SpykeLine(self.x_vals + x_off,
                              waveforms.data[chan] + y_off,
                              linewidth=0.005,
                              color=self.colours[chan],
                              antialiased=False)
             self.ax.add_line(line)
-            self.lines[chan] = line
-            #self.channels[chan].set_ydata(waveforms.data[chan] + self.pos[chan] )
-            #print waveforms.data[chan] + 100
-            #self.ax.set_ylim(self.yrange)
+            self.rza_lines[chan] = line
         self.draw(True)
 
 
@@ -307,6 +306,7 @@ class OneAxisEventPanel(OneAxisPlotPanel):
         OneAxisPlotPanel.set_params(self)
         self.colours = ['y'] * self.num_channels
 
+
     def set_plot_layout(self, wave):
         """ Map from polytrode locations given as (x, y) coordinates
         into position information for the spike plots, which are stored
@@ -331,13 +331,14 @@ class OneAxisEventPanel(OneAxisPlotPanel):
         xcoords = [x for x, y in layout.itervalues()]
         ycoords = [y for x, y in layout.itervalues()]
 
-
         # get limits on coordinates
         xmin, xmax = min(xcoords), max(xcoords)
         ymin, ymax = min(ycoords), max(ycoords)
 
-        self.ax.set_ylim(ymin, ymax)
-        col_width = max(wave.ts) - min(wave.ts)
+        # base this on heuristics eventually XXX
+        # define the width and height of the bounding boxes
+        col_width = max(wave.ts) - min(wave.ts) - 100    # slight overlap
+
         x_cols = list(set(xcoords))
         num_cols = len(x_cols)
 
@@ -345,16 +346,29 @@ class OneAxisEventPanel(OneAxisPlotPanel):
         #  -------------- ----------  -----------
         # each x should be the center of the columns
         # each columb should be min(wave.ts) - max(wave.ts)
-        self.ax.set_xlim(min(wave.ts), num_cols*max(wave.ts))
-        self.pos = {}
+        self.ax.set_xlim(min(wave.ts), num_cols*col_width)
+
         x_offsets = {}
         for i, x in enumerate(sorted(x_cols)):
             x_offsets[x] = i * col_width
+        # For each coordinate, with the given bounding boxes defined above
+        # center these boxes on the coordinates, and adjust to produce
+        # percentages
+        y_rows = list(set(ycoords))
+        num_rows = len(y_rows)
+        row_height = 100
+        y_offsets = {}
+        self.ax.set_ylim(-100, num_rows*row_height)
+        for i, y in enumerate(sorted(y_rows)):
+            y_offsets[y] = i * row_height
 
+        self.pos = {}
         for chan, coords in layout.iteritems():
             x, y = coords
+            #x_off = x_offsets[x]
+
             x_off = x_offsets[x]
-            y_off = y
+            y_off = y_offsets[y]
             self.pos[chan] = (x_off, y_off)
 
 
@@ -426,20 +440,20 @@ class EventPanel(PlotPanel):
             self.pos[chan] = [l, b, w, h]
 
 
-class SortPanel(EventPanel):
+class SortPanel(OneAxisEventPanel):
     """ Sorting window widget. Presents all channels layed out according
     to the passed in layout. Also allows overplotting and some user
     interaction
     """
     def __init__(self, *args, **kwargs):
-        EventPanel.__init__(self, *args, **kwargs)
+        OneAxisEventPanel.__init__(self, *args, **kwargs)
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
-        self.x_vals = None
+        #self.x_vals = None
         self._initialized = False
         self.top = 10
 
     def set_params(self):
-        PlotPanel.set_params(self)
+        OneAxisPlotPanel.set_params(self)
         self.colours = ['g'] * self.num_channels
 
     def _toggleVisible(self, spike, colour, top=None):
@@ -472,10 +486,11 @@ class SortPanel(EventPanel):
             self.init_plot(spike, colour)
 
             # always plot w.r.t. these x points
-            self.x_vals = spike.ts
+            #self.x_vals = spike.ts
 
             lines = []
             for num, channel in self.channels.iteritems():
+                #x_off, y_off = self.pos[channel]
                 lines.append(channel)
             self.spikes[(spike, colour)] = [lines, True]
             self._initialized = True
@@ -486,17 +501,18 @@ class SortPanel(EventPanel):
 
         elif (spike, colour) not in self.spikes:
             lines = []
-            for chan, axis in self.axes.iteritems():
-                line = SpykeLine(self.x_vals,
-                                 spike.data[chan],
+            for chan in self.channels:
+                x_off, y_off = self.pos[chan]
+                line = SpykeLine(self.x_vals + x_off,
+                                 spike.data[chan] + y_off,
                                  linewidth=0.005,
                                  color=colours[chan],
                                  antialiased=False)
                 line._visible = False
                 line.colour = colour
-                axis.add_line(line)
-                axis.autoscale_view()
-                axis.set_ylim(self.yrange)
+                self.ax.add_line(line)
+                #axis.autoscale_view()
+                #axis.set_ylim(self.yrange)
                 line._visible = True
                 lines.append(line)
             self.spikes[(spike, colour)] = [lines, True]
