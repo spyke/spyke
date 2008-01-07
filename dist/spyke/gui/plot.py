@@ -97,14 +97,16 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
                                        axisbg='b',
                                        frameon=False,
                                        alpha=1.)
+        self.static_x_vals = None
         self.set_plot_layout(wave)
         self.my_ax._visible = False
         #self.ax.autoscale_view()
         #self.ax.grid(True)
         self.my_ax.set_xticks([])
         self.my_ax.set_yticks([])
-        self.static_x_vals = wave.ts
+        self.static_x_vals = numpy.asarray(wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts)))
         self.rza_lines = {}
+        self.my_ax._autoscaleon = False
         for chan, sp in self.pos.iteritems():
             self.axes[chan] = self.my_ax
             x_off, y_off = self.pos[chan]
@@ -143,16 +145,16 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
             #                 color=self.colours[chan],
             #                 antialiased=False)
             #self.ax.add_line(line)
-            #self.rza_lines[chan].set_ydata(waveforms.data[chan] + y_off)
+            self.rza_lines[chan].set_ydata(waveforms.data[chan] + y_off)
             #self.rza_lines[chan].set_xdata(self.static_x_vals + x_off)
-            self.rza_lines[chan].set_data(self.static_x_vals + x_off, waveforms.data[chan] + y_off)
-            self.my_ax.set_ylim(self.my_ylim)
-            self.my_ax.set_xlim(self.my_xlim)
+            #self.rza_lines[chan].set_data(self.static_x_vals + x_off, waveforms.data[chan] + y_off)
+            #self.my_ax.set_ylim(self.my_ylim)
+            #self.my_ax.set_xlim(self.my_xlim)
             self.rza_lines[chan]._visible = True
         print 'Y: ', self.my_ax.get_ylim()
         print 'X: ', self.my_ax.get_xlim()
-        self.my_ax.set_ylim(self.my_ylim)
-        self.my_ax.set_xlim(self.my_xlim)
+        #self.my_ax.set_ylim(self.my_ylim)
+        #self.my_ax.set_xlim(0, 1000)
         self.my_ax._visible = True
             #self.channels[chan]
             #line._visible = True
@@ -363,7 +365,10 @@ class OneAxisEventPanel(OneAxisPlotPanel):
         # each x should be the center of the columns
         # each columb should be min(wave.ts) - max(wave.ts)
         self.my_xlim = (min(wave.ts), num_cols*col_width)
-        self.my_ax.set_xlim(min(wave.ts), num_cols*col_width)
+        shifted = wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts))
+        self.my_xlim = (min(shifted), num_cols*col_width)
+        self.my_ax.set_xlim(self.my_xlim)
+
 
         x_offsets = {}
         for i, x in enumerate(sorted(x_cols)):
@@ -388,6 +393,7 @@ class OneAxisEventPanel(OneAxisPlotPanel):
             y_off = y_offsets[y]
             self.pos[chan] = (x_off, y_off)
 
+        print 'LIMITS: ', self.my_xlim, self.my_ylim
 
 class EventPanel(PlotPanel):
     """ Event window widget. Presents all channels layed out according
@@ -464,10 +470,10 @@ class OneAxisSortPanel(OneAxisEventPanel):
     """
     def __init__(self, *args, **kwargs):
         OneAxisEventPanel.__init__(self, *args, **kwargs)
-        #self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
+        self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         #self.x_vals = None
-        #self._initialized = False
-        #self.top = 10
+        self._initialized = False
+        self.top = 10
 
     def set_params(self):
         OneAxisPlotPanel.set_params(self)
@@ -520,7 +526,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
             lines = []
             for chan in self.channels:
                 x_off, y_off = self.pos[chan]
-                line = SpykeLine(self.x_vals + x_off,
+                line = SpykeLine(self.static_x_vals + x_off,
                                  spike.data[chan] + y_off,
                                  linewidth=0.005,
                                  color=colours[chan],
@@ -746,8 +752,8 @@ class TestSortWin(PlayWin):
                                             self.stream.records[0].TimeStamp)
         self.event_iter = iter(simp)
 
-        #self.plotPanel = SortPanel(self, self.layout.SiteLoc)
-        self.plotPanel = OneAxisEventPanel(self, self.layout.SiteLoc)
+        self.plotPanel = SortPanel(self, self.layout.SiteLoc)
+        #self.plotPanel = OneAxisEventPanel(self, self.layout.SiteLoc)
         #self.plotPanel = ManyAxisSortPanel(self, self.layout.SiteLoc)
 
         #self.data = None
