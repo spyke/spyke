@@ -327,7 +327,6 @@ class SpikeSorter(wx.Frame):
 
     # XXX: merge
     def clickedChannel(self, channels):
-        print 'Handling click!'
         curr = self.tree_Templates.GetSelection()
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.tree_Templates.GetPyData(curr)
@@ -335,7 +334,7 @@ class SpikeSorter(wx.Frame):
             data = data.mean()
             event.plot = data
             event.channels = channels
-            event.colour = 'b'
+            event.colour = 'y'
             self.GetEventHandler().ProcessEvent(event)
 
     def _modifyPlot(self, evt, tree, item):
@@ -1008,19 +1007,7 @@ class TestApp(wx.App):
             self.plotter.plotPanel.remove(evt.remove, evt.colour)
 
     def handleClickedChannel(self, evt):
-        window_size = self.plotter.GetSize()
-        #print 'size ', size.x, size.y
-        #print self.sorter.ScreenToClient
-
-
-        print window_size
-        print evt.coords
-        channels = self.getChannelMapping(window_size, evt.coords)
-        #self.sorter.clickedChannel(channels)
-
-
-    def getChannelMapping(self, window_size, point):
-        pass
+        self.sorter.clickedChannel(evt.channels)
 
     def makeCol(self):
         from spyke.stream import WaveForm
