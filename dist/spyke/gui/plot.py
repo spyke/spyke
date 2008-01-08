@@ -311,7 +311,7 @@ class OneAxisChartPanel(OneAxisPlotPanel):
         num = self.num_channels
         # the first channel starts at the top
         self.my_ax.set_ylim(-50, 54*100 - 50)
-        self.my_ax.set_xlim(min(wave.ts), max(wave.ts))
+        self.my_ax.set_xlim(wave.ts.min(), wave.ts.max())
         for chan, coords in self.layout.iteritems():
             self.pos[chan] = (0, chan * 100)
 
@@ -355,7 +355,7 @@ class OneAxisEventPanel(OneAxisPlotPanel):
 
         # base this on heuristics eventually XXX
         # define the width and height of the bounding boxes
-        col_width = max(wave.ts) - min(wave.ts) - 100    # slight overlap
+        col_width = wave.ts.max() - wave.ts.min() - 100    # slight overlap
 
         x_cols = list(set(xcoords))
         num_cols = len(x_cols)
@@ -635,8 +635,13 @@ class ClickableSortPanel(OneAxisSortPanel):
     def __init__(self, *args, **kwargs):
         OneAxisSortPanel.__init__(self, *args, **kwargs)
         self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
-        self.Bind(wx.EVT_LEFT_DOWN, self.onClick, self)
-        #self.mpl_connect('button_press_event', self.onLeftDown)
+        #self.Bind(wx.EVT_LEFT_DOWN, self.onClick, self)
+        self.mpl_connect('button_press_event', self.onLeftDown)
+
+        self.xoff = sorted(list(set([x for x, y in self.pos.iteritems()])))
+        self.yoff = sorted(list(set([y for x, y in self.pos.iteritems()])))
+        self.numcols = len(self.xoff)
+        self.numrows = len(self.yoff)
 
     def _sendEvent(self, coords):
         event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
@@ -651,13 +656,24 @@ class ClickableSortPanel(OneAxisSortPanel):
         coords = evt.GetPosition()
         self._sendEvent(coords)
 
+    def pointToChannel(self, x, y):
+        """ Given an coordinate in the axis, find out what channel
+        we're clicking on.
+        """
+        NotImplementedError()
+
     def onLeftDown(self, event):
         a = event.inaxes
         b = AxesWrapper(a)
         chan = self.axesToChan[b]
-        channels = [False] * len(self.axesToChan)
+        channels = [False] * len(self.channels)
         channels[chan] = True
         print 'Sending event!'
+        print dir(event)
+        print event.xdata, event.ydata
+        print event.x, event.y
+        print event.name, event.key
+        print event.canvas
         self._sendEvent(channels)
 
 
