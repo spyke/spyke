@@ -5,15 +5,15 @@ spyke gui elements for spike sorting
 
 __author__ = 'Reza Lotun'
 
-import cPickle
 import unittest
 
 import wx
 
 import spyke
 from spyke.layout import *
-from spyke.detect import Spike, Template, Collection, SimpleThreshold, \
-                         MultiPhasic, DynamicMultiPhasic
+from spyke import Spike, Template, Collection
+from spyke import load_collection, write_collection
+from spyke.detect import SimpleThreshold, MultiPhasic, DynamicMultiPhasic
 from spyke.gui.events import *
 from spyke.gui.plot import ClickableSortPanel
 
@@ -254,17 +254,8 @@ class SpikeSorter(wx.Frame):
         #    return
 
         print '\n*************  Saving to ', self.fname, '  ************\n'
-        try:
-            try:
-                f = file(self.fname, 'wb')
-                # use highest pickle protocol available
-                cPickle.dump(self.collection, f, -1)
-                self.currentTree.SelectItem(args[1])
-            except:
-                # XXX
-                raise
-        finally:
-            f.close()
+        write_collection(self.collection, self.fname)
+        self.currentTree.SelectItem(args[1])
 
     # XXX can use code generation to auto-make these _select* methods
     def _selectNextItem(self, evt, currTree, it):
@@ -979,17 +970,10 @@ class TestApp(wx.App):
         op = Opener()
         self.op = op
         if self.fname:
-            try:
-                try:
-                    f = file(self.fname, 'rb')
-                    col = cPickle.load(f)
-                except:
-                    # XXX do something clever here
-                    raise
-            finally:
-                f.close()
+            col = load_collection(self.fname)
         else:
             col = self.makeCol()
+
         self.sorter = SpikeSorter(None, -1, 'Spike Sorter', op.layout.SiteLoc, self.fname, col, size=(500, 600))
         self.plotter = SorterWin(None, -1, 'Plot Sorter', op, size=(200, 900))
         self.SetTopWindow(self.sorter)
