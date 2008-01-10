@@ -7,6 +7,7 @@ __author__ = 'Reza Lotun'
 
 import numpy
 
+import spyke
 from spyke.stream import WaveForm
 
 class Spike(WaveForm):
@@ -31,12 +32,37 @@ class Spike(WaveForm):
         return hash(self) == hash(other)
 
 
-class Template(set):
+class Template(object):
     """ A spike template is simply a collection of spikes. """
-    def __init__(self, *args):
-        set.__init__(self, *args)
+    def __init__(self,):
+        self.active_channels = []
+        self._spikes = set()
         self.name = str(self)
-        self.active_channels = None
+        self._init_props = False
+
+    def remove(self, spike):
+        self._spikes.remove(spike)
+
+    def __repr__(self):
+        return repr(self._spikes)
+
+    def _set_props(self, spike):
+        dim = spike.data.shape
+        num_chans = dim[0]
+        self.active_channels = [True] * num_chans
+
+    def add(self, spike):
+        # trigger intialization of certain properties
+        if not self._init_props:
+            self._set_props(spike)
+            self._init_props = True
+        self._spikes.add(spike)
+
+    def __iter__(self):
+        return iter(self._spikes)
+
+    def __len__(self):
+        return len(self._spikes)
 
     def mean(self):
         """ Returns the mean of all the contained spikes. """
@@ -55,12 +81,15 @@ class Template(set):
 
         return _mean
 
+    def __eq__(self, oth):
+        return hash(self) == hash(oth)
+
     def __hash__(self):
         # XXX hmmm how probable would collisions be using this...?
         return hash(str(self.mean()) + str(self))
 
     def __str__(self):
-        return 'Template (' + str(len(self)) + ')'
+        return 'Template (' + str(len(self._spikes)) + ')'
 
 
 class Collection(object):
@@ -71,10 +100,14 @@ class Collection(object):
     of algorithmic and/or manual sorting.
     """
     def __init__(self, file=None):
-        # XXX: populate this with pertinent info
         self.templates = []
         self.unsorted_spikes = []        # these represent unsorted spikes
         self.recycle_bin = []
+        self.surf_hash = ''              # SHA1 hash of surf file
+
+    def verify_surf(self, surf_file):
+        """ Verifies that this collection corresponds to surf file. """
+        return spyke.get_sha1(surf_file) == self.data_hash
 
     def __len__(self):
         return len(self.templates)

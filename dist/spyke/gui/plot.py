@@ -50,6 +50,7 @@ class SpykeLine(Line2D):
     def __init__(self, *args, **kwargs):
         Line2D.__init__(self, *args, **kwargs)
         self.colour = 'none'
+        self.chan_mask = True       # is this channel-as-line displayed?
 
     def __hash__(self):
         """ Hash the string representation of the y data. """
@@ -453,7 +454,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
     """
     def __init__(self, *args, **kwargs):
         OneAxisEventPanel.__init__(self, *args, **kwargs)
-        self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
+        self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
         #self.x_vals = None
         self._initialized = False
         self.top = 10
@@ -467,7 +468,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
         curr_visible = not curr_visible
 
         for line in lines:
-            line._visible = curr_visible
+            line._visible = curr_visible and line.chan_mask
             line.zorder = self.top
 
         self.spikes[(spike, colour)][1] = curr_visible
@@ -477,6 +478,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
         for line, toggle in zip(lines, channels):
             if toggle:
                 line._visible = not(line._visible)
+                line.chan_mask = line._visible
 
     def add(self, spike, colour, top=False, channels=None):
         """ (Over)plot a given spike. """

@@ -255,6 +255,7 @@ class SpikeSorter(wx.Frame):
 
         print '\n*************  Saving to ', self.fname, '  ************\n'
         write_collection(self.collection, self.fname)
+        print 'Done.'
         self.currentTree.SelectItem(args[1])
 
     # XXX can use code generation to auto-make these _select* methods
@@ -319,11 +320,15 @@ class SpikeSorter(wx.Frame):
     # XXX: merge
     def clickedChannel(self, channels):
         curr = self.tree_Templates.GetSelection()
+        self.redisplayChannels(curr, channels)
+
+    def redisplayChannels(self, template_Node, channels):
         event = PlotEvent(myEVT_PLOT, self.GetId())
-        data = self.tree_Templates.GetPyData(curr)
-        if self._isTemplate(curr):
-            data = data.mean()
-            event.plot = data
+        data = self.tree_Templates.GetPyData(template_Node)
+        if self._isTemplate(template_Node):
+            template_plot = data.mean()
+            event.plot = template_plot
+            data.active_channels = channels
             event.channels = channels
             event.colour = 'y'
             self.GetEventHandler().ProcessEvent(event)
@@ -583,6 +588,12 @@ class SpikeSorter(wx.Frame):
         self._removeCurrentSelection(it)
         if isPlotted:
             self._modifyPlot(evt, self.tree_Templates, dest)
+
+        # make sure the deselected channels aren't shown
+        template = self.tree_Templates.GetPyData(dest)
+        print template.active_channels
+        self.redisplayChannels(dest, [not x for x in template.active_channels])
+
 
         print 'Collection: '
         print str(self.collection)

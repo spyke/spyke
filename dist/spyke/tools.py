@@ -54,7 +54,7 @@ def write_collection(collection, filename):
     with file(filename, 'wb') as f:
         try:
             g = gzip.GzipFile(fileobj=f, mode='wb')
-            cPickle.dump(collection, g, 2)
+            cPickle.dump(collection, g, -1)
         except Exception, e:
             raise CollectionError(str(e))
         g.close()
