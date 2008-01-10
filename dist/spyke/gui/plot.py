@@ -646,12 +646,8 @@ class ClickableSortPanel(OneAxisSortPanel):
         self.GetEventHandler().ProcessEvent(event)
 
     def onDoubleClick(self, evt):
-        coords = evt.GetPosition()
-        self._sendEvent(coords)
-
-    def onClick(self, evt):
-        coords = evt.GetPosition()
-        self._sendEvent(coords)
+        channels = [True] * len(self.channels)
+        self._sendEvent(channels)
 
     def pointToChannel(self, x, y):
         """ Given an coordinate in the axis, find out what channel
