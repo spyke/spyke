@@ -5,12 +5,15 @@ Rip templates against a data file.
 
 __author__ = 'Reza Lotun'
 
+
 import cPickle
+import signal
 import struct
 
 import numpy
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 
 import spyke
@@ -24,6 +27,54 @@ class RipError(SpykeError):
     pass
 
 
+class RipWin(wx.App):
+    def __init__(self, *args, **kwargs):
+        kwargs['redirect'] = False
+        wx.App.__init__(self, *args, **kwargs)
+        self.doRip()
+
+    def doRip(self):
+        self.ripper = Ripper(collection, surf_name)
+        self.ripper.rip()
+
+    def OnInit(self):
+        op = Opener()
+        self.hist = HistWin(None, -1, 'Histogram', op,
+                                                            size=(200,900))
+        self.SetTopWindow(self.hist)
+        self.hist.Show(True)
+        return True
+
+
+class HistWin(wx.Frame):
+    def __init__(self, parent, id, title, op, **kwds):
+        wx.Frame.__init__(self, parent, id, title, **kwds)
+        self.histPanel = RipHistogram(self)
+
+    def onTimerEvent(self, evt):
+        pass
+
+    def onEraseBackground(self, evt):
+        # prevent redraw flicker
+        pass
+
+
+class RipHistogram(FigureCanvasWxAgg):
+    def __init__(self, frame, layout):
+        FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
+        pos = [0, 0, 1, 1]
+        self.my_ax = self.figure.add_axes(pos,
+                                          axisbg='b',
+                                          frameon=False,
+                                          alpha=1.)
+        self.my_ax.set_xticks([])
+        self.my_ax.set_yticks([])
+
+        self.my_ax.add_subplot(111)
+        self.my_ax.hist(template.ripped_match)
+        canvas.print_figure(str(i)+'hist'+str(template))
+
+
 class Ripper(object):
     """ Exhaustively matches the templates across the surf file, calculating
     residual squared error for each point in time.
@@ -35,6 +86,7 @@ class Ripper(object):
         self.surf_stream = None
         self.itime = None
         self.ripped_templates = []
+        self.interrupted = False
         self.verify_File()
         self.surf = spyke.surf.File(self.surf_file)
         self.surf.parse()
@@ -73,8 +125,13 @@ class Ripper(object):
             ax.hist(template.ripped_match)
             canvas.print_figure(str(i)+'hist'+str(template))
 
+    def handle_int(self, signum, frame):
+        """ A control-C will kill the job and short-circuit to plotting """
+        self.interrupted = True
+
     def rip(self):
         print 'Starting ripping process...'
+        signal.signal(signal.SIGINT, self.handle_int)
         self.reset()
         for template in self.collection.templates:
             print 'Ripping ' + str(template)
@@ -85,7 +142,7 @@ class Ripper(object):
 
     def fitTemplate(self, template):
         window = int(1e6)     # ten seconds
-
+        stopped = False
         start = self.itime
 
         # width of our template
@@ -100,7 +157,7 @@ class Ripper(object):
         active_channels = template.active_channels
         chan_nums = [i for i, x in enumerate(active_channels) if x]
         try:
-            while True:
+            while not stopped:
                 # fit to whole file
                 chunk = self.surf_stream[start:start + window].data
 
@@ -118,7 +175,11 @@ class Ripper(object):
                     #print chunk[:,i: i + width].shape, data.shape
                     error = sum(sum((chunk[:,i:i + width] - data) ** 2))
                     template.ripped_match.append(error)
-                    print error
+                    #print error
+                    if i % 300 == 0 and self.interrupted:
+                        stopped = True
+                        self.interrupted = False
+                        break
                 start = last_point + 1
                 last_point = start + window - width
         except struct.error:
