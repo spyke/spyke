@@ -471,16 +471,6 @@ class OneAxisSortPanel(OneAxisEventPanel):
         OneAxisPlotPanel.set_params(self)
         self.colours = ['y'] * self.num_channels
 
-    def _toggleVisible(self, spike, colour, top=None):
-        lines, curr_visible = self.spikes[(spike, colour)]
-        curr_visible = not curr_visible
-
-        for line in lines:
-            line._visible = curr_visible and line.chan_mask
-            line.zorder = self.top
-
-        self.spikes[(spike, colour)][1] = curr_visible
-
     def _notVisible(self, spike, colour):
         lines, curr_visible = self.spikes[(spike, colour)]
         for line in lines:
@@ -494,13 +484,6 @@ class OneAxisSortPanel(OneAxisEventPanel):
             line._visible = line.chan_mask
         self.spikes[(spike, colour)][1] = True
 
-    def _toggleChannels(self, spike, colour, channels):
-        lines, curr_visible = self.spikes[(spike, colour)]
-        for line, toggle in zip(lines, channels):
-            if toggle:
-                line._visible = not(line._visible)
-                line.chan_mask = line._visible
-
     def add(self, spike, colour, top=False, channels=None):
         """ (Over)plot a given spike. """
         colours = [colour] * self.num_channels
@@ -512,22 +495,19 @@ class OneAxisSortPanel(OneAxisEventPanel):
         if not self._initialized:
 
             self.init_plot(spike, colour)
-            # always plot w.r.t. these x points
-            #self.x_vals = spike.ts
 
             lines = []
             for num, channel in self.channels.iteritems():
                 #x_off, y_off = self.pos[channel]
+                channel._visible = channels[num]
+                channel.chan_mask = channels[num]
                 lines.append(channel)
+
             self.spikes[(spike, colour)] = [lines, True]
             self._initialized = True
 
         elif (spike, colour) in self.spikes:
             self._Visible(spike, colour, channels)
-            #if channels:
-            #    self._toggleChannels(spike, colour, channels)
-            #else:
-            #    self._toggleVisible(spike, colour, top)
 
         elif (spike, colour) not in self.spikes:
             lines = []
@@ -543,8 +523,6 @@ class OneAxisSortPanel(OneAxisEventPanel):
                 line._visible = False
                 line.colour = colour
                 self.my_ax.add_line(line)
-                #axis.autoscale_view()
-                #axis.set_ylim(self.yrange)
                 line._visible = channels[chan]
                 lines.append(line)
             self.spikes[(spike, colour)] = [lines, True]
