@@ -82,14 +82,15 @@ class Template(object):
         return _mean
 
     def __eq__(self, oth):
-        return hash(self) == hash(oth)
+        otype = isinstance(oth, Template)
+        return hash(self) == hash(oth) if otype else False
 
     def __hash__(self):
         # XXX hmmm how probable would collisions be using this...?
         return hash(str(self.mean()) + str(self))
 
     def __str__(self):
-        return 'Template (' + str(len(self._spikes)) + ')'
+        return 'Template (' + str(len(self)) + ')'
 
 
 class Collection(object):
@@ -101,7 +102,7 @@ class Collection(object):
     """
     def __init__(self, file=None):
         self.templates = []
-        self.unsorted_spikes = []        # these represent unsorted spikes
+        self.unsorted_spikes = []    # these represent unsorted spikes
         self.recycle_bin = []
         self.surf_hash = ''              # SHA1 hash of surf file
 

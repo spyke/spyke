@@ -16,6 +16,7 @@ from spyke import load_collection, write_collection
 from spyke.detect import SimpleThreshold, MultiPhasic, DynamicMultiPhasic
 from spyke.gui.events import *
 from spyke.gui.plot import ClickableSortPanel
+from spyke.gui.manager import CollectionManager
 
 
 class SpikeTreeCtrl(wx.TreeCtrl):
@@ -307,7 +308,9 @@ class SpikeSorter(wx.Frame):
             return
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = tree.GetPyData(item)
+        event.channels = [True] * len(self.layout)
         if self._isTemplate(item):
+            event.channels = data.active_channels
             data = data.mean()
         if visible:
             event.plot = data
@@ -328,9 +331,14 @@ class SpikeSorter(wx.Frame):
         if self._isTemplate(template_Node):
             template_plot = data.mean()
             event.plot = template_plot
-            data.active_channels = channels
-            event.channels = channels
+
+            # toggle active channels in template for selected channel
+            for i, chan in enumerate(data.active_channels):
+                if channels[i]:
+                    data.active_channels[i] = not chan
+            event.channels = data.active_channels
             event.colour = 'y'
+
             self.GetEventHandler().ProcessEvent(event)
 
     def _modifyPlot(self, evt, tree, item):
@@ -344,9 +352,11 @@ class SpikeSorter(wx.Frame):
         event = PlotEvent(myEVT_PLOT, self.GetId())
         data = self.currentTree.GetPyData(item)
 
+        event.channels = [True] * len(self.layout)
         #event.isTemplate = self._isTemplate(item)
         # we're plotting a template
         if self._isTemplate(item):
+            event.channels = data.active_channels
             colour = 'r'
             data = data.mean()
         else:
@@ -364,7 +374,9 @@ class SpikeSorter(wx.Frame):
     def _deleteSpike(self, evt, tree, it):
         """ Delete spike ... """
         def isTemplatePlotted(templateNode):
-            return self.tree_Templates.IsBold(templateNode)
+            permplot = self.tree_Templates.IsBold(templateNode)
+            currplot = it == templateNode
+            return permplot or currplot
 
         def isSpikePlotted(node):
             return self.tree_Spikes.IsBold(node)
@@ -413,7 +425,8 @@ class SpikeSorter(wx.Frame):
             # all the spikes within the template to the spike list
             else:
                 if isTemplatePlotted(it):
-                    self._modifyPlot(evt, tree, it)
+                    #self._modifyPlot(evt, tree, it)
+                    self._cmdPlot(evt, tree, it, False)
 
                 child, cookie = tree.GetFirstChild(it)
                 template = tree.GetPyData(it)
@@ -590,9 +603,9 @@ class SpikeSorter(wx.Frame):
             self._modifyPlot(evt, self.tree_Templates, dest)
 
         # make sure the deselected channels aren't shown
-        template = self.tree_Templates.GetPyData(dest)
-        print template.active_channels
-        self.redisplayChannels(dest, [not x for x in template.active_channels])
+        #template = self.tree_Templates.GetPyData(dest)
+        #print template.active_channels
+        #self.redisplayChannels(dest, [not x for x in template.active_channels])
 
 
         print 'Collection: '
@@ -694,7 +707,6 @@ class SpikeSorter(wx.Frame):
         #evt.Allow()
         res = spike_source.DoDragDrop(wx.Drag_AllowMove)
         res = 1
-        print 'Res', res
 
         if res & wx.DragCancel:
             ### XXX: do something more?
@@ -1002,7 +1014,7 @@ class TestApp(wx.App):
             self.plotter.plotPanel.remove(evt.remove, evt.colour)
 
     def handleClickedChannel(self, evt):
-        self.sorter.clickedChannel(evt.channels)
+        self.sorter.clickedChannel(evt.selected_channels)
 
     def makeCol(self):
         from spyke.stream import WaveForm

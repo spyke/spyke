@@ -26,6 +26,14 @@ import spyke.stream
 from spyke.gui.events import *
 
 
+class PlottedItem(object):
+    """ A visually distinct object on our plot. These are usually spikes. """
+    def __init__(self, spike):
+        # defaults
+        self.colour = 'g'
+        self.channels = []
+
+
 class AxesWrapper(object):
     """ A wrapper around an axes that delegates access to attributes to an
     actual axes object. Really meant to make axes hashable.
@@ -473,6 +481,19 @@ class OneAxisSortPanel(OneAxisEventPanel):
 
         self.spikes[(spike, colour)][1] = curr_visible
 
+    def _notVisible(self, spike, colour):
+        lines, curr_visible = self.spikes[(spike, colour)]
+        for line in lines:
+            line._visible = False
+        self.spikes[(spike, colour)][1] = False
+
+    def _Visible(self, spike, colour, channels):
+        lines, curr_visible = self.spikes[(spike, colour)]
+        for line, chan in zip(lines, channels):
+            line.chan_mask = chan
+            line._visible = line.chan_mask
+        self.spikes[(spike, colour)][1] = True
+
     def _toggleChannels(self, spike, colour, channels):
         lines, curr_visible = self.spikes[(spike, colour)]
         for line, toggle in zip(lines, channels):
@@ -502,13 +523,16 @@ class OneAxisSortPanel(OneAxisEventPanel):
             self._initialized = True
 
         elif (spike, colour) in self.spikes:
-            if channels:
-                self._toggleChannels(spike, colour, channels)
-            else:
-                self._toggleVisible(spike, colour, top)
+            self._Visible(spike, colour, channels)
+            #if channels:
+            #    self._toggleChannels(spike, colour, channels)
+            #else:
+            #    self._toggleVisible(spike, colour, top)
 
         elif (spike, colour) not in self.spikes:
             lines = []
+            if channels is None:
+                channels = self.num_channels * [True]
             for chan in self.channels:
                 x_off, y_off = self.pos[chan]
                 line = SpykeLine(self.static_x_vals + x_off,
@@ -521,7 +545,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
                 self.my_ax.add_line(line)
                 #axis.autoscale_view()
                 #axis.set_ylim(self.yrange)
-                line._visible = True
+                line._visible = channels[chan]
                 lines.append(line)
             self.spikes[(spike, colour)] = [lines, True]
 
@@ -529,7 +553,8 @@ class OneAxisSortPanel(OneAxisEventPanel):
 
     def remove(self, spike, colour):
         """ Remove the selected spike from the plot display. """
-        self._toggleVisible(spike, colour)
+        #self._toggleVisible(spike, colour)
+        self._notVisible(spike, colour)
         self.draw(True)
 
 
@@ -644,7 +669,7 @@ class ClickableSortPanel(OneAxisSortPanel):
 
     def _sendEvent(self, channels):
         event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
-        event.channels = channels
+        event.selected_channels = channels
         self.GetEventHandler().ProcessEvent(event)
 
     def onDoubleClick(self, evt):
