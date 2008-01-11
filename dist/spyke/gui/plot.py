@@ -382,8 +382,8 @@ class OneAxisEventPanel(OneAxisPlotPanel):
         for chan, coords in layout.iteritems():
             x, y = coords
 
-            x_off = numpy.asarray(x_offsets[x])
-            y_off = numpy.asarray(y_offsets[y])
+            x_off = x_offsets[x]
+            y_off = y_offsets[y]
             self.pos[chan] = (x_off, y_off)
 
 
