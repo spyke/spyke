@@ -93,6 +93,10 @@ class Template(object):
         return 'Template (' + str(len(self)) + ')'
 
 
+class HybridList(set):
+    def append(self, item):
+        self.add(item)
+
 class Collection(object):
     """ A container for Templates. Collections are associated with
     Surf Files. By default a Collection represents a single sorting session.
@@ -101,9 +105,9 @@ class Collection(object):
     of algorithmic and/or manual sorting.
     """
     def __init__(self, file=None):
-        self.templates = []
-        self.unsorted_spikes = []    # these represent unsorted spikes
-        self.recycle_bin = []
+        self.templates = HybridList()
+        self.unsorted_spikes = HybridList()    # these represent unsorted spikes
+        self.recycle_bin = HybridList()
         self.surf_hash = ''              # SHA1 hash of surf file
 
     def verify_surf(self, surf_file):
