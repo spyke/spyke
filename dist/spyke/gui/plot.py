@@ -382,8 +382,8 @@ class OneAxisEventPanel(OneAxisPlotPanel):
         for chan, coords in layout.iteritems():
             x, y = coords
 
-            x_off = x_offsets[x]
-            y_off = y_offsets[y]
+            x_off = numpy.asarray(x_offsets[x])
+            y_off = numpy.asarray(y_offsets[y])
             self.pos[chan] = (x_off, y_off)
 
 
@@ -471,6 +471,8 @@ class OneAxisSortPanel(OneAxisEventPanel):
                     'r'     :   0.7
                  }
 
+        self.all_chans = self.num_channels * [True]
+
     def set_params(self):
         OneAxisPlotPanel.set_params(self)
         self.colours = ['y'] * self.num_channels
@@ -493,7 +495,6 @@ class OneAxisSortPanel(OneAxisEventPanel):
         """ (Over)plot a given spike. """
         colours = [colour] * self.num_channels
 
-
         # initialize
         if not self._initialized:
 
@@ -510,12 +511,17 @@ class OneAxisSortPanel(OneAxisEventPanel):
             self._initialized = True
 
         elif (spike, colour) in self.spikes:
+            self.my_ax._visible = False
             self._Visible(spike, colour, channels)
+            self.my_ax._visible = True
 
         elif (spike, colour) not in self.spikes:
-            lines = []
+
             if channels is None:
-                channels = self.num_channels * [True]
+                channels = self.all_chans
+
+            self.my_ax._visible = False
+            lines = []
             for chan in self.channels:
                 x_off, y_off = self.pos[chan]
                 line = SpykeLine(self.static_x_vals + x_off,
@@ -525,18 +531,20 @@ class OneAxisSortPanel(OneAxisEventPanel):
                                  antialiased=False)
                 line._visible = False
                 line.colour = colour
-                self.my_ax.add_line(line)
                 line._visible = channels[chan]
                 lines.append(line)
                 line.zorder = self.layers[colour]
+                self.my_ax.add_line(line)
             self.spikes[(spike, colour)] = [lines, True]
-
+            self.my_ax._visible = True
         self.draw(True)
 
     def remove(self, spike, colour):
         """ Remove the selected spike from the plot display. """
         #self._toggleVisible(spike, colour)
+        self.my_ax._visible = False
         self._notVisible(spike, colour)
+        self.my_ax._visible = True
         self.draw(True)
 
 

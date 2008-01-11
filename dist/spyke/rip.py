@@ -1,4 +1,7 @@
-""" rip demo """
+""" spyke.rip
+
+Rip templates against a data file.
+"""
 
 __author__ = 'Reza Lotun'
 
@@ -10,10 +13,15 @@ import numpy
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+import spyke
+from spyke import SpykeError
 import spyke.surf
 import spyke.stream
 from spyke.detect import Collection, Template
 
+
+class RipError(SpykeError):
+    pass
 
 
 class Ripper(object):
@@ -27,8 +35,14 @@ class Ripper(object):
         self.surf_stream = None
         self.itime = None
         self.ripped_templates = []
+        self.verify_File()
         self.surf = spyke.surf.File(self.surf_file)
         self.surf.parse()
+
+    def verify_File(self):
+        hash_file = spyke.get_sha1(self.surf_file)
+        if not (hash_file == self.collection.surf_hash):
+            raise RipError("Collection not associated with this surf file.")
 
     def reset(self):
         """ Get stream at beginning of surf file """
@@ -82,20 +96,29 @@ class Ripper(object):
         last_point = start + window - width
 
         template.ripped_match = []
+
+        active_channels = template.active_channels
+        chan_nums = [i for i, x in enumerate(active_channels) if x]
         try:
             while True:
                 # fit to whole file
                 chunk = self.surf_stream[start:start + window].data
+
+                # slice out active channels
+                chunk = chunk[chan_nums]
+                data = template.mean().data
+                data = data[chan_nums]
+
                 buf_size = chunk.shape[1]
                 end_point = buf_size - width
+
                 #print chunk
                 for i in xrange(end_point):
                     #print i
-                    data = template.mean().data
                     #print chunk[:,i: i + width].shape, data.shape
                     error = sum(sum((chunk[:,i:i + width] - data) ** 2))
                     template.ripped_match.append(error)
-                    #print error
+                    print error
                 start = last_point + 1
                 last_point = start + window - width
         except struct.error:
@@ -123,7 +146,7 @@ if __name__ == '__main__':
             except:
                 continue
 
-    collection = cPickle.load(file(collection_name))
+    collection = spyke.load_collection(collection_name)
     print surf_name
     ripper = Ripper(collection, surf_name)
     ripper.rip()
