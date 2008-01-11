@@ -465,7 +465,11 @@ class OneAxisSortPanel(OneAxisEventPanel):
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
         #self.x_vals = None
         self._initialized = False
-        self.top = 10
+        self.layers = {
+                    'g'     :   0.5,
+                    'y'     :   1,
+                    'r'     :   0.7
+                 }
 
     def set_params(self):
         OneAxisPlotPanel.set_params(self)
@@ -482,6 +486,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
         for line, chan in zip(lines, channels):
             line.chan_mask = chan
             line._visible = line.chan_mask
+            line.zorder = self.layers[colour]
         self.spikes[(spike, colour)][1] = True
 
     def add(self, spike, colour, top=False, channels=None):
@@ -489,8 +494,6 @@ class OneAxisSortPanel(OneAxisEventPanel):
         colours = [colour] * self.num_channels
 
 
-        if top:
-            self.top += 0.1
         # initialize
         if not self._initialized:
 
@@ -525,6 +528,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
                 self.my_ax.add_line(line)
                 line._visible = channels[chan]
                 lines.append(line)
+                line.zorder = self.layers[colour]
             self.spikes[(spike, colour)] = [lines, True]
 
         self.draw(True)
@@ -546,7 +550,11 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         self.x_vals = None
         self._initialized = False
-        self.top = 10
+        self.layers = {
+                    'g'     :   0.5,
+                    'y'     :   1,
+                    'r'     :   0.7
+                 }
 
     def set_params(self):
         ManyAxisPlotPanel.set_params(self)
@@ -558,7 +566,7 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
 
         for line in lines:
             line._visible = curr_visible
-            line.zorder = self.top
+            line.zorder = self.self.layers[colour]
 
         self.spikes[(spike, colour)][1] = curr_visible
 
@@ -566,6 +574,7 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
         lines, curr_visible = self.spikes[(spike, colour)]
         for line, isVisible in zip(lines, channels):
             line._visible = isVisible
+            line.zorder = self.top
 
     def add(self, spike, colour, top=False, channels=None):
         """ (Over)plot a given spike. """
@@ -574,8 +583,6 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
         if not channels:
             channels = self.num_channels * [True]
 
-        if top:
-            self.top += 0.1
         # initialize
         if not self._initialized:
 
