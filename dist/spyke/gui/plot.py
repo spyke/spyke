@@ -544,6 +544,10 @@ class OneAxisSortPanel(OneAxisEventPanel):
         #self._toggleVisible(spike, colour)
         self.my_ax._visible = False
         self._notVisible(spike, colour)
+        if colour in ('y'):
+            lines, _ = self.spikes.pop((spike, colour))
+            for line in lines:
+                self.my_ax.lines.remove(line)
         self.my_ax._visible = True
         self.draw(True)
 
