@@ -869,7 +869,7 @@ class DisplayRecord(Record):
         self.f = f
 
     def __len__(self):
-        return 53092 + 28
+        return 24 + len(self.Header) + 4
 
     def parse(self):
         f = self.f
@@ -898,6 +898,7 @@ class StimulusHeader(Record):
     """ Stimulus display header """
 
     # Stimulus header constants
+    OLD_STIMULUS_HEADER_FILENAME_LEN = 16
     STIMULUS_HEADER_FILENAME_LEN = 64
     NVS_PARAM_LEN = 749
     PYTHON_TBL_LEN = 50000
@@ -905,6 +906,13 @@ class StimulusHeader(Record):
     def __init__(self, f):
         Record.__init__(self)
         self.f = f
+
+    def __len__(self):
+        return 4 + len(self.filename) + self.NVS_PARAM_LEN*4 + 28
+        if self.version == 100: # Cat < 15
+            return 4 + self.OLD_STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + 28
+        elif self.version == 110: # Cat >= 15
+            return 4 + self.STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + self.PYTHON_TBL_LEN + 28
 
     def parse(self):
         f = self.f
@@ -915,7 +923,13 @@ class StimulusHeader(Record):
         # always 'DS'?
         self.header = f.read(2).rstrip(NULL)
         self.version, = self.unpack('H', f.read(2))
-        self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
+        if self.version not in (100, 110): # Cat < 15, Cat >= 15
+            raise ValueError, 'Unknown stimulus header version %d' % self.version
+        if self.version == 100: # Cat < 15 has filename field length == 16
+            # ends with a NULL followed by spaces for some reason, at least in Cat 13 file 03 - ptumap#751a_track5_m-seq.srf
+            self.filename = f.read(self.OLD_STIMULUS_HEADER_FILENAME_LEN).rstrip().rstrip(NULL)
+        elif self.version == 110: # Cat >= 15 has filename field length == 64
+            self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
 
         # NVS binary header, array of single floats
         self.parameter_tbl = list(self.unpack('f'*self.NVS_PARAM_LEN,
@@ -923,11 +937,13 @@ class StimulusHeader(Record):
 
         for parami, param in enumerate(self.parameter_tbl):
             if str(param) == '1.#QNAN':
-                # replace 'Quiet NAN' floats with Nones
+                # replace 'Quiet NAN' floats with Nones. This won't work for Cat < 15
+                # because NVS display left empty fields as NULL instead of NAN
                 self.parameter_tbl[parami] = None
 
         # dimstim's text header
-        self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
+        if self.version == 110: # only Cat >= 15 has the text header
+            self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
 
         # cm, single float
         self.screen_width, = self.unpack('f', f.read(4))
