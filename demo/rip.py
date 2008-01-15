@@ -123,7 +123,7 @@ if __name__ == '__main__':
             except:
                 continue
 
-    collection = cPickle.load(file(collection_name))
+    collection = cPickle.load(file(collection_name, 'rb'))
     print surf_name
     ripper = Ripper(collection, surf_name)
     ripper.rip()
