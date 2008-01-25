@@ -908,7 +908,6 @@ class StimulusHeader(Record):
         self.f = f
 
     def __len__(self):
-        return 4 + len(self.filename) + self.NVS_PARAM_LEN*4 + 28
         if self.version == 100: # Cat < 15
             return 4 + self.OLD_STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + 28
         elif self.version == 110: # Cat >= 15
