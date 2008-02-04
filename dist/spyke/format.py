@@ -13,10 +13,10 @@ from spyke.stream import WaveForm
 class Spike(WaveForm):
     """ A spike event """
     def __init__(self, waveform=None, channel=None, event_time=None):
-        self.data = waveform.data
+        self.data = waveform.data # potentially multichannel
         self.ts = waveform.ts
         self.sampfreq = waveform.sampfreq
-        self.channel = channel
+        self.channel = channel # trigger channel
         self.event_time = event_time
         self.name = str(self)
 
@@ -36,7 +36,7 @@ class Template(object):
     """ A spike template is simply a collection of spikes. """
     def __init__(self,):
         self.active_channels = []
-        self._spikes = set()
+        self._spikes = set() # sets have remove() method, lists don't
         self.name = str(self)
         self._init_props = False
 
@@ -69,6 +69,8 @@ class Template(object):
         if len(self) == 0:
             return None
 
+        # TODO: use numpy's mean() method
+
         sample = iter(self).next()
         dim = sample.data.shape
         _mean = Spike(sample)
@@ -86,7 +88,8 @@ class Template(object):
         return hash(self) == hash(oth) if otype else False
 
     def __hash__(self):
-        # XXX hmmm how probable would collisions be using this...?
+        """XXX hmmm how probable would collisions be using this...?
+        Could base this on the member _spikes instead of just the mean"""
         return hash(str(self.mean()) + str(self))
 
     def __str__(self):

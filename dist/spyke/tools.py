@@ -41,7 +41,7 @@ def load_collection(filename):
     """
     with file(filename, 'rb') as f:
         try:
-            g = gzip.GzipFile(fileobj=f, mode = 'rb')
+            g = gzip.GzipFile(fileobj=f, mode='rb')
             col = cPickle.load(g)
         except Exception, e:
             raise CollectionError(str(e))

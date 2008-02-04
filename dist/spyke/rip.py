@@ -20,7 +20,7 @@ import spyke
 from spyke import SpykeError
 import spyke.surf
 import spyke.stream
-from spyke.detect import Collection, Template
+from spyke.detect import Collection, Template # these these should be imported from spyke
 
 
 class RipError(SpykeError):
@@ -38,9 +38,8 @@ class RipWin(wx.App):
         self.ripper.rip()
 
     def OnInit(self):
-        op = Opener()
-        self.hist = HistWin(None, -1, 'Histogram', op,
-                                                            size=(200,900))
+        op = Opener() ## HELP: where's this defined?
+        self.hist = HistWin(None, -1, 'Histogram', op, size=(200, 900))
         self.SetTopWindow(self.hist)
         self.hist.Show(True)
         return True
@@ -141,7 +140,7 @@ class Ripper(object):
         self.cleanup()
 
     def fitTemplate(self, template):
-        window = int(1e6)     # ten seconds
+        window = int(1e6) # amount of data to read in at once
         stopped = False
         start = self.itime
 
