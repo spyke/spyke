@@ -47,7 +47,14 @@ class FixedThreshold(Detector):
         """ Used to determine threshold and set initial state. """
         # get the stdeviation for each channel along a 10s window
         ten_seconds = 1e7
-        chunk = self.stream[self.init_time:self.init_time + ten_seconds]
+        try:
+            chunk = self.stream[self.init_time:self.init_time + ten_seconds]
+        except:
+            # we can't read 10 seconds (probably because there doesn't exist
+            # 10 s worth of data. Fall back on a smaller scale
+            small = 1e4
+            chunk = self.stream[self.init_time:self.init_time + small]
+
         self.std = {}
         for chan, d in enumerate(chunk.data):
             self.std[chan] = chunk.data[chan].std()
