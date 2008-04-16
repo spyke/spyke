@@ -1,4 +1,4 @@
-"""Here's a BaseLayout class with the different Polytrode designs as subclasses"""
+"""A BaseLayout class with the different Polytrode designs as subclasses"""
 
 class BaseLayout(object):
     pass

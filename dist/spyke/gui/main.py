@@ -15,10 +15,10 @@ class Nothing(object):
 
 class SpykeFrame(wx.Frame):
     def __init__(self, parent):
-        self.title = "Spyke"
+        self.title = "spyke"
         wx.Frame.__init__(self, parent, -1, self.title,
-                size=(400,300))
-        self.sketch = Nothing()
+                size=(400, 300))
+        self.sketch = Nothing() # what the hell is a sketch?
         self.filename = ""
         self.initStatusBar()
         self.createMenuBar()
@@ -40,9 +40,9 @@ class SpykeFrame(wx.Frame):
 
     def menuData(self):
         return [("&File", (
-                    ("&New", "New Surf file", self.OnNew),
-                    ("&Open", "Open Surf file", self.OnOpen),
-                    ("&Save", "Save Collection file", self.OnSave),
+                    ("&New", "Create new collection", self.OnNew),
+                    ("&Open", "Open collection", self.OnOpen),
+                    ("&Save", "Save collection", self.OnSave),
                     ("", "", ""),
                     ("About...", "Show about window", self.OnAbout),
                     ("&Quit", "Quit", self.OnCloseWindow)))]
@@ -90,8 +90,8 @@ class SpykeFrame(wx.Frame):
     def toolbarData(self):
         return (("New", "res/new.bmp", "Create new collection", self.OnNew),
                 ("", "", "", ""),
-                ("Open", "res/open.bmp", "Open existing collection", self.OnOpen),
-                ("Save", "res/save.bmp", "Save existing collection", self.OnSave))
+                ("Open", "res/open.bmp", "Open collection", self.OnOpen),
+                ("Save", "res/save.bmp", "Save collection", self.OnSave))
 
     def createColorTool(self, toolbar, color):
         bmp = self.MakeBitmap(color)
@@ -142,13 +142,13 @@ class SpykeFrame(wx.Frame):
                 f.close()
             except cPickle.UnpicklingError:
                 wx.MessageBox("%s is not a sketch file." % self.filename,
-                             "oops!", style=wx.OK|wx.ICON_EXCLAMATION)
+                              "oops!", style=wx.OK|wx.ICON_EXCLAMATION)
 
     wildcard = "Collection files (*.pickle.gz)|*.pickle.gz|All files (*.*)|*.*"
 
     def OnOpen(self, event):
         dlg = wx.FileDialog(self, "Open collection file...", os.getcwd(),
-                           style=wx.OPEN, wildcard=self.wildcard)
+                            style=wx.OPEN, wildcard=self.wildcard)
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetPath()
             self.ReadFile()
@@ -163,8 +163,8 @@ class SpykeFrame(wx.Frame):
 
     def OnSaveAs(self, event):
         dlg = wx.FileDialog(self, "Save collection as...", os.getcwd(),
-                           style=wx.SAVE | wx.OVERWRITE_PROMPT,
-                           wildcard = self.wildcard)
+                            style=wx.SAVE | wx.OVERWRITE_PROMPT,
+                            wildcard = self.wildcard)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
             if not os.path.splitext(filename)[1]:
@@ -198,22 +198,21 @@ cellpadding="0" border="1">
 </tr>
 </table>
 </center>
-<p><b>Spyke</b> is a tool fo neuron spike sorting.
+<p><b>spyke</b> is a tool for neuronal spike sorting.
 </p>
 
-<b>Reza Lotun, Martin Spacek</b>,  Copyright
-&copy; 2008.</p>
+<p>Copyright &copy; 2008, Reza Lotun, Martin Spacek</p>
 </body>
 </html>
 '''
 
     def __init__(self, parent):
-        wx.Dialog.__init__(self, parent, -1, 'About Spyke',
-                          size=(440, 400) )
+        wx.Dialog.__init__(self, parent, -1, 'About spyke',
+                          size=(300, 300) )
 
         html = wx.html.HtmlWindow(self)
         html.SetPage(self.text)
-        button = wx.Button(self, wx.ID_OK, "Okay")
+        button = wx.Button(self, wx.ID_OK, "OK")
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(html, 1, wx.EXPAND|wx.ALL, 5)
@@ -226,11 +225,12 @@ cellpadding="0" border="1">
 
 class SpykeApp(wx.App):
 
-    def OnInit(self):
-        bmp = wx.Image("res/splash.png").ConvertToBitmap()
-        wx.SplashScreen(bmp, wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_TIMEOUT,
+    def OnInit(self, splash=False):
+        if splash:
+            bmp = wx.Image("res/splash.png").ConvertToBitmap()
+            wx.SplashScreen(bmp, wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_TIMEOUT,
                 1000, None, -1)
-        wx.Yield()
+            wx.Yield()
 
         frame = SpykeFrame(None)
         frame.Show(True)

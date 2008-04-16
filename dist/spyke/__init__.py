@@ -1,6 +1,6 @@
 """ spyke
 
-Neuron spike sorting in python.
+Neuronal spike sorting in python.
 """
 
 import surf

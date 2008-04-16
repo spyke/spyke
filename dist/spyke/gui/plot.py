@@ -699,7 +699,7 @@ class ClickableSortPanel(OneAxisSortPanel):
 import spyke.detect
 import os
 
-filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
+filenames = ['C:\data\ptc15\87 - track 7c spontaneous craziness.srf',
              'C:\Documents and Settings\Reza Lotun\Desktop\Surfdata\87 - track 7c spontaneous craziness.srf',
              '/media/windows/Documents and Settings/Reza ' \
                         'Lotun/Desktop/Surfdata/' \
@@ -712,6 +712,7 @@ filenames = ['C:\data\Cat 15\87 - track 7c spontaneous craziness.srf',
             ]
 
 class Opener(object):
+    """Opens and parses the first available file in filenames"""
     def __init__(self):
 
         for filename in filenames:
@@ -728,7 +729,7 @@ class Opener(object):
         self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
         layout_name = surf_file.layoutrecords[0].electrode_name
         import spyke.layout
-        self.layout = eval('spyke.layout.Polytrode' + layout_name[-3:])()
+        self.layout = eval('spyke.layout.Polytrode' + layout_name[-3:])() # yucky
         self.curr = self.dstream.records[0].TimeStamp
 
 
