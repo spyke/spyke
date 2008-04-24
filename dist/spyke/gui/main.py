@@ -39,13 +39,15 @@ class SpykeFrame(wx.Frame):
         event.Skip()
 
     def menuData(self):
-        return [("&File", (
+        return [("&File",
+                    (
                     ("&New", "Create new collection", self.OnNew),
                     ("&Open", "Open collection", self.OnOpen),
                     ("&Save", "Save collection", self.OnSave),
                     ("", "", ""),
                     ("About...", "Show about window", self.OnAbout),
-                    ("&Quit", "Quit", self.OnCloseWindow)))]
+                    ("&Quit", "Quit", self.OnCloseWindow))
+                    )]
 
     def createMenuBar(self):
         menuBar = wx.MenuBar()
@@ -130,14 +132,14 @@ class SpykeFrame(wx.Frame):
     def SaveFile(self):
         if self.filename:
             data = self.sketch.GetLinesData()
-            f = open(self.filename, 'w')
+            f = open(self.filename, 'wb')
             cPickle.dump(data, f)
             f.close()
 
     def ReadFile(self):
         if self.filename:
             try:
-                f = open(self.filename, 'r')
+                f = open(self.filename, 'rb')
                 data = cPickle.load(f)
                 f.close()
             except cPickle.UnpicklingError:
@@ -147,7 +149,7 @@ class SpykeFrame(wx.Frame):
     wildcard = "Collection files (*.pickle.gz)|*.pickle.gz|All files (*.*)|*.*"
 
     def OnOpen(self, event):
-        dlg = wx.FileDialog(self, "Open collection file...", os.getcwd(),
+        dlg = wx.FileDialog(self, "Open collection file", os.getcwd(),
                             style=wx.OPEN, wildcard=self.wildcard)
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetPath()
@@ -162,7 +164,7 @@ class SpykeFrame(wx.Frame):
             self.SaveFile()
 
     def OnSaveAs(self, event):
-        dlg = wx.FileDialog(self, "Save collection as...", os.getcwd(),
+        dlg = wx.FileDialog(self, "Save collection as", os.getcwd(),
                             style=wx.SAVE | wx.OVERWRITE_PROMPT,
                             wildcard = self.wildcard)
         if dlg.ShowModal() == wx.ID_OK:
@@ -194,21 +196,21 @@ class SpykeAbout(wx.Dialog):
 <center><table bgcolor="#455481" width="100%" cellspacing="0"
 cellpadding="0" border="1">
 <tr>
-    <td align="center"><h1>Spyke</h1></td>
+    <td align="center"><h1>spyke</h1></td>
 </tr>
 </table>
 </center>
 <p><b>spyke</b> is a tool for neuronal spike sorting.
 </p>
 
-<p>Copyright &copy; 2008, Reza Lotun, Martin Spacek</p>
+<p>Copyright &copy; 2008 Reza Lotun, Martin Spacek</p>
 </body>
 </html>
 '''
 
     def __init__(self, parent):
         wx.Dialog.__init__(self, parent, -1, 'About spyke',
-                          size=(300, 300) )
+                          size=(350, 250) )
 
         html = wx.html.HtmlWindow(self)
         html.SetPage(self.text)
@@ -220,7 +222,6 @@ cellpadding="0" border="1">
 
         self.SetSizer(sizer)
         self.Layout()
-
 
 
 class SpykeApp(wx.App):

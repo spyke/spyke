@@ -1,10 +1,14 @@
-"""A BaseLayout class with the different Polytrode designs as subclasses"""
+"""A BaseLayout class with the different Polytrode designs as subclasses
+
+TODO: add pt16a, pt16b, pt16c, and pt16x layouts
+"""
 
 class BaseLayout(object):
+    """self.SiteLoc maps chan id to (x, y) position of site in um"""
     pass
 
 
-class Polytrode_1a(BaseLayout):
+class uMap54_1a(BaseLayout):
     """uMap54_1a, 65um spacing, 3 column hexagonal"""
     def __init__(self):
         self.layout = '1a'
@@ -67,7 +71,7 @@ class Polytrode_1a(BaseLayout):
         self.SiteLoc = SiteLoc
 
 
-class Polytrode_1b(BaseLayout):
+class uMap54_1b(BaseLayout):
     """uMap54_1b, 50um horzontal/46um vertical spacing, 3 column collinear"""
     def __init__(self):
         self.layout = '1b'
@@ -130,7 +134,7 @@ class Polytrode_1b(BaseLayout):
         self.SiteLoc = SiteLoc
 
 
-class Polytrode_1c(BaseLayout):
+class uMap54_1c(BaseLayout):
     """uMap54_1c, 75um spacing, 3 column, hexagonal"""
     def __init__(self):
         self.layout = '1c'
@@ -193,7 +197,7 @@ class Polytrode_1c(BaseLayout):
         self.SiteLoc = SiteLoc
 
 
-class Polytrode_2a(BaseLayout):
+class uMap54_2a(BaseLayout):
     """uMap54_2a, 65um spacing, 2 column, staggered"""
     def __init__(self):
         self.layout = '2a'
@@ -256,7 +260,7 @@ class Polytrode_2a(BaseLayout):
         self.SiteLoc = SiteLoc
 
 
-class Polytrode_2b(BaseLayout):
+class uMap54_2b(BaseLayout):
     """uMap54_2b, 50um spacing, 2 column, staggered"""
     def __init__(self):
         self.layout = '2b'

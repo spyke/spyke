@@ -43,7 +43,8 @@ class Opener(object):
         surf_file.parse()
         self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
         layout_name = surf_file.layoutrecords[0].electrode_name
-        self.layout = eval('Polytrode' + layout_name[-3:])()
+        layout_name = layout_name.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
+        self.layout = eval(layout_name)() # UNTESTED
         self.curr = self.dstream.records[0].TimeStamp
 
 class EventWin(wx.Frame):
