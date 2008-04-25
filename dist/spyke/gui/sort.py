@@ -1,7 +1,4 @@
-""" spyke.gui.sort
-
-spyke gui elements for spike sorting
-"""
+"""spike sorting gui elements"""
 
 __author__ = 'Reza Lotun'
 
@@ -28,9 +25,9 @@ class SpikeTreeCtrl(wx.TreeCtrl):
         data1 = self.GetItemPyData(item1)
         data2 = self.GetItemPyData(item2)
 
-        rank1 = self.layout[data1.channel][1]       # y coord
-        rank2 = self.layout[data2.channel][1]       # y coord
-        return cmp(rank1, rank2) * -1               # reverse
+        rank1 = self.layout[data1.channel][1] # y coord
+        rank2 = self.layout[data2.channel][1] # y coord
+        return cmp(rank1, rank2) * -1         # reverse
 
 class TemplateTreeCtrl(wx.TreeCtrl):
     pass
@@ -84,8 +81,8 @@ class SpikeSorter(wx.Frame):
     def makeTrees(self):
         arg_dict = {}
         arg_dict['style'] = wx.TR_HAS_BUTTONS | wx.TR_DEFAULT_STYLE | \
-                           wx.SUNKEN_BORDER | \
-                           wx.TR_EXTENDED | wx.TR_SINGLE #| wx.TR_HIDE_ROOT
+                            wx.SUNKEN_BORDER | \
+                            wx.TR_EXTENDED | wx.TR_SINGLE #| wx.TR_HIDE_ROOT
 
         self.tree_Templates = TemplateTreeCtrl(self, -1, **arg_dict)
         self.tree_Spikes = SpikeTreeCtrl(self.layout, self, -1, **arg_dict)
@@ -123,8 +120,7 @@ class SpikeSorter(wx.Frame):
         try:
             self.collection.recycle_bin
             if self.collection.recycle_bin:
-                rbin = self.tree_Spikes.AppendItem(self.root_Spikes,
-                                                     'Recycle Bin')
+                rbin = self.tree_Spikes.AppendItem(self.root_Spikes, 'Recycle Bin')
                 self.recycleBinNode = rbin
                 for spike in self.collection.recycle_bin:
                     item = self.tree_Spikes.AppendItem(rbin, str(spike))
@@ -135,8 +131,7 @@ class SpikeSorter(wx.Frame):
 
         # The left pane represents our currently (sorted) templates
         for template in self.collection:
-            item = self.tree_Templates.AppendItem(self.root_Templates,
-                                                    str(template))
+            item = self.tree_Templates.AppendItem(self.root_Templates, str(template))
             self.tree_Templates.SetPyData(item, template)
 
             # add all the spikes within the templates
@@ -147,10 +142,8 @@ class SpikeSorter(wx.Frame):
             self.tree_Templates.Expand(item)
 
     def registerEvents(self):
-        """ Binds all of the events to the spike and template tree controls """
-
+        """Binds all of the events to the spike and template tree controls"""
         for tree in self.trees:
-
             # Node activation and transition
             #self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.onActivate, tree)
             self.Bind(wx.EVT_TREE_SEL_CHANGING, self.onSelChanging, tree)
@@ -177,7 +170,7 @@ class SpikeSorter(wx.Frame):
 
 
     def onSelChanging(self, evt):
-        # remove currently plotted
+        """Remove currently plotted"""
         if self.currSelected:
             tree = self.FindFocus()
             self._cmdPlot(evt, tree, self.currSelected, False)
@@ -192,9 +185,7 @@ class SpikeSorter(wx.Frame):
                 self._cmdPlot(evt, tree, it, True)
 
     def vetoOnRoot(handler):
-        """ Decorator which vetoes a certain event if it occurs on
-        a root node.
-        """
+        """Decorator which vetoes a certain event if it occurs on a root node"""
         def new_handler(obj, evt):
             it = evt.GetItem()
             if it in obj.roots:
@@ -249,7 +240,7 @@ class SpikeSorter(wx.Frame):
         evt.Skip()
 
     def _serialize(self, evt, *args):
-        """ Serialize our collection """
+        """Serialize our collection"""
         evt = evt.GetKeyEvent()
         #if not evt.ControlDown():
         #    return
@@ -271,7 +262,7 @@ class SpikeSorter(wx.Frame):
             self.currentTree.SelectItem(pi)
 
     def _selectParent(self, evt, currTree, it):
-        # go to parent
+        """go to parent"""
         par = self.currentTree.GetItemParent(it)
         if par.IsOk():
             self.currentTree.SelectItem(par)
@@ -282,9 +273,7 @@ class SpikeSorter(wx.Frame):
             self.currentTree.SelectItem(chil)
 
     def _toggleTreeFocus(self, evt, currTree, it=None):
-        """ Toggles focus between the two trees and returns the newly
-        focused-upon tree.
-        """
+        """Toggles focus between the two trees and returns the newly focused-upon tree"""
         self.onSelChanging(evt)
         for tr in self.trees:
             if tr != currTree:
@@ -299,7 +288,6 @@ class SpikeSorter(wx.Frame):
             if it.IsOk():
                 self.currSelected = it
                 self._cmdPlot(evt, tree, it, True)
-
         return tr
 
     #XXX merge the following two methods
@@ -372,7 +360,7 @@ class SpikeSorter(wx.Frame):
 
     # XXX: change name
     def _deleteSpike(self, evt, tree, it):
-        """ Delete spike ... """
+        """Delete spike..."""
         def isTemplatePlotted(templateNode):
             permplot = self.tree_Templates.IsBold(templateNode)
             currplot = it == templateNode
@@ -457,9 +445,8 @@ class SpikeSorter(wx.Frame):
             self.tree_Spikes.Collapse(self.recycleBinNode)
 
     def _copySpikeNode(self, source_tree, parent_node, it):
-        """ Copy spike node it from source_tree to parent_node, transferring
-        state (such as currently plotted) as well.
-        """
+        """Copy spike node it from source_tree to parent_node, transferring
+        state (such as currently plotted) as well"""
         # get info for copied spike
         data = source_tree.GetPyData(it)
         text = source_tree.GetItemText(it)
@@ -482,7 +469,7 @@ class SpikeSorter(wx.Frame):
         return ns
 
     def _moveSpike(self, src_tree, src_node, dest_template=None):
-        """ Used to manage collection data structure """
+        """Used to manage collection data structure"""
         # get the actual spike
         spike = src_tree.GetPyData(src_node)
 
@@ -514,7 +501,7 @@ class SpikeSorter(wx.Frame):
         return par == self.root_Templates
 
     def onlyOn(permitree):
-        """ Will create a decorator which only permits actions on permitree """
+        """Will create a decorator which only permits actions on permitree"""
         def decor_func(handler):
             def new_handler(obj, evt, tree, it):
                 if not tree == getattr(obj, permitree):
@@ -782,14 +769,14 @@ class TreeDropTarget(wx.PyDropTarget):
         self.new_coords = None
 
         flags = (wx.TREE_HITTEST_ONITEM,
-                         wx.TREE_HITTEST_ONITEMBUTTON,
-                         wx.TREE_HITTEST_ONITEMICON,
-                         wx.TREE_HITTEST_ONITEMINDENT,
-                         wx.TREE_HITTEST_ONITEMLABEL,
-                         wx.TREE_HITTEST_ONITEMRIGHT,
-                         wx.TREE_HITTEST_ONITEMUPPERPART,
-                         wx.TREE_HITTEST_ONITEMSTATEICON,
-                         wx.TREE_HITTEST_ONITEMLOWERPART)
+                 wx.TREE_HITTEST_ONITEMBUTTON,
+                 wx.TREE_HITTEST_ONITEMICON,
+                 wx.TREE_HITTEST_ONITEMINDENT,
+                 wx.TREE_HITTEST_ONITEMLABEL,
+                 wx.TREE_HITTEST_ONITEMRIGHT,
+                 wx.TREE_HITTEST_ONITEMUPPERPART,
+                 wx.TREE_HITTEST_ONITEMSTATEICON,
+                 wx.TREE_HITTEST_ONITEMLOWERPART)
         self.hittest_flags = 0
         for f in flags:
             self.hittest_flags = self.hittest_flags | f
@@ -804,7 +791,7 @@ class TreeDropTarget(wx.PyDropTarget):
 
 
 class TreeTemplateDropTarget(TreeDropTarget):
-    """ Logic behind dragging and dropping onto list of templates """
+    """Logic behind dragging and dropping onto list of templates"""
     def __init__(self, *args, **kwargs):
         TreeDropTarget.__init__(self, *args, **kwargs)
         self.new_template = None
@@ -898,7 +885,7 @@ class TreeTemplateDropTarget(TreeDropTarget):
 
 
 class TreeSpikeDropTarget(TreeDropTarget):
-    """ Logic behind dragging and dropping onto list of spikes """
+    """Logic behind dragging and dropping onto list of spikes"""
 
     def OnDragOver(self, x, y, default):
         # when we begin dragging, we have left our original item with
@@ -1043,4 +1030,3 @@ if __name__ == "__main__":
 
     app = TestApp(fname)
     app.MainLoop()
-

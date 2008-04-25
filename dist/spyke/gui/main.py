@@ -1,7 +1,4 @@
-""" spyke.gui.main
-
-Main spyke interface window.
-"""
+"""Main spyke interface window"""
 
 import wx
 import wx.html
@@ -9,16 +6,17 @@ import cPickle
 import os
 from wx.lib import buttons
 
+
 class Nothing(object):
     def __getattribute__(self, attr):
         return lambda *args, **kwargs: None
 
+
 class SpykeFrame(wx.Frame):
     def __init__(self, parent):
         self.title = "spyke"
-        wx.Frame.__init__(self, parent, -1, self.title,
-                size=(400, 300))
-        self.sketch = Nothing() # what the hell is a sketch?
+        wx.Frame.__init__(self, parent, -1, self.title, size=(400, 300))
+        self.sketch = Nothing() # TODO: what the hell is a sketch? synonym for collection? default name in wx manual?
         self.filename = ""
         self.initStatusBar()
         self.createMenuBar()
@@ -42,7 +40,7 @@ class SpykeFrame(wx.Frame):
         return [("&File",
                     (
                     ("&New", "Create new collection", self.OnNew),
-                    ("&Open", "Open collection", self.OnOpen),
+                    ("&Open", "Open surf or collection file", self.OnOpen),
                     ("&Save", "Save collection", self.OnSave),
                     ("", "", ""),
                     ("About...", "Show about window", self.OnAbout),
@@ -92,7 +90,7 @@ class SpykeFrame(wx.Frame):
     def toolbarData(self):
         return (("New", "res/new.bmp", "Create new collection", self.OnNew),
                 ("", "", "", ""),
-                ("Open", "res/open.bmp", "Open collection", self.OnOpen),
+                ("Open", "res/open.bmp", "Open surf or collection file", self.OnOpen),
                 ("Save", "res/save.bmp", "Save collection", self.OnSave))
 
     def createColorTool(self, toolbar, color):
@@ -112,7 +110,8 @@ class SpykeFrame(wx.Frame):
     def toolbarColorData(self):
         return ("Black", "Red", "Green", "Blue")
 
-    def OnNew(self, event): pass
+    def OnNew(self, event):
+        pass
 
     def OnColor(self, event):
         menubar = self.GetMenuBar()
@@ -136,25 +135,30 @@ class SpykeFrame(wx.Frame):
             cPickle.dump(data, f)
             f.close()
 
-    def ReadFile(self):
-        if self.filename:
-            try:
+    def OpenFile(self):
+        if self.filename.endswith('.srf'): # assume it's a surf file
+            wx.MessageBox("I see you're trying to load %s" % self.filename,
+                          caption="Aha!", style=wx.OK|wx.ICON_EXCLAMATION)
+            # TODO: parse the .srf file
+        else:
+            try: # assume it's a collection file
                 f = open(self.filename, 'rb')
                 data = cPickle.load(f)
                 f.close()
+                # TODO: do something with data
             except cPickle.UnpicklingError:
-                wx.MessageBox("%s is not a sketch file." % self.filename,
-                              "oops!", style=wx.OK|wx.ICON_EXCLAMATION)
-
-    wildcard = "Collection files (*.pickle.gz)|*.pickle.gz|All files (*.*)|*.*"
+                wx.MessageBox("%s is not a collection file." % self.filename,
+                              caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def OnOpen(self, event):
-        dlg = wx.FileDialog(self, "Open collection file", os.getcwd(),
-                            style=wx.OPEN, wildcard=self.wildcard)
+        dlg = wx.FileDialog(self, message="Open surf or collection file",
+                            defaultDir=os.getcwd(), defaultFile='',
+                            wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Collection files(*.pickle.gz)|*.pickle.gz",
+                            style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             self.filename = dlg.GetPath()
-            self.ReadFile()
-            self.SetTitle(self.title + ' -- ' + self.filename)
+            self.OpenFile()
+            self.SetTitle(self.title + ' - ' + self.filename)
         dlg.Destroy()
 
     def OnSave(self, event):
@@ -164,9 +168,11 @@ class SpykeFrame(wx.Frame):
             self.SaveFile()
 
     def OnSaveAs(self, event):
-        dlg = wx.FileDialog(self, "Save collection as", os.getcwd(),
-                            style=wx.SAVE | wx.OVERWRITE_PROMPT,
-                            wildcard = self.wildcard)
+        dlg = wx.FileDialog(self, message="Save collection as",
+                            defaultDir=os.getcwd(), defaultFile='',
+                            wildcard="Collection files (*.pickle.gz)|*.pickle.gz|All files (*.*)|*.*",
+                            style=wx.SAVE | wx.OVERWRITE_PROMPT)
+
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
             if not os.path.splitext(filename)[1]:
@@ -191,26 +197,24 @@ class SpykeFrame(wx.Frame):
 
 class SpykeAbout(wx.Dialog):
     text = '''
-<html>
-<body bgcolor="#ACAA60">
-<center><table bgcolor="#455481" width="100%" cellspacing="0"
-cellpadding="0" border="1">
-<tr>
-    <td align="center"><h1>spyke</h1></td>
-</tr>
-</table>
-</center>
-<p><b>spyke</b> is a tool for neuronal spike sorting.
-</p>
+        <html>
+        <body bgcolor="#ACAA60">
+        <center><table bgcolor="#455481" width="100%" cellspacing="0"
+        cellpadding="0" border="1">
+        <tr>
+            <td align="center"><h1>spyke</h1></td>
+        </tr>
+        </table>
+        </center>
+        <p><b>spyke</b> is a tool for neuronal spike sorting.
+        </p>
 
-<p>Copyright &copy; 2008 Reza Lotun, Martin Spacek</p>
-</body>
-</html>
-'''
+        <p>Copyright &copy; 2008 Reza Lotun, Martin Spacek</p>
+        </body>
+        </html>'''
 
     def __init__(self, parent):
-        wx.Dialog.__init__(self, parent, -1, 'About spyke',
-                          size=(350, 250) )
+        wx.Dialog.__init__(self, parent, -1, 'About spyke', size=(350, 250))
 
         html = wx.html.HtmlWindow(self)
         html.SetPage(self.text)
@@ -225,7 +229,6 @@ cellpadding="0" border="1">
 
 
 class SpykeApp(wx.App):
-
     def OnInit(self, splash=False):
         if splash:
             bmp = wx.Image("res/splash.png").ConvertToBitmap()
@@ -237,6 +240,7 @@ class SpykeApp(wx.App):
         frame.Show(True)
         self.SetTopWindow(frame)
         return True
+
 
 if __name__ == '__main__':
     app = SpykeApp(False)
