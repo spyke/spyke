@@ -16,8 +16,8 @@ class SpykeFrame(wx.Frame):
     def __init__(self, parent):
         self.title = "spyke"
         wx.Frame.__init__(self, parent, -1, self.title, size=(400, 300))
-        self.sketch = Nothing() # TODO: what the hell is a sketch? synonym for collection? default name in wx manual?
-        self.filename = ""
+        self.sketch = Nothing() # TODO: what the hell is a sketch? synonym for collection? example code from wx manual?
+        self.fname = ""
         self.initStatusBar()
         self.createMenuBar()
         self.createToolBar()
@@ -40,11 +40,11 @@ class SpykeFrame(wx.Frame):
         return [("&File",
                     (
                     ("&New", "Create new collection", self.OnNew),
-                    ("&Open", "Open surf or collection file", self.OnOpen),
+                    ("&Open", "Open surf or sort file", self.OnOpen),
                     ("&Save", "Save collection", self.OnSave),
                     ("", "", ""),
                     ("About...", "Show about window", self.OnAbout),
-                    ("&Quit", "Quit", self.OnCloseWindow))
+                    ("E&xit", "Exit", self.OnCloseWindow))
                     )]
 
     def createMenuBar(self):
@@ -79,19 +79,19 @@ class SpykeFrame(wx.Frame):
             self.createSimpleTool(toolbar, *each)
         toolbar.Realize()
 
-    def createSimpleTool(self, toolbar, label, filename, help, handler):
+    def createSimpleTool(self, toolbar, label, fname, help, handler):
         if not label:
             toolbar.AddSeparator()
             return
-        bmp = wx.Image(filename, wx.BITMAP_TYPE_BMP).ConvertToBitmap()
+        bmp = wx.Image(fname).ConvertToBitmap()
         tool = toolbar.AddSimpleTool(-1, bmp, label, help)
         self.Bind(wx.EVT_MENU, handler, tool)
 
     def toolbarData(self):
-        return (("New", "res/new.bmp", "Create new collection", self.OnNew),
+        return (("New", "res/new.png", "Create new collection", self.OnNew),
                 ("", "", "", ""),
-                ("Open", "res/open.bmp", "Open surf or collection file", self.OnOpen),
-                ("Save", "res/save.bmp", "Save collection", self.OnSave))
+                ("Open", "res/open.png", "Open surf or sort file", self.OnOpen),
+                ("Save", "res/save.png", "Save collection", self.OnSave))
 
     def createColorTool(self, toolbar, color):
         bmp = self.MakeBitmap(color)
@@ -129,40 +129,40 @@ class SpykeFrame(wx.Frame):
         self.Destroy()
 
     def SaveFile(self):
-        if self.filename:
+        if self.fname:
             data = self.sketch.GetLinesData()
-            f = open(self.filename, 'wb')
+            f = open(self.fname, 'wb')
             cPickle.dump(data, f)
             f.close()
 
     def OpenFile(self):
-        if self.filename.endswith('.srf'): # assume it's a surf file
-            wx.MessageBox("I see you're trying to load %s" % self.filename,
+        if self.fname.endswith('.srf'): # assume it's a surf file
+            wx.MessageBox("I see you're trying to load %s" % self.fname,
                           caption="Aha!", style=wx.OK|wx.ICON_EXCLAMATION)
             # TODO: parse the .srf file
         else:
             try: # assume it's a collection file
-                f = open(self.filename, 'rb')
+                f = open(self.fname, 'rb')
                 data = cPickle.load(f)
                 f.close()
                 # TODO: do something with data
             except cPickle.UnpicklingError:
-                wx.MessageBox("%s is not a collection file." % self.filename,
+                wx.MessageBox("%s is not a .srf or .srf.sort file." % self.fname,
                               caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def OnOpen(self, event):
-        dlg = wx.FileDialog(self, message="Open surf or collection file",
+        dlg = wx.FileDialog(self, message="Open surf or sort file",
                             defaultDir=os.getcwd(), defaultFile='',
-                            wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Collection files(*.pickle.gz)|*.pickle.gz",
+                            wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            self.filename = dlg.GetPath()
+            self.fname = dlg.GetPath()
             self.OpenFile()
-            self.SetTitle(self.title + ' - ' + self.filename)
+            self.SetTitle(self.title + ' - ' + self.fname)
         dlg.Destroy()
 
     def OnSave(self, event):
-        if not self.filename:
+        if not self.fname:
             self.OnSaveAs(event)
         else:
             self.SaveFile()
@@ -170,16 +170,16 @@ class SpykeFrame(wx.Frame):
     def OnSaveAs(self, event):
         dlg = wx.FileDialog(self, message="Save collection as",
                             defaultDir=os.getcwd(), defaultFile='',
-                            wildcard="Collection files (*.pickle.gz)|*.pickle.gz|All files (*.*)|*.*",
+                            wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
 
         if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
-            if not os.path.splitext(filename)[1]:
-                filename = filename + '.pickle.gz'
-            self.filename = filename
+            fname = dlg.GetPath()
+            if not os.path.splitext(fname)[1]:
+                fname = fname + '.sort'
+            self.fname = fname
             self.SaveFile()
-            self.SetTitle(self.title + ' -- ' + self.filename)
+            self.SetTitle(self.title + ' - ' + self.fname)
         dlg.Destroy()
 
     def OnOtherColor(self, event):
