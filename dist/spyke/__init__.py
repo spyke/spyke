@@ -1,7 +1,4 @@
-""" spyke
-
-Neuronal spike sorting in python.
-"""
+"""spyke - neuronal spike sorting in python"""
 
 import surf
 from spyke.tools import *

@@ -1,8 +1,9 @@
+"""Spike detection algorithms"""
+
 from __future__ import division
 
-""" Spike detection algorithms """
-
 __authors__ = ['Reza Lotun']
+
 
 import itertools
 
@@ -15,7 +16,7 @@ from numpy import where
 
 
 class Detector(object):
-    """ Spike detection superclass. """
+    """Spike detection base class"""
     def __init__(self, stream, init_time):
         self.stream = stream
         self.init_time = init_time
@@ -44,7 +45,7 @@ class FixedThreshold(Detector):
     LOCKOUT = 1e3
 
     def setup(self):
-        """ Used to determine threshold and set initial state. """
+        """Used to determine threshold and set initial state"""
         # get the stdeviation for each channel along a 10s window
         ten_seconds = 1e7
         try:
@@ -64,8 +65,7 @@ class FixedThreshold(Detector):
         for chan, val in self.std.iteritems():
             self.thresholds[chan] = val * self.THRESH_MULT
 
-        # spike window: -0.25ms and +0.75ms around spike
-        # our search window will be 1ms
+        # spike window: -0.25ms and +0.75ms around spike our search window will be 1ms
         self.search_span = self.SEARCH_SPAN
         self.curr = self.init_time + self.SEARCH_SPAN # XXX: add an initial jump
         self.window = self.stream[self.init_time:self.init_time + \
@@ -96,10 +96,10 @@ class FixedThreshold(Detector):
 
 
 class SimpleThreshold(FixedThreshold):
-    """ Bipolar amplitude threshold, with fixed lockout on all channels."""
+    """Bipolar amplitude threshold, with fixed lockout on all channels"""
 
     def find(self):
-        # maintain state and search forward for a spike
+        """Maintain state and search forward for a spike"""
 
         # keep on sliding our search window forward to find spikes
         while True:
@@ -127,7 +127,7 @@ class SimpleThreshold(FixedThreshold):
 
 
 class MultiPhasic(FixedThreshold):
-    """ Multiphasic filter - spikes triggered only when consecutive
+    """Multiphasic filter - spikes triggered only when consecutive
     thresholds of opposite polarity occur on a given channel within
     a specified time window delta_t
 
@@ -147,7 +147,7 @@ class MultiPhasic(FixedThreshold):
     delta_t = 3e2
 
     def find(self):
-        # maintain state and search forward for a spike
+        """Maintain state and search forward for a spike"""
 
         # keep on sliding our search window forward to find spikes
         while True:
@@ -188,7 +188,7 @@ class MultiPhasic(FixedThreshold):
 
 
 class DynamicMultiPhasic(FixedThreshold):
-    """ Dynamic Multiphasic filter - spikes triggered only when consecutive
+    """Dynamic Multiphasic filter - spikes triggered only when consecutive
     thresholds of opposite polarity occured on a given channel within
     a specified time window delta_t, where the second threshold level is
     determined relative to the amplitude of the waveform peak/valley
@@ -218,7 +218,7 @@ class DynamicMultiPhasic(FixedThreshold):
             self.f_inflect[chan] = 3.5 * val
 
     def find(self):
-        # maintain state and search forward for a spike
+        """Maintain state and search forward for a spike"""
 
         # keep on sliding our search window forward to find spikes
         while True:
@@ -287,6 +287,3 @@ class DynamicMultiPhasic(FixedThreshold):
 
             self.curr += self.search_span
             self.window = self.stream[self.curr:self.curr + self.search_span]
-
-
-

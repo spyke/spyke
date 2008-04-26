@@ -1,7 +1,4 @@
-""" spyke.rip
-
-Rip templates against a data file.
-"""
+"""Rip templates against a data file"""
 
 __author__ = 'Reza Lotun'
 
