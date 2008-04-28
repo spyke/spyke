@@ -1,17 +1,27 @@
-""" spyke.format
+"""Various classes and functions used throughout spyke"""
 
-Class declarations of common objects used throughout spyke.
-"""
+from __future__ import with_statement
 
 __author__ = 'Reza Lotun'
 
-import numpy
+import cPickle
+import gzip
+import hashlib
 
+import numpy
 import spyke
-from spyke.stream import WaveForm
+
+
+class WaveForm(object):
+    """Waveform object, has data, timestamps and sample frequency attribs"""
+    def __init__(self, data=None, ts=None, sampfreq=None):
+        self.data = data # potentially multichannel, depending on shape
+        self.ts = ts # timestamps array, one for each sample (column) in data
+        self.sampfreq = sampfreq
+
 
 class Spike(WaveForm):
-    """ A spike event """
+    """A spike event"""
     def __init__(self, waveform=None, channel=None, event_time=None):
         self.data = waveform.data # potentially multichannel
         self.ts = waveform.ts
@@ -33,7 +43,7 @@ class Spike(WaveForm):
 
 
 class Template(object):
-    """ A spike template is simply a collection of spikes. """
+    """A spike template is simply a collection of spikes"""
     def __init__(self,):
         self.active_channels = []
         self._spikes = set() # sets have remove() method, lists don't
@@ -52,6 +62,7 @@ class Template(object):
         self.active_channels = [True] * num_chans
 
     def add(self, spike):
+        """Add a spike"""
         # trigger intialization of certain properties
         if not self._init_props:
             self._set_props(spike)
@@ -65,7 +76,7 @@ class Template(object):
         return len(self._spikes)
 
     def mean(self):
-        """ Returns the mean of all the contained spikes. """
+        """Return the mean of all the contained spikes"""
         if len(self) == 0:
             return None
 
@@ -100,28 +111,28 @@ class HybridList(set):
     def append(self, item):
         self.add(item)
 
+
 class Collection(object):
-    """ A container for Templates. Collections are associated with
-    Surf Files. By default a Collection represents a single sorting session.
-    Initially detected spikes will be added to a default set of spikes in a
-    collection - these spikes will be differentiated through a combination
-    of algorithmic and/or manual sorting.
-    """
+    """A container for Templates. Collections are associated with Surf Files.
+    By default a Collection represents a single sorting session. Initially
+    detected spikes will be added to a default set of spikes in a collection.
+    These spikes will be differentiated through a combination of algorithmic
+    and/or manual sorting"""
     def __init__(self, file=None):
         self.templates = HybridList()
-        self.unsorted_spikes = HybridList()    # these represent unsorted spikes
+        self.unsorted_spikes = HybridList() # these represent unsorted spikes
         self.recycle_bin = HybridList()
-        self.surf_hash = ''              # SHA1 hash of surf file
+        self.surf_hash = '' # SHA1 hash of surf file
 
     def verify_surf(self, surf_file):
-        """ Verifies that this collection corresponds to surf file. """
+        """Verify that this collection corresponds to the surf file"""
         return spyke.get_sha1(surf_file) == self.data_hash
 
     def __len__(self):
         return len(self.templates)
 
     def __str__(self):
-        """ Pretty print the contents of the Collection."""
+        """Pretty print the contents of the Collection"""
         s = []
         for t in self:
             s.extend([str(t), '\n'])
@@ -132,4 +143,53 @@ class Collection(object):
     def __iter__(self):
         for template in self.templates:
             yield template
+
+
+class SpykeError(Exception):
+    """ Base spyke error. """
+    pass
+
+
+class CollectionError(SpykeError):
+    """ Problem with collection file. """
+    pass
+
+
+def get_sha1(filename, blocksize=2**20):
+    """ Gets the sha1 hash of filename (with full path)."""
+    m = hashlib.sha1()
+    # automagically clean up after ourselves
+    with file(filename, 'rb') as f:
+
+        # continually update hash until EOF
+        while True:
+            block = f.read(blocksize)
+            if not block: break
+            m.update(block)
+
+    return m.hexdigest()
+
+
+def load_collection(filename):
+    """ Loads a collection file. Returns None if filename is not a collection.
+    """
+    with file(filename, 'rb') as f:
+        try:
+            g = gzip.GzipFile(fileobj=f, mode='rb')
+            col = cPickle.load(g)
+        except Exception, e:
+            raise CollectionError(str(e))
+        g.close()
+    return col
+
+
+def write_collection(collection, filename):
+    """ Writes a collection to filename. """
+    with file(filename, 'wb') as f:
+        try:
+            g = gzip.GzipFile(fileobj=f, mode='wb')
+            cPickle.dump(collection, g, -1)
+        except Exception, e:
+            raise CollectionError(str(e))
+        g.close()
 

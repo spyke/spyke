@@ -1,4 +1,4 @@
-"""GUI plotting elements"""
+"""plotting gui elements"""
 
 from __future__ import division
 
