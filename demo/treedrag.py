@@ -3,7 +3,7 @@ import cPickle
 import wx
 
 import spyke
-from spyke.layout import *
+from spyke.probes import *
 from spyke.detect import Spike, Template, Collection, SimpleThreshold
 from spyke.gui.events import *
 from spyke.gui.plot import SortPanel

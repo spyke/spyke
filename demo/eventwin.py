@@ -18,7 +18,7 @@ import numpy as np
 import spyke.surf
 import spyke.stream
 import spyke.detect
-from spyke.layout import *
+from spyke.probes import *
 from spyke.gui.plot import EventPanel, ChartPanel
 
 class Demo(wx.App):

@@ -7,7 +7,7 @@ import unittest
 import wx
 
 import spyke
-from spyke.layout import *
+from spyke.probes import *
 from spyke import Spike, Template, Collection
 from spyke import load_collection, write_collection
 from spyke.detect import SimpleThreshold, MultiPhasic, DynamicMultiPhasic

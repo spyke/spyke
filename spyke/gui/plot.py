@@ -714,8 +714,8 @@ class Opener(object):
         self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
         layout_name = surf_file.layoutrecords[0].electrode_name
         layout_name = layout_name.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
-        import spyke.layout
-        self.layout = eval('spyke.layout.' + layout_name)() # UNTESTED
+        import spyke.probes
+        self.layout = eval('spyke.probes.' + layout_name)() # yucky, UNTESTED
         self.curr = self.dstream.records[0].TimeStamp
 
 
