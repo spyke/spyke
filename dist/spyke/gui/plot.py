@@ -1,15 +1,12 @@
+"""GUI plotting elements"""
+
 from __future__ import division
-"""
-spyke.gui.plot - Plotting elements
-"""
 
 __author__ = 'Reza Lotun'
 
 import itertools
 import random
-
 import numpy
-
 import wx
 
 from matplotlib import rcParams
@@ -19,7 +16,6 @@ rcParams['lines.marker'] = ''
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-import matplotlib.numerix as nx
 
 import spyke.surf
 import spyke.stream
@@ -27,7 +23,7 @@ from spyke.gui.events import *
 
 
 class PlottedItem(object):
-    """ A visually distinct object on our plot. These are usually spikes. """
+    """A visually distinct object on our plot. These are usually spikes"""
     def __init__(self, spike):
         # defaults
         self.colour = 'g'
@@ -35,18 +31,17 @@ class PlottedItem(object):
 
 
 class AxesWrapper(object):
-    """ A wrapper around an axes that delegates access to attributes to an
-    actual axes object. Really meant to make axes hashable.
-    """
+    """A wrapper around an axes that delegates access to attributes to an
+    actual axes object. Really meant to make axes hashable"""
     def __init__(self, axes):
         self._spyke_axes = axes
 
     def __getattr__(self, name):
-        # delegate access of attribs to wrapped axes
+        """Delegate access of attribs to wrapped axes"""
         return getattr(self._spyke_axes, name)
 
     def __hash__(self):
-        # base the hash function on the position rect
+        """Base the hash function on the position rect"""
         return hash(str(self.get_position(original=True)))
 
     def __eq__(self, other):
@@ -54,51 +49,47 @@ class AxesWrapper(object):
 
 
 class SpykeLine(Line2D):
-    """ Line2D's that can be compared to each other for equality. """
+    """Line2D's that can be compared to each other for equality"""
     def __init__(self, *args, **kwargs):
         Line2D.__init__(self, *args, **kwargs)
         self.colour = 'none'
-        self.chan_mask = True       # is this channel-as-line displayed?
+        self.chan_mask = True # is this channel-as-line displayed?
 
     def __hash__(self):
-        """ Hash the string representation of the y data. """
+        """Hash the string representation of the y data"""
         return hash(self.colour + str(self._y))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
 
 
-class OneAxisPlotPanel(FigureCanvasWxAgg):
-    """ One axis plot panel. """
+class SingleAxesPlotPanel(FigureCanvasWxAgg):
+    """Single axes plot panel"""
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
         self.layout = layout
-
-
-        self.pos = {}               # position of lines
-        self.channels = {}          # plot y-data for each channel
-        self.axes = {}              # axes for each channel, chan -> axes
-        self.axesToChan = {}        # axes -> chan
-
+        self.pos = {} # position of lines
+        self.channels = {} # plot y-data for each channel
+        self.axes = {} # axes for each channel, chan -> axes
+        self.axesToChan = {} # axes -> chan
         self.num_channels = len(layout)
-
         self.set_params()
         self.my_ylim = None
         self.my_xlim = None
 
     def set_plot_layout(self, layout):
-        """ Override in subclasses. """
+        """Override in subclasses"""
         pass
 
     def set_params(self):
-        """ Set extra parameters. """
+        """Set extra parameters"""
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
         self.colours = ['g'] * self.num_channels
 
     def init_plot(self, wave, colour='g'):
-        # create our one axis to rule them all
+        """Create the single axes"""
         pos = [0, 0, 1, 1]
         self.my_ax = self.figure.add_axes(pos,
                                           axisbg='b',
@@ -154,18 +145,17 @@ class OneAxisPlotPanel(FigureCanvasWxAgg):
         self.draw(True)
 
 
-class ManyAxisPlotPanel(FigureCanvasWxAgg):
-    """ A generic set of spyke plots. Meant to be a superclass of specific
-    implementations of a plot panel (e.g. ChartPanel, EventPanel, etc.)
-    """
+class MultiAxesPlotPanel(FigureCanvasWxAgg):
+    """A generic set of spyke plots. Meant to be a base class of specific
+    implementations of a plot panel (e.g. ChartPanel, EventPanel, etc.)"""
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
 
-        self.pos = {}               # position of plots
-        self.channels = {}          # plot y-data for each channel
-        self.axes = {}              # axes for each channel, chan -> axes
-        self.axesToChan = {}        # axes -> chan
+        self.pos = {} # position of plots
+        self.channels = {} # plot y-data for each channel
+        self.axes = {} # axes for each channel, chan -> axes
+        self.axesToChan = {} # axes -> chan
 
         self.num_channels = len(layout)
 
@@ -232,11 +222,11 @@ class ManyAxisPlotPanel(FigureCanvasWxAgg):
         self.draw(True)
 
 
-class ManyAxisChartPanel(ManyAxisPlotPanel):
-    """ Chart window widget. Presents all channels layout out vertically. """
+class MultiAxesChartPanel(MultiAxesPlotPanel):
+    """Chart window widget. Presents all channels layed out vertically"""
 
     def set_params(self):
-        ManyAxisPlotPanel.set_params(self)
+        MultiAxesPlotPanel.set_params(self)
         colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
         self.colours = []
         for chan in xrange(self.num_channels):
@@ -292,9 +282,9 @@ class ManyAxisChartPanel(ManyAxisPlotPanel):
             center -= alpha
 
 
-class OneAxisChartPanel(OneAxisPlotPanel):
+class SingleAxesChartPanel(SingleAxesPlotPanel):
     def set_params(self):
-        OneAxisPlotPanel.set_params(self)
+        SingleAxesPlotPanel.set_params(self)
         colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
         self.colours = []
         for chan in xrange(self.num_channels):
@@ -309,12 +299,11 @@ class OneAxisChartPanel(OneAxisPlotPanel):
             self.pos[chan] = (0, chan * 100)
 
 
-class OneAxisEventPanel(OneAxisPlotPanel):
-    """ Event window widget. Presents all channels layed out according
-    to the passed in layout.
-    """
+class SingleAxesEventPanel(SingleAxesPlotPanel):
+    """Event window widget. Presents all channels layed out according
+    to the passed in layout"""
     def set_params(self):
-        OneAxisPlotPanel.set_params(self)
+        SingleAxesPlotPanel.set_params(self)
         self.colours = ['m'] * self.num_channels
 
 
@@ -387,12 +376,11 @@ class OneAxisEventPanel(OneAxisPlotPanel):
             self.pos[chan] = (x_off, y_off)
 
 
-class ManyAxisEventPanel(ManyAxisPlotPanel):
-    """ Event window widget. Presents all channels layed out according
-    to the passed in layout.
-    """
+class MultiAxesEventPanel(MultiAxesPlotPanel):
+    """Event window widget. Presents all channels layed out according
+    to the passed in layout"""
     def set_params(self):
-        ManyAxisPlotPanel.set_params(self)
+        MultiAxesPlotPanel.set_params(self)
         self.colours = ['y'] * self.num_channels
 
     def set_plot_layout(self, layout):
@@ -455,13 +443,12 @@ class ManyAxisEventPanel(ManyAxisPlotPanel):
             self.pos[chan] = [l, b, w, h]
 
 
-class OneAxisSortPanel(OneAxisEventPanel):
-    """ Sorting window widget. Presents all channels layed out according
+class SingleAxesSortPanel(SingleAxesEventPanel):
+    """Sorting window widget. Presents all channels layed out according
     to the passed in layout. Also allows overplotting and some user
-    interaction
-    """
+    interaction"""
     def __init__(self, *args, **kwargs):
-        OneAxisEventPanel.__init__(self, *args, **kwargs)
+        SingleAxesEventPanel.__init__(self, *args, **kwargs)
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
         #self.x_vals = None
         self._initialized = False
@@ -474,7 +461,7 @@ class OneAxisSortPanel(OneAxisEventPanel):
         self.all_chans = self.num_channels * [True]
 
     def set_params(self):
-        OneAxisPlotPanel.set_params(self)
+        SingleAxesPlotPanel.set_params(self)
         self.colours = ['y'] * self.num_channels
 
     def _notVisible(self, spike, colour):
@@ -552,13 +539,12 @@ class OneAxisSortPanel(OneAxisEventPanel):
         self.draw(True)
 
 
-class ManyAxisSortPanel(ManyAxisEventPanel):
-    """ Sorting window widget. Presents all channels layed out according
+class MultiAxesSortPanel(MultiAxesEventPanel):
+    """Sorting window widget. Presents all channels layed out according
     to the passed in layout. Also allows overplotting and some user
-    interaction
-    """
+    interaction"""
     def __init__(self, *args, **kwargs):
-        ManyAxisEventPanel.__init__(self, *args, **kwargs)
+        MultiAxesEventPanel.__init__(self, *args, **kwargs)
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         self.x_vals = None
         self._initialized = False
@@ -569,7 +555,7 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
                  }
 
     def set_params(self):
-        ManyAxisPlotPanel.set_params(self)
+        MultiAxesPlotPanel.set_params(self)
         self.colours = ['g'] * self.num_channels
 
     def _toggleVisible(self, spike, colour, top=None):
@@ -615,7 +601,7 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
 
         elif (spike, colour) not in self.spikes:
             lines = []
-            for chan, axis in self.axes.iteritems():
+            for chan, axes in self.axes.iteritems():
                 line = SpykeLine(self.x_vals,
                                  spike.data[chan],
                                  linewidth=0.005,
@@ -623,9 +609,9 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
                                  antialiased=False)
                 line._visible = False
                 line.colour = colour
-                axis.add_line(line)
-                axis.autoscale_view()
-                axis.set_ylim(self.yrange)
+                axes.add_line(line)
+                axes.autoscale_view()
+                axes.set_ylim(self.yrange)
                 line._visible = True
                 lines.append(line)
             self.spikes[(spike, colour)] = [lines, True]
@@ -637,9 +623,9 @@ class ManyAxisSortPanel(ManyAxisEventPanel):
         self._toggleVisible(spike, colour)
         self.draw(True)
 
-class ClickableSortPanel(OneAxisSortPanel):
+class ClickableSortPanel(SingleAxesSortPanel):
     def __init__(self, *args, **kwargs):
-        OneAxisSortPanel.__init__(self, *args, **kwargs)
+        SingleAxesSortPanel.__init__(self, *args, **kwargs)
         self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
         #self.Bind(wx.EVT_LEFT_DOWN, self.onClick, self)
         self.mpl_connect('button_press_event', self.onLeftDown)
@@ -674,9 +660,8 @@ class ClickableSortPanel(OneAxisSortPanel):
         self._sendEvent(channels)
 
     def pointToChannel(self, x, y):
-        """ Given an coordinate in the axis, find out what channel
-        we're clicking on.
-        """
+        """Given a coordinate in the axes, find out what channel
+        we're clicking on"""
         if not self.created:
             self._createMaps()
             self.created = True
@@ -741,17 +726,13 @@ class TestWindows(wx.App):
 
     def OnInit(self):
         op = Opener()
-        self.events = panel = TestEventWin(None, -1, 'Data', op,
-                                                            size=(200,900))
-        self.sort = panel3 = TestSortWin(None, -1, 'Events', op,
-                                                            size=(200,900))
-        self.chart = panel4 = TestChartWin(None, -1, 'Chart', op,
-                                                            size=(500,600))
+        self.events = panel = TestEventWin(None, -1, 'Data', op, size=(200,900))
+        self.sort = panel3 = TestSortWin(None, -1, 'Events', op, size=(200,900))
+        self.chart = panel4 = TestChartWin(None, -1, 'Chart', op, size=(500,600))
         self.SetTopWindow(self.events)
         self.events.Show(True)
         self.sort.Show(True)
         self.chart.Show(True)
-
         return True
 
 
@@ -768,7 +749,7 @@ class PlayWin(wx.Frame):
         pass
 
     def onEraseBackground(self, evt):
-        # prevent redraw flicker
+        """Prevent redraw flicker"""
         pass
 
 
@@ -785,8 +766,8 @@ class TestSortWin(PlayWin):
 
         self.event_iter = iter(simp)
 
-        self.plotPanel = OneAxisSortPanel(self, self.layout.SiteLoc)
-        #self.plotPanel = ManyAxisSortPanel(self, self.layout.SiteLoc)
+        self.plotPanel = SingleAxesSortPanel(self, self.layout.SiteLoc)
+        #self.plotPanel = MultiAxesSortPanel(self, self.layout.SiteLoc)
 
         self.borderAxes = None
 
@@ -801,8 +782,8 @@ class TestEventWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
 
-        #self.plotPanel = ManyAxisEventPanel(self, self.layout.SiteLoc)
-        self.plotPanel = OneAxisEventPanel(self, self.layout.SiteLoc)
+        #self.plotPanel = MultiAxesEventPanel(self, self.layout.SiteLoc)
+        self.plotPanel = SingleAxesEventPanel(self, self.layout.SiteLoc)
 
         self.data = None
         self.points = []
@@ -820,8 +801,8 @@ class TestEventWin(PlayWin):
 class TestChartWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
-        self.plotPanel = OneAxisChartPanel(self, self.layout.SiteLoc)
-        #self.plotPanel = ManyAxisChartPanel(self, self.layout.SiteLoc)
+        self.plotPanel = SingleAxesChartPanel(self, self.layout.SiteLoc)
+        #self.plotPanel = MultiAxesChartPanel(self, self.layout.SiteLoc)
 
         self.data = None
         self.points = []
@@ -840,4 +821,3 @@ class TestChartWin(PlayWin):
 if __name__ == '__main__':
     app = TestWindows()
     app.MainLoop()
-
