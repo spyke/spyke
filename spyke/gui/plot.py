@@ -17,8 +17,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-import spyke.surf
-import spyke.stream
+from spyke import surf
 from spyke.gui.events import *
 
 
@@ -64,7 +63,7 @@ class SpykeLine(Line2D):
 
 
 class SingleAxesPlotPanel(FigureCanvasWxAgg):
-    """Single axes plot panel"""
+    """Single axes plot panel. Base class for specific types of plot panels"""
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
@@ -145,9 +144,256 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         self.draw(True)
 
 
+class ChartPanel(SingleAxesPlotPanel):
+    """Chart panel. Presents all channels layed out vertically"""
+
+    def set_params(self):
+        SingleAxesPlotPanel.set_params(self)
+        colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
+        self.colours = []
+        for chan in xrange(self.num_channels):
+            self.colours.append(colgen.next())
+
+    def set_plot_layout(self, wave):
+        num = self.num_channels
+        # the first channel starts at the top
+        self.my_ax.set_ylim(-50, 54*100 - 50)
+        self.my_ax.set_xlim(wave.ts.min(), wave.ts.max())
+        for chan, coords in self.layout.iteritems():
+            self.pos[chan] = (0, chan * 100)
+
+
+class SpikePanel(SingleAxesPlotPanel):
+    """Spike panel. Presents a narrow temporal window of all channels layed out according
+    to self.layout"""
+
+    def set_params(self):
+        SingleAxesPlotPanel.set_params(self)
+        self.colours = ['m'] * self.num_channels
+
+
+    def set_plot_layout(self, wave):
+        """ Map from polytrode locations given as (x, y) coordinates
+        into position information for the spike plots, which are stored
+        as a list of four values [l, b, w, h]. To illustrate this, consider
+        loc_i = (x, y) are the coordinates for the polytrode on channel i.
+        We want to map these coordinates to the unit square.
+           (0,1)                          (1,1)
+              +------------------------------+
+              |        +--(w)--+
+              |<-(l)-> |       |
+              |        |  x,y (h)
+              |        |       |
+              |        +-------+
+              |            ^
+              |            | (b)
+              |            v
+              +------------------------------+
+             (0,0)                          (0,1)
+        """
+        layout = self.layout
+        # project coordinates onto x and y axes repsectively
+        xcoords = [x for x, y in layout.itervalues()]
+        ycoords = [y for x, y in layout.itervalues()]
+
+        # get limits on coordinates
+        xmin, xmax = min(xcoords), max(xcoords)
+        ymin, ymax = min(ycoords), max(ycoords)
+
+        # base this on heuristics eventually XXX
+        # define the width and height of the bounding boxes
+        col_width = wave.ts.max() - wave.ts.min() - 100    # slight overlap
+
+        x_cols = list(set(xcoords))
+        num_cols = len(x_cols)
+
+        #        x           x           x
+        #  -------------- ----------  -----------
+        # each x should be the center of the columns
+        # each column should be min(wave.ts) - max(wave.ts)
+        self.my_xlim = (min(wave.ts), num_cols*col_width)
+        shifted = wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts))
+        self.my_xlim = (min(shifted), num_cols*col_width)
+        self.my_ax.set_xlim(self.my_xlim)
+
+
+        x_offsets = {}
+        for i, x in enumerate(sorted(x_cols)):
+            x_offsets[x] = i * col_width
+        # For each coordinate, with the given bounding boxes defined above
+        # center these boxes on the coordinates, and adjust to produce
+        # percentages
+        y_rows = list(set(ycoords))
+        num_rows = len(y_rows)
+        row_height = 100
+        y_offsets = {}
+        self.my_ax.set_ylim(-100, num_rows*row_height)
+        self.my_ylim = (-100, num_rows*row_height)
+        for i, y in enumerate(sorted(y_rows)):
+            y_offsets[y] = i * row_height
+
+        self.pos = {}
+        for chan, coords in layout.iteritems():
+            x, y = coords
+
+            x_off = x_offsets[x]
+            y_off = y_offsets[y]
+            self.pos[chan] = (x_off, y_off)
+
+
+class SortPanel(SpikePanel):
+    """Sort panel. Presents a narrow temporal window of all channels
+    layed out according to self.layout. Also allows overplotting and some
+    user interaction"""
+    def __init__(self, *args, **kwargs):
+        SpikePanel.__init__(self, *args, **kwargs)
+        self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
+        #self.x_vals = None
+        self._initialized = False
+        self.layers = {'g' : 0.5,
+                       'y' :   1,
+                       'r' : 0.7 }
+
+        self.all_chans = self.num_channels * [True]
+
+    def set_params(self):
+        SingleAxesPlotPanel.set_params(self)
+        self.colours = ['y'] * self.num_channels
+
+    def _notVisible(self, spike, colour):
+        lines, curr_visible = self.spikes[(spike, colour)]
+        for line in lines:
+            line._visible = False
+        self.spikes[(spike, colour)][1] = False
+
+    def _Visible(self, spike, colour, channels):
+        lines, curr_visible = self.spikes[(spike, colour)]
+        for line, chan in zip(lines, channels):
+            line.chan_mask = chan
+            line._visible = line.chan_mask
+            line.zorder = self.layers[colour]
+        self.spikes[(spike, colour)][1] = True
+
+    def add(self, spike, colour, top=False, channels=None):
+        """(Over)plot a given spike"""
+        colours = [colour] * self.num_channels
+
+        # initialize
+        if not self._initialized:
+
+            self.init_plot(spike, colour)
+
+            lines = []
+            for num, channel in self.channels.iteritems():
+                #x_off, y_off = self.pos[channel]
+                channel._visible = channels[num]
+                channel.chan_mask = channels[num]
+                lines.append(channel)
+
+            self.spikes[(spike, colour)] = [lines, True]
+            self._initialized = True
+
+        elif (spike, colour) in self.spikes:
+            self.my_ax._visible = False
+            self._Visible(spike, colour, channels)
+            self.my_ax._visible = True
+
+        elif (spike, colour) not in self.spikes:
+
+            if channels is None:
+                channels = self.all_chans
+
+            self.my_ax._visible = False
+            lines = []
+            for chan in self.channels:
+                x_off, y_off = self.pos[chan]
+                line = SpykeLine(self.static_x_vals + x_off,
+                                 spike.data[chan] + y_off,
+                                 linewidth=0.005,
+                                 color=colours[chan],
+                                 antialiased=False)
+                line._visible = False
+                line.colour = colour
+                line._visible = channels[chan]
+                lines.append(line)
+                line.zorder = self.layers[colour]
+                self.my_ax.add_line(line)
+            self.spikes[(spike, colour)] = [lines, True]
+            self.my_ax._visible = True
+        self.draw(True)
+
+    def remove(self, spike, colour):
+        """Remove the selected spike from the plot display"""
+        #self._toggleVisible(spike, colour)
+        self.my_ax._visible = False
+        self._notVisible(spike, colour)
+        #if colour in ('y'):
+        #    lines, _ = self.spikes.pop((spike, colour))
+        #    for line in lines:
+        #        self.my_ax.lines.remove(line)
+        self.my_ax._visible = True
+        self.draw(True)
+
+
+class ClickableSortPanel(SortPanel):
+    def __init__(self, *args, **kwargs):
+        SortPanel.__init__(self, *args, **kwargs)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
+        #self.Bind(wx.EVT_LEFT_DOWN, self.onClick, self)
+        self.mpl_connect('button_press_event', self.onLeftDown)
+
+        self.created = False
+
+    def _createMaps(self):
+        self.xoff = sorted(list(set([x for x, y in self.pos.itervalues()])))
+        self.yoff = sorted(list(set([y for x, y in self.pos.itervalues()])))
+
+        self.numcols = len(self.xoff)
+        self.numrows = len(self.yoff)
+
+        dist = lambda tup: (tup[1] - tup[0])
+        self.x_width = dist(self.my_xlim) // self.numcols
+        self.y_height = dist(self.my_ylim) // self.numrows
+
+        self.intvalToChan = {}
+        for chan, offsets in self.pos.iteritems():
+            x_off, y_off = offsets
+            x_intval = x_off // self.x_width
+            y_intval = y_off // self.y_height
+            self.intvalToChan[(x_intval, y_intval)] = chan
+
+    def _sendEvent(self, channels):
+        event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
+        event.selected_channels = channels
+        self.GetEventHandler().ProcessEvent(event)
+
+    def onDoubleClick(self, evt):
+        channels = [True] * len(self.channels)
+        self._sendEvent(channels)
+
+    def pointToChannel(self, x, y):
+        """Given a coordinate in the axes, find out what channel
+        we're clicking on"""
+        if not self.created:
+            self._createMaps()
+            self.created = True
+        key = (int(x) // self.x_width, int(y) // self.y_height)
+        if key in self.intvalToChan:
+            return self.intvalToChan[key]
+        return None
+
+    def onLeftDown(self, event):
+        # event.inaxes
+        channel = self.pointToChannel(event.xdata, event.ydata)
+        if channel is not None:
+            channels = [False] * len(self.channels)
+            channels[channel] = True
+            self._sendEvent(channels)
+
+
 class MultiAxesPlotPanel(FigureCanvasWxAgg):
-    """A generic set of spyke plots. Meant to be a base class of specific
-    implementations of a plot panel (e.g. ChartPanel, SpikePanel, etc.)"""
+    """Multiple axes plot panel. Base class for specific types of plot panels
+    Uses multiple matplotlib axes, which is slow"""
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
@@ -223,7 +469,7 @@ class MultiAxesPlotPanel(FigureCanvasWxAgg):
 
 
 class MultiAxesChartPanel(MultiAxesPlotPanel):
-    """Chart window widget. Presents all channels layed out vertically"""
+    """Multi axes chart panel. Presents all channels layed out vertically. Slow"""
 
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
@@ -233,7 +479,7 @@ class MultiAxesChartPanel(MultiAxesPlotPanel):
             self.colours.append(colgen.next())
 
     def set_plot_layout(self, layout):
-        """ Chartpanel plots are laid out vertically:
+        """Chart panel plots are laid out vertically:
 
            (0,1)                                  (1,1)
               +-------------------------------------+
@@ -282,109 +528,16 @@ class MultiAxesChartPanel(MultiAxesPlotPanel):
             center -= alpha
 
 
-class SingleAxesChartPanel(SingleAxesPlotPanel):
-    def set_params(self):
-        SingleAxesPlotPanel.set_params(self)
-        colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
-        self.colours = []
-        for chan in xrange(self.num_channels):
-            self.colours.append(colgen.next())
-
-    def set_plot_layout(self, wave):
-        num = self.num_channels
-        # the first channel starts at the top
-        self.my_ax.set_ylim(-50, 54*100 - 50)
-        self.my_ax.set_xlim(wave.ts.min(), wave.ts.max())
-        for chan, coords in self.layout.iteritems():
-            self.pos[chan] = (0, chan * 100)
-
-
-class SingleAxesSpikePanel(SingleAxesPlotPanel):
-    """Spike window widget. Presents all channels layed out according
-    to the passed in layout"""
-    def set_params(self):
-        SingleAxesPlotPanel.set_params(self)
-        self.colours = ['m'] * self.num_channels
-
-
-    def set_plot_layout(self, wave):
-        """ Map from polytrode locations given as (x, y) coordinates
-        into position information for the spike plots, which are stored
-        as a list of four values [l, b, w, h]. To illustrate this, consider
-        loc_i = (x, y) are the coordinates for the polytrode on channel i.
-        We want to map these coordinates to the unit square.
-           (0,1)                          (1,1)
-              +------------------------------+
-              |        +--(w)--+
-              |<-(l)-> |       |
-              |        |  x,y (h)
-              |        |       |
-              |        +-------+
-              |            ^
-              |            | (b)
-              |            v
-              +------------------------------+
-             (0,0)                          (0,1)
-        """
-        layout = self.layout
-        # project coordinates onto x and y axes repsectively
-        xcoords = [x for x, y in layout.itervalues()]
-        ycoords = [y for x, y in layout.itervalues()]
-
-        # get limits on coordinates
-        xmin, xmax = min(xcoords), max(xcoords)
-        ymin, ymax = min(ycoords), max(ycoords)
-
-        # base this on heuristics eventually XXX
-        # define the width and height of the bounding boxes
-        col_width = wave.ts.max() - wave.ts.min() - 100    # slight overlap
-
-        x_cols = list(set(xcoords))
-        num_cols = len(x_cols)
-
-        #        x           x           x
-        #  -------------- ----------  -----------
-        # each x should be the center of the columns
-        # each columb should be min(wave.ts) - max(wave.ts)
-        self.my_xlim = (min(wave.ts), num_cols*col_width)
-        shifted = wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts))
-        self.my_xlim = (min(shifted), num_cols*col_width)
-        self.my_ax.set_xlim(self.my_xlim)
-
-
-        x_offsets = {}
-        for i, x in enumerate(sorted(x_cols)):
-            x_offsets[x] = i * col_width
-        # For each coordinate, with the given bounding boxes defined above
-        # center these boxes on the coordinates, and adjust to produce
-        # percentages
-        y_rows = list(set(ycoords))
-        num_rows = len(y_rows)
-        row_height = 100
-        y_offsets = {}
-        self.my_ax.set_ylim(-100, num_rows*row_height)
-        self.my_ylim = (-100, num_rows*row_height)
-        for i, y in enumerate(sorted(y_rows)):
-            y_offsets[y] = i * row_height
-
-        self.pos = {}
-        for chan, coords in layout.iteritems():
-            x, y = coords
-
-            x_off = x_offsets[x]
-            y_off = y_offsets[y]
-            self.pos[chan] = (x_off, y_off)
-
-
 class MultiAxesSpikePanel(MultiAxesPlotPanel):
-    """Spike window widget. Presents all channels layed out according
-    to the passed in layout"""
+    """Multiple axes spike panel. Presents a narrow temporal window of all channels
+    layed out according to self.layout. Slow"""
+
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
         self.colours = ['y'] * self.num_channels
 
     def set_plot_layout(self, layout):
-        """ Map from polytrode locations given as (x, y) coordinates
+        """Map from polytrode locations given as (x, y) coordinates
         into position information for the spike plots, which are stored
         as a list of four values [l, b, w, h]. To illustrate this, consider
         loc_i = (x, y) are the coordinates for the polytrode on channel i.
@@ -443,116 +596,18 @@ class MultiAxesSpikePanel(MultiAxesPlotPanel):
             self.pos[chan] = [l, b, w, h]
 
 
-class SingleAxesSortPanel(SingleAxesSpikePanel):
-    """Sorting window widget. Presents all channels layed out according
-    to the passed in layout. Also allows overplotting and some user
-    interaction"""
-    def __init__(self, *args, **kwargs):
-        SingleAxesSpikePanel.__init__(self, *args, **kwargs)
-        self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
-        #self.x_vals = None
-        self._initialized = False
-        self.layers = {
-                    'g'     :   0.5,
-                    'y'     :   1,
-                    'r'     :   0.7
-                 }
-
-        self.all_chans = self.num_channels * [True]
-
-    def set_params(self):
-        SingleAxesPlotPanel.set_params(self)
-        self.colours = ['y'] * self.num_channels
-
-    def _notVisible(self, spike, colour):
-        lines, curr_visible = self.spikes[(spike, colour)]
-        for line in lines:
-            line._visible = False
-        self.spikes[(spike, colour)][1] = False
-
-    def _Visible(self, spike, colour, channels):
-        lines, curr_visible = self.spikes[(spike, colour)]
-        for line, chan in zip(lines, channels):
-            line.chan_mask = chan
-            line._visible = line.chan_mask
-            line.zorder = self.layers[colour]
-        self.spikes[(spike, colour)][1] = True
-
-    def add(self, spike, colour, top=False, channels=None):
-        """ (Over)plot a given spike. """
-        colours = [colour] * self.num_channels
-
-        # initialize
-        if not self._initialized:
-
-            self.init_plot(spike, colour)
-
-            lines = []
-            for num, channel in self.channels.iteritems():
-                #x_off, y_off = self.pos[channel]
-                channel._visible = channels[num]
-                channel.chan_mask = channels[num]
-                lines.append(channel)
-
-            self.spikes[(spike, colour)] = [lines, True]
-            self._initialized = True
-
-        elif (spike, colour) in self.spikes:
-            self.my_ax._visible = False
-            self._Visible(spike, colour, channels)
-            self.my_ax._visible = True
-
-        elif (spike, colour) not in self.spikes:
-
-            if channels is None:
-                channels = self.all_chans
-
-            self.my_ax._visible = False
-            lines = []
-            for chan in self.channels:
-                x_off, y_off = self.pos[chan]
-                line = SpykeLine(self.static_x_vals + x_off,
-                                 spike.data[chan] + y_off,
-                                 linewidth=0.005,
-                                 color=colours[chan],
-                                 antialiased=False)
-                line._visible = False
-                line.colour = colour
-                line._visible = channels[chan]
-                lines.append(line)
-                line.zorder = self.layers[colour]
-                self.my_ax.add_line(line)
-            self.spikes[(spike, colour)] = [lines, True]
-            self.my_ax._visible = True
-        self.draw(True)
-
-    def remove(self, spike, colour):
-        """ Remove the selected spike from the plot display. """
-        #self._toggleVisible(spike, colour)
-        self.my_ax._visible = False
-        self._notVisible(spike, colour)
-        #if colour in ('y'):
-        #    lines, _ = self.spikes.pop((spike, colour))
-        #    for line in lines:
-        #        self.my_ax.lines.remove(line)
-        self.my_ax._visible = True
-        self.draw(True)
-
-
 class MultiAxesSortPanel(MultiAxesSpikePanel):
-    """Sorting window widget. Presents all channels layed out according
-    to the passed in layout. Also allows overplotting and some user
-    interaction"""
+    """Multiple axes sort panel. Presents a narrow temporal window of all channels
+    layed out according to self.layout. Also allows overplotting and some
+    user interaction. Slow"""
     def __init__(self, *args, **kwargs):
         MultiAxesSpikePanel.__init__(self, *args, **kwargs)
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         self.x_vals = None
         self._initialized = False
-        self.layers = {
-                    'g'     :   0.5,
-                    'y'     :   1,
-                    'r'     :   0.7
-                 }
+        self.layers = {'g' : 0.5,
+                       'y' :   1,
+                       'r' : 0.7 }
 
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
@@ -619,100 +674,46 @@ class MultiAxesSortPanel(MultiAxesSpikePanel):
         self.draw(True)
 
     def remove(self, spike, colour):
-        """ Remove the selected spike from the plot display. """
+        """Remove the selected spike from the plot display"""
         self._toggleVisible(spike, colour)
         self.draw(True)
 
 
-class ClickableSortPanel(SingleAxesSortPanel):
-    def __init__(self, *args, **kwargs):
-        SingleAxesSortPanel.__init__(self, *args, **kwargs)
-        self.Bind(wx.EVT_LEFT_DCLICK, self.onDoubleClick, self)
-        #self.Bind(wx.EVT_LEFT_DOWN, self.onClick, self)
-        self.mpl_connect('button_press_event', self.onLeftDown)
 
-        self.created = False
-
-    def _createMaps(self):
-        self.xoff = sorted(list(set([x for x, y in self.pos.itervalues()])))
-        self.yoff = sorted(list(set([y for x, y in self.pos.itervalues()])))
-
-        self.numcols = len(self.xoff)
-        self.numrows = len(self.yoff)
-
-        dist = lambda tup: (tup[1] - tup[0])
-        self.x_width = dist(self.my_xlim) // self.numcols
-        self.y_height = dist(self.my_ylim) // self.numrows
-
-        self.intvalToChan = {}
-        for chan, offsets in self.pos.iteritems():
-            x_off, y_off = offsets
-            x_intval = x_off // self.x_width
-            y_intval = y_off // self.y_height
-            self.intvalToChan[(x_intval, y_intval)] = chan
-
-    def _sendEvent(self, channels):
-        event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
-        event.selected_channels = channels
-        self.GetEventHandler().ProcessEvent(event)
-
-    def onDoubleClick(self, evt):
-        channels = [True] * len(self.channels)
-        self._sendEvent(channels)
-
-    def pointToChannel(self, x, y):
-        """Given a coordinate in the axes, find out what channel
-        we're clicking on"""
-        if not self.created:
-            self._createMaps()
-            self.created = True
-        key = (int(x) // self.x_width, int(y) // self.y_height)
-        if key in self.intvalToChan:
-            return self.intvalToChan[key]
-        return None
-
-    def onLeftDown(self, event):
-        # event.inaxes
-        channel = self.pointToChannel(event.xdata, event.ydata)
-        if channel is not None:
-            channels = [False] * len(self.channels)
-            channels[channel] = True
-            self._sendEvent(channels)
+######## Tests #########
 
 
-#####----- Tests
-
-import spyke.detect
-import os
-
-filenames = ['/data/ptc15/87 - track 7c spontaneous craziness.srf',
-             '/Documents and Settings/Reza Lotun/Desktop/Surfdata/87 - track 7c spontaneous craziness.srf',
-             '/media/windows/Documents and Settings/Reza ' \
-                        'Lotun/Desktop/Surfdata/' \
-                        '87 - track 7c spontaneous craziness.srf',
-             '/home/rlotun/data_spyke/'\
-                        '87 - track 7c spontaneous craziness.srf',
-             '/data/87 - track 7c spontaneous craziness.srf',
-             '/Users/rlotun/work/spyke/data/smallSurf',
-             '/home/rlotun/spyke/data/smallSurf',
-            ]
 
 class Opener(object):
     """Opens and parses the first available file in filenames"""
+    FILENAMES = ['/data/ptc15/87 - track 7c spontaneous craziness.srf',
+                 '/Documents and Settings/Reza Lotun/Desktop/Surfdata/87 - track 7c spontaneous craziness.srf',
+                 '/media/windows/Documents and Settings/Reza ' \
+                            'Lotun/Desktop/Surfdata/' \
+                            '87 - track 7c spontaneous craziness.srf',
+                 '/home/rlotun/data_spyke/'\
+                            '87 - track 7c spontaneous craziness.srf',
+                 '/data/87 - track 7c spontaneous craziness.srf',
+                 '/Users/rlotun/work/spyke/data/smallSurf',
+                 '/home/rlotun/spyke/data/smallSurf',
+                ]
+
     def __init__(self):
 
-        for filename in filenames:
+        import spyke.detect
+        import os
+
+        for filename in self.FILENAMES:
             try:
                 stat = os.stat(filename)
                 break
             except:
                 continue
 
-        import spyke.surf
-        surf_file = spyke.surf.File(filename)
+        surf_file = surf.File(filename)
         self.surf_file = surf_file
         surf_file.parse()
-        self.dstream = spyke.stream.Stream(surf_file.highpassrecords)
+        self.dstream = spyke.core.Stream(surf_file.highpassrecords)
         layout_name = surf_file.layoutrecords[0].electrode_name
         layout_name = layout_name.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
         import spyke.probes
@@ -766,8 +767,8 @@ class TestSortWin(PlayWin):
 
         self.event_iter = iter(simp)
 
-        self.plotPanel = SingleAxesSortPanel(self, self.layout.SiteLoc)
-        #self.plotPanel = MultiAxesSortPanel(self, self.layout.SiteLoc)
+        #self.plotPanel = MultiAxesSortPanel(self, self.layout.SiteLoc) # slow
+        self.plotPanel = SortPanel(self, self.layout.SiteLoc) # fast
 
         self.borderAxes = None
 
@@ -782,8 +783,8 @@ class TestSpikeWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
 
-        #self.plotPanel = MultiAxesSpikePanel(self, self.layout.SiteLoc)
-        self.plotPanel = SingleAxesSpikePanel(self, self.layout.SiteLoc)
+        #self.plotPanel = MultiAxesSpikePanel(self, self.layout.SiteLoc) # slow
+        self.plotPanel = SpikePanel(self, self.layout.SiteLoc) # fast
 
         self.data = None
         self.points = []
@@ -801,8 +802,9 @@ class TestSpikeWin(PlayWin):
 class TestChartWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
-        self.plotPanel = SingleAxesChartPanel(self, self.layout.SiteLoc)
-        #self.plotPanel = MultiAxesChartPanel(self, self.layout.SiteLoc)
+
+        #self.plotPanel = MultiAxesChartPanel(self, self.layout.SiteLoc) # slow
+        self.plotPanel = ChartPanel(self, self.layout.SiteLoc)
 
         self.data = None
         self.points = []
