@@ -1,3 +1,4 @@
+"""Demos treedragging in a spyke sort window???"""
 
 import cPickle
 import wx
@@ -59,6 +60,7 @@ class TestApp(wx.App):
 
 from spyke.gui.plot import Opener
 
+
 class SorterWin(wx.Frame):
     def __init__(self, parent, id, title, op, **kwds):
         wx.Frame.__init__(self, parent, id, title, **kwds)
@@ -69,7 +71,6 @@ class SorterWin(wx.Frame):
     def onEraseBackground(self, evt):
         # prevent redraw flicker
         pass
-
 
 
 class SpikeDropSource(wx.DropSource):

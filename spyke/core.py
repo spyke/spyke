@@ -12,9 +12,6 @@ import hashlib
 import numpy as np
 
 
-DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
-
-
 class WaveForm(object):
     """Waveform object, has data, timestamps and sample frequency attribs"""
     def __init__(self, data=None, ts=None, sampfreq=None):
@@ -27,6 +24,8 @@ class Stream(object):
     """Streaming object- provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk"""
+    DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
+
     def __init__(self, records=None, sampfreq=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords"""
@@ -242,19 +241,14 @@ class Template(object):
         """Return the mean of all the contained spikes"""
         if len(self) == 0:
             return None
-
         # TODO: use numpy's mean() method
-
         sample = iter(self).next()
         dim = sample.data.shape
         _mean = Spike(sample)
         _mean.data = np.asarray([0.0] * dim[0] * dim[1]).reshape(dim)
-
         for num, spike in enumerate(self):
             _mean.data += spike.data
-
         _mean.data = _mean.data / (num + 1)
-
         return _mean
 
     def __eq__(self, oth):
@@ -309,34 +303,33 @@ class Collection(object):
 
 
 class SpykeError(Exception):
-    """ Base spyke error. """
+    """Base spyke error"""
     pass
 
 
 class CollectionError(SpykeError):
-    """ Problem with collection file. """
+    """Problem with collection file"""
     pass
 
 
-def get_sha1(filename, blocksize=2**20):
-    """ Gets the sha1 hash of filename (with full path)."""
+def get_sha1(fname, blocksize=2**20):
+    """Gets the sha1 hash of fname (with full path)"""
     m = hashlib.sha1()
     # automagically clean up after ourselves
-    with file(filename, 'rb') as f:
+    with file(fname, 'rb') as f:
 
         # continually update hash until EOF
         while True:
             block = f.read(blocksize)
-            if not block: break
+            if not block:
+                break
             m.update(block)
 
     return m.hexdigest()
 
-
-def load_collection(filename):
-    """ Loads a collection file. Returns None if filename is not a collection.
-    """
-    with file(filename, 'rb') as f:
+def load_collection(fname):
+    """Loads a collection file. Returns None if fname is not a collection"""
+    with file(fname, 'rb') as f:
         try:
             g = gzip.GzipFile(fileobj=f, mode='rb')
             col = cPickle.load(g)
@@ -345,14 +338,12 @@ def load_collection(filename):
         g.close()
     return col
 
-
-def write_collection(collection, filename):
-    """ Writes a collection to filename. """
-    with file(filename, 'wb') as f:
+def write_collection(collection, fname):
+    """Writes a collection to fname"""
+    with file(fname, 'wb') as f:
         try:
             g = gzip.GzipFile(fileobj=f, mode='wb')
             cPickle.dump(collection, g, -1)
         except Exception, e:
             raise CollectionError(str(e))
         g.close()
-

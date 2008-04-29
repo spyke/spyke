@@ -1,4 +1,4 @@
-""" rip demo """
+"""rip demo"""
 
 __author__ = 'Reza Lotun'
 

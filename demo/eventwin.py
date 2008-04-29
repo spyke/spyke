@@ -1,9 +1,6 @@
-from __future__ import division
-"""
-eventwin.py
+"""A smattering of code demonstrating an event window for spyke"""
 
-A smattering of code demonstrating an event window for spyke
-"""
+from __future__ import division
 
 __author__ = 'Reza Lotun'
 

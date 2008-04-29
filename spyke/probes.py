@@ -1,7 +1,7 @@
-"""Spatial layouts of various electrophys probe designs
+"""Spatial layouts of various electrophys (generally silicon polytrode) probe designs"""
 
-TODO: add pt16a, pt16b, pt16c, and pt16x layouts
-"""
+# TODO: add pt16a, pt16b, pt16c, and pt16x layouts (with adapter)
+
 
 class Probe(object):
     """self.SiteLoc maps chan id to (x, y) position of site in um"""

@@ -10,7 +10,6 @@ import struct
 import unittest
 
 NULL = '\x00'
-DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
 
 
 class DRDBError(ValueError):
@@ -237,7 +236,7 @@ class File(Record):
             self.lowpassmultichanrecords.append(lpass)
 
         #self.highpassstream = Stream(records=self.highpassrecords,
-        #                                sampfreq=DEFAULTINTERPSAMPFREQ)
+        #                                sampfreq=Stream.DEFAULTINTERPSAMPFREQ)
         #self.lowpassstream = Stream(records=self.lowpassrecords)
 
     def serialize(self):

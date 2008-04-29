@@ -126,11 +126,11 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
             self.axesToChan[AxesWrapper(self.my_ax)] = chan
 
         self.my_ax._visible = True
-        # redraw the disply
+        # redraw the display
         self.draw(True)
 
     def plot(self, waveforms):
-        """ Plot waveforms """
+        """Plot waveforms"""
         # check if we've set up our axes yet
         if not self._plot_setup:
             self.init_plot(waveforms)
@@ -147,7 +147,7 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
 
 class MultiAxesPlotPanel(FigureCanvasWxAgg):
     """A generic set of spyke plots. Meant to be a base class of specific
-    implementations of a plot panel (e.g. ChartPanel, EventPanel, etc.)"""
+    implementations of a plot panel (e.g. ChartPanel, SpikePanel, etc.)"""
     def __init__(self, frame, layout):
         FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
         self._plot_setup = False
@@ -299,8 +299,8 @@ class SingleAxesChartPanel(SingleAxesPlotPanel):
             self.pos[chan] = (0, chan * 100)
 
 
-class SingleAxesEventPanel(SingleAxesPlotPanel):
-    """Event window widget. Presents all channels layed out according
+class SingleAxesSpikePanel(SingleAxesPlotPanel):
+    """Spike window widget. Presents all channels layed out according
     to the passed in layout"""
     def set_params(self):
         SingleAxesPlotPanel.set_params(self)
@@ -376,8 +376,8 @@ class SingleAxesEventPanel(SingleAxesPlotPanel):
             self.pos[chan] = (x_off, y_off)
 
 
-class MultiAxesEventPanel(MultiAxesPlotPanel):
-    """Event window widget. Presents all channels layed out according
+class MultiAxesSpikePanel(MultiAxesPlotPanel):
+    """Spike window widget. Presents all channels layed out according
     to the passed in layout"""
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
@@ -443,12 +443,12 @@ class MultiAxesEventPanel(MultiAxesPlotPanel):
             self.pos[chan] = [l, b, w, h]
 
 
-class SingleAxesSortPanel(SingleAxesEventPanel):
+class SingleAxesSortPanel(SingleAxesSpikePanel):
     """Sorting window widget. Presents all channels layed out according
     to the passed in layout. Also allows overplotting and some user
     interaction"""
     def __init__(self, *args, **kwargs):
-        SingleAxesEventPanel.__init__(self, *args, **kwargs)
+        SingleAxesSpikePanel.__init__(self, *args, **kwargs)
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
         #self.x_vals = None
         self._initialized = False
@@ -539,12 +539,12 @@ class SingleAxesSortPanel(SingleAxesEventPanel):
         self.draw(True)
 
 
-class MultiAxesSortPanel(MultiAxesEventPanel):
+class MultiAxesSortPanel(MultiAxesSpikePanel):
     """Sorting window widget. Presents all channels layed out according
     to the passed in layout. Also allows overplotting and some user
     interaction"""
     def __init__(self, *args, **kwargs):
-        MultiAxesEventPanel.__init__(self, *args, **kwargs)
+        MultiAxesSpikePanel.__init__(self, *args, **kwargs)
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], visible]
         self.x_vals = None
         self._initialized = False
@@ -622,6 +622,7 @@ class MultiAxesSortPanel(MultiAxesEventPanel):
         """ Remove the selected spike from the plot display. """
         self._toggleVisible(spike, colour)
         self.draw(True)
+
 
 class ClickableSortPanel(SingleAxesSortPanel):
     def __init__(self, *args, **kwargs):
@@ -754,9 +755,8 @@ class PlayWin(wx.Frame):
 
 
 class TestSortWin(PlayWin):
-    """ Reference implementation of a test Event Window. An EventPanel
-    is simply embedded in a wx Frame, and a passed in data file is "played".
-    """
+    """Reference implementation of a test Sort Window. An SpikePanel
+    is simply embedded in a wx Frame, and a passed in data file is played"""
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
 
@@ -778,12 +778,12 @@ class TestSortWin(PlayWin):
         self.plotPanel.plot(waveforms)
 
 
-class TestEventWin(PlayWin):
+class TestSpikeWin(PlayWin):
     def __init__(self, parent, id, title, op, **kwds):
         PlayWin.__init__(self, parent, id, title, op, **kwds)
 
-        #self.plotPanel = MultiAxesEventPanel(self, self.layout.SiteLoc)
-        self.plotPanel = SingleAxesEventPanel(self, self.layout.SiteLoc)
+        #self.plotPanel = MultiAxesSpikePanel(self, self.layout.SiteLoc)
+        self.plotPanel = SingleAxesSpikePanel(self, self.layout.SiteLoc)
 
         self.data = None
         self.points = []
