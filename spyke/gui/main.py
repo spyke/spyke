@@ -92,15 +92,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.probe = eval('probes.' + probename)() # yucky
 
         # TODO: open spike, chart and LFP windows, depress their toggle buttons
-        spikeframe = wx.Frame(None)
-        chartframe = wx.Frame(None)
-        lfpframe = wx.Frame(None)
-        self.spikepanel = plot.SpikePanel(spikeframe, self.probe.SiteLoc)
-        self.chartpanel = plot.ChartPanel(chartframe, self.probe.SiteLoc)
-        self.lfppanel = plot.ChartPanel(lfpframe, self.probe.SiteLoc)
-        self.spikepanel.Show()
-        self.chartpanel.Show()
-        self.lfppanel.Show()
+
+        self.spikeframe = SpikeFrame(self.probe, None)
+        self.spikeframe.Show(True)
+
+        #chartframe = wx.Frame(None)
+        #lfpframe = wx.Frame(None)
+        #self.spikepanel = plot.SpikePanel(spikeframe, self.probe.SiteLoc)
+        #self.chartpanel = plot.ChartPanel(chartframe, self.probe.SiteLoc)
+        #self.lfppanel = plot.ChartPanel(lfpframe, self.probe.SiteLoc)
+
+
 
         # showing a hidden widget causes drawing problems and requires minimize+maximize to fix
         #self.file_control_panel.Show(True)
@@ -143,6 +145,37 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(self.Title + ' - ' + self.sortfname)
+
+
+
+class SpikeFrame(wx.Frame):
+    def __init__(self, probe, *args, **kwds):
+        # begin wxGlade: SpikeFrame.__init__
+        kwds["style"] = wx.DEFAULT_FRAME_STYLE
+        wx.Frame.__init__(self, *args, **kwds)
+        self.spikepanel = plot.SpikePanel(self, probe.SiteLoc)
+
+
+        self.__set_properties()
+        self.__do_layout()
+        # end wxGlade
+
+    def __set_properties(self):
+        # begin wxGlade: SpikeFrame.__set_properties
+        self.SetTitle("spike window")
+        self.SetSize((219, 944))
+        # end wxGlade
+
+    def __do_layout(self):
+        # begin wxGlade: SpikeFrame.__do_layout
+        spikeframe_sizer = wx.BoxSizer(wx.VERTICAL)
+        spikeframe_sizer.Add(self.spikepanel, 1, wx.EXPAND, 0)
+        self.SetSizer(spikeframe_sizer)
+        self.Layout()
+        # end wxGlade
+
+
+
 
 
 class SpykeAbout(wx.Dialog):
