@@ -21,7 +21,7 @@ class WaveForm(object):
 
 
 class Stream(object):
-    """Streaming object- provides convenient stream interface to .srf files.
+    """Streaming object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk"""
     DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
@@ -52,7 +52,7 @@ class Stream(object):
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
         # timestamp, end with that record (even though you'll only potentially use the one timepoint from
         # that record, depending on the value of 'endinclusive')"""
-        # lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right')
+        lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right')
 
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking

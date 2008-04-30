@@ -95,6 +95,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.spikeframe = SpikeFrame(self.probe, None)
         self.spikeframe.Show(True)
+        waveform = self.stream[0:1000] # first ms of data
+        self.spikeframe.spikepanel.plot(waveform) # plot it
 
         #chartframe = wx.Frame(None)
         #lfpframe = wx.Frame(None)
