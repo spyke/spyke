@@ -5,6 +5,7 @@ from __future__ import division
 __author__ = 'Reza Lotun'
 
 import itertools
+from copy import copy
 import random
 import numpy
 import wx
@@ -173,11 +174,14 @@ class SpikePanel(SingleAxesPlotPanel):
 
 
     def set_plot_layout(self, wave):
-        """ Map from polytrode locations given as (x, y) coordinates
+        """Map from polytrode layout given as (x, y) coordinates
         into position information for the spike plots, which are stored
-        as a list of four values [l, b, w, h]. To illustrate this, consider
+        as a list of four values [l, b, w, h].
+
+        To illustrate this, consider
         loc_i = (x, y) are the coordinates for the polytrode on channel i.
         We want to map these coordinates to the unit square.
+
            (0,1)                          (1,1)
               +------------------------------+
               |        +--(w)--+
@@ -190,21 +194,35 @@ class SpikePanel(SingleAxesPlotPanel):
               |            v
               +------------------------------+
              (0,0)                          (0,1)
-        """
-        layout = self.layout
+
+        NOTE that unlike indincated above, actual layout coords are:
+            x: distance from center of polytrode
+            y: distance down from top of polytrode border (slightly above top site)
+
+        So, y locations need to be swapped vertically before being used"""
+
+        bottomlayout = copy(self.layout)
+        # convert all y coords to have origin at bottom, not top
+        ys = [y for x, y in bottomlayout.values()]
+        maxy = max(ys)
+        for key, val in bottomlayout.items():
+            x, y = val
+            y = maxy - y
+            bottomlayout[key] = (x, y) # update
+
         # project coordinates onto x and y axes repsectively
-        xcoords = [x for x, y in layout.itervalues()]
-        ycoords = [y for x, y in layout.itervalues()]
+        xs = [x for x, y in bottomlayout.values()]
+        ys = [y for x, y in bottomlayout.values()]
 
         # get limits on coordinates
-        xmin, xmax = min(xcoords), max(xcoords)
-        ymin, ymax = min(ycoords), max(ycoords)
+        xmin, xmax = min(xs), max(xs)
+        ymin, ymax = min(ys), max(ys)
 
-        # base this on heuristics eventually XXX
+        # TODO: base this on heuristics eventually
         # define the width and height of the bounding boxes
-        col_width = wave.ts.max() - wave.ts.min() - 100    # slight overlap
+        col_width = wave.ts.max() - wave.ts.min() - 100 # slight overlap
 
-        x_cols = list(set(xcoords))
+        x_cols = list(set(xs))
         num_cols = len(x_cols)
 
         #        x           x           x
@@ -223,7 +241,7 @@ class SpikePanel(SingleAxesPlotPanel):
         # For each coordinate, with the given bounding boxes defined above
         # center these boxes on the coordinates, and adjust to produce
         # percentages
-        y_rows = list(set(ycoords))
+        y_rows = list(set(ys))
         num_rows = len(y_rows)
         row_height = 100
         y_offsets = {}
@@ -233,7 +251,7 @@ class SpikePanel(SingleAxesPlotPanel):
             y_offsets[y] = i * row_height
 
         self.pos = {}
-        for chan, coords in layout.iteritems():
+        for chan, coords in bottomlayout.iteritems():
             x, y = coords
 
             x_off = x_offsets[x]

@@ -87,47 +87,53 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             return
 
     def OpenSurfFile(self, fname):
+        """Open a .srf file, and update display accordingly"""
         self.surff = surf.File(fname)
         # TODO: parsing progress dialog
         self.surff.parse()
         self.surffname = fname # bind it now that it's been successfully opened and parsed
-        self.SetTitle(self.Title + ' - ' + self.surffname)
-        self.stream = core.Stream(self.surff.highpassrecords)
-        self.layoutrecord = self.surff.layoutrecords[0]
+        self.SetTitle(self.Title + ' - ' + self.surffname) # and update the title bar
+
+        self.stream = core.Stream(self.surff.highpassrecords) # highpass recording (spike) stream
+        self.t0 = self.stream.rts[0] # first record timestamp, time that recording began
+        self.layoutrecord = self.surff.layoutrecords[0] # TODO: check this: presumably the first is the spike probe layout
         probename = self.layoutrecord.electrode_name
         probename = probename.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
-        self.probe = eval('probes.' + probename)() # yucky
+        self.probe = eval('probes.' + probename)() # yucky. TODO: switch to a dict with keywords?
 
-        # TODO: open spike, chart and LFP windows, depress their toggle buttons
+        # TODO: open spike, chart and LFP windows, depress their toggle buttons, check their toggle menus
 
-        self.spikeframe = SpikeFrame(self.probe, None)
+        self.spikeframe = SpikeFrame(self.probe, None) # pop up a spike frame
         self.spikeframe.Show(True)
-        waveform = self.stream[0:1000] # first ms of data
-        self.spikeframe.spikepanel.plot(waveform) # plot it
 
-        #chartframe = wx.Frame(None)
-        #lfpframe = wx.Frame(None)
-        #self.spikepanel = plot.SpikePanel(spikeframe, self.probe.SiteLoc)
-        #self.chartpanel = plot.ChartPanel(chartframe, self.probe.SiteLoc)
-        #self.lfppanel = plot.ChartPanel(lfpframe, self.probe.SiteLoc)
-
-
+        self.seek(self.t0) # plot first time window of data for all enabled frames
 
         # showing a hidden widget causes drawing problems and requires minimize+maximize to fix
         #self.file_control_panel.Show(True)
-        #self.notebook.Show(True) # ditto
+        #self.notebook.Show(True)
         #self.Refresh() # doesn't seem to help
-
+        # use enable/disable instead, at least for now
         self.file_control_panel.Enable(True)
         self.notebook.Enable(True)
 
-    def seek(self, pos):
-        """Seek to position in surf file"""
-        # TODO: update spike window
-        # TODO: update chart window
-        # TODO: update LFP window
+    def seek(self, offset, relative=False):
+        """Seek to position in surf file. offset is time in us,
+        relative determines if offset is absolute or relative. If True,
+        offset can be negative to seek backwards from current offset"""
+        if not relative:
+            self.pos = offset
+        else:
+            self.pos = self.pos + offset
+
+        # update spike frame
+        waveform = self.stream[self.pos:self.pos+self.spikeframe.tw]
+        self.spikeframe.spikepanel.plot(waveform) # plot it
+
+
+        # TODO: update chart and LFP windows
         # TODO: update slider
-        self.pos = pos # bind it
+        # TODO: update statusbar
+
 
     def tell(self):
         """Return current position in surf file"""
@@ -162,9 +168,10 @@ class SpikeFrame(wxglade_gui.SpikeFrame):
     Only thing really inherited is __set_properties()"""
     def __init__(self, probe, *args, **kwds):
         # begin wxGlade: SpikeFrame.__init__
-        kwds["style"] = wx.DEFAULT_FRAME_STYLE
+        kwds["style"] = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW|wx.FRAME_NO_TASKBAR # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
         wx.Frame.__init__(self, *args, **kwds)
         self.spikepanel = plot.SpikePanel(self, -1, layout=probe.SiteLoc)
+        self.tw = 1000 # temporal window width (us)
 
         self.__set_properties()
         self.__do_layout()
