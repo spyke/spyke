@@ -20,6 +20,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
         self.surffname = ""
         self.sortfname = ""
+
+        self.Bind(wx.EVT_CLOSE, self.OnExit)
+
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
     def OnNew(self, event):
@@ -56,6 +59,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnExit(self, event):
         # TODO: add confirmation dialog if collection not saved
+        try:
+            self.spikeframe.Destroy()
+        except:
+            pass
         try:
             self.surff.close()
         except AttributeError:
@@ -149,35 +156,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(self.Title + ' - ' + self.sortfname)
 
 
-
-class SpikeFrame(wx.Frame):
+class SpikeFrame(wxglade_gui.SpikeFrame):
+    """Frame to hold the custom spike panel widget.
+    Copied and modified from auto-generated wxglade_gui.py code.
+    Only thing really inherited is __set_properties()"""
     def __init__(self, probe, *args, **kwds):
         # begin wxGlade: SpikeFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
-        self.spikepanel = plot.SpikePanel(self, probe.SiteLoc)
-
+        self.spikepanel = plot.SpikePanel(self, -1, layout=probe.SiteLoc)
 
         self.__set_properties()
         self.__do_layout()
         # end wxGlade
 
-    def __set_properties(self):
-        # begin wxGlade: SpikeFrame.__set_properties
-        self.SetTitle("spike window")
-        self.SetSize((219, 944))
-        # end wxGlade
-
     def __do_layout(self):
         # begin wxGlade: SpikeFrame.__do_layout
-        spikeframe_sizer = wx.BoxSizer(wx.VERTICAL)
-        spikeframe_sizer.Add(self.spikepanel, 1, wx.EXPAND, 0)
+        spikeframe_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        spikeframe_sizer.Add(self.spikepanel, 1, wx.EXPAND, 0) # added by mspacek
         self.SetSizer(spikeframe_sizer)
         self.Layout()
         # end wxGlade
-
-
-
 
 
 class SpykeAbout(wx.Dialog):

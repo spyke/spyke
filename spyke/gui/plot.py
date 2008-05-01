@@ -64,8 +64,8 @@ class SpykeLine(Line2D):
 
 class SingleAxesPlotPanel(FigureCanvasWxAgg):
     """Single axes plot panel. Base class for specific types of plot panels"""
-    def __init__(self, frame, layout):
-        FigureCanvasWxAgg.__init__(self, frame, -1, Figure())
+    def __init__(self, parent, id=-1, layout=None):
+        FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._plot_setup = False
         self.layout = layout
         self.pos = {} # position of lines
