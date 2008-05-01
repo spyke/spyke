@@ -74,6 +74,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dlg.ShowModal()
         dlg.Destroy()
 
+    def OnSliderScroll(self, event):
+        self.seek(self.slider.GetValue())
+
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
         ext = os.path.splitext(fname)[1]
@@ -105,6 +108,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.spikeframe = SpikeFrame(self.probe, None) # pop up a spike frame
         self.spikeframe.Show(True)
+        self.slider.SetPageSize(self.spikeframe.tw) # set slider page size to spike frame temporal width
 
         self.seek(self.t0) # plot first time window of data for all enabled frames
 
