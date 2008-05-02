@@ -20,10 +20,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
         self.surffname = ""
         self.sortfname = ""
+        self.frames = {} # holds spike, chart, and lfp frames
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
+        self.Bind(wx.EVT_ICONIZE, self.OnIconize)
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
+
+        #self.OpenSurfFile(self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf') # have this here just to make testing faster
 
     def OnNew(self, event):
         # TODO: what should actually go here? just check if an existing collection exists,
@@ -57,25 +61,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.SaveFile(fname)
         dlg.Destroy()
 
+    def OnClose(self, event):
+        # TODO: add confirmation dialog if collection not saved
+        self.CloseSurfFile()
+
     def OnExit(self, event):
         # TODO: add confirmation dialog if collection not saved
-        try:
-            self.spikeframe.Destroy()
-        except:
-            pass
-        try:
-            self.surff.close()
-        except AttributeError:
-            pass
-        self.Destroy()
+        self.CloseSurfFile()
+        event.Skip()
 
     def OnAbout(self, event):
         dlg = SpykeAbout(self)
         dlg.ShowModal()
         dlg.Destroy()
 
+    def OnIconize(self, event):
+        for frame in self.frames.values():
+            if not frame.Hide(): # returns False if it's already hidden
+                frame.Show()
+        print 'iconizing'
+        event.Skip()
+
     def OnSliderScroll(self, event):
         self.seek(self.slider.GetValue())
+        event.Skip()
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -91,11 +100,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OpenSurfFile(self, fname):
         """Open a .srf file, and update display accordingly"""
+        self.CloseSurfFile() # in case a .srf file and frames are already open
         self.surff = surf.File(fname)
         # TODO: parsing progress dialog
         self.surff.parse()
         self.surffname = fname # bind it now that it's been successfully opened and parsed
-        self.SetTitle(self.Title + ' - ' + self.surffname) # and update the title bar
+        self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
 
         self.stream = core.Stream(self.surff.highpassrecords) # highpass recording (spike) stream
         self.t0 = self.stream.rts[0] # first record timestamp, time that recording began
@@ -105,20 +115,53 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.probe = eval('probes.' + probename)() # yucky. TODO: switch to a dict with keywords?
 
         # TODO: open spike, chart and LFP windows, depress their toggle buttons, check their toggle menus
+        self.EnableFrame('spike')
+        # create the 3 types of data frames
 
-        self.spikeframe = SpikeFrame(self.probe, None) # pop up a spike frame
-        self.spikeframe.Show(True)
         self.slider.SetPageSize(self.spikeframe.tw) # set slider page size to spike frame temporal width
 
         self.seek(self.t0) # plot first time window of data for all enabled frames
 
         # showing a hidden widget causes drawing problems and requires minimize+maximize to fix
-        #self.file_control_panel.Show(True)
-        #self.notebook.Show(True)
+        #self.file_control_panel.Show()
+        #self.notebook.Show()
         #self.Refresh() # doesn't seem to help
         # use enable/disable instead, at least for now
-        self.file_control_panel.Enable(True)
-        self.notebook.Enable(True)
+        self.file_control_panel.Enable()
+        self.notebook.Enable()
+
+    def CloseSurfFile(self):
+        """Destroy data frames, close .srf file"""
+        for frame in self.frames.values():
+            frame.Destroy()
+        try:
+            self.surff.close()
+        except AttributeError:
+            pass
+        self.SetTitle("spyke") # update caption
+        self.file_control_panel.Enable(False)
+        self.notebook.Enable(False)
+
+    def EnableFrame(self, frametype):
+        if frametype == 'spike':
+            self.spikeframe = SpikeFrame(parent=self, probe=self.probe)
+            self.frames[frametype] = self.spikeframe
+        elif frametype == 'chart':
+            pass
+        elif frametype == 'lfp':
+            pass
+
+        #self.chartframe = ChartFrame(self.probe, None)
+        #self.lfpframe = LFPFrame(self.lfpprobes, None)
+        #self.frames['spike'] = self.spikeframe
+        self.spikeframe.Show()
+        #self.chartframe.Show()
+        #self.lfpframe.Show()
+
+    def DisableFrame(self, frametype):
+        """Simply remove data fram from dict of frames, leave it up to
+        the data frame to close itself"""
+        del self.frames[frametype]
 
     def seek(self, offset, relative=False):
         """Seek to position in surf file. offset is time in us,
@@ -128,6 +171,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.pos = offset
         else:
             self.pos = self.pos + offset
+
+        print self.pos
 
         # update spike frame
         waveform = self.stream[self.pos:self.pos+self.spikeframe.tw]
@@ -170,34 +215,36 @@ class SpikeFrame(wxglade_gui.SpikeFrame):
     """Frame to hold the custom spike panel widget.
     Copied and modified from auto-generated wxglade_gui.py code.
     Only thing really inherited is __set_properties()"""
-    def __init__(self, probe, *args, **kwds):
-        # begin wxGlade: SpikeFrame.__init__
+    def __init__(self, parent=None, probe=None, **kwds):
         kwds["style"] = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW|wx.FRAME_NO_TASKBAR # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
-        wx.Frame.__init__(self, *args, **kwds)
+        wx.Frame.__init__(self, parent, **kwds)
         self.spikepanel = plot.SpikePanel(self, -1, layout=probe.SiteLoc)
         self.tw = 1000 # temporal window width (us)
 
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
         self.__set_properties()
         self.__do_layout()
-        # end wxGlade
 
     def __do_layout(self):
-        # begin wxGlade: SpikeFrame.__do_layout
         spikeframe_sizer = wx.BoxSizer(wx.HORIZONTAL)
         spikeframe_sizer.Add(self.spikepanel, 1, wx.EXPAND, 0) # added by mspacek
         self.SetSizer(spikeframe_sizer)
         self.Layout()
-        # end wxGlade
 
+    def OnClose(self, event):
+        #print 'self.Parent.frames is', self.Parent.frames
+        self.Parent.DisableFrame('spike')
+        event.Skip()
 
 class SpykeAbout(wx.Dialog):
     text = '''
         <html>
-        <body bgcolor="#ACAA60">
-        <center><table bgcolor="#455481" width="100%" cellspacing="0"
-        cellpadding="0" border="1">
+        <body bgcolor="#D4D0C8">
+        <center><table bgcolor="#000000" width="100%" cellspacing="0"
+        cellpadding="0" border="0">
         <tr>
-            <td align="center"><h1>spyke</h1></td>
+            <td align="center"><h1><font color="#00FF00">spyke</font></h1></td>
         </tr>
         </table>
         </center>
@@ -231,7 +278,7 @@ class SpykeApp(wx.App):
             wx.Yield()
 
         frame = SpykeFrame(None)
-        frame.Show(True)
+        frame.Show()
         self.SetTopWindow(frame)
         return True
 
