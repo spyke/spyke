@@ -21,9 +21,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.surffname = ""
         self.sortfname = ""
         self.frames = {} # holds spike, chart, and lfp frames
+        self.spiketw = 1000 # spike frame temporal window width (us)
+        self.charttw = 50000 # chart frame temporal window width (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_ICONIZE, self.OnIconize)
+        self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
@@ -82,6 +85,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print 'iconizing'
         event.Skip()
 
+    def OnActivate(self, event):
+        """When you change tasks to this frame, say by clicking on taskbar button.
+        Have this here so that data frames will also be raised"""
+        print 'in OnActivate'
+        activating = event.GetActive()
+        if activating: # going from inactive to active state
+            for frame in self.frames.values():
+                if not frame.IsActive():
+                    print 'raising'
+                    frame.Raise()
+        event.Skip()
+
     def OnSliderScroll(self, event):
         self.seek(self.slider.GetValue())
         event.Skip()
@@ -104,6 +119,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.surff = surf.File(fname)
         # TODO: parsing progress dialog
         self.surff.parse()
+        self.Refresh() # parsing takes long, can block repainting events
         self.surffname = fname # bind it now that it's been successfully opened and parsed
         self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
 
@@ -115,12 +131,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.probe = eval('probes.' + probename)() # yucky. TODO: switch to a dict with keywords?
 
         # TODO: open spike, chart and LFP windows, depress their toggle buttons, check their toggle menus
-        self.EnableFrame('spike')
-        # create the 3 types of data frames
+        self.OpenFrame('spike')
+        # self has focus, but isn't in foreground after opening data frames
+        #self.Raise() # doesn't seem to bring self to foreground
+        #wx.GetApp().SetTopWindow(self) # neither does this
 
-        self.slider.SetPageSize(self.spikeframe.tw) # set slider page size to spike frame temporal width
 
-        self.seek(self.t0) # plot first time window of data for all enabled frames
+        self.slider.SetPageSize(self.spiketw) # set slider page size to spike frame temporal width
+        self.seek(self.t0) # plot first time window of data for all open frames
 
         # showing a hidden widget causes drawing problems and requires minimize+maximize to fix
         #self.file_control_panel.Show()
@@ -132,8 +150,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def CloseSurfFile(self):
         """Destroy data frames, close .srf file"""
-        for frame in self.frames.values():
-            frame.Destroy()
+        # need to specifically get a list of keys, not an iterator,
+        # since self.frames dict changes size during iteration
+        for frametype in self.frames.keys():
+            self.CloseFrame(frametype) # deletes from dict
         try:
             self.surff.close()
         except AttributeError:
@@ -142,7 +162,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_control_panel.Enable(False)
         self.notebook.Enable(False)
 
-    def EnableFrame(self, frametype):
+    def OpenFrame(self, frametype):
         if frametype == 'spike':
             self.spikeframe = SpikeFrame(parent=self, probe=self.probe)
             self.frames[frametype] = self.spikeframe
@@ -158,15 +178,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.chartframe.Show()
         #self.lfpframe.Show()
 
-    def DisableFrame(self, frametype):
-        """Simply remove data fram from dict of frames, leave it up to
-        the data frame to close itself"""
-        del self.frames[frametype]
+    def CloseFrame(self, frametype):
+        """Remove frame from from dict of frames, destroy it"""
+        frame = self.frames.pop(frametype)
+        frame.Destroy()
 
     def seek(self, offset, relative=False):
         """Seek to position in surf file. offset is time in us,
         relative determines if offset is absolute or relative. If True,
-        offset can be negative to seek backwards from current offset"""
+        offset can be negative to seek backwards from current position"""
         if not relative:
             self.pos = offset
         else:
@@ -175,8 +195,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print self.pos
 
         # update spike frame
-        waveform = self.stream[self.pos:self.pos+self.spikeframe.tw]
-        self.spikeframe.spikepanel.plot(waveform) # plot it
+        if 'spike' in self.frames:
+            spikewaveform = self.stream[self.pos:self.pos+self.spiketw]
+            self.spikeframe.spikepanel.plot(spikewaveform) # plot it
 
 
         # TODO: update chart and LFP windows
@@ -189,6 +210,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return self.pos
 
     def OpenSortFile(self, fname):
+        """Open a collection from a .sort file"""
         # TODO: do something with data (data is the collection object????)
         try:
             f = file(fname, 'rb')
@@ -201,7 +223,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def SaveFile(self, fname):
-        """Save collection to existing .sort file"""
+        """Save collection to a .sort file"""
         if not os.path.splitext(fname)[1]:
             fname = fname + '.sort'
         f = file(fname, 'wb')
@@ -215,11 +237,10 @@ class SpikeFrame(wxglade_gui.SpikeFrame):
     """Frame to hold the custom spike panel widget.
     Copied and modified from auto-generated wxglade_gui.py code.
     Only thing really inherited is __set_properties()"""
-    def __init__(self, parent=None, probe=None, **kwds):
+    def __init__(self, parent=None, probe=None, *args, **kwds):
         kwds["style"] = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW|wx.FRAME_NO_TASKBAR # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
-        wx.Frame.__init__(self, parent, **kwds)
+        wx.Frame.__init__(self, parent, *args, **kwds)
         self.spikepanel = plot.SpikePanel(self, -1, layout=probe.SiteLoc)
-        self.tw = 1000 # temporal window width (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
@@ -233,9 +254,8 @@ class SpikeFrame(wxglade_gui.SpikeFrame):
         self.Layout()
 
     def OnClose(self, event):
-        #print 'self.Parent.frames is', self.Parent.frames
-        self.Parent.DisableFrame('spike')
-        event.Skip()
+        self.Parent.CloseFrame('spike')
+
 
 class SpykeAbout(wx.Dialog):
     text = '''
@@ -276,10 +296,9 @@ class SpykeApp(wx.App):
             bmp = wx.Image("res/splash.png").ConvertToBitmap()
             wx.SplashScreen(bmp, wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_TIMEOUT, 1000, None, -1)
             wx.Yield()
-
-        frame = SpykeFrame(None)
-        frame.Show()
-        self.SetTopWindow(frame)
+        spykeframe = SpykeFrame(None)
+        spykeframe.Show()
+        self.SetTopWindow(spykeframe)
         return True
 
 

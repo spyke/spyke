@@ -87,6 +87,7 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
         self.colours = ['g'] * self.num_channels
+        self.linewidth = 0.001
 
     def init_plot(self, wave, colour='g'):
         """Create the single axes"""
@@ -113,7 +114,7 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
             x_off, y_off = self.pos[chan]
             line = SpykeLine(self.static_x_vals + x_off,
                              wave.data[chan] + y_off,
-                             linewidth=0.005,
+                             linewidth=self.linewidth,
                              color=self.colours[chan],
                              antialiased=False)
             line.colour = colour
@@ -170,7 +171,7 @@ class SpikePanel(SingleAxesPlotPanel):
 
     def set_params(self):
         SingleAxesPlotPanel.set_params(self)
-        self.colours = ['m'] * self.num_channels
+        self.colours = ['g'] * self.num_channels
 
 
     def set_plot_layout(self, wave):
