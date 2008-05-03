@@ -21,12 +21,14 @@ from matplotlib.lines import Line2D
 from spyke import surf
 from spyke.gui.events import *
 
+DEFAULTCOLOUR = "#00FF00" # garish green
+DEFAULTLINEWIDTH = 1
 
 class PlottedItem(object):
     """A visually distinct object on our plot. These are usually spikes"""
     def __init__(self, spike):
         # defaults
-        self.colour = 'g'
+        self.colour = DEFAULTCOLOUR
         self.channels = []
 
 
@@ -86,10 +88,10 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         """Set extra parameters"""
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
-        self.colours = ['g'] * self.num_channels
-        self.linewidth = 0.001
+        self.colours = [DEFAULTCOLOUR] * self.num_channels
+        self.linewidth = DEFAULTLINEWIDTH
 
-    def init_plot(self, wave, colour='g'):
+    def init_plot(self, wave, colour=DEFAULTCOLOUR):
         """Create the single axes"""
         pos = [0, 0, 1, 1]
         self.my_ax = self.figure.add_axes(pos,
@@ -116,7 +118,7 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
                              wave.data[chan] + y_off,
                              linewidth=self.linewidth,
                              color=self.colours[chan],
-                             antialiased=False)
+                             antialiased=True)
             line.colour = colour
             self.displayed_lines[chan] = line
             self.my_ax.add_line(line)
@@ -171,7 +173,7 @@ class SpikePanel(SingleAxesPlotPanel):
 
     def set_params(self):
         SingleAxesPlotPanel.set_params(self)
-        self.colours = ['g'] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.num_channels
 
 
     def set_plot_layout(self, wave):
@@ -196,7 +198,7 @@ class SpikePanel(SingleAxesPlotPanel):
               +------------------------------+
              (0,0)                          (0,1)
 
-        NOTE that unlike indincated above, actual layout coords are:
+        NOTE that unlike indicated above, actual layout coords are:
             x: distance from center of polytrode
             y: distance down from top of polytrode border (slightly above top site)
 
@@ -328,7 +330,7 @@ class SortPanel(SpikePanel):
                 x_off, y_off = self.pos[chan]
                 line = SpykeLine(self.static_x_vals + x_off,
                                  spike.data[chan] + y_off,
-                                 linewidth=0.005,
+                                 linewidth=self.linewidth,
                                  color=colours[chan],
                                  antialiased=False)
                 line._visible = False
@@ -433,13 +435,13 @@ class MultiAxesPlotPanel(FigureCanvasWxAgg):
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
         self.yrange = (-260, 260)
-        self.colours = ['g'] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.num_channels
 
     def set_plot_layout(self, layout):
         """ Override in subclasses. """
         pass
 
-    def init_plot(self, wave, colour='g'):
+    def init_plot(self, wave, colour=DEFAULTCOLOUR):
         """ Set up axes """
         # self.pos is a map from channel -> [l, b, w, h] positions for plots
         for chan, sp in self.pos.iteritems():
@@ -449,7 +451,7 @@ class MultiAxesPlotPanel(FigureCanvasWxAgg):
             # create an instance of a searchable line
             line = SpykeLine(wave.ts,
                              wave.data[chan],
-                             linewidth=0.005,
+                             linewidth=self.linewidth,
                              color=colours[chan],
                              antialiased=False)
             line.colour = colour
@@ -553,7 +555,7 @@ class MultiAxesSpikePanel(MultiAxesPlotPanel):
 
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
-        self.colours = ['y'] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.num_channels
 
     def set_plot_layout(self, layout):
         """Map from polytrode locations given as (x, y) coordinates
@@ -630,7 +632,7 @@ class MultiAxesSortPanel(MultiAxesSpikePanel):
 
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
-        self.colours = ['g'] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.num_channels
 
     def _toggleVisible(self, spike, colour, top=None):
         lines, curr_visible = self.spikes[(spike, colour)]
@@ -678,7 +680,7 @@ class MultiAxesSortPanel(MultiAxesSpikePanel):
             for chan, axes in self.axes.iteritems():
                 line = SpykeLine(self.x_vals,
                                  spike.data[chan],
-                                 linewidth=0.005,
+                                 linewidth=self.linewidth,
                                  color=colours[chan],
                                  antialiased=False)
                 line._visible = False
