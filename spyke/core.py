@@ -11,6 +11,7 @@ import hashlib
 
 import numpy as np
 
+from spyke import probes
 
 class WaveForm(object):
     """Waveform object, has data, timestamps and sample frequency attribs"""
@@ -34,6 +35,19 @@ class Stream(object):
         self.rts = np.asarray([record.TimeStamp for record in self.records])
         # if no sampfreq passed in, use sampfreq of the raw data
         self.sampfreq = sampfreq or records[0].layout.sampfreqperchan
+        probename = self.records[0].layout.electrode_name
+        probename = probename.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
+        self.probe = eval('probes.' + probename)() # yucky. TODO: switch to a dict with keywords?
+
+        self.t0 = self.rts[0] # us, time that recording began
+        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
+        lastrecordtw = self.records[-1].NumSamples / self.probe.nchans * self.tres
+        self.tend = self.rts[-1] + lastrecordtw  # time of last recorded data point
+        print 'self.t0 in Stream is', self.t0
+        print 'self.tres in Stream is', self.tres
+        print 'self.tend in Stream is', self.tend
+        print 'last record timestamp is', self.rts[-1]
+        print 'lastrecordtw is', lastrecordtw
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
@@ -347,3 +361,8 @@ def write_collection(collection, fname):
         except Exception, e:
             raise CollectionError(str(e))
         g.close()
+
+def intround(n):
+    """Round to the nearest integer, return an integer.
+    Saves on parentheses"""
+    return int(round(n))

@@ -13,6 +13,7 @@ class uMap54_1a(Probe):
     def __init__(self):
         self.layout = '1a'
         self.name = 'uMap54_1a'
+        self.nchans = 54
         SiteLoc = {}
         SiteLoc[0] = (-56, 1170)
         SiteLoc[1] = (-56, 1105)
@@ -68,14 +69,15 @@ class uMap54_1a(Probe):
         SiteLoc[51] = (56, 1105)
         SiteLoc[52] = (56, 1170)
         SiteLoc[53] = (56, 1040)
+        assert len(SiteLoc) == self.nchans
         self.SiteLoc = SiteLoc
-
 
 class uMap54_1b(Probe):
     """uMap54_1b, 50um horzontal/46um vertical spacing, 3 column collinear"""
     def __init__(self):
         self.layout = '1b'
         self.name = 'uMap54_1b'
+        self.nchans = 54
         SiteLoc = {}
         SiteLoc[0] = (-43, 900)
         SiteLoc[1] = (-43, 850)
@@ -131,6 +133,7 @@ class uMap54_1b(Probe):
         SiteLoc[51] = (43, 850)
         SiteLoc[52] = (43, 900)
         SiteLoc[53] = (43, 800)
+        assert len(SiteLoc) == self.nchans
         self.SiteLoc = SiteLoc
 
 
@@ -139,6 +142,7 @@ class uMap54_1c(Probe):
     def __init__(self):
         self.layout = '1c'
         self.name = 'uMap54_1c'
+        self.nchans = 54
         SiteLoc = {}
         SiteLoc[0] = (-65, 1251)
         SiteLoc[1] = (-65, 1101)
@@ -194,6 +198,7 @@ class uMap54_1c(Probe):
         SiteLoc[51] = (65, 951)
         SiteLoc[52] = (65, 1101)
         SiteLoc[53] = (65, 801)
+        assert len(SiteLoc) == self.nchans
         self.SiteLoc = SiteLoc
 
 
@@ -202,6 +207,7 @@ class uMap54_2a(Probe):
     def __init__(self):
         self.layout = '2a'
         self.name = 'uMap54_2a'
+        self.nchans = 54
         SiteLoc = {}
         SiteLoc[0] = (-28, 1235)
         SiteLoc[1] = (-28, 1170)
@@ -257,6 +263,7 @@ class uMap54_2a(Probe):
         SiteLoc[51] = (28, 1202)
         SiteLoc[52] = (28, 1267)
         SiteLoc[53] = (28, 1137)
+        assert len(SiteLoc) == self.nchans
         self.SiteLoc = SiteLoc
 
 
@@ -265,6 +272,7 @@ class uMap54_2b(Probe):
     def __init__(self):
         self.layout = '2b'
         self.name = 'uMap54_2b'
+        self.nchans = 54
         SiteLoc = {}
         SiteLoc[0] = (-25, 1275)
         SiteLoc[1] = (-25, 1175)
@@ -320,4 +328,5 @@ class uMap54_2b(Probe):
         SiteLoc[51] = (25, 1150)
         SiteLoc[52] = (25, 1250)
         SiteLoc[53] = (25, 1050)
+        assert len(SiteLoc) == self.nchans
         self.SiteLoc = SiteLoc

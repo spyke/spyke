@@ -27,7 +27,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.spiketw = 1000 # spike frame temporal window width (us)
         self.charttw = 50000 # chart frame temporal window width (us)
         self.lfptw = 50000 # lfp frame temporal window width (us)
-        self.t0 = None # first timestamp in current .srf file (us)
         self.pos = None # current position in recording (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
@@ -139,11 +138,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
 
         self.stream = core.Stream(self.surff.highpassrecords) # highpass recording (spike) stream
-        self.t0 = self.stream.rts[0] # first record timestamp, time that recording began
-        self.layoutrecord = self.surff.layoutrecords[0] # TODO: check this: presumably the first is the spike probe layout
-        probename = self.layoutrecord.electrode_name
-        probename = probename.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
-        self.probe = eval('probes.' + probename)() # yucky. TODO: switch to a dict with keywords?
 
         self.OpenFrame('spike')
         #self.OpenFrame('chart')
@@ -153,8 +147,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.Raise() # doesn't seem to bring self to foreground
         #wx.GetApp().SetTopWindow(self) # neither does this
 
-        self.seek(self.t0) # plot first time window of data for all open frames
-        self.slider.SetPageSize(self.spiketw) # set slider page size to spike frame temporal width
+        self.seek(self.stream.t0) # plot first time window of data for all open frames
+        self.slider.SetRange(self.stream.t0,
+                             self.stream.tend - self.spiketw) # us
+        self.slider.SetLineSize(self.stream.tres) # us, TODO: this should be based on level of interpolation
+        self.slider.SetPageSize(self.spiketw) # us
         self.EnableSurfWidgets(True)
 
     def CloseSurfFile(self):
@@ -167,7 +164,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.surff.close()
         except AttributeError:
             pass
-        self.t0 = None
         self.pos = None
         self.SetTitle("spyke") # update caption
         self.EnableSurfWidgets(False)
@@ -176,13 +172,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create and bind a data frame, show it, plot its data"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
-                self.spikeframe = SpikeFrame(parent=self, probe=self.probe)
+                self.spikeframe = SpikeFrame(parent=self, probe=self.stream.probe)
                 self.frames[frametype] = self.spikeframe
             elif frametype == 'chart':
-                self.chartframe = ChartFrame(parent=self, probe=self.probe)
+                self.chartframe = ChartFrame(parent=self, probe=self.stream.probe)
                 self.frames[frametype] = self.chartframe
             elif frametype == 'lfp':
-                self.lfpframe = LFPFrame(parent=self, probe=self.probe)
+                self.lfpframe = LFPFrame(parent=self, probe=self.stream.probe)
                 self.frames[frametype] = self.lfpframe
         self.ShowFrame(frametype)
         self.seek(offset=0, relative=True) # plot all frames' data at current timepoint
@@ -223,7 +219,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if offset is absolute or relative. If True, offset can be negative to seek
         backwards from current position"""
         if self.pos == None: # hasn't been init'd yet
-            self.pos = self.t0
+            self.pos = self.stream.t0
         if relative:
             self.pos = self.pos + offset
         else:
