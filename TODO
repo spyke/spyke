@@ -3,16 +3,12 @@ TODO:
 - end range problem for chart window, allow plotting of nothing...
 - chart window channel layout is wrong
 - arrange data windows so they overlap as little as possible
-- MAYBE: destory data windows instead of hiding them - should be simpler in the end
-    - set up config system to, among other things, remember window positions and sizes when you re-open a window, whether within the same session or across sessions
-- fix close button event on data frames
+    - remove hard coding
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
 - add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
-- try making data frames MiniFrames (see manual) instead of passing them the TOOL_WINDOW flag
-    - consider making data frames children of the main spyke frame again - maybe this could be done to automatically iconize and activate the data frames when main spyke frame gets the event
 
 
 LOW-PRIORITY:
@@ -184,3 +180,7 @@ DONE:
     - borrow something from MPL?
 
 - need ability to take a spike that's assigned to an existing template and remove it and generate a new template from it
+- NOPE: destory data windows instead of hiding them - should be simpler in the end
+    - set up config system to, among other things, remember window positions and sizes when you re-open a window, whether within the same session or across sessions
+- try making data frames MiniFrames (see manual) instead of passing them the TOOL_WINDOW flag
+    - consider making data frames children of the main spyke frame again - maybe this could be done to automatically iconize and activate the data frames when main spyke frame gets the event - yup, this is exactly the case. hooray!

@@ -31,7 +31,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.t = None # current time position in recording (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
-        self.Bind(wx.EVT_ICONIZE, self.OnIconize)
+        #self.Bind(wx.EVT_ICONIZE, self.OnIconize)
         #self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
 
         # disable these menu items and tools until a .srf file is opened
@@ -99,7 +99,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnChart(self, event):
         """Chart window toggle menu/button event"""
         self.ToggleFrame('chart')
-
+    '''
+    # doesn't seem to be needed if data wx.MiniFrames are created as children of spyke frame
     def OnIconize(self, event):
         """An EVT_ICONIZE event is sent when a frame is iconized (minimized) or restored"""
         iconizing = event.Iconized()
@@ -111,13 +112,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             [ frame.Iconize(False) for frame in frames ]
             self.Iconize(False)
             #self.Raise()
-        #event.Skip()
-
+        event.Skip()
+    '''
+    '''
+    # this has major problems..., and doesn't seem to be needed if data wx.MiniFrames are created as children of spyke frame
     def OnActivate(self, event):
         """When you change tasks to this frame, say by clicking on taskbar button.
         Have this here so that data frames will also be raised"""
-        # this has major problems...
-        '''
         activating = event.GetActive()
         frames = self.frames.values()
         if activating: # going from inactive to active state
@@ -132,7 +133,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #            frame.Raise()
 
         event.Skip()
-        '''
+    '''
 
     def OnSliderScroll(self, event):
         self.seek(self.slider.GetValue())
@@ -195,14 +196,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create and bind a data frame, show it, plot its data"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
-                self.spikeframe = SpikeFrame(parent=None, probe=self.stream.probe)
-                self.frames[frametype] = self.spikeframe
+                self.frames[frametype] = SpikeFrame(parent=self, probe=self.stream.probe)
             elif frametype == 'chart':
-                self.chartframe = ChartFrame(parent=None, probe=self.stream.probe)
-                self.frames[frametype] = self.chartframe
+                self.frames[frametype] = ChartFrame(parent=self, probe=self.stream.probe)
             elif frametype == 'lfp':
-                self.lfpframe = LFPFrame(parent=None, probe=self.stream.probe)
-                self.frames[frametype] = self.lfpframe
+                self.frames[frametype] = LFPFrame(parent=self, probe=self.stream.probe)
         self.ShowFrame(frametype)
         self.seek(offset=0, relative=True) # plot all frames' data at current timepoint
 
@@ -211,6 +209,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.frames[frametype].Show(enable)
         self.menubar.Check(self.FRAMETYPE2BUTTONID[frametype], enable)
         self.toolbar.ToggleTool(self.FRAMETYPE2BUTTONID[frametype], enable)
+        #if enable:
+        #    self.Raise() # children wx.MiniFrames are always on top of main spyke frame, self.Raise() doesn't seem to help. Must be an inherent property of wx.MiniFrames, which maybe isn't such a bad idea after all...
 
     def HideFrame(self, frametype):
         self.ShowFrame(frametype, False)
@@ -261,12 +261,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype, frame in self.frames.items():
             if frame.IsShown(): # only update if frame is shown, for performance
                 if frametype == 'spike':
-                    spikewaveform = self.stream[self.t:self.t+self.spiketw]
-                    self.spikeframe.panel.plot(spikewaveform) # plot it
+                    waveform = self.stream[self.t:self.t+self.spiketw]
                 elif frametype == 'chart':
-                    chartwaveform = self.stream[self.t:self.t+self.charttw]
-                    self.chartframe.panel.plot(chartwaveform) # plot it
+                    waveform = self.stream[self.t:self.t+self.charttw]
                 # TODO: update LFP frame
+                frame.panel.plot(waveform) # plot it
 
     def tell(self):
         """Return current position in surf file"""
@@ -413,5 +412,5 @@ class SpykeApp(wx.App):
 
 
 if __name__ == '__main__':
-    app = SpykeApp(False)
+    app = SpykeApp(redirect=False) # output to stderr and stdout
     app.MainLoop()
