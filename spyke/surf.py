@@ -140,10 +140,10 @@ class File(Record):
     def _verifyParsing(self):
         """Make sure timestamps of all records are in causal (increasing)
         order. If not, sort them I guess?"""
-        print 'Asserting increasing record order'
+        #print 'Asserting increasing record order'
         for item in self.__dict__:
             if item.endswith('records'):
-                print 'Asserting ' + item + ' is in causal order'
+                #print 'Asserting ' + item + ' is in causal order'
                 assert causalorder(self.__dict__[item])
 
     def parse(self, force=True, save=False):
@@ -209,7 +209,7 @@ class File(Record):
 
     def _connectRecords(self):
         """Connect the appropriate probe layout to each high and lowpass record"""
-        print 'Connecting probe layouts to waveform records'
+        #print 'Connecting probe layouts to waveform records'
         for record in self.highpassrecords:
             record.layout = self.layoutrecords[record.Probe]
         for record in self.lowpassrecords:
@@ -217,10 +217,9 @@ class File(Record):
 
         # Rearrange single channel lowpass records into
         # multichannel lowpass records
-        print 'Rearranging single lowpass records into ' \
-                'multichannel lowpass records'
-        rts = np.asarray([record.TimeStamp for record in \
-                self.lowpassrecords]) # array of lowpass record timestamps
+        #print 'Rearranging single lowpass records into multichannel lowpass records'
+        # get array of lowpass record timestamps
+        rts = np.asarray([record.TimeStamp for record in self.lowpassrecords])
 
         # find at which records the timestamps change
         rtsis, = np.diff(rts).nonzero()

@@ -43,11 +43,6 @@ class Stream(object):
         self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
         lastrecordtw = self.records[-1].NumSamples / self.probe.nchans * self.tres
         self.tend = self.rts[-1] + lastrecordtw  # time of last recorded data point
-        print 'self.t0 in Stream is', self.t0
-        print 'self.tres in Stream is', self.tres
-        print 'self.tend in Stream is', self.tend
-        print 'last record timestamp is', self.rts[-1]
-        print 'lastrecordtw is', lastrecordtw
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
