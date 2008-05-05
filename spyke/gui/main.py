@@ -21,13 +21,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def __init__(self, *args, **kwargs):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
+        self.SetPosition(wx.Point(x=0, y=0)) # upper left corner
         self.surffname = ""
         self.sortfname = ""
         self.frames = {} # holds spike, chart, and lfp frames
         self.spiketw = 1000 # spike frame temporal window width (us)
         self.charttw = 50000 # chart frame temporal window width (us)
-        self.lfptw = 50000 # lfp frame temporal window width (us)
-        self.pos = None # current position in recording (us)
+        self.lfptw = self.charttw # lfp frame temporal window width (us)
+        self.t = None # current time position in recording (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_ICONIZE, self.OnIconize)
@@ -186,7 +187,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.surff.close()
         except AttributeError:
             pass
-        self.pos = None
+        self.t = None
         self.SetTitle("spyke") # update caption
         self.EnableSurfWidgets(False)
 
@@ -219,6 +220,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         frame = self.frames[frametype]
         self.ShowFrame(frametype, not frame.IsShown())
 
+        # This actually closes and opens new frames to acheive the same thing, but a bit slower:
+        #if frametype in self.frames:
+        #    self.CloseFrame(frametype)
+        #else:
+        #    self.OpenFrame(frametype)
+
     def CloseFrame(self, frametype):
         """Hide frame, remove it from frames dict, destroy it"""
         self.HideFrame(frametype)
@@ -240,12 +247,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Seek to position in surf file. offset is time in us. relative determines
         if offset is absolute or relative. If True, offset can be negative to seek
         backwards from current position"""
-        if self.pos == None: # hasn't been init'd yet
-            self.pos = self.stream.t0
+        if self.t == None: # hasn't been init'd yet
+            self.t = self.stream.t0
         if relative:
-            self.pos = self.pos + offset
+            self.t = self.t + offset
         else:
-            self.pos = offset
+            self.t = offset
         self.plot()
 
     def plot(self):
@@ -254,16 +261,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype, frame in self.frames.items():
             if frame.IsShown(): # only update if frame is shown, for performance
                 if frametype == 'spike':
-                    spikewaveform = self.stream[self.pos:self.pos+self.spiketw]
+                    spikewaveform = self.stream[self.t:self.t+self.spiketw]
                     self.spikeframe.panel.plot(spikewaveform) # plot it
                 elif frametype == 'chart':
-                    chartwaveform = self.stream[self.pos:self.pos+self.charttw]
+                    chartwaveform = self.stream[self.t:self.t+self.charttw]
                     self.chartframe.panel.plot(chartwaveform) # plot it
                 # TODO: update LFP frame
 
     def tell(self):
         """Return current position in surf file"""
-        return self.pos
+        return self.t
 
     def OpenSortFile(self, fname):
         """Open a collection from a .sort file"""
@@ -289,7 +296,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(self.Title + ' - ' + self.sortfname)
 
 
-class DataFrame(wx.Frame):
+class DataFrame(wx.MiniFrame):
     """Base data frame to hold a custom spyke panel widget.
     Copied and modified from auto-generated wxglade_gui.py code"""
 
@@ -301,7 +308,7 @@ class DataFrame(wx.Frame):
 
     def __init__(self, parent=None, probe=None, *args, **kwds):
         kwds["style"] = self.STYLE
-        wx.Frame.__init__(self, parent, *args, **kwds)
+        wx.MiniFrame.__init__(self, parent, *args, **kwds)
         self.panel = self.FRAMETYPE2PANELTYPE[self.frametype](self, -1, layout=probe.SiteLoc)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -333,6 +340,8 @@ class SpikeFrame(DataFrame):
     def set_properties(self):
         self.SetTitle("spike window")
         self.SetSize((175, 675))
+        self.SetPosition(wx.Point(x=300, y=0))
+
 
 class ChartFrame(DataFrame):
     """Frame to hold the custom chart panel widget"""
@@ -344,6 +353,7 @@ class ChartFrame(DataFrame):
     def set_properties(self):
         self.SetTitle("chart window")
         self.SetSize((900, 500))
+        self.SetPosition(wx.Point(x=300+175, y=0))
 
 
 class LFPFrame(DataFrame):

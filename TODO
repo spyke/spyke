@@ -1,15 +1,23 @@
-SHORT-TERM
+TODO:
 
 - end range problem for chart window, allow plotting of nothing...
 - chart window channel layout is wrong
 - arrange data windows so they overlap as little as possible
-- destory data windows instead of hiding them - should be simpler in the end
+- MAYBE: destory data windows instead of hiding them - should be simpler in the end
     - set up config system to, among other things, remember window positions and sizes when you re-open a window, whether within the same session or across sessions
 - fix close button event on data frames
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
+- add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
+- try making data frames MiniFrames (see manual) instead of passing them the TOOL_WINDOW flag
+    - consider making data frames children of the main spyke frame again - maybe this could be done to automatically iconize and activate the data frames when main spyke frame gets the event
+
+
+LOW-PRIORITY:
+
+- shade the first 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in
 
 
 GENERAL:
@@ -23,7 +31,7 @@ GENERAL:
     - be able to specify time ranges within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
 
 - have a log window at bottom that details everything going on behind the scenes
-    - this could simply be an integrated pyshell window, so you can do things from command line instead of being forced to use the GUI
+    - this could simply be an integrated pyshell window (see manual), so you can do things from command line instead of being forced to use the GUI
     - also, use it to examine and mess with internals, including wxpy internals
 
 - keep spyke importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy, or any other python project.
