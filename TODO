@@ -1,5 +1,6 @@
 TODO:
 
+- check if y data is being updated as efficiently as possible, want to prevent copying
 - end range problem for chart window, allow plotting of nothing...
 - chart window channel layout is wrong
 - arrange data windows so they overlap as little as possible

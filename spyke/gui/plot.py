@@ -156,9 +156,9 @@ class ChartPanel(SingleAxesPlotPanel):
             self.colours.append(colgen.next())
 
     def set_plot_layout(self, wave):
-        # the first channel starts at the top
+        # the first channel starts at the top - wrong!
         self.my_ax.set_ylim(-CHANHEIGHT, 54*CHANHEIGHT)
-        self.my_ax.set_xlim(wave.ts[0], wave.ts[-1])
+        self.my_ax.set_xlim(0, wave.ts[-1]-wave.ts[0]) # TODO: stop hard coding
         for chan, coords in self.bottomlayout.iteritems():
             self.pos[chan] = (0, chan*CHANHEIGHT)
 
@@ -173,6 +173,8 @@ class SpikePanel(SingleAxesPlotPanel):
 
 
     def set_plot_layout(self, wave):
+        # TODO: why is this dependent on wave? Doesn't that mean this should be called on every plot call? Seems dumb.
+
         """Map from polytrode layout given as (x, y) coordinates
         into position information for the spike plots, which are stored
         as a list of four values [l, b, w, h].
@@ -219,7 +221,7 @@ class SpikePanel(SingleAxesPlotPanel):
         #  -------------- ----------  -----------
         # each x should be the center of the columns
         # each column should be wave.ts[0] - wave.ts[-1] (wide? Dunno what Reza meant here)
-        shifted = wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts))
+        shifted = wave.ts - wave.ts[0] # TODO: AKA self.static_x_vals. Too many names for the same thing
         self.my_xlim = (min(shifted), ncols*colwidth)
         self.my_ax.set_xlim(self.my_xlim)
 
