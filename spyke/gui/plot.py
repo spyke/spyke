@@ -146,21 +146,43 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
 
 
 class ChartPanel(SingleAxesPlotPanel):
-    """Chart panel. Presents all channels layed out vertically"""
+    """Chart panel. Presents all channels layed out vertically according to site y coords"""
 
     def set_params(self):
         SingleAxesPlotPanel.set_params(self)
-        colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
-        self.colours = []
-        for chan in xrange(self.nchans):
-            self.colours.append(colgen.next())
 
     def set_plot_layout(self, wave):
-        # the first channel starts at the top - wrong!
-        self.my_ax.set_ylim(-CHANHEIGHT, 54*CHANHEIGHT)
-        self.my_ax.set_xlim(0, wave.ts[-1]-wave.ts[0]) # TODO: stop hard coding
-        for chan, coords in self.bottomlayout.iteritems():
-            self.pos[chan] = (0, chan*CHANHEIGHT)
+        self.my_ax.set_xlim(0, wave.ts[-1]-wave.ts[0])
+        self.my_ax.set_ylim(-CHANHEIGHT, self.nchans*CHANHEIGHT)
+        # order channel lines vertically according to their coords, bottom to top, left to right
+        # first, sort x coords, then y: (secondary, then primary)
+        xychanis = [ (x, y, chani) for chani, (x, y) in self.bottomlayout.items() ] # list of (x, y, chani) 3-tuples
+        xychanis.sort() # stable sort in-place according to x values (first in tuple)
+        yxchanis = [ (y, x, chani) for (x, y, chani) in xychanis ]
+        yxchanis.sort() # stable sort in-place according to y values (first in tuple)
+        chanis = [ chani for (y, x, chani) in yxchanis ] # unload the chan indices, now sorted bottom to top, left to right
+
+        red = '#FF0000'
+        orange = '#FF7F00'
+        yellow = '#FFFF00'
+        green = '#00FF00'
+        cyan = '#00FFFF'
+        lightblue = '#007FFF'
+        blue = '#0000FF'
+        violet = '#7F00FF'
+        magenta = '#FF00FF'
+        brown = '#7F4040'
+        grey = '#7F7F7F'
+        white = '#FFFFFF'
+
+        # 'b', 'g', 'm', 'c', 'y', 'r', 'w'
+        # red, green, orange, cyan, brown, yellow, lightblue, white, blue, violet, grey, magenta
+        # red, orange, yellow, green, cyan, lightblue, blue violet, magenta, brown, grey, white
+        colourgen = itertools.cycle(iter([red, orange, yellow, green, cyan, lightblue, violet, magenta, grey, white, brown]))
+        self.colours = [None] * self.nchans # init all entries to make all the indices valid
+        for chanii, chani in enumerate(chanis):
+            self.pos[chani] = (0, chanii*CHANHEIGHT)
+            self.colours[chani] = colourgen.next() # now assign colours so that they cycle nicely in space
 
 
 class SpikePanel(SingleAxesPlotPanel):

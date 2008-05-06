@@ -343,7 +343,7 @@ class SpikeFrame(DataFrame):
     def set_properties(self):
         self.SetTitle("spike window")
         self.SetSize((175, 675))
-        self.SetPosition(wx.Point(x=300, y=0))
+        self.SetPosition(wx.Point(x=300, y=0)) # TODO: stop hard coding
 
 
 class ChartFrame(DataFrame):
@@ -355,8 +355,8 @@ class ChartFrame(DataFrame):
 
     def set_properties(self):
         self.SetTitle("chart window")
-        self.SetSize((900, 500))
-        self.SetPosition(wx.Point(x=300+175, y=0))
+        self.SetSize((900, 675))
+        self.SetPosition(wx.Point(x=300+175, y=0)) # TODO: stop hard coding
 
 
 class LFPFrame(DataFrame):
@@ -367,7 +367,7 @@ class LFPFrame(DataFrame):
 
     def set_properties(self):
         self.SetTitle("LFP window")
-        self.SetSize((900, 500))
+        self.SetSize((900, 300))
 
 
 class SpykeAbout(wx.Dialog):

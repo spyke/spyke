@@ -15,6 +15,7 @@ TODO:
 
 LOW-PRIORITY:
 
+- make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
 - add chan id toggle button to display chan id directly under each channel in all the dataframes
 - shade the first 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in
 
