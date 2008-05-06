@@ -1,4 +1,4 @@
-"""plotting gui elements"""
+"""wx.Panels with embedded mpl figures based on FigureCanvasWxAgg"""
 
 from __future__ import division
 
@@ -22,16 +22,8 @@ from spyke import surf
 from spyke.gui.events import *
 
 DEFAULTCOLOUR = "#00FF00" # garish green
-DEFAULTLINEWIDTH = 1
-
-
-class PlottedItem(object):
-    """A visually distinct object on our plot. These are usually spikes
-    TODO: what's the point of this. Probably safe to remove..."""
-    def __init__(self, spike):
-        # defaults
-        self.colour = DEFAULTCOLOUR
-        self.channels = []
+DEFAULTLINEWIDTH = 1 # mpl units - pixels? points?
+CHANHEIGHT = 100 # uV
 
 
 class AxesWrapper(object):
@@ -165,10 +157,10 @@ class ChartPanel(SingleAxesPlotPanel):
 
     def set_plot_layout(self, wave):
         # the first channel starts at the top
-        self.my_ax.set_ylim(-50, 54*100 - 50)
+        self.my_ax.set_ylim(-CHANHEIGHT, 54*CHANHEIGHT)
         self.my_ax.set_xlim(wave.ts[0], wave.ts[-1])
         for chan, coords in self.bottomlayout.iteritems():
-            self.pos[chan] = (0, chan * 100)
+            self.pos[chan] = (0, chan*CHANHEIGHT)
 
 
 class SpikePanel(SingleAxesPlotPanel):
@@ -240,12 +232,11 @@ class SpikePanel(SingleAxesPlotPanel):
         # percentages
         y_rows = list(set(ys))
         num_rows = len(y_rows)
-        row_height = 100
         y_offsets = {}
-        self.my_ax.set_ylim(-100, num_rows*row_height)
-        self.my_ylim = (-100, num_rows*row_height)
+        self.my_ax.set_ylim(-CHANHEIGHT, num_rows*CHANHEIGHT)
+        self.my_ylim = (-CHANHEIGHT, num_rows*CHANHEIGHT)
         for i, y in enumerate(sorted(y_rows)):
-            y_offsets[y] = i * row_height
+            y_offsets[y] = i * CHANHEIGHT
 
         self.pos = {}
         for chan, coords in self.bottomlayout.iteritems():

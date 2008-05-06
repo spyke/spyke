@@ -16,7 +16,7 @@ from spyke import probes
 class WaveForm(object):
     """Waveform object, has data, timestamps and sample frequency attribs"""
     def __init__(self, data=None, ts=None, sampfreq=None):
-        self.data = data # potentially multichannel, depending on shape
+        self.data = data # always in uV? potentially multichannel, depending on shape
         self.ts = ts # timestamps array, one for each sample (column) in data
         self.sampfreq = sampfreq # Hz
 
@@ -74,8 +74,7 @@ class Stream(object):
                 record.load()
 
         # join all waveforms, returns a copy
-        data = np.concatenate([record.waveform for record in cutrecords],
-                                axis=1)
+        data = np.concatenate([record.waveform for record in cutrecords], axis=1)
         try:
             # all highpass records should be using the same layout, use tres from the first one
             tres = cutrecords[0].layout.tres
