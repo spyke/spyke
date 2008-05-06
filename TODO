@@ -4,6 +4,7 @@ TODO:
 - chart window channel layout is wrong
 - arrange data windows so they overlap as little as possible
     - remove hard coding
+- try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
 - make playback buttons work
@@ -13,6 +14,7 @@ TODO:
 
 LOW-PRIORITY:
 
+- add chan id toggle button to display chan id directly under each channel in all the dataframes
 - shade the first 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in
 
 

@@ -18,7 +18,7 @@ class WaveForm(object):
     def __init__(self, data=None, ts=None, sampfreq=None):
         self.data = data # potentially multichannel, depending on shape
         self.ts = ts # timestamps array, one for each sample (column) in data
-        self.sampfreq = sampfreq
+        self.sampfreq = sampfreq # Hz
 
 
 class Stream(object):

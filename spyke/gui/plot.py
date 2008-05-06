@@ -24,8 +24,10 @@ from spyke.gui.events import *
 DEFAULTCOLOUR = "#00FF00" # garish green
 DEFAULTLINEWIDTH = 1
 
+
 class PlottedItem(object):
-    """A visually distinct object on our plot. These are usually spikes"""
+    """A visually distinct object on our plot. These are usually spikes
+    TODO: what's the point of this. Probably safe to remove..."""
     def __init__(self, spike):
         # defaults
         self.colour = DEFAULTCOLOUR
@@ -70,15 +72,22 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
     def __init__(self, parent, id=-1, layout=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._plot_setup = False
-        self.layout = layout
+        self.layout = layout # layout with y coord origin at top
         self.pos = {} # position of lines
         self.channels = {} # plot y-data for each channel
-        self.axes = {} # axes for each channel, chan -> axes
-        self.axesToChan = {} # axes -> chan
-        self.num_channels = len(layout)
+        self.nchans = len(layout)
         self.set_params()
         self.my_ylim = None
         self.my_xlim = None
+
+        # for plotting with mpl, convert all y coords to have origin at bottom, not top
+        bottomlayout = copy(self.layout)
+        ys = [y for x, y in bottomlayout.values()]
+        maxy = max(ys)
+        for key, (x, y) in bottomlayout.items():
+            y = maxy - y
+            bottomlayout[key] = (x, y) # update
+        self.bottomlayout = bottomlayout
 
     def set_plot_layout(self, layout):
         """Override in subclasses"""
@@ -88,11 +97,11 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         """Set extra parameters"""
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
-        self.colours = [DEFAULTCOLOUR] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.nchans
         self.linewidth = DEFAULTLINEWIDTH
 
     def init_plot(self, wave, colour=DEFAULTCOLOUR):
-        """Create the single axes"""
+        """Create the single axes and its lines"""
         pos = [0, 0, 1, 1]
         self.my_ax = self.figure.add_axes(pos,
                                           axisbg='b',
@@ -106,14 +115,13 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         self.my_ax.set_xticks([])
         self.my_ax.set_yticks([])
 
-        # scale x vals to be offset from 0
-        self.static_x_vals = numpy.asarray(wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts)))
+        # shift x vals to be offset from 0
+        self.static_x_vals = wave.ts - wave.ts[0]
 
         self.displayed_lines = {}
         self.my_ax._autoscaleon = False
-        for chan, sp in self.pos.iteritems():
-            self.axes[chan] = self.my_ax
-            x_off, y_off = self.pos[chan]
+        for chan, spacing in self.pos.iteritems():
+            x_off, y_off = spacing
             line = SpykeLine(self.static_x_vals + x_off,
                              wave.data[chan] + y_off,
                              linewidth=self.linewidth,
@@ -125,9 +133,6 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
 
             self.channels[chan] = line
 
-            # maintain reverse mapping of axes -> channels
-            self.axesToChan[AxesWrapper(self.my_ax)] = chan
-
         self.my_ax._visible = True
         # redraw the display
         self.draw(True)
@@ -135,7 +140,7 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
     def plot(self, waveforms):
         """Plot waveforms"""
         # check if we've set up our axes yet
-        if not self._plot_setup:
+        if not self._plot_setup: # TODO: does this really need to be checked on every single plot call?
             self.init_plot(waveforms)
             self._plot_setup = True
 
@@ -155,15 +160,14 @@ class ChartPanel(SingleAxesPlotPanel):
         SingleAxesPlotPanel.set_params(self)
         colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
         self.colours = []
-        for chan in xrange(self.num_channels):
+        for chan in xrange(self.nchans):
             self.colours.append(colgen.next())
 
     def set_plot_layout(self, wave):
-        num = self.num_channels
         # the first channel starts at the top
         self.my_ax.set_ylim(-50, 54*100 - 50)
-        self.my_ax.set_xlim(wave.ts.min(), wave.ts.max())
-        for chan, coords in self.layout.iteritems():
+        self.my_ax.set_xlim(wave.ts[0], wave.ts[-1])
+        for chan, coords in self.bottomlayout.iteritems():
             self.pos[chan] = (0, chan * 100)
 
 
@@ -173,7 +177,7 @@ class SpikePanel(SingleAxesPlotPanel):
 
     def set_params(self):
         SingleAxesPlotPanel.set_params(self)
-        self.colours = [DEFAULTCOLOUR] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.nchans
 
 
     def set_plot_layout(self, wave):
@@ -198,24 +202,15 @@ class SpikePanel(SingleAxesPlotPanel):
               +------------------------------+
              (0,0)                          (0,1)
 
-        NOTE that unlike indicated above, actual layout coords are:
+        NOTE that unlike indicated above, actual .layout coords are:
             x: distance from center of polytrode
             y: distance down from top of polytrode border (slightly above top site)
 
-        So, y locations need to be swapped vertically before being used"""
+        So, y locations need to be swapped vertically before being used - use .bottomlayout"""
 
-        bottomlayout = copy(self.layout)
-        # convert all y coords to have origin at bottom, not top
-        ys = [y for x, y in bottomlayout.values()]
-        maxy = max(ys)
-        for key, val in bottomlayout.items():
-            x, y = val
-            y = maxy - y
-            bottomlayout[key] = (x, y) # update
-
-        # project coordinates onto x and y axes repsectively
-        xs = [x for x, y in bottomlayout.values()]
-        ys = [y for x, y in bottomlayout.values()]
+        # project coordinates onto x and y axes respectively
+        xs = [x for x, y in self.bottomlayout.values()]
+        ys = [y for x, y in self.bottomlayout.values()]
 
         # get limits on coordinates
         xmin, xmax = min(xs), max(xs)
@@ -223,24 +218,23 @@ class SpikePanel(SingleAxesPlotPanel):
 
         # TODO: base this on heuristics eventually
         # define the width and height of the bounding boxes
-        col_width = wave.ts.max() - wave.ts.min() - 100 # slight overlap
+        colwidth = wave.ts[-1] - wave.ts[0] - 100 # slight overlap
 
-        x_cols = list(set(xs))
-        num_cols = len(x_cols)
+        uniquexs = list(set(xs))
+        ncols = len(uniquexs)
 
         #        x           x           x
         #  -------------- ----------  -----------
         # each x should be the center of the columns
         # each column should be min(wave.ts) - max(wave.ts)
-        self.my_xlim = (min(wave.ts), num_cols*col_width)
         shifted = wave.ts - numpy.asarray([min(wave.ts)] * len(wave.ts))
-        self.my_xlim = (min(shifted), num_cols*col_width)
+        self.my_xlim = (min(shifted), ncols*colwidth)
         self.my_ax.set_xlim(self.my_xlim)
 
 
         x_offsets = {}
-        for i, x in enumerate(sorted(x_cols)):
-            x_offsets[x] = i * col_width
+        for i, x in enumerate(sorted(uniquexs)):
+            x_offsets[x] = i * colwidth
         # For each coordinate, with the given bounding boxes defined above
         # center these boxes on the coordinates, and adjust to produce
         # percentages
@@ -254,7 +248,7 @@ class SpikePanel(SingleAxesPlotPanel):
             y_offsets[y] = i * row_height
 
         self.pos = {}
-        for chan, coords in bottomlayout.iteritems():
+        for chan, coords in self.bottomlayout.iteritems():
             x, y = coords
 
             x_off = x_offsets[x]
@@ -275,11 +269,11 @@ class SortPanel(SpikePanel):
                        'y' :   1,
                        'r' : 0.7 }
 
-        self.all_chans = self.num_channels * [True]
+        self.all_chans = self.nchans * [True]
 
     def set_params(self):
         SingleAxesPlotPanel.set_params(self)
-        self.colours = ['y'] * self.num_channels
+        self.colours = ['y'] * self.nchans
 
     def _notVisible(self, spike, colour):
         lines, curr_visible = self.spikes[(spike, colour)]
@@ -297,7 +291,7 @@ class SortPanel(SpikePanel):
 
     def add(self, spike, colour, top=False, channels=None):
         """(Over)plot a given spike"""
-        colours = [colour] * self.num_channels
+        colours = [colour] * self.nchans
 
         # initialize
         if not self._initialized:
@@ -424,7 +418,7 @@ class MultiAxesPlotPanel(FigureCanvasWxAgg):
         self.axes = {} # axes for each channel, chan -> axes
         self.axesToChan = {} # axes -> chan
 
-        self.num_channels = len(layout)
+        self.nchans = len(layout)
 
         # set layouts of the plot on the screen
         self.set_plot_layout(layout)
@@ -435,7 +429,7 @@ class MultiAxesPlotPanel(FigureCanvasWxAgg):
         self.figure.set_facecolor('black')
         self.SetBackgroundColour(wx.BLACK)
         self.yrange = (-260, 260)
-        self.colours = [DEFAULTCOLOUR] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.nchans
 
     def set_plot_layout(self, layout):
         """ Override in subclasses. """
@@ -447,7 +441,7 @@ class MultiAxesPlotPanel(FigureCanvasWxAgg):
         for chan, sp in self.pos.iteritems():
             a = self.figure.add_axes(sp, axisbg='b', frameon=False, alpha=1.)
 
-            colours = [colour] * self.num_channels
+            colours = [colour] * self.nchans
             # create an instance of a searchable line
             line = SpykeLine(wave.ts,
                              wave.data[chan],
@@ -496,7 +490,7 @@ class MultiAxesChartPanel(MultiAxesPlotPanel):
         MultiAxesPlotPanel.set_params(self)
         colgen = itertools.cycle(iter(['b', 'g', 'm', 'c', 'y', 'r', 'w']))
         self.colours = []
-        for chan in xrange(self.num_channels):
+        for chan in xrange(self.nchans):
             self.colours.append(colgen.next())
 
     def set_plot_layout(self, layout):
@@ -520,7 +514,7 @@ class MultiAxesChartPanel(MultiAxesPlotPanel):
               +
            (0,0)
         """
-        num = self.num_channels
+        num = self.nchans
 
         # project coordinates onto x and y axes repsectively
         xcoords = [x for x, y in layout.itervalues()]
@@ -555,7 +549,7 @@ class MultiAxesSpikePanel(MultiAxesPlotPanel):
 
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
-        self.colours = [DEFAULTCOLOUR] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.nchans
 
     def set_plot_layout(self, layout):
         """Map from polytrode locations given as (x, y) coordinates
@@ -632,7 +626,7 @@ class MultiAxesSortPanel(MultiAxesSpikePanel):
 
     def set_params(self):
         MultiAxesPlotPanel.set_params(self)
-        self.colours = [DEFAULTCOLOUR] * self.num_channels
+        self.colours = [DEFAULTCOLOUR] * self.nchans
 
     def _toggleVisible(self, spike, colour, top=None):
         lines, curr_visible = self.spikes[(spike, colour)]
@@ -652,10 +646,10 @@ class MultiAxesSortPanel(MultiAxesSpikePanel):
 
     def add(self, spike, colour, top=False, channels=None):
         """ (Over)plot a given spike. """
-        colours = [colour] * self.num_channels
+        colours = [colour] * self.nchans
 
         if not channels:
-            channels = self.num_channels * [True]
+            channels = self.nchans * [True]
 
         # initialize
         if not self._initialized:

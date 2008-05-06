@@ -162,6 +162,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
 
         self.stream = core.Stream(self.surff.highpassrecords) # highpass recording (spike) stream
+        self.t = self.stream.t0 # set current time position in recording (us)
 
         self.OpenFrame('spike')
         self.OpenFrame('chart')
@@ -171,9 +172,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.Raise() # doesn't seem to bring self to foreground
         #wx.GetApp().SetTopWindow(self) # neither does this
 
-        self.seek(self.stream.t0) # plot first time window of data for all open frames
         self.slider.SetRange(self.stream.t0,
                              self.stream.tend - self.spiketw) # us
+        self.slider.SetValue(self.t)
         self.slider.SetLineSize(self.stream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
         self.EnableSurfWidgets(True)
@@ -202,13 +203,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             elif frametype == 'lfp':
                 self.frames[frametype] = LFPFrame(parent=self, probe=self.stream.probe)
         self.ShowFrame(frametype)
-        self.seek(offset=0, relative=True) # plot all frames' data at current timepoint
 
     def ShowFrame(self, frametype, enable=True):
         """Show/hide a data frame, enforce menu and toolbar states to correspond"""
         self.frames[frametype].Show(enable)
         self.menubar.Check(self.FRAMETYPE2BUTTONID[frametype], enable)
         self.toolbar.ToggleTool(self.FRAMETYPE2BUTTONID[frametype], enable)
+        if enable:
+            self.plot(frametype) # update only the newly shown frame's data, in case self.t changed since it was last visible
+
         #if enable:
         #    self.Raise() # children wx.MiniFrames are always on top of main spyke frame, self.Raise() doesn't seem to help. Must be an inherent property of wx.MiniFrames, which maybe isn't such a bad idea after all...
 
@@ -247,18 +250,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Seek to position in surf file. offset is time in us. relative determines
         if offset is absolute or relative. If True, offset can be negative to seek
         backwards from current position"""
-        if self.t == None: # hasn't been init'd yet
-            self.t = self.stream.t0
         if relative:
             self.t = self.t + offset
         else:
             self.t = offset
         self.plot()
 
-    def plot(self):
-        """Update the contents of all the data frames. Could add code here to
-        save time and not update contents of hidden frames"""
-        for frametype, frame in self.frames.items():
+    def plot(self, frametype=None):
+        """Update the contents of all the data frames, or just a specific one"""
+        if frametype == None: # update all of the visible frames
+            keyvals = self.frames.items() # list of key:val tuples
+        else: # update only a specific frame, if visible
+            keyvals = [(frametype, self.frames[frametype])]
+        for frametype, frame in keyvals:
             if frame.IsShown(): # only update if frame is shown, for performance
                 if frametype == 'spike':
                     waveform = self.stream[self.t:self.t+self.spiketw]
