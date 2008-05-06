@@ -11,7 +11,8 @@ TODO:
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
 - add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
-
+- replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording
+    - separate groups of 3 digits with commas (time in us)
 
 LOW-PRIORITY:
 

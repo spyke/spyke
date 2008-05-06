@@ -59,8 +59,9 @@ class SpykeLine(Line2D):
         return hash(self) == hash(other)
 
 
-class SingleAxesPlotPanel(FigureCanvasWxAgg):
-    """Single axes plot panel. Base class for specific types of plot panels"""
+class PlotPanel(FigureCanvasWxAgg):
+    """A wx.Panel with an embedded mpl figure axes.
+    Base class for specific types of plot panels"""
     def __init__(self, parent, id=-1, layout=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._plot_setup = False
@@ -93,7 +94,7 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         self.linewidth = DEFAULTLINEWIDTH
 
     def init_plot(self, wave, colour=DEFAULTCOLOUR):
-        """Create the single axes and its lines"""
+        """Create the axes and its lines"""
         pos = [0, 0, 1, 1]
         self.my_ax = self.figure.add_axes(pos,
                                           axisbg='b',
@@ -145,11 +146,11 @@ class SingleAxesPlotPanel(FigureCanvasWxAgg):
         self.draw(True)
 
 
-class ChartPanel(SingleAxesPlotPanel):
+class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according to site y coords"""
 
     def set_params(self):
-        SingleAxesPlotPanel.set_params(self)
+        PlotPanel.set_params(self)
 
     def set_plot_layout(self, wave):
         self.my_ax.set_xlim(0, wave.ts[-1]-wave.ts[0])
@@ -185,12 +186,12 @@ class ChartPanel(SingleAxesPlotPanel):
             self.colours[chani] = colourgen.next() # now assign colours so that they cycle nicely in space
 
 
-class SpikePanel(SingleAxesPlotPanel):
+class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels layed out according
     to self.layout"""
 
     def set_params(self):
-        SingleAxesPlotPanel.set_params(self)
+        PlotPanel.set_params(self)
         self.colours = [DEFAULTCOLOUR] * self.nchans
 
 
@@ -287,7 +288,7 @@ class SortPanel(SpikePanel):
         self.all_chans = self.nchans * [True]
 
     def set_params(self):
-        SingleAxesPlotPanel.set_params(self)
+        PlotPanel.set_params(self)
         self.colours = ['y'] * self.nchans
 
     def _notVisible(self, spike, colour):
