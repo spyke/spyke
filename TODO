@@ -2,11 +2,15 @@ TODO:
 
 - check if y data is being updated as efficiently as possible, want to prevent copying
     - seems alright: mostly just doing line.set_ydata() on each plot call
-- remove hard coding in data window positioning
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
         - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
+
+- make seek move chartwin's center to that position
+    - that way you can look at stuff before and after the spike win data
+    - also, a centered seek will allow for natural centered zooming in and out in time
+    - shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
 
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
@@ -14,16 +18,19 @@ TODO:
 - replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording
     - separate groups of 3 digits with commas (time in us)
 
-- have a dock mode, where moving one window, whether main spyke frame or any of the data frames, moves all windows the same amount
-    - I think all you need to do is give all frames an OnMove method (or something), call all other windows' OnMoves, pass them the event, and then event.Skip()
-    - or better yet, make moving the main spyke window always move in dock mode, and moving the dataframes not do so
 - add 1ms wide chart window to sort window, so you can see chan layout of events in both real space and chart space, might make it easier to sort
+
+
 
 LOW-PRIORITY:
 
 - make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
 - add chan id toggle button to display chan id directly under each channel in all the dataframes
-- shade the first 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in
+
+
+
+
+
 
 
 GENERAL:
@@ -197,3 +204,7 @@ DONE:
 - chart window channel layout is wrong
 - arrange data windows so they overlap as little as possible
 - end range problem for chart window, allow plotting of nothing...
+- remove hard coding in data window positioning
+- have a dock mode, where moving one window, whether main spyke frame or any of the data frames, moves all windows the same amount
+    - I think all you need to do is give all frames an OnMove method (or something), call all other windows' OnMoves, pass them the event, and then event.Skip()
+    - or better yet, make moving the main spyke window always move in dock mode, and moving the dataframes not do so (er, this last one seems hard to do, leave it out)
