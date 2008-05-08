@@ -109,13 +109,13 @@ class PlotPanel(FigureCanvasWxAgg):
         self.my_ax.set_yticks([])
 
         # shift x vals to be offset from 0
-        self.static_x_vals = wave.ts - wave.ts[0]
+        xvals = wave.ts - wave.ts[0]
 
         self.displayed_lines = {}
         self.my_ax._autoscaleon = False
         for chan, spacing in self.pos.iteritems():
             x_off, y_off = spacing
-            line = SpykeLine(self.static_x_vals + x_off,
+            line = SpykeLine(xvals + x_off,
                              wave.data[chan] + y_off,
                              linewidth=self.linewidth,
                              color=self.colours[chan],
@@ -130,18 +130,22 @@ class PlotPanel(FigureCanvasWxAgg):
         # redraw the display
         self.draw(True)
 
-    def plot(self, waveforms):
+    def plot(self, wave):
         """Plot waveforms"""
         # check if we've set up our axes yet
         if not self._plot_setup: # TODO: does this really need to be checked on every single plot call?
-            self.init_plot(waveforms)
+            self.init_plot(wave)
             self._plot_setup = True
 
         # update plots with new data
-        for chan in self.displayed_lines:
+        for chan, line in self.displayed_lines.iteritems():
             x_off, y_off = self.pos[chan]
-            self.displayed_lines[chan].set_ydata(waveforms.data[chan] + y_off)
-            self.displayed_lines[chan]._visible = True
+            # number of x data points generally doesn't change between calls
+            if len(line.get_xdata()) != wave.data.shape[-1]:
+                xvals = wave.ts - wave.ts[0]
+                line.set_xdata(xvals + x_off) # update the line's xvals
+            line.set_ydata(wave.data[chan] + y_off)
+            line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
         self.my_ax._visible = True
         self.draw(True)
 
@@ -196,7 +200,7 @@ class SpikePanel(PlotPanel):
 
 
     def set_plot_layout(self, wave):
-        # TODO: why is this dependent on wave? Doesn't that mean this should be called on every plot call? Seems dumb.
+        # TODO: why is this dependent on wave? Doesn't that mean this should be called on every plot call? Seems dumb. Ah, it just takes a waveform object to figure out the xvals and the num chans from it, instead of being explicity told this info separately. This assumes that subsequent waveform objects will have the same dimensions
 
         """Map from polytrode layout given as (x, y) coordinates
         into position information for the spike plots, which are stored
@@ -244,8 +248,8 @@ class SpikePanel(PlotPanel):
         #  -------------- ----------  -----------
         # each x should be the center of the columns
         # each column should be wave.ts[0] - wave.ts[-1] (wide? Dunno what Reza meant here)
-        shifted = wave.ts - wave.ts[0] # TODO: AKA self.static_x_vals. Too many names for the same thing
-        self.my_xlim = (min(shifted), ncols*colwidth)
+        xvals = wave.ts - wave.ts[0] # all we really need is xvals[0], which will always be 0 from this eq'n...
+        self.my_xlim = (xvals[0], ncols*colwidth)
         self.my_ax.set_xlim(self.my_xlim)
 
 
@@ -333,6 +337,10 @@ class SortPanel(SpikePanel):
 
             if channels is None:
                 channels = self.all_chans
+
+            #need to deal with removal of self.static_x_vals from base PlotPanel class, replace with:
+            #xvals = wave.ts - wave.ts[0]
+            #but that would require a waveform object, and this method only gets a "spike", whatever that is...
 
             self.my_ax._visible = False
             lines = []
@@ -510,8 +518,8 @@ class TestSortWin(PlayWin):
         self.timer.Start(200)
 
     def onTimerEvent(self, evt):
-        waveforms = self.event_iter.next()
-        self.plotPanel.plot(waveforms)
+        wave = self.event_iter.next()
+        self.plotPanel.plot(wave)
 
 
 class TestSpikeWin(PlayWin):
@@ -526,9 +534,9 @@ class TestSpikeWin(PlayWin):
         self.timer.Start(200)
 
     def onTimerEvent(self, evt):
-        waveforms = self.stream[self.curr:self.curr+self.incr]
+        wave = self.stream[self.curr:self.curr+self.incr]
         self.curr += self.incr
-        self.plotPanel.plot(waveforms)
+        self.plotPanel.plot(wave)
 
 
 class TestChartWin(PlayWin):
@@ -544,9 +552,9 @@ class TestChartWin(PlayWin):
         self.timer.Start(100)
 
     def onTimerEvent(self, evt):
-        waveforms = self.stream[self.curr:self.curr+self.incr]
+        wave = self.stream[self.curr:self.curr+self.incr]
         self.curr += self.incr
-        self.plotPanel.plot(waveforms)
+        self.plotPanel.plot(wave)
 
 
 if __name__ == '__main__':

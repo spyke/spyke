@@ -1,18 +1,23 @@
 TODO:
 
 - check if y data is being updated as efficiently as possible, want to prevent copying
-- end range problem for chart window, allow plotting of nothing...
-- chart window channel layout is wrong
-- arrange data windows so they overlap as little as possible
-    - remove hard coding
+    - seems alright: mostly just doing line.set_ydata() on each plot call
+- remove hard coding in data window positioning
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
+        - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
+
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
 - add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
 - replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording
     - separate groups of 3 digits with commas (time in us)
+
+- have a dock mode, where moving one window, whether main spyke frame or any of the data frames, moves all windows the same amount
+    - I think all you need to do is give all frames an OnMove method (or something), call all other windows' OnMoves, pass them the event, and then event.Skip()
+    - or better yet, make moving the main spyke window always move in dock mode, and moving the dataframes not do so
+- add 1ms wide chart window to sort window, so you can see chan layout of events in both real space and chart space, might make it easier to sort
 
 LOW-PRIORITY:
 
@@ -189,3 +194,6 @@ DONE:
     - set up config system to, among other things, remember window positions and sizes when you re-open a window, whether within the same session or across sessions
 - try making data frames MiniFrames (see manual) instead of passing them the TOOL_WINDOW flag
     - consider making data frames children of the main spyke frame again - maybe this could be done to automatically iconize and activate the data frames when main spyke frame gets the event - yup, this is exactly the case. hooray!
+- chart window channel layout is wrong
+- arrange data windows so they overlap as little as possible
+- end range problem for chart window, allow plotting of nothing...
