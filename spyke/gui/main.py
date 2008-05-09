@@ -90,7 +90,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnExit(self, event):
         # TODO: add confirmation dialog if collection not saved
         self.CloseSurfFile()
-        event.Skip()
+        self.Destroy()
 
     def OnAbout(self, event):
         dlg = SpykeAbout(self)

@@ -39,9 +39,9 @@ LIGHTBLUE = '#007FFF'
 BLUE = '#0000FF'
 VIOLET = '#7F00FF'
 MAGENTA = '#FF00FF'
-BROWN = '#AF5050'
 GREY = '#7F7F7F'
 WHITE = '#FFFFFF'
+BROWN = '#AF5050'
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 
@@ -80,7 +80,7 @@ class SpykeLine(Line2D):
 
 
 class PlotPanel(FigureCanvasWxAgg):
-    """A wx.Panel with an embedded mpl figure axes.
+    """A wx.Panel with an embedded mpl figure.
     Base class for specific types of plot panels"""
     def __init__(self, parent, id=-1, layout=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
