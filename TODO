@@ -1,7 +1,9 @@
 TODO:
 
-- check if y data is being updated as efficiently as possible, want to prevent copying
+- check if y data is being updated as efficiently as possible, want to prevent copying, increase scrolling speed
     - seems alright: mostly just doing line.set_ydata() on each plot call
+    - check if you can shift a line's y_data, instead of having to replace it entirely on every plot call
+    - actually, looks like the limiting factor for speed is window size - if you resize the windows so they're really small, plotting is lightning fast. So this is a backend drawing issue, and probably has nothing to do with the efficiency of updating y values
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
@@ -9,10 +11,7 @@ TODO:
 - keyboard press or page on mouse click when slider in focus generates two slider events, and hence two plot events
     - mouse drag only generates one slider event
 
-- make seek move chartwin's center to that position
-    - that way you can look at stuff before and after the spike win data
-    - also, a centered seek will allow for natural centered zooming in and out in time
-    - shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
+- shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
 
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
@@ -28,7 +27,8 @@ LOW-PRIORITY:
 
 - make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
 - add chan id toggle button to display chan id directly under each channel in all the dataframes
-
+- make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
+    - worked on this for quite a while, couldn't figure it out, had recursive calling problems and stuff
 
 
 
@@ -210,3 +210,6 @@ DONE:
 - have a dock mode, where moving one window, whether main spyke frame or any of the data frames, moves all windows the same amount
     - I think all you need to do is give all frames an OnMove method (or something), call all other windows' OnMoves, pass them the event, and then event.Skip()
     - or better yet, make moving the main spyke window always move in dock mode, and moving the dataframes not do so (er, this last one seems hard to do, leave it out)
+- make seek move chartwin's center to that position
+    - that way you can look at stuff before and after the spike win data
+    - also, a centered seek will allow for natural centered zooming in and out in time

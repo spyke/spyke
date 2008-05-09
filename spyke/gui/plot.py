@@ -17,13 +17,33 @@ rcParams['lines.marker'] = ''
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
 from spyke import surf
 from spyke.gui.events import *
 
-DEFAULTCOLOUR = "#00FF00" # garish green
-DEFAULTLINEWIDTH = 1 # mpl units - pixels? points?
+DEFAULTLINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
 CHANHEIGHT = 100 # uV
+
+DEFAULTCHANCOLOUR = "#00FF00" # garish green
+CURSORCOLOUR = "#171717" # light black
+BACKGROUNDCOLOUR = 'black'
+WXBACKGROUNDCOLOUR = wx.BLACK
+
+RED = '#FF0000'
+ORANGE = '#FF7F00'
+YELLOW = '#FFFF00'
+GREEN = '#00FF00'
+CYAN = '#00FFFF'
+LIGHTBLUE = '#007FFF'
+BLUE = '#0000FF'
+VIOLET = '#7F00FF'
+MAGENTA = '#FF00FF'
+BROWN = '#AF5050'
+GREY = '#7F7F7F'
+WHITE = '#FFFFFF'
+
+COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 
 
 class AxesWrapper(object):
@@ -62,15 +82,22 @@ class SpykeLine(Line2D):
 class PlotPanel(FigureCanvasWxAgg):
     """A wx.Panel with an embedded mpl figure axes.
     Base class for specific types of plot panels"""
-    def __init__(self, parent, id=-1, layout=None, tw=None):
+    def __init__(self, parent, id=-1, layout=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
-        self._plot_setup = False
+        self._ready = False
         self.layout = layout # layout with y coord origin at top
-        self.tw = tw # temporal width of each channel, in plot units
+        self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
+        self.cw = cw # time width of cursor, in plot units
+
         self.pos = {} # position of lines
         self.channels = {} # plot y-data for each channel
         self.nchans = len(layout)
-        self.set_params()
+        self.figure.set_facecolor(BACKGROUNDCOLOUR)
+        self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
+        #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
+        self.SetBackgroundColour(WXBACKGROUNDCOLOUR)
+        self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
+        self.linewidth = DEFAULTLINEWIDTH
 
         # for plotting with mpl, convert all y coords to have origin at bottom, not top
         bottomlayout = copy(self.layout)
@@ -81,28 +108,20 @@ class PlotPanel(FigureCanvasWxAgg):
             bottomlayout[key] = (x, y) # update
         self.bottomlayout = bottomlayout
 
-    def set_params(self):
-        """Set extra parameters"""
-        self.figure.set_facecolor('black')
-        self.SetBackgroundColour(wx.BLACK)
-        self.colours = [DEFAULTCOLOUR] * self.nchans
-        self.linewidth = DEFAULTLINEWIDTH
-
-    def init_plot(self, wave, tref, colour=DEFAULTCOLOUR):
+    def init_plot(self, wave, tref):
         """Create the axes and its lines"""
         pos = [0, 0, 1, 1]
-        self.my_ax = self.figure.add_axes(pos,
-                                          axisbg='b',
-                                          frameon=False,
-                                          alpha=1.)
-        self.set_plot_layout()
+        self.ax = self.figure.add_axes(pos,
+                                       axisbg=BACKGROUNDCOLOUR,
+                                       frameon=False,
+                                       alpha=1.)
+        self.do_layout() # defined by subclasses
 
-        self.my_ax._visible = False
-        self.my_ax.set_xticks([]) # turn them off
-        self.my_ax.set_yticks([])
+        self.ax._visible = False
+        self.ax.set_axis_off() # turn off the x and y axis
 
         self.displayed_lines = {}
-        self.my_ax._autoscaleon = False
+        self.ax._autoscaleon = False
         for chan, spacing in self.pos.iteritems():
             x_off, y_off = spacing
             line = SpykeLine(wave.ts - tref + x_off,
@@ -110,80 +129,77 @@ class PlotPanel(FigureCanvasWxAgg):
                              linewidth=self.linewidth,
                              color=self.colours[chan],
                              antialiased=True)
-            line.colour = colour
             self.displayed_lines[chan] = line
-            self.my_ax.add_line(line)
+            self.ax.add_line(line)
 
             self.channels[chan] = line
 
-        self.my_ax._visible = True
+        self.ax._visible = True
+        self._ready = True
         # redraw the display
         self.draw(True)
+
+    def get_spatialchans(self):
+        """Return channels in spatial order, from bottom to top, left to right"""
+        # first, sort x coords, then y: (secondary, then primary)
+        xychans = [ (x, y, chan) for chan, (x, y) in self.bottomlayout.items() ] # list of (x, y, chan) 3-tuples
+        xychans.sort() # stable sort in-place according to x values (first in tuple)
+        yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
+        yxchans.sort() # stable sort in-place according to y values (first in tuple)
+        chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
+        return chans
 
     def plot(self, wave, tref=None):
         """Plot waveforms wrt a reference time point"""
         if tref == None:
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
         # check if we've set up our axes yet
-        if not self._plot_setup: # TODO: does this really need to be checked on every single plot call?
+        if not self._ready: # TODO: does this really need to be checked on every single plot call?
             self.init_plot(wave, tref)
-            self._plot_setup = True
         # update plots with new data
+        line = self.displayed_lines.values()[0] # random line, first in the list
+        updatexvals = (line.get_xdata()[0], line.get_xdata()[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref) # do endpoints differ?
         for chan, line in self.displayed_lines.iteritems():
             x_off, y_off = self.pos[chan]
-            if (line.get_xdata()[0], line.get_xdata()[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref): # if endpoints differ
+            if updatexvals:
                 line.set_xdata(wave.ts - tref + x_off) # update the line's x values (or really, the number of x values, their position shouldn't change in space)
+                # should I also subtract self.tw/2 to make it truly centered for chartwin?
             line.set_ydata(wave.data[chan] + y_off) # update the line's y values
             line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
-        self.my_ax._visible = True
+        self.ax._visible = True
         self.draw(True)
 
 
 class ChartPanel(PlotPanel):
-    """Chart panel. Presents all channels layed out vertically according to site y coords"""
+    """Chart panel. Presents all channels layed out vertically according
+    to site y coords in .layout"""
 
-    def set_plot_layout(self):
-        self.my_ax.set_xlim(-self.tw/2, self.tw/2)
-        self.my_ax.set_ylim(-CHANHEIGHT, self.nchans*CHANHEIGHT)
-        # order channel lines vertically according to their coords, bottom to top, left to right
-        # first, sort x coords, then y: (secondary, then primary)
-        xychanis = [ (x, y, chani) for chani, (x, y) in self.bottomlayout.items() ] # list of (x, y, chani) 3-tuples
-        xychanis.sort() # stable sort in-place according to x values (first in tuple)
-        yxchanis = [ (y, x, chani) for (x, y, chani) in xychanis ]
-        yxchanis.sort() # stable sort in-place according to y values (first in tuple)
-        chanis = [ chani for (y, x, chani) in yxchanis ] # unload the chan indices, now sorted bottom to top, left to right
+    def do_layout(self):
+        self.ax.set_xlim(-self.tw/2, self.tw/2)
+        self.ax.set_ylim(-CHANHEIGHT, self.nchans*CHANHEIGHT)
+        self.add_cursor()
+        chans = self.get_spatialchans()
+        colourgen = itertools.cycle(iter(COLOURS))
+        for chani, chan in enumerate(chans):
+            self.pos[chan] = (0, chani*CHANHEIGHT)
+            self.colours[chan] = colourgen.next() # now assign colours so that they cycle nicely in space
 
-        red = '#FF0000'
-        orange = '#FF7F00'
-        yellow = '#FFFF00'
-        green = '#00FF00'
-        cyan = '#00FFFF'
-        lightblue = '#007FFF'
-        blue = '#0000FF'
-        violet = '#7F00FF'
-        magenta = '#FF00FF'
-        brown = '#AF5050'
-        grey = '#7F7F7F'
-        white = '#FFFFFF'
+    def add_cursor(self):
+        # add a shaded region to represent region shown in spike frame
+        ylim = self.ax.get_ylim()
+        xy = (0, ylim[0])
+        width = self.cw
+        height = ylim[1] - ylim[0]
+        self.cursor = Rectangle(xy, width, height,
+                                facecolor=CURSORCOLOUR, linewidth=0, antialiased=False)
+        self.ax.add_patch(self.cursor)
 
-        # 'b', 'g', 'm', 'c', 'y', 'r', 'w'
-        # red, green, orange, cyan, brown, yellow, lightblue, white, blue, violet, grey, magenta
-        # red, orange, yellow, green, cyan, lightblue, blue violet, magenta, brown, grey, white
-        colourgen = itertools.cycle(iter([red, orange, yellow, green, cyan, lightblue, violet, magenta, grey, white, brown]))
-        self.colours = [None] * self.nchans # init all entries to make all the indices valid
-        for chanii, chani in enumerate(chanis):
-            self.pos[chani] = (0, chanii*CHANHEIGHT)
-            self.colours[chani] = colourgen.next() # now assign colours so that they cycle nicely in space
 
 class SpikePanel(PlotPanel):
-    """Spike panel. Presents a narrow temporal window of all channels layed out according
-    to self.layout"""
+    """Spike panel. Presents a narrow temporal window of all channels
+    layed out according to self.layout"""
 
-    def set_params(self):
-        PlotPanel.set_params(self)
-        self.colours = [DEFAULTCOLOUR] * self.nchans
-
-    def set_plot_layout(self):
+    def do_layout(self):
         """Map from polytrode layout given as (x, y) coordinates in um,
         into position information for the spike plots, which are stored
         as a list of four values [l, b, w, h].
@@ -219,23 +235,24 @@ class SpikePanel(PlotPanel):
         colwidth = self.tw - 100 # amount of horizontal screen space per column, slight overlap
         uniquexs = list(set(xs))
         ncols = len(uniquexs) # number of unique x site coords
-        self.my_ax.set_xlim(0, ncols*colwidth)
+        self.ax.set_xlim(0, ncols*colwidth)
         x_offsets = {}
         for i, x in enumerate(sorted(uniquexs)):
             x_offsets[x] = i * colwidth
         uniqueys = list(set(ys))
         nrows = len(uniqueys) # TODO: a 2 col staggered probe has nothing but unique y coords, but that doesn't mean they should all be spaced CHANHEIGHT apart vertically, only between those in adjacent rows of the same column
-        self.my_ax.set_ylim(-CHANHEIGHT, nrows*CHANHEIGHT) # this doesn't seem right, see above
+        self.ax.set_ylim(-CHANHEIGHT, nrows*CHANHEIGHT) # this doesn't seem right, see above
         y_offsets = {}
         for i, y in enumerate(sorted(uniqueys)):
             y_offsets[y] = i * CHANHEIGHT
 
-        self.pos = {}
-        for chan, coords in self.bottomlayout.iteritems():
-            x, y = coords
+        colourgen = itertools.cycle(iter(COLOURS))
+        for chan in self.get_spatialchans():
+            x, y = self.bottomlayout[chan]
             x_off = x_offsets[x]
             y_off = y_offsets[y]
             self.pos[chan] = (x_off, y_off)
+            self.colours[chan] = colourgen.next() # now assign colours so that they cycle nicely in space
 
 
 class SortPanel(SpikePanel):
@@ -244,6 +261,7 @@ class SortPanel(SpikePanel):
     user interaction"""
     def __init__(self, *args, **kwargs):
         SpikePanel.__init__(self, *args, **kwargs)
+        self.colours = dict(zip(range(self.nchans), [YELLOW]*self.nchans))
         self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
         #self.x_vals = None
         self._initialized = False
@@ -252,10 +270,6 @@ class SortPanel(SpikePanel):
                        'r' : 0.7 }
 
         self.all_chans = self.nchans * [True]
-
-    def set_params(self):
-        PlotPanel.set_params(self)
-        self.colours = ['y'] * self.nchans
 
     def _notVisible(self, spike, colour):
         lines, curr_visible = self.spikes[(spike, colour)]
@@ -273,13 +287,9 @@ class SortPanel(SpikePanel):
 
     def add(self, spike, colour, top=False, channels=None):
         """(Over)plot a given spike"""
-        colours = [colour] * self.nchans
-
         # initialize
         if not self._initialized:
-
-            self.init_plot(spike, colour)
-
+            self.init_plot(spike)
             lines = []
             for num, channel in self.channels.iteritems():
                 #x_off, y_off = self.pos[channel]
@@ -291,12 +301,11 @@ class SortPanel(SpikePanel):
             self._initialized = True
 
         elif (spike, colour) in self.spikes:
-            self.my_ax._visible = False
+            self.ax._visible = False
             self._Visible(spike, colour, channels)
-            self.my_ax._visible = True
+            self.ax._visible = True
 
         elif (spike, colour) not in self.spikes:
-
             if channels is None:
                 channels = self.all_chans
 
@@ -304,35 +313,35 @@ class SortPanel(SpikePanel):
             #xvals = wave.ts - wave.ts[0]
             #but that would require a waveform object, and this method only gets a "spike", whatever that is...
 
-            self.my_ax._visible = False
+            self.ax._visible = False
             lines = []
             for chan in self.channels:
                 x_off, y_off = self.pos[chan]
                 line = SpykeLine(self.static_x_vals + x_off,
                                  spike.data[chan] + y_off,
                                  linewidth=self.linewidth,
-                                 color=colours[chan],
+                                 color=self.colours[chan],
                                  antialiased=False)
                 line._visible = False
                 line.colour = colour
                 line._visible = channels[chan]
                 lines.append(line)
                 line.zorder = self.layers[colour]
-                self.my_ax.add_line(line)
+                self.ax.add_line(line)
             self.spikes[(spike, colour)] = [lines, True]
-            self.my_ax._visible = True
+            self.ax._visible = True
         self.draw(True)
 
     def remove(self, spike, colour):
         """Remove the selected spike from the plot display"""
         #self._toggleVisible(spike, colour)
-        self.my_ax._visible = False
+        self.ax._visible = False
         self._notVisible(spike, colour)
         #if colour in ('y'):
         #    lines, _ = self.spikes.pop((spike, colour))
         #    for line in lines:
-        #        self.my_ax.lines.remove(line)
-        self.my_ax._visible = True
+        #        self.ax.lines.remove(line)
+        self.ax._visible = True
         self.draw(True)
 
 

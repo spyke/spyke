@@ -33,7 +33,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.frames = {} # holds spike, chart, and lfp frames
         self.spiketw = 1000 # spike frame temporal window width (us)
         self.charttw = 50000 # chart frame temporal window width (us)
-        self.lfptw = self.charttw # lfp frame temporal window width (us)
+        self.lfptw = 1000000 # lfp frame temporal window width (us)
         self.t = None # current time position in recording (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
@@ -177,15 +177,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create and bind a data frame, show it, plot its data"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
-                frame = SpikeFrame(parent=self, probe=self.stream.probe, tw=self.spiketw,
+                frame = SpikeFrame(parent=self, probe=self.stream.probe,
+                                   tw=self.spiketw,
                                    pos=self.GetPosition() + wx.Point(self.GetSize()[0], 0),
                                    size=SPIKEFRAMESIZE)
             elif frametype == 'chart':
-                frame = ChartFrame(parent=self, probe=self.stream.probe, tw=self.charttw,
+                frame = ChartFrame(parent=self, probe=self.stream.probe,
+                                   tw=self.charttw, cw=self.spiketw,
                                    pos=self.GetPosition() + wx.Point(self.GetSize()[0]+SPIKEFRAMESIZE[0], 0),
                                    size=CHARTFRAMESIZE)
             elif frametype == 'lfp':
-                frame = LFPFrame(parent=self, probe=self.stream.probe, tw=self.lfptw,
+                frame = LFPFrame(parent=self, probe=self.stream.probe,
+                                 tw=self.lfptw, cw=self.charttw,
                                  pos = self.GetPosition() + wx.Point(self.GetSize()[0]+SPIKEFRAMESIZE[0], CHARTFRAMESIZE[1]),
                                  size=LFPFRAMESIZE)
             self.frames[frametype] = frame
@@ -291,10 +294,10 @@ class DataFrame(wx.MiniFrame):
                            }
     STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
 
-    def __init__(self, parent=None, probe=None, tw=None, *args, **kwds):
+    def __init__(self, parent=None, probe=None, tw=None, cw=None, *args, **kwds):
         kwds["style"] = self.STYLE
         wx.MiniFrame.__init__(self, parent, *args, **kwds)
-        self.panel = self.FRAMETYPE2PANELTYPE[self.frametype](self, -1, layout=probe.SiteLoc, tw=tw)
+        self.panel = self.FRAMETYPE2PANELTYPE[self.frametype](self, -1, layout=probe.SiteLoc, tw=tw, cw=cw)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
