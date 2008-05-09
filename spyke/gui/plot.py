@@ -62,16 +62,15 @@ class SpykeLine(Line2D):
 class PlotPanel(FigureCanvasWxAgg):
     """A wx.Panel with an embedded mpl figure axes.
     Base class for specific types of plot panels"""
-    def __init__(self, parent, id=-1, layout=None):
+    def __init__(self, parent, id=-1, layout=None, tw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._plot_setup = False
         self.layout = layout # layout with y coord origin at top
+        self.tw = tw # temporal width of each channel, in plot units
         self.pos = {} # position of lines
         self.channels = {} # plot y-data for each channel
         self.nchans = len(layout)
         self.set_params()
-        self.my_ylim = None
-        self.my_xlim = None
 
         # for plotting with mpl, convert all y coords to have origin at bottom, not top
         bottomlayout = copy(self.layout)
@@ -82,10 +81,6 @@ class PlotPanel(FigureCanvasWxAgg):
             bottomlayout[key] = (x, y) # update
         self.bottomlayout = bottomlayout
 
-    def set_plot_layout(self, layout):
-        """Override in subclasses"""
-        pass
-
     def set_params(self):
         """Set extra parameters"""
         self.figure.set_facecolor('black')
@@ -93,29 +88,24 @@ class PlotPanel(FigureCanvasWxAgg):
         self.colours = [DEFAULTCOLOUR] * self.nchans
         self.linewidth = DEFAULTLINEWIDTH
 
-    def init_plot(self, wave, colour=DEFAULTCOLOUR):
+    def init_plot(self, wave, tref, colour=DEFAULTCOLOUR):
         """Create the axes and its lines"""
         pos = [0, 0, 1, 1]
         self.my_ax = self.figure.add_axes(pos,
                                           axisbg='b',
                                           frameon=False,
                                           alpha=1.)
-
-        # set layouts of the plot on the screen
-        self.set_plot_layout(wave)
+        self.set_plot_layout()
 
         self.my_ax._visible = False
-        self.my_ax.set_xticks([])
+        self.my_ax.set_xticks([]) # turn them off
         self.my_ax.set_yticks([])
-
-        # shift x vals to be offset from 0
-        xvals = wave.ts - wave.ts[0]
 
         self.displayed_lines = {}
         self.my_ax._autoscaleon = False
         for chan, spacing in self.pos.iteritems():
             x_off, y_off = spacing
-            line = SpykeLine(xvals + x_off,
+            line = SpykeLine(wave.ts - tref + x_off,
                              wave.data[chan] + y_off,
                              linewidth=self.linewidth,
                              color=self.colours[chan],
@@ -130,21 +120,20 @@ class PlotPanel(FigureCanvasWxAgg):
         # redraw the display
         self.draw(True)
 
-    def plot(self, wave):
-        """Plot waveforms"""
+    def plot(self, wave, tref=None):
+        """Plot waveforms wrt a reference time point"""
+        if tref == None:
+            tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
         # check if we've set up our axes yet
         if not self._plot_setup: # TODO: does this really need to be checked on every single plot call?
-            self.init_plot(wave)
+            self.init_plot(wave, tref)
             self._plot_setup = True
-
         # update plots with new data
         for chan, line in self.displayed_lines.iteritems():
             x_off, y_off = self.pos[chan]
-            # number of x data points generally doesn't change between calls
-            if len(line.get_xdata()) != wave.data.shape[-1]:
-                xvals = wave.ts - wave.ts[0]
-                line.set_xdata(xvals + x_off) # update the line's xvals
-            line.set_ydata(wave.data[chan] + y_off)
+            if (line.get_xdata()[0], line.get_xdata()[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref): # if endpoints differ
+                line.set_xdata(wave.ts - tref + x_off) # update the line's x values (or really, the number of x values, their position shouldn't change in space)
+            line.set_ydata(wave.data[chan] + y_off) # update the line's y values
             line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
         self.my_ax._visible = True
         self.draw(True)
@@ -153,11 +142,8 @@ class PlotPanel(FigureCanvasWxAgg):
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according to site y coords"""
 
-    def set_params(self):
-        PlotPanel.set_params(self)
-
-    def set_plot_layout(self, wave):
-        self.my_ax.set_xlim(0, wave.ts[-1]-wave.ts[0])
+    def set_plot_layout(self):
+        self.my_ax.set_xlim(-self.tw/2, self.tw/2)
         self.my_ax.set_ylim(-CHANHEIGHT, self.nchans*CHANHEIGHT)
         # order channel lines vertically according to their coords, bottom to top, left to right
         # first, sort x coords, then y: (secondary, then primary)
@@ -176,7 +162,7 @@ class ChartPanel(PlotPanel):
         blue = '#0000FF'
         violet = '#7F00FF'
         magenta = '#FF00FF'
-        brown = '#7F4040'
+        brown = '#AF5050'
         grey = '#7F7F7F'
         white = '#FFFFFF'
 
@@ -189,7 +175,6 @@ class ChartPanel(PlotPanel):
             self.pos[chani] = (0, chanii*CHANHEIGHT)
             self.colours[chani] = colourgen.next() # now assign colours so that they cycle nicely in space
 
-
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels layed out according
     to self.layout"""
@@ -198,15 +183,11 @@ class SpikePanel(PlotPanel):
         PlotPanel.set_params(self)
         self.colours = [DEFAULTCOLOUR] * self.nchans
 
-
-    def set_plot_layout(self, wave):
-        # TODO: why is this dependent on wave? Doesn't that mean this should be called on every plot call? Seems dumb. Ah, it just takes a waveform object to figure out the xvals and the num chans from it, instead of being explicity told this info separately. This assumes that subsequent waveform objects will have the same dimensions
-
-        """Map from polytrode layout given as (x, y) coordinates
+    def set_plot_layout(self):
+        """Map from polytrode layout given as (x, y) coordinates in um,
         into position information for the spike plots, which are stored
         as a list of four values [l, b, w, h].
 
-        To illustrate this, consider
         loc_i = (x, y) are the coordinates for the polytrode on channel i.
         We want to map these coordinates to the unit square.
 
@@ -226,51 +207,32 @@ class SpikePanel(PlotPanel):
         NOTE that unlike indicated above, actual .layout coords are:
             x: distance from center of polytrode
             y: distance down from top of polytrode border (slightly above top site)
-
         So, y locations need to be swapped vertically before being used - use .bottomlayout"""
 
         # project coordinates onto x and y axes respectively
         xs = [x for x, y in self.bottomlayout.values()]
         ys = [y for x, y in self.bottomlayout.values()]
-
         # get limits on coordinates
         xmin, xmax = min(xs), max(xs)
         ymin, ymax = min(ys), max(ys)
-
-        # TODO: base this on heuristics eventually
         # define the width and height of the bounding boxes
-        colwidth = wave.ts[-1] - wave.ts[0] - 100 # slight overlap
-
+        colwidth = self.tw - 100 # amount of horizontal screen space per column, slight overlap
         uniquexs = list(set(xs))
-        ncols = len(uniquexs)
-
-        #        x           x           x
-        #  -------------- ----------  -----------
-        # each x should be the center of the columns
-        # each column should be wave.ts[0] - wave.ts[-1] (wide? Dunno what Reza meant here)
-        xvals = wave.ts - wave.ts[0] # all we really need is xvals[0], which will always be 0 from this eq'n...
-        self.my_xlim = (xvals[0], ncols*colwidth)
-        self.my_ax.set_xlim(self.my_xlim)
-
-
+        ncols = len(uniquexs) # number of unique x site coords
+        self.my_ax.set_xlim(0, ncols*colwidth)
         x_offsets = {}
         for i, x in enumerate(sorted(uniquexs)):
             x_offsets[x] = i * colwidth
-        # For each coordinate, with the given bounding boxes defined above
-        # center these boxes on the coordinates, and adjust to produce
-        # percentages
-        y_rows = list(set(ys))
-        num_rows = len(y_rows)
+        uniqueys = list(set(ys))
+        nrows = len(uniqueys) # TODO: a 2 col staggered probe has nothing but unique y coords, but that doesn't mean they should all be spaced CHANHEIGHT apart vertically, only between those in adjacent rows of the same column
+        self.my_ax.set_ylim(-CHANHEIGHT, nrows*CHANHEIGHT) # this doesn't seem right, see above
         y_offsets = {}
-        self.my_ax.set_ylim(-CHANHEIGHT, num_rows*CHANHEIGHT)
-        self.my_ylim = (-CHANHEIGHT, num_rows*CHANHEIGHT)
-        for i, y in enumerate(sorted(y_rows)):
+        for i, y in enumerate(sorted(uniqueys)):
             y_offsets[y] = i * CHANHEIGHT
 
         self.pos = {}
         for chan, coords in self.bottomlayout.iteritems():
             x, y = coords
-
             x_off = x_offsets[x]
             y_off = y_offsets[y]
             self.pos[chan] = (x_off, y_off)
@@ -389,8 +351,8 @@ class ClickableSortPanel(SortPanel):
         self.numrows = len(self.yoff)
 
         dist = lambda tup: (tup[1] - tup[0])
-        self.x_width = dist(self.my_xlim) // self.numcols
-        self.y_height = dist(self.my_ylim) // self.numrows
+        self.x_width = dist(self.my_xlim) // self.numcols # my_xlim attrib has been deleted
+        self.y_height = dist(self.my_ylim) // self.numrows # my_ylim attrib has been deleted
 
         self.intvalToChan = {}
         for chan, offsets in self.pos.iteritems():

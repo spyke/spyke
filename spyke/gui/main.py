@@ -1,5 +1,7 @@
 """Main spyke window"""
 
+from __future__ import division
+
 import wx
 import wx.html
 import cPickle
@@ -105,17 +107,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnMove(self, event):
         """Move frame, and all dataframes as well, like docked windows"""
-        #print 'spyke frame pos: %r' % self.GetPosition()
-        #print 'spyke event pos: %r' % event.GetPosition()
         for frametype, frame in self.frames.items():
-            #print 'dpos in spyke for %s is %r' % (frametype, self.dpos[frametype])
-            #print 'moving %s' % frametype
             frame.Move(self.GetPosition() + self.dpos[frametype])
-        #event.Skip() # apparently this isn't needed for a move event, I guess the OS moves the frame no matter what you do here
+        #event.Skip() # apparently this isn't needed for a move event,
+        # I guess the OS moves the frame no matter what you do with the event
 
     def OnSliderScroll(self, event):
+        """Strange: keyboard press or page on mouse click when slider in focus generates
+        two slider events, and hence two plot events - mouse drag only generates one slider event"""
+        #print 'onslider'
         self.seek(self.slider.GetValue())
-        event.Skip()
+        #event.Skip() # doesn't seem to be necessary
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -175,15 +177,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create and bind a data frame, show it, plot its data"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
-                frame = SpikeFrame(parent=self, probe=self.stream.probe,
+                frame = SpikeFrame(parent=self, probe=self.stream.probe, tw=self.spiketw,
                                    pos=self.GetPosition() + wx.Point(self.GetSize()[0], 0),
                                    size=SPIKEFRAMESIZE)
             elif frametype == 'chart':
-                frame = ChartFrame(parent=self, probe=self.stream.probe,
+                frame = ChartFrame(parent=self, probe=self.stream.probe, tw=self.charttw,
                                    pos=self.GetPosition() + wx.Point(self.GetSize()[0]+SPIKEFRAMESIZE[0], 0),
                                    size=CHARTFRAMESIZE)
             elif frametype == 'lfp':
-                frame = LFPFrame(parent=self, probe=self.stream.probe,
+                frame = LFPFrame(parent=self, probe=self.stream.probe, tw=self.lfptw,
                                  pos = self.GetPosition() + wx.Point(self.GetSize()[0]+SPIKEFRAMESIZE[0], CHARTFRAMESIZE[1]),
                                  size=LFPFRAMESIZE)
             self.frames[frametype] = frame
@@ -197,7 +199,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.ToggleTool(self.FRAMETYPE2BUTTONID[frametype], enable)
         if enable:
             self.plot(frametype) # update only the newly shown frame's data, in case self.t changed since it was last visible
-
         #if enable:
         #    self.Raise() # children wx.MiniFrames are always on top of main spyke frame, self.Raise() doesn't seem to help. Must be an inherent property of wx.MiniFrames, which maybe isn't such a bad idea after all...
 
@@ -208,12 +209,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Toggle visibility of a data frame"""
         frame = self.frames[frametype]
         self.ShowFrame(frametype, not frame.IsShown())
-
-        # This actually closes and opens new frames to acheive the same thing, but a bit slower:
-        #if frametype in self.frames:
-        #    self.CloseFrame(frametype)
-        #else:
-        #    self.OpenFrame(frametype)
 
     def CloseFrame(self, frametype):
         """Hide frame, remove it from frames dict, destroy it"""
@@ -244,18 +239,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def plot(self, frametype=None):
         """Update the contents of all the data frames, or just a specific one"""
-        if frametype == None: # update all of the visible frames
+        if frametype == None: # update all visible frames
             keyvals = self.frames.items() # list of key:val tuples
         else: # update only a specific frame, if visible
             keyvals = [(frametype, self.frames[frametype])]
         for frametype, frame in keyvals:
             if frame.IsShown(): # only update if frame is shown, for performance
                 if frametype == 'spike':
-                    waveform = self.stream[self.t:self.t+self.spiketw]
+                    wave = self.stream[self.t : self.t+self.spiketw]
                 elif frametype == 'chart':
-                    waveform = self.stream[self.t:self.t+self.charttw]
-                # TODO: update LFP frame
-                frame.panel.plot(waveform) # plot it
+                    wave = self.stream[self.t-self.charttw/2 : self.t+self.charttw/2]
+                #elif frametype == 'lfp':
+                #    wave = self.lowpassstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
+                frame.panel.plot(wave, tref=self.t) # plot it
 
     def tell(self):
         """Return current position in surf file"""
@@ -295,10 +291,10 @@ class DataFrame(wx.MiniFrame):
                            }
     STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
 
-    def __init__(self, parent=None, probe=None, *args, **kwds):
+    def __init__(self, parent=None, probe=None, tw=None, *args, **kwds):
         kwds["style"] = self.STYLE
         wx.MiniFrame.__init__(self, parent, *args, **kwds)
-        self.panel = self.FRAMETYPE2PANELTYPE[self.frametype](self, -1, layout=probe.SiteLoc)
+        self.panel = self.FRAMETYPE2PANELTYPE[self.frametype](self, -1, layout=probe.SiteLoc, tw=tw)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 

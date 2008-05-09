@@ -6,6 +6,8 @@ TODO:
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
         - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
+- keyboard press or page on mouse click when slider in focus generates two slider events, and hence two plot events
+    - mouse drag only generates one slider event
 
 - make seek move chartwin's center to that position
     - that way you can look at stuff before and after the spike win data
