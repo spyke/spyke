@@ -2,7 +2,7 @@
 
 from __future__ import division
 
-__author__ = 'Reza Lotun'
+__authors__ = 'Reza Lotun, Martin Spacek'
 
 import itertools
 from copy import copy
@@ -87,6 +87,8 @@ class PlotPanel(FigureCanvasWxAgg):
         self._ready = False
         self.layout = layout # layout with y coord origin at top
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
+        if cw == None:
+            cw = tw
         self.cw = cw # time width of cursor, in plot units
 
         self.pos = {} # position of lines
@@ -108,8 +110,12 @@ class PlotPanel(FigureCanvasWxAgg):
             bottomlayout[key] = (x, y) # update
         self.bottomlayout = bottomlayout
 
+        self.mpl_connect('button_press_event', self.OnLeftDown) # bind mouse click within figure
+
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
+        self.wave = wave
+        self.tref = tref
         pos = [0, 0, 1, 1]
         self.ax = self.figure.add_axes(pos,
                                        axisbg=BACKGROUNDCOLOUR,
@@ -123,9 +129,9 @@ class PlotPanel(FigureCanvasWxAgg):
         self.displayed_lines = {}
         self.ax._autoscaleon = False
         for chan, spacing in self.pos.iteritems():
-            x_off, y_off = spacing
-            line = SpykeLine(wave.ts - tref + x_off,
-                             wave.data[chan] + y_off,
+            xoff, yoff = spacing
+            line = SpykeLine(wave.ts - tref + xoff,
+                             wave.data[chan] + yoff,
                              linewidth=self.linewidth,
                              color=self.colours[chan],
                              antialiased=True)
@@ -151,6 +157,8 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def plot(self, wave, tref=None):
         """Plot waveforms wrt a reference time point"""
+        self.wave = wave
+        self.tref = tref
         if tref == None:
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
         # check if we've set up our axes yet
@@ -160,15 +168,24 @@ class PlotPanel(FigureCanvasWxAgg):
         line = self.displayed_lines.values()[0] # random line, first in the list
         updatexvals = (line.get_xdata()[0], line.get_xdata()[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref) # do endpoints differ?
         for chan, line in self.displayed_lines.iteritems():
-            x_off, y_off = self.pos[chan]
+            xoff, yoff = self.pos[chan]
             if updatexvals:
-                line.set_xdata(wave.ts - tref + x_off) # update the line's x values (or really, the number of x values, their position shouldn't change in space)
+                line.set_xdata(wave.ts - tref + xoff) # update the line's x values (or really, the number of x values, their position shouldn't change in space)
                 # should I also subtract self.tw/2 to make it truly centered for chartwin?
-            line.set_ydata(wave.data[chan] + y_off) # update the line's y values
+            line.set_ydata(wave.data[chan] + yoff) # update the line's y values
             line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
         self.ax._visible = True
         self.draw(True)
 
+    def OnLeftDown(self, event):
+        chan, (xoff, yoff) = self.pos.iteritems().next() # get a random chan:offset pair
+        line = self.displayed_lines[chan]
+        xvals = line.get_xdata() - xoff
+        ti = xvals.searchsorted([event.xdata], side='left') # find index of click xcoord
+        t = self.wave.ts[ti] # index into waveform timestamps to get corresponding time
+        t -= self.cw/2 # let's center ourselves on that timepoint, instead of left aligning to it
+        # call parent frame's seek method, which then calls main frame's seek method
+        self.Parent.seek(t)
 
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
@@ -236,22 +253,22 @@ class SpikePanel(PlotPanel):
         uniquexs = list(set(xs))
         ncols = len(uniquexs) # number of unique x site coords
         self.ax.set_xlim(0, ncols*colwidth)
-        x_offsets = {}
+        xoffsets = {}
         for i, x in enumerate(sorted(uniquexs)):
-            x_offsets[x] = i * colwidth
+            xoffsets[x] = i * colwidth
         uniqueys = list(set(ys))
         nrows = len(uniqueys) # TODO: a 2 col staggered probe has nothing but unique y coords, but that doesn't mean they should all be spaced CHANHEIGHT apart vertically, only between those in adjacent rows of the same column
         self.ax.set_ylim(-CHANHEIGHT, nrows*CHANHEIGHT) # this doesn't seem right, see above
-        y_offsets = {}
+        yoffsets = {}
         for i, y in enumerate(sorted(uniqueys)):
-            y_offsets[y] = i * CHANHEIGHT
+            yoffsets[y] = i * CHANHEIGHT
 
         colourgen = itertools.cycle(iter(COLOURS))
         for chan in self.get_spatialchans():
             x, y = self.bottomlayout[chan]
-            x_off = x_offsets[x]
-            y_off = y_offsets[y]
-            self.pos[chan] = (x_off, y_off)
+            xoff = xoffsets[x]
+            yoff = yoffsets[y]
+            self.pos[chan] = (xoff, yoff)
             self.colours[chan] = colourgen.next() # now assign colours so that they cycle nicely in space
 
 
@@ -292,7 +309,7 @@ class SortPanel(SpikePanel):
             self.init_plot(spike)
             lines = []
             for num, channel in self.channels.iteritems():
-                #x_off, y_off = self.pos[channel]
+                #xoff, yoff = self.pos[channel]
                 channel._visible = channels[num]
                 channel.chan_mask = channels[num]
                 lines.append(channel)
@@ -316,9 +333,9 @@ class SortPanel(SpikePanel):
             self.ax._visible = False
             lines = []
             for chan in self.channels:
-                x_off, y_off = self.pos[chan]
-                line = SpykeLine(self.static_x_vals + x_off,
-                                 spike.data[chan] + y_off,
+                xoff, yoff = self.pos[chan]
+                line = SpykeLine(self.static_x_vals + xoff,
+                                 spike.data[chan] + yoff,
                                  linewidth=self.linewidth,
                                  color=self.colours[chan],
                                  antialiased=False)
@@ -365,9 +382,9 @@ class ClickableSortPanel(SortPanel):
 
         self.intvalToChan = {}
         for chan, offsets in self.pos.iteritems():
-            x_off, y_off = offsets
-            x_intval = x_off // self.x_width
-            y_intval = y_off // self.y_height
+            xoff, yoff = offsets
+            x_intval = xoff // self.x_width
+            y_intval = yoff // self.y_height
             self.intvalToChan[(x_intval, y_intval)] = chan
 
     def _sendEvent(self, channels):

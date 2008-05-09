@@ -2,10 +2,13 @@
 
 from __future__ import division
 
+__authors__ = 'Martin Spacek, Reza Lotun'
+
 import wx
 import wx.html
 import cPickle
 import os
+import time
 
 import spyke
 from spyke import core, surf, probes
@@ -38,6 +41,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
+        self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
 
         # disable these menu items and tools until a .srf file is opened
         self.menubar.Enable(wx.ID_SPIKEWIN, False)
@@ -112,11 +116,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #event.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
 
-    def OnSliderScroll(self, event):
+    def OnSlider(self, event):
         """Strange: keyboard press or page on mouse click when slider in focus generates
         two slider events, and hence two plot events - mouse drag only generates one slider event"""
-        #print 'onslider'
         self.seek(self.slider.GetValue())
+        #print time.time(), 'OnSlider()'
         #event.Skip() # doesn't seem to be necessary
 
     def OpenFile(self, fname):
@@ -234,11 +238,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Seek to position in surf file. offset is time in us. relative determines
         if offset is absolute or relative. If True, offset can be negative to seek
         backwards from current position"""
+        self.oldt = self.t
         if relative:
             self.t = self.t + offset
         else:
             self.t = offset
-        self.plot()
+        # only plot if t has actually changed, though this doesn't seem to improve
+        # performance, maybe mpl is already doing something like this
+        if self.t != self.oldt:
+            self.plot()
+        self.slider.SetValue(self.t) # update slider
+
+    def tell(self):
+        """Return current position in surf file"""
+        return self.t
 
     def plot(self, frametype=None):
         """Update the contents of all the data frames, or just a specific one"""
@@ -255,10 +268,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 #elif frametype == 'lfp':
                 #    wave = self.lowpassstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
                 frame.panel.plot(wave, tref=self.t) # plot it
-
-    def tell(self):
-        """Return current position in surf file"""
-        return self.t
+        #print time.time(), 'in plot()'
 
     def OpenSortFile(self, fname):
         """Open a collection from a .sort file"""
@@ -317,6 +327,9 @@ class DataFrame(wx.MiniFrame):
 
     def OnClose(self, event):
         self.Parent.HideFrame(self.frametype)
+
+    def seek(self, *args, **kwargs):
+        self.Parent.seek(*args, **kwargs)
 
 
 class SpikeFrame(DataFrame):

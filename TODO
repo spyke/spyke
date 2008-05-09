@@ -4,12 +4,11 @@ TODO:
     - seems alright: mostly just doing line.set_ydata() on each plot call
     - check if you can shift a line's y_data, instead of having to replace it entirely on every plot call
     - actually, looks like the limiting factor for speed is window size - if you resize the windows so they're really small, plotting is lightning fast. So this is a backend drawing issue, and probably has nothing to do with the efficiency of updating y values
+    - keyboard navigation commands and mouse paging on slider cause two slider scroll events, and hence two plot calls, probably cutting performance in half. Doesn't happen with mouse seeking (dragging marker directly with the mouse). This seems to be inherent to the slider widget. wx bug, or by design? Can mostly work around this by handling keyboard events directly
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
         - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
-- keyboard press or page on mouse click when slider in focus generates two slider events, and hence two plot events
-    - mouse drag only generates one slider event
 
 - shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
 
