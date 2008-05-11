@@ -212,3 +212,4 @@ DONE:
 - make seek move chartwin's center to that position
     - that way you can look at stuff before and after the spike win data
     - also, a centered seek will allow for natural centered zooming in and out in time
+- for laying out channels in space, should really be doing a um to uV conversion vertically, and a um to us conversion horizontally. Instead, right now I'm just maintaining vertical and horizontal order, and assuming all chans are equally spaced within those ordered lists

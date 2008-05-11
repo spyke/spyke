@@ -146,7 +146,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
 
         self.stream = core.Stream(self.surff.highpassrecords) # highpass recording (spike) stream
-        self.t = self.stream.t0 # set current time position in recording (us)
+        self.t = self.stream.t0 + self.spiketw/2 # set current time position in recording (us)
 
         self.OpenFrame('spike')
         self.OpenFrame('chart')
@@ -156,8 +156,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.Raise() # doesn't seem to bring self to foreground
         #wx.GetApp().SetTopWindow(self) # neither does this
 
-        self.slider.SetRange(self.stream.t0,
-                             self.stream.tend - self.spiketw) # us
+        self.range = (self.stream.t0 + self.spiketw/2,
+                      self.stream.tend - self.spiketw/2) # us
+        self.slider.SetRange(self.range[0], self.range[1])
         self.slider.SetValue(self.t)
         self.slider.SetLineSize(self.stream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
@@ -243,6 +244,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.t = self.t + offset
         else:
             self.t = offset
+        self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this
         if self.t != self.oldt:
@@ -254,7 +256,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return self.t
 
     def plot(self, frametype=None):
-        """Update the contents of all the data frames, or just a specific one"""
+        """Update the contents of all the data frames, or just a specific one.
+        Center each data frame on self.t, don't left justify"""
         if frametype == None: # update all visible frames
             keyvals = self.frames.items() # list of key:val tuples
         else: # update only a specific frame, if visible
@@ -262,7 +265,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype, frame in keyvals:
             if frame.IsShown(): # only update if frame is shown, for performance
                 if frametype == 'spike':
-                    wave = self.stream[self.t : self.t+self.spiketw]
+                    wave = self.stream[self.t-self.spiketw/2 : self.t+self.spiketw/2]
                 elif frametype == 'chart':
                     wave = self.stream[self.t-self.charttw/2 : self.t+self.charttw/2]
                 #elif frametype == 'lfp':

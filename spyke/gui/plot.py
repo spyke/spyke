@@ -1,4 +1,16 @@
-"""wx.Panels with embedded mpl figures based on FigureCanvasWxAgg"""
+"""wx.Panels with embedded mpl figures based on FigureCanvasWxAgg.
+Everything is plotted in units of uV and us
+
+NOTE: it now seems best to center on the desired timepoint,
+instead of left justify. The center (peak) of a spike is the interesting part,
+and should therefore be the timestamp. To see equally well on either side of
+that peak, let's center all waveform views on the timestamp, instead of left
+justifying as before. This means we should treat probe layout coordinates as the
+centers of the channels, instead of the leftmost point of each channel.
+
+TODO: perhaps refactor, keep info about each channel together,
+make a Channel object with .id, .pos, .colour, .line properties,
+and then stick them in a dict of chans indexed by id"""
 
 from __future__ import division
 
@@ -7,7 +19,7 @@ __authors__ = 'Reza Lotun, Martin Spacek'
 import itertools
 from copy import copy
 import random
-import numpy
+import numpy as np
 import wx
 
 from matplotlib import rcParams
@@ -23,7 +35,7 @@ from spyke import surf
 from spyke.gui.events import *
 
 DEFAULTLINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
-CHANHEIGHT = 100 # uV
+CHANVSPACE = 75 # uV, vertical space between top and bottom chans and axes edge
 
 DEFAULTCHANCOLOUR = "#00FF00" # garish green
 CURSORCOLOUR = "#171717" # light black
@@ -45,27 +57,32 @@ BROWN = '#AF5050'
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 
+MICROVOLTSPERMICRON = 2
+MICROSECSPERMICRON = 17 # decreasing this increases horizontal overlap between spike chans
 
-class AxesWrapper(object):
-    """A wrapper around an axes that delegates access to attributes to an
-    actual axes object. Really meant to make axes hashable"""
-    def __init__(self, axes):
-        self._spyke_axes = axes
+PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
-    def __getattr__(self, name):
-        """Delegate access of attribs to wrapped axes"""
-        return getattr(self._spyke_axes, name)
+def um2uv(um):
+    """Vertical conversion from um in channel layout
+    space to uV in signal space"""
+    return MICROVOLTSPERMICRON * um
 
-    def __hash__(self):
-        """Base the hash function on the position rect"""
-        return hash(str(self.get_position(original=True)))
+def uv2um(uV):
+    """Convert from uV to um"""
+    return uV / MICROVOLTSPERMICRON
 
-    def __eq__(self, other):
-        return hash(self) == hash(other)
+def um2us(um):
+    """Horizontal conversion from um in channel layout
+    space to us in signal space"""
+    return MICROSECSPERMICRON * um
+
+def us2um(us):
+    """Convert from us to um"""
+    return us / MICROSECSPERMICRON
 
 
 class SpykeLine(Line2D):
-    """Line2D's that can be compared to each other for equality"""
+    """Line2Ds that can be compared to each other for equality"""
     def __init__(self, *args, **kwargs):
         Line2D.__init__(self, *args, **kwargs)
         self.colour = 'none'
@@ -85,9 +102,9 @@ class PlotPanel(FigureCanvasWxAgg):
     def __init__(self, parent, id=-1, layout=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._ready = False
-        self.layout = layout # layout with y coord origin at top
+        self.layout = layout # probe layout with origin at center top
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
-        if cw == None:
+        if cw == None: # like for a SpikePanel
             cw = tw
         self.cw = cw # time width of cursor, in plot units
 
@@ -101,7 +118,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
         self.linewidth = DEFAULTLINEWIDTH
 
-        # for plotting with mpl, convert all y coords to have origin at bottom, not top
+        # for plotting with mpl, convert probe layout to have center bottom origin instead of center top
         bottomlayout = copy(self.layout)
         ys = [y for x, y in bottomlayout.values()]
         maxy = max(ys)
@@ -110,7 +127,8 @@ class PlotPanel(FigureCanvasWxAgg):
             bottomlayout[key] = (x, y) # update
         self.bottomlayout = bottomlayout
 
-        self.mpl_connect('button_press_event', self.OnLeftDown) # bind mouse click within figure
+        self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
+        #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
 
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
@@ -126,16 +144,17 @@ class PlotPanel(FigureCanvasWxAgg):
         self.ax._visible = False
         self.ax.set_axis_off() # turn off the x and y axis
 
-        self.displayed_lines = {}
+        self.lines = {}
         self.ax._autoscaleon = False
-        for chan, spacing in self.pos.iteritems():
-            xoff, yoff = spacing
-            line = SpykeLine(wave.ts - tref + xoff,
-                             wave.data[chan] + yoff,
+        for chan, (xpos, ypos) in self.pos.iteritems():
+            line = SpykeLine(wave.ts - tref + xpos,
+                             wave[chan] + ypos,
                              linewidth=self.linewidth,
                              color=self.colours[chan],
                              antialiased=True)
-            self.displayed_lines[chan] = line
+            line.chan = chan
+            #line.set_picker(PICKTHRESH)
+            self.lines[chan] = line
             self.ax.add_line(line)
 
             self.channels[chan] = line
@@ -145,15 +164,41 @@ class PlotPanel(FigureCanvasWxAgg):
         # redraw the display
         self.draw(True)
 
-    def get_spatialchans(self):
-        """Return channels in spatial order, from bottom to top, left to right"""
-        # first, sort x coords, then y: (secondary, then primary)
-        xychans = [ (x, y, chan) for chan, (x, y) in self.bottomlayout.items() ] # list of (x, y, chan) 3-tuples
-        xychans.sort() # stable sort in-place according to x values (first in tuple)
-        yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
-        yxchans.sort() # stable sort in-place according to y values (first in tuple)
-        chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
+    def get_spatialchans(self, order='vertical'):
+        """Return channels in spatial order.
+        order='vertical': sort from bottom to top, left to right
+        order='horziontal': sort from left to right, bottom to top
+        TODO: fix code duplication"""
+        if order == 'vertical':
+            # first, sort x coords, then y: (secondary, then primary)
+            xychans = [ (x, y, chan) for chan, (x, y) in self.bottomlayout.items() ] # list of (x, y, chan) 3-tuples
+            xychans.sort() # stable sort in-place according to x values (first in tuple)
+            yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
+            yxchans.sort() # stable sort in-place according to y values (first in tuple)
+            chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
+        elif order == 'horizontal':
+            # first, sort y coords, then x: (secondary, then primary)
+            yxchans = [ (y, x, chan) for chan, (x, y) in self.bottomlayout.items() ] # list of (y, x, chan) 3-tuples
+            yxchans.sort() # stable sort in-place according to y values (first in tuple)
+            xychans = [ (x, y, chan) for (y, x, chan) in yxchans ] # list of (x, y, chan) 3-tuples
+            xychans.sort() # stable sort in-place according to x values (first in tuple)
+            chans = [ chan for (x, y, chan) in xychans ] # unload the chan indices, now sorted left to right, bottom to top
+        else:
+            raise ValueError
         return chans
+
+    def get_closestchan(self, xdata, ydata):
+        """Find channel that's closest to the (xdata, ydata) point.
+        Convert x and y values to um, take sum(sqrd) distance between (xdata, ydata)
+        and all site positions, find the argmin, and that's your nearest channel"""
+        xdata_um = us2um(xdata)
+        ydata_um = uv2um(ydata)
+        xychans_um = [ (us2um(x), uv2um(y), chan) for chan, (x, y) in self.pos.items() ]
+        # sum of squared distances, no need to bother sqare-rooting them
+        d2 = np.asarray([ (x_um-xdata_um)**2 + (y_um-ydata_um)**2 for (x_um, y_um, chan) in xychans_um ])
+        i = d2.argmin() # find index of smallest squared distance
+        chan = xychans_um[i][2] # pull out the channel
+        return chan
 
     def plot(self, wave, tref=None):
         """Plot waveforms wrt a reference time point"""
@@ -164,47 +209,66 @@ class PlotPanel(FigureCanvasWxAgg):
         # check if we've set up our axes yet
         if not self._ready: # TODO: does this really need to be checked on every single plot call?
             self.init_plot(wave, tref)
-        # update plots with new data
-        line = self.displayed_lines.values()[0] # random line, first in the list
-        updatexvals = (line.get_xdata()[0], line.get_xdata()[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref) # do endpoints differ?
-        for chan, line in self.displayed_lines.iteritems():
-            xoff, yoff = self.pos[chan]
+        # check if xvals have changed, this will normally only happen near extrema of .srf file
+        chan, line = self.lines.iteritems().next() # random line
+        xpos = self.pos[chan][0]
+        xvals = line.get_xdata() - xpos # remove x position offset, so now we're in normal us units
+        updatexvals = (xvals[0],  xvals[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref) # do xval endpoints differ?
+        # update plots with new yvals, and possibly new xvals as well
+        for chan, line in self.lines.iteritems():
+            xpos, ypos = self.pos[chan]
             if updatexvals:
-                line.set_xdata(wave.ts - tref + xoff) # update the line's x values (or really, the number of x values, their position shouldn't change in space)
-                # should I also subtract self.tw/2 to make it truly centered for chartwin?
-            line.set_ydata(wave.data[chan] + yoff) # update the line's y values
+                # update the line's x values (or really, the number of x values, their position shouldn't change in space)
+                line.set_xdata(wave.ts - tref + xpos)
+            line.set_ydata(wave[chan] + ypos) # update the line's y values
             line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
         self.ax._visible = True
         self.draw(True)
 
-    def OnLeftDown(self, event):
-        chan, (xoff, yoff) = self.pos.iteritems().next() # get a random chan:offset pair
-        line = self.displayed_lines[chan]
-        xvals = line.get_xdata() - xoff
-        ti = xvals.searchsorted([event.xdata], side='left') # find index of click xcoord
-        t = self.wave.ts[ti] # index into waveform timestamps to get corresponding time
-        t -= self.cw/2 # let's center ourselves on that timepoint, instead of left aligning to it
+    def OnButtonPress(self, event):
+        """Seek to timepoint as represented on chan closest to mouse click"""
+        chan = self.get_closestchan(event.xdata, event.ydata)
+        xpos = self.pos[chan][0]
+        t = event.xdata - xpos + self.tref
         # call parent frame's seek method, which then calls main frame's seek method
         self.Parent.seek(t)
+    '''
+    def OnPick(self, event):
+        """Good for figuring out which line has just been clicked on,
+        within tolerance of PICKTHRESH in pixels"""
+        line = event.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
+        chan = line.chan
+        xpos = self.pos[chan][0]
+        t = event.mouseevent.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
+        print chan, event.mouseevent.xdata, t
+        self.Parent.seek(t)
+    '''
 
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
-    to site y coords in .layout"""
+    to the vertical order of their site coords in .layout
+
+    TODO: layout vertical positions manually. Can't rely on site layout coords,
+    since some of their y vals can be identical (like in a 3col polytrode), which
+    then causes channels to be overplotted at the same y position"""
 
     def do_layout(self):
-        self.ax.set_xlim(-self.tw/2, self.tw/2)
-        self.ax.set_ylim(-CHANHEIGHT, self.nchans*CHANHEIGHT)
+        chans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
+        #print 'vertical ordered chans in Chartpanel:\n%r' % chans
+        self.ax.set_xlim(0 - self.tw/2, 0 + self.tw/2) # x origin at center
+        self.ax.set_ylim(um2uv(self.bottomlayout[chans[0]][1]) - CHANVSPACE,
+                         um2uv(self.bottomlayout[chans[-1]][1]) + CHANVSPACE)
         self.add_cursor()
-        chans = self.get_spatialchans()
         colourgen = itertools.cycle(iter(COLOURS))
-        for chani, chan in enumerate(chans):
-            self.pos[chan] = (0, chani*CHANHEIGHT)
-            self.colours[chan] = colourgen.next() # now assign colours so that they cycle nicely in space
+        for chan in chans:
+            self.pos[chan] = (0, um2uv(self.bottomlayout[chan][1])) # x=0 centers horizontally
+            self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
     def add_cursor(self):
-        # add a shaded region to represent region shown in spike frame
+        """Add a shaded rectangle to represent the
+        time window shown in the spike frame"""
         ylim = self.ax.get_ylim()
-        xy = (0, ylim[0])
+        xy = (-self.cw/2, ylim[0]) # bottom left coord of rectangle
         width = self.cw
         height = ylim[1] - ylim[0]
         self.cursor = Rectangle(xy, width, height,
@@ -217,59 +281,19 @@ class SpikePanel(PlotPanel):
     layed out according to self.layout"""
 
     def do_layout(self):
-        """Map from polytrode layout given as (x, y) coordinates in um,
-        into position information for the spike plots, which are stored
-        as a list of four values [l, b, w, h].
-
-        loc_i = (x, y) are the coordinates for the polytrode on channel i.
-        We want to map these coordinates to the unit square.
-
-           (0,1)                          (1,1)
-              +------------------------------+
-              |        +--(w)--+
-              |<-(l)-> |       |
-              |        |  x,y (h)
-              |        |       |
-              |        +-------+
-              |            ^
-              |            | (b)
-              |            v
-              +------------------------------+
-             (0,0)                          (0,1)
-
-        NOTE that unlike indicated above, actual .layout coords are:
-            x: distance from center of polytrode
-            y: distance down from top of polytrode border (slightly above top site)
-        So, y locations need to be swapped vertically before being used - use .bottomlayout"""
-
-        # project coordinates onto x and y axes respectively
-        xs = [x for x, y in self.bottomlayout.values()]
-        ys = [y for x, y in self.bottomlayout.values()]
-        # get limits on coordinates
-        xmin, xmax = min(xs), max(xs)
-        ymin, ymax = min(ys), max(ys)
-        # define the width and height of the bounding boxes
-        colwidth = self.tw - 100 # amount of horizontal screen space per column, slight overlap
-        uniquexs = list(set(xs))
-        ncols = len(uniquexs) # number of unique x site coords
-        self.ax.set_xlim(0, ncols*colwidth)
-        xoffsets = {}
-        for i, x in enumerate(sorted(uniquexs)):
-            xoffsets[x] = i * colwidth
-        uniqueys = list(set(ys))
-        nrows = len(uniqueys) # TODO: a 2 col staggered probe has nothing but unique y coords, but that doesn't mean they should all be spaced CHANHEIGHT apart vertically, only between those in adjacent rows of the same column
-        self.ax.set_ylim(-CHANHEIGHT, nrows*CHANHEIGHT) # this doesn't seem right, see above
-        yoffsets = {}
-        for i, y in enumerate(sorted(uniqueys)):
-            yoffsets[y] = i * CHANHEIGHT
-
+        hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
+        vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
+        #print 'horizontal ordered chans in Spikepanel:\n%r' % hchans
+        self.ax.set_xlim(um2us(self.bottomlayout[hchans[0]][0]) - self.tw/2,
+                         um2us(self.bottomlayout[hchans[-1]][0]) + self.tw/2) # x origin at center
+        self.ax.set_ylim(um2uv(self.bottomlayout[vchans[0]][1]) - CHANVSPACE,
+                         um2uv(self.bottomlayout[vchans[-1]][1]) + CHANVSPACE)
         colourgen = itertools.cycle(iter(COLOURS))
-        for chan in self.get_spatialchans():
-            x, y = self.bottomlayout[chan]
-            xoff = xoffsets[x]
-            yoff = yoffsets[y]
-            self.pos[chan] = (xoff, yoff)
-            self.colours[chan] = colourgen.next() # now assign colours so that they cycle nicely in space
+        for chan in vchans:
+            # chan order doesn't matter for setting .pos, but it does for setting .colours
+            self.pos[chan] = (um2us(self.bottomlayout[chan][0]),
+                              um2uv(self.bottomlayout[chan][1]))
+            self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
 
 class SortPanel(SpikePanel):
@@ -309,7 +333,7 @@ class SortPanel(SpikePanel):
             self.init_plot(spike)
             lines = []
             for num, channel in self.channels.iteritems():
-                #xoff, yoff = self.pos[channel]
+                #xpos, ypos = self.pos[channel]
                 channel._visible = channels[num]
                 channel.chan_mask = channels[num]
                 lines.append(channel)
@@ -325,20 +349,16 @@ class SortPanel(SpikePanel):
         elif (spike, colour) not in self.spikes:
             if channels is None:
                 channels = self.all_chans
-
-            #need to deal with removal of self.static_x_vals from base PlotPanel class, replace with:
-            #xvals = wave.ts - wave.ts[0]
-            #but that would require a waveform object, and this method only gets a "spike", whatever that is...
-
             self.ax._visible = False
             lines = []
             for chan in self.channels:
-                xoff, yoff = self.pos[chan]
-                line = SpykeLine(self.static_x_vals + xoff,
-                                 spike.data[chan] + yoff,
+                xpos, ypos = self.pos[chan]
+                line = SpykeLine(self.static_x_vals + xpos, # static_x_vals don't exist no more
+                                 spike.data[chan] + ypos,
                                  linewidth=self.linewidth,
                                  color=self.colours[chan],
                                  antialiased=False)
+                line.set_picker(PICKTHRESH)
                 line._visible = False
                 line.colour = colour
                 line._visible = channels[chan]
@@ -370,21 +390,20 @@ class ClickableSortPanel(SortPanel):
         self.created = False
 
     def _createMaps(self):
-        self.xoff = sorted(list(set([x for x, y in self.pos.itervalues()])))
-        self.yoff = sorted(list(set([y for x, y in self.pos.itervalues()])))
+        xpos = sorted(list(set([x for x, y in self.pos.itervalues()])))
+        ypos = sorted(list(set([y for x, y in self.pos.itervalues()])))
 
-        self.numcols = len(self.xoff)
-        self.numrows = len(self.yoff)
+        self.numcols = len(xpos)
+        self.numrows = len(ypos)
 
         dist = lambda tup: (tup[1] - tup[0])
         self.x_width = dist(self.my_xlim) // self.numcols # my_xlim attrib has been deleted
         self.y_height = dist(self.my_ylim) // self.numrows # my_ylim attrib has been deleted
 
         self.intvalToChan = {}
-        for chan, offsets in self.pos.iteritems():
-            xoff, yoff = offsets
-            x_intval = xoff // self.x_width
-            y_intval = yoff // self.y_height
+        for chan, (xpos, ypos) in self.pos.iteritems():
+            x_intval = xpos // self.x_width
+            y_intval = ypos // self.y_height
             self.intvalToChan[(x_intval, y_intval)] = chan
 
     def _sendEvent(self, channels):

@@ -13,12 +13,17 @@ import numpy as np
 
 from spyke import probes
 
+
 class WaveForm(object):
     """Waveform object, has data, timestamps and sample frequency attribs"""
     def __init__(self, data=None, ts=None, sampfreq=None):
         self.data = data # always in uV? potentially multichannel, depending on shape
         self.ts = ts # timestamps array, one for each sample (column) in data
         self.sampfreq = sampfreq # Hz
+
+    def __getitem__(self, key):
+        """Make waveform data directly indexable"""
+        return self.data[key]
 
 
 class Stream(object):
