@@ -115,17 +115,18 @@ class Stream(object):
 
     def ADVal_to_uV(self, adval, intgain, extgain):
         """Convert AD values to micro-volts"""
-        #Round((ADValue - 2048)*(10 / (2048
-        #                 * ProbeArray[m_ProbeIndex].IntGain
-        #                 * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
-        #                 * V2uV);
+        # Delphi code:
+        # Round((ADValue - 2048)*(10 / (2048
+        #                  * ProbeArray[m_ProbeIndex].IntGain
+        #                  * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
+        #                  * V2uV);
         return (adval - 2048) * (10 / (2048 * intgain * extgain[0]) * 1e6)
 
     def interp(self, data, ts, sampfreq=None, kind='nyquist'):
         """Returns interpolated and sample-and-hold corrected data and
         timepoints, at the given sample frequency"""
         if kind == 'nyquist':
-            # do Nyquist interpolation and S+H correction here find a scipy function that'll do Nyquist interpolation?
+            # do Nyquist interpolation and S+H correction here, find a scipy function that'll do Nyquist interpolation?
             # TODO: Implement this!
             return data, ts
         else:

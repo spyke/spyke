@@ -220,7 +220,7 @@ class PlotPanel(FigureCanvasWxAgg):
             if updatexvals:
                 # update the line's x values (or really, the number of x values, their position shouldn't change in space)
                 line.set_xdata(wave.ts - tref + xpos)
-            line.set_ydata(wave[chan] + ypos) # update the line's y values
+            line.set_ydata(wave[chan]*self.vzoom + ypos) # update the line's y values
             line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
         self.ax._visible = True
         self.draw(True)
@@ -252,6 +252,8 @@ class ChartPanel(PlotPanel):
     since some of their y vals can be identical (like in a 3col polytrode), which
     then causes channels to be overplotted at the same y position"""
 
+    vzoom = 1
+
     def do_layout(self):
         vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
         self.ax.set_xlim(0 - self.tw/2, 0 + self.tw/2) # x origin at center
@@ -281,6 +283,8 @@ class ChartPanel(PlotPanel):
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
     layed out according to self.layout"""
+
+    vzoom = 1.5
 
     def do_layout(self):
         hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top

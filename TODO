@@ -10,7 +10,7 @@ TODO:
     - use threading, so widget draw events aren't blocked during parsing
         - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
 
-- shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
+- add vertical and horizontal zoom to all DataFrames
 
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
@@ -24,8 +24,8 @@ TODO:
 
 LOW-PRIORITY:
 
-- make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
-- add chan id toggle button to display chan id directly under each channel in all the dataframes
+- toggle between garish rainbow colours and normal green
+- add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
 - make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
     - worked on this for quite a while, couldn't figure it out, had recursive calling problems and stuff
 
@@ -213,3 +213,6 @@ DONE:
     - that way you can look at stuff before and after the spike win data
     - also, a centered seek will allow for natural centered zooming in and out in time
 - for laying out channels in space, should really be doing a um to uV conversion vertically, and a um to us conversion horizontally. Instead, right now I'm just maintaining vertical and horizontal order, and assuming all chans are equally spaced within those ordered lists
+- shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
+- make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
+- make spike frame width depend on number of columns in probe, so you get consistent channel width for all probes

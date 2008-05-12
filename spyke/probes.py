@@ -15,6 +15,7 @@ class uMap54_1a(Probe):
         self.layout = '1a'
         self.name = 'uMap54_1a'
         self.nchans = 54
+        self.ncols = 3
         SiteLoc = {}
         SiteLoc[0] = (-56, 1170)
         SiteLoc[1] = (-56, 1105)
@@ -79,6 +80,7 @@ class uMap54_1b(Probe):
         self.layout = '1b'
         self.name = 'uMap54_1b'
         self.nchans = 54
+        self.ncols = 3
         SiteLoc = {}
         SiteLoc[0] = (-43, 900)
         SiteLoc[1] = (-43, 850)
@@ -144,6 +146,7 @@ class uMap54_1c(Probe):
         self.layout = '1c'
         self.name = 'uMap54_1c'
         self.nchans = 54
+        self.ncols = 3
         SiteLoc = {}
         SiteLoc[0] = (-65, 1251)
         SiteLoc[1] = (-65, 1101)
@@ -209,6 +212,7 @@ class uMap54_2a(Probe):
         self.layout = '2a'
         self.name = 'uMap54_2a'
         self.nchans = 54
+        self.ncols = 2
         SiteLoc = {}
         SiteLoc[0] = (-28, 1235)
         SiteLoc[1] = (-28, 1170)
@@ -274,6 +278,7 @@ class uMap54_2b(Probe):
         self.layout = '2b'
         self.name = 'uMap54_2b'
         self.nchans = 54
+        self.ncols = 2
         SiteLoc = {}
         SiteLoc[0] = (-25, 1275)
         SiteLoc[1] = (-25, 1175)
