@@ -35,10 +35,10 @@ from spyke import surf
 from spyke.gui.events import *
 
 DEFAULTLINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
-CHANVSPACE = 75 # uV, vertical space between top and bottom chans and axes edge
+CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
 
 DEFAULTCHANCOLOUR = "#00FF00" # garish green
-CURSORCOLOUR = "#171717" # light black
+CURSORCOLOUR = "#202020" # light black
 BACKGROUNDCOLOUR = 'black'
 WXBACKGROUNDCOLOUR = wx.BLACK
 
@@ -253,15 +253,17 @@ class ChartPanel(PlotPanel):
     then causes channels to be overplotted at the same y position"""
 
     def do_layout(self):
-        chans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
-        #print 'vertical ordered chans in Chartpanel:\n%r' % chans
+        vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
         self.ax.set_xlim(0 - self.tw/2, 0 + self.tw/2) # x origin at center
-        self.ax.set_ylim(um2uv(self.bottomlayout[chans[0]][1]) - CHANVSPACE,
-                         um2uv(self.bottomlayout[chans[-1]][1]) + CHANVSPACE)
+        miny = um2uv(self.bottomlayout[vchans[0]][1])
+        maxy = um2uv(self.bottomlayout[vchans[-1]][1])
+        vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
+        self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
         self.add_cursor()
         colourgen = itertools.cycle(iter(COLOURS))
-        for chan in chans:
-            self.pos[chan] = (0, um2uv(self.bottomlayout[chan][1])) # x=0 centers horizontally
+        for chani, chan in enumerate(vchans):
+            #self.pos[chan] = (0, um2uv(self.bottomlayout[chan][1])) # x=0 centers horizontally
+            self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
             self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
     def add_cursor(self):
@@ -286,8 +288,8 @@ class SpikePanel(PlotPanel):
         #print 'horizontal ordered chans in Spikepanel:\n%r' % hchans
         self.ax.set_xlim(um2us(self.bottomlayout[hchans[0]][0]) - self.tw/2,
                          um2us(self.bottomlayout[hchans[-1]][0]) + self.tw/2) # x origin at center
-        self.ax.set_ylim(um2uv(self.bottomlayout[vchans[0]][1]) - CHANVSPACE,
-                         um2uv(self.bottomlayout[vchans[-1]][1]) + CHANVSPACE)
+        self.ax.set_ylim(um2uv(self.bottomlayout[vchans[0]][1]) - CHANVBORDER,
+                         um2uv(self.bottomlayout[vchans[-1]][1]) + CHANVBORDER)
         colourgen = itertools.cycle(iter(COLOURS))
         for chan in vchans:
             # chan order doesn't matter for setting .pos, but it does for setting .colours
