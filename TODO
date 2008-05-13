@@ -70,7 +70,7 @@ GENERAL:
 
 - to deal with spike adaptation and attenuation during bursts, for each template, rip not just its mean across the file, but also the biggest and smallest (in terms of something like sum of peak-to-peak voltage across template channels, or variance across channels, or...) spike assigned to that template.
     - or, for each template, plot the distribution of spike sizes for all spikes in that template. For some templates, you might get a skewed distrib in which case: A) you've got a polluted template that needs to be split
-                                    B) you need to do something, can't remember what I was gonna write
+                                    B) you need to do something, can't remember what I was gonna write, maybe increase the error thresh for that template?
     - maybe have ability to go from bins in spike size histogram (say its tail, or some weird peak) back to a display of the individual spike(s) that contributed to that bin
 
 

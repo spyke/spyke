@@ -15,39 +15,49 @@ from spyke import probes
 
 
 class WaveForm(object):
-    """Waveform object, has data, timestamps and sample frequency attribs"""
-    def __init__(self, data=None, ts=None, sampfreq=None):
+    """Waveform object, has data, timestamps, chan2i, and sample frequency attribs"""
+    def __init__(self, data=None, ts=None, chan2i=None, sampfreq=None):
         self.data = data # always in uV? potentially multichannel, depending on shape
         self.ts = ts # timestamps array, one for each sample (column) in data
+        self.chan2i = chan2i # converts from chan id to .data row index
         self.sampfreq = sampfreq # Hz
 
     def __getitem__(self, key):
-        """Make waveform data directly indexable"""
-        return self.data[key]
+        """Make waveform data directly indexable.
+        Maybe this is where data should be interpolated?"""
+        return self.data[self.chan2i[key]]
 
 
 class Stream(object):
     """Streaming object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
-    approriate range of waveform data from disk"""
+    approriate range of waveform data from disk. Converts from AD units to uV"""
     DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
 
-    def __init__(self, records=None, sampfreq=None):
+    def __init__(self, ctsrecords=None, sampfreq=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
-        sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords"""
-        self.records = records
-        # array of record timestamps
-        self.rts = np.asarray([record.TimeStamp for record in self.records])
+        sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
+        sampfreq arg is useful for interpolation"""
+        self.ctsrecords = ctsrecords
+        self.layout = ctsrecords[0].layout # layout record for this stream
         # if no sampfreq passed in, use sampfreq of the raw data
-        self.sampfreq = sampfreq or records[0].layout.sampfreqperchan
-        probename = self.records[0].layout.electrode_name
-        probename = probename.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
-        self.probe = eval('probes.' + probename)() # yucky. TODO: switch to a dict with keywords?
+        self.sampfreq = sampfreq or self.layout.sampfreqperchan
+        self.nchans = len(self.layout.chanlist)
+        # converts from chan id to data array row index, identical to
+        # .layout.chanlist unless there are channel gaps in .layout
+        self.chan2i = dict(zip(self.layout.chanlist, range(self.nchans)))
+        # array of ctsrecord timestamps
+        self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords])
+        probename = self.layout.electrode_name
+        probename = probename.replace('\xb5', 'u') # replace any 'micro' symbols with 'u'
+        probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
+        self.probe = probetype()
 
         self.t0 = self.rts[0] # us, time that recording began
         self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
-        lastrecordtw = self.records[-1].NumSamples / self.probe.nchans * self.tres
-        self.tend = self.rts[-1] + lastrecordtw  # time of last recorded data point
+        lastctsrecordtw = self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres
+        self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
+
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
@@ -70,7 +80,7 @@ class Stream(object):
 
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
-        cutrecords = self.records[max(lorec-1, 0):max(hirec, 1)]
+        cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
         for record in cutrecords:
             try:
                 record.waveform
@@ -80,12 +90,8 @@ class Stream(object):
 
         # join all waveforms, returns a copy
         data = np.concatenate([record.waveform for record in cutrecords], axis=1)
-        try:
-            # all highpass records should be using the same layout, use tres from the first one
-            tres = cutrecords[0].layout.tres
-        except AttributeError:
-            # records are lowpassmulti
-            tres = cutrecords[0].tres
+        # all ctsrecords should be using the same layout, use tres from the first one
+        tres = cutrecords[0].layout.tres
 
         # build up waveform timepoints, taking into account any time gaps in
         # between records due to pauses in recording
@@ -105,12 +111,12 @@ class Stream(object):
         data, ts = self.interp(data, ts, self.sampfreq)
 
         # transform AD values to uV
-        extgain = self.records[0].layout.extgain
-        intgain = self.records[0].layout.intgain
+        extgain = self.ctsrecords[0].layout.extgain
+        intgain = self.ctsrecords[0].layout.intgain
         data = self.ADVal_to_uV(data, intgain, extgain)
 
         # return a WaveForm object
-        return WaveForm(data=data, ts=ts, sampfreq=self.sampfreq)
+        return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
 
 
     def ADVal_to_uV(self, adval, intgain, extgain):
@@ -145,14 +151,14 @@ class Stream(object):
 
         if chanis == None:
             # all high pass records should have the same chanlist
-            if self.records[0].__class__ == HighPassRecord:
+            if self.ctsrecords[0].__class__ == HighPassRecord:
                 chanis = self.records[0].layout.chanlist
             # same goes for lowpassmultichanrecords, each has its own set of chanis,
             # derived previously from multiple single layout.chanlists
-            elif self.records[0].__class__ == LowPassMultiChanRecord:
-                chanis = self.records[0].chanis
+            elif self.ctsrecords[0].__class__ == LowPassMultiChanRecord:
+                chanis = self.ctsrecords[0].chanis
             else:
-                raise ValueError, 'unknown record type %s in self.records' % self.records[0].__class__
+                raise ValueError, 'unknown record type %s in self.records' % self.ctsrecords[0].__class__
         nchans = len(chanis)
         if trange == None:
             trange = (self.rts[0], self.rts[0]+100000)

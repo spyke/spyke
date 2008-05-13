@@ -1,4 +1,6 @@
-"""Handles parsing of Surf-generated .srf files"""
+"""Handles parsing of Surf-generated .srf files
+
+TODO: what the heck is a Section, and why bother?"""
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
@@ -8,6 +10,8 @@ import os
 import cPickle
 import struct
 import unittest
+from copy import copy
+import re
 
 NULL = '\x00'
 
@@ -171,20 +175,16 @@ class File(Record):
 
     def _parserecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
+        FLAG2RECTYPE = {'L'  : LayoutRecord,
+                        'M'  : MessageRecord,
+                        'MS' : MessageRecord,
+                        'PS' : HighPassRecord,
+                        'PC' : LowPassRecord,
+                        'PE' : EpochRecord,
+                        'D'  : DisplayRecord,
+                        'VD' : DigitalSValRecord,
+                        'VA' : AnalogSingleValRecord}
         f = self.f
-        # mapping of flag values to appropriate records
-        records = {
-                    'L'     :   LayoutRecord,
-                    'M'     :   MessageRecord,
-                    'MS'    :   MessageRecord,
-                    'PS'    :   HighPassRecord,
-                    'PC'    :   LowPassRecord,
-                    'PE'    :   EpochRecord,
-                    'D'     :   DisplayRecord,
-                    'VD'    :   DigitalSValRecord,
-                    'VA'    :   AnalogSingleValRecord,
-                  }
-
         while True:
             # returns an empty string when EOF is reached
             flag = f.read(2).strip('\0')
@@ -192,18 +192,18 @@ class File(Record):
                 break
             # put file pointer back to start of flag
             f.seek(-2, 1)
-            if flag in records:
-                rec = records[flag](f)
+            if flag in FLAG2RECTYPE:
+                rectype = FLAG2RECTYPE[flag]
+                rec = rectype(f)
                 rec.parse()
-                # our list of the collected records
-                lis = rec.__class__.__name__.lower() + 's'
-                if lis not in self.__dict__:
-                    self.__dict__[lis] = []
-                self.__dict__[lis].append(rec)
+                # collect records in lists - this kind of metacode is prolly a bad idea
+                listname = rectype.__name__.lower() + 's' # eg. HighPassRecord becomes 'highpassrecords'
+                if listname not in self.__dict__: # if not already an attrib
+                    self.__dict__[listname] = [] # init it
+                self.__dict__[listname].append(rec) # append this record to its list
                 self.sections.append(Section(rec))
             else:
-                raise ValueError, \
-                        'Unexpected flag %r at offset %d' % (flag, f.tell())
+                raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
 
             self.percentParsed = f.tell() * 100 / self.fileSize
 
@@ -234,9 +234,34 @@ class File(Record):
             lpass = LowPassMultiChanRecord(self.lowpassrecords[lo:hi])
             self.lowpassmultichanrecords.append(lpass)
 
-        #self.highpassstream = Stream(records=self.highpassrecords,
-        #                                sampfreq=Stream.DEFAULTINTERPSAMPFREQ)
-        #self.lowpassstream = Stream(records=self.lowpassrecords)
+        lpmclayout = self.get_LowPassMultiChanLayout()
+        for lpmcr in self.lowpassmultichanrecords:
+            lpmcr.layout = lpmclayout # overwrite each lpmc record's layout attrib
+
+    def get_LowPassMultiChanLayout(self):
+        """Creates sort of a fake lowpassmultichan layout record, based on
+        a lowpass single chan record, with some fields copied/modified from the
+        highpass layout record in the file"""
+        hplayout = self.highpassrecords[0].layout
+        lpmclayout = copy(self.lowpassrecords[0].layout) # start with the layout of a lp single chan record
+        lowpassrecords_t0 = self.lowpassmultichanrecords[0].lowpassrecords # lowpass records at first timestamp
+        lpmclayout.nchans = len(lowpassrecords_t0)
+        probe_descrips = [ lprec.layout.probe_descrip for lprec
+                           in self.lowpassmultichanrecords[0].lowpassrecords ] # len == nchans
+        chanlist = [] # chans that were tapped off of on the MCS patch board
+        PROBEDESCRIPRE = re.compile(r'ch(?P<tappedchan>[0-9]+)') # find 'ch' followed by at least 1 digit
+        for probe_descrip in probe_descrips:
+            mo = PROBEDESCRIPRE.search(probe_descrip) # match object
+            if mo != None:
+                chan = int(mo.groupdict()['tappedchan'])
+                chanlist.append(chan)
+            else:
+                raise ValueError, 'cannot parse LFP chan from probe description: %r' % probe_descrip
+        lpmclayout.chanlist = chanlist # replace single chan A/D chanlist with our new multichan highpass probe based one
+        lpmclayout.probe_descrip = "LFP chans: %r" % lpmclayout.chanlist
+        lpmclayout.electrode_name = hplayout.electrode_name
+        lpmclayout.probewinlayout = hplayout.probewinlayout
+        return lpmclayout
 
     def serialize(self):
         """Creates a Fat Record, saves all the parsed headers and records to
@@ -594,7 +619,7 @@ class LayoutRecord(Record):
 
 
 class ProbeWinLayout(Record):
-    """ Probe window layout """
+    """Probe window layout"""
     def __init__(self, f):
         Record.__init__(self)
         self.f = f
@@ -694,19 +719,25 @@ class LowPassMultiChanRecord(Record):
     def __init__(self, lowpassrecords):
         """Takes several low pass records, all at the same timestamp"""
         Record.__init__(self)
-        self.lowpassrecords = toiter(lowpassrecords)
+        self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
         self.TimeStamp = self.lowpassrecords[0].TimeStamp
+        self.layout = self.lowpassrecords[0].layout
+        self.NumSamples = self.lowpassrecords[0].NumSamples
+        '''
         self.tres = self.lowpassrecords[0].layout.tres
         self.chanis = []
-        #self.waveformoffsets = []
-        for recordi, record in enumerate(self.lowpassrecords):
+        self.waveformoffsets = []
+        for recordi, record in enumerate(self.lowpassrecords): # typically 10 of these records
             # make sure all passed lowpassrecords have the same timestamp
             assert record.TimeStamp == self.TimeStamp
             assert record.layout.tres == self.tres # ditto
-            newchanis = [chani for chani in record.layout.chanlist if chani not in self.chanis ]
-            # make sure there aren't any duplicate channels
+            # make sure each lowpassrecord in this batch of them at this timestamp all have unique channels
+            newchanis = [ chani for chani in record.layout.chanlist if chani not in self.chanis ]
             assert newchanis != []
+            # assigning this to each and every record might be taking up a lot of space,
+            # better to assign it higher up, say to the stream?
             self.chanis.extend(newchanis)
+        '''
 
     def load(self):
         """Load waveform data for each lowpass record, appending it as

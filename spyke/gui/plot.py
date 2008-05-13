@@ -5,7 +5,7 @@ NOTE: it now seems best to center on the desired timepoint,
 instead of left justify. The center (peak) of a spike is the interesting part,
 and should therefore be the timestamp. To see equally well on either side of
 that peak, let's center all waveform views on the timestamp, instead of left
-justifying as before. This means we should treat probe layout coordinates as the
+justifying as before. This means we should treat probe siteloc coordinates as the
 centers of the channels, instead of the leftmost point of each channel.
 
 TODO: perhaps refactor, keep info about each channel together,
@@ -63,7 +63,7 @@ MICROSECSPERMICRON = 17 # decreasing this increases horizontal overlap between s
 PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 def um2uv(um):
-    """Vertical conversion from um in channel layout
+    """Vertical conversion from um in channel siteloc
     space to uV in signal space"""
     return MICROVOLTSPERMICRON * um
 
@@ -72,7 +72,7 @@ def uv2um(uV):
     return uV / MICROVOLTSPERMICRON
 
 def um2us(um):
-    """Horizontal conversion from um in channel layout
+    """Horizontal conversion from um in channel siteloc
     space to us in signal space"""
     return MICROSECSPERMICRON * um
 
@@ -99,18 +99,19 @@ class SpykeLine(Line2D):
 class PlotPanel(FigureCanvasWxAgg):
     """A wx.Panel with an embedded mpl figure.
     Base class for specific types of plot panels"""
-    def __init__(self, parent, id=-1, layout=None, tw=None, cw=None):
+    def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._ready = False
-        self.layout = layout # probe layout with origin at center top
+        self.stream = stream
+        self.SiteLoc = stream.probe.SiteLoc # probe site locations with origin at center top
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
         if cw == None: # like for a SpikePanel
             cw = tw
         self.cw = cw # time width of cursor, in plot units
 
         self.pos = {} # position of lines
-        self.channels = {} # plot y-data for each channel
-        self.nchans = len(layout)
+        self.channels = {} # y-data for each plotted channel
+        self.nchans = stream.probe.nchans
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
@@ -118,14 +119,14 @@ class PlotPanel(FigureCanvasWxAgg):
         self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
         self.linewidth = DEFAULTLINEWIDTH
 
-        # for plotting with mpl, convert probe layout to have center bottom origin instead of center top
-        bottomlayout = copy(self.layout)
-        ys = [y for x, y in bottomlayout.values()]
+        # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
+        siteloc = copy(self.SiteLoc) # lowercase means bottom origin
+        ys = [y for x, y in siteloc.values()]
         maxy = max(ys)
-        for key, (x, y) in bottomlayout.items():
+        for key, (x, y) in siteloc.items():
             y = maxy - y
-            bottomlayout[key] = (x, y) # update
-        self.bottomlayout = bottomlayout
+            siteloc[key] = (x, y) # update
+        self.siteloc = siteloc
 
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
@@ -171,14 +172,14 @@ class PlotPanel(FigureCanvasWxAgg):
         TODO: fix code duplication"""
         if order == 'vertical':
             # first, sort x coords, then y: (secondary, then primary)
-            xychans = [ (x, y, chan) for chan, (x, y) in self.bottomlayout.items() ] # list of (x, y, chan) 3-tuples
+            xychans = [ (x, y, chan) for chan, (x, y) in self.siteloc.items() ] # list of (x, y, chan) 3-tuples
             xychans.sort() # stable sort in-place according to x values (first in tuple)
             yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
             yxchans.sort() # stable sort in-place according to y values (first in tuple)
             chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
         elif order == 'horizontal':
             # first, sort y coords, then x: (secondary, then primary)
-            yxchans = [ (y, x, chan) for chan, (x, y) in self.bottomlayout.items() ] # list of (y, x, chan) 3-tuples
+            yxchans = [ (y, x, chan) for chan, (x, y) in self.siteloc.items() ] # list of (y, x, chan) 3-tuples
             yxchans.sort() # stable sort in-place according to y values (first in tuple)
             xychans = [ (x, y, chan) for (y, x, chan) in yxchans ] # list of (x, y, chan) 3-tuples
             xychans.sort() # stable sort in-place according to x values (first in tuple)
@@ -246,25 +247,22 @@ class PlotPanel(FigureCanvasWxAgg):
 
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
-    to the vertical order of their site coords in .layout
-
-    TODO: layout vertical positions manually. Can't rely on site layout coords,
-    since some of their y vals can be identical (like in a 3col polytrode), which
-    then causes channels to be overplotted at the same y position"""
-
-    vzoom = 1
+    to the vertical order of their site coords in .siteloc"""
+    def __init__(self, *args, **kwargs):
+        PlotPanel.__init__(self, *args, **kwargs)
+        self.vzoom = 1
 
     def do_layout(self):
         vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
         self.ax.set_xlim(0 - self.tw/2, 0 + self.tw/2) # x origin at center
-        miny = um2uv(self.bottomlayout[vchans[0]][1])
-        maxy = um2uv(self.bottomlayout[vchans[-1]][1])
+        miny = um2uv(self.siteloc[vchans[0]][1])
+        maxy = um2uv(self.siteloc[vchans[-1]][1])
         vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
         self.add_cursor()
         colourgen = itertools.cycle(iter(COLOURS))
         for chani, chan in enumerate(vchans):
-            #self.pos[chan] = (0, um2uv(self.bottomlayout[chan][1])) # x=0 centers horizontally
+            #self.pos[chan] = (0, um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
             self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
@@ -280,31 +278,47 @@ class ChartPanel(PlotPanel):
         self.ax.add_patch(self.cursor)
 
 
+class LFPPanel(ChartPanel):
+    """LFP Panel"""
+    def __init__(self, *args, **kwargs):
+        ChartPanel.__init__(self, *args, **kwargs)
+        self.vzoom = 1
+
+    def do_layout(self):
+        ChartPanel.do_layout(self)
+        # need to specifically get a list of keys, not an iterator,
+        # since self.pos dict changes size during iteration
+        for chan in self.pos.keys():
+            if chan not in self.stream.layout.chanlist:
+                del self.pos[chan] # remove siteloc channels that don't exist in the lowpassmultichan record
+
+
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
-    layed out according to self.layout"""
-
-    vzoom = 1.5
+    layed out according to self.siteloc"""
+    def __init__(self, *args, **kwargs):
+        PlotPanel.__init__(self, *args, **kwargs)
+        self.vzoom = 1.5
 
     def do_layout(self):
         hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
         vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
         #print 'horizontal ordered chans in Spikepanel:\n%r' % hchans
-        self.ax.set_xlim(um2us(self.bottomlayout[hchans[0]][0]) - self.tw/2,
-                         um2us(self.bottomlayout[hchans[-1]][0]) + self.tw/2) # x origin at center
-        self.ax.set_ylim(um2uv(self.bottomlayout[vchans[0]][1]) - CHANVBORDER,
-                         um2uv(self.bottomlayout[vchans[-1]][1]) + CHANVBORDER)
+        self.ax.set_xlim(um2us(self.siteloc[hchans[0]][0]) - self.tw/2,
+                         um2us(self.siteloc[hchans[-1]][0]) + self.tw/2) # x origin at center
+        self.ax.set_ylim(um2uv(self.siteloc[vchans[0]][1]) - CHANVBORDER,
+                         um2uv(self.siteloc[vchans[-1]][1]) + CHANVBORDER)
         colourgen = itertools.cycle(iter(COLOURS))
         for chan in vchans:
             # chan order doesn't matter for setting .pos, but it does for setting .colours
-            self.pos[chan] = (um2us(self.bottomlayout[chan][0]),
-                              um2uv(self.bottomlayout[chan][1]))
+            self.pos[chan] = (um2us(self.siteloc[chan][0]),
+                              um2uv(self.siteloc[chan][1]))
             self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
 
 class SortPanel(SpikePanel):
     """Sort panel. Presents a narrow temporal window of all channels
-    layed out according to self.layout. Also allows overplotting and some
+    layed out according to self.siteloc. Also allows overplotting and some
     user interaction"""
     def __init__(self, *args, **kwargs):
         SpikePanel.__init__(self, *args, **kwargs)
@@ -439,137 +453,3 @@ class ClickableSortPanel(SortPanel):
             channels = [False] * len(self.channels)
             channels[channel] = True
             self._sendEvent(channels)
-
-
-
-
-######## Tests #########
-
-
-class Opener(object):
-    """Opens and parses the first available file in filenames"""
-    FILENAMES = ['/data/ptc15/87 - track 7c spontaneous craziness.srf',
-                 '/Documents and Settings/Reza Lotun/Desktop/Surfdata/87 - track 7c spontaneous craziness.srf',
-                 '/media/windows/Documents and Settings/Reza ' \
-                            'Lotun/Desktop/Surfdata/' \
-                            '87 - track 7c spontaneous craziness.srf',
-                 '/home/rlotun/data_spyke/'\
-                            '87 - track 7c spontaneous craziness.srf',
-                 '/data/87 - track 7c spontaneous craziness.srf',
-                 '/Users/rlotun/work/spyke/data/smallSurf',
-                 '/home/rlotun/spyke/data/smallSurf',
-                ]
-
-    def __init__(self):
-
-        import spyke.detect
-        import os
-
-        for filename in self.FILENAMES:
-            try:
-                stat = os.stat(filename)
-                break
-            except:
-                continue
-
-        surf_file = surf.File(filename)
-        self.surf_file = surf_file
-        surf_file.parse()
-        self.dstream = spyke.core.Stream(surf_file.highpassrecords)
-        layout_name = surf_file.layoutrecords[0].electrode_name
-        layout_name = layout_name.replace('\xb5', 'u') # replace 'micro' symbol with 'u'
-        import spyke.probes
-        self.layout = eval('spyke.probes.' + layout_name)() # yucky, UNTESTED
-        self.curr = self.dstream.records[0].TimeStamp
-
-
-class TestWindows(wx.App):
-    def __init__(self, *args, **kwargs):
-        kwargs['redirect'] = False
-        wx.App.__init__(self, *args, **kwargs)
-
-    def OnInit(self):
-        op = Opener()
-        self.events = panel = TestEventWin(None, -1, 'Data', op, size=(200,900))
-        self.sort = panel3 = TestSortWin(None, -1, 'Events', op, size=(200,900))
-        self.chart = panel4 = TestChartWin(None, -1, 'Chart', op, size=(500,600))
-        self.SetTopWindow(self.events)
-        self.events.Show(True)
-        self.sort.Show(True)
-        self.chart.Show(True)
-        return True
-
-
-class PlayWin(wx.Frame):
-    def __init__(self, parent, id, title, op, **kwds):
-        wx.Frame.__init__(self, parent, id, title, **kwds)
-        self.stream = op.dstream
-        self.layout = op.layout
-        self.incr = 1000        # 1 ms
-        self.timer = wx.Timer(self)
-        self.Bind(wx.EVT_TIMER, self.onTimerEvent, self.timer)
-
-    def onTimerEvent(self, evt):
-        pass
-
-    def onEraseBackground(self, evt):
-        """Prevent redraw flicker"""
-        pass
-
-
-class TestSortWin(PlayWin):
-    """Reference implementation of a test Sort Window. An SpikePanel
-    is simply embedded in a wx Frame, and a passed in data file is played"""
-    def __init__(self, parent, id, title, op, **kwds):
-        PlayWin.__init__(self, parent, id, title, op, **kwds)
-        self.incr = 1000
-        simp = spyke.detect.SimpleThreshold(self.stream,
-                                            self.stream.records[0].TimeStamp)
-        self.event_iter = iter(simp)
-        self.plotPanel = SortPanel(self, self.layout.SiteLoc) # fast
-        self.borderAxes = None
-        self.timer.Start(200)
-
-    def onTimerEvent(self, evt):
-        wave = self.event_iter.next()
-        self.plotPanel.plot(wave)
-
-
-class TestSpikeWin(PlayWin):
-    def __init__(self, parent, id, title, op, **kwds):
-        PlayWin.__init__(self, parent, id, title, op, **kwds)
-        self.plotPanel = SpikePanel(self, self.layout.SiteLoc) # fast
-        self.data = None
-        self.points = []
-        self.selectionPoints = []
-        self.borderAxes = None
-        self.curr = op.curr
-        self.timer.Start(200)
-
-    def onTimerEvent(self, evt):
-        wave = self.stream[self.curr:self.curr+self.incr]
-        self.curr += self.incr
-        self.plotPanel.plot(wave)
-
-
-class TestChartWin(PlayWin):
-    def __init__(self, parent, id, title, op, **kwds):
-        PlayWin.__init__(self, parent, id, title, op, **kwds)
-        self.plotPanel = ChartPanel(self, self.layout.SiteLoc)
-        self.data = None
-        self.points = []
-        self.selectionPoints = []
-        self.borderAxes = None
-        self.curr = op.curr
-        self.incr = 5000
-        self.timer.Start(100)
-
-    def onTimerEvent(self, evt):
-        wave = self.stream[self.curr:self.curr+self.incr]
-        self.curr += self.incr
-        self.plotPanel.plot(wave)
-
-
-if __name__ == '__main__':
-    app = TestWindows()
-    app.MainLoop()

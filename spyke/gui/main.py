@@ -11,14 +11,14 @@ import os
 import time
 
 import spyke
-from spyke import core, surf, probes
-import plot
+from spyke import core, surf
+from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
 
 PIXPERCHAN = 80 # horizontally
 SPIKEFRAMEHEIGHT = 700
-CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
-LFPFRAMESIZE   = (CHARTFRAMESIZE[0], 300)
+CHARTFRAMESIZE = (800, SPIKEFRAMEHEIGHT)
+LFPFRAMESIZE   = (200, SPIKEFRAMEHEIGHT)
 
 
 class SpykeFrame(wxglade_gui.SpykeFrame):
@@ -111,6 +111,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Chart window toggle menu/button event"""
         self.ToggleFrame('chart')
 
+    def OnLFP(self, event):
+        """LFP window toggle menu/button event"""
+        self.ToggleFrame('lfp')
+
     def OnMove(self, event):
         """Move frame, and all dataframes as well, like docked windows"""
         for frametype, frame in self.frames.items():
@@ -147,22 +151,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.surffname = fname # bind it now that it's been successfully opened and parsed
         self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
 
-        self.stream = core.Stream(self.surff.highpassrecords) # highpass recording (spike) stream
-        self.t = self.stream.t0 + self.spiketw/2 # set current time position in recording (us)
+        self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
+        self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+        self.t = self.hpstream.t0 + self.spiketw/2 # set current time position in recording (us)
 
         self.OpenFrame('spike')
         self.OpenFrame('chart')
-        #self.OpenFrame('lfp')
+        self.OpenFrame('lfp')
 
         # self has focus, but isn't in foreground after opening data frames
         #self.Raise() # doesn't seem to bring self to foreground
         #wx.GetApp().SetTopWindow(self) # neither does this
 
-        self.range = (self.stream.t0 + self.spiketw/2,
-                      self.stream.tend - self.spiketw/2) # us
+        self.range = (self.hpstream.t0 + self.spiketw/2,
+                      self.hpstream.tend - self.spiketw/2) # us
         self.slider.SetRange(self.range[0], self.range[1])
         self.slider.SetValue(self.t)
-        self.slider.SetLineSize(self.stream.tres) # us, TODO: this should be based on level of interpolation
+        self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
         self.EnableSurfWidgets(True)
 
@@ -184,22 +189,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create and bind a data frame, show it, plot its data"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
-                ncols = self.stream.probe.ncols
-                frame = SpikeFrame(parent=self, probe=self.stream.probe,
+                ncols = self.hpstream.probe.ncols
+                frame = SpikeFrame(parent=self, stream=self.hpstream,
                                    tw=self.spiketw,
                                    pos=self.GetPosition() + wx.Point(self.GetSize()[0], 0),
                                    size=(ncols*PIXPERCHAN, SPIKEFRAMEHEIGHT))
             elif frametype == 'chart':
-                frame = ChartFrame(parent=self, probe=self.stream.probe,
+                pos=self.GetPosition() + wx.Point(self.GetSize()[0] + self.frames['spike'].GetSize()[0], 0)
+                frame = ChartFrame(parent=self, stream=self.hpstream,
                                    tw=self.charttw, cw=self.spiketw,
-                                   pos=self.GetPosition() +
-                                       wx.Point(self.GetSize()[0]+self.frames['spike'].GetSize()[0], 0),
+                                   pos=pos,
                                    size=CHARTFRAMESIZE)
             elif frametype == 'lfp':
-                frame = LFPFrame(parent=self, probe=self.stream.probe,
+                pos = self.GetPosition() + wx.Point(self.GetSize()[0] + self.frames['spike'].GetSize()[0]
+                                                    + self.frames['chart'].GetSize()[0], 0)
+                frame = LFPFrame(parent=self, stream=self.lpstream,
                                  tw=self.lfptw, cw=self.charttw,
-                                 pos=self.GetPosition() +
-                                     wx.Point(self.GetSize()[0]+self.frames['spike'].GetSize()[0], CHARTFRAMESIZE[1]),
+                                 pos=pos,
                                  size=LFPFRAMESIZE)
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
@@ -270,11 +276,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype, frame in keyvals:
             if frame.IsShown(): # only update if frame is shown, for performance
                 if frametype == 'spike':
-                    wave = self.stream[self.t-self.spiketw/2 : self.t+self.spiketw/2]
+                    wave = self.hpstream[self.t-self.spiketw/2 : self.t+self.spiketw/2]
                 elif frametype == 'chart':
-                    wave = self.stream[self.t-self.charttw/2 : self.t+self.charttw/2]
-                #elif frametype == 'lfp':
-                #    wave = self.lowpassstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
+                    wave = self.hpstream[self.t-self.charttw/2 : self.t+self.charttw/2]
+                elif frametype == 'lfp':
+                    wave = self.lpstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
                 frame.panel.plot(wave, tref=self.t) # plot it
         #print time.time(), 'in plot()'
 
@@ -306,21 +312,7 @@ class DataFrame(wx.MiniFrame):
     """Base data frame to hold a custom spyke panel widget.
     Copied and modified from auto-generated wxglade_gui.py code"""
 
-    FRAMETYPE2PANELTYPE = {'spike': plot.SpikePanel,
-                           'chart': plot.ChartPanel,
-                           #'lfp' : plot.LFPPanel
-                           }
     STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
-
-    def __init__(self, parent=None, probe=None, tw=None, cw=None, *args, **kwds):
-        kwds["style"] = self.STYLE
-        wx.MiniFrame.__init__(self, parent, *args, **kwds)
-        self.panel = self.FRAMETYPE2PANELTYPE[self.frametype](self, -1, layout=probe.SiteLoc, tw=tw, cw=cw)
-
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-
-        self.set_properties()
-        self.do_layout()
 
     def set_properties(self):
         self.SetTitle("data window")
@@ -342,9 +334,15 @@ class DataFrame(wx.MiniFrame):
 
 class SpikeFrame(DataFrame):
     """Frame to hold the custom spike panel widget"""
-    def __init__(self, *args, **kwds):
-        self.frametype = 'spike'
-        DataFrame.__init__(self, *args, **kwds)
+    def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
+        kwds["style"] = self.STYLE
+        wx.MiniFrame.__init__(self, parent, *args, **kwds)
+        self.panel = SpikePanel(self, -1, stream=stream, tw=tw, cw=cw)
+
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+        self.set_properties()
+        self.do_layout()
 
     def set_properties(self):
         self.SetTitle("spike window")
@@ -352,10 +350,16 @@ class SpikeFrame(DataFrame):
 
 class ChartFrame(DataFrame):
     """Frame to hold the custom chart panel widget"""
-    def __init__(self, *args, **kwds):
-        self.frametype = 'chart'
+    def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
         self.STYLE = self.STYLE|wx.MAXIMIZE_BOX # no actual button, but allows caption double-click to maximize
-        DataFrame.__init__(self, *args, **kwds)
+        kwds["style"] = self.STYLE
+        wx.MiniFrame.__init__(self, parent, *args, **kwds)
+        self.panel = ChartPanel(self, -1, stream=stream, tw=tw, cw=cw)
+
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+        self.set_properties()
+        self.do_layout()
 
     def set_properties(self):
         self.SetTitle("chart window")
@@ -363,9 +367,16 @@ class ChartFrame(DataFrame):
 
 class LFPFrame(DataFrame):
     """Frame to hold the custom LFP panel widget"""
-    def __init__(self, *args, **kwds):
-        self.frametype = 'lfp'
-        DataFrame.__init__(self, *args, **kwds)
+    def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
+        self.STYLE = self.STYLE|wx.MAXIMIZE_BOX # no actual button, but allows caption double-click to maximize
+        kwds["style"] = self.STYLE
+        wx.MiniFrame.__init__(self, parent, *args, **kwds)
+        self.panel = LFPPanel(self, -1, stream=stream, tw=tw, cw=cw)
+
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+        self.set_properties()
+        self.do_layout()
 
     def set_properties(self):
         self.SetTitle("LFP window")
