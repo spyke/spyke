@@ -4,7 +4,6 @@ from __future__ import division
 
 __authors__ = ['Reza Lotun']
 
-
 import itertools
 
 import spyke.surf
@@ -17,9 +16,9 @@ from numpy import where
 
 class Detector(object):
     """Spike detection base class"""
-    def __init__(self, stream, init_time):
+    def __init__(self, stream, t0):
         self.stream = stream
-        self.init_time = init_time
+        self.t0 = t0
         self.setup()
 
     def setup():
@@ -30,7 +29,7 @@ class Detector(object):
         while True:
             try:
                 yield spikes.next()
-            except:         # XXX: catch something specific
+            except:         # TODO: catch something specific
                 break
 
     def find(self):
@@ -38,7 +37,8 @@ class Detector(object):
 
 
 class FixedThreshold(Detector):
-    THRESH_MULT = 4
+    STDEV_WINDOW = 1e7
+    STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750
     SEARCH_SPAN = 1e3
@@ -46,30 +46,21 @@ class FixedThreshold(Detector):
 
     def setup(self):
         """Used to determine threshold and set initial state"""
-        # get the stdeviation for each channel along a 10s window
-        ten_seconds = 1e7
-        try:
-            chunk = self.stream[self.init_time:self.init_time + ten_seconds]
-        except:
-            # we can't read 10 seconds (probably because there doesn't exist
-            # 10 s worth of data. Fall back on a smaller scale
-            small = 1e4
-            chunk = self.stream[self.init_time:self.init_time + small]
-
+        # get stdev for each channel along a STDEV_WINDOW window
+        wave = self.stream[self.t0:self.t0 + STDEV_WINDOW]
         self.std = {}
-        for chan, d in enumerate(chunk.data):
-            self.std[chan] = chunk.data[chan].std()
+        for chan, d in enumerate(wave.data):
+            self.std[chan] = wave.data[chan].std()
 
-        # set the threshold to be THRESH_MULT * standard deviation
+        # set the threshold to be STDEV_MULT * standard deviation
         self.thresholds = {}
         for chan, val in self.std.iteritems():
-            self.thresholds[chan] = val * self.THRESH_MULT
+            self.thresholds[chan] = val * self.STDEV_MULT
 
-        # spike window: -0.25ms and +0.75ms around spike our search window will be 1ms
+        # spike window: -0.25ms and +0.75ms around spike, search window will be 1ms
         self.search_span = self.SEARCH_SPAN
-        self.curr = self.init_time + self.SEARCH_SPAN # XXX: add an initial jump
-        self.window = self.stream[self.init_time:self.init_time + \
-                                                        self.search_span]
+        self.curr = self.t0 + self.SEARCH_SPAN # XXX: add an initial jump
+        self.window = self.stream[self.t0:self.t0 + self.search_span]
 
         self.lockout = self.LOCKOUT
 
@@ -139,7 +130,7 @@ class MultiPhasic(FixedThreshold):
     for 0 < t' <= delta_t
     """
 
-    THRESH_MULT = 4
+    STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750
     SEARCH_SPAN = 1e3
@@ -203,7 +194,7 @@ class DynamicMultiPhasic(FixedThreshold):
     and where f' is the minimum amplitdude inflection in delta_t
     """
 
-    THRESH_MULT = 4
+    STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750
     SEARCH_SPAN = 1e3

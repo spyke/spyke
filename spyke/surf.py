@@ -1,6 +1,4 @@
-"""Handles parsing of Surf-generated .srf files
-
-TODO: what the heck is a Section, and why bother?"""
+"""Handles parsing of Surf-generated .srf files"""
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
@@ -18,16 +16,6 @@ NULL = '\x00'
 
 class DRDBError(ValueError):
     """Used to indicate when you've passed the last DRDB at the start of the .srf file"""
-
-
-class Section(object):
-    """Represents a block of bytes denoting a 'section' of the Surf file"""
-    def __init__(self, sec):
-        self.id = sec.__class__.__name__
-        self.len = len(sec)
-
-    def __len__(self):
-        return self.len
 
 
 class Record(object):
@@ -63,23 +51,8 @@ class File(Record):
 
         self.name = name
         self.fileSize = os.stat(self.name)[6]
-        self.sections = []
-        self.sectionSummary = {}
         self.open()
         self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
-
-    def __str__(self):
-        if len(self.sections) == 0:
-            return self.name + ' has not been parsed yet.'
-        else:
-            # we assume the file has been parsed correctly
-            if '_cached_' not in self.sectionSummary:
-                self.sectionSummary['_cached_'] = True
-
-                for sec in self.sections:
-                    num = self.sectionSummary.setdefault(sec.id, 0) + 1
-                    self.sectionSummary[sec.id] = num
-            return str(self.sectionSummary)
 
     def open(self):
         """Open the .srf file"""
@@ -94,10 +67,8 @@ class File(Record):
         """Old deserialization code factored out as a method. Potentially
         on its way to deprecation"""
         print 'Trying to recover parse info from %r' % self.parsefname
-
         pf = file(self.parsefname, 'rb')
         u = cPickle.Unpickler(pf)
-
         def persistent_load(persid):
             """required to restore the .srf file Record as an existing
             open file for reading"""
@@ -106,23 +77,19 @@ class File(Record):
             else:
                 raise cPickle.UnpicklingError,  \
                             'Invalid persistent id: %r' % persid
-
         # add this method to the unpickler
         u.persistent_load = persistent_load
         fat = u.load()
         pf.close()
-
         # Grab all normal attribs of fat and assign them to self
         for key, val in fat.__dict__.items():
             self.__setattr__(key, val)
-
         print 'Recovered parse info from %r' % self.parsefname
 
     def _parseFileHeader(self):
         """Parse the Surf file header"""
         self.fileheader = FileHeader(self.f)
         self.fileheader.parse()
-        self.sections.append(Section(self.fileheader))
         print 'Parsed fileheader'
 
     def _parseDRDBS(self):
@@ -133,8 +100,6 @@ class File(Record):
             try:
                 drdb.parse()
                 self.drdbs.append(drdb)
-                self.sections.append(Section(drdb))
-
             except DRDBError:
                 # we've gone past the last DRDB
                 # set file pointer back to where we were
@@ -201,10 +166,8 @@ class File(Record):
                 if listname not in self.__dict__: # if not already an attrib
                     self.__dict__[listname] = [] # init it
                 self.__dict__[listname].append(rec) # append this record to its list
-                self.sections.append(Section(rec))
             else:
                 raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
-
             self.percentParsed = f.tell() * 100 / self.fileSize
 
     def _connectRecords(self):

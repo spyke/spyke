@@ -27,6 +27,10 @@ class WaveForm(object):
         Maybe this is where data should be interpolated?"""
         return self.data[self.chan2i[key]]
 
+    def __len__(self):
+        """Number of data points in time"""
+        return self.data.shape[-1]
+
 
 class Stream(object):
     """Streaming object - provides convenient stream interface to .srf files.
