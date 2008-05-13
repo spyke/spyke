@@ -17,8 +17,8 @@ import wxglade_gui
 
 PIXPERCHAN = 80 # horizontally
 SPIKEFRAMEHEIGHT = 700
-CHARTFRAMESIZE = (800, SPIKEFRAMEHEIGHT)
-LFPFRAMESIZE   = (200, SPIKEFRAMEHEIGHT)
+CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
+LFPFRAMESIZE   = (250, SPIKEFRAMEHEIGHT)
 
 
 class SpykeFrame(wxglade_gui.SpykeFrame):
@@ -190,29 +190,29 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
                 ncols = self.hpstream.probe.ncols
+                x = self.GetPosition()[0]
+                y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = SpikeFrame(parent=self, stream=self.hpstream,
                                    tw=self.spiketw,
-                                   pos=self.GetPosition() + wx.Point(self.GetSize()[0], 0),
-                                   size=(ncols*PIXPERCHAN, SPIKEFRAMEHEIGHT))
+                                   pos=wx.Point(x, y), size=(ncols*PIXPERCHAN, SPIKEFRAMEHEIGHT))
             elif frametype == 'chart':
-                pos=self.GetPosition() + wx.Point(self.GetSize()[0] + self.frames['spike'].GetSize()[0], 0)
+                x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0]
+                y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = ChartFrame(parent=self, stream=self.hpstream,
                                    tw=self.charttw, cw=self.spiketw,
-                                   pos=pos,
-                                   size=CHARTFRAMESIZE)
+                                   pos=wx.Point(x, y), size=CHARTFRAMESIZE)
             elif frametype == 'lfp':
-                pos = self.GetPosition() + wx.Point(self.GetSize()[0] + self.frames['spike'].GetSize()[0]
-                                                    + self.frames['chart'].GetSize()[0], 0)
+                x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0] + self.frames['chart'].GetSize()[0]
+                y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = LFPFrame(parent=self, stream=self.lpstream,
                                  tw=self.lfptw, cw=self.charttw,
-                                 pos=pos,
-                                 size=LFPFRAMESIZE)
+                                 pos=wx.Point(x, y), size=LFPFRAMESIZE)
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
         self.ShowFrame(frametype)
 
     def ShowFrame(self, frametype, enable=True):
-        """Show/hide a data frame, enforce menu and toolbar states to correspond"""
+        """Show/hide a data frame, force menu and toolbar states to correspond"""
         self.frames[frametype].Show(enable)
         self.menubar.Check(self.FRAMETYPE2BUTTONID[frametype], enable)
         self.toolbar.ToggleTool(self.FRAMETYPE2BUTTONID[frametype], enable)
@@ -326,7 +326,8 @@ class DataFrame(wx.MiniFrame):
         self.Layout()
 
     def OnClose(self, event):
-        self.Parent.HideFrame(self.frametype)
+        frametype = self.__class__.__name__.lower().replace('frame', '')
+        self.Parent.HideFrame(frametype)
 
     def seek(self, *args, **kwargs):
         self.Parent.seek(*args, **kwargs)
