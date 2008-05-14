@@ -16,9 +16,13 @@ from numpy import where
 
 class Detector(object):
     """Spike detector base class"""
+    DEFAULTTHRESHMETHOD = 'median'
+
     def __init__(self, stream=None, t0=None):
-        """Takes a data stream, and the time from which to start detection"""
+        """Takes a data stream, and optionally the time from which to start detection"""
         self.stream = stream
+        if t0 == None:
+            t0 = stream.t0
         self.t0 = t0
         self.setup()
 
@@ -33,6 +37,18 @@ class Detector(object):
         #        yield spikes.next()
         #    except StopIteration:
         #        break
+
+    def get_threshold(self, kind=DEFAULTTHRESHMETHOD):
+        """Calculate either median or stdev based threshold"""
+        if kind == 'median':
+            self.get_median_threshold()
+        elif  kind == 'stdev':
+            self.get_stdev_threshold()
+
+    def get_median_threshold():
+
+
+    def get_stdev_threshold():
 
 
 class FixedThreshold(Detector):
@@ -49,7 +65,7 @@ class FixedThreshold(Detector):
           - phases are part of same spike if less than 250us between each other
     """
 
-    STDEV_WINDOW = 10*1000000 # 10 sec
+    STDEV_WINDOW = 10000000 # 10 sec
     STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750

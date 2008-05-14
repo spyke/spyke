@@ -21,6 +21,9 @@ TODO:
 
 - replace spinctrl with a spin button + text field next to each other, and catch the spin button's events (see wx manual pdf page 240) to control step size (say 40us instead of just 1us)
 
+- combined message and stimulus DIN window:
+    - messages: maybe just a combo box with timestamp:message entries. Choosing one of them skips you to that timestamp. Changing current file position with other methods should automatically scroll you through the combo box at appropriate times
+    - stimulus din: similar to above: drop down combo box with timestamp:DIN value entries
 
 LOW-PRIORITY:
 
@@ -30,7 +33,7 @@ LOW-PRIORITY:
 - add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
 - make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
     - worked on this for quite a while, couldn't figure it out, had recursive calling problems and stuff
-
+    - ah, I was looking for something like this for a long time: wx.PostEvent(window, event) lets you send an event to any given window. Should try this out...
 
 
 

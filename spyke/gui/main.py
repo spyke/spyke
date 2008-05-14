@@ -269,9 +269,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this
         if self.t != self.oldt:
+            # update controls first so they don't lag. TODO: this doesn't help...
+            self.file_spin_ctrl.SetValue(self.t) # update file spin ctrl
+            self.slider.SetValue(self.t) # update slider
             self.plot()
-        self.file_spin_ctrl.SetValue(self.t) # update file spin ctrl
-        self.slider.SetValue(self.t) # update slider
 
     def tell(self):
         """Return current position in surf file"""
