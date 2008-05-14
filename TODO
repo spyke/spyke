@@ -10,20 +10,22 @@ TODO:
     - use threading, so widget draw events aren't blocked during parsing
         - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
 
-- add vertical and horizontal zoom to all DataFrames
+- add vertical and horizontal zoom controls to all DataFrames (maybe just menu and keyboard/mouse shortcuts)
 
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
 - add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
-- replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording
-    - separate groups of 3 digits with commas (time in us)
+- separate groups of 3 digits in spin edit and end labels with commas (time in us)
 
 - add 1ms wide chart window to sort window, so you can see chan layout of events in both real space and chart space, might make it easier to sort
 
+- replace spinctrl with a spin button + text field next to each other, and catch the spin button's events (see wx manual pdf page 240) to control step size (say 40us instead of just 1us)
 
 
 LOW-PRIORITY:
 
+- add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
+- add faint vertical lines at center of each column in spike window
 - toggle between garish rainbow colours and normal green
 - add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
 - make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
@@ -216,3 +218,4 @@ DONE:
 - shade the 1ms (or whatever the spike frame width is) on the chart window with a slightly lighter background than pure black, to indicate what part of the chartwin data you're currently looking at in the spike window
 - make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
 - make spike frame width depend on number of columns in probe, so you get consistent channel width for all probes
+- replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording

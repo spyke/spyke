@@ -33,7 +33,7 @@ class WaveForm(object):
 
 
 class Stream(object):
-    """Streaming object - provides convenient stream interface to .srf files.
+    """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk. Converts from AD units to uV"""
     DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz

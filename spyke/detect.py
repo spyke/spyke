@@ -15,34 +15,46 @@ from numpy import where
 
 
 class Detector(object):
-    """Spike detection base class"""
-    def __init__(self, stream, t0):
+    """Spike detector base class"""
+    def __init__(self, stream=None, t0=None):
+        """Takes a data stream, and the time from which to start detection"""
         self.stream = stream
         self.t0 = t0
         self.setup()
 
-    def setup():
-        pass
-
     def __iter__(self):
+        """Returns an iterator object. Called in for loops and in 'in' statements, and by the iter() f'n?.
+        This is here to allow you to treat any of the detection classes directly as iterators"""
         spikes = iter(self.find())
-        while True:
-            try:
-                yield spikes.next()
-            except:         # TODO: catch something specific
-                break
-
-    def find(self):
-        pass
+        # why not just return the iterator, and let the outside world iterate over it, like this:?
+        return spikes
+        #while True:
+        #    try:
+        #        yield spikes.next()
+        #    except StopIteration:
+        #        break
 
 
 class FixedThreshold(Detector):
-    STDEV_WINDOW = 1e7
+    """Base class for fixed threshold spike detection,
+    Uses the same single (or multiple) static threshold
+    throughout the entire file
+
+    TODO: use median based noise estimation instead of std based
+          - estimate noise level dynamically with sliding window
+            and independently for each channel
+    TODO: spatiotemporal lockout:
+          - rlock = 175um
+          - lock out only first 1/2 phase of spike
+          - phases are part of same spike if less than 250us between each other
+    """
+
+    STDEV_WINDOW = 10*1000000 # 10 sec
     STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750
-    SEARCH_SPAN = 1e3
-    LOCKOUT = 1e3
+    SEARCH_SPAN = 1000
+    LOCKOUT = 1000
 
     def setup(self):
         """Used to determine threshold and set initial state"""
@@ -54,36 +66,40 @@ class FixedThreshold(Detector):
 
         # set the threshold to be STDEV_MULT * standard deviation
         self.thresholds = {}
-        for chan, val in self.std.iteritems():
-            self.thresholds[chan] = val * self.STDEV_MULT
+        for chan, stdev in self.std.iteritems():
+            self.thresholds[chan] = stdev * self.STDEV_MULT
 
-        # spike window: -0.25ms and +0.75ms around spike, search window will be 1ms
+        # spike window: -SPIKE_PRE and +SPIKE_POST around spike, search window will be 1ms
         self.search_span = self.SEARCH_SPAN
-        self.curr = self.t0 + self.SEARCH_SPAN # XXX: add an initial jump
+        self.curr = self.t0 + self.SEARCH_SPAN # XXX: add an initial jump: TODO: why?
         self.window = self.stream[self.t0:self.t0 + self.search_span]
 
         self.lockout = self.LOCKOUT
 
     def yield_events(self, chan_events):
+        """TODO: what does this do? need description here"""
         # sort event indices
         chan_events.sort()
-
         for event_index, chan in chan_events:
-
             # if the event is firing before our current location
             # then we're in lockout mode and should just continue
             if self.window.ts[event_index] < self.curr:
                 continue
-
             # reposition window for each event
             self.curr = self.window.ts[event_index] - self.SPIKE_PRE
             spike = self.stream[self.curr:self.curr + \
                                 self.SPIKE_PRE + self.SPIKE_POST]
             self.curr = self.curr + self.SPIKE_PRE + \
                             self.SPIKE_POST + self.lockout
-            #self.window = self.stream[self.curr:self.curr + \
-            #                                    self.search_span]
+            #self.window = self.stream[self.curr:self.curr + self.search_span]
             yield Spike(spike, chan, self.window.ts[event_index])
+
+
+class DynamicThreshold(Detector):
+    """Base class for dynamic threshold spike detection,
+    Uses varying thresholds throughout the entire file,
+    depending on the local noise level?"""
+
 
 
 class SimpleThreshold(FixedThreshold):
@@ -91,10 +107,8 @@ class SimpleThreshold(FixedThreshold):
 
     def find(self):
         """Maintain state and search forward for a spike"""
-
         # keep on sliding our search window forward to find spikes
         while True:
-
             # check if we have a channel firing above threshold
             chan_events = []
             for chan, thresh in self.thresholds.iteritems():
@@ -133,9 +147,9 @@ class MultiPhasic(FixedThreshold):
     STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750
-    SEARCH_SPAN = 1e3
-    LOCKOUT = 1e3
-    delta_t = 3e2
+    SEARCH_SPAN = 1000
+    LOCKOUT = 1000
+    delta_t = 300
 
     def find(self):
         """Maintain state and search forward for a spike"""
@@ -188,7 +202,7 @@ class DynamicMultiPhasic(FixedThreshold):
     That is, either:
 
         1) s_i(t) > f and s_i(t + t') < f_pk - f'
-        2) s_i(t) < -f and s_it(t + t') > f_val + f'
+    or  2) s_i(t) < -f and s_it(t + t') > f_val + f'
 
     for -delta_t < t' <= delta_t
     and where f' is the minimum amplitdude inflection in delta_t
@@ -197,9 +211,9 @@ class DynamicMultiPhasic(FixedThreshold):
     STDEV_MULT = 4
     SPIKE_PRE = 250
     SPIKE_POST = 750
-    SEARCH_SPAN = 1e3
-    LOCKOUT = 1e3
-    delta_t = 3e2
+    SEARCH_SPAN = 1000
+    LOCKOUT = 1000
+    delta_t = 300
 
     def setup(self):
         FixedThreshold.setup(self)

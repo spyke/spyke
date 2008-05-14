@@ -12,6 +12,7 @@ import time
 
 import spyke
 from spyke import core, surf
+from spyke.core import intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
 
@@ -43,6 +44,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
+        self.file_spin_ctrl.Bind(wx.EVT_SPINCTRL, self.OnFileSpinCtrl)
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
 
         # disable these menu items and tools until a .srf file is opened
@@ -122,6 +124,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #event.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
 
+    def OnFileSpinCtrl(self, event):
+        """Change file position using spin control"""
+        self.seek(self.file_spin_ctrl.GetValue())
+
     def OnSlider(self, event):
         """Strange: keyboard press or page on mouse click when slider in focus generates
         two slider events, and hence two plot events - mouse drag only generates one slider event"""
@@ -165,6 +171,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.range = (self.hpstream.t0 + self.spiketw/2,
                       self.hpstream.tend - self.spiketw/2) # us
+        self.file_spin_ctrl.SetRange(self.range[0], self.range[1])
+        self.file_spin_ctrl.SetValue(self.t)
+        self.file_min_label.SetLabel(str(intround(self.hpstream.t0)))
+        self.file_max_label.SetLabel(str(intround(self.hpstream.tend)))
         self.slider.SetRange(self.range[0], self.range[1])
         self.slider.SetValue(self.t)
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
@@ -260,6 +270,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # performance, maybe mpl is already doing something like this
         if self.t != self.oldt:
             self.plot()
+        self.file_spin_ctrl.SetValue(self.t) # update file spin ctrl
         self.slider.SetValue(self.t) # update slider
 
     def tell(self):
