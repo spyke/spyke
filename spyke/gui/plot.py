@@ -32,7 +32,8 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from spyke import surf
-from spyke.gui.events import *
+from spyke.core import MU
+#from spyke.gui.events import *
 
 DEFAULTLINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
@@ -128,8 +129,14 @@ class PlotPanel(FigureCanvasWxAgg):
             siteloc[key] = (x, y) # update
         self.siteloc = siteloc
 
+        tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
+        tooltip.Enable(False) # leave disabled for now
+        tooltip.SetDelay(0) # set popup delay in ms
+        self.SetToolTip(tooltip) # connect it to self
+
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
+        self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
 
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
@@ -244,6 +251,22 @@ class PlotPanel(FigureCanvasWxAgg):
         print chan, event.mouseevent.xdata, t
         self.Parent.seek(t)
     '''
+    def OnMotion(self, event):
+        """Popup up a tooltip when figure mouse movement is over axes"""
+        tooltip = self.GetToolTip()
+        if event.inaxes:
+            chan = self.get_closestchan(event.xdata, event.ydata)
+            xpos = self.pos[chan][0]
+            t = event.xdata - xpos + self.tref
+            if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
+                tip = 'ch%d\nt=%d %s' % (chan, t, MU+'s')
+                tooltip.SetTip(tip)
+                tooltip.Enable(True)
+            else: # out of bounds
+                tooltip.Enable(False)
+        else:
+            tooltip.Enable(False)
+
 
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according

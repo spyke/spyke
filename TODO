@@ -1,15 +1,10 @@
 TODO:
 
-- add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
-    - or just timestamp and chan id tooltip on hover
-
-- spike detection
-    - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
-    - be able to specify time ranges within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
-
-- interpolation
+- INTERPOLATION
     - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
+        - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
     - if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
+
 
 - check if y data is being updated as efficiently as possible, want to prevent copying, increase scrolling speed
     - seems alright: mostly just doing line.set_ydata() on each plot call
@@ -18,12 +13,6 @@ TODO:
     - keyboard navigation commands and mouse paging on slider cause two slider scroll events, and hence two plot calls, probably cutting performance in half. Doesn't happen with mouse seeking (dragging marker directly with the mouse). This seems to be inherent to the slider widget. wx bug, or by design? Can mostly work around this by handling keyboard events directly
 
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
-
-- parsing progress bar, with ability to pause/cancel
-    - use threading, so widget draw events aren't blocked during parsing
-        - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
-
-- add vertical and horizontal zoom controls to all DataFrames (maybe just menu and keyboard/mouse shortcuts)
 
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
@@ -42,31 +31,30 @@ TODO:
 
 
 ------------------------------------
-LOW-PRIORITY:
+EVENT DETECTION:
 
-- add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
-    - add faint vertical lines at center of each column in spike window
+    - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
+    - be able to specify time range(s?) within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
+    - static and dynamic thresholds, based on stdev or median (or other measures?)
+    - specify chan ranges that you want to search for events on. 2 benefits:
+        - helps you increase n for a template that rarely fires
+        - say you notice a shortage of cells in a certain part of the probe - you want to be sure there aren't any cells there that you've missed
 
-- toggle between garish rainbow colours and normal green
 
-- make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
-    - worked on this for quite a while, couldn't figure it out, had recursive calling problems and stuff
-    - ah, I was looking for something like this for a long time: wx.PostEvent(window, event) lets you send any event to any given window. Should try this out...
 
-- goto feature: CTRL+G brings file position spin control into focus where you can enter the time that you want to jump to
-    - maybe add ability to choose units (us or ms or s) from a combo box
 
-- parsing progress bar with pause/stop button
+------------------------------------
+TEMPLATES:
 
-- ripping progress bar with pause/stop button
+    - subtemplates
+    - toggle the display of all the templates (their means) at once (button, or Ctrl-A?), with just their active channels displayed. This way, you can quickly see if some templates are very similar, and how the cells are distributed across the electrode. This also lets you decide which templates need more/fewer channels enabled to help distinguish between them. Each template should be a different colour (up to say 16 or so).
+    - manual spike alignment
+        - do this on a per spike basis as a feature, if automated alignment can't always get it right
+        - when doing alignment on a template, move all member events too
 
-- move simple matplotlib plot() method from Stream class to WaveForm class, that way, you no longer need to pass a trange argument
-    - instead of:
-        f.highpassstream.plot(chanis=None, trange=(135e6, 135.1e6))
-      you'd slice instead:
-        f.highpassstream[135e6:135.1e6].plot(chanis=None)
-    - would have to add more stuff as attribs to WaveForm class, such as .records and .rts
-
+    - custom spike duration per template
+        - Need to make the spike duration (currently 1ms) user settable for every template. Some spikes are broad, others narrow, and it's best to confine the templates to just those times with useful information about the spike. Otherwise, if there's too much flatline on either side, then you're basically saying "it ain't a spike unless stuff doesn't happen immediately before or after it", which isn't true. You might get a spike very soon after from another cell, or even from the same cell if it's a fast spiker.
+        - in other words, we want the ability to crop a template in time. This complements the ability to crop a template in channel space
 
 
 
@@ -78,6 +66,7 @@ RIPPING:
         - error histograms will be more sharply bimodal, since you're not comparing templates to noise ever, just to events
             - also, no longer have to worry so much about selecting as few flat chans as possible in your template, in the worry that it'll start triggering against flatish lines of noise in the raw data
     - to reduce spike variability due to correlated noise, for any given comparison between template and data (be it against any timepoint in data, or against a detected event), take the channels that aren't selected in the template (purportedly because they have no significant signal on them), and at every timepoint, take their mean, and subtract that from _all_ channels. This should make spikes in the raw data (or in the detected events) look more like one of the templates
+        - mean might not be ideal - maybe take their covariance and subtract it or something (see hyperellipsoidal method ref'd in 200x Blanche)
         - this should be done during any comparison between template and data, including during min rips (see below)
 
 MINI RIPS:
@@ -101,6 +90,48 @@ VERIFICATION:
     - plot autocorrelograms for each template, and cross-correlograms for all template pairs, make sure the bin heights are ~0 for abs(deltaT) < 1ms for autocorrs, make sure you don't have ridiculously huge peaks in xcorrs
         - wasn't there some other related test that we should be doing?
     - Nick: create a distance/similarity metric that, for all pairs of templates, for all overlapping channels, measures the difference between the signals, normalized by, say, the number of overlapping channels and the number of points per channel. This would help confirm that two templates are indeed two separate cells
+
+    - plot spikes as fat bright vertical lines or something underneath the chart window so you can scroll through and see just what was classified as a spike and what wasn't. line colour should match template colour
+
+    - limit template generation to specific part of file
+        - Nick's idea: randomly sample events from, say, only the first 10 minutes of a recording, build up your templates with those. Then, rip across the whole file, and watch if the goodness of fit gets worse the further away you get in time.
+            - plot goodness of fit over time - Goodness of fit might change over time, especially over hours, and in recordings different from which the templates were generated. Either divide each recording up into pieces say 10 minutes long, and plot that, or have a sliding window that calculates the goodness of fit for the last 10 minutes (that would give you lots more data points)
+
+
+
+------------------------------------
+LOW-PRIORITY:
+
+- add vertical and horizontal zoom controls to all DataFrames (maybe just menu and keyboard/mouse shortcuts)
+
+- add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
+    - add faint vertical lines at center of each column in spike window
+
+- toggle between garish rainbow colours and normal green
+
+- toggle plot points
+
+- make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
+    - worked on this for quite a while, couldn't figure it out, had recursive calling problems and stuff
+    - ah, I was looking for something like this for a long time: wx.PostEvent(window, event) lets you send any event to any given window. Should try this out...
+
+- goto feature: CTRL+G brings file position spin control into focus where you can enter the time that you want to jump to
+    - maybe add ability to choose units (us or ms or s) from a combo box
+
+- parsing progress bar with pause/stop button
+    - use threading, so widget draw events aren't blocked during parsing
+
+- ripping progress bar with pause/stop button
+
+- move simple matplotlib plot() method from Stream class to WaveForm class, that way, you no longer need to pass a trange argument
+    - instead of:
+        f.highpassstream.plot(chanis=None, trange=(135e6, 135.1e6))
+      you'd slice instead:
+        f.highpassstream[135e6:135.1e6].plot(chanis=None)
+    - would have to add more stuff as attribs to WaveForm class, such as .records and .rts
+
+
+
 
 
 
@@ -245,3 +276,5 @@ DONE:
 - make spike frame use same colours and chan to colour mapping as chart frame - chart frame is rainbow, spike frame will be similar, but not exactly the same for probes with chans that line up horizontally (like the 3 col probes)
 - make spike frame width depend on number of columns in probe, so you get consistent channel width for all probes
 - replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording
+- nah: add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
+    - instead: show timestamp and chan id tooltip on hover

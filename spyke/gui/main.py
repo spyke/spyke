@@ -12,7 +12,7 @@ import time
 
 import spyke
 from spyke import core, surf
-from spyke.core import intround, toiter
+from spyke.core import intround, toiter, MU
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
 
@@ -46,6 +46,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
         self.file_spin_ctrl.Bind(wx.EVT_SPINCTRL, self.OnFileSpinCtrl)
+        self.file_spin_ctrl_units.SetLabel(MU+'s') # can't seem to set symbol from within wxGlade
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
 
         # disable these menu items and tools until a .srf file is opened
@@ -289,14 +290,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             frametypes = toiter(frametypes)
         frametypes = [ frametype for frametype in FRAMEUPDATEORDER if frametype in frametypes ] # reorder
         frames = [ self.frames[frametype] for frametype in frametypes ] # get frames in order
-        frametype2wave = {'spike': self.hpstream[self.t-self.spiketw/2 : self.t+self.spiketw/2],
-                          'chart': self.hpstream[self.t-self.charttw/2 : self.t+self.charttw/2],
-                          'lfp': self.lpstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]}
-        waves = [ frametype2wave[frametype] for frametype in frametypes ] # get waveforms in order
-        for frame, wave in zip(frames, waves):
+        for frametype, frame in zip(frametypes, frames):
             if frame.IsShown(): # for performance, only update if frame is shown
+                if frametype == 'spike':
+                    wave = self.hpstream[self.t-self.spiketw/2 : self.t+self.spiketw/2]
+                elif frametype == 'chart':
+                    wave = self.hpstream[self.t-self.charttw/2 : self.t+self.charttw/2]
+                elif frametype == 'lfp':
+                    wave = self.lpstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
                 frame.panel.plot(wave, tref=self.t) # plot it
-        #print time.time(), 'in plot()'
 
     def OpenSortFile(self, fname):
         """Open a collection from a .sort file"""
@@ -326,12 +328,17 @@ class DataFrame(wx.MiniFrame):
     """Base data frame to hold a custom spyke panel widget.
     Copied and modified from auto-generated wxglade_gui.py code"""
 
-    STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
+    # no actual maximize button, but allows caption double-click to maximize
+    # need SYSTEM_MENU to make close box appear in a TOOL_WINDOW, at least on win32
+    STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.MAXIMIZE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW
+
+    def __init__(self, *args, **kwds):
+        kwds["style"] = self.STYLE
+        wx.MiniFrame.__init__(self, *args, **kwds)
 
     def set_properties(self):
         self.SetTitle("data window")
         self.SetSize((160, 24))
-        #self.AcceptsFocus(False) # don't allow a data frame to accept focus, make main spyke frame keep focus?
 
     def do_layout(self):
         dataframe_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -340,7 +347,7 @@ class DataFrame(wx.MiniFrame):
         self.Layout()
 
     def OnClose(self, event):
-        frametype = self.__class__.__name__.lower().replace('frame', '')
+        frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 
     def seek(self, *args, **kwargs):
@@ -350,8 +357,7 @@ class DataFrame(wx.MiniFrame):
 class SpikeFrame(DataFrame):
     """Frame to hold the custom spike panel widget"""
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
-        kwds["style"] = self.STYLE
-        wx.MiniFrame.__init__(self, parent, *args, **kwds)
+        DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = SpikePanel(self, -1, stream=stream, tw=tw, cw=cw)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -366,9 +372,7 @@ class SpikeFrame(DataFrame):
 class ChartFrame(DataFrame):
     """Frame to hold the custom chart panel widget"""
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
-        self.STYLE = self.STYLE|wx.MAXIMIZE_BOX # no actual button, but allows caption double-click to maximize
-        kwds["style"] = self.STYLE
-        wx.MiniFrame.__init__(self, parent, *args, **kwds)
+        DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = ChartPanel(self, -1, stream=stream, tw=tw, cw=cw)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -383,9 +387,7 @@ class ChartFrame(DataFrame):
 class LFPFrame(DataFrame):
     """Frame to hold the custom LFP panel widget"""
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
-        self.STYLE = self.STYLE|wx.MAXIMIZE_BOX # no actual button, but allows caption double-click to maximize
-        kwds["style"] = self.STYLE
-        wx.MiniFrame.__init__(self, parent, *args, **kwds)
+        DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = LFPPanel(self, -1, stream=stream, tw=tw, cw=cw)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)

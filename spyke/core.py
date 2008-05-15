@@ -13,6 +13,8 @@ import numpy as np
 
 from spyke import probes
 
+MU = '\xb5' # greek mu symbol
+
 
 class WaveForm(object):
     """Waveform object, has data, timestamps, chan2i, and sample frequency attribs"""
