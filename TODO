@@ -1,11 +1,24 @@
 TODO:
 
+- add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
+    - or just timestamp and chan id tooltip on hover
+
+- spike detection
+    - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
+    - be able to specify time ranges within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
+
+- interpolation
+    - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
+    - if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
+
 - check if y data is being updated as efficiently as possible, want to prevent copying, increase scrolling speed
     - seems alright: mostly just doing line.set_ydata() on each plot call
     - check if you can shift a line's y_data, instead of having to replace it entirely on every plot call
     - actually, looks like the limiting factor for speed is window size - if you resize the windows so they're really small, plotting is lightning fast. So this is a backend drawing issue, and probably has nothing to do with the efficiency of updating y values
     - keyboard navigation commands and mouse paging on slider cause two slider scroll events, and hence two plot calls, probably cutting performance in half. Doesn't happen with mouse seeking (dragging marker directly with the mouse). This seems to be inherent to the slider widget. wx bug, or by design? Can mostly work around this by handling keyboard events directly
+
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
+
 - parsing progress bar, with ability to pause/cancel
     - use threading, so widget draw events aren't blocked during parsing
         - caption and taskbar text don't seem to be updated sometimes after you close and then open a .srf file, this would be fixed with threading probably
@@ -14,7 +27,9 @@ TODO:
 
 - make playback buttons work
     - add really big skip buttons, that skip one page of chartwindow at a time
+
 - add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
+
 - separate groups of 3 digits in spin edit and end labels with commas (time in us)
 
 - add 1ms wide chart window to sort window, so you can see chan layout of events in both real space and chart space, might make it easier to sort
@@ -25,29 +40,72 @@ TODO:
     - messages: maybe just a combo box with timestamp:message entries. Choosing one of them skips you to that timestamp. Changing current file position with other methods should automatically scroll you through the combo box at appropriate times
     - stimulus din: similar to above: drop down combo box with timestamp:DIN value entries
 
+
+------------------------------------
 LOW-PRIORITY:
 
 - add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
-- add faint vertical lines at center of each column in spike window
+    - add faint vertical lines at center of each column in spike window
+
 - toggle between garish rainbow colours and normal green
-- add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
+
 - make moving of main spyke window retain existing spatial relations to data frames, instead of resetting to original spacing
     - worked on this for quite a while, couldn't figure it out, had recursive calling problems and stuff
-    - ah, I was looking for something like this for a long time: wx.PostEvent(window, event) lets you send an event to any given window. Should try this out...
+    - ah, I was looking for something like this for a long time: wx.PostEvent(window, event) lets you send any event to any given window. Should try this out...
+
+- goto feature: CTRL+G brings file position spin control into focus where you can enter the time that you want to jump to
+    - maybe add ability to choose units (us or ms or s) from a combo box
+
+- parsing progress bar with pause/stop button
+
+- ripping progress bar with pause/stop button
+
+- move simple matplotlib plot() method from Stream class to WaveForm class, that way, you no longer need to pass a trange argument
+    - instead of:
+        f.highpassstream.plot(chanis=None, trange=(135e6, 135.1e6))
+      you'd slice instead:
+        f.highpassstream[135e6:135.1e6].plot(chanis=None)
+    - would have to add more stuff as attribs to WaveForm class, such as .records and .rts
 
 
 
 
+------------------------------------
+RIPPING:
 
-GENERAL:
+    - instead of ripping against all the raw data, spike detect the whole file, and then rip against the detected spikes. If you center both your templates and your events on the peak, then comparing a template to an event is a one-shot process - no timeshifting required. 2 benefits:
+        - much faster
+        - error histograms will be more sharply bimodal, since you're not comparing templates to noise ever, just to events
+            - also, no longer have to worry so much about selecting as few flat chans as possible in your template, in the worry that it'll start triggering against flatish lines of noise in the raw data
+    - to reduce spike variability due to correlated noise, for any given comparison between template and data (be it against any timepoint in data, or against a detected event), take the channels that aren't selected in the template (purportedly because they have no significant signal on them), and at every timepoint, take their mean, and subtract that from _all_ channels. This should make spikes in the raw data (or in the detected events) look more like one of the templates
+        - this should be done during any comparison between template and data, including during min rips (see below)
 
-- interpolation
-    - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
-    - if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
+MINI RIPS:
+    - while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
+    - this would allow you to quickly increase the number of spikes in each template, and would reveal which spikes in your subset are still very different from any templates you've generated so far, so you can prioritize and focus on those next
+    - more importantly, this will aid in sweeping up spikes from those cells that fire a lot and distract you from those that fire rarely
+    - a degenerate version of this would be to do a self rip, where you rip across only the set of spikes that are currently members of the template. This would allow you to adjust the error thresh until the self rip just barely returns all of the current members of the template
+    - just as for a normal rip, you'll first need to set an error thresh for the template
+    - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
-- spike detection
-    - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
-    - be able to specify time ranges within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
+
+
+
+------------------------------------
+VERIFICATION:
+
+    - after completing a rip of the whole file, assemble the spike times from all the templates into a single list. Compare it to the list of spike times generated by applying the spike detection algorithm to the whole file. See how the two sets of spike times overlap. Imagine a venn diagram: if there are spikes that the detection algorithm found that the MTM algorithm did not find, then you need to examine those spikes. Either:
+        A) you set your error thresh too stringently for the template that should have matched that spike;
+        B) you have bad templates, or you're missing templates
+
+    - plot autocorrelograms for each template, and cross-correlograms for all template pairs, make sure the bin heights are ~0 for abs(deltaT) < 1ms for autocorrs, make sure you don't have ridiculously huge peaks in xcorrs
+        - wasn't there some other related test that we should be doing?
+    - Nick: create a distance/similarity metric that, for all pairs of templates, for all overlapping channels, measures the difference between the signals, normalized by, say, the number of overlapping channels and the number of points per channel. This would help confirm that two templates are indeed two separate cells
+
+
+
+------------------------------------
+OLDER:
 
 - have a log window at bottom that details everything going on behind the scenes
     - this could simply be an integrated pyshell window (see manual), so you can do things from command line instead of being forced to use the GUI
@@ -83,27 +141,6 @@ GENERAL:
     - for each template, use mouse controlled bounding box/clicking to pick out significant channels
     - if there's another template nearby in channel space, it's good to also select a few surrounding flat channels to help distinguish the fits of the two templates during the rip
 
-
-
-VERIFICATION:
-
-    - after completing a rip of the whole file, assemble the spike times from all the templates into a single list. Compare it to the list of spike times generated by applying the spike detection algorithm to the whole file. See how the two sets of spike times overlap. Imagine a venn diagram: if there are spikes that the detection algorithm found that the MTM algorithm did not find, then you need to examine those spikes. Either:
-        A) you set your error thresh too stringently for the template that should have matched that spike;
-        B) something else I forgot to write down
-
-    - plot autocorrelograms for each template, and cross-correlograms for all template pairs, make sure the bin heights are ~0 for abs(deltaT) < 1ms for autocorrs, make sure you don't have ridiculously huge peaks in xcorrs
-        - wasn't there some other related test that we should be doing?
-    - Nick: create a distance/similarity metric that, for all pairs of templates, for all overlapping channels, measures the difference between the signals, normalized by, say, the number of overlapping channels and the number of points per channel. This would help confirm that two templates are indeed two separate cells
-
-
-- mini rips: while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
-    - this would allow you to quickly increase the number of spikes in each template, and would reveal which spikes in your subset are still very different from any templates you've generated so far, so you can prioritize and focus on those next
-    - more importantly, this will aid in sweeping up spikes from those cells that fire a lot and distract you from those that fire rarely
-    - a degenerate version of this would be to do a self rip, where you rip across only the set of spikes that are currently members of the template. This would allow you to adjust the error thresh until the self rip just barely returns all of the current members of the template
-    - just as for a normal rip, you'll first need to set an error thresh for the template
-    - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
-
-- have a stop and a pause button during ripping, since this step can take hours
 
 
 much of this might be outdated, since a Collection class instance now includes all spikes and all templates:
@@ -174,21 +211,7 @@ much of this might be outdated, since a Collection class instance now includes a
 - low probability: in case of electrode drift within a recording, allow user to make executive decision that two templates that are significantly different in voltage+channel space due to drift, yet sufficiently similar to the eye, that they should be assigned the same neuron id (keep their template ids separate?)
     - should there be a distinction between template and neuron ids just in case we want to do something like the above? Maybe the template id should become alphanumeric, with a number followed by a letter, say 12a, 12b, etc.
 
-----------------------------------------------------
-SPECIFICS:
 
-- goto feature: CTRL+G pops up a dialog where you can enter the time (in us or ms or s) that you want to jump to
-
-- parsing progress bar
-
-- ripping progress bar
-
-- move simple matplotlib plot() method from Stream class to WaveForm class, that way, you no longer need to pass a trange argument
-    - instead of:
-        f.highpassstream.plot(chanis=None, trange=(135e6, 135.1e6))
-      you'd slice instead:
-        f.highpassstream[135e6:135.1e6].plot(chanis=None)
-    - would have to add more stuff as attribs to WaveForm class, such as .records and .rts
 
 
 

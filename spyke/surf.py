@@ -11,6 +11,8 @@ import unittest
 from copy import copy
 import re
 
+from spyke.core import toiter
+
 NULL = '\x00'
 
 
@@ -824,25 +826,6 @@ def causalorder(records):
         if record1.TimeStamp > record2.TimeStamp:
             return False
     return True
-
-def iterable(x):
-    """Check if the input is iterable, stolen from numpy.iterable()"""
-    try:
-        iter(x)
-        return True
-    except:
-        return False
-
-def toiter(x):
-    """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
-    Useful when you want to iterate over an Record (like in a for loop),
-    and you don't want to have to do type checking or handle exceptions
-    when the Record isn't a sequence"""
-    if iterable(x):
-        return x
-    else:
-        return [x]
-
 
 if __name__ == '__main__':
     # TODO: insert unittests here

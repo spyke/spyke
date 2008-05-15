@@ -376,3 +376,21 @@ def intround(n):
     """Round to the nearest integer, return an integer.
     Saves on parentheses"""
     return int(round(n))
+
+def iterable(x):
+    """Check if the input is iterable, stolen from numpy.iterable()"""
+    try:
+        iter(x)
+        return True
+    except:
+        return False
+
+def toiter(x):
+    """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
+    Useful when you want to iterate over an Record (like in a for loop),
+    and you don't want to have to do type checking or handle exceptions
+    when the Record isn't a sequence"""
+    if iterable(x):
+        return x
+    else:
+        return [x]
