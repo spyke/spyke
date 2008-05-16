@@ -11,6 +11,8 @@ import unittest
 from copy import copy
 import re
 
+import wx
+
 from spyke.core import toiter
 
 NULL = '\x00'
@@ -163,6 +165,7 @@ class File(Record):
                 rectype = FLAG2RECTYPE[flag]
                 rec = rectype(f)
                 rec.parse()
+                wx.Yield() # allow wx GUI event processing during parsing
                 # collect records in lists - this kind of metacode is prolly a bad idea
                 listname = rectype.__name__.lower() + 's' # eg. HighPassRecord becomes 'highpassrecords'
                 if listname not in self.__dict__: # if not already an attrib
