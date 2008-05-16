@@ -50,7 +50,7 @@ class EventWin(wx.Frame):
 
         self.incr = 1000
         self.op = op
-        simp = spyke.detect.SimpleThreshold(stream=self.op.dstream, t0=self.op.dstream.records[0].TimeStamp)
+        simp = spyke.detect.BipolarAmplitudeFixedThresh(stream=self.op.dstream, t0=self.op.dstream.records[0].TimeStamp)
         self.event_iter = iter(simp)
 
         self.plotPanel = EventPanel(self, self.op.layout.SiteLoc)

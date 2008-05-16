@@ -55,13 +55,13 @@ class Stream(object):
         # array of ctsrecord timestamps
         self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords])
         probename = self.layout.electrode_name
-        probename = probename.replace('\xb5', 'u') # replace any 'micro' symbols with 'u'
+        probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
         self.probe = probetype()
 
         self.t0 = self.rts[0] # us, time that recording began
         self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
-        lastctsrecordtw = self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres
+        lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres)
         self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
 
 

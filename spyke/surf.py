@@ -92,7 +92,7 @@ class File(Record):
         """Parse the Surf file header"""
         self.fileheader = FileHeader(self.f)
         self.fileheader.parse()
-        print 'Parsed fileheader'
+        #print 'Parsed fileheader'
 
     def _parseDRDBS(self):
         """Parse the DRDBs (Data Record Descriptor Blocks)"""

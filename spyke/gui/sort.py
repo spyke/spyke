@@ -10,7 +10,7 @@ import spyke
 from spyke.probes import *
 from spyke import Spike, Template, Collection
 from spyke import load_collection, write_collection
-from spyke.detect import SimpleThreshold, MultiPhasic, DynamicMultiPhasic
+from spyke.detect import BipolarAmplitudeFixedThresh, MultiPhasic, DynamicMultiPhasic
 from spyke.gui.events import *
 from spyke.gui.plot import ClickableSortPanel
 from spyke.gui.manager import CollectionManager
@@ -1006,7 +1006,7 @@ class TestApp(wx.App):
     def makeCol(self):
         from spyke.stream import WaveForm
         from random import randint
-        #simp = SimpleThreshold(self.op.dstream, self.op.dstream.records[0].TimeStamp)
+        #simp = BipolarAmplitudeFixedThresh(self.op.dstream, self.op.dstream.records[0].TimeStamp)
         simp = DynamicMultiPhasic(self.op.dstream, self.op.dstream.records[0].TimeStamp)
         spikes = []
         for i, spike in enumerate(simp):

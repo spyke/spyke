@@ -1,4 +1,21 @@
-"""Spike detection algorithms"""
+"""Spike detection algorithms
+
+
+TODO: use median based noise estimation instead of std based
+      - estimate noise level dynamically with sliding window
+        and independently for each channel
+TODO: spatiotemporal lockout:
+      - rlock = 175um
+      - lock out only first 1/2 phase of spike
+      - phases are part of same spike if less than 250us between each other
+
+TODO: Might need to use scipy.weave or some other low-level code
+    (cython?) to make these algorithms fast enough, while allowing you to
+    step through one timepoint at a time, which numpy might not let you do
+    easily...
+
+
+"""
 
 from __future__ import division
 
@@ -38,31 +55,32 @@ class Detector(object):
         #    except StopIteration:
         #        break
 
-    def get_threshold(self, kind=DEFAULTTHRESHMETHOD):
-        """Calculate either median or stdev based threshold"""
+    def get_threshold(self, chan, kind=DEFAULTTHRESHMETHOD):
+        """Calculate either median or stdev based threshold for a given chan"""
         if kind == 'median':
-            self.get_median_threshold()
+            self.get_median_threshold(chan)
         elif  kind == 'stdev':
-            self.get_stdev_threshold()
+            self.get_stdev_threshold(chan)
 
-    def get_median_threshold():
+    def get_median_threshold(self, chan):
+        return self.get_median_noise(chan) * self.MEDIAN_MULT
+
+    def get_stdev_threshold(self, chan):
+        return self.get_stdev_noise(chan) * self.STDEV_MULT
+
+    def self.get_median_noise(self, chan):
+        """Overriden by FixedThresh and DynamicThresh classes"""
+        pass
+
+    def self.get_stdev_noise(self, chan):
+        """Overriden by FixedThresh and DynamicThresh classes"""
+        pass
 
 
-    def get_stdev_threshold():
-
-
-class FixedThreshold(Detector):
+class FixedThresh(Detector):
     """Base class for fixed threshold spike detection,
-    Uses the same single (or multiple) static threshold
-    throughout the entire file
-
-    TODO: use median based noise estimation instead of std based
-          - estimate noise level dynamically with sliding window
-            and independently for each channel
-    TODO: spatiotemporal lockout:
-          - rlock = 175um
-          - lock out only first 1/2 phase of spike
-          - phases are part of same spike if less than 250us between each other
+    Uses the same single static threshold throughout the entire file,
+    one threshold per channel
     """
 
     STDEV_WINDOW = 10000000 # 10 sec
@@ -81,6 +99,7 @@ class FixedThreshold(Detector):
             self.std[chan] = wave.data[chan].std()
 
         # set the threshold to be STDEV_MULT * standard deviation
+        # each chan has a separate thresh
         self.thresholds = {}
         for chan, stdev in self.std.iteritems():
             self.thresholds[chan] = stdev * self.STDEV_MULT
@@ -111,14 +130,27 @@ class FixedThreshold(Detector):
             yield Spike(spike, chan, self.window.ts[event_index])
 
 
-class DynamicThreshold(Detector):
+class DynamicThresh(Detector):
     """Base class for dynamic threshold spike detection,
     Uses varying thresholds throughout the entire file,
-    depending on the local noise level?"""
+    depending on the local noise level
+
+    Calculate noise level using, say, a 50ms sliding window centered on the
+    timepoint you're currently testing for a spike
 
 
+    """
 
-class SimpleThreshold(FixedThreshold):
+    def self.get_median_noise(self, chan):
+        """Overriden by FixedThresh and DynamicThresh classes"""
+        pass
+
+    def self.get_stdev_noise(self, chan):
+        """Overriden by FixedThresh and DynamicThresh classes"""
+        pass
+
+
+class BipolarAmplitudeFixedThresh(FixedThresh):
     """Bipolar amplitude threshold, with fixed lockout on all channels"""
 
     def find(self):

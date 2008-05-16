@@ -35,11 +35,15 @@ from spyke import surf
 from spyke.core import MU
 #from spyke.gui.events import *
 
-DEFAULTLINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
+SPIKELINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
+TREFLINEWIDTH = 0.5
+VREFLINEWIDTH = 0.5
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
 
 DEFAULTCHANCOLOUR = "#00FF00" # garish green
-CURSORCOLOUR = "#202020" # light black
+TREFCOLOUR = "#303030" # dark grey
+VREFCOLOUR = "#303030" # dark grey
+CARETCOLOUR = "#202020" # light black
 BACKGROUNDCOLOUR = 'black'
 WXBACKGROUNDCOLOUR = wx.BLACK
 
@@ -106,9 +110,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.stream = stream
         self.SiteLoc = stream.probe.SiteLoc # probe site locations with origin at center top
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
-        if cw == None: # like for a SpikePanel
-            cw = tw
-        self.cw = cw # time width of cursor, in plot units
+        self.cw = cw # time width of caret, in plot units
 
         self.pos = {} # position of lines
         self.channels = {} # y-data for each plotted channel
@@ -118,7 +120,6 @@ class PlotPanel(FigureCanvasWxAgg):
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
         self.SetBackgroundColour(WXBACKGROUNDCOLOUR)
         self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
-        self.linewidth = DEFAULTLINEWIDTH
 
         # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
@@ -152,12 +153,15 @@ class PlotPanel(FigureCanvasWxAgg):
         self.ax._visible = False
         self.ax.set_axis_off() # turn off the x and y axis
 
+        for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
+            self.add_ref(ref)
+
         self.lines = {}
         self.ax._autoscaleon = False
         for chan, (xpos, ypos) in self.pos.iteritems():
             line = SpykeLine(wave.ts - tref + xpos,
                              wave[chan] + ypos,
-                             linewidth=self.linewidth,
+                             linewidth=SPIKELINEWIDTH,
                              color=self.colours[chan],
                              antialiased=True)
             line.chan = chan
@@ -171,6 +175,78 @@ class PlotPanel(FigureCanvasWxAgg):
         self._ready = True
         # redraw the display
         self.draw(True)
+
+    def add_ref(self, ref):
+        if ref == 'tref':
+            self._add_tref()
+        elif ref == 'vref':
+            self._add_vref()
+        elif ref == 'caret':
+            self._add_caret()
+
+    def _add_tref(self):
+        """Add vertical time reference line(s)"""
+        # get column x positions
+        cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
+        ylims = self.ax.get_ylim()
+        self.vlines = []
+        for col in cols:
+            vline = SpykeLine([col, col],
+                              ylims,
+                              linewidth=TREFLINEWIDTH,
+                              color=TREFCOLOUR,
+                              antialiased=True,
+                              visible=False)
+            self.vlines.append(vline)
+            self.ax.add_line(vline)
+
+    def _add_vref(self):
+        """Add horizontal voltage reference lines"""
+        self.hlines = []
+        for (xpos, ypos) in self.pos.itervalues():
+            hline = SpykeLine([xpos-self.tw/2, xpos+self.tw/2],
+                              [ypos, ypos],
+                              linewidth=VREFLINEWIDTH,
+                              color=VREFCOLOUR,
+                              antialiased=True,
+                              visible=False)
+            self.hlines.append(hline)
+            self.ax.add_line(hline)
+
+    def _add_caret(self):
+        """Add a shaded rectangle to represent the
+        time window shown in the spike frame"""
+        ylim = self.ax.get_ylim()
+        xy = (-self.cw/2, ylim[0]) # bottom left coord of rectangle
+        width = self.cw
+        height = ylim[1] - ylim[0]
+        self.caret = Rectangle(xy, width, height,
+                               facecolor=CARETCOLOUR,
+                               linewidth=0,
+                               antialiased=False,
+                               visible=False)
+        self.ax.add_patch(self.caret)
+
+    def show_ref(self, ref, enable=True):
+        if ref == 'tref':
+            self._show_tref(enable)
+        elif ref == 'vref':
+            self._show_vref(enable)
+        elif ref == 'caret':
+            self._show_caret(enable)
+        # redraw the display
+        self.draw(True)
+
+    def _show_tref(self, enable):
+        for vline in self.vlines:
+            vline.set_visible(enable)
+
+    def _show_vref(self, enable):
+        for hline in self.hlines:
+            hline.set_visible(enable)
+
+    def _show_caret(self, enable):
+        self.caret.set_visible(enable)
 
     def get_spatialchans(self, order='vertical'):
         """Return channels in spatial order.
@@ -252,7 +328,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.Parent.seek(t)
     '''
     def OnMotion(self, event):
-        """Popup up a tooltip when figure mouse movement is over axes"""
+        """Pop up a tooltip when figure mouse movement is over axes"""
         tooltip = self.GetToolTip()
         if event.inaxes:
             chan = self.get_closestchan(event.xdata, event.ydata)
@@ -282,23 +358,19 @@ class ChartPanel(PlotPanel):
         maxy = um2uv(self.siteloc[vchans[-1]][1])
         vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
-        self.add_cursor()
         colourgen = itertools.cycle(iter(COLOURS))
         for chani, chan in enumerate(vchans):
             #self.pos[chan] = (0, um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
             self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
-    def add_cursor(self):
-        """Add a shaded rectangle to represent the
-        time window shown in the spike frame"""
-        ylim = self.ax.get_ylim()
-        xy = (-self.cw/2, ylim[0]) # bottom left coord of rectangle
-        width = self.cw
-        height = ylim[1] - ylim[0]
-        self.cursor = Rectangle(xy, width, height,
-                                facecolor=CURSORCOLOUR, linewidth=0, antialiased=False)
-        self.ax.add_patch(self.cursor)
+    def _add_vref(self):
+        """Disable for ChartPanel"""
+        pass
+
+    def _show_vref(self, enable):
+        """Disable for ChartPanel"""
+        pass
 
 
 class LFPPanel(ChartPanel):
@@ -314,6 +386,12 @@ class LFPPanel(ChartPanel):
         for chan in self.pos.keys():
             if chan not in self.stream.layout.chanlist:
                 del self.pos[chan] # remove siteloc channels that don't exist in the lowpassmultichan record
+
+    def _add_vref(self):
+        PlotPanel._add_vref(self)
+
+    def _show_vref(self, enable):
+        PlotPanel._show_vref(self, enable)
 
 
 class SpikePanel(PlotPanel):
@@ -337,6 +415,14 @@ class SpikePanel(PlotPanel):
             self.pos[chan] = (um2us(self.siteloc[chan][0]),
                               um2uv(self.siteloc[chan][1]))
             self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
+
+    def _add_caret(self):
+        """Disable for SpikePanel"""
+        pass
+
+    def _show_caret(self, enable):
+        """Disable for SpikePanel"""
+        pass
 
 
 class SortPanel(SpikePanel):
@@ -398,7 +484,7 @@ class SortPanel(SpikePanel):
                 xpos, ypos = self.pos[chan]
                 line = SpykeLine(self.static_x_vals + xpos, # static_x_vals don't exist no more
                                  spike.data[chan] + ypos,
-                                 linewidth=self.linewidth,
+                                 linewidth=SPIKELINEWIDTH,
                                  color=self.colours[chan],
                                  antialiased=False)
                 line.set_picker(PICKTHRESH)

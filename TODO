@@ -10,7 +10,7 @@ TODO:
     - seems alright: mostly just doing line.set_ydata() on each plot call
     - check if you can shift a line's y_data, instead of having to replace it entirely on every plot call
     - actually, looks like the limiting factor for speed is window size - if you resize the windows so they're really small, plotting is lightning fast. So this is a backend drawing issue, and probably has nothing to do with the efficiency of updating y values
-    - keyboard navigation commands and mouse paging on slider cause two slider scroll events, and hence two plot calls, probably cutting performance in half. Doesn't happen with mouse seeking (dragging marker directly with the mouse). This seems to be inherent to the slider widget. wx bug, or by design? Can mostly work around this by handling keyboard events directly
+    - keyboard navigation commands and mouse paging on slider cause two slider scroll events, and hence two plot calls, probably cutting performance in half. Doesn't happen with mouse seeking (dragging marker directly with the mouse). This seems to be inherent to the slider widget. wx bug, or by design? Might be separate slider events for key down and key up? Can prolly work around this by handling keyboard events directly
 
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 
@@ -35,7 +35,7 @@ EVENT DETECTION:
 
     - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
     - be able to specify time range(s?) within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
-    - static and dynamic thresholds, based on stdev or median (or other measures?)
+    - static and dynamic thresholds, independent for each chan, based on stdev or median (or other measures?)
     - specify chan ranges that you want to search for events on. 2 benefits:
         - helps you increase n for a template that rarely fires
         - say you notice a shortage of cells in a certain part of the probe - you want to be sure there aren't any cells there that you've missed
@@ -102,10 +102,10 @@ VERIFICATION:
 ------------------------------------
 LOW-PRIORITY:
 
-- add vertical and horizontal zoom controls to all DataFrames (maybe just menu and keyboard/mouse shortcuts)
+- add scroll wheel support for data frames, for scrolling through data
+    - scroll by 40us in spike frame, 1ms in chart frame, 50ms in lfp frame
 
-- add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
-    - add faint vertical lines at center of each column in spike window
+- add vertical and horizontal zoom controls to all DataFrames (maybe just menu and keyboard/mouse shortcuts)
 
 - toggle between garish rainbow colours and normal green
 
@@ -278,3 +278,6 @@ DONE:
 - replace default slider position text (which keeps corrupting anyway) with proper spin edit and dedicated text boxes to indicate current position and start and end of recording
 - nah: add chan id toggle button to display chan id directly underplotting (or shown next to?) each channel in all the dataframes
     - instead: show timestamp and chan id tooltip on hover
+- add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
+    - add faint vertical lines at center of each column in spike window
+
