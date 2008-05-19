@@ -171,7 +171,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         """Maybe limit this to a single chan, deal with spatial lockout in python,
         do peak searching and temporal lockout on a single chan basis in C. Or, maybe use
         C for both chan and ti loop, but leave spatial lockout to a later step (which itself
-        could be done in C)"""
+        could be done in another C weave f'n)"""
         code = r"""
         #line xx "detect.py" (this is only useful for debugging)
         int ti=0 // current time index
