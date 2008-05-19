@@ -14,6 +14,11 @@ TODO: Might need to use scipy.weave or some other low-level code
     step through one timepoint at a time, which numpy might not let you do
     easily...
 
+TODO: for speed, consider converting all uV data from 64bit float to 16 bit integer
+
+TODO: add a method to search forward until you find the next spike on any or on a
+      specific set of channels, as opposed to searching forward over a known fixed
+      trange
 
 """
 
@@ -80,8 +85,7 @@ class Detector(object):
 class FixedThresh(Detector):
     """Base class for fixed threshold spike detection,
     Uses the same single static threshold throughout the entire file,
-    one threshold per channel
-    """
+    with an independent threshold for every channel"""
 
     STDEV_WINDOW = 10000000 # 10 sec
     STDEV_MULT = 4
@@ -151,7 +155,63 @@ class DynamicThresh(Detector):
 
 
 class BipolarAmplitudeFixedThresh(FixedThresh):
-    """Bipolar amplitude threshold, with fixed lockout on all channels"""
+    """Bipolar amplitude threshold fixed threshold detector, with fixed lockout on all channels"""
+
+    def search(self, trange=None):
+        """Manage combining search results from individual multichannel chunks of waveform data"""
+        if trange == None:
+            trange = (stream.t0, stream.tend)
+        wavetranges = # slightly overlapping chunks of 1sec each or so
+        for wavetrange in wavetranges:
+            wave = self.stream[wavetrange] # chunk is just a waveform
+            eventis = self.searchwave(wave)
+            compare to previous chunk in overlap area, make sure not counting spikes twice in overlap
+
+    def Csearchwave(self, abschan, thresh, tilockout):
+        """Maybe limit this to a single chan, deal with spatial lockout in python,
+        do peak searching and temporal lockout on a single chan basis in C. Or, maybe use
+        C for both chan and ti loop, but leave spatial lockout to a later step (which itself
+        could be done in C)"""
+        code = r"""
+        #line xx "detect.py" (this is only useful for debugging)
+        int ti=0 // current time index
+        int last=0;
+        int nspikes=0;
+        int array spikeis[0..len(abschan)/2] // can't have more than one max every other timepoint
+        tilockout-- // we will always skip ahead from ti+1, so dec tilockout by 1
+        for (int ti=0; ti<nt; ) {
+            if abschan[ti] >= thresh:
+                if abschan[ti] > last: // signal is still increasing
+                    last = absdata[chani*ti]
+                    ti++ // go to next timepoint
+                else: // signal is decreasing, save last timepoint as spike
+                    nspikes++
+                    spikeis[nspikes-1] = ti-1
+                    ti += tilockout
+            else:
+                ti++ // go to next timepoint
+
+        }
+        return_val = 666;
+        """
+        return  weave.inline(code,
+                           [],
+                           type_converters=converters.blitz,
+                           compiler='msvc')
+
+    def searchwave(self, wave, thresh):
+        """Look for thresh xings, find peak indices, do lockouts, return event indices"""
+        absdata = np.abs(wave.data)
+        threshxis = absdata > thresh # bipolar thresh xing indices for all chans
+        # find peak indices. this is quite wasteful since we already know where the peaks mostly aren't.
+        # Maybe use a sparse matrix here to prevent having to search through all the zeros?
+        peakis = np.diff(absdata*threshxis)
+        # now do spatial and temporal lockouts
+
+        # problem: can't load all data in at once into a single big array to search through
+
+
+
 
     def find(self):
         """Maintain state and search forward for a spike"""

@@ -17,7 +17,7 @@ def testweave():
     return = weave.inline(code,
                        [],
                        type_converters=converters.blitz,
-                       compiler = 'msvc')
+                       compiler='msvc')
 
 
 def mytest(n):

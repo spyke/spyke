@@ -40,7 +40,7 @@ EVENT DETECTION:
         - helps you increase n for a template that rarely fires
         - say you notice a shortage of cells in a certain part of the probe - you want to be sure there aren't any cells there that you've missed
 
-
+    - F3 and F2 to search forward and back one event
 
 
 ------------------------------------
@@ -101,6 +101,9 @@ VERIFICATION:
 
 ------------------------------------
 LOW-PRIORITY:
+
+- CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark
+    - good for skipping back and forth quickly between two (or more) spikes
 
 - add scroll wheel support for data frames, for scrolling through data
     - scroll by 40us in spike frame, 1ms in chart frame, 50ms in lfp frame
