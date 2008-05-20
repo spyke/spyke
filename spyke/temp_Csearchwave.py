@@ -17,7 +17,7 @@ def Csearchwave(abschan, thresh, tilockout):
     assert tilockout >= 0 # num of timepoint indices to lock out after a spike
 
     nt = len(abschan)
-    spikeis = np.zeros(nt/2, dtype=np.int32) # holds spike times, cant have more than one max every other timepoint
+    spikeis = np.empty(nt/2, dtype=np.int32) # holds spike times, cant have more than one max every other timepoint
 
     code = r"""
     #line 19 "detect.py" // (this is only useful for debugging)
@@ -48,5 +48,5 @@ def Csearchwave(abschan, thresh, tilockout):
     return spikeis
 
 
-abschan = np.array([ 2. ,  1. ,  0. ,  1. ,  2. ,  1. ,  0. ,  0. ,  0. ,  0. ,  5. ,  0. ,  0. ,  6.2,  2.3,  0. ,  0. ,  2. ])
+abschan = np.array([ 2., 1., 0., 1., 2., 3., 0., 0., 0., 0., 5., 0., 0., 6.2, 2.3, 0., 0., 2.])
 Csearchwave(abschan, thresh=1, tilockout=1)
