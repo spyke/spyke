@@ -2,8 +2,6 @@ from scipy import weave
 from scipy.weave import converters
 
 def testweave():
-    """Takes a time step using inlined C code -- this version uses
-    blitz arrays."""
     code = """
            #line 8 "weave.py" (This is only useful for debugging)
            for (int i=0; i<10; ++i) {
@@ -15,9 +13,9 @@ def testweave():
            """
     # compiler keyword only needed on windows with MSVC installed
     return = weave.inline(code,
-                       [],
-                       type_converters=converters.blitz,
-                       compiler='msvc')
+                          [],
+                          type_converters=converters.blitz,
+                          compiler='gcc')
 
 
 def mytest(n):
@@ -29,12 +27,10 @@ def mytest(n):
            return_val = i;
            """
     return weave.inline(code, ['n'],
-                       type_converters=converters.blitz,
-                       compiler='msvc')
+                        type_converters=converters.blitz,
+                        compiler='gcc')
 
 
 if __name__ == '__main__':
     #testweave()
     print mytest(1000000000)
-
-

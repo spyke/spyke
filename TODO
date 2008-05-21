@@ -102,6 +102,8 @@ VERIFICATION:
 ------------------------------------
 LOW-PRIORITY:
 
+- try creating win32 package installer, see if it automatically compiles weave code so you don't need gcc on the client system
+
 - CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark
     - good for skipping back and forth quickly between two (or more) spikes
 

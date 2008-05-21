@@ -64,7 +64,6 @@ class Stream(object):
         lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres)
         self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
 
-
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
         raise NotImplementedError()
@@ -108,7 +107,7 @@ class Stream(object):
             nt = record.waveform.shape[-1]
             ts.extend(range(tstart, tstart + nt*tres, tres))
             #del record.waveform # save memory by unloading waveform data from records that aren't needed anymore
-        ts = np.asarray(ts)
+        ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([key.start, key.stop])
         data = data[:, lo:hi+endinclusive]
         ts = ts[lo:hi+endinclusive]
@@ -123,7 +122,6 @@ class Stream(object):
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
-
 
     def ADVal_to_uV(self, adval, intgain, extgain):
         """Convert AD values to micro-volts"""
@@ -212,7 +210,7 @@ class Spike(WaveForm):
     """A spike event"""
     def __init__(self, waveform=None, channel=None, event_time=None):
         self.data = waveform.data # potentially multichannel
-        self.ts = waveform.ts
+        self.ts = waveform.ts # TODO: this is a sequence of timestamps, not sure if Reza intended this...
         self.sampfreq = waveform.sampfreq
         self.channel = channel # trigger channel
         self.event_time = event_time
@@ -291,6 +289,7 @@ class Template(object):
 
 
 class HybridList(set):
+    """A set with an append() method like a list"""
     def append(self, item):
         self.add(item)
 
@@ -396,3 +395,24 @@ def toiter(x):
         return x
     else:
         return [x]
+
+def cut(ts, trange):
+    """Returns timestamps where tstart <= timestamps <= tend
+    Copied and modified from neuropy rev 149"""
+    tstart, tend = trange[0], trange[1]
+    '''
+    # this is what we're trying to do:
+    return ts[ (ts >= tstart) & (ts <= tend) ]
+    ts.searchsorted([tstart, tend]) method does it faster, because it assumes ts are ordered.
+    It returns an index where the values would fit in ts. The index is such that
+    ts[index-1] < value <= ts[index]. In this formula ts[ts.size]=inf and ts[-1]= -inf
+    '''
+    lo, hi = ts.searchsorted([tstart, tend]) # returns indices where tstart and tend would fit in ts
+    # can probably avoid all this end inclusion code by using the 'side' kwarg, not sure if I want end inclusion anyway
+    '''
+    if tend == ts[min(hi, len(ts)-1)]: # if tend matches a timestamp (protect from going out of index bounds when checking)
+        hi += 1 # inc to include a timestamp if it happens to exactly equal tend. This gives us end inclusion
+        hi = min(hi, len(ts)) # limit hi to max slice index (==max value index + 1)
+    '''
+    cutts = ts[lo:hi] # slice it
+    return cutts

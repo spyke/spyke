@@ -30,13 +30,14 @@ from numpy import where
 from scipy import weave
 
 import spyke.surf
-from spyke.core import WaveForm, toiter
+from spyke.core import WaveForm, toiter, cut, intround
 #from spyke import Spike, Template, Collection
 
 
 MAXFIRINGRATE = 1000 # Hz, assume no chan will continuously trigger more than this rate of events
-CHUNKSIZE = 1000000 # waveform data chunk size, us
-MAXNSPIKETIS = CHUNKSIZE/1000000 * MAXFIRINGRATE # length of array to preallocate before searching a chunk's channel
+BLOCKSIZE = 1000000 # waveform data block size, us
+MAXNSPIKETIS = BLOCKSIZE/1000000 * MAXFIRINGRATE # length of array to preallocate before searching a block's channel
+BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
 
 class Detector(object):
@@ -55,6 +56,7 @@ class Detector(object):
         if trange == None:
             trange = (stream.t0, stream.tend)
         self.trange = trange
+        self.nspikes = 0
         if maxnspikes == None:
             maxnspikes = sys.maxint
         self.maxnspikes = maxnspikes # return at most this many spikes, applies across chans
@@ -98,6 +100,15 @@ class Detector(object):
     def get_stdev_noise(self, chan):
         """Overriden by FixedThresh and DynamicThresh classes"""
         pass
+
+    def us2nt(self, us):
+        """Convert time in us to nearest number of eq'v timepoints in stream"""
+        nt = intround(self.stream.layout.sampfreqperchan * us / 1000000)
+        # prevent rounding nt down to 0. This way, even the smallest
+        # non-zero us will get you at least 1 timepoint
+        if nt == 0 and us != 0:
+            nt = 1
+        return nt
 
 
 class FixedThresh(Detector):
@@ -181,37 +192,51 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
     with fixed temporal lockout on all channels, plus a spatial lockout"""
 
     def search(self):
-        """Searches for spikes. Divides large searches into more managable
-        chunks of (slightly overlapping) multichannel waveform data, and
+        """Search for spikes. Divides large searches into more manageable
+        blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results"""
+        self.nspikes = 0 # reset at the start of every search
 
-        # holds a channel's spike times, passed by assignment to C code
-        # no need for more than one max every other timepoint, can get away with less to save memory if needed
-        self.spiketis = np.zeros(MAXNSPIKETIS, dtype=np.int32)
+        # holds a channel's spike times, passed by assignment to C code.
+        # no need for more than one max every other timepoint, can get away with less to save memory.
+        # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
+        # so uint32 allows us at least 23 hour long recordings, don't think int64 is needed here
+        self.spiketis = np.zeros(MAXNSPIKETIS, dtype=np.uint32)
 
-        # TODO: slightly overlapping chunks of data, use CHUNKSIZE
-        wavetranges = [(self.trange[0], self.trange[0]+5000000)] # hard coding for testing
-        #spikes = {} # dict of arrays of spike times, one entry per chan
-        for (tlo, thi) in wavetranges:
-            wave = self.stream[tlo:thi] # a chunk of multichan data
-            ts = self.searchwave(wave)
-            # TODO: compare to previous chunk in overlap area on a chan by chan basis,
-            #       make sure not to count spikes twice in overlap
-            spikes = ts
+        # generate time ranges for slightly overlapping blocks of data
+        wavetranges = []
+        cutranges = []
+        les = range(self.trange[0], self.trange[1], BLOCKSIZE)  # left edges of data blocks
+        for le in les:
+            wavetranges.append((le-BLOCKEXCESS, le+BLOCKSIZE+BLOCKEXCESS)) # time range of waveform to give to .searchblock
+            cutranges.append((le, le+BLOCKSIZE)) # time range of spikes to keep from those returned by .searchblock
+        # last wavetrange and cutrange surpass self.trange[1], fix that here:
+        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+BLOCKEXCESS)
+        cutranges[-1] = (cutranges[-1][0], self.trange[1])
+
+        spikes = {} # dict of arrays of spike times, one entry per chan
+        for (lo, hi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
+            if self.nspikes < self.maxnspikes:
+                wave = self.stream[lo:hi] # a block (Waveform) of multichan data
+                tsdict = self.searchblock(wave)
+                for chan, ts in tsdict.iteritems(): # iterate over channels
+                    cts = cut(ts, cutrange) # remove excess
+                    try:
+                        spikes[chan] = np.append(spikes[chan], cts)
+                    except KeyError: # on first loop, spikes is an empty dict
+                        spikes[chan] = cts
         return spikes
 
-    def searchwave(self, wave):
-        """Search across all chans in a manageable chunk of waveform
+    def searchblock(self, wave):
+        """Search across all chans in a manageable block of waveform
         data and return a dict of arrays of spike times, one entry per chan"""
         spikes = {}
-        nspikes = 0
         for chan in self.chans:
-            abschan = np.abs(wave[chan])
-            tis = self.searchchan(abschan)
-            spikes[chan] = wave.ts[tis] # spike times in us
-            nspikes += len(tis)
-            if nspikes >= self.maxnspikes: # enforce maxnspikes across all chans
-                break # this doesn't seem to speed things up for some reason
+            if self.nspikes < self.maxnspikes:
+                abschan = np.abs(wave[chan])
+                tis = self.searchchan(abschan)
+                spikes[chan] = wave.ts[tis] # spike times in us
+
         # TODO: apply spatial lockout here
 
         return spikes
@@ -220,40 +245,39 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         """Search a single chan of absval data for thresh xings, apply temporal lockout.
         If this crashes, it might be possible that self.spiketis was init'd too small"""
         nt = len(abschan)
+        nspikes = self.nspikes # total n of spikes found by this Detector
         maxnspikes = self.maxnspikes
         thresh = self.thresh
-        #thresh = float(thresh)
-        tilock = 6 # TODO: = t2ti(self.tlock)
-        assert tilock.__class__ == int
-        assert tilock >= 0 # num of timepoint indices to lock out after a spike
+        tilock = self.us2nt(self.tlock)
         spiketis = self.spiketis # init'd in self.search()
 
         code = r"""
-        #line 230 "detect.py" // (this is only useful for debugging)
+        #line 255 "detect.py" // for debugging
         double last=0.0; // last signal value, uV
-        int nspikes=0;
+        int nnewspikes=0; // num new spikes found in this f'n
         int ti=0; // current time index
         while ( ti<nt && nspikes < maxnspikes ) { // enforce maxnspikes across single chan
-            if (abschan(ti) >= thresh) {
-                while (abschan(ti) > last) { // signal is still increasing
-                    last = abschan(ti);
+            if (abschan(ti) >= thresh) { // if we've exceeded threshold
+                while (abschan(ti) > last) { // while signal is still increasing
+                    last = abschan(ti); // update last
                     ti++; // go to next timepoint
                 }
-                // signal is decreasing, save last timepoint as spike
-                nspikes++;
-                spiketis(nspikes-1) = ti-1;
+                // now signal is decreasing, save last timepoint as spike
+                nspikes++; nnewspikes++;
+                spiketis(nnewspikes-1) = ti-1; // 0-based index into spiketis
                 last = 0.0; // reset for search for next spike
                 ti += tilock; // skip forward one temporal lockout
             }
             else
                 ti++; // no thresh xing, go to next timepoint
         }
-        return_val = nspikes;
+        return_val = nnewspikes;
         """
-        nspikes = weave.inline(code, ['abschan', 'nt', 'maxnspikes', 'thresh', 'tilock', 'spiketis'],
-                               type_converters=weave.converters.blitz,
-                               compiler='gcc')
-        return spiketis[:nspikes]
+        nnewspikes = weave.inline(code, ['abschan', 'nt', 'nspikes', 'maxnspikes', 'thresh', 'tilock', 'spiketis'],
+                                  type_converters=weave.converters.blitz,
+                                  compiler='gcc')
+        self.nspikes += nnewspikes # update
+        return spiketis[:nnewspikes]
 
 
 class MultiPhasic(FixedThresh):
