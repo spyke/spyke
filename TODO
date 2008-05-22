@@ -5,6 +5,8 @@ TODO:
         - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
     - if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
 
+- plot and control thresh level on spike and chart plots
+    - use picker - when a thresh line is picked (within a tolerance of a couple pix), change mouse cursor to hand or vertical sizer, and while button is down, adjust position of thresh lines and value of the manual thresh level in Events tab
 
 - check if y data is being updated as efficiently as possible, want to prevent copying, increase scrolling speed
     - seems alright: mostly just doing line.set_ydata() on each plot call

@@ -245,7 +245,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         """Search a single chan of absval data for thresh xings, apply temporal lockout.
         If this crashes, it might be possible that self.spiketis was init'd too small"""
         nt = len(abschan)
-        nspikes = self.nspikes # total n of spikes found by this Detector
+        nspikes = self.nspikes # total num of spikes found by this Detector so far
         maxnspikes = self.maxnspikes
         thresh = self.thresh
         tilock = self.us2nt(self.tlock)

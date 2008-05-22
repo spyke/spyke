@@ -2,11 +2,12 @@
 Everything is plotted in units of uV and us
 
 NOTE: it now seems best to center on the desired timepoint,
-instead of left justify. The center (peak) of a spike is the interesting part,
-and should therefore be the timestamp. To see equally well on either side of
-that peak, let's center all waveform views on the timestamp, instead of left
-justifying as before. This means we should treat probe siteloc coordinates as the
-centers of the channels, instead of the leftmost point of each channel.
+instead of left justify. The center (midway between first and last phase)
+of a spike is the interesting part, and should therefore be the timestamp.
+To see equally well on either side of that peak, let's center all waveform
+views on the timestamp, instead of left justifying as before. This means
+we should treat probe siteloc coordinates as the centers of the channels,
+instead of the leftmost point of each channel.
 
 TODO: perhaps refactor, keep info about each channel together,
 make a Channel object with .id, .pos, .colour, .line properties,
@@ -27,18 +28,22 @@ rcParams['lines.linestyle'] = '-'
 rcParams['lines.marker'] = ''
 
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from spyke import surf
-from spyke.core import MU
+from spyke.core import MU, intround
 #from spyke.gui.events import *
 
 SPIKELINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
 TREFLINEWIDTH = 0.5
 VREFLINEWIDTH = 0.5
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
+
+DEFUVPERUM = 2
+DEFUSPERUM = 17
 
 DEFAULTCHANCOLOUR = "#00FF00" # garish green
 TREFCOLOUR = "#303030" # dark grey
@@ -62,28 +67,7 @@ BROWN = '#AF5050'
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 
-MICROVOLTSPERMICRON = 2
-MICROSECSPERMICRON = 17 # decreasing this increases horizontal overlap between spike chans
-
-PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
-
-def um2uv(um):
-    """Vertical conversion from um in channel siteloc
-    space to uV in signal space"""
-    return MICROVOLTSPERMICRON * um
-
-def uv2um(uV):
-    """Convert from uV to um"""
-    return uV / MICROVOLTSPERMICRON
-
-def um2us(um):
-    """Horizontal conversion from um in channel siteloc
-    space to us in signal space"""
-    return MICROSECSPERMICRON * um
-
-def us2um(us):
-    """Convert from us to um"""
-    return us / MICROSECSPERMICRON
+#PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 
 class SpykeLine(Line2D):
@@ -104,6 +88,12 @@ class SpykeLine(Line2D):
 class PlotPanel(FigureCanvasWxAgg):
     """A wx.Panel with an embedded mpl figure.
     Base class for specific types of plot panels"""
+
+    # not necessarily constants
+    uVperum = DEFUVPERUM
+    usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
+                            # 17 gives roughly no horizontal overlap for self.tw == 1000 us
+
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._ready = False
@@ -112,8 +102,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
         self.cw = cw # time width of caret, in plot units
 
-        self.pos = {} # position of lines
-        self.channels = {} # y-data for each plotted channel
+        self.pos = {} # positions of line centers, in plot units (us, uV)
         self.nchans = stream.probe.nchans
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
@@ -138,6 +127,8 @@ class PlotPanel(FigureCanvasWxAgg):
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
+        #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
+        self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
@@ -156,8 +147,8 @@ class PlotPanel(FigureCanvasWxAgg):
         for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
             self.add_ref(ref)
 
-        self.lines = {}
-        self.ax._autoscaleon = False
+        self.lines = {} # line to chan mapping
+        self.ax._autoscaleon = False # TODO: not sure if this is necessary
         for chan, (xpos, ypos) in self.pos.iteritems():
             line = SpykeLine(wave.ts - tref + xpos,
                              wave[chan] + ypos,
@@ -168,8 +159,6 @@ class PlotPanel(FigureCanvasWxAgg):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.ax.add_line(line)
-
-            self.channels[chan] = line
 
         self.ax._visible = True
         self._ready = True
@@ -200,6 +189,13 @@ class PlotPanel(FigureCanvasWxAgg):
             self.vlines.append(vline)
             self.ax.add_line(vline)
 
+    def _update_tref(self):
+        """Update positions of vertical time reference line(s)"""
+        cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
+        ylims = self.ax.get_ylim()
+        for col, vline in zip(cols, self.vlines):
+            vline.set_data([col, col], ylims)
+
     def _add_vref(self):
         """Add horizontal voltage reference lines"""
         self.hlines = []
@@ -213,9 +209,13 @@ class PlotPanel(FigureCanvasWxAgg):
             self.hlines.append(hline)
             self.ax.add_line(hline)
 
+    def _update_vref(self):
+        """Update positions of horizontal voltage reference lines"""
+        for (xpos, ypos), hline in zip(self.pos.itervalues(), self.hlines):
+            hline.set_data([xpos-self.tw/2, xpos+self.tw/2], [ypos, ypos])
+
     def _add_caret(self):
-        """Add a shaded rectangle to represent the
-        time window shown in the spike frame"""
+        """Add a shaded rectangle to represent the time window shown in the spike frame"""
         ylim = self.ax.get_ylim()
         xy = (-self.cw/2, ylim[0]) # bottom left coord of rectangle
         width = self.cw
@@ -227,6 +227,15 @@ class PlotPanel(FigureCanvasWxAgg):
                                visible=False)
         self.ax.add_patch(self.caret)
 
+    def _update_caret_width(self):
+        """Update caret"""
+        #ylim = self.ax.get_ylim()
+        # bottom left coord of rectangle
+        self.caret.set_x(-self.cw/2)
+        #self.caret.set_y(ylim[0])
+        self.caret.set_width(self.cw)
+        #self.caret.set_height(ylim[1] - ylim[0])
+
     def show_ref(self, ref, enable=True):
         if ref == 'tref':
             self._show_tref(enable)
@@ -234,8 +243,8 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_vref(enable)
         elif ref == 'caret':
             self._show_caret(enable)
-        # redraw the display
         self.draw(True)
+        #self.Refresh() # possibly faster, but adds flicker
 
     def _show_tref(self, enable):
         for vline in self.vlines:
@@ -275,9 +284,9 @@ class PlotPanel(FigureCanvasWxAgg):
         """Find channel that's closest to the (xdata, ydata) point.
         Convert x and y values to um, take sum(sqrd) distance between (xdata, ydata)
         and all site positions, find the argmin, and that's your nearest channel"""
-        xdata_um = us2um(xdata)
-        ydata_um = uv2um(ydata)
-        xychans_um = [ (us2um(x), uv2um(y), chan) for chan, (x, y) in self.pos.items() ]
+        xdata_um = self.us2um(xdata)
+        ydata_um = self.uv2um(ydata)
+        xychans_um = [ (self.us2um(x), self.uv2um(y), chan) for chan, (x, y) in self.pos.items() ]
         # sum of squared distances, no need to bother sqare-rooting them
         d2 = np.asarray([ (x_um-xdata_um)**2 + (y_um-ydata_um)**2 for (x_um, y_um, chan) in xychans_um ])
         i = d2.argmin() # find index of smallest squared distance
@@ -293,29 +302,58 @@ class PlotPanel(FigureCanvasWxAgg):
         # check if we've set up our axes yet
         if not self._ready: # TODO: does this really need to be checked on every single plot call?
             self.init_plot(wave, tref)
-        # check if xvals have changed, this will normally only happen near extrema of .srf file
-        chan, line = self.lines.iteritems().next() # random line
-        xpos = self.pos[chan][0]
-        xvals = line.get_xdata() - xpos # remove x position offset, so now we're in normal us units
-        updatexvals = (xvals[0],  xvals[-1]) != (wave.ts[0]-tref, wave.ts[-1]-tref) # do xval endpoints differ?
-        # update plots with new yvals, and possibly new xvals as well
+        # update plots with new x and y vals
         for chan, line in self.lines.iteritems():
             xpos, ypos = self.pos[chan]
-            if updatexvals:
-                # update the line's x values (or really, the number of x values, their position shouldn't change in space)
-                line.set_xdata(wave.ts - tref + xpos)
-            line.set_ydata(wave[chan]*self.vzoom + ypos) # update the line's y values
-            line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
+            xdata = wave.ts - tref + xpos
+            ydata = wave[chan]*self.gain + ypos
+            line.set_data(xdata, ydata) # update the line's x and y data
+            #line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
         self.ax._visible = True
         self.draw(True)
+        #self.Refresh() # possibly faster, but adds a lot of flicker
+
+    def _zoomx(self, x):
+        """Zoom x axis by factor x"""
+        self.tw /= x
+        self.usperum /= x
+        self.do_layout() # resets axes lims and recalcs self.pos
+        self._update_tref()
+        self._update_vref()
+        self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
+
+    def post_motion_notify_event(self):
+        """Posts a motion_notify_event to mpl's event queue"""
+        x, y = wx.GetMousePosition() - self.GetScreenPosition() # get mouse pos relative to this window
+        # now just mimic what mpl FigureCanvasWx._onMotion does
+        y = self.figure.bbox.height - y
+        FigureCanvasBase.motion_notify_event(self, x, y, guiEvent=None) # no wx event to pass as guiEvent
+
+    def um2uv(self, um):
+        """Vertical conversion from um in channel siteloc
+        space to uV in signal space"""
+        return self.uVperum * um
+
+    def uv2um(self, uV):
+        """Convert from uV to um"""
+        return uV / self.uVperum
+
+    def um2us(self, um):
+        """Horizontal conversion from um in channel siteloc
+        space to us in signal space"""
+        return self.usperum * um
+
+    def us2um(self, us):
+        """Convert from us to um"""
+        return us / self.usperum
 
     def OnButtonPress(self, event):
         """Seek to timepoint as represented on chan closest to mouse click"""
         chan = self.get_closestchan(event.xdata, event.ydata)
         xpos = self.pos[chan][0]
-        t = event.xdata - xpos + self.tref
-        # call parent frame's seek method, which then calls main frame's seek method
-        self.Parent.seek(t)
+        t = event.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
+        # call main spyke frame's seek method
+        self.GrandParent.seek(t)
     '''
     def OnPick(self, event):
         """Good for figuring out which line has just been clicked on,
@@ -335,7 +373,10 @@ class PlotPanel(FigureCanvasWxAgg):
             xpos = self.pos[chan][0]
             t = event.xdata - xpos + self.tref
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
-                tip = 'ch%d\nt=%d %s' % (chan, t, MU+'s')
+                t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
+                tip = 'ch%d\n' % chan + \
+                      't=%d %s\n' % (t, MU+'s') + \
+                      'width=%.3f ms' % (self.tw/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
             else: # out of bounds
@@ -343,28 +384,94 @@ class PlotPanel(FigureCanvasWxAgg):
         else:
             tooltip.Enable(False)
 
+    def OnMouseWheel(self, event):
+        """Zoom horizontally on CTRL+mouse wheel scroll"""
+        if event.ControlDown():
+            #lines = event.GetWheelRotation() / event.GetWheelDelta() # +ve or -ve num lines to scroll
+            #x = 1.1**lines # transform -ve line to 0<x<1, and +ve line to 1<x<inf
+            #self._zoomx(x)
+            sign = np.sign(event.GetWheelRotation())
+            self._zoomx(1.5**sign)
+
+class SpikePanel(PlotPanel):
+    """Spike panel. Presents a narrow temporal window of all channels
+    layed out according to self.siteloc"""
+    def __init__(self, *args, **kwargs):
+        PlotPanel.__init__(self, *args, **kwargs)
+        self.gain = 1.5
+
+    def do_layout(self):
+        self.hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
+        self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
+        #print 'horizontal ordered chans in Spikepanel:\n%r' % self.hchans
+        self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) - self.tw/2,
+                         self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw/2) # x origin at center
+        self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
+                         self.um2uv(self.siteloc[self.vchans[-1]][1]) + CHANVBORDER)
+        colourgen = itertools.cycle(iter(COLOURS))
+        for chan in self.vchans:
+            # chan order doesn't matter for setting .pos, but it does for setting .colours
+            self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
+                              self.um2uv(self.siteloc[chan][1]))
+            self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
+
+    def _zoomx(self, x):
+        """Zoom x axis by factor x"""
+        PlotPanel._zoomx(self, x)
+        # update main spyke frame so its plot calls send the right amount of data
+        self.GrandParent.spiketw = self.tw
+        self.GrandParent.frames['chart'].panel.cw = self.tw
+        self.GrandParent.frames['chart'].panel._update_caret_width()
+        self.GrandParent.plot(frametypes='spike') # replot
+
+    def _add_caret(self):
+        """Disable for SpikePanel"""
+        pass
+
+    def _update_caret_width(self):
+        """Disable for SpikePanel"""
+        pass
+
+    def _show_caret(self, enable):
+        """Disable for SpikePanel"""
+        pass
+
 
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
     to the vertical order of their site coords in .siteloc"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
-        self.vzoom = 1
+        self.gain = 1
 
     def do_layout(self):
-        vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
+        """Sets axes limits and calculates self.pos"""
+        self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
         self.ax.set_xlim(0 - self.tw/2, 0 + self.tw/2) # x origin at center
-        miny = um2uv(self.siteloc[vchans[0]][1])
-        maxy = um2uv(self.siteloc[vchans[-1]][1])
+        miny = self.um2uv(self.siteloc[self.vchans[0]][1])
+        maxy = self.um2uv(self.siteloc[self.vchans[-1]][1])
         vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
         colourgen = itertools.cycle(iter(COLOURS))
-        for chani, chan in enumerate(vchans):
-            #self.pos[chan] = (0, um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
+        for chani, chan in enumerate(self.vchans):
+            #self.pos[chan] = (0, self.um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
             self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
 
+    def _zoomx(self, x):
+        """Zoom x axis by factor x"""
+        PlotPanel._zoomx(self, x)
+        # update main spyke frame so its plot calls send the right amount of data
+        self.GrandParent.charttw = self.tw
+        self.GrandParent.frames['lfp'].panel.cw = self.tw
+        self.GrandParent.frames['lfp'].panel._update_caret_width()
+        self.GrandParent.plot(frametypes='chart') # replot
+
     def _add_vref(self):
+        """Disable for ChartPanel"""
+        pass
+
+    def _update_vref(self):
         """Disable for ChartPanel"""
         pass
 
@@ -372,12 +479,18 @@ class ChartPanel(PlotPanel):
         """Disable for ChartPanel"""
         pass
 
+    def _update_caret_width(self):
+        """Set optimal paint method"""
+        PlotPanel._update_caret_width(self)
+        #self.draw(True) # can be quite slow
+        self.Refresh() # can be faster, but adds flicker
+
 
 class LFPPanel(ChartPanel):
     """LFP Panel"""
     def __init__(self, *args, **kwargs):
         ChartPanel.__init__(self, *args, **kwargs)
-        self.vzoom = 1
+        self.gain = 1.5
 
     def do_layout(self):
         ChartPanel.do_layout(self)
@@ -387,42 +500,30 @@ class LFPPanel(ChartPanel):
             if chan not in self.stream.layout.chanlist:
                 del self.pos[chan] # remove siteloc channels that don't exist in the lowpassmultichan record
 
+    def _zoomx(self, x):
+        """Zoom x axis by factor x"""
+        PlotPanel._zoomx(self, x)
+        # update main spyke frame so its plot calls send the right amount of data
+        self.GrandParent.lfptw = self.tw
+        self.GrandParent.plot(frametypes='lfp') # replot
+
     def _add_vref(self):
+        """Override ChartPanel"""
         PlotPanel._add_vref(self)
 
+    def _update_vref(self):
+        """Override ChartPanel"""
+        PlotPanel._update_vref(self)
+
     def _show_vref(self, enable):
+        """Override ChartPanel"""
         PlotPanel._show_vref(self, enable)
 
-
-class SpikePanel(PlotPanel):
-    """Spike panel. Presents a narrow temporal window of all channels
-    layed out according to self.siteloc"""
-    def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
-        self.vzoom = 1.5
-
-    def do_layout(self):
-        hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
-        vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
-        #print 'horizontal ordered chans in Spikepanel:\n%r' % hchans
-        self.ax.set_xlim(um2us(self.siteloc[hchans[0]][0]) - self.tw/2,
-                         um2us(self.siteloc[hchans[-1]][0]) + self.tw/2) # x origin at center
-        self.ax.set_ylim(um2uv(self.siteloc[vchans[0]][1]) - CHANVBORDER,
-                         um2uv(self.siteloc[vchans[-1]][1]) + CHANVBORDER)
-        colourgen = itertools.cycle(iter(COLOURS))
-        for chan in vchans:
-            # chan order doesn't matter for setting .pos, but it does for setting .colours
-            self.pos[chan] = (um2us(self.siteloc[chan][0]),
-                              um2uv(self.siteloc[chan][1]))
-            self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
-
-    def _add_caret(self):
-        """Disable for SpikePanel"""
-        pass
-
-    def _show_caret(self, enable):
-        """Disable for SpikePanel"""
-        pass
+    def _update_caret_width(self):
+        """Set optimal paint method"""
+        PlotPanel._update_caret_width(self)
+        self.draw(True)
+        #self.Refresh() # possibly faster, but adds a lot of flicker
 
 
 class SortPanel(SpikePanel):

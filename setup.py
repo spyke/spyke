@@ -6,8 +6,8 @@ import os
 setup(name = 'spyke',
       #version = '',
       description = 'Multichannel spike viewer and sorter for Swindale Lab .srf files',
-      #author = '',
+      author = 'Martin Spacek, Reza Lotun',
       #author_email = '',
       #url = '',
       #long_description = '',
-      packages = ['spyke'])
+      packages = ['spyke', 'spyke.gui', 'spyke.gui.res'])

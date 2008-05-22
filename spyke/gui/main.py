@@ -12,11 +12,15 @@ import time
 
 import spyke
 from spyke import core, surf
-from spyke.core import toiter, MU
+from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
 
-PIXPERCHAN = 80 # horizontally
+DEFSPIKETW = 1000 # spike frame temporal window width (us)
+DEFCHARTTW = 50000 # chart frame temporal window width (us)
+DEFLFPTW = 1000000 # lfp frame temporal window width (us)
+
+SPIKEFRAMEPIXPERCHAN = 80 # horizontally
 SPIKEFRAMEHEIGHT = 700
 CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
 LFPFRAMESIZE   = (250, SPIKEFRAMEHEIGHT)
@@ -41,9 +45,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.surffname = ""
         self.sortfname = ""
         self.frames = {} # holds spike, chart, and lfp frames
-        self.spiketw = 1000 # spike frame temporal window width (us)
-        self.charttw = 50000 # chart frame temporal window width (us)
-        self.lfptw = 1000000 # lfp frame temporal window width (us)
+        self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
+        self.charttw = DEFCHARTTW # chart frame temporal window width (us)
+        self.lfptw = DEFLFPTW # lfp frame temporal window width (us)
         self.t = None # current time position in recording (us)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
@@ -184,8 +188,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.Raise() # doesn't seem to bring self to foreground
         #wx.GetApp().SetTopWindow(self) # neither does this
 
-        self.range = (self.hpstream.t0 + self.spiketw/2,
-                      self.hpstream.tend - self.spiketw/2) # us
+        self.range = (self.hpstream.t0, self.hpstream.tend) # us
         self.file_spin_ctrl.SetRange(self.range[0], self.range[1])
         self.file_spin_ctrl.SetValue(self.t)
         self.file_min_label.SetLabel(str(self.hpstream.t0))
@@ -207,6 +210,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError:
             pass
         self.t = None
+        self.spiketw = DEFSPIKETW # reset
+        self.charttw = DEFCHARTTW
+        self.lfptw = DEFLFPTW
         self.SetTitle("spyke") # update caption
         self.EnableSurfWidgets(False)
 
@@ -219,7 +225,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = SpikeFrame(parent=self, stream=self.hpstream,
                                    tw=self.spiketw,
-                                   pos=wx.Point(x, y), size=(ncols*PIXPERCHAN, SPIKEFRAMEHEIGHT))
+                                   pos=wx.Point(x, y), size=(ncols*SPIKEFRAMEPIXPERCHAN, SPIKEFRAMEHEIGHT))
             elif frametype == 'chart':
                 x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0]
                 y = self.GetPosition()[1] + self.GetSize()[1]
@@ -279,11 +285,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_TREF, enable)
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
+        self.menubar.Enable(wx.ID_CARET, enable)
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
-        self.file_control_panel.Enable(enable)
-        self.notebook.Enable(enable)
+        #self.file_control_panel.Enable(enable)
+        self.file_control_panel.Show(enable)
+        #self.notebook.Enable(enable)
+        self.notebook.Show(enable)
+        #self.file_min_label.Enable(enable)
+        #self.file_max_label.Enable(enable)
+        self.file_min_label.Show(enable)
+        self.file_max_label.Show(enable)
 
     def seek(self, offset=0, relative=False):
         """Seek to position in surf file. offset is time in us. relative determines
@@ -294,9 +307,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.t = self.t + offset
         else:
             self.t = offset
+        self.t = intround(self.t / self.hpstream.tres) * self.hpstream.tres # round to nearest (possibly interpolated) sample
         self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
         # only plot if t has actually changed, though this doesn't seem to improve
-        # performance, maybe mpl is already doing something like this
+        # performance, maybe mpl is already doing something like this?
         if self.t != self.oldt:
             # update controls first so they don't lag
             self.file_spin_ctrl.SetValue(self.t) # update file spin ctrl
@@ -376,9 +390,6 @@ class DataFrame(wx.MiniFrame):
     def OnClose(self, event):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
-
-    def seek(self, *args, **kwargs):
-        self.Parent.seek(*args, **kwargs)
 
 
 class SpikeFrame(DataFrame):

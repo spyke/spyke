@@ -8,3 +8,5 @@ det = BipolarAmplitudeFixedThresh(stream=s)
 
 det.trange = (0, 1500000)
 spikes = det.search()
+
+# TODO: explicitly test detection of spikes that cross block boundaries
