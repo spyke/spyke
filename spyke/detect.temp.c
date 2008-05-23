@@ -13,7 +13,7 @@
                 nnewspikes++;
                 spiketis(nnewspikes-1) = ti-1; // 0-based index into spiketis
                 last = 0.0; // reset for search for next spike
-                ti += tilock; // skip forward one temporal lockout
+                ti += tilock+1; // skip forward one temporal lockout, and go to next timepoint
             }
             else
                 ti++; // no thresh xing, go to next timepoint

@@ -259,7 +259,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         spiketis = self.spiketis # init'd in self.search()
 
         code = r"""
-        #line 254 "detect.py" // for debugging
+        #line 262 "detect.py" // for debugging
         int nnewspikes=0; // num new spikes found in this f'n
         int ti=0; // current time index
         int chan=0; // current chan index
@@ -323,9 +323,8 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
                 abschan = np.abs(wave[chan])
                 tis = self.searchchan(abschan)
                 spikes[chan] = wave.ts[tis] # spike times in us
-
-        # TODO: apply spatial lockout here
-
+        # TODO: apply spatial lockout here. Would have to iterate over all
+        # timepoints again, which would be slow
         return spikes
 
     def searchchan(self, abschan):
@@ -339,7 +338,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         spiketis = self.spiketis # init'd in self.search()
 
         code = r"""
-        #line 321 "detect.py" // for debugging
+        #line 341 "detect.py" // for debugging
         double last=0.0; // last signal value, uV
         int nnewspikes=0; // num new spikes found in this f'n
         int ti=0; // current time index
@@ -354,7 +353,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
                 nnewspikes++;
                 spiketis(nnewspikes-1) = ti-1; // 0-based index into spiketis
                 last = 0.0; // reset for search for next spike
-                ti += tilock; // skip forward one temporal lockout
+                ti += tilock+1; // skip forward one temporal lockout, and go to next timepoint
             }
             else
                 ti++; // no thresh xing, go to next timepoint
