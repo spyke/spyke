@@ -1,3 +1,5 @@
+import time
+
 refresh('spyke')
 from spyke.detect import BipolarAmplitudeFixedThresh
 
@@ -6,7 +8,11 @@ f.parse()
 s = spyke.core.Stream(ctsrecords=f.highpassrecords)
 det = BipolarAmplitudeFixedThresh(stream=s)
 
-det.trange = (0, 1500000)
+det.trange = (0, 10000000)
+
+t0 = time.clock()
 spikes = det.search()
+t1 = time.clock()
+print t1-t0, 'sec'
 
 # TODO: explicitly test detection of spikes that cross block boundaries
