@@ -11,7 +11,7 @@ det = BipolarAmplitudeFixedThresh(stream=s)
 det.trange = (0, 10000000)
 
 t0 = time.clock()
-spikes = det.search()
+spikes = det.search(method='all')
 t1 = time.clock()
 print t1-t0, 'sec'
 

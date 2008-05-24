@@ -21,33 +21,31 @@
         return_val = nnewspikes;
 
 
-        #line 254 "detect.py" // for debugging
+        #line 269 "detect.py" // for debugging
         int nnewspikes=0; // num new spikes found in this f'n
         int ti=0; // current time index
         int chan=0; // current chan index
         int spikei=0; // current spike index for current chan
-        double v; // current signal voltage, uV
-        for ( ti=0; ti<nt && totalnspikes<maxnspikes; ti++ ) {
-            // chan loop should go in random order, not numerical, to prevent a chan from
+        double v; // current signal voltage, uV (Python float), using a pointer doesn't seem faster
+        for ( ti=0; ti<nt; ti++ ) { // iterate over all timepoints
+            // TODO: chan loop should go in random order, not numerical, to prevent a chan from
             // dominating with its spatial lockout. Also, there might be missing channels
-            for ( chan=0; chan<nchans; chan++ ) {
+            for ( chan=0; chan<nchans; chan++ ) { // iterate over all chans
                 if ( lock(chan) > 0 ) // if this chan is still locked out
                     lock(chan)--; // decr this chan's temporal lockout
                 else { // search for a thresh xing or a peak
-                    v = absdata(chan, ti); // TODO: v should be a pointer to prevent this copy operation?
+                    v = absdata(chan, ti);
                     if ( xthresh(chan) == 0 ) { // we're looking for a thresh xing
-                        if ( v >= thresh && xthresh(chan) == 0 ) { // met or exceeded threshold and
-                                                                   // xthresh flag hasn't been set yet
-                                                                   // TODO: check if >= is slower than >
+                        if ( v >= thresh ) { // met or exceeded threshold
                             xthresh(chan) = 1; // set crossed threshold flag for this chan
                             last(chan) = v; // update last value for this chan, have to wait til
-                                            // next ti to decide if this is a peak
+                                             // next ti to decide if this is a peak
                         }
                     }
-                    else { // we've found a thresh xing, now we're look for a peak
+                    else { // xthresh(chan)==1, in crossed thresh state, now we're look for a peak
                         if ( v > last(chan) ) // if signal is still increasing
                             last(chan) = v; // update last value for this chan, have to wait til
-                                            // next ti to decide if this is a peak
+                                             // next ti to decide if this is a peak
                         else { // signal is decreasing, save previous ti as spike
                             spikei = nspikes(chan)++; // 0-based spike index. assign, then increment
                             totalnspikes++;
@@ -58,6 +56,10 @@
                             lock(chan) = tilock; // apply temporal lockout for this chan
                             //lock(chan and nearby chans) = tilock; // set temporal lockout for this chan and all chans
                                                                   // within slock distance of it
+                            if ( totalnspikes >= maxnspikes ) {
+                                return_val = nnewspikes;
+                                return return_val; // exit here, don't search any more timepoints
+                            }
                         }
                     }
                 }
