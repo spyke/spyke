@@ -245,7 +245,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
             if self.totalnspikes < self.maxnspikes:
                 tslice = time.clock()
                 # TODO: if data hasn't been loaded, stream slicing is by _far_ the slowest step. If it has been loaded,
-                # stream slicing still takes 50% of the block loop time
+                # stream slicing still takes at least 50% of the block loop time
                 wave = self.stream[lo:hi] # a block (Waveform) of multichan data.
                 print 'stream slice took %.3f sec' % (time.clock()-tslice)
                 tsearch = time.clock()
@@ -282,9 +282,12 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         """
         chans = np.asarray(self.chans)
         nchans = len(self.chans)
-        ttake = time.clock()
-        data = wave.data.take(chans, axis=0) # pull our chans of data out, this assumes wave.data has all possible chans in it
-        print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
+        if self.chans != range(nchans): # if self.chans is non contiguous
+            ttake = time.clock()
+            data = wave.data.take(chans, axis=0) # pull our chans of data out, this assumes wave.data has all possible chans in it
+            print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
+        else: # avoid an unnecessary .take to save time
+            data = wave.data
         tabs = time.clock()
         absdata = np.abs(data) # TODO: this step takes about .03 or .04 sec for 1 sec data, which is almost as
                                # slow as the whole C loop, try doing it in C instead
