@@ -1,6 +1,14 @@
         #line 295 "detect.py" // for debugging
         int spikei, maxchanii, maxchani, chanj;
         double v; // current signal voltage, uV (Python float), using a pointer doesn't seem faster
+
+        for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoints
+            for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over indices into chans and data
+                if ( absdata(chanii, ti) < 0 )
+                    absdata(chanii, ti) *= -1; // this is very dangerous - unless we do a copy in python, we'll be overwriting actual data
+            }
+        }
+
         for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoints
             // TODO: chan loop should go in random order on each ti, to prevent a chan from
             // dominating with its spatial lockout or something like that

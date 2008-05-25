@@ -28,7 +28,7 @@ class WaveForm(object):
     def __getitem__(self, key):
         """Make waveform data directly indexable by channel id.
         Maybe this is where data should be interpolated?"""
-        return self.data[self.chan2i[key]]
+        return self.data[self.chan2i[key]] # TODO: should probably use .take here
 
     def __len__(self):
         """Number of data points in time"""
@@ -77,6 +77,8 @@ class Stream(object):
 
         # for now, accept only slice objects as keys
         assert key.__class__ == slice
+        if key.step != None:
+            raise ValueError, "sorry, can't handle steps in slice"
 
         # Find the first and last records corresponding to the slice. If the start of the slice
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
@@ -110,8 +112,10 @@ class Stream(object):
             #del record.waveform # save memory by unloading waveform data from records that aren't needed anymore
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([key.start, key.stop])
-        data = data[:, lo:hi+endinclusive]
+        data = data[:, lo:hi+endinclusive] # TODO: is this the slowest step? use .take instead?
+        #data = data.take(np.arange(lo, hi+endinclusive), axis=1) # doesn't seem to help performance
         ts = ts[lo:hi+endinclusive]
+        #ts = ts.take(np.arange(lo, hi+endinclusive)) # doesn't seem to help performance
 
         # interp and s+h correct here
         data, ts = self.interp(data, ts, self.sampfreq)
@@ -119,7 +123,9 @@ class Stream(object):
         # transform AD values to uV
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
-        data = self.ADVal_to_uV(data, intgain, extgain)
+        data = self.ADVal_to_uV(data, intgain, extgain) # TODO: maybe this step is quite slow. consider a kwarg like 'floatdata' to
+                                                        # explicitly specify that you want to convert to float uV. If left as int,
+                                                        # would still need to subtract 2048
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)

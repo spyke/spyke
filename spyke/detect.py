@@ -12,6 +12,9 @@ TODO: for speed (esp comparing signal to thresh), consider converting all uV dat
       from 64bit float to 16 bit integer (actually, just keep it as 16 bit to begin
       with)
 
+TODO: check if python's cygwincompiler.py module has been updated to deal with
+      extra version fields in latest mingw
+
 DONE: Might need to use scipy.weave or some other low-level code
       (cython?) to make these algorithms fast enough, while allowing you to
       step through one timepoint at a time, which numpy might not let you do
@@ -221,7 +224,6 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
         # so uint32 allows us at least 23 hour long recordings, don't think int64 is needed here
         self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=np.uint32) # row0: chanii, row1: ti
-        print 'init .spiketis took %.3f sec' % (time.clock()-t0)
         self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should be
 
         # generate time ranges for slightly overlapping blocks of data
@@ -239,13 +241,24 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
 
         spikeslist = [] # list of 2D spike arrays returned by searchblock, one array per block
         for (lo, hi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
+            tblock = time.clock()
             if self.totalnspikes < self.maxnspikes:
-                wave = self.stream[lo:hi] # a block (Waveform) of multichan data
+                tslice = time.clock()
+                # TODO: if data hasn't been loaded, stream slicing is by _far_ the slowest step. If it has been loaded,
+                # stream slicing still takes 50% of the block loop time
+                wave = self.stream[lo:hi] # a block (Waveform) of multichan data.
+                print 'stream slice took %.3f sec' % (time.clock()-tslice)
+                tsearch = time.clock()
                 maxchans, spiketimes = self.searchblock(wave)
+                tcut = time.clock()
                 cutspiketimes = cut(spiketimes, cutrange) # remove excess
+                print 'cut took %.3f sec' % (time.clock()-tcut)
+                tappendarray = time.clock()
                 # TODO: remove any spikes that happen right at the last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
                 spikeslist.append(np.asarray([maxchans, cutspiketimes]))
+                print 'convert to array and append took %.3f sec' % (time.clock()-tappendarray)
+            print 'block loop took %.3f sec' % (time.clock()-tblock)
 
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
 
@@ -258,10 +271,24 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
 
         DONE: implement channel(s) specific searches, ie make use of self.chans"""
         t0 = time.clock()
-        absdata = np.abs(wave.data[self.chans]) # pull our chans of data out, this assumes wave.data has all possible chans in it
-        print 'abs took %.3f sec' % (time.clock()-t0)
+        """
+        TODO: use .take instead of direct indexing in wave.data. Also, do a check if
+              self.chans == range(nchans), and if so, don't bother taking, ~ doubles speed of .searchblock
+        TODO: is there an abs f'n in C I can use? what's the most optimized way of taking abs?
+        TODO: try creating xthresh, last, and lock within C loop, to reduce number of vars and amount of
+              data that blitz needs to convert. Tried this before, but wasn't specifically measuring C loop speed
+              Also, should retry many of the optimizations, now that I'm directly measuring C loop speed:
+                - use absdata(chanii, ti) everywhere instead of copying to v
+        """
         chans = np.asarray(self.chans)
         nchans = len(self.chans)
+        ttake = time.clock()
+        data = wave.data.take(chans, axis=0) # pull our chans of data out, this assumes wave.data has all possible chans in it
+        print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
+        tabs = time.clock()
+        absdata = np.abs(data) # TODO: this step takes about .03 or .04 sec for 1 sec data, which is almost as
+                               # slow as the whole C loop, try doing it in C instead
+        print 'abs took %.3f sec' % (time.clock()-tabs)
         nt = wave.data.shape[1]
         totalnspikes = self.totalnspikes # total num of spikes found so far in this Detector.search()
         maxnspikes = self.maxnspikes
@@ -290,6 +317,19 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
               ignore any tlock you may have had on that chan in the past. Maybe that means
               having to change how tlock is implemented
         """
+
+        """
+        abs f'n in C:
+
+                for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoints
+                    for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over indices into chans and data
+                        if ( absdata(chanii, ti) < 0 )
+                            absdata(chanii, ti) *= -1; // this is very dangerous - unless we do a copy in python, we'll be overwriting actual data
+                    }
+                }
+
+        """
+
 
         code = r"""
         #line 295 "detect.py" // for debugging
@@ -351,7 +391,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         return_val = totalnspikes;
         """
         tCloop = time.clock()
-        totalnspikes = weave.inline(code, ['absdata', 'chans', 'nchans', 'nt',
+        totalnspikes = weave.inline(code, ['chans', 'nchans', 'absdata', 'nt',
                                            'totalnspikes', 'maxnspikes',
                                            'thresh', 'xthresh', 'last', 'lock',
                                            'tilock', 'slock', 'dm', 'spiketis'],
@@ -364,7 +404,6 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         maxchaniis = spiketis[0] # chanii that each spike occurred on
         maxchans = np.asarray(self.chans)[maxchaniis] # convert from indices to actual chan ids
         spiketimes = wave.ts[spiketis[1]] # convert from indices to actual spike times, wave.ts is int64 array
-        print 'inside .searchblock() took %.3f sec' % (time.clock()-t0)
         return (maxchans, spiketimes)
 
     def searchblock_indepchans(self, wave):
