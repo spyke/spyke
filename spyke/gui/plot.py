@@ -67,6 +67,7 @@ BROWN = '#AF5050'
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 
+PICKRADIUS = 15
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 
@@ -103,6 +104,8 @@ class PlotPanel(FigureCanvasWxAgg):
         self.cw = cw # time width of caret, in plot units
 
         self.pos = {} # positions of line centers, in plot units (us, uV)
+        self.chans = stream.probe.SiteLoc.keys()
+        self.chans.sort() # a sorted list of chans, keeps us from having to do this over and over
         self.nchans = stream.probe.nchans
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
@@ -117,7 +120,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for key, (x, y) in siteloc.items():
             y = maxy - y
             siteloc[key] = (x, y) # update
-        self.siteloc = siteloc
+        self.siteloc = siteloc # bottom origin
 
         tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
         tooltip.Enable(False) # leave disabled for now
@@ -139,7 +142,12 @@ class PlotPanel(FigureCanvasWxAgg):
                                        axisbg=BACKGROUNDCOLOUR,
                                        frameon=False,
                                        alpha=1.)
-        self.do_layout() # defined by subclasses
+        self.do_layout() # defined by subclasses, sets self.pos
+
+        self.xy_um = self.get_xy_um()
+        x = self.xy_um[0]
+        self.colxs = np.asarray(list(set(x))) # unique x values that demarcate columns
+        self.colxs.sort() # guarantee they're in order from left to right
 
         self.ax._visible = False
         self.ax.set_axis_off() # turn off the x and y axis
@@ -151,11 +159,12 @@ class PlotPanel(FigureCanvasWxAgg):
         self.ax._autoscaleon = False # TODO: not sure if this is necessary
         for chan, (xpos, ypos) in self.pos.iteritems():
             line = SpykeLine(wave.ts - tref + xpos,
-                             wave[chan] + ypos,
+                             wave[chan]*self.gain + ypos,
                              linewidth=SPIKELINEWIDTH,
                              color=self.colours[chan],
                              antialiased=True)
             line.chan = chan
+            line.set_pickradius(PICKRADIUS)
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.ax.add_line(line)
@@ -280,18 +289,71 @@ class PlotPanel(FigureCanvasWxAgg):
             raise ValueError
         return chans
 
-    def get_closestchan(self, xdata, ydata):
-        """Find channel that's closest to the (xdata, ydata) point.
-        Convert x and y values to um, take sum(sqrd) distance between (xdata, ydata)
-        and all site positions, find the argmin, and that's your nearest channel"""
-        xdata_um = self.us2um(xdata)
-        ydata_um = self.uv2um(ydata)
-        xychans_um = [ (self.us2um(x), self.uv2um(y), chan) for chan, (x, y) in self.pos.items() ]
-        # sum of squared distances, no need to bother sqare-rooting them
-        d2 = np.asarray([ (x_um-xdata_um)**2 + (y_um-ydata_um)**2 for (x_um, y_um, chan) in xychans_um ])
-        i = d2.argmin() # find index of smallest squared distance
-        chan = xychans_um[i][2] # pull out the channel
-        return chan
+    def get_xy_um(self):
+        """Pull xy tuples in um out of self.pos, store in (2 x nchans) array,
+        in self.chans order. Not the same as siteloc for chart and lfp frames,
+        which have only a single column"""
+        xy_um = np.asarray([ (self.us2um(self.pos[chan][0]), self.uv2um(self.pos[chan][1]))
+                                  for chan in self.chans ]).T # x is row0, y is row1
+        return xy_um
+    '''
+    def get_spatial_chan_array(self):
+        """build up 2d array of chanis, with cols and rows sorted according to probe layout"""
+        x, y = self.xy_um # in self.chans order
+        # should correspond to unique columns in spike frame, or just single column in chart or lfp frame
+        a = []
+        uniquexs = set(x)
+        for uniquex in uniquexs:
+            x == uniquexs
+    '''
+    def get_closestchans(self, event, n=1):
+        """Return n channels in column closest to mouse event coords,
+        sorted by vertical distance from mouse event"""
+
+        # sum of squared distances
+        #d2 = (x-xdata)**2 + (y-ydata)**2
+        #i = d2.argsort()[:n] # n indices sorted from smallest squared distance to largest
+
+        # what column is this event closest to? pick that column,
+        # and then the n vertically closest chans within it
+        xdata = self.us2um(event.xdata) # convert mouse event to um
+        ydata = self.uv2um(event.ydata)
+        x, y = self.xy_um
+        # find nearest column
+        dx = np.abs(xdata - self.colxs) # array of x distances
+        coli = dx.argmin() # index of column nearest to mouse click
+        colx = self.colxs[coli] # x coord of nearest column
+        i, = (x == colx).nonzero() # indices into self.chans of chans that are in the nearest col
+        colchans = np.asarray(self.chans)[i] # channels in nearest col
+        dy = np.abs(y[i] - ydata) # vertical distances between mouse click and all chans in this col
+        i = dy.argsort()[:n] # n indices sorted from smallest to largest y distance
+        chans = colchans[i] # index into channels in the nearest column
+        if len(chans) == 1:
+            chans = chans[0]
+        return chans
+
+    def get_closestline(self, event):
+        """Return line that's closest to mouse event coords"""
+        d2s = [] # sum squared distances
+        hitlines = []
+        closestchans = self.get_closestchans(event, n=6)
+        for chan in closestchans:
+            line = self.lines[chan]
+            hit, tisdict = line.contains(event)
+            if hit:
+                tis = tisdict['ind'] # pull them out of the dict
+                xs = line.get_xdata()[tis]
+                ys = line.get_ydata()[tis]
+                d2 = (xs-event.xdata)**2 + (ys-event.ydata)**2
+                d2 = d2.min() # point on line closest to mouse
+                hitlines.append(line)
+                d2s.append(d2)
+        d2s = np.asarray(d2s)
+        if d2s.size != 0:
+            linei = d2s.argmin() # index of line with smallest d2
+            return hitlines[linei]
+        else:
+            return None
 
     def plot(self, wave, tref=None):
         """Plot waveforms wrt a reference time point"""
@@ -349,37 +411,57 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def OnButtonPress(self, event):
         """Seek to timepoint as represented on chan closest to mouse click"""
-        chan = self.get_closestchan(event.xdata, event.ydata)
+        chan = self.get_closestchans(event, n=1)
         xpos = self.pos[chan][0]
         t = event.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
         # call main spyke frame's seek method
         self.GrandParent.seek(t)
     '''
     def OnPick(self, event):
-        """Good for figuring out which line has just been clicked on,
-        within tolerance of PICKTHRESH in pixels"""
-        line = event.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
-        chan = line.chan
-        xpos = self.pos[chan][0]
-        t = event.mouseevent.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
-        print chan, event.mouseevent.xdata, t
-        self.Parent.seek(t)
+        """Pop up a tooltip when mouse is within PICKTHRESH of a line"""
+        tooltip = self.GetToolTip()
+        if event.mouseevent.inaxes:
+            line = event.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
+            chan = line.chan
+            xpos, ypos = self.pos[chan]
+            t = event.mouseevent.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
+            v = (event.mouseevent.ydata - ypos) / self.gain
+            if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
+                t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
+                tip = 'ch%d\n' % chan + \
+                      't=%d %s\n' % (t, MU+'s') + \
+                      'V=%.1f %s\n' % (v, MU+'V') + \
+                      'width=%.3f ms' % (self.tw/1000)
+                tooltip.SetTip(tip)
+                tooltip.Enable(True)
+            else: # out of bounds
+                tooltip.Enable(False)
+        else:
+            tooltip.Enable(False)
     '''
     def OnMotion(self, event):
         """Pop up a tooltip when figure mouse movement is over axes"""
         tooltip = self.GetToolTip()
         if event.inaxes:
-            chan = self.get_closestchan(event.xdata, event.ydata)
-            xpos = self.pos[chan][0]
-            t = event.xdata - xpos + self.tref
-            if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
-                t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
-                tip = 'ch%d\n' % chan + \
-                      't=%d %s\n' % (t, MU+'s') + \
-                      'width=%.3f ms' % (self.tw/1000)
-                tooltip.SetTip(tip)
-                tooltip.Enable(True)
-            else: # out of bounds
+            # or, maybe better to just post a pick event, and let the pointed to chan
+            # (instead of clicked chan) stand up for itself
+            #chan = self.get_closestchans(event, n=1)
+            line = self.get_closestline(event)
+            if line:
+                xpos, ypos = self.pos[line.chan]
+                t = event.xdata - xpos + self.tref
+                v = (event.ydata - ypos) / self.gain
+                if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
+                    t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
+                    tip = 'ch%d\n' % line.chan + \
+                          't=%d %s\n' % (t, MU+'s') + \
+                          'V=%.1f %s\n' % (v, MU+'V') + \
+                          'width=%.3f ms' % (self.tw/1000)
+                    tooltip.SetTip(tip)
+                    tooltip.Enable(True)
+                else:
+                    tooltip.Enable(False)
+            else:
                 tooltip.Enable(False)
         else:
             tooltip.Enable(False)
@@ -490,7 +572,7 @@ class LFPPanel(ChartPanel):
     """LFP Panel"""
     def __init__(self, *args, **kwargs):
         ChartPanel.__init__(self, *args, **kwargs)
-        self.gain = 1.5
+        self.gain = 1
 
     def do_layout(self):
         ChartPanel.do_layout(self)
@@ -499,6 +581,10 @@ class LFPPanel(ChartPanel):
         for chan in self.pos.keys():
             if chan not in self.stream.layout.chanlist:
                 del self.pos[chan] # remove siteloc channels that don't exist in the lowpassmultichan record
+                try:
+                    self.chans.remove(chan) # in place
+                except ValueError: # already removed from list on previous do_layout() call
+                    pass
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
