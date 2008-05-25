@@ -28,13 +28,14 @@ __authors__ = ['Reza Lotun, Martin Spacek']
 
 import itertools
 import sys
+import time
 
 import numpy as np
 from numpy import where
 from scipy import weave
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, cut, intround
+from spyke.core import WaveForm, toiter, cut, intround, eucd
 #from spyke import Spike, Template, Collection
 
 
@@ -47,7 +48,7 @@ class Detector(object):
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block. TODO: should be a property
     BLOCKSIZE = 1000000 # waveform data block size, us. TODO: should be a property
-    MAXNSPIKETIS = BLOCKSIZE/1000000 * MAXAVGFIRINGRATE # length of array to preallocate before searching a block's channel
+    MAXNSPIKETISPERCHAN = BLOCKSIZE/1000000 * MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
 
@@ -57,8 +58,9 @@ class Detector(object):
         self.stream = stream
         if chans == None:
             chans = range(self.stream.nchans) # search all channels
-        self.chans = toiter(chans)
-        self.nchans = len(self.chans)
+        self.chans = toiter(chans) # need not be contiguous. TODO: this should really be a property!!!! Update self.dm on change
+        self.chans.sort() # make sure they're in order
+        self.dm = self.get_distance_matrix() # Euclidean channel distance matrix, in self.chans order
         if trange == None:
             trange = (stream.t0, stream.tend)
         self.trange = trange
@@ -72,13 +74,20 @@ class Detector(object):
             slock = self.DEFSLOCK
         self.slock = slock
 
+    def get_distance_matrix(self):
+        """Get channel distance matrix, in um"""
+        sl = self.stream.probe.SiteLoc
+        coords = []
+        for chan in self.chans:
+            coords.append(sl[chan])
+        return eucd(coords)
     '''
     def __iter__(self):
         """Returns an iterator object. Called in for loops and in 'in' statements, and by the iter() f'n?.
         This is here to allow you to treat any of the detection classes directly as iterators"""
         spikes = iter(self.find())
         # why not just return the iterator, and let the outside world iterate over it, like this:?
-        return spikes
+        return (chan, spiketime), or maybe a Spike object with .chan and .ts attribs
         #while True:
         #    try:
         #        yield spikes.next()
@@ -196,11 +205,14 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
     """Bipolar amplitude fixed threshold detector,
     with fixed temporal lockout on all channels, plus a spatial lockout"""
 
-    def search(self, method='all'):
+    def search(self):
         """Search for spikes. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results. method = 'all' or 'indep' treats chans
         together or independently"""
+
+        t0 = time.clock()
+
         # reset this at the start of every search
         self.totalnspikes = 0 # total num spikes found across all chans so far by this Detector
 
@@ -208,15 +220,9 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         # no need for more than one max every other timepoint, can get away with less to save memory.
         # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
         # so uint32 allows us at least 23 hour long recordings, don't think int64 is needed here
-        if method == 'all': # search all chans at each timepoint
-            self.spiketis = np.zeros((self.nchans, self.MAXNSPIKETIS), dtype=np.uint32)
-            searchblockfn = self.searchblock
-        elif method == 'indep': # search chans independently
-            self.spiketis = np.zeros(self.MAXNSPIKETIS, dtype=np.uint32)
-            searchblockfn = self.searchblock_indepchans
-        else:
-            raise ValueError, 'weird method: %r' % method
-        self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should
+        self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=np.uint32) # row0: chanii, row1: ti
+        print 'init .spiketis took %.3f sec' % (time.clock()-t0)
+        self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should be
 
         # generate time ranges for slightly overlapping blocks of data
         wavetranges = []
@@ -231,29 +237,33 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+BX)
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
-        spikes = {} # dict of arrays of spike times, one entry per chan
+        spikeslist = [] # list of 2D spike arrays returned by searchblock, one array per block
         for (lo, hi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
             if self.totalnspikes < self.maxnspikes:
                 wave = self.stream[lo:hi] # a block (Waveform) of multichan data
-                tsdict = searchblockfn(wave)
-                for chan, ts in tsdict.iteritems(): # iterate over channels
-                    cts = cut(ts, cutrange) # remove excess
-                    try:
-                        # add cut spikes for this chan. TODO: maybe append to list instead of array?
-                        spikes[chan] = np.append(spikes[chan], cts)
-                    except KeyError: # on first loop, spikes is an empty dict
-                        spikes[chan] = cts
-        return spikes
+                maxchans, spiketimes = self.searchblock(wave)
+                cutspiketimes = cut(spiketimes, cutrange) # remove excess
+                # TODO: remove any spikes that happen right at the last timepoint in the file,
+                # since we can't say when an interrupted rising edge would've reached peak
+                spikeslist.append(np.asarray([maxchans, cutspiketimes]))
+
+        print 'inside .search() took %.3f sec' % (time.clock()-t0)
+
+        return spikeslist
 
     def searchblock(self, wave):
         """Search across all chans in a manageable block of waveform
-        data and return a dict of arrays of spike times, one entry per chan.
-        Apply both temporal and spatial lockouts"""
-        absdata = np.abs(wave.data) # TODO: try doing this in the C loop, see if it's faster
-        nchans = self.nchans
+        data and return a tuple of maxchan and spike time arrays.
+        Apply both temporal and spatial lockouts
+
+        DONE: implement channel(s) specific searches, ie make use of self.chans"""
+        t0 = time.clock()
+        absdata = np.abs(wave.data[self.chans]) # pull our chans of data out, this assumes wave.data has all possible chans in it
+        print 'abs took %.3f sec' % (time.clock()-t0)
+        chans = np.asarray(self.chans)
+        nchans = len(self.chans)
         nt = wave.data.shape[1]
-        nspikes = np.zeros(self.nchans, dtype=np.uint32) # holds nspikes found for each chan in this block
-        totalnspikes = self.totalnspikes # total num of spikes found so far across all chans by this Detector
+        totalnspikes = self.totalnspikes # total num of spikes found so far in this Detector.search()
         maxnspikes = self.maxnspikes
         thresh = self.thresh
 
@@ -261,67 +271,101 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         last = np.zeros(nchans) # holds last signal value per chan, floats in uV
         lock = np.zeros(nchans, dtype=np.int32) # holds number of lockout timepoints left per chan
 
-        tilock = self.tilock
-        slock = self.slock
+        tilock = self.tilock # temporal lockout, in num timepoints
+        slock = self.slock # spatial lockout, in um
+        dm = self.dm # Euclidean channel distance matrix
         spiketis = self.spiketis # init'd in self.search()
 
+        """
+        TODO: after searching for maxchan, search again for peak on that maxchan,
+              maybe iterate a few times until stop seeing changes in result for
+              that spike
+
+        TODO: when searching for maxchan, limit search to chans within spatial lockout.
+              This will be faster, and will also prevent unrelated distant cells firing
+              at the same time from triggering each other, or something
+
+        TODO: instead of searching forward indefinitely for a peak, maybe search
+              forward and backwards say 0.5ms. Ah, but then searching backwards would
+              ignore any tlock you may have had on that chan in the past. Maybe that means
+              having to change how tlock is implemented
+        """
+
         code = r"""
-        #line 269 "detect.py" // for debugging
-        int nnewspikes=0; // num new spikes found in this f'n
-        int ti=0; // current time index
-        int chan=0; // current chan index
-        int spikei=0; // current spike index for current chan
+        #line 295 "detect.py" // for debugging
+        int spikei, maxchanii, maxchani, chanj;
         double v; // current signal voltage, uV (Python float), using a pointer doesn't seem faster
-        for ( ti=0; ti<nt; ti++ ) { // iterate over all timepoints
-            // TODO: chan loop should go in random order, not numerical, to prevent a chan from
-            // dominating with its spatial lockout. Also, there might be missing channels
-            for ( chan=0; chan<nchans; chan++ ) { // iterate over all chans
-                if ( lock(chan) > 0 ) // if this chan is still locked out
-                    lock(chan)--; // decr this chan's temporal lockout
+        for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoints
+            // TODO: chan loop should go in random order on each ti, to prevent a chan from
+            // dominating with its spatial lockout or something like that
+            for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over indices into chans
+                if ( lock(chanii) > 0 ) // if this chan is still locked out
+                    lock(chanii)--; // decr this chan's temporal lockout
                 else { // search for a thresh xing or a peak
-                    v = absdata(chan, ti);
-                    if ( xthresh(chan) == 0 ) { // we're looking for a thresh xing
+                    v = absdata(chanii, ti);
+                    if ( xthresh(chanii) == 0 ) { // we're looking for a thresh xing
                         if ( v >= thresh ) { // met or exceeded threshold
-                            xthresh(chan) = 1; // set crossed threshold flag for this chan
-                            last(chan) = v; // update last value for this chan, have to wait til
-                                             // next ti to decide if this is a peak
+                            xthresh(chanii) = 1; // set crossed threshold flag for this chan
+                            last(chanii) = v; // update last value for this chan, wait til next ti to decide if this is a peak
                         }
                     }
-                    else { // xthresh(chan)==1, in crossed thresh state, now we're look for a peak
-                        if ( v > last(chan) ) // if signal is still increasing
-                            last(chan) = v; // update last value for this chan, have to wait til
-                                             // next ti to decide if this is a peak
-                        else { // signal is decreasing, save previous ti as spike
-                            spikei = nspikes(chan)++; // 0-based spike index. assign, then increment
-                            totalnspikes++;
-                            nnewspikes++;
-                            spiketis(chan, spikei) = ti-1; // save previous time index as that of the nth spike for this chan
-                            xthresh(chan) = 0; // we've found the peak, clear crossed thresh flag for this chan
-                            last(chan) = 0.0; // reset for search for next spike
-                            lock(chan) = tilock; // apply temporal lockout for this chan
-                            //lock(chan and nearby chans) = tilock; // set temporal lockout for this chan and all chans
-                                                                  // within slock distance of it
+                    else { // xthresh(chanii)==1, in crossed thresh state, now we're look for a peak
+                        if ( v > last(chanii) ) // if signal is still increasing
+                            last(chanii) = v; // update last value for this chan, wait til next ti to decide if this is a peak
+                        else { // signal is decreasing, declare previous ti as a spike timepoint
+                            spikei = totalnspikes++; // 0-based spike index. assign, then increment
+                            // find max chan, ie chan spike is centered on
+                            maxchanii = chanii; // start with assumption that current chan is max chan
+                            for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all indices into chans again
+                                if ( absdata(chanjj, ti) > absdata(maxchanii, ti) )
+                                    maxchanii = chanjj; // update maxchanii
+                            }
+                            spiketis(0, spikei) = maxchanii; // store chan spike is centered on
+                            spiketis(1, spikei) = ti-1; // save previous time index as that of the spikei'th spike
+                            // apply spatial and temporal lockouts
+                            for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all indices into chans again
+                                maxchani = chans(maxchanii);
+                                chanj = chans(chanjj);
+                                if ( dm(maxchani, chanj) <= slock ) { // chanjj is within spatial lockout in um
+                                    xthresh(chanjj) = 0; // clear its threshx flag
+                                    last(chanjj) = 0.0; // reset last so it's ready when it comes out of lockout
+                                    // apply its temporal lockout
+                                    if ( chanjj > chanii ) // we haven't encountered chanjj yet in the chanii loop
+                                        lock(chanjj) = tilock+1; // lockout by one extra timepoint which it'll
+                                                                 // then promptly decr before we leave this ti
+                                    else
+                                        lock(chanjj) = tilock;
+                                }
+                            }
                             if ( totalnspikes >= maxnspikes ) {
-                                return_val = nnewspikes;
+                                return_val = totalnspikes;
                                 return return_val; // exit here, don't search any more timepoints
                             }
+                            // don't break out of chanii loop to move to next ti: there may be other
+                            // chans with spikes that are outside the spatial lockout.
                         }
                     }
                 }
             }
         }
-        return_val = nnewspikes;
+        return_val = totalnspikes;
         """
-        nnewspikes = weave.inline(code, ['absdata', 'nchans', 'nt', 'nspikes', 'totalnspikes', 'maxnspikes',
-                                         'thresh', 'xthresh', 'last', 'lock', 'tilock', 'spiketis'],
-                                  type_converters=weave.converters.blitz,
-                                  compiler='gcc')
-        self.totalnspikes += nnewspikes # update
-        spikes = {}
-        for chan in range(nchans): # the C loop assumes consecutive chans for now, so let's do the same here
-            tis = spiketis[chan, :nspikes[chan]] # keep only the entries that were filled for this chan
-            spikes[chan] = wave.ts[tis] # spike times in us
-        return spikes
+        tCloop = time.clock()
+        totalnspikes = weave.inline(code, ['absdata', 'chans', 'nchans', 'nt',
+                                           'totalnspikes', 'maxnspikes',
+                                           'thresh', 'xthresh', 'last', 'lock',
+                                           'tilock', 'slock', 'dm', 'spiketis'],
+                                    type_converters=weave.converters.blitz,
+                                    compiler='gcc')
+        print 'C loop took %.3f sec' % (time.clock()-tCloop)
+        nnewspikes = totalnspikes - self.totalnspikes
+        self.totalnspikes = totalnspikes # update
+        spiketis = spiketis[:, :nnewspikes] # keep only the entries that were filled
+        maxchaniis = spiketis[0] # chanii that each spike occurred on
+        maxchans = np.asarray(self.chans)[maxchaniis] # convert from indices to actual chan ids
+        spiketimes = wave.ts[spiketis[1]] # convert from indices to actual spike times, wave.ts is int64 array
+        print 'inside .searchblock() took %.3f sec' % (time.clock()-t0)
+        return (maxchans, spiketimes)
 
     def searchblock_indepchans(self, wave):
         """Search across all chans in a manageable block of waveform
@@ -352,9 +396,8 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         spiketis = self.spiketis # init'd in self.search()
 
         code = r"""
-        #line 341 "detect.py" // for debugging
+        #line 399 "detect.py" // for debugging
         double last=0.0; // last signal value, uV
-        int nnewspikes=0; // num new spikes found in this f'n
         int ti=0; // current time index
         while ( ti<nt && totalnspikes < maxnspikes ) { // enforce maxnspikes across single chan
             if ( abschan(ti) >= thresh ) { // if we've exceeded threshold
@@ -363,21 +406,20 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
                     ti++; // go to next timepoint
                 }
                 // now signal is decreasing, save last timepoint as spike
-                totalnspikes++;
-                nnewspikes++;
-                spiketis(nnewspikes-1) = ti-1; // 0-based index into spiketis
+                spiketis(totalnspikes++ - 1) = ti-1; // 0-based index into spiketis
                 last = 0.0; // reset for search for next spike
                 ti += tilock+1; // skip forward one temporal lockout, and go to next timepoint
             }
             else
                 ti++; // no thresh xing, go to next timepoint
         }
-        return_val = nnewspikes;
+        return_val = totalnspikes;
         """
-        nnewspikes = weave.inline(code, ['abschan', 'nt', 'totalnspikes', 'maxnspikes', 'thresh', 'tilock', 'spiketis'],
-                                  type_converters=weave.converters.blitz,
-                                  compiler='gcc')
-        self.totalnspikes += nnewspikes # update
+        totalnspikes = weave.inline(code, ['abschan', 'nt', 'totalnspikes', 'maxnspikes', 'thresh', 'tilock', 'spiketis'],
+                                    type_converters=weave.converters.blitz,
+                                    compiler='gcc')
+        nnewspikes = totalnspikes - self.totalnspikes
+        self.totalnspikes = totalnspikes # update
         return spiketis[:nnewspikes]
 
 

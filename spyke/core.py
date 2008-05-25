@@ -17,7 +17,8 @@ MU = '\xb5' # greek mu symbol
 
 
 class WaveForm(object):
-    """Waveform object, has data, timestamps, chan2i, and sample frequency attribs"""
+    """Waveform object, has data, timestamps, chan2i, and sample frequency attribs
+    Index directly into it by channel using Waveform[chani]"""
     def __init__(self, data=None, ts=None, chan2i=None, sampfreq=None):
         self.data = data # always in uV? potentially multichannel, depending on shape
         self.ts = ts # timestamps array, one for each sample (column) in data
@@ -25,7 +26,7 @@ class WaveForm(object):
         self.sampfreq = sampfreq # Hz
 
     def __getitem__(self, key):
-        """Make waveform data directly indexable.
+        """Make waveform data directly indexable by channel id.
         Maybe this is where data should be interpolated?"""
         return self.data[self.chan2i[key]]
 
@@ -416,3 +417,19 @@ def cut(ts, trange):
     '''
     cutts = ts[lo:hi] # slice it
     return cutts
+
+def eucd(coords):
+    """Generates Euclidean distance matrix from a
+    sequence of n dimensional coordinates
+    Written by Willi Richert
+    Taken from:
+    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498246
+    on 2006/11/11
+    """
+    coords = np.asarray(coords)
+    n, m = coords.shape
+    delta = np.zeros((n, n), dtype=np.float64)
+    for d in xrange(m):
+        data = coords[:, d]
+        delta += (data - data[:, np.newaxis]) ** 2
+    return np.sqrt(delta)
