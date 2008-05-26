@@ -8,6 +8,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import cPickle
 import gzip
 import hashlib
+import time
 
 import numpy as np
 
@@ -41,14 +42,17 @@ class Stream(object):
     approriate range of waveform data from disk. Converts from AD units to uV"""
     DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
 
-    def __init__(self, ctsrecords=None, sampfreq=None):
+    def __init__(self, ctsrecords=None, sampfreq=None, units='uV', endinclusive=False):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation"""
         self.ctsrecords = ctsrecords
-        self.layout = ctsrecords[0].layout # layout record for this stream
+        self.layout = self.ctsrecords[0].layout # layout record for this stream
         # if no sampfreq passed in, use sampfreq of the raw data
         self.sampfreq = sampfreq or self.layout.sampfreqperchan
+        self.units = units
+        self.endinclusive = endinclusive
+
         self.nchans = len(self.layout.chanlist)
         # converts from chan id to data array row index, identical to
         # .layout.chanlist unless there are channel gaps in .layout
@@ -69,7 +73,7 @@ class Stream(object):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
         raise NotImplementedError()
 
-    def __getitem__(self, key, endinclusive=False):
+    def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
@@ -112,10 +116,10 @@ class Stream(object):
             #del record.waveform # save memory by unloading waveform data from records that aren't needed anymore
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([key.start, key.stop])
-        data = data[:, lo:hi+endinclusive] # TODO: is this the slowest step? use .take instead?
-        #data = data.take(np.arange(lo, hi+endinclusive), axis=1) # doesn't seem to help performance
-        ts = ts[lo:hi+endinclusive]
-        #ts = ts.take(np.arange(lo, hi+endinclusive)) # doesn't seem to help performance
+        data = data[:, lo:hi+self.endinclusive] # TODO: is this the slowest step? use .take instead?
+        #data = data.take(np.arange(lo, hi+self.endinclusive), axis=1) # doesn't seem to help performance
+        ts = ts[lo:hi+self.endinclusive]
+        #ts = ts.take(np.arange(lo, hi+self.endinclusive)) # doesn't seem to help performance
 
         # interp and s+h correct here
         data, ts = self.interp(data, ts, self.sampfreq)
@@ -123,21 +127,32 @@ class Stream(object):
         # transform AD values to uV
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
-        data = self.ADVal_to_uV(data, intgain, extgain) # TODO: maybe this step is quite slow. consider a kwarg like 'floatdata' to
-                                                        # explicitly specify that you want to convert to float uV. If left as int,
-                                                        # would still need to subtract 2048
+        # this step takes about 0.9 sec per sec of data, and accounts for about half the time spent in det.search()
+        # consider skipping it altogether, leaving data in int16, and only subtracting 2048 within C loop where it's needed.
+        # that would also mean having to do abs in C loop
+        tconvert = time.clock()
+        data = self.convert(data, intgain, extgain, self.units)
+        print 'convert in stream slice took %.3f sec' % (time.clock()-tconvert)
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
 
-    def ADVal_to_uV(self, adval, intgain, extgain):
+    def convert(self, adval, intgain, extgain, units='uV'):
         """Convert AD values to micro-volts"""
         # Delphi code:
         # Round((ADValue - 2048)*(10 / (2048
         #                  * ProbeArray[m_ProbeIndex].IntGain
         #                  * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
         #                  * V2uV);
-        return (adval - 2048) * (10 / (2048 * intgain * extgain[0]) * 1e6)
+        # TODO: apply these operations to self.data, see if that helps. Returning data might do a copy?
+        # TODO: what if I did this in a C loop for speed?
+        if units == 'AD':
+            return adval
+        elif units == 'ADshifted':
+            return adval - 2048 # TODO: stop hard-coding 2048, should be maxval of AD board + 1 / 2
+        elif units == 'uV': # TODO: this is quite slow for large adval arrays, can operation be done in-place?
+            return (adval - 2048) * (10 / (2048 * intgain * extgain[0]) * 1e6)
+
 
     def interp(self, data, ts, sampfreq=None, kind='nyquist'):
         """Returns interpolated and sample-and-hold corrected data and
@@ -404,7 +419,13 @@ def toiter(x):
         return [x]
 
 def cut(ts, trange):
-    """Returns timestamps where tstart <= timestamps <= tend
+    """Returns timestamps, where tstart <= timestamps <= tend
+    Copied and modified from neuropy rev 149"""
+    lo, hi = argcut(ts, trange)
+    return ts[lo:hi] # slice it
+
+def argcut(ts, trange):
+    """Returns timestamp slice indices, where tstart <= timestamps <= tend
     Copied and modified from neuropy rev 149"""
     tstart, tend = trange[0], trange[1]
     '''
@@ -421,8 +442,7 @@ def cut(ts, trange):
         hi += 1 # inc to include a timestamp if it happens to exactly equal tend. This gives us end inclusion
         hi = min(hi, len(ts)) # limit hi to max slice index (==max value index + 1)
     '''
-    cutts = ts[lo:hi] # slice it
-    return cutts
+    return lo, hi
 
 def eucd(coords):
     """Generates Euclidean distance matrix from a

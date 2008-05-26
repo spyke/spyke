@@ -38,7 +38,7 @@ from numpy import where
 from scipy import weave
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, cut, intround, eucd
+from spyke.core import WaveForm, toiter, argcut, intround, eucd
 #from spyke import Spike, Template, Collection
 
 
@@ -223,7 +223,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         # no need for more than one max every other timepoint, can get away with less to save memory.
         # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
         # so uint32 allows us at least 23 hour long recordings, don't think int64 is needed here
-        self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=np.uint32) # row0: chanii, row1: ti
+        self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=np.uint32) # row0: ti, row1: chanii
         self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should be
 
         # generate time ranges for slightly overlapping blocks of data
@@ -240,24 +240,22 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
         spikeslist = [] # list of 2D spike arrays returned by searchblock, one array per block
-        for (lo, hi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
+        for (tlo, thi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
             tblock = time.clock()
             if self.totalnspikes < self.maxnspikes:
                 tslice = time.clock()
-                # TODO: if data hasn't been loaded, stream slicing is by _far_ the slowest step. If it has been loaded,
-                # stream slicing still takes at least 50% of the block loop time
-                wave = self.stream[lo:hi] # a block (Waveform) of multichan data.
-                print 'stream slice took %.3f sec' % (time.clock()-tslice)
-                tsearch = time.clock()
-                maxchans, spiketimes = self.searchblock(wave)
-                tcut = time.clock()
-                cutspiketimes = cut(spiketimes, cutrange) # remove excess
-                print 'cut took %.3f sec' % (time.clock()-tcut)
-                tappendarray = time.clock()
+                # TODO: stream slicing still takes about 50% of the block loop time, of which most of that is in the
+                # .convert step. Loading the data takes a relatively insignificant amount of time now with np.fromfile
+                wave = self.stream[tlo:thi] # a block (Waveform) of multichan data.
+                print 'whole stream slice took %.3f sec' % (time.clock()-tslice)
+                tsearchblock = time.clock()
+                spiketimes, maxchans = self.searchblock(wave)
+                print '.searchblock() took %.3f sec' % (time.clock()-tsearchblock)
+                lo, hi = argcut(spiketimes, cutrange) # get slice timepoint indices for removing excess
                 # TODO: remove any spikes that happen right at the last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
-                spikeslist.append(np.asarray([maxchans, cutspiketimes]))
-                print 'convert to array and append took %.3f sec' % (time.clock()-tappendarray)
+                spiketimesmaxchans = np.asarray([spiketimes, maxchans])[lo:hi] # create 2D array, slice it to remove excess
+                spikeslist.append(spiketimesmaxchans)
             print 'block loop took %.3f sec' % (time.clock()-tblock)
 
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
@@ -266,7 +264,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
 
     def searchblock(self, wave):
         """Search across all chans in a manageable block of waveform
-        data and return a tuple of maxchan and spike time arrays.
+        data and return a tuple of spike time and maxchan arrays.
         Apply both temporal and spatial lockouts
 
         DONE: implement channel(s) specific searches, ie make use of self.chans"""
@@ -319,6 +317,15 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
               forward and backwards say 0.5ms. Ah, but then searching backwards would
               ignore any tlock you may have had on that chan in the past. Maybe that means
               having to change how tlock is implemented
+
+        TODO: take weighted spatial average of say the top 3 channels at peak time of the
+              maxchan, and use that point as the center of the spatial lockout
+
+        TODO: add option to search backwards in time:
+                - maybe just slice data in reverse order, C loop won't know the difference?
+                - would also have to reverse order of block loop, can prolly do this by just
+                  simply blocksize BS -ve
+
         """
 
         """
@@ -363,8 +370,8 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
                                 if ( absdata(chanjj, ti) > absdata(maxchanii, ti) )
                                     maxchanii = chanjj; // update maxchanii
                             }
-                            spiketis(0, spikei) = maxchanii; // store chan spike is centered on
-                            spiketis(1, spikei) = ti-1; // save previous time index as that of the spikei'th spike
+                            spiketis(0, spikei) = ti-1; // save previous time index as that of the spikei'th spike
+                            spiketis(1, spikei) = maxchanii; // store chan spike is centered on
                             // apply spatial and temporal lockouts
                             for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all indices into chans again
                                 maxchani = chans(maxchanii);
@@ -404,10 +411,9 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         nnewspikes = totalnspikes - self.totalnspikes
         self.totalnspikes = totalnspikes # update
         spiketis = spiketis[:, :nnewspikes] # keep only the entries that were filled
-        maxchaniis = spiketis[0] # chanii that each spike occurred on
-        maxchans = np.asarray(self.chans)[maxchaniis] # convert from indices to actual chan ids
-        spiketimes = wave.ts[spiketis[1]] # convert from indices to actual spike times, wave.ts is int64 array
-        return (maxchans, spiketimes)
+        spiketimes = wave.ts[spiketis[0]] # convert from indices to actual spike times, wave.ts is int64 array
+        maxchans = np.asarray(self.chans)[spiketis[1]] # convert from chan indices to actual chan ids
+        return (spiketimes, maxchans)
 
     def searchblock_indepchans(self, wave):
         """Search across all chans in a manageable block of waveform

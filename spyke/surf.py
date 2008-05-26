@@ -13,7 +13,7 @@ import re
 
 import wx
 
-from spyke.core import toiter
+from spyke.core import toiter, intround
 
 NULL = '\x00'
 
@@ -551,7 +551,7 @@ class LayoutRecord(Record):
         # if any) (25000, 1000)
         self.sampfreqperchan, = self.unpack('i', f.read(4))
         # us, store it here for convenience
-        self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6))
+        self.tres = intround(1 / float(self.sampfreqperchan) * 1e6)
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999
         # only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
         self.extgain = self.unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS))
@@ -669,9 +669,12 @@ class ContinuousRecord(Record):
         f = self.f
         f.seek(self.waveformoffset)
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
-        self.waveform = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
+        # Using stuct.unpack for this is super slow:
+        #self.waveform = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
+        self.waveform = np.fromfile(self.f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
         # reshape to have nchans rows, as indicated in layout
-        self.waveform = self.waveform.reshape(self.layout.nchans, -1)
+        nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
+        self.waveform.shape = (self.layout.nchans, nt)
 
 
 class HighPassRecord(ContinuousRecord):
