@@ -79,8 +79,7 @@ class File(Record):
             if persid == self.f.name:
                 return self.f
             else:
-                raise cPickle.UnpicklingError,  \
-                            'Invalid persistent id: %r' % persid
+                raise cPickle.UnpicklingError, 'Invalid persistent id: %r' % persid
         # add this method to the unpickler
         u.persistent_load = persistent_load
         fat = u.load()
@@ -173,7 +172,7 @@ class File(Record):
                 self.__dict__[listname].append(rec) # append this record to its list
             else:
                 raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
-            self.percentParsed = f.tell() * 100 / self.fileSize
+            self.percentParsed = f.tell() / self.fileSize * 100
 
     def _connectRecords(self):
         """Connect the appropriate probe layout to each high and lowpass record"""
@@ -832,6 +831,7 @@ def causalorder(records):
         if record1.TimeStamp > record2.TimeStamp:
             return False
     return True
+
 
 if __name__ == '__main__':
     # TODO: insert unittests here
