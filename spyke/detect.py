@@ -203,8 +203,9 @@ class DynamicThresh(Detector):
         """Overriden by FixedThresh and DynamicThresh classes"""
         pass
 
+from detect_cy import BipolarAmplitudeFixedThresh_Cy
 
-class BipolarAmplitudeFixedThresh(FixedThresh):
+class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
     """Bipolar amplitude fixed threshold detector,
     with fixed temporal lockout on all channels, plus a spatial lockout"""
 
@@ -336,6 +337,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
         TODO (maybe): chanii loop should go in random order on each ti, to prevent a chan from
               dominating with its spatial lockout or something like that
 
+        TODO: check if preincrement (++i) is faster than postincrement (i++) in for loops
 
         """
 
@@ -352,6 +354,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh):
 
         # Finds max chanii at current ti
         # TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing
+        # requires: chans[], nchans, maxchanii, dm[], slock, absdata[]
         FINDBIGGERCHANCODE = r"""
         // BEGIN FINDBIGGERCHANCODE
         maxchani = chans(maxchanii);
