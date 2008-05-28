@@ -250,7 +250,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
                 wave = self.stream[tlo:thi] # a block (Waveform) of multichan data.
                 print 'whole stream slice took %.3f sec' % (time.clock()-tslice)
                 tsearchblock = time.clock()
-                spiketimes, maxchans = self.searchblock(wave)
+                spiketimes, maxchans = self.searchblock_cy(wave)
                 print '.searchblock() took %.3f sec' % (time.clock()-tsearchblock)
                 lo, hi = argcut(spiketimes, cutrange) # get slice timepoint indices for removing excess
                 # TODO: remove any spikes that happen right at the last timepoint in the file,

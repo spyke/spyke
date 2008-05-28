@@ -4,11 +4,14 @@ from distutils.core import setup, Extension
 import os
 from Cython.Distutils import build_ext
 
-#detect_cy = Extension('spyke.detect_cy',
-#                       sources=['spyke/detect_cy.pyx'])
+include_dirs=['/bin/Python25/Lib/site-packages/numpy/core/include']
+
+detect_cy = Extension('spyke.detect_cy',
+                       sources=['spyke/detect_cy.pyx'],
+                       include_dirs=include_dirs)
 cython_test = Extension('spyke.cython_test',
                        sources=['spyke/cython_test.pyx'],
-                       include_dirs=['/bin/Python25/Lib/site-packages/numpy/core/include'])
+                       include_dirs=include_dirs)
 
 
 setup(name = 'spyke',
@@ -20,5 +23,5 @@ setup(name = 'spyke',
       #long_description = '',
       packages = ['spyke', 'spyke.gui', 'spyke.gui.res'],
       cmdclass = {'build_ext': build_ext},
-      ext_modules = [cython_test],
+      ext_modules = [detect_cy, cython_test],
       )
