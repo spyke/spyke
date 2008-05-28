@@ -303,19 +303,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
         """
         TODO: after searching for maxchan, search again for peak on that maxchan,
               maybe iterate a few times until stop seeing changes in result for
-              that spike. But iteration isn't really possible, because we have our
-              big ti loop to obey and its associated t and s locks.
-              Maybe this is just an inherent limit to simple thresh detector?
-              Maybe compromise is to search for maxchan immed on thresh xing (within slock),
-              then wait til find peak on that chan, then search for maxchan (within slock)
-              again upon finding peak.
-
-              - find thresh xing
-              - search immed for maxchan within slock
-              - apply slock immed around maxchan so you stop getting more thresh xings on other chans for the same spike
-              - wait for peak on maxchan
-              - once peak found, search again for maxchan within slock
-              - reapply slock around maxchan
+              that spike
 
         TODO: when searching for maxchan, limit search to chans within spatial lockout.
               This will be faster, and will also prevent unrelated distant cells firing
@@ -334,67 +322,28 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
                 - would also have to reverse order of block loop, can prolly do this by just
                   simply blocksize BS -ve
 
-        TODO (maybe): chanii loop should go in random order on each ti, to prevent a chan from
-              dominating with its spatial lockout or something like that
+        """
 
-        TODO: check if preincrement (++i) is faster than postincrement (i++) in for loops
+        """
+        abs f'n in C:
+
+                for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoints
+                    for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over indices into chans and data
+                        if ( absdata(chanii, ti) < 0 )
+                            absdata(chanii, ti) *= -1; // this is very dangerous - unless we do a copy in python, we'll be overwriting actual data
+                    }
+                }
 
         """
 
-        # in-place abs f'n in C:
-        """
-        for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoint indices
-            for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over all chan indices
-                if ( absdata(chanii, ti) < 0 )
-                    absdata(chanii, ti) *= -1; // this could be dangerous - unless we do a copy in python, we'll be overwriting actual data. Ah but we do do a copy in Stream.__getitem__ when we concatenate
-                    record waveforms, so we'll only be overwriting data from this one slice of Stream, which is fine. The original data will still all be there in the .waveform attrib of the record
-            }
-        }
-        """
 
-        # Finds max chanii at current ti
-        # TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing
-        # requires: chans[], nchans, maxchanii, dm[], slock, absdata[]
-        FINDBIGGERCHANCODE = r"""
-        // BEGIN FINDBIGGERCHANCODE
-        maxchani = chans(maxchanii);
-        for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all chan indices
-            chanj = chans(chanjj);
-            if ( dm(maxchani, chanj) <= slock && // only consider chanjjs within slock of maxchani
-                 absdata(chanjj, ti) > absdata(maxchanii, ti) )
-                    maxchanii = chanjj; // update maxchanii
-                    maxchanchanged = 1;
-                    break; // out of this chanjj loop
-        maxchanchanged = 0;
-        }
-        // END FINDBIGGERCHANCODE
-        """
-
-        # Applies spatiotemporal lockout centered on current maxchanii from current ti forward
-        APPLYLOCKOUTCODE = r"""
-        // BEGIN APPLYLOCKOUTCODE
-        for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all chan indices
-            maxchani = chans(maxchanii);
-            chanj = chans(chanjj);
-            if ( dm(maxchani, chanj) <= slock ) { // chanjj is within spatial lockout in um
-                xthresh(chanjj) = 0; // clear its threshx flag
-                last(chanjj) = 0.0; // reset last so it's ready when it comes out of lockout
-                // apply its temporal lockout
-                if ( chanjj > chanii ) // we haven't encountered chanjj yet in the outer chanii loop
-                    lock(chanjj) = tilock+1; // lockout by one extra timepoint which it'll decr before we leave this ti
-                else
-                    lock(chanjj) = tilock;
-            }
-        }
-        // END APPLYLOCKOUTCODE
-        """
-
-        # The main C loop
-        CODE = r"""
-        #line 385 "detect.py" // for debugging
-        int spikei, maxchanii, maxchani, chanj, maxchanchanged;
+        code = r"""
+        #line 295 "detect.py" // for debugging
+        int spikei, maxchanii, maxchani, chanj;
         double v; // current signal voltage, uV (Python float), using a pointer doesn't seem faster
         for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoints
+            // TODO: chan loop should go in random order on each ti, to prevent a chan from
+            // dominating with its spatial lockout or something like that
             for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over indices into chans
                 if ( lock(chanii) > 0 ) // if this chan is still locked out
                     lock(chanii)--; // decr this chan's temporal lockout
@@ -402,14 +351,8 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
                     v = absdata(chanii, ti);
                     if ( xthresh(chanii) == 0 ) { // we're looking for a thresh xing
                         if ( v >= thresh ) { // met or exceeded threshold
-                            maxchanii = chanii; // start with assumption that current chan is max chan
-                            maxchanchanged = 1;
-                            while ( maxchanchanged == 1 ) {
-                                %(FINDBIGGERCHAN)s // find maxchanii within slock of chanii
-                            }
-                            %(APPLYLOCKOUT)s // apply spatiotemporal lockout to prevent extra thresh xings for this developing spike
-                            xthresh(maxchanii) = 1; // set crossed threshold flag for this maxchan
-                            last(maxchanii) = v; // update last value for this maxchan
+                            xthresh(chanii) = 1; // set crossed threshold flag for this chan
+                            last(chanii) = v; // update last value for this chan, wait til next ti to decide if this is a peak
                         }
                     }
                     else { // xthresh(chanii)==1, in crossed thresh state, now we're look for a peak
@@ -417,32 +360,44 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
                             last(chanii) = v; // update last value for this chan, wait til next ti to decide if this is a peak
                         else { // signal is decreasing, declare previous ti as a spike timepoint
                             spikei = totalnspikes++; // 0-based spike index. assign, then increment
-                            ti--; // temporarily make last ti the current ti. TODO: hope this is OK messing with the loop counter
+                            // find max chan, ie chan spike is centered on
                             maxchanii = chanii; // start with assumption that current chan is max chan
-                            maxchanchanged = 1;
-                            while ( maxchanchanged == 1 ) {
-                                %(FINDBIGGERCHAN)s // find maxchan within slock of maxchanni
+                            for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all indices into chans again
+                                if ( absdata(chanjj, ti) > absdata(maxchanii, ti) )
+                                    maxchanii = chanjj; // update maxchanii
                             }
-                            spiketis(0, spikei) = ti; // save previous time index as that of the spikei'th spike
-                            spiketis(1, spikei) = chans(maxchanii); // store chan spike is centered on
-                            ti++; // restore current ti
-                            %(APPLYLOCKOUT)s // apply spatiotemporal lockout to prevent extra thresh xings for this found spike
+                            maxchani = chans(maxchanii);
+                            spiketis(0, spikei) = ti-1; // save previous time index as that of the spikei'th spike
+                            spiketis(1, spikei) = maxchani; // store chan spike is centered on
+                            // apply spatial and temporal lockouts
+                            for ( int chanjj=0; chanjj<nchans; chanjj++ ) { // iterate over all indices into chans again
+                                chanj = chans(chanjj);
+                                if ( dm(maxchani, chanj) <= slock ) { // chanjj is within spatial lockout in um
+                                    xthresh(chanjj) = 0; // clear its threshx flag
+                                    last(chanjj) = 0.0; // reset last so it's ready when it comes out of lockout
+                                    // apply its temporal lockout
+                                    if ( chanjj > chanii ) // we haven't encountered chanjj yet in the chanii loop
+                                        lock(chanjj) = tilock+1; // lockout by one extra timepoint which it'll
+                                                                 // then promptly decr before we leave this ti
+                                    else
+                                        lock(chanjj) = tilock;
+                                }
+                            }
                             if ( totalnspikes >= maxnspikes ) {
                                 return_val = totalnspikes;
                                 return return_val; // exit here, don't search any more timepoints
                             }
                             // don't break out of chanii loop to move to next ti: there may be other
-                            // chans at this ti with spikes that are outside the spatial lockout
+                            // chans with spikes that are outside the spatial lockout.
                         }
                     }
                 }
             }
         }
         return_val = totalnspikes;
-        """ % {'FINDBIGGERCHAN':FINDBIGGERCHANCODE, 'APPLYLOCKOUT':APPLYLOCKOUTCODE}
+        """
         tCloop = time.clock()
-        self.CODE = CODE # make it available for inspection
-        totalnspikes = weave.inline(CODE, ['chans', 'nchans', 'absdata', 'nt',
+        totalnspikes = weave.inline(code, ['chans', 'nchans', 'absdata', 'nt',
                                            'totalnspikes', 'maxnspikes',
                                            'thresh', 'xthresh', 'last', 'lock',
                                            'tilock', 'slock', 'dm', 'spiketis'],
@@ -453,7 +408,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
         self.totalnspikes = totalnspikes # update
         spiketis = spiketis[:, :nnewspikes] # keep only the entries that were filled
         spiketimes = wave.ts[spiketis[0]] # convert from indices to actual spike times, wave.ts is int64 array
-        maxchans = spiketis[1] # convert from chan indices to actual chan ids
+        maxchans = spiketis[1]
         return (spiketimes, maxchans)
 
     def searchblock_indepchans(self, wave):
