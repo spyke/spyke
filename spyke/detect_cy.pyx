@@ -174,10 +174,8 @@ cdef int get_maxchanii(int maxchanii, int nchans, int *chansp,
     maxchani = chansp[maxchanii]
     for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
         chanj = chansp[chanjj]
-        # chanjjs within slock of maxchani, that aren't locked out, that have higher signal:
-        if dmp[maxchani*nchans + chanj] <= slock and \
-        lockp[chanjj] == 0 and \
-        absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
+        # chanjj within slock of maxchani has higher signal:
+        if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
             maxchanii = chanjj # update maxchanii
     # recursive call goes here to search with newly centered slock radius
     return maxchanii # return maxchani
