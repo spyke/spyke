@@ -10,19 +10,10 @@ TODO: spatiotemporal lockout:
 
 TODO: for speed (esp comparing signal to thresh), consider converting all uV data
       from 64bit float to 16 bit integer (actually, just keep it as 16 bit to begin
-      with)
+      with) - ack, not being in uV would complicate things all over the place
 
 TODO: check if python's cygwincompiler.py module has been updated to deal with
       extra version fields in latest mingw
-
-DONE: Might need to use scipy.weave or some other low-level code
-      (cython?) to make these algorithms fast enough, while allowing you to
-      step through one timepoint at a time, which numpy might not let you do
-      easily...
-
-DONE: add a method to search forward until you find the next spike on any or on a
-      specific set of channels, as opposed to searching forward over a known fixed
-      trange. This would make testing easier too
 """
 
 from __future__ import division
@@ -97,17 +88,17 @@ class Detector(object):
         #    except StopIteration:
         #        break
     '''
-    def get_threshold(self, chan, kind=DEFAULTTHRESHMETHOD):
+    def get_thresh(self, chan, kind=DEFAULTTHRESHMETHOD):
         """Calculate either median or stdev based threshold for a given chan"""
         if kind == 'median':
-            self.get_median_threshold(chan)
+            self.get_median_thresh(chan)
         elif  kind == 'stdev':
-            self.get_stdev_threshold(chan)
+            self.get_stdev_thresh(chan)
 
-    def get_median_threshold(self, chan):
+    def get_median_thresh(self, chan):
         return self.get_median_noise(chan) * self.MEDIAN_MULT
 
-    def get_stdev_threshold(self, chan):
+    def get_stdev_thresh(self, chan):
         return self.get_stdev_noise(chan) * self.STDEV_MULT
 
     def get_median_noise(self, chan):
@@ -143,8 +134,12 @@ class FixedThresh(Detector):
         Detector.__init__(self, *args, **kwargs)
         self.thresh = 50 # uV, TODO: calculate this from noise level
 
+    def get_median_noise(self, chan):
+        pass
+
+    def get_median_thresh(self, chan):
+        pass
     '''
-    def setup(self):
         """Used to determine threshold and set initial state"""
         # get stdev for each channel along a STDEV_WINDOW window
         wave = self.stream[self.t0:self.t0 + STDEV_WINDOW]
@@ -157,31 +152,6 @@ class FixedThresh(Detector):
         self.thresholds = {}
         for chan, stdev in self.std.iteritems():
             self.thresholds[chan] = stdev * self.STDEV_MULT
-
-        # spike window: -SPIKE_PRE and +SPIKE_POST around spike, search window will be 1ms
-        self.search_span = self.SEARCH_SPAN
-        self.curr = self.t0 + self.SEARCH_SPAN # XXX: add an initial jump: TODO: why?
-        self.window = self.stream[self.t0:self.t0 + self.search_span]
-
-        self.lockout = self.LOCKOUT
-
-    def yield_events(self, chan_events):
-        """TODO: what does this do? need description here"""
-        # sort event indices
-        chan_events.sort()
-        for event_index, chan in chan_events:
-            # if the event is firing before our current location
-            # then we're in lockout mode and should just continue
-            if self.window.ts[event_index] < self.curr:
-                continue
-            # reposition window for each event
-            self.curr = self.window.ts[event_index] - self.SPIKE_PRE
-            spike = self.stream[self.curr:self.curr + \
-                                self.SPIKE_PRE + self.SPIKE_POST]
-            self.curr = self.curr + self.SPIKE_PRE + \
-                            self.SPIKE_POST + self.lockout
-            #self.window = self.stream[self.curr:self.curr + self.search_span]
-            yield Spike(spike, chan, self.window.ts[event_index])
     '''
 
 class DynamicThresh(Detector):
@@ -196,18 +166,18 @@ class DynamicThresh(Detector):
     """
 
     def get_median_noise(self, chan):
-        """Overriden by FixedThresh and DynamicThresh classes"""
         pass
 
     def get_stdev_noise(self, chan):
-        """Overriden by FixedThresh and DynamicThresh classes"""
         pass
 
-from detect_weave import BipolarAmplitudeFixedThresh_Weave
+
+#from detect_weave import BipolarAmplitudeFixedThresh_Weave
 from detect_cy import BipolarAmplitudeFixedThresh_Cy
 
+
 class BipolarAmplitudeFixedThresh(FixedThresh,
-                                  BipolarAmplitudeFixedThresh_Weave,
+                                  #BipolarAmplitudeFixedThresh_Weave,
                                   BipolarAmplitudeFixedThresh_Cy):
     """Bipolar amplitude fixed threshold detector,
     with fixed temporal lockout on all channels, plus a spatial lockout"""
@@ -265,7 +235,6 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
 
         return spikeslist
-
 
     def searchblock_indepchans(self, wave):
         """Search across all chans in a manageable block of waveform
@@ -371,7 +340,7 @@ class DynamicMultiPhasic(FixedThresh):
     delta_t = 300
 
     def setup(self):
-        FixedThreshold.setup(self)
+        FixedThresh.setup(self)
         self.f_inflect = {}
         # set f' to be 3.5 * standard deviation (see paper)
         for chan, val in self.std.iteritems():

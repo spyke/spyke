@@ -1,4 +1,5 @@
-"""Spike detection loops implemented in weave.inline C for speed"""
+"""Spike detection loops implemented in weave.inline C for speed
+Using Cython instead. This is here just for reference"""
 
 from __future__ import division
 
