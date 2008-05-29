@@ -224,7 +224,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
         # no need for more than one max every other timepoint, can get away with less to save memory.
         # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
         # so uint32 allows us at least 23 hour long recordings, don't think int64 is needed here
-        self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=np.uint32) # row0: ti, row1: chanii
+        self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=int) # row0: ti, row1: chanii
         self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should be
 
         # generate time ranges for slightly overlapping blocks of data
@@ -263,7 +263,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
 
         return spikeslist
 
-    def searchblock(self, wave):
+    def searchblock_weave(self, wave):
         """Search across all chans in a manageable block of waveform
         data and return a tuple of spike time and maxchan arrays.
         Apply both temporal and spatial lockouts
@@ -359,6 +359,11 @@ class BipolarAmplitudeFixedThresh(FixedThresh, BipolarAmplitudeFixedThresh_Cy):
                         if ( v > last(chanii) ) // if signal is still increasing
                             last(chanii) = v; // update last value for this chan, wait til next ti to decide if this is a peak
                         else { // signal is decreasing, declare previous ti as a spike timepoint
+
+
+                            // TODO: I think the next line is wrong!!!!!!!!!!!!!!!!! spikei should start from 0 shouldn't it?
+
+
                             spikei = totalnspikes++; // 0-based spike index. assign, then increment
                             // find max chan, ie chan spike is centered on
                             maxchanii = chanii; // start with assumption that current chan is max chan

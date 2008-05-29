@@ -61,7 +61,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
-        self.OpenSurfFile(self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf') # have this here just to make testing faster
+        #fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
+        fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
+        self.OpenSurfFile(fname) # have this here just to make testing faster
 
     def OnNew(self, event):
         # TODO: what should actually go here? just check if an existing collection exists,
