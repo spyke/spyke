@@ -26,7 +26,14 @@ cpdef class BipolarAmplitudeFixedThresh_Cy: # maybe this shouldn't inherit from 
               be more efficient, since iterating over the chans loop (which is what we're doing most
               here) would iterate over adjacent points in memory, instead of points nt away from each
 
+        TODO: init lock, last, and xthresh in .search(), and bind them to self
+
         TODO: is there an abs f'n in C I can use? what's the most optimized way of taking abs?
+
+        TODO: get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type
+              whose fields point to all the variables used in this method, and pass the struct to get_maxchan
+              and set_lockout
+                - or, just make most of the variables globals, using global keyword
 
         TODO: after searching for maxchan, search again for peak on that maxchan,
               maybe iterate a few times until stop seeing changes in result for
@@ -41,7 +48,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy: # maybe this shouldn't inherit from 
               - search immed for maxchan within slock
               - apply slock immed around maxchan so you stop getting more thresh xings on other chans for the same spike
               - wait for peak on maxchan
-              - once peak found, search again for maxchan within slock
+              - once peak found, search again for maxchan within slock, mark that as a spike
               - reapply slock around maxchan
 
         TODO: instead of searching forward indefinitely for a peak, maybe search
@@ -52,9 +59,10 @@ cpdef class BipolarAmplitudeFixedThresh_Cy: # maybe this shouldn't inherit from 
         TODO: take weighted spatial average of say the top 3 channels at peak time of the
               maxchan, and use that point as the center of the spatial lockout
                 - this would mean you couldn't rely in the distance matrix dm anymore
+                - expensive refinement for little payoff
 
         TODO: add option to search backwards in time:
-                - maybe just slice data in reverse order, C loop won't know the difference?
+                - maybe just slice data in reverse order, Cy loop won't know the difference?
                 - would also have to reverse order of block loop, can prolly do this by
                   simply making blocksize BS -ve
 
@@ -109,36 +117,32 @@ cpdef class BipolarAmplitudeFixedThresh_Cy: # maybe this shouldn't inherit from 
         tcyloop = time.clock()
 
         for ti from 0 <= ti < nt: # iterate over all timepoints
-            #printf("ti:%d\n", ti)
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
                 if lockp[chanii] > 0: # if this chan is locked out
-                    #printf("dec at chanii:%d\n", chanii)
-                    lockp[chanii] -= 1 # do nothing but decr this chan's temporal lockout
+                    lockp[chanii] -= 1 # do nothing other than decr this chan's temporal lockout
                 else: # search for a thresh xing or a peak
-                    v = absdatap[chanii*nt + ti] # == absdata[chanii, ti]
+                    v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= thresh: # met or exceeded threshold
-                            # find maxchanii within slock of chanii, start with assumption that current chan is max chan
-                            maxchanii = get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti)
+                            # find maxchanii within slock of chanii, start with current chan as max chan
+                            maxchanii = get_maxchanii(chanii, nchans, chansp, dmp, slock, lockp, absdatap, nt, ti)
                             # apply spatiotemporal lockout to prevent extra thresh xings for this developing spike
                             set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock, xthreshp, lastp, lockp)
-                            xthreshp[maxchanii] = 1 # set crossed threshold flag for this maxchan
-                            lastp[maxchanii] = v # update last value for this maxchan
+                            xthreshp[maxchanii] = 1 # set maxchan's crossed threshold flag
+                            lastp[maxchanii] = v # update maxchan's last value
+                            lockp[maxchanii] = 0 # clear maxchan's lockout set inadvertently by set_lockout
                     else: # xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
                         if v > lastp[chanii]: # if signal is still increasing
                             lastp[chanii] = v # update last value for this chan, wait til next ti to decide if this is a peak
                         else: # signal is decreasing, declare previous ti as a spike timepoint
-                            # find maxchanii within slock of chanii, start with assumption that current chan is max chan
-                            maxchanii = get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti-1) # pass previous ti
-                            spikei += 1 # inc
-                            #printf('spikei:%d ti:%d\n', spikei, ti-1)
-                            spiketisp[0*nti + spikei] = ti-1 # save previous time index as that of the spikei'th spike
-                            spiketisp[1*nti + spikei] = chansp[maxchanii] # store chan spike is centered on
+                            # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
+                            maxchanii = get_maxchanii(chanii, nchans, chansp, dmp, slock, lockp, absdatap, nt, ti-1)
                             # apply spatiotemporal lockout to prevent extra thresh xings for this developing spike
                             set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock, xthreshp, lastp, lockp)
-                            # don't break out of chanii loop to move to next ti: there may be other
-                            # chans at this ti with spikes that are outside the spatial lockout
+                            spikei += 1;
                             totalnspikes += 1 # inc
+                            spiketisp[spikei] = ti-1 # (spiketisp[0, spikei]) save previous time index
+                            spiketisp[nti + spikei] = chansp[maxchanii] # (spiketisp[1, spikei]) store chan spike is centered on
                             if totalnspikes >= maxnspikes: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
                                 break # out of inner chanii loop
@@ -147,22 +151,20 @@ cpdef class BipolarAmplitudeFixedThresh_Cy: # maybe this shouldn't inherit from 
 
         nnewspikes = totalnspikes - self.totalnspikes
         self.totalnspikes = totalnspikes # update
-        # TODO: not sure if this will work, since spiketis is declared as an ndarray, guess it's converted back to Python here:
         spiketis = spiketis[:, :nnewspikes] # keep only the entries that were filled
-        # ...or this:
-        spiketimes = wave.ts[spiketis[0]] # convert from indices to actual spike times, wave.ts is int64 array
+        spiketimes = wave.ts.take(spiketis[0]) # convert from indices to actual spike times, wave.ts is int64 array
         maxchans = spiketis[1]
         return spiketimes, maxchans
 
 
 
 cdef int get_maxchanii(int maxchanii, int nchans, int *chansp,
-                       double *dmp, double slock, double *absdatap,
+                       double *dmp, double slock, int *lockp, double *absdatap,
                        int nt, int ti):
     """Finds max chanii at current ti
 
-    TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing
-          requires: chans[], nchans, maxchanii, dm[], slock, absdata[]
+    TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing,
+          although that would probably be a very minor refinement at a rather high cost
     TODO: might be able to speed this up by pulling out the maxchanii'th row (or column, whatever your fancy) from dm,
           sorting it from smallest to largest distance while keeping track of associated chaniis, doing a searchsorted on it
           to find index of first distance that's outside slock, and then only checking those chans that fall less than that
@@ -172,10 +174,12 @@ cdef int get_maxchanii(int maxchanii, int nchans, int *chansp,
     maxchani = chansp[maxchanii]
     for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
         chanj = chansp[chanjj]
-        # only consider chanjjs within slock of maxchani
-        if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
+        # chanjjs within slock of maxchani, that aren't locked out, that have higher signal:
+        if dmp[maxchani*nchans + chanj] <= slock and \
+        lockp[chanjj] == 0 and \
+        absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
             maxchanii = chanjj # update maxchanii
-            # recursive call goes here to search with newly centered slock radius
+    # recursive call goes here to search with newly centered slock radius
     return maxchanii # return maxchani
 
 

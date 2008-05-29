@@ -10,8 +10,8 @@ import spyke
 import wx
 refresh('spyke')
 from spyke.detect import BipolarAmplitudeFixedThresh
-#f = spyke.surf.File(r'C:\data\ptc15\87 - track 7c spontaneous craziness.srf')
-f = spyke.surf.File('/home/mspacek/Desktop/Work/spyke/data/large_data.srf')
+f = spyke.surf.File(r'C:\data\ptc15\87 - track 7c spontaneous craziness.srf')
+#f = spyke.surf.File('/home/mspacek/Desktop/Work/spyke/data/large_data.srf')
 f.parse()
 #wx.Yield()
 s = spyke.core.Stream(ctsrecords=f.highpassrecords)
