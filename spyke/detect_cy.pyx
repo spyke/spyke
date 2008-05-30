@@ -86,7 +86,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         else: # save time by avoiding an unnecessary .take
             data = wave.data
         tabs = time.clock()
-        cdef ndarray absdata = np.abs(data) # TODO: this step takes about .03 or .04 sec for 1 sec data
+        cdef ndarray absdata = data # name it absdata
+        abs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
         print 'abs took %.3f sec' % (time.clock()-tabs)
         cdef float *absdatap = <float *>absdata.data # float pointer to .data field
 
@@ -196,15 +197,14 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                     lockp[chanjj] = tilock
 
 
-
-# in-place abs f'n in C:
-"""
-for ( int ti=0; ti<nt; ti++ ) { // iterate over all timepoint indices
-    for ( int chanii=0; chanii<nchans; chanii++ ) { // iterate over all chan indices
-        if ( absdata(chanii, ti) < 0 )
-            absdata(chanii, ti) *= -1; // this could be dangerous - unless we do a copy in python, we'll be overwriting actual data. Ah but we do do a copy in Stream.__getitem__ when we concatenate
-            record waveforms, so we'll only be overwriting data from this one slice of Stream, which is fine. The original data will still all be there in the .waveform attrib of the record
-    }
-}
-"""
-
+cdef abs(ndarray a):
+    """In-place absolute value of 2D float32 array.
+    Or, might be better to just use fabs from C math library?"""
+    cdef int nrows = a.dimensions[0]
+    cdef int ncols = a.dimensions[1]
+    cdef float *datap = <float *>a.data
+    cdef int i, j
+    for i from 0 <= i < nrows: #( i=0; ti<nt; ti++ ) { // iterate over all timepoint indices
+        for j from 0 <= j < ncols: #( int chanii=0; chanii<nchans; chanii++ ) { // iterate over all chan indices
+            if datap[i*ncols + j] < 0.0:
+                datap[i*ncols + j] *= -1 # modify in-place
