@@ -134,9 +134,9 @@ class Stream(object):
         # this step takes about 0.9 sec per sec of data, and accounts for about half the time spent in det.search()
         # consider skipping it altogether, leaving data in int16, and only subtracting 2048 within C loop where it's needed.
         # that would also mean having to do abs in C loop
-        tconvert = time.clock()
+        #tconvert = time.clock()
         data = self.AD2uV(data, intgain, extgain)
-        print 'convert in stream slice took %.3f sec' % (time.clock()-tconvert)
+        #print 'convert in stream slice took %.3f sec' % (time.clock()-tconvert)
 
         # return a WaveForm object - TODO: does this return a copy or just a ref to data?
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
