@@ -39,11 +39,10 @@ class Detector(object):
     DEFAULTTHRESHMETHOD = 'median'
     DEFTLOCK = 250 # us
     DEFSLOCK = 175 # um
-
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block. TODO: should be a property
-    BLOCKSIZE = 1000000 # waveform data block size, us. TODO: should be a property
-    MAXNSPIKETISPERCHAN = BLOCKSIZE/1000000 * MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
-    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
+
+    blocksize = 1000000 # waveform data block size, us
+    blockexcess = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
 
     def __init__(self, stream, chans=None, trange=None, maxnspikes=None,
@@ -187,33 +186,31 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results. method = 'all' or 'indep' treats chans
         together or independently"""
-
         t0 = time.clock()
 
+        bs = self.blocksize
+        bx = self.blockexcess
+        maxnspikesperchanperblock = bs/1000000 * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
         self.totalnspikes = 0 # total num spikes found across all chans so far by this Detector
-
-        # holds a channel's spike times, passed by assignment to C code.
-        # no need for more than one max every other timepoint, can get away with less to save memory.
+        # spiketis holds spike times and maxchans, allocated once, reused by Cy code over multiple blocks
         # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
-        # so uint32 allows us at least 23 hour long recordings, don't think int64 is needed here
-        self.spiketis = np.zeros((2, len(self.chans)*self.MAXNSPIKETISPERCHAN), dtype=int) # row0: ti, row1: chanii
+        # so uint32 allows us 23+ hour long recordings, so int64 isn't needed here
+        self.spiketis = np.zeros((2, len(self.chans)*maxnspikesperchanperblock), dtype=int) # row0: ti, row1: maxchanii
         self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should be
 
         # generate time ranges for slightly overlapping blocks of data
         wavetranges = []
         cutranges = []
-        BS = self.BLOCKSIZE
-        BX = self.BLOCKEXCESS
-        les = range(self.trange[0], self.trange[1], BS)  # left edges of data blocks
+        les = range(self.trange[0], self.trange[1], bs)  # left edges of data blocks
         for le in les:
-            wavetranges.append((le-BX, le+BS+BX)) # time range of waveform to give to .searchblock
-            cutranges.append((le, le+BS)) # time range of spikes to keep from those returned by .searchblock
+            wavetranges.append((le-bx, le+bs+bx)) # time range of waveform to give to .searchblock
+            cutranges.append((le, le+bs)) # time range of spikes to keep from those returned by .searchblock
         # last wavetrange and cutrange surpass self.trange[1], fix that here:
-        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+BX)
+        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx)
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
-        spikeslist = [] # list of 2D spike arrays returned by searchblock, one array per block
+        spikes = [] # list of 2D spike arrays returned by searchblock, one array per block
         for (tlo, thi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
             tblock = time.clock()
             if self.totalnspikes < self.maxnspikes:
@@ -229,13 +226,13 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
                 # TODO: remove any spikes that happen right at the last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
                 spiketimesmaxchans = np.asarray([spiketimes, maxchans])[lo:hi] # create 2D array, slice it to remove excess
-                spikeslist.append(spiketimesmaxchans)
+                spikes.append(spiketimesmaxchans)
             print 'block loop took %.3f sec' % (time.clock()-tblock)
 
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
 
-        return spikeslist
-
+        return spikes
+    '''
     def searchblock_indepchans(self, wave):
         """Search across all chans in a manageable block of waveform
         data, searching each chan independently in its own C loop.
@@ -253,7 +250,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         # TODO: apply spatial lockout here. Would have to iterate over all
         # timepoints again, which would be slow
         return spikes
-
+    '''
 
 class MultiPhasic(FixedThresh):
     """Multiphasic filter - spikes triggered only when consecutive

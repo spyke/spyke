@@ -12,7 +12,7 @@ import_array() # Initialize numpy - this MUST be done before any other code is e
 
 def cy_setmat(ndarray a, int val):
     """This is how to index into np arrays quickly,
-    just as fast as weave.inline. Assumes 2D array"""
+    just as fast as weave.inline. Assumes 2D int array"""
     cdef int i, j
     cdef int *ap = <int *>a.data # int pointer to .data field
     cdef int nrows=a.dimensions[0]

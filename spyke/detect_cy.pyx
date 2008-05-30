@@ -26,6 +26,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         TODO: take transpose of absdata, so that ti are in rows and chanii are in cols. This might
               be more efficient, since iterating over the chans loop (which is what we're doing most
               here) would iterate over adjacent points in memory, instead of points nt away from each
+                - tried this in a simple test using cython_test.cy_setmat, didn't see any speed difference
 
         TODO: init lock, last, and xthresh in .search(), and bind them to self
                 - nope, can't do, cuz we need to ensure they're all reset to zero on every .searchblock() call
