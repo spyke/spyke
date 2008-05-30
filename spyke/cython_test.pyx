@@ -30,8 +30,9 @@ cpdef cy_recurse(int val):
     print 'done'
 
 
-cpdef cy_inc(int N=1000000000): # with def: 2.1 sec, width cpdef: 1.4 sec. weave.inline is also 1.4 sec
-    """In place incrementation is just as fast as in weave.inline"""
+cpdef cy_inc(int N=1000000000):
+    """In place incrementation is just as fast as in weave.inline.
+    With def: 2.1 sec, width cpdef: 1.4 sec. weave.inline is also 1.4 sec"""
     cdef int i=0
     while i < N:
         i += 1

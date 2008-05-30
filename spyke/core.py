@@ -100,8 +100,12 @@ class Stream(object):
                 # to save time, only load the waveform if not already loaded
                 record.load()
 
-        # join all waveforms, returns a copy
-        data = np.concatenate([record.waveform for record in cutrecords], axis=1)
+        # join all waveforms, returns a copy. Also, convert to float32 here,
+        # instead of in .AD2uV(), since we're doing a copy here anyway, and we don't need.
+        # Use float32 cuz it uses half the memory, and is also a little faster as a result.
+        # Don't need float64 precision anyway. Question is, are machines better optimized for float64 than float32?
+        # TODO: do interpolation here too, which will also need more memory.
+        data = np.concatenate([np.float32(record.waveform) for record in cutrecords], axis=1)
         # all ctsrecords should be using the same layout, use tres from the first one
         tres = cutrecords[0].layout.tres
 
@@ -131,27 +135,29 @@ class Stream(object):
         # consider skipping it altogether, leaving data in int16, and only subtracting 2048 within C loop where it's needed.
         # that would also mean having to do abs in C loop
         tconvert = time.clock()
-        data = self.convert(data, intgain, extgain, self.units)
+        data = self.AD2uV(data, intgain, extgain)
         print 'convert in stream slice took %.3f sec' % (time.clock()-tconvert)
 
-        # return a WaveForm object
+        # return a WaveForm object - TODO: does this return a copy or just a ref to data?
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
 
-    def convert(self, adval, intgain, extgain, units='uV'):
-        """Convert AD values to micro-volts"""
+    def AD2uV(self, data, intgain, extgain):
+        """Convert AD values in data to uV"""
         # Delphi code:
         # Round((ADValue - 2048)*(10 / (2048
         #                  * ProbeArray[m_ProbeIndex].IntGain
         #                  * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
         #                  * V2uV);
-        # TODO: apply these operations to self.data, see if that helps. Returning data might do a copy?
+        # TODO: apply these operations in-place as much as possible
         # TODO: what if I did this in a C loop for speed?
-        if units == 'AD':
-            return adval
-        elif units == 'ADshifted':
-            return adval - 2048 # TODO: stop hard-coding 2048, should be maxval of AD board + 1 / 2
-        elif units == 'uV': # TODO: this is quite slow for large adval arrays, can operation be done in-place?
-            return (adval - 2048) * (10 / (2048 * intgain * extgain[0]) * 1e6)
+        # TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
+        '''
+        # doing in-place ops manually is actually slower, guess it's already optimized in numpy:
+        data -= 2048
+        data *= (10 / (2048 * intgain * extgain[0]) * 1000000)
+        return data
+        '''
+        return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
 
 
     def interp(self, data, ts, sampfreq=None, kind='nyquist'):

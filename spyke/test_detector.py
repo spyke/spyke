@@ -28,5 +28,14 @@ array([[ 1480,  2040,  5600,  6880,  9400, 14960, 15120, 21920, 23600, 23640, 23
 
 
 
+
+a = np.zeros((54,25000), dtype=np.int16)
+a = np.zeros((54,25000), dtype=float)
+timeit.Timer('a += 1', 'from __main__ import a').timeit(100)/100
+
+
+
+
+
 #import cProfile
 #cProfile.run('spikes = det.search()')

@@ -88,20 +88,20 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         tabs = time.clock()
         cdef ndarray absdata = np.abs(data) # TODO: this step takes about .03 or .04 sec for 1 sec data
         print 'abs took %.3f sec' % (time.clock()-tabs)
-        cdef double *absdatap = <double *>absdata.data # double pointer to .data field
+        cdef float *absdatap = <float *>absdata.data # float pointer to .data field
 
         #cdef int nt = wave.data.shape[1]
         cdef int nt = absdata.dimensions[1] # same thing, maybe faster (not!)
         cdef int totalnspikes = self.totalnspikes # total num of spikes found so far in this Detector.search()
         cdef int maxnspikes = self.maxnspikes
-        cdef double thresh = self.thresh
+        cdef float thresh = self.thresh
 
         cdef ndarray xthresh = np.zeros(nchans, dtype=int) # thresh xing flags (0 or 1)
         cdef int *xthreshp = <int *>xthresh.data # int pointer to .data field
         cdef ndarray lock = np.zeros(nchans, dtype=int) # holds number of lockout timepoints left per chan
         cdef int *lockp = <int *>lock.data # int pointer to .data field
-        cdef ndarray last = np.zeros(nchans, dtype=float) # holds last signal value per chan, floats in uV
-        cdef double *lastp = <double *>last.data # int pointer to .data field
+        cdef ndarray last = np.zeros(nchans, dtype=np.float32) # holds last signal value per chan, floats in uV
+        cdef float *lastp = <float *>last.data # float pointer to .data field
 
         cdef int tilock = self.tilock # temporal index lockout, in num timepoints
         cdef double slock = self.slock # spatial lockout, in um
@@ -113,7 +113,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         cdef int ti, chanii, maxchanii
         cdef int spikei = -1 # index into spiketis
-        cdef double v # current signal voltage, uV
+        cdef float v # current signal voltage, uV
 
         tcyloop = time.clock()
 
@@ -158,7 +158,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         return spiketimes, maxchans
 
     cdef int get_maxchanii(self, int maxchanii, int nchans, int *chansp,
-                           double *dmp, double slock, int *lockp, double *absdatap,
+                           double *dmp, double slock, int *lockp, float *absdatap,
                            int nt, int ti):
         """Finds max chanii at current ti
 
@@ -181,7 +181,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
     cdef set_lockout(self, int chanii, int maxchanii, int nchans, int *chansp,
                      double *dmp, double slock, int tilock,
-                     int *xthreshp, double *lastp, int *lockp):
+                     int *xthreshp, float *lastp, int *lockp):
         """Applies spatiotemporal lockout centered on current maxchanii from current ti forward"""
         for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
             maxchani = chansp[maxchanii]
