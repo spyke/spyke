@@ -9,9 +9,10 @@ import wx.html
 import cPickle
 import os
 import time
+from copy import copy
 
 import spyke
-from spyke import core, surf
+from spyke import core, surf, detect
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
@@ -153,6 +154,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #print time.time(), 'OnSlider()'
         #event.Skip() # doesn't seem to be necessary
 
+    def OnSearch(self, event):
+        """Detect pane Search button click"""
+        self.CreateDetector()
+        self.det.search()
+
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
         ext = os.path.splitext(fname)[1]
@@ -177,6 +183,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
         self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+        self.chans_enabled = copy(self.hpstream.layout.chanlist) # list of enabled channels
+                             #dict(zip(self.hpstream.layout.chanlist, # dict of chans with bools for enabled states
+                             #        [True]*self.hpstream.nchans))
         self.t = self.hpstream.t0 + self.spiketw/2 # set current time position in recording (us)
 
         self.OpenFrame('spike')
@@ -217,6 +226,29 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.lfptw = DEFLFPTW
         self.SetTitle("spyke") # update caption
         self.EnableSurfWidgets(False)
+
+    def OpenSortFile(self, fname):
+        """Open a collection from a .sort file"""
+        # TODO: do something with data (data is the collection object????)
+        try:
+            f = file(fname, 'rb')
+            data = cPickle.load(f)
+            f.close()
+            self.sortfname = fname # bind it now that it's been successfully loaded
+            self.SetTitle(self.Title + ' - ' + self.sortfname)
+        except cPickle.UnpicklingError:
+            wx.MessageBox("Couldn't open %s as a sort file" % fname,
+                          caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
+
+    def SaveFile(self, fname):
+        """Save collection to a .sort file"""
+        if not os.path.splitext(fname)[1]:
+            fname = fname + '.sort'
+        f = file(fname, 'wb')
+        cPickle.dump(self.collection, f)
+        f.close()
+        self.sortfname = fname # bind it now that it's been successfully saved
+        self.SetTitle(self.Title + ' - ' + self.sortfname)
 
     def OpenFrame(self, frametype):
         """Create and bind a data frame, show it, plot its data"""
@@ -300,6 +332,49 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_min_label.Show(enable)
         self.file_max_label.Show(enable)
 
+    def CreateDetector(self):
+        """Create a Detector object and bind it to self,
+        overwriting any existing one"""
+        detectorClass = self.GetDetectorClass()
+        trange = self.GetDetectorTRange()
+        det = detectorClass(stream=self.hpstream,
+                            chans=self.chans_enabled,
+                            trange=trange,
+                            maxnspikes=10,
+                            tlock=250,
+                            slock=175)
+        self.det = det
+
+    def GetDetectorClass(self):
+        """Figure out which Detector class to use based on method and
+        threshold radio selections"""
+        method = self.method_radio_box.GetStringSelection()
+        if self.fixed_radio_btn.GetValue():
+            thresh = 'FixedThresh'
+        elif self.dynamic_radio_btn.GetValue():
+            print self.dynamic_radio_btn.GetValue()
+            thresh = 'DynamicThresh'
+        else:
+            raise ValueError
+        classstr = method + thresh
+        return eval('detect.'+classstr)
+
+    def GetDetectorTRange(self):
+        """Get detector time range from combo boxes, and convert
+        start and end to appropriate vals"""
+        str2t = {'start': self.hpstream.t0, 'end': self.hpstream.tend}
+        low = self.range_start_combo_box.GetValue()
+        try:
+            low = int(low)
+        except ValueError:
+            low = str2t[low]
+        high = self.range_end_combo_box.GetValue()
+        try:
+            high = int(high)
+        except ValueError:
+            high = str2t[high]
+        return low, high
+
     def seek(self, offset=0, relative=False):
         """Seek to position in surf file. offset is time in us. relative determines
         if offset is absolute or relative. If True, offset can be negative to seek
@@ -342,29 +417,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 elif frametype == 'lfp':
                     wave = self.lpstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
                 frame.panel.plot(wave, tref=self.t) # plot it
-
-    def OpenSortFile(self, fname):
-        """Open a collection from a .sort file"""
-        # TODO: do something with data (data is the collection object????)
-        try:
-            f = file(fname, 'rb')
-            data = cPickle.load(f)
-            f.close()
-            self.sortfname = fname # bind it now that it's been successfully loaded
-            self.SetTitle(self.Title + ' - ' + self.sortfname)
-        except cPickle.UnpicklingError:
-            wx.MessageBox("Couldn't open %s as a sort file" % fname,
-                          caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
-
-    def SaveFile(self, fname):
-        """Save collection to a .sort file"""
-        if not os.path.splitext(fname)[1]:
-            fname = fname + '.sort'
-        f = file(fname, 'wb')
-        cPickle.dump(self.collection, f)
-        f.close()
-        self.sortfname = fname # bind it now that it's been successfully saved
-        self.SetTitle(self.Title + ' - ' + self.sortfname)
 
 
 class DataFrame(wx.MiniFrame):

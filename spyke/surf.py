@@ -562,8 +562,8 @@ class LayoutRecord(Record):
         # to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it
         # is an array of 64, so delete 32*4=128 bytes from end
         self.chanlist = self.unpack('h'*self.SURF_MAX_CHANNELS, f.read(2 * self.SURF_MAX_CHANNELS))
-        # throw away the junk values
-        self.chanlist = self.chanlist[:self.nchans]
+        # throw away the junk values, convert tuple to list
+        self.chanlist = list(self.chanlist[:self.nchans])
         # hack to skip next byte
         f.seek(1, 1)
         # ShortString (uMap54_2a, 65um spacing)
