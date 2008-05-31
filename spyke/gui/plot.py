@@ -10,8 +10,8 @@ we should treat probe siteloc coordinates as the centers of the channels,
 instead of the leftmost point of each channel.
 
 TODO: perhaps refactor, keep info about each channel together,
-make a Channel object with .id, .pos, .colour, .line properties,
-and then stick them in a dict of chans indexed by id"""
+make a Channel object with .id, .pos, .colour, .line, .enabled properties,
+and set_enable() method, and then stick them in a dict of chans indexed by id"""
 
 from __future__ import division
 

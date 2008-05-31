@@ -142,23 +142,16 @@ class Stream(object):
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
 
     def AD2uV(self, data, intgain, extgain):
-        """Convert AD values in data to uV"""
-        # Delphi code:
-        # Round((ADValue - 2048)*(10 / (2048
-        #                  * ProbeArray[m_ProbeIndex].IntGain
-        #                  * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
-        #                  * V2uV);
-        # TODO: apply these operations in-place as much as possible
-        # TODO: what if I did this in a C loop for speed?
-        # TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
-        '''
-        # doing in-place ops manually is actually slower, guess it's already optimized in numpy:
-        data -= 2048
-        data *= (10 / (2048 * intgain * extgain[0]) * 1000000)
-        return data
-        '''
-        return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
+        """Convert AD values in data to uV
+        Delphi code:
+        Round((ADValue - 2048)*(10 / (2048
+                         * ProbeArray[m_ProbeIndex].IntGain
+                         * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
+                         * V2uV);
 
+        TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
+        """
+        return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
 
     def interp(self, data, ts, sampfreq=None, kind='nyquist'):
         """Returns interpolated and sample-and-hold corrected data and
