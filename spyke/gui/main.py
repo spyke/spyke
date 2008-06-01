@@ -160,6 +160,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # TODO: searching from t=33187000 in ptc15/87 for n
         # spikes always yields n-2 spikes for some reason!!!!
+        # I think this is due to .searchblock finding spikes in the blockexcess areas before
+        # and after the cutrange. These are then cut out, and you're left with a few less spikes. What to do about it?
 
         self.get_detector()
         self.spikes = self.det.search()
