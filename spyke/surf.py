@@ -232,7 +232,9 @@ class File(Record):
 
     def serialize(self):
         """Creates a Fat Record, saves all the parsed headers and records to
-        it, and pickles it to a file"""
+        it, and pickles it to a file
+
+        TODO: make sure no high or lowpass data that may have been loaded is saved!!!!"""
         print 'Saving parse info to %r' % self.parsefname
         fat = Fat()
         fat.fileheader = self.fileheader

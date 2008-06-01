@@ -67,7 +67,8 @@ BROWN = '#AF5050'
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 
-PICKRADIUS = 15
+NCLOSESTCHANSTOSEARCH = 10
+PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 
@@ -329,14 +330,14 @@ class PlotPanel(FigureCanvasWxAgg):
         i = dy.argsort()[:n] # n indices sorted from smallest to largest y distance
         chans = colchans[i] # index into channels in the nearest column
         if len(chans) == 1:
-            chans = chans[0]
+            chans = chans[0] # pull it out, return a single value
         return chans
 
     def get_closestline(self, event):
         """Return line that's closest to mouse event coords"""
         d2s = [] # sum squared distances
         hitlines = []
-        closestchans = self.get_closestchans(event, n=6)
+        closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
             line = self.lines[chan]
             hit, tisdict = line.contains(event)

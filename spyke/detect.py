@@ -24,6 +24,8 @@ import itertools
 import sys
 import time
 
+import wx
+
 import numpy as np
 from numpy import where
 from scipy import weave
@@ -33,20 +35,25 @@ from spyke.core import WaveForm, toiter, argcut, intround, eucd
 #from spyke import Spike, Template, Collection
 
 
-
 class Detector(object):
     """Spike detector base class"""
-    DEFAULTTHRESHMETHOD = 'median'
-    DEFTLOCK = 250 # us
+    DEFFIXEDTHRESH = 50 # uV
+    DEFNOISEMETHOD = 'median'
+    DEFNOISEMULT = 4
+    DEFNOISEWINDOW = 10000000 # 10 sec
+    DEFMAXNSPIKES = sys.maxint
+    DEFBLOCKSIZE = 1000000 # waveform data block size, us
     DEFSLOCK = 175 # um
+    DEFTLOCK = 250 # us
+
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block. TODO: should be a property
-
-    blocksize = 1000000 # waveform data block size, us
-    blockexcess = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
+    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
 
-    def __init__(self, stream, chans=None, trange=None, maxnspikes=None,
-                 tlock=None, slock=None):
+    def __init__(self, stream, chans=None,
+                 fixedthresh=None, noisemethod=None, noisemult=None, noisewindow=None,
+                 trange=None, maxnspikes=None, blocksize=None,
+                 slock=None, tlock=None):
         """Takes a data stream and sets various parameters"""
         self.stream = stream
         if chans == None:
@@ -54,18 +61,16 @@ class Detector(object):
         self.chans = toiter(chans) # need not be contiguous. TODO: this should really be a property!!!! Update self.dm on change
         self.chans.sort() # make sure they're in order
         self.dm = self.get_distance_matrix() # Euclidean channel distance matrix, in self.chans order
-        if trange == None:
-            trange = (stream.t0, stream.tend)
-        self.trange = trange
-        if maxnspikes == None:
-            maxnspikes = sys.maxint
-        self.maxnspikes = maxnspikes # return at most this many spikes, applies across chans
-        if tlock == None:
-            tlock = self.DEFTLOCK
-        self.tlock = tlock
-        if slock == None:
-            slock = self.DEFSLOCK
-        self.slock = slock
+        # for simplicity, assign all thresh and noise attribs to all subclasses, even if some won't apply
+        self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
+        self.noisemethod = noisemethod or self.DEFNOISEMETHOD
+        self.noisemult = noisemult or self.DEFNOISEMULT
+        self.noisewindow = noisewindow or self.DEFNOISEWINDOW
+        self.trange = trange or (stream.t0, stream.tend)
+        self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes, applies across chans
+        self.blocksize = blocksize or self.DEFBLOCKSIZE
+        self.slock = slock or self.DEFSLOCK
+        self.tlock = tlock or self.DEFTLOCK
 
     def get_distance_matrix(self):
         """Get channel distance matrix, in um"""
@@ -87,11 +92,11 @@ class Detector(object):
         #    except StopIteration:
         #        break
     '''
-    def get_thresh(self, chan, kind=DEFAULTTHRESHMETHOD):
+    def get_thresh(self, chan):
         """Calculate either median or stdev based threshold for a given chan"""
-        if kind == 'median':
+        if self.noisemethod == 'median':
             self.get_median_thresh(chan)
-        elif  kind == 'stdev':
+        elif  self.noisemethod == 'stdev':
             self.get_stdev_thresh(chan)
 
     def get_median_thresh(self, chan):
@@ -123,15 +128,8 @@ class FixedThresh(Detector):
     Uses the same single static threshold throughout the entire file,
     with an independent threshold for every channel"""
 
-    STDEV_WINDOW = 10000000 # 10 sec
-    STDEV_MULT = 4
-    SPIKE_PRE = 250
-    SPIKE_POST = 750
-    #SEARCH_SPAN = 1000
-
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
-        self.thresh = 50 # uV, TODO: calculate this from noise level
 
     def get_median_noise(self, chan):
         pass
@@ -189,7 +187,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         t0 = time.clock()
 
         bs = self.blocksize
-        bx = self.blockexcess
+        bx = self.BLOCKEXCESS
         maxnspikesperchanperblock = bs/1000000 * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
         self.totalnspikes = 0 # total num spikes found across all chans so far by this Detector
@@ -211,46 +209,30 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
         spikes = [] # list of 2D spike arrays returned by searchblock, one array per block
-        for (tlo, thi), cutrange in zip(wavetranges, cutranges): # iterate over blocks
+        for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
             tblock = time.clock()
             if self.totalnspikes < self.maxnspikes:
-                tslice = time.clock()
-                # TODO: stream slicing still takes about 50% of the block loop time, of which most of that is in the
-                # .convert step. Loading the data takes a relatively insignificant amount of time now with np.fromfile
+                #tslice = time.clock()
+                print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+                tlo, thi = wavetrange
                 wave = self.stream[tlo:thi] # a block (Waveform) of multichan data.
-                print 'whole stream slice took %.3f sec' % (time.clock()-tslice)
-                tsearchblock = time.clock()
+                #print 'whole stream slice took %.3f sec' % (time.clock()-tslice)
+                #tsearchblock = time.clock()
                 spiketimes, maxchans = self.searchblock(wave)
-                print '.searchblock() took %.3f sec' % (time.clock()-tsearchblock)
+                #print '.searchblock() took %.3f sec' % (time.clock()-tsearchblock)
+                wx.Yield() # allow wx GUI event processing during search
                 lo, hi = argcut(spiketimes, cutrange) # get slice timepoint indices for removing excess
                 # TODO: remove any spikes that happen right at the last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
-                spiketimesmaxchans = np.asarray([spiketimes, maxchans])[lo:hi] # create 2D array, slice it to remove excess
+                spiketimesmaxchans = np.asarray([spiketimes, maxchans])[:, lo:hi] # create 2D array, slice it to remove excess
+                print 'found %d spikes' % spiketimesmaxchans.shape[1]
                 spikes.append(spiketimesmaxchans)
-            print 'block loop took %.3f sec' % (time.clock()-tblock)
-
+            #print 'block loop took %.3f sec' % (time.clock()-tblock)
+        spikes = np.concatenate(spikes, axis=1)
+        print 'found %d spikes in total' % spikes.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
+        return spikes
 
-        return spikes
-    '''
-    def searchblock_indepchans(self, wave):
-        """Search across all chans in a manageable block of waveform
-        data, searching each chan independently in its own C loop.
-        Return a dict of arrays of spike times, one entry per chan.
-        This is slightly faster than searchblock only because the searchchan
-        C loop used here skips over timepoints to do its temporal lockout, while
-        searchblock checks every timepoint. The latter method is better for
-        doing spatial lockout at the same time"""
-        spikes = {}
-        for chan in self.chans:
-            if self.totalnspikes < self.maxnspikes:
-                abschan = np.abs(wave[chan])
-                tis = self.searchchan_weave(abschan)
-                spikes[chan] = wave.ts[tis] # spike times in us
-        # TODO: apply spatial lockout here. Would have to iterate over all
-        # timepoints again, which would be slow
-        return spikes
-    '''
 
 class MultiPhasic(FixedThresh):
     """Multiphasic filter - spikes triggered only when consecutive

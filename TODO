@@ -48,6 +48,7 @@ EVENT DETECTION:
         - say you notice a shortage of cells in a certain part of the probe - you want to be sure there aren't any cells there that you've missed
     - F3 and F2 to search forward and back one event
 
+    - dynamic spatiotemporal lockout: some spikes span greater space and time than others, yet they're all given the same lockout. I guess on thresh xing and again on finding a spike, you could search locally in time and space and within the fixed slock and tlock, and see if signal drops below thresh in something less than slock and tlock, and adjust the lockout accordingly for that thresh xing or found spike
 
 ------------------------------------
 TEMPLATES:

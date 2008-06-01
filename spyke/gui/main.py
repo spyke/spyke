@@ -8,6 +8,7 @@ import wx
 import wx.html
 import cPickle
 import os
+import sys
 import time
 from copy import copy
 
@@ -157,7 +158,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSearch(self, event):
         """Detect pane Search button click"""
         self.CreateDetector()
-        self.det.search()
+        self.spikes = self.det.search()
+        self.total_nspikes_label.SetLabel(str(self.spikes.shape[1]))
+        print '%r' % self.spikes
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -208,6 +211,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetValue(self.t)
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
+
+        self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
+        self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
+        self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
+        #self.noise_method_choice.SetSelection(0)
+        self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
+        self.slock_spin_ctrl.SetRange(0, sys.maxint)
+        self.tlock_spin_ctrl.SetRange(0, sys.maxint)
+        self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
+        self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
+
         self.EnableSurfWidgets(True)
 
     def CloseSurfFile(self):
@@ -336,39 +350,42 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create a Detector object and bind it to self,
         overwriting any existing one"""
         detectorClass = self.GetDetectorClass()
-        trange = self.GetDetectorTRange()
         det = detectorClass(stream=self.hpstream,
                             chans=self.chans_enabled,
-                            trange=trange,
-                            maxnspikes=10,
-                            tlock=250,
-                            slock=175)
+                            fixedthresh=int(self.fixedthresh_spin_ctrl.GetValue()),
+                            noisemult=int(self.noisemult_spin_ctrl.GetValue()),
+                            #noisewindow=int(self.noisewindow_spin_ctrl), # not in the gui yet
+                            trange=self.GetDetectorTRange(),
+                            maxnspikes=int(self.nspikes_spin_ctrl.GetValue()) or None, # if 0, use default
+                            blocksize=int(self.blocksize_combo_box.GetValue()),
+                            slock=self.slock_spin_ctrl.GetValue(),
+                            tlock=self.tlock_spin_ctrl.GetValue()
+                            )
         self.det = det
 
     def GetDetectorClass(self):
-        """Figure out which Detector class to use based on method and
-        threshold radio selections"""
-        method = self.method_radio_box.GetStringSelection()
-        if self.fixed_radio_btn.GetValue():
-            thresh = 'FixedThresh'
-        elif self.dynamic_radio_btn.GetValue():
-            print self.dynamic_radio_btn.GetValue()
-            thresh = 'DynamicThresh'
+        """Figure out which Detector class to use based on algorithm and
+        threshmethod radio selections"""
+        algorithm = self.algorithm_radio_box.GetStringSelection()
+        if self.fixedthresh_radio_btn.GetValue():
+            threshmethod = 'FixedThresh'
+        elif self.dynamicthresh_radio_btn.GetValue():
+            threshmethod = 'DynamicThresh'
         else:
             raise ValueError
-        classstr = method + thresh
+        classstr = algorithm + threshmethod
         return eval('detect.'+classstr)
 
     def GetDetectorTRange(self):
         """Get detector time range from combo boxes, and convert
         start and end to appropriate vals"""
-        str2t = {'start': self.hpstream.t0, 'end': self.hpstream.tend}
+        str2t = {'start': self.hpstream.t0, 'now': self.t, 'end': self.hpstream.tend}
         low = self.range_start_combo_box.GetValue()
+        high = self.range_end_combo_box.GetValue()
         try:
             low = int(low)
         except ValueError:
             low = str2t[low]
-        high = self.range_end_combo_box.GetValue()
         try:
             high = int(high)
         except ValueError:

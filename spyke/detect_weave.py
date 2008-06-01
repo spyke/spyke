@@ -38,7 +38,7 @@ class BipolarAmplitudeFixedThresh_Weave(object):
         nt = wave.data.shape[1]
         totalnspikes = self.totalnspikes # total num of spikes found so far in this Detector.search()
         maxnspikes = self.maxnspikes
-        thresh = self.thresh
+        thresh = self.fixedthresh
 
         xthresh = np.zeros(nchans, dtype=np.int32) # thresh xing flags
         last = np.zeros(nchans) # holds last signal value per chan, floats in uV
@@ -172,7 +172,7 @@ class BipolarAmplitudeFixedThresh_Weave(object):
         nt = len(abschan)
         totalnspikes = self.totalnspikes # total num of spikes found by this Detector so far
         maxnspikes = self.maxnspikes
-        thresh = self.thresh
+        thresh = self.fixedthresh
         tilock = self.tilock
         spiketis = self.spiketis # init'd in self.search()
 

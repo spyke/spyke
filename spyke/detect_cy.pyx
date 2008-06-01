@@ -23,16 +23,6 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         data and return a tuple of spike time and maxchan arrays.
         Apply both temporal and spatial lockouts
 
-        TODO: take transpose of absdata, so that ti are in rows and chanii are in cols. This might
-              be more efficient, since iterating over the chans loop (which is what we're doing most
-              here) would iterate over adjacent points in memory, instead of points nt away from each
-                - tried this in a simple test using cython_test.cy_setmat, didn't see any speed difference
-
-        TODO: init lock, last, and xthresh in .search(), and bind them to self
-                - nope, can't do, cuz we need to ensure they're all reset to zero on every .searchblock() call
-
-        TODO: is there an abs f'n in C I can use? what's the most optimized way of taking abs?
-
         TODO: get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type
               whose fields point to all the variables used in this method, and pass the struct to get_maxchan
               and set_lockout
@@ -86,17 +76,17 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
         else: # save time by avoiding an unnecessary .take
             data = wave.data
-        tabs = time.clock()
+        #tabs = time.clock()
         cdef ndarray absdata = data # name it absdata
         abs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
-        print 'abs took %.3f sec' % (time.clock()-tabs)
+        #print 'abs took %.3f sec' % (time.clock()-tabs)
         cdef float *absdatap = <float *>absdata.data # float pointer to .data field
 
         #cdef int nt = wave.data.shape[1]
         cdef int nt = absdata.dimensions[1] # same thing, maybe faster (not!)
         cdef int totalnspikes = self.totalnspikes # total num of spikes found so far in this Detector.search()
         cdef int maxnspikes = self.maxnspikes
-        cdef float thresh = self.thresh
+        cdef float fixedthresh = self.fixedthresh
 
         cdef ndarray xthresh = np.zeros(nchans, dtype=int) # thresh xing flags (0 or 1)
         cdef int *xthreshp = <int *>xthresh.data # int pointer to .data field
@@ -117,16 +107,17 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef int spikei = -1 # index into spiketis
         cdef float v # current signal voltage, uV
 
-        tcyloop = time.clock()
-
+        #tcyloop = time.clock()
         for ti from 0 <= ti < nt: # iterate over all timepoints
+            # TODO: shuffle chans in-place here, or just have a second level of chan indices,
+            # shuffle those, and iterate over chaniii
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
                 if lockp[chanii] > 0: # if this chan is locked out
                     lockp[chanii] -= 1 # do nothing other than decr this chan's temporal lockout
                 else: # search for a thresh xing or a peak
                     v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
-                        if v >= thresh: # met or exceeded threshold
+                        if v >= fixedthresh: # met or exceeded threshold
                             # find maxchanii within slock of chanii, start with current chan as max chan
                             maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, lockp, absdatap, nt, ti)
                             # apply spatiotemporal lockout to prevent extra thresh xings for this developing spike
@@ -149,9 +140,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             if totalnspikes >= maxnspikes: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
                                 break # out of inner chanii loop
-
-        print 'final ti is', ti
-        print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
+        #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
         nnewspikes = totalnspikes - self.totalnspikes
         self.totalnspikes = totalnspikes # update
         spiketis = spiketis[:, :nnewspikes] # keep only the entries that were filled
@@ -205,7 +194,7 @@ cdef abs(ndarray a):
     cdef int ncols = a.dimensions[1]
     cdef float *datap = <float *>a.data
     cdef int i, j
-    for i from 0 <= i < nrows: #( i=0; ti<nt; ti++ ) { // iterate over all timepoint indices
-        for j from 0 <= j < ncols: #( int chanii=0; chanii<nchans; chanii++ ) { // iterate over all chan indices
+    for i from 0 <= i < nrows:
+        for j from 0 <= j < ncols:
             if datap[i*ncols + j] < 0.0:
-                datap[i*ncols + j] *= -1 # modify in-place
+                datap[i*ncols + j] *= -1.0 # modify in-place
