@@ -46,9 +46,8 @@ class Detector(object):
     DEFSLOCK = 175 # um
     DEFTLOCK = 250 # us
 
-    MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block. TODO: should be a property
+    MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
-
 
     def __init__(self, stream, chans=None,
                  fixedthresh=None, noisemethod=None, noisemult=None, noisewindow=None,
@@ -56,11 +55,7 @@ class Detector(object):
                  slock=None, tlock=None):
         """Takes a data stream and sets various parameters"""
         self.stream = stream
-        if chans == None:
-            chans = range(self.stream.nchans) # search all channels
-        self.chans = toiter(chans) # need not be contiguous. TODO: this should really be a property!!!! Update self.dm on change
-        self.chans.sort() # make sure they're in order
-        self.dm = self.get_distance_matrix() # Euclidean channel distance matrix, in self.chans order
+        self.chans = chans # is a property
         # for simplicity, assign all thresh and noise attribs to all subclasses, even if some won't apply
         self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
@@ -71,6 +66,18 @@ class Detector(object):
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
         self.tlock = tlock or self.DEFTLOCK
+
+    def get_chans(self):
+        return self._chans
+
+    def set_chans(self, chans):
+        if chans == None:
+            chans = range(self.stream.nchans) # search all channels
+        self._chans = toiter(chans) # need not be contiguous
+        self._chans.sort() # make sure they're in order
+        self.dm = self.get_distance_matrix() # Euclidean channel distance matrix, in self.chans order
+
+    chans = property(get_chans, set_chans)
 
     def get_distance_matrix(self):
         """Get channel distance matrix, in um"""
@@ -195,36 +202,41 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
         # so uint32 allows us 23+ hour long recordings, so int64 isn't needed here
         self.spiketis = np.zeros((2, len(self.chans)*maxnspikesperchanperblock), dtype=int) # row0: ti, row1: maxchanii
-        self.tilock = self.us2nt(self.tlock) # TODO: this should be a property, or maybe tlock should be
+        self.tilock = self.us2nt(self.tlock)
 
         # generate time ranges for slightly overlapping blocks of data
         wavetranges = []
         cutranges = []
-        les = range(self.trange[0], self.trange[1], bs)  # left edges of data blocks
-        for le in les:
-            wavetranges.append((le-bx, le+bs+bx)) # time range of waveform to give to .searchblock
-            cutranges.append((le, le+bs)) # time range of spikes to keep from those returned by .searchblock
+        tstep = 1
+        if self.trange[1] < self.trange[0]: # search backward
+            bs = -bs
+            bx = -bx
+            tstep = -1
+        es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
+        for e in es:
+            wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
+            cutranges.append((e, e+bs)) # time range of spikes to keep from those returned by .searchblock
         # last wavetrange and cutrange surpass self.trange[1], fix that here:
-        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx)
+        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
         spikes = [] # list of 2D spike arrays returned by searchblock, one array per block
         for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
-            tblock = time.clock()
+            #tblock = time.clock()
             if self.totalnspikes < self.maxnspikes:
                 #tslice = time.clock()
                 print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
                 tlo, thi = wavetrange
-                wave = self.stream[tlo:thi] # a block (Waveform) of multichan data.
+                wave = self.stream[tlo:thi:tstep] # a block (Waveform) of multichan data.
                 #print 'whole stream slice took %.3f sec' % (time.clock()-tslice)
                 #tsearchblock = time.clock()
                 spiketimes, maxchans = self.searchblock(wave)
                 #print '.searchblock() took %.3f sec' % (time.clock()-tsearchblock)
                 wx.Yield() # allow wx GUI event processing during search
                 lo, hi = argcut(spiketimes, cutrange) # get slice timepoint indices for removing excess
-                # TODO: remove any spikes that happen right at the last timepoint in the file,
+                # TODO: remove any spikes that happen right at the first or last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
-                spiketimesmaxchans = np.asarray([spiketimes, maxchans])[:, lo:hi] # create 2D array, slice it to remove excess
+                spiketimesmaxchans = np.asarray([spiketimes, maxchans])[:, lo:hi:tstep] # create 2D array, slice it to remove excess
                 print 'found %d spikes' % spiketimesmaxchans.shape[1]
                 spikes.append(spiketimesmaxchans)
             #print 'block loop took %.3f sec' % (time.clock()-tblock)

@@ -157,7 +157,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, event):
         """Detect pane Search button click"""
-        self.CreateDetector()
+
+        # TODO: searching from t=33187000 in ptc15/87 for n
+        # spikes always yields n-2 spikes for some reason!!!!
+
+        self.get_detector()
         self.spikes = self.det.search()
         self.total_nspikes_label.SetLabel(str(self.spikes.shape[1]))
         print '%r' % self.spikes
@@ -187,8 +191,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
         self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
         self.chans_enabled = copy(self.hpstream.layout.chanlist) # list of enabled channels
-                             #dict(zip(self.hpstream.layout.chanlist, # dict of chans with bools for enabled states
-                             #        [True]*self.hpstream.nchans))
         self.t = self.hpstream.t0 + self.spiketw/2 # set current time position in recording (us)
 
         self.OpenFrame('spike')
@@ -216,6 +218,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
         #self.noise_method_choice.SetSelection(0)
+        self.nspikes_spin_ctrl.SetRange(0, sys.maxint)
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetRange(0, sys.maxint)
         self.tlock_spin_ctrl.SetRange(0, sys.maxint)
@@ -346,24 +349,26 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_min_label.Show(enable)
         self.file_max_label.Show(enable)
 
-    def CreateDetector(self):
+    def get_detector(self):
         """Create a Detector object and bind it to self,
         overwriting any existing one"""
-        detectorClass = self.GetDetectorClass()
-        det = detectorClass(stream=self.hpstream,
-                            chans=self.chans_enabled,
-                            fixedthresh=int(self.fixedthresh_spin_ctrl.GetValue()),
-                            noisemult=int(self.noisemult_spin_ctrl.GetValue()),
-                            #noisewindow=int(self.noisewindow_spin_ctrl), # not in the gui yet
-                            trange=self.GetDetectorTRange(),
-                            maxnspikes=int(self.nspikes_spin_ctrl.GetValue()) or None, # if 0, use default
-                            blocksize=int(self.blocksize_combo_box.GetValue()),
-                            slock=self.slock_spin_ctrl.GetValue(),
-                            tlock=self.tlock_spin_ctrl.GetValue()
-                            )
-        self.det = det
+        detectorClass = self.get_detectorclass()
+        self.det = detectorClass(stream=self.hpstream)
+        self.update_detector()
 
-    def GetDetectorClass(self):
+    def update_detector(self):
+        """Update current Detector object attribs from gui"""
+        self.det.chans = self.chans_enabled
+        self.det.fixedthresh = int(self.fixedthresh_spin_ctrl.GetValue())
+        self.det.noisemult = int(self.noisemult_spin_ctrl.GetValue())
+        #self.det.noisewindow = int(self.noisewindow_spin_ctrl) # not in the gui yet
+        self.det.trange = self.get_detectortrange()
+        self.det.maxnspikes = int(self.nspikes_spin_ctrl.GetValue()) or None # if 0, use default
+        self.det.blocksize = int(self.blocksize_combo_box.GetValue())
+        self.det.slock = self.slock_spin_ctrl.GetValue()
+        self.det.tlock = self.tlock_spin_ctrl.GetValue()
+
+    def get_detectorclass(self):
         """Figure out which Detector class to use based on algorithm and
         threshmethod radio selections"""
         algorithm = self.algorithm_radio_box.GetStringSelection()
@@ -376,21 +381,38 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         classstr = algorithm + threshmethod
         return eval('detect.'+classstr)
 
-    def GetDetectorTRange(self):
+    def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
-        start and end to appropriate vals"""
+        start, now, and end to appropriate vals"""
         str2t = {'start': self.hpstream.t0, 'now': self.t, 'end': self.hpstream.tend}
-        low = self.range_start_combo_box.GetValue()
-        high = self.range_end_combo_box.GetValue()
+        tstart = self.range_start_combo_box.GetValue()
+        tend = self.range_end_combo_box.GetValue()
         try:
-            low = int(low)
-        except ValueError:
-            low = str2t[low]
+            tstart = str2t[tstart]
+        except KeyError:
+            tstart = int(tstart)
         try:
-            high = int(high)
-        except ValueError:
-            high = str2t[high]
-        return low, high
+            tend = str2t[tend]
+        except KeyError:
+            tend = int(tend)
+        return tstart, tend
+
+    def findspike(self, direction='forward'):
+        """Find next or last spike, depending on direction"""
+        self.update_detector()
+        self.det.maxnspikes = 1 # override whatever was in nspikes spin edit
+        if direction == 'forward':
+            self.det.trange = (self.t, self.hpstream.tend)
+        elif direction == 'backward':
+            self.det.trange = (self.t, self.t0)
+        else:
+            raise ValueError, direction
+        spike = det.search() # don't bind to self.spikes, don't update total_nspikes_label
+        try: # if a spike was found
+            t = spike[0, 1]
+            self.seek(t) # seek to it
+        except IndexError: # if not, do nothing
+            pass
 
     def seek(self, offset=0, relative=False):
         """Seek to position in surf file. offset is time in us. relative determines

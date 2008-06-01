@@ -81,8 +81,11 @@ class Stream(object):
 
         # for now, accept only slice objects as keys
         assert key.__class__ == slice
-        if key.step != None:
-            raise ValueError, "sorry, can't handle steps in slice"
+        # key.step == -1 indicates we want the returned Waveform reversed in time
+        # key.step == None behaves the same as key.step == 1
+        assert key.step in [None, 1, -1]
+        if key.step == -1:
+            key.start, key.stop = key.stop, key.start # reverse start and stop, now start should be > stop
 
         # Find the first and last records corresponding to the slice. If the start of the slice
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
@@ -125,8 +128,8 @@ class Stream(object):
         ts = ts[lo:hi+self.endinclusive]
         #ts = ts.take(np.arange(lo, hi+self.endinclusive)) # doesn't seem to help performance
 
-        # interp and s+h correct here
-        data, ts = self.interp(data, ts, self.sampfreq)
+        # interp and s+h correct here, reverse if need be
+        data, ts = self.interp(data[:, ::key.step], ts[::key.step], self.sampfreq)
 
         # transform AD values to uV
         extgain = self.ctsrecords[0].layout.extgain
@@ -150,6 +153,7 @@ class Stream(object):
                          * V2uV);
 
         TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
+        TODO: stop hard-coding 10V, should be max range at intgain of 1
         """
         return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
 
