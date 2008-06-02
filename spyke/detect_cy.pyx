@@ -109,6 +109,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef float *lastp = <float *>last.data # float pointer to .data field
 
         cdef int tilock = self.tilock # temporal index lockout, in num timepoints
+        print 'tilock:', tilock
         cdef double slock = self.slock # spatial lockout, in um
         cdef ndarray dm = self.dm # Euclidean channel distance matrix, floats in um
         cdef double *dmp = <double *>dm.data # double pointer to .data field
@@ -118,12 +119,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef long long *spiketimesp = <long long *>spiketimes.data # long long pointer to .data field
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
-        #cdef ndarray spiketis = self.spiketis # init'd in self.search()
-        #cdef int *spiketisp = <int *>spiketis.data # int pointer to .data field
-        #cdef int nti = spiketis.dimensions[1] # width
-
         cdef int ti, chanii, maxchanii
-        cdef int spikei = -1 # index into spiketis
+        cdef int spikei = -1 # index into spiketimes
         cdef float v # current signal voltage, uV
 
         #tcyloop = time.clock()
@@ -133,54 +130,52 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
                 if lockp[chanii] > 0: # if this chan is locked out
                     lockp[chanii] -= 1 # do nothing other than decr this chan's temporal lockout
+                    if chanii == 33:
+                        print 't: %d, decr ch33 lock to: %d' % (tsp[ti], lockp[chanii])
                 else: # search for a thresh xing or a peak
                     v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= fixedthresh: # met or exceeded threshold
                             # find maxchanii within slock of chanii, start with current chan as max chan
-                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, lockp, absdatap, nt, ti)
+                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti)
                             # apply spatiotemporal lockout to prevent extra thresh xings for this developing spike
+                            # TODO: is this really necessary? What's so bad about having multiple thresh xings at the same
+                            # time within slock, as long as you only count one of them as a spike?????? Isn't it best
+                            # to record whichever one crosses thresh AND is the first to reach peak as the spike?????
+                            print 't: %d, thresh xing, maxchan: %d' % (tsp[ti], maxchanii)
                             self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock, xthreshp, lastp, lockp)
                             xthreshp[maxchanii] = 1 # set maxchan's crossed threshold flag
                             lastp[maxchanii] = v # update maxchan's last value
                             lockp[maxchanii] = 0 # clear maxchan's lockout set inadvertently by set_lockout
                     else: # xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
                         if v > lastp[chanii]: # if signal is still increasing
-                            lastp[chanii] = v # update last value for this chan, wait til next ti to decide if this is a peak
+                            lastp[chanii] = v # update last value for this chan, continue searching for peak
                         else: # signal is decreasing, declare previous ti as a spike timepoint
                             # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
-                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, lockp, absdatap, nt, ti-1)
-                            # apply spatiotemporal lockout to prevent extra thresh xings for this found spike
-                            self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock, xthreshp, lastp, lockp)
+                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti-1)
+                            # apply spatiotemporal lockout now that spike has been found, pass tilock relative to previous ti
+                            print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], tsp[ti-1], maxchanii)
+                            self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock-1, xthreshp, lastp, lockp)
                             spikei += 1
                             spiket = tsp[ti-1] # spike time is timestamp of previous time index
-                            #print 'spiket:', spiket
                             if cut0 <= spiket and spiket <= cut1:
-                                nkeptspikes += 1 # only inc if this spike won't be cut away as excess in .search()
-                                #print 'nkeptspikes:', nkeptspikes
+                                nkeptspikes += 1 # this spike won't be cut away as excess in .search()
                             else:
                                 nexcessspikes += 1 # this spike will be cut away as excess in .search()
-                                #print 'nexcessspikes:', nexcessspikes
                             spiketimesp[spikei] = spiket # save spike time
                             maxchansp[spikei] = chansp[maxchanii] # store chan spike is centered on
-                            #spiketisp[spikei] = ti-1 # (spiketisp[0, spikei]) save previous time index
-                            #spiketisp[nti + spikei] = chansp[maxchanii] # (spiketisp[1, spikei]) store chan spike is centered on
                             if nkeptspikes >= maxnspikes: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
                                 break # out of inner chanii loop
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
         nnewspikes = nkeptspikes + nexcessspikes - self.totalnspikes # num spikes added to spiketimes and maxchans
-        #print 'nnewspikes:', nnewspikes
         self.totalnspikes = nkeptspikes # update
-        #spiketis = spiketis[:, :nnewspikes] # keep only the entries that were filled
         spiketimes = spiketimes[:nnewspikes] # keep only the entries that were filled
         maxchans = maxchans[:nnewspikes] # keep only the entries that were filled
-        #spiketimes = wave.ts.take(spiketis[0]) # convert from indices to actual spike times, wave.ts is int64 array
-        #maxchans = spiketis[1]
         return np.asarray([spiketimes, maxchans])
 
     cdef int get_maxchanii(self, int maxchanii, int nchans, int *chansp,
-                           double *dmp, double slock, int *lockp, float *absdatap,
+                           double *dmp, double slock, float *absdatap,
                            int nt, int ti):
         """Finds max chanii at current ti
 
@@ -214,8 +209,12 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 # apply its temporal lockout
                 if chanjj > chanii: # we haven't encountered chanjj yet in the outer chanii loop
                     lockp[chanjj] = tilock+1 # lockout by one extra timepoint which it'll decr before we leave this ti
+                    if chanjj == 33:
+                        print 'locked ch33:', lockp[chanjj]
                 else:
                     lockp[chanjj] = tilock
+                    if chanjj == 33:
+                        print 'locked ch33:', lockp[chanjj]
 
 
 cdef abs(ndarray a):
