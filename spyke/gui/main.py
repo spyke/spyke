@@ -365,7 +365,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.det.noisemult = int(self.noisemult_spin_ctrl.GetValue())
         #self.det.noisewindow = int(self.noisewindow_spin_ctrl) # not in the gui yet
         self.det.trange = self.get_detectortrange()
-        self.det.maxnspikes = int(self.nspikes_spin_ctrl.GetValue()) or None # if 0, use default
+        self.det.maxnspikes = int(self.nspikes_spin_ctrl.GetValue()) or self.det.DEFMAXNSPIKES # if 0, use default
         self.det.blocksize = int(self.blocksize_combo_box.GetValue())
         self.det.slock = self.slock_spin_ctrl.GetValue()
         self.det.tlock = self.tlock_spin_ctrl.GetValue()

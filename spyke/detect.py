@@ -198,10 +198,10 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         maxnspikesperchanperblock = bs/1000000 * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
         self.totalnspikes = 0 # total num spikes found across all chans so far by this Detector
-        # spiketis holds spike times and maxchans, allocated once, reused by Cy code over multiple blocks
-        # recordings not likely to have more than 2**32 timestamps, even when interpolated to 50 kHz,
-        # so uint32 allows us 23+ hour long recordings, so int64 isn't needed here
-        self.spiketis = np.zeros((2, len(self.chans)*maxnspikesperchanperblock), dtype=int) # row0: ti, row1: maxchanii
+        # hold temp spiketimes and maxchans for .searchblock, reused on every call
+        self._spiketimes = np.empty(len(self.chans)*maxnspikesperchanperblock, dtype=np.int64)
+        self._maxchans = np.empty(len(self.chans)*maxnspikesperchanperblock, dtype=int)
+        #self.spiketis = np.zeros((2, len(self.chans)*maxnspikesperchanperblock), dtype=int) # row0: ti, row1: maxchanii
         self.tilock = self.us2nt(self.tlock)
 
         # generate time ranges for slightly overlapping blocks of data
@@ -230,15 +230,17 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
                 wave = self.stream[tlo:thi:tstep] # a block (Waveform) of multichan data.
                 #print 'whole stream slice took %.3f sec' % (time.clock()-tslice)
                 #tsearchblock = time.clock()
-                spiketimes, maxchans = self.searchblock(wave)
+                spiketimesmaxchans = self.searchblock(wave, cutrange)
                 #print '.searchblock() took %.3f sec' % (time.clock()-tsearchblock)
                 wx.Yield() # allow wx GUI event processing during search
-                lo, hi = argcut(spiketimes, cutrange) # get slice timepoint indices for removing excess
+                lo, hi = argcut(spiketimesmaxchans[0], cutrange) # get slice timepoint indices for removing excess
                 # TODO: remove any spikes that happen right at the first or last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
-                spiketimesmaxchans = np.asarray([spiketimes, maxchans])[:, lo:hi:tstep] # create 2D array, slice it to remove excess
-                print 'found %d spikes' % spiketimesmaxchans.shape[1]
+                spiketimesmaxchans = spiketimesmaxchans[:, lo:hi:tstep] # slice it to remove excess
+                #print 'found %d spikes' % spiketimesmaxchans.shape[1]
                 spikes.append(spiketimesmaxchans)
+            else:
+                break # out of for loop
             #print 'block loop took %.3f sec' % (time.clock()-tblock)
         spikes = np.concatenate(spikes, axis=1)
         print 'found %d spikes in total' % spikes.shape[1]

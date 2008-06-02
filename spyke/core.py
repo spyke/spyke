@@ -85,13 +85,15 @@ class Stream(object):
         # key.step == None behaves the same as key.step == 1
         assert key.step in [None, 1, -1]
         if key.step == -1:
-            key.start, key.stop = key.stop, key.start # reverse start and stop, now start should be > stop
+            start, stop = key.stop, key.start # reverse start and stop, now start should be > stop
+        else:
+            start, stop = key.start, key.stop
 
         # Find the first and last records corresponding to the slice. If the start of the slice
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
         # timestamp, end with that record (even though you'll only potentially use the one timepoint from
         # that record, depending on the value of 'endinclusive')"""
-        lorec, hirec = self.rts.searchsorted([key.start, key.stop], side='right')
+        lorec, hirec = self.rts.searchsorted([start, stop], side='right')
 
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
@@ -122,7 +124,7 @@ class Stream(object):
             ts.extend(range(tstart, tstart + nt*tres, tres))
             #del record.waveform # save memory by unloading waveform data from records that aren't needed anymore
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
-        lo, hi = ts.searchsorted([key.start, key.stop])
+        lo, hi = ts.searchsorted([start, stop])
         data = data[:, lo:hi+self.endinclusive] # TODO: is this the slowest step? use .take instead?
         #data = data.take(np.arange(lo, hi+self.endinclusive), axis=1) # doesn't seem to help performance
         ts = ts[lo:hi+self.endinclusive]

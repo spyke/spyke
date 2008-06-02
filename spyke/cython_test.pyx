@@ -48,5 +48,8 @@ cpdef point(ndarray a):
         print ap[i]
 
 
+cpdef longtest(long long v):
+    """long long is int64, long seems to be just an int32"""
+    print v
 
 #timeit.Timer('cy_inc(1000000000)', 'from __main__ import cy_inc').timeit(1)
