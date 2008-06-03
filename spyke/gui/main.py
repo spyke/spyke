@@ -181,6 +181,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.findspike(which='previous')
             elif key == wx.WXK_F3: # search for next spike
                 self.findspike(which='next')
+        else:
+            if key == wx.WXK_PRIOR: # PGUP
+                self.seek(self.t - self.charttw)
+            elif key == wx.WXK_NEXT: # PGDN
+                self.seek(self.t + self.charttw)
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -496,18 +501,11 @@ class DataFrame(wx.MiniFrame):
         self.Parent.HideFrame(frametype)
 
 
-class panel(object):
-    def plot(*args, **kwargs):
-        pass
-    def show_ref(*args, **kwargs):
-        pass
-
 class SpikeFrame(DataFrame):
     """Frame to hold the custom spike panel widget"""
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
         DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = SpikePanel(self, -1, stream=stream, tw=tw, cw=cw)
-        #self.panel = panel()
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 

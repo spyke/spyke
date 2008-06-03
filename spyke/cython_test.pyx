@@ -9,6 +9,11 @@ include "Python.pxi" # Includes from the python headers
 include "numpy.pxi" # Include the Numpy C API for use via Cython extension code
 import_array() # Initialize numpy - this MUST be done before any other code is executed.
 
+cdef extern from "stdio.h":
+    int printf(char *, ...)
+
+import numpy as np
+
 
 def cy_setmat(ndarray a, int val):
     """This is how to index into np arrays quickly,
@@ -63,3 +68,35 @@ cpdef emptyloop():
     for i from 0 <= i < 25000: # 1 sec of data
         for j from 0 <= j < 54: # all chans
             val += 1
+
+cpdef strides(ndarray a):
+    """Show how to deal with a 2D array whose last (1th) dimension
+    has a -ve stride, ie an array that's just a view of some data
+    with the last dimension reversed
+
+    a = np.array(([100,200,300,400,500], [1,2,3,4,5]), dtype=np.int64)
+    a[:,::-1]
+    a[:,::-2]
+
+    """
+    cdef long long *datap = <long long *>a.data
+    cdef int nchans = a.dimensions[0]
+    cdef int nt = a.dimensions[1]
+    print 'address of datap:', <int>datap # this changes depending on how a is sliced relative to its original data
+    print 'strides:', a.strides[0], a.strides[1]
+    dchan = a.strides[0] / 8 # how many items you need to skip over to get from one chan to next, this will normally be nt, unless you've sliced the 0th (chan) axis somehow
+    dt = a.strides[1] / 8 # +/- 1 depending on whether it's sliced normally or in reverse order - how many items to skip over to get from one timepoint to the next
+    assert dchan == nt
+    assert abs(dt) == 1
+    print 'dchan, dt:', dchan, dt
+    cdef int ti, chani
+    for ti from 0 <= ti < nt:
+        for chani from 0 <= chani < nchans:
+            print datap[chani*nt + ti*dt]
+
+
+cpdef abs(int x):
+    """Take absolute value of an integer"""
+    if x < 0:
+        x *= -1
+    return x

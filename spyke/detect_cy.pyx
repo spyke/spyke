@@ -68,6 +68,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
               This will be faster, and will also prevent unrelated distant cells firing
               at the same time from triggering each other, or something
         """
+        print wave.data
+        print wave.ts
+
         cdef int nchans = len(self.chans)
         cdef ndarray chans = np.asarray(self.chans)
         cdef int *chansp = <int *>chans.data # int pointer to .data field
@@ -137,7 +140,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                     v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= fixedthresh: # met or exceeded threshold
-                            #print 't: %d, thresh xing, chan: %d' % (tsp[ti], chanii)
+                            print 't: %d, thresh xing, chan: %d' % (tsp[ti], chanii)
                             xthreshp[chanii] = 1 # set maxchan's crossed threshold flag
                             lastp[chanii] = v # update maxchan's last value
                             lockp[chanii] = -1 # ensure maxchan's lockout is off
@@ -148,7 +151,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
                             maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti-1)
                             # apply spatiotemporal lockout now that spike has been found, pass tilock relative to previous ti
-                            #print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], tsp[ti-1], maxchanii)
+                            print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], tsp[ti-1], maxchanii)
                             self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock-1, xthreshp, lastp, lockp)
                             spikei += 1
                             spiket = tsp[ti-1] # spike time is timestamp of previous time index
