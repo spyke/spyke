@@ -137,14 +137,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                     v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= fixedthresh: # met or exceeded threshold
-                            # find maxchanii within slock of chanii, start with current chan as max chan
-                            #maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti)
-                            # apply spatiotemporal lockout to prevent extra thresh xings for this developing spike
-                            # TODO: is this really necessary? What's so bad about having multiple thresh xings at the same
-                            # time within slock, as long as you only count one of them as a spike?????? Isn't it best
-                            # to record whichever one crosses thresh AND is the first to reach peak as the spike?????
-                            #print 't: %d, thresh xing, maxchan: %d' % (tsp[ti], maxchanii)
-                            #self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock, xthreshp, lastp, lockp)
+                            #print 't: %d, thresh xing, chan: %d' % (tsp[ti], chanii)
                             xthreshp[chanii] = 1 # set maxchan's crossed threshold flag
                             lastp[chanii] = v # update maxchan's last value
                             lockp[chanii] = -1 # ensure maxchan's lockout is off

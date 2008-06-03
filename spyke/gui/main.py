@@ -58,8 +58,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_spin_ctrl_units.SetLabel(MU+'s') # can't seem to set symbol from within wxGlade
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
 
+        #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+
         # disable most widgets until a .srf file is opened
-        self.EnableSurfWidgets(False)
+        self.EnableWidgets(False)
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
@@ -168,6 +170,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.total_nspikes_label.SetLabel(str(self.spikes.shape[1]))
         print '%r' % self.spikes
 
+    def OnKeyDown(self, event):
+        """Handle key presses"""
+        key = event.GetKeyCode()
+        if not event.ControlDown():
+            if key == wx.WXK_F3: # search for next spike
+                self.findspike(which='next')
+            if key == wx.WXK_F2: # search for previous spike
+                self.findspike(which='previous')
+
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
         ext = os.path.splitext(fname)[1]
@@ -193,7 +204,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
         self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
         self.chans_enabled = copy(self.hpstream.layout.chanlist) # list of enabled channels
-        self.t = self.hpstream.t0 + self.spiketw/2 # set current time position in recording (us)
+        self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
         self.OpenFrame('spike')
         self.OpenFrame('chart')
@@ -227,7 +238,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
         self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
 
-        self.EnableSurfWidgets(True)
+        self.get_detector() # bind a Detector to self
+
+        self.EnableWidgets(True)
 
     def CloseSurfFile(self):
         """Destroy data frames, close .srf file"""
@@ -244,7 +257,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.charttw = DEFCHARTTW
         self.lfptw = DEFLFPTW
         self.SetTitle("spyke") # update caption
-        self.EnableSurfWidgets(False)
+        self.EnableWidgets(False)
 
     def OpenSortFile(self, fname):
         """Open a collection from a .sort file"""
@@ -330,7 +343,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         enable = self.frames.items()[0] # pick a random frame
         self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
 
-    def EnableSurfWidgets(self, enable):
+    def EnableWidgets(self, enable):
         """Enable/disable all widgets that require an open .srf file"""
         self.menubar.Enable(wx.ID_SPIKEWIN, enable)
         self.menubar.Enable(wx.ID_CHARTWIN, enable)
@@ -342,12 +355,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
-        #self.file_control_panel.Enable(enable)
         self.file_control_panel.Show(enable)
-        #self.notebook.Enable(enable)
         self.notebook.Show(enable)
-        #self.file_min_label.Enable(enable)
-        #self.file_max_label.Enable(enable)
         self.file_min_label.Show(enable)
         self.file_max_label.Show(enable)
 
@@ -399,20 +408,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             tend = int(float(tend))
         return tstart, tend
 
-    def findspike(self, direction='forward'):
-        """Find next or last spike, depending on direction"""
+    def findspike(self, which='next'):
+        """Find next or previous spike, depending on which direction"""
         self.update_detector()
         self.det.maxnspikes = 1 # override whatever was in nspikes spin edit
-        if direction == 'forward':
-            self.det.trange = (self.t, self.hpstream.tend)
-        elif direction == 'backward':
-            self.det.trange = (self.t, self.t0)
+        self.det.blocksize = 100000 # smaller blocksize, since we're only looking for 1 spike
+        if which == 'next':
+            self.det.trange = (self.t+1, self.hpstream.tend)
+        elif which == 'previous':
+            self.det.trange = (self.t-1, self.hpstream.t0)
         else:
-            raise ValueError, direction
-        spike = det.search() # don't bind to self.spikes, don't update total_nspikes_label
+            raise ValueError, which
+        spike = self.det.search() # don't bind to self.spikes, don't update total_nspikes_label
         try: # if a spike was found
-            t = spike[0, 1]
+            t = spike[0, 0]
             self.seek(t) # seek to it
+            print '%r' % spike
         except IndexError: # if not, do nothing
             pass
 
@@ -574,6 +585,12 @@ class SpykeApp(wx.App):
         self.spykeframe = SpykeFrame(None)
         self.spykeframe.Show()
         self.SetTopWindow(self.spykeframe)
+
+        # key presses aren't CommandEvents, and don't propagate up the window hierarchy, but
+        # if left unhandled, are tested one final time here in the wx.App. Catch unhandled keypresses
+        # here and call appropriate methods in the main spyke frame
+        self.Bind(wx.EVT_KEY_DOWN, self.spykeframe.OnKeyDown)
+
         return True
 
 
