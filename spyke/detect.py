@@ -27,8 +27,6 @@ import time
 import wx
 
 import numpy as np
-from numpy import where
-from scipy import weave
 
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd
@@ -44,7 +42,7 @@ class Detector(object):
     DEFMAXNSPIKES = sys.maxint
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     DEFSLOCK = 175 # um
-    DEFTLOCK = 250 # us
+    DEFTLOCK = 250 # us, something wider like 440 might be better
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
@@ -278,7 +276,7 @@ class MultiPhasic(FixedThresh):
             chan_events = []
             for chan, thresh in self.thresholds.iteritems():
                 # this will only be along one dimension
-                _ev = where(numpy.abs(self.window.data[chan]) > thresh)[0]
+                _ev = np.where(numpy.abs(self.window.data[chan]) > thresh)[0]
 
                 if len(_ev) <= 0:
                     continue
@@ -349,7 +347,7 @@ class DynamicMultiPhasic(FixedThresh):
             chan_events = []
             for chan, thresh in self.thresholds.iteritems():
                 # this will only be along one dimension
-                _ev = where(numpy.abs(self.window.data[chan]) > thresh)[0]
+                _ev = np.where(numpy.abs(self.window.data[chan]) > thresh)[0]
 
                 if len(_ev) <= 0:
                     continue
@@ -376,12 +374,12 @@ class DynamicMultiPhasic(FixedThresh):
                     if extremal_val < 0:
                         # a valley
                         dyn_thresh = extremal_val + self.f_inflect[chan]
-                        dyn_events = where(self.window.data[chan] \
+                        dyn_events = np.where(self.window.data[chan] \
                                                         > dyn_thresh)[0]
                     else:
                         # a peak
                         dyn_thresh = extremal_val - self.f_inflect[chan]
-                        dyn_events = where(self.window.data[chan] \
+                        dyn_events = np.where(self.window.data[chan] \
                                                         < dyn_thresh)[0]
 
                     dyn_vals = [(self.window.data[chan][_ind], _ind) \

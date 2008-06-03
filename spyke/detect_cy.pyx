@@ -101,9 +101,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             cut0 = cut1
             cut1 = tmp
 
-        cdef ndarray xthresh = np.zeros(nchans, dtype=int) # thresh xing flags (0 or 1)
+        cdef ndarray xthresh = np.zeros(nchans, dtype=int) # per-channel thresh xing flags (0 or 1)
         cdef int *xthreshp = <int *>xthresh.data # int pointer to .data field
-        cdef ndarray lock = np.zeros(nchans, dtype=int) # holds number of lockout timepoints left per chan
+        cdef ndarray lock = np.zeros(nchans, dtype=int) # per-channel lockout timepoint counters, >= 0 indicates locked out
         cdef int *lockp = <int *>lock.data # int pointer to .data field
         cdef ndarray last = np.zeros(nchans, dtype=np.float32) # holds last signal value per chan, floats in uV
         cdef float *lastp = <float *>last.data # float pointer to .data field
@@ -127,12 +127,12 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         for ti from 0 <= ti < nt: # iterate over all timepoints
             # TODO: shuffle chans in-place here, or just have a second level of chan indices,
             # shuffle those, and iterate over chaniii
+            for chanii from 0 <= chanii < nchans:
+                lockp[chanii] -= 1 # decr all chans' lockout counters
+                if chanii == 33:
+                    print 't: %d, decr ch33 lock to: %d' % (tsp[ti], lockp[chanii])
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
-                if lockp[chanii] > 0: # if this chan is locked out
-                    lockp[chanii] -= 1 # do nothing other than decr this chan's temporal lockout
-                    if chanii == 33:
-                        print 't: %d, decr ch33 lock to: %d' % (tsp[ti], lockp[chanii])
-                else: # search for a thresh xing or a peak
+                if lockp[chanii] < 0: # if this chan isn't locked out, search for a thresh xing or a peak
                     v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= fixedthresh: # met or exceeded threshold
@@ -146,7 +146,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock, xthreshp, lastp, lockp)
                             xthreshp[maxchanii] = 1 # set maxchan's crossed threshold flag
                             lastp[maxchanii] = v # update maxchan's last value
-                            lockp[maxchanii] = 0 # clear maxchan's lockout set inadvertently by set_lockout
+                            lockp[maxchanii] = -1 # clear maxchan's lockout set inadvertently by set_lockout
                     else: # xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
                         if v > lastp[chanii]: # if signal is still increasing
                             lastp[chanii] = v # update last value for this chan, continue searching for peak
@@ -190,11 +190,11 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         maxchani = chansp[maxchanii]
         for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
             chanj = chansp[chanjj]
-            # chanjj within slock of maxchani has higher signal:
+            # if chanjj within slock of maxchani has higher signal:
             if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
                 maxchanii = chanjj # update maxchanii
         # recursive call goes here to search with newly centered slock radius
-        return maxchanii # return maxchani
+        return maxchanii
 
     cdef set_lockout(self, int chanii, int maxchanii, int nchans, int *chansp,
                      double *dmp, double slock, int tilock,
@@ -206,15 +206,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             if dmp[maxchani*nchans + chanj] <= slock: # (== dm[maxchani, chanj]) chanjj is within spatial lockout in um
                 xthreshp[chanjj] = 0 # clear its threshx flag
                 lastp[chanjj] = 0.0 # reset last so it's ready when it comes out of lockout
-                # apply its temporal lockout
-                if chanjj > chanii: # we haven't encountered chanjj yet in the outer chanii loop
-                    lockp[chanjj] = tilock+1 # lockout by one extra timepoint which it'll decr before we leave this ti
-                    if chanjj == 33:
-                        print 'locked ch33:', lockp[chanjj]
-                else:
-                    lockp[chanjj] = tilock
-                    if chanjj == 33:
-                        print 'locked ch33:', lockp[chanjj]
+                lockp[chanjj] = tilock # apply its temporal lockout
+                if chanjj == 33:
+                    print 'locked ch33:', lockp[chanjj]
 
 
 cdef abs(ndarray a):
