@@ -159,12 +159,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, event):
         """Detect pane Search button click"""
-
-        # TODO: searching from t=33187000 in ptc15/87 for n
-        # spikes always yields n-2 spikes for some reason!!!!
-        # I think this is due to .searchblock finding spikes in the blockexcess areas before
-        # and after the cutrange. These are then cut out, and you're left with a few less spikes. What to do about it?
-
         self.get_detector()
         self.spikes = self.det.search()
         self.total_nspikes_label.SetLabel(str(self.spikes.shape[1]))
@@ -173,11 +167,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnKeyDown(self, event):
         """Handle key presses"""
         key = event.GetKeyCode()
+        print 'key: %r' % key
         if not event.ControlDown():
-            if key == wx.WXK_F3: # search for next spike
-                self.findspike(which='next')
-            if key == wx.WXK_F2: # search for previous spike
+            if key == wx.WXK_LEFT:
+                self.seek(self.t - self.hpstream.tres)
+            elif key == wx.WXK_RIGHT:
+                self.seek(self.t + self.hpstream.tres)
+            elif key == wx.WXK_PRIOR: # PGUP
+                self.seek(self.t - self.spiketw)
+            elif key == wx.WXK_NEXT: # PGDN
+                self.seek(self.t + self.spiketw)
+            elif key == wx.WXK_F2: # search for previous spike
                 self.findspike(which='previous')
+            elif key == wx.WXK_F3: # search for next spike
+                self.findspike(which='next')
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -427,15 +430,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except IndexError: # if not, do nothing
             pass
 
-    def seek(self, offset=0, relative=False):
-        """Seek to position in surf file. offset is time in us. relative determines
-        if offset is absolute or relative. If True, offset can be negative to seek
-        backwards from current position"""
+    def seek(self, offset=0):
+        """Seek to position in surf file. offset is time in us"""
         self.oldt = self.t
-        if relative:
-            self.t = self.t + offset
-        else:
-            self.t = offset
+        self.t = offset
         self.t = intround(self.t / self.hpstream.tres) * self.hpstream.tres # round to nearest (possibly interpolated) sample
         self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
         # only plot if t has actually changed, though this doesn't seem to improve
@@ -498,11 +496,18 @@ class DataFrame(wx.MiniFrame):
         self.Parent.HideFrame(frametype)
 
 
+class panel(object):
+    def plot(*args, **kwargs):
+        pass
+    def show_ref(*args, **kwargs):
+        pass
+
 class SpikeFrame(DataFrame):
     """Frame to hold the custom spike panel widget"""
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
         DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = SpikePanel(self, -1, stream=stream, tw=tw, cw=cw)
+        #self.panel = panel()
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 

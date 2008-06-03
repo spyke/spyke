@@ -129,11 +129,18 @@ class PlotPanel(FigureCanvasWxAgg):
         self.SetToolTip(tooltip) # connect it to self
 
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
+        #self.mpl_connect('key_press_event', self.OnKeyPress)
+        # TODO: mpl is doing something weird that always catches arrow key presses
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
-
+    '''
+    def OnKeyPress(self, event):
+        """Let main spyke frame handle keypress events"""
+        #self.GrandParent.OnKeyDown(event.guiEvent)
+        event.guiEvent.Skip()
+    '''
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
         self.wave = wave
