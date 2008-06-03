@@ -21,18 +21,31 @@ spikes = det.search()
 print 'whole search took %f sec' % (time.clock()-t0)
 #timeit.Timer('det.search()', 'from __main__ import det').timeit(1)
 
-# correct result for first 20 spikes in ptc15/87:
-thresh = 50, slock = 175, tlock = 250
+# correct results for BipolarAmplitudeFixedThresh in ptc15/87:
+thresh=50, slock=175, tlock=440
+wavetrange: (-1000, 1001000), cutrange: (0, 1000000)
+found 20 spikes in total
+inside .search() took 0.127 sec
 array([[ 1480,  2040,  5600,  6880,  9400, 14960, 15120, 21920, 23600,
-        23640, 23680, 24640, 24760, 25080, 25600, 26720, 26920, 27240,
-        27560, 28040],
+        23640, 23680, 24640, 24760, 25240, 26720, 26920, 27400, 28040,
+        28840, 30120],
        [   51,    20,    51,    47,    50,    26,    20,    10,    12,
-           33,     3,    10,    21,    32,    21,    28,     7,    46,
-            7,    30]], dtype=int64)
+           33,     3,    10,    21,    21,    28,     7,     7,    30,
+           46,     6]], dtype=int64)
 
+thresh=50, slock=175, tlock=440
 wavetrange: (38013040, 39015040), cutrange: (38014040, 39014040)
 found 10 spikes in total
-inside .search() took 0.256 sec
+inside .search() took 0.133 sec
+array([[38014400, 38015880, 38017360, 38017600, 38017840, 38018520,
+        38019200, 38021360, 38022320, 38023440],
+       [      30,       20,       20,        2,       20,       51,
+              31,       30,        6,       51]], dtype=int64)
+
+thresh=50, slock=175, tlock=250
+wavetrange: (38013040, 39015040), cutrange: (38014040, 39014040)
+found 10 spikes in total
+inside .search() took 0.126 sec
 array([[38014360, 38015880, 38016160, 38017360, 38017600, 38017840,
         38017880, 38018520, 38019200, 38021360],
        [      30,       20,       33,       20,        2,       20,

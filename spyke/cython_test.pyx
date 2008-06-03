@@ -29,15 +29,16 @@ cpdef cy_recurse(int val):
         cy_recurse(val)
     print 'done'
 
-
 cpdef cy_inc(int N=1000000000):
     """In place incrementation is just as fast as in weave.inline.
-    With def: 2.1 sec, width cpdef: 1.4 sec. weave.inline is also 1.4 sec"""
+    With def: 2.1 sec, width cpdef: 1.4 sec. weave.inline is also 1.4 sec
+
+    #timeit.Timer('cy_inc(1000000000)', 'from __main__ import cy_inc').timeit(1)
+    """
     cdef int i=0
     while i < N:
         i += 1
     return i
-
 
 cpdef point(ndarray a):
     """Print out all the values in a 1D array, index directly into
@@ -47,9 +48,18 @@ cpdef point(ndarray a):
     for i from 0 <= i < n:
         print ap[i]
 
-
 cpdef longtest(long long v):
     """long long is int64, long seems to be just an int32"""
     print v
 
-#timeit.Timer('cy_inc(1000000000)', 'from __main__ import cy_inc').timeit(1)
+cpdef emptyloop():
+    """Apparently, cycling through 1 sec of data only takes
+    8.6e-08 sec, so that's definitely not a slow step for any detector algorithm
+
+    #timeit.Timer('emptyloop', 'from __main__ import emptyloop').timeit(100)/100
+    """
+    cdef int i, j
+    cdef int val=0
+    for i from 0 <= i < 25000: # 1 sec of data
+        for j from 0 <= j < 54: # all chans
+            val += 1

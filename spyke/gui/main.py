@@ -392,11 +392,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try:
             tstart = str2t[tstart]
         except KeyError:
-            tstart = int(tstart)
+            tstart = int(float(tstart)) # convert to float first so you can use exp notation as shorthand
         try:
             tend = str2t[tend]
         except KeyError:
-            tend = int(tend)
+            tend = int(float(tend))
         return tstart, tend
 
     def findspike(self, direction='forward'):

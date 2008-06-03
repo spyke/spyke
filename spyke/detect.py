@@ -42,7 +42,7 @@ class Detector(object):
     DEFMAXNSPIKES = sys.maxint
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     DEFSLOCK = 175 # um
-    DEFTLOCK = 250 # us, something wider like 440 might be better
+    DEFTLOCK = 440 # us
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
