@@ -84,19 +84,19 @@ cpdef strides(ndarray a):
     cdef int nt = a.dimensions[1]
     print 'address of datap:', <int>datap # this changes depending on how a is sliced relative to its original data
     print 'strides:', a.strides[0], a.strides[1]
-    dchan = a.strides[0] / 8 # how many items you need to skip over to get from one chan to next, this will normally be nt, unless you've sliced the 0th (chan) axis somehow
-    dt = a.strides[1] / 8 # +/- 1 depending on whether it's sliced normally or in reverse order - how many items to skip over to get from one timepoint to the next
+    print 'sizeof long long:', sizeof(long long)
+    cdef int dchan = a.strides[0] / <int>sizeof(long long) # how many items you need to skip over to get from one chan to next, this will normally be nt, unless you've sliced the 0th (chan) axis somehow
+    cdef int dt = a.strides[1] / <int>sizeof(long long) # +/- 1 depending on whether it's sliced normally or in reverse order - how many items to skip over to get from one timepoint to the next
+    print 'dchan, dt:', dchan, dt
     assert dchan == nt
     assert abs(dt) == 1
-    print 'dchan, dt:', dchan, dt
     cdef int ti, chani
     for ti from 0 <= ti < nt:
         for chani from 0 <= chani < nchans:
             print datap[chani*nt + ti*dt]
 
-
-cpdef abs(int x):
-    """Take absolute value of an integer"""
+cdef abs(int x):
+    """Absolute value of an integer"""
     if x < 0:
         x *= -1
     return x

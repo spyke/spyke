@@ -82,14 +82,22 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         else: # save time by avoiding an unnecessary .take
             data = wave.data
         cdef ndarray absdata = data # name it absdata
-        abs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
+        arrabs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
         cdef float *absdatap = <float *>absdata.data # float pointer to .data field
+
         cdef ndarray ts = wave.ts
         cdef long long *tsp = <long long *>ts.data # long long pointer to timestamp .data
         cdef long long spiket # holds current spike timestamp
 
-        #cdef int nt = wave.data.shape[1]
-        cdef int nt = absdata.dimensions[1] # same thing, maybe faster (not!)
+        # how many entries to skip over to get from one timepoint to the next
+        # after AD2uV conversion, data should have gone through a copy, so even
+        # if its elements are reversed, its will be probably be normal
+        cdef int dt = absdata.strides[1] / <int>sizeof(float) # +1 if normal view, -1 if reversed view
+        assert abs(dt) == 1 # not sure how to handle data views that skip entries, so don't
+        print 'dt:', dt
+        print 'ts.strides[0]:', ts.strides[0], 'ts.strides[0] / <int>sizeof(long long):', ts.strides[0] / <int>sizeof(long long)
+        cdef int tsdt = ts.strides[0] / <int>sizeof(long long) # +1 if normal view, -1 if reversed view
+        cdef int nt = absdata.dimensions[1]
         cdef int nkeptspikes = self.totalnspikes # num non-excess spikes found so far in this Detector.search()
         cdef int nexcessspikes = 0
         cdef int maxnspikes = self.maxnspikes
@@ -134,13 +142,13 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             for chanii from 0 <= chanii < nchans:
                 lockp[chanii] -= 1 # decr all chans' lockout counters
                 #if chanii == 33:
-                #    print 't: %d, decr ch33 lock to: %d' % (tsp[ti], lockp[chanii])
+                #    print 't: %d, decr ch33 lock to: %d' % (tsp[ti*tsdt], lockp[chanii])
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
                 if lockp[chanii] < 0: # if this chan isn't locked out, search for a thresh xing or a peak
-                    v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
+                    v = absdatap[chanii*nt + ti*dt] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= fixedthresh: # met or exceeded threshold
-                            print 't: %d, thresh xing, chan: %d' % (tsp[ti], chanii)
+                            print 't: %d, thresh xing, chan: %d' % (tsp[ti*tsdt], chanii)
                             xthreshp[chanii] = 1 # set maxchan's crossed threshold flag
                             lastp[chanii] = v # update maxchan's last value
                             lockp[chanii] = -1 # ensure maxchan's lockout is off
@@ -149,12 +157,12 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             lastp[chanii] = v # update last value for this chan, continue searching for peak
                         else: # signal is decreasing, declare previous ti as a spike timepoint
                             # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
-                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti-1)
+                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, dt, ti-1)
                             # apply spatiotemporal lockout now that spike has been found, pass tilock relative to previous ti
-                            print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], tsp[ti-1], maxchanii)
+                            print 't: %d, found spike at t=%d on chan %d' % (tsp[ti*tsdt], tsp[(ti-1)*tsdt], maxchanii)
                             self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock-1, xthreshp, lastp, lockp)
                             spikei += 1
-                            spiket = tsp[ti-1] # spike time is timestamp of previous time index
+                            spiket = tsp[(ti-1)*tsdt] # spike time is timestamp of previous time index
                             if cut0 <= spiket and spiket <= cut1:
                                 nkeptspikes += 1 # this spike won't be cut away as excess in .search()
                             else:
@@ -173,8 +181,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
     cdef int get_maxchanii(self, int maxchanii, int nchans, int *chansp,
                            double *dmp, double slock, float *absdatap,
-                           int nt, int ti):
-        """Finds max chanii at current ti
+                           int nt, int dt, int ti):
+        """Finds max chanii at timepoint ti
 
         TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing,
               although that would probably be a very minor refinement at a rather high cost
@@ -188,7 +196,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
             chanj = chansp[chanjj]
             # if chanjj within slock of maxchani has higher signal:
-            if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
+            if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti*dt] > absdatap[maxchanii*nt + ti*dt]:
                 maxchanii = chanjj # update maxchanii
         # recursive call goes here to search with newly centered slock radius
         return maxchanii
@@ -208,7 +216,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 #    print 'locked ch33:', lockp[chanjj]
 
 
-cdef abs(ndarray a):
+cdef arrabs(ndarray a):
     """In-place absolute value of 2D float32 array.
     Or, might be better to just use fabs from C math library?"""
     cdef int nrows = a.dimensions[0]
@@ -219,3 +227,9 @@ cdef abs(ndarray a):
         for j from 0 <= j < ncols:
             if datap[i*ncols + j] < 0.0:
                 datap[i*ncols + j] *= -1.0 # modify in-place
+
+cdef abs(int x):
+    """Absolute value of an integer"""
+    if x < 0:
+        x *= -1
+    return x

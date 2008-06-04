@@ -93,7 +93,7 @@ class Stream(object):
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
         # timestamp, end with that record (even though you'll only potentially use the one timepoint from
         # that record, depending on the value of 'endinclusive')"""
-        lorec, hirec = self.rts.searchsorted([start, stop], side='right')
+        lorec, hirec = self.rts.searchsorted([start, stop], side='right') # TODO: this might need to be 'left' for step=-1
 
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
