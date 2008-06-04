@@ -100,3 +100,8 @@ cdef abs(int x):
     if x < 0:
         x *= -1
     return x
+
+cpdef swap(int i, int j):
+    """Show that you can use Python tuple notation to swap two C types"""
+    i, j = j, i
+    print 'i: %d, j: %d' % (i, j)

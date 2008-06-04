@@ -22,8 +22,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         """Search across all chans in a manageable block of waveform
         data and return a 2D array of spike times and maxchans.
         Apply both temporal and spatial lockouts.
-        cutrange is required to correctly count number of spikes that
-        won't be cut away as excess
+        cutrange determines which spikes are saved and which are discarded as excess
 
         TODO: get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type
               whose fields point to all the variables used in this method, and pass the struct to get_maxchan
@@ -94,19 +93,15 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef long long spiket # holds current spike timestamp
 
         cdef int nt = absdata.dimensions[1]
-        cdef int nkeptspikes = self.totalnspikes # num non-excess spikes found so far in this Detector.search()
-        cdef int nexcessspikes = 0
+        cdef int totalnspikes = self.totalnspikes # num non-excess spikes found so far in this Detector.search()
         cdef int maxnspikes = self.maxnspikes
         cdef float fixedthresh = self.fixedthresh
 
-        # cut times, these are for testing whether to inc nkeptspikes
+        # cut times, these are for testing whether to inc totalnspikes
         cdef long long cut0 = cutrange[0]
         cdef long long cut1 = cutrange[1]
-        cdef long long tmp
         if cut0 > cut1: # swap 'em for the test
-            tmp = cut0
-            cut0 = cut1
-            cut1 = tmp
+            cut0, cut1, = cut1, cut0
 
         cdef ndarray xthresh = np.zeros(nchans, dtype=int) # per-channel thresh xing flags (0 or 1)
         cdef int *xthreshp = <int *>xthresh.data # int pointer to .data field
@@ -152,25 +147,23 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                         if v > lastp[chanii]: # if signal is still increasing
                             lastp[chanii] = v # update last value for this chan, continue searching for peak
                         else: # signal is decreasing, declare previous ti as a spike timepoint
+                            spiket = tsp[ti-1] # spike time is timestamp of previous time index
                             # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
                             maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti-1)
-                            #print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], tsp[ti-1], maxchanii)
+                            #print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], spiket, maxchanii)
                             # apply spatiotemporal lockout now that spike has been found, pass tilock relative to previous ti
                             self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock-1, xthreshp, lastp, lockp)
-                            spikei += 1
-                            spiket = tsp[ti-1] # spike time is timestamp of previous time index
-                            if cut0 <= spiket and spiket <= cut1:
-                                nkeptspikes += 1 # this spike won't be cut away as excess in .search()
-                            else:
-                                nexcessspikes += 1 # this spike will be cut away as excess in .search()
-                            spiketimesp[spikei] = spiket # save spike time
-                            maxchansp[spikei] = chansp[maxchanii] # store chan spike is centered on
-                            if nkeptspikes >= maxnspikes: # exit here, don't search any more chans
+                            if cut0 <= spiket and spiket <= cut1: # spike falls within cutrange, save it
+                                spikei += 1
+                                spiketimesp[spikei] = spiket # save spike time
+                                maxchansp[spikei] = chansp[maxchanii] # save chan spike is centered on
+                                totalnspikes += 1 # this spike has been saved, so inc
+                            if totalnspikes >= maxnspikes: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
                                 break # out of inner chanii loop
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
-        nnewspikes = nkeptspikes + nexcessspikes - self.totalnspikes # num spikes added to spiketimes and maxchans
-        self.totalnspikes = nkeptspikes # update
+        nnewspikes = totalnspikes - self.totalnspikes # num spikes added to spiketimes and maxchans
+        self.totalnspikes = totalnspikes # update
         spiketimes = spiketimes[:nnewspikes] # keep only the entries that were filled
         maxchans = maxchans[:nnewspikes] # keep only the entries that were filled
         return np.asarray([spiketimes, maxchans])

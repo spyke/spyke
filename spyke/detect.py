@@ -219,7 +219,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
-        spikes = [] # list of 2D spike arrays returned by searchblock, one array per block
+        spikes = [] # list of 2D spike arrays returned by .searchblock(), one array per block
         for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
             if self.totalnspikes < self.maxnspikes:
                 print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
@@ -227,15 +227,8 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
                 wave = self.stream[tlo:thi:direction] # a block (Waveform) of multichan data, possibly reversed
                 spiketimesmaxchans = self.searchblock(wave, cutrange)
                 #wx.Yield() # allow wx GUI event processing during search
-                if direction == -1: # if reversed, make cutrange and spiketimesmaxchans ascending for the argcut and slice
-                    cutrange = cutrange[1], cutrange[0]
-                    spiketimesmaxchans = spiketimesmaxchans[:, ::direction] # reverse again so it's ascending order
-                lo, hi = argcut(spiketimesmaxchans[0], cutrange) # get slice timepoint indices for removing excess
                 # TODO: remove any spikes that happen right at the first or last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
-                spiketimesmaxchans = spiketimesmaxchans[:, lo:hi] # slice it to remove excess
-                if direction == -1: # if reversed, reverse again so it's back in descending order
-                    spiketimesmaxchans = spiketimesmaxchans[:, ::direction]
                 spikes.append(spiketimesmaxchans)
             else:
                 break # out of for loop
