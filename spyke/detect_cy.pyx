@@ -68,8 +68,12 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
               This will be faster, and will also prevent unrelated distant cells firing
               at the same time from triggering each other, or something
         """
-        print wave.data
-        print wave.ts
+        if not wave.data.flags.contiguous:
+            print "wave.data ain't contig, strides:", wave.data.strides
+            wave.data = wave.data.copy() # make it contiguous for easy pointer indexing
+        if not wave.ts.flags.contiguous:
+            print "wave.ts ain't contig, strides:", wave.ts.strides
+            wave.ts = wave.ts.copy()
 
         cdef int nchans = len(self.chans)
         cdef ndarray chans = np.asarray(self.chans)
@@ -89,14 +93,6 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef long long *tsp = <long long *>ts.data # long long pointer to timestamp .data
         cdef long long spiket # holds current spike timestamp
 
-        # how many entries to skip over to get from one timepoint to the next
-        # after AD2uV conversion, data should have gone through a copy, so even
-        # if its elements are reversed, its will be probably be normal
-        cdef int dt = absdata.strides[1] / <int>sizeof(float) # +1 if normal view, -1 if reversed view
-        assert abs(dt) == 1 # not sure how to handle data views that skip entries, so don't
-        print 'dt:', dt
-        print 'ts.strides[0]:', ts.strides[0], 'ts.strides[0] / <int>sizeof(long long):', ts.strides[0] / <int>sizeof(long long)
-        cdef int tsdt = ts.strides[0] / <int>sizeof(long long) # +1 if normal view, -1 if reversed view
         cdef int nt = absdata.dimensions[1]
         cdef int nkeptspikes = self.totalnspikes # num non-excess spikes found so far in this Detector.search()
         cdef int nexcessspikes = 0
@@ -142,13 +138,13 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             for chanii from 0 <= chanii < nchans:
                 lockp[chanii] -= 1 # decr all chans' lockout counters
                 #if chanii == 33:
-                #    print 't: %d, decr ch33 lock to: %d' % (tsp[ti*tsdt], lockp[chanii])
+                #    print 't: %d, decr ch33 lock to: %d' % (tsp[ti], lockp[chanii])
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
                 if lockp[chanii] < 0: # if this chan isn't locked out, search for a thresh xing or a peak
-                    v = absdatap[chanii*nt + ti*dt] # (absdata[chanii, ti])
+                    v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
                     if xthreshp[chanii] == 0: # we're looking for a thresh xing
                         if v >= fixedthresh: # met or exceeded threshold
-                            print 't: %d, thresh xing, chan: %d' % (tsp[ti*tsdt], chanii)
+                            #print 't: %d, thresh xing, chan: %d' % (tsp[ti], chanii)
                             xthreshp[chanii] = 1 # set maxchan's crossed threshold flag
                             lastp[chanii] = v # update maxchan's last value
                             lockp[chanii] = -1 # ensure maxchan's lockout is off
@@ -157,12 +153,12 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             lastp[chanii] = v # update last value for this chan, continue searching for peak
                         else: # signal is decreasing, declare previous ti as a spike timepoint
                             # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
-                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, dt, ti-1)
+                            maxchanii = self.get_maxchanii(chanii, nchans, chansp, dmp, slock, absdatap, nt, ti-1)
+                            #print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], tsp[ti-1], maxchanii)
                             # apply spatiotemporal lockout now that spike has been found, pass tilock relative to previous ti
-                            print 't: %d, found spike at t=%d on chan %d' % (tsp[ti*tsdt], tsp[(ti-1)*tsdt], maxchanii)
                             self.set_lockout(chanii, maxchanii, nchans, chansp, dmp, slock, tilock-1, xthreshp, lastp, lockp)
                             spikei += 1
-                            spiket = tsp[(ti-1)*tsdt] # spike time is timestamp of previous time index
+                            spiket = tsp[ti-1] # spike time is timestamp of previous time index
                             if cut0 <= spiket and spiket <= cut1:
                                 nkeptspikes += 1 # this spike won't be cut away as excess in .search()
                             else:
@@ -181,7 +177,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
     cdef int get_maxchanii(self, int maxchanii, int nchans, int *chansp,
                            double *dmp, double slock, float *absdatap,
-                           int nt, int dt, int ti):
+                           int nt, int ti):
         """Finds max chanii at timepoint ti
 
         TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing,
@@ -196,7 +192,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
             chanj = chansp[chanjj]
             # if chanjj within slock of maxchani has higher signal:
-            if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti*dt] > absdatap[maxchanii*nt + ti*dt]:
+            if dmp[maxchani*nchans + chanj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
                 maxchanii = chanjj # update maxchanii
         # recursive call goes here to search with newly centered slock radius
         return maxchanii

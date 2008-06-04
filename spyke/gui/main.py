@@ -167,7 +167,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnKeyDown(self, event):
         """Handle key presses"""
         key = event.GetKeyCode()
-        print 'key: %r' % key
+        #print 'key: %r' % key
         if not event.ControlDown():
             if key == wx.WXK_LEFT:
                 self.seek(self.t - self.hpstream.tres)
@@ -428,6 +428,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             raise ValueError, which
         spike = self.det.search() # don't bind to self.spikes, don't update total_nspikes_label
+        wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
         try: # if a spike was found
             t = spike[0, 0]
             self.seek(t) # seek to it

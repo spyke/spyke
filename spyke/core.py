@@ -85,7 +85,7 @@ class Stream(object):
         # key.step == None behaves the same as key.step == 1
         assert key.step in [None, 1, -1]
         if key.step == -1:
-            start, stop = key.stop, key.start # reverse start and stop, now start should be > stop
+            start, stop = key.stop, key.start # reverse start and stop, now start should be < stop
         else:
             start, stop = key.start, key.stop
 
@@ -106,9 +106,9 @@ class Stream(object):
                 record.load()
 
         # join all waveforms, returns a copy. Also, convert to float32 here,
-        # instead of in .AD2uV(), since we're doing a copy here anyway, and we don't need.
+        # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
-        # Don't need float64 precision anyway. Question is, are machines better optimized for float64 than float32?
+        # Don't need float64 precision anyway.
         # TODO: do interpolation here too, which will also need more memory.
         data = np.concatenate([np.float32(record.waveform) for record in cutrecords], axis=1)
         # all ctsrecords should be using the same layout, use tres from the first one
@@ -131,19 +131,17 @@ class Stream(object):
         #ts = ts.take(np.arange(lo, hi+self.endinclusive)) # doesn't seem to help performance
 
         # interp and s+h correct here, reverse if need be
-        data, ts = self.interp(data[:, ::key.step], ts[::key.step], self.sampfreq)
+        data, ts = self.interp(data, ts, self.sampfreq)
+        if key.step == -1:
+            data = data[:, ::key.step]
+            ts = ts[::key.step]
 
         # transform AD values to uV
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
-        # this step takes about 0.9 sec per sec of data, and accounts for about half the time spent in det.search()
-        # consider skipping it altogether, leaving data in int16, and only subtracting 2048 within C loop where it's needed.
-        # that would also mean having to do abs in C loop
-        #tconvert = time.clock()
         data = self.AD2uV(data, intgain, extgain)
-        #print 'convert in stream slice took %.3f sec' % (time.clock()-tconvert)
 
-        # return a WaveForm object - TODO: does this return a copy or just a ref to data?
+        # return a WaveForm object - TODO: does this return a copy or just a ref to data? I think just a ref
         return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
 
     def AD2uV(self, data, intgain, extgain):
