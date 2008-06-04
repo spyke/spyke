@@ -55,10 +55,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
         self.file_spin_ctrl.Bind(wx.EVT_SPINCTRL, self.OnFileSpinCtrl)
-        self.file_spin_ctrl_units.SetLabel(MU+'s') # can't seem to set symbol from within wxGlade
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
 
         #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+
+        self.file_spin_ctrl_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
+        self.fixedthresh_units_label.SetLabel(MU+'V')
+        self.range_units_label.SetLabel(MU+'s')
+        self.blocksize_units_label.SetLabel(MU+'s')
+        self.spatial_units_label.SetLabel(MU+'m')
+        self.temporal_units_label.SetLabel(MU+'s')
 
         # disable most widgets until a .srf file is opened
         self.EnableWidgets(False)
