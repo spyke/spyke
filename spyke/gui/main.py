@@ -54,12 +54,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
-        self.file_spin_ctrl.Bind(wx.EVT_SPINCTRL, self.OnFileSpinCtrl)
+
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
 
         #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-        self.file_spin_ctrl_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
+        self.file_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
         self.range_units_label.SetLabel(MU+'s')
         self.blocksize_units_label.SetLabel(MU+'s')
@@ -152,9 +152,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #event.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
 
-    def OnFileSpinCtrl(self, event):
-        """Change file position using spin control"""
-        self.seek(self.file_spin_ctrl.GetValue())
+    def OnFileComboBox(self, event):
+        """Change file position using combo box control,
+        convert start, now, and end to appropriate vals"""
+        # TODO: I set a value manually, but the OS overrides the value
+        # after this handler finishes handling the event, don't know how to
+        # prevent its propagation to the OS. ComboBoxEvent is a COMMAND event
+        t = self.file_combo_box.GetValue()
+        try:
+            t = self.str2t[t]
+        except KeyError:
+            # convert to float first so you can use exp notation as shorthand
+            t = float(t)
+        self.seek(t)
 
     def OnSlider(self, event):
         """Strange: keyboard press or page on mouse click when slider in focus generates
@@ -174,11 +184,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Handle key presses"""
         key = event.GetKeyCode()
         #print 'key: %r' % key
+        in_widget = event.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
+        in_file_combo_box = event.GetEventObject() == self.file_combo_box
         if not event.ControlDown():
-            if key == wx.WXK_LEFT:
-                self.seek(self.t - self.hpstream.tres)
-            elif key == wx.WXK_RIGHT:
-                self.seek(self.t + self.hpstream.tres)
+            if key == wx.WXK_LEFT and not in_widget or key == wx.WXK_DOWN and in_file_combo_box:
+                    self.seek(self.t - self.hpstream.tres)
+            elif key == wx.WXK_RIGHT and not in_widget or key == wx.WXK_UP and in_file_combo_box:
+                    self.seek(self.t + self.hpstream.tres)
             elif key == wx.WXK_PRIOR: # PGUP
                 self.seek(self.t - self.spiketw)
             elif key == wx.WXK_NEXT: # PGDN
@@ -187,11 +199,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.findspike(which='previous')
             elif key == wx.WXK_F3: # search for next spike
                 self.findspike(which='next')
-        else:
+        else: # CTRL is down
             if key == wx.WXK_PRIOR: # PGUP
                 self.seek(self.t - self.charttw)
             elif key == wx.WXK_NEXT: # PGDN
                 self.seek(self.t + self.charttw)
+        # when key event comes from file_combo_box, reserve down/up for seeking through file
+        if in_widget and not in_file_combo_box or in_file_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
+            event.Skip() # pass event on to OS to handle cursor movement
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -231,9 +246,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.Raise() # doesn't seem to bring self to foreground
         #wx.GetApp().SetTopWindow(self) # neither does this
 
+        self.str2t = {'start': self.hpstream.t0,
+                      'now': self.t,
+                      'end': self.hpstream.tend}
+
         self.range = (self.hpstream.t0, self.hpstream.tend) # us
-        self.file_spin_ctrl.SetRange(self.range[0], self.range[1])
-        self.file_spin_ctrl.SetValue(self.t)
+        self.file_combo_box.SetValue(str(self.t))
         self.file_min_label.SetLabel(str(self.hpstream.t0))
         self.file_max_label.SetLabel(str(self.hpstream.tend))
         self.slider.SetRange(self.range[0], self.range[1])
@@ -409,15 +427,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
         start, now, and end to appropriate vals"""
-        str2t = {'start': self.hpstream.t0, 'now': self.t, 'end': self.hpstream.tend}
         tstart = self.range_start_combo_box.GetValue()
         tend = self.range_end_combo_box.GetValue()
         try:
-            tstart = str2t[tstart]
+            tstart = self.str2t[tstart]
         except KeyError:
             tstart = int(float(tstart)) # convert to float first so you can use exp notation as shorthand
         try:
-            tend = str2t[tend]
+            tend = self.str2t[tend]
         except KeyError:
             tend = int(float(tend))
         return tstart, tend
@@ -448,11 +465,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.t = offset
         self.t = intround(self.t / self.hpstream.tres) * self.hpstream.tres # round to nearest (possibly interpolated) sample
         self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
+        self.str2t['now'] = self.t # update
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
         if self.t != self.oldt:
             # update controls first so they don't lag
-            self.file_spin_ctrl.SetValue(self.t) # update file spin ctrl
+            self.file_combo_box.SetValue(str(self.t)) # update file combo box
             self.slider.SetValue(self.t) # update slider
             wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
             self.plot()
