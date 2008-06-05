@@ -15,7 +15,7 @@ and set_enable() method, and then stick them in a dict of chans indexed by id"""
 
 from __future__ import division
 
-__authors__ = 'Reza Lotun, Martin Spacek'
+__authors__ = 'Martin Spacek, Reza Lotun'
 
 import itertools
 from copy import copy
@@ -61,7 +61,7 @@ LIGHTBLUE = '#007FFF'
 BLUE = '#0000FF'
 VIOLET = '#7F00FF'
 MAGENTA = '#FF00FF'
-GREY = '#7F7F7F'
+GREY = '#888888'
 WHITE = '#FFFFFF'
 BROWN = '#AF5050'
 
@@ -94,7 +94,7 @@ class PlotPanel(FigureCanvasWxAgg):
     # not necessarily constants
     uVperum = DEFUVPERUM
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
-                            # 17 gives roughly no horizontal overlap for self.tw == 1000 us
+                         # 17 gives roughly no horizontal overlap for self.tw == 1000 us
 
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
@@ -165,7 +165,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
             self.add_ref(ref)
 
-        self.lines = {} # line to chan mapping
+        self.lines = {} # chan to line mapping
         self.ax._autoscaleon = False # TODO: not sure if this is necessary
         for chan, (xpos, ypos) in self.pos.iteritems():
             line = SpykeLine(wave.ts - tref + xpos,
@@ -209,7 +209,7 @@ class PlotPanel(FigureCanvasWxAgg):
             self.ax.add_line(vline)
 
     def _update_tref(self):
-        """Update positions of vertical time reference line(s)"""
+        """Update position and size of vertical time reference line(s)"""
         cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
         ylims = self.ax.get_ylim()
         for col, vline in zip(cols, self.vlines):
@@ -229,7 +229,7 @@ class PlotPanel(FigureCanvasWxAgg):
             self.ax.add_line(hline)
 
     def _update_vref(self):
-        """Update positions of horizontal voltage reference lines"""
+        """Update position and size of horizontal voltage reference lines"""
         for (xpos, ypos), hline in zip(self.pos.itervalues(), self.hlines):
             hline.set_data([xpos-self.tw/2, xpos+self.tw/2], [ypos, ypos])
 
@@ -301,8 +301,8 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def get_xy_um(self):
         """Pull xy tuples in um out of self.pos, store in (2 x nchans) array,
-        in self.chans order. Not the same as siteloc for chart and lfp frames,
-        which have only a single column"""
+        in self.chans order. In chart and lfp frames, this is different from siteloc,
+        since these frames have only a single column"""
         xy_um = np.asarray([ (self.us2um(self.pos[chan][0]), self.uv2um(self.pos[chan][1]))
                                   for chan in self.chans ]).T # x is row0, y is row1
         return xy_um
@@ -380,8 +380,7 @@ class PlotPanel(FigureCanvasWxAgg):
             xdata = wave.ts - tref + xpos
             ydata = wave[chan]*self.gain + ypos
             line.set_data(xdata, ydata) # update the line's x and y data
-            #line._visible = True # is this necessary? Never seem to set it false outside of SortPanel
-        self.ax._visible = True
+        #self.ax._visible = True # TODO: is this necessary?
         self.draw(True)
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
@@ -420,12 +419,43 @@ class PlotPanel(FigureCanvasWxAgg):
         return us / self.usperum
 
     def OnButtonPress(self, event):
-        """Seek to timepoint as represented on chan closest to mouse click"""
-        chan = self.get_closestchans(event, n=1)
-        xpos = self.pos[chan][0]
-        t = event.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
-        # call main spyke frame's seek method
-        self.GrandParent.seek(t)
+        """Seek to timepoint as represented on chan closest to left mouse click,
+        enable/disable specific chans on Ctrl+left click or right click, enable/disable
+        all chans on Shift+left click"""
+        button = event.guiEvent.GetButton()
+        ctrl = event.guiEvent.ControlDown()
+        shift = event.guiEvent.ShiftDown()
+        #dclick = event.guiEvent.ButtonDClick(but=wx.MOUSE_BTN_LEFT)
+        if button == wx.MOUSE_BTN_LEFT and not ctrl and not shift:
+            # seek to timepoint
+            chan = self.get_closestchans(event, n=1)
+            xpos = self.pos[chan][0]
+            t = event.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
+            self.GrandParent.seek(t) # call main spyke frame's seek method
+        elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
+            # enable/disable closest line
+            chan = self.get_closestchans(event, n=1)
+            line = self.lines[chan]
+            if line.chan not in self.GrandParent.get_chans_enabled():
+                enable = True
+            else:
+                enable = False
+            self.GrandParent.set_chans_enabled(line.chan, enable)
+        elif button == wx.MOUSE_BTN_LEFT and not ctrl and shift:
+            # enable/disable all chans
+            if len(self.GrandParent.get_chans_enabled()) == 0:
+                enable = True
+            else:
+                enable = False
+            self.GrandParent.set_chans_enabled(None, enable) # None means all chans
+
+    def enable_chans(self, chans, enable=True):
+        """Enable/disable a specific set of channels in this frame"""
+        for chan in chans:
+            self.lines[chan].set_visible(enable)
+        self.draw(True)
+
+
     '''
     def OnPick(self, event):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""
@@ -457,7 +487,7 @@ class PlotPanel(FigureCanvasWxAgg):
             # (instead of clicked chan) stand up for itself
             #chan = self.get_closestchans(event, n=1)
             line = self.get_closestline(event)
-            if line:
+            if line and line.get_visible():
                 xpos, ypos = self.pos[line.chan]
                 t = event.xdata - xpos + self.tref
                 v = (event.ydata - ypos) / self.gain

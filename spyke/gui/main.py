@@ -232,7 +232,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
         self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
-        self.chans_enabled = copy(self.hpstream.layout.chanlist) # list of enabled channels
+        self.chans_enabled = copy(self.hpstream.layout.chanlist) # property
         self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
         self.OpenFrame('spike')
@@ -273,6 +273,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.get_detector() # bind a Detector to self
 
         self.EnableWidgets(True)
+
+    def get_chans_enabled(self):
+        return [ chan for chan, enable in self._chans_enabled.items() if enable ]
+
+    def set_chans_enabled(self, chans, enable=True):
+        if chans == None: # None means all chans
+            chans = copy(self.hpstream.layout.chanlist)
+        chans = toiter(chans) # need not be contiguous
+        try:
+            self._chans_enabled
+        except AttributeError:
+            self._chans_enabled = {}
+        for chan in chans:
+            self._chans_enabled[chan] = enable
+        try:
+            self.frames['spike'].panel.enable_chans(chans, enable)
+            self.frames['chart'].panel.enable_chans(chans, enable)
+        except KeyError:
+            pass
+
+    chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
     def CloseSurfFile(self):
         """Destroy data frames, close .srf file"""
@@ -401,7 +422,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def update_detector(self):
         """Update current Detector object attribs from gui"""
-        self.det.chans = self.chans_enabled
+        self.det.chans = self.chans_enabled # property
         self.det.fixedthresh = int(self.fixedthresh_spin_ctrl.GetValue())
         self.det.noisemult = int(self.noisemult_spin_ctrl.GetValue())
         #self.det.noisewindow = int(self.noisewindow_spin_ctrl) # not in the gui yet
