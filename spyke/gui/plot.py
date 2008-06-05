@@ -132,17 +132,12 @@ class PlotPanel(FigureCanvasWxAgg):
         #self.mpl_connect('key_press_event', self.OnKeyPress)
         # TODO: mpl is doing something weird that prevents arrow key press events
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        self.Bind(wx.EVT_NAVIGATION_KEY, self.OnNavigation)
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
-    '''
-    def OnKeyPress(self, event):
-        """Let main spyke frame handle keypress events"""
-        #self.GrandParent.OnKeyDown(event.guiEvent)
-        key = event.guiEvent.GetKeyCode()
-        print 'in dataframe.onkeypress !!: ', event.key
-        #event.guiEvent.Skip()
-    '''
+
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
         self.wave = wave
@@ -419,6 +414,23 @@ class PlotPanel(FigureCanvasWxAgg):
         """Convert from us to um"""
         return us / self.usperum
 
+    def OnKeyDown(self, event):
+        """Let main spyke frame handle keypress events"""
+        self.GrandParent.OnKeyDown(event)
+        #key = event.GetKeyCode()
+        #print 'in dataframe.onkeypress !!: ', key
+        #event.guiEvent.Skip()
+
+    def OnNavigation(self, event):
+        """Navigation key press"""
+        #print 'nagivation event:', event
+        if event.GetDirection(): # forward
+            direction = 1
+        else: # backward
+            direction = -1
+        self.GrandParent.seek(self.tref + direction*self.stream.tres)
+        event.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
+
     def OnButtonPress(self, event):
         """Seek to timepoint as represented on chan closest to left mouse click,
         enable/disable specific chans on Ctrl+left click or right click, enable/disable
@@ -455,8 +467,6 @@ class PlotPanel(FigureCanvasWxAgg):
         for chan in chans:
             self.lines[chan].set_visible(enable)
         self.draw(True)
-
-
     '''
     def OnPick(self, event):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""

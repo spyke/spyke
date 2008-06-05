@@ -181,7 +181,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print '%r' % self.spikes
 
     def OnKeyDown(self, event):
-        """Handle key presses"""
+        """Handle key presses
+        TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
+        """
         key = event.GetKeyCode()
         #print 'key: %r' % key
         in_widget = event.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
@@ -495,7 +497,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.slider.SetValue(self.t) # update slider
             wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
             self.plot()
+    '''
+    def step(self, direction):
+        """Step one timepoint left or right"""
+        self.seek(self.t + direction*self.hpstream.tres)
 
+    def page(self, direction):
+        """Page left or right"""
+        self.seek(self.t + direction*self.hpstream.tres)
+    '''
     def tell(self):
         """Return current position in surf file"""
         return self.t
