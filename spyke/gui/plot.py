@@ -349,15 +349,16 @@ class PlotPanel(FigureCanvasWxAgg):
         closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
             line = self.lines[chan]
-            hit, tisdict = line.contains(event)
-            if hit:
-                tis = tisdict['ind'] # pull them out of the dict
-                xs = line.get_xdata()[tis]
-                ys = line.get_ydata()[tis]
-                d2 = (xs-event.xdata)**2 + (ys-event.ydata)**2
-                d2 = d2.min() # point on line closest to mouse
-                hitlines.append(line)
-                d2s.append(d2)
+            if line.get_visible(): # only consider lines that are visible
+                hit, tisdict = line.contains(event)
+                if hit:
+                    tis = tisdict['ind'] # pull them out of the dict
+                    xs = line.get_xdata()[tis]
+                    ys = line.get_ydata()[tis]
+                    d2 = (xs-event.xdata)**2 + (ys-event.ydata)**2
+                    d2 = d2.min() # point on line closest to mouse
+                    hitlines.append(line)
+                    d2s.append(d2)
         d2s = np.asarray(d2s)
         if d2s.size != 0:
             linei = d2s.argmin() # index of line with smallest d2
@@ -436,14 +437,14 @@ class PlotPanel(FigureCanvasWxAgg):
             # enable/disable closest line
             chan = self.get_closestchans(event, n=1)
             line = self.lines[chan]
-            if line.chan not in self.GrandParent.get_chans_enabled():
+            if line.chan not in self.GrandParent.chans_enabled:
                 enable = True
             else:
                 enable = False
             self.GrandParent.set_chans_enabled(line.chan, enable)
         elif button == wx.MOUSE_BTN_LEFT and not ctrl and shift:
             # enable/disable all chans
-            if len(self.GrandParent.get_chans_enabled()) == 0:
+            if len(self.GrandParent.chans_enabled) == 0:
                 enable = True
             else:
                 enable = False

@@ -199,7 +199,6 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         # hold temp spiketimes and maxchans for .searchblock, reused on every call
         self._spiketimes = np.empty(len(self.chans)*maxnspikesperchanperblock, dtype=np.int64)
         self._maxchans = np.empty(len(self.chans)*maxnspikesperchanperblock, dtype=int)
-        #self.spiketis = np.zeros((2, len(self.chans)*maxnspikesperchanperblock), dtype=int) # row0: ti, row1: maxchanii
         self.tilock = self.us2nt(self.tlock)
 
         # generate time ranges for slightly overlapping blocks of data

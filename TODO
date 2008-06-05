@@ -1,8 +1,5 @@
 TODO:
 
-- BUG: searching for next/last spike with only some channels enabled does weird multiple triggering off of bigger spikes on that channel, and sometimes segfaults if F3/F2 is held down
-    - doing the same using search button alternates between two results when some chans are disabled
-
 - INTERPOLATION
     - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
         - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
@@ -301,4 +298,14 @@ DONE:
 - add faint 0 uV horizontal lines for spike and LFP windows (not necessary for chart win)
     - add faint vertical lines at center of each column in spike window
 - add horizontal zoom controls to all DataFrames
+- when searching for maxchan, limit search to chans within spatial lockout
+      - prevents unrelated distant cells firing at the same time from triggering each other
+- add ability to search backwards in time:
+    - maybe just slice data in reverse order, Cy loop won't know the difference?
+    - would also have to reverse order of block loop, can prolly do this by
+      simply making blocksize BS -ve
+- BUG: searching for next/last spike with only some channels enabled does weird multiple triggering off of bigger spikes on that channel, and sometimes segfaults if F3/F2 is held down
+    - doing the same using search button alternates between two results when some chans are disabled
+    - was due to a mistake in indexing into distance matrix in cython code
+
 
