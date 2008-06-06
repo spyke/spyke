@@ -644,6 +644,8 @@ class SpykeApp(wx.App):
         self.spykeframe = SpykeFrame(None)
         self.spykeframe.Show()
         self.SetTopWindow(self.spykeframe)
+        self.sortframe = wxglade_gui.SortFrame(None)
+        self.sortframe.Show()
 
         # key presses aren't CommandEvents, and don't propagate up the window hierarchy, but
         # if left unhandled, are tested one final time here in the wx.App. Catch unhandled keypresses
