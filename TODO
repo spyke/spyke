@@ -115,12 +115,15 @@ VERIFICATION:
 ------------------------------------
 LOW-PRIORITY:
 
-- create a win32 package installer, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy on clients
+- add time range selection to slider
 
-- CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames? and/or add that timepoint to a time drop-down combo box, which could be changed from the current spin edit type), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark (or select it from list of bookmarked times in time combo box)
-    - good for skipping back and forth quickly between two (or more) spikes
+- create a win32 package installer, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy, and mpl on clients
 
-- or, replace spinctrl with a spin button + text field next to each other, and catch the spin button's events (see wx manual pdf page 240) to control step size (say 40us instead of just 1us)
+- CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames? and/or add that timepoint to file position drop-down combo box), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark (or select it from list of bookmarked times in file pos combo box)
+    - good for skipping back and forth quickly between two (or more) spikes or otherwise interesting regions
+
+- add file pos spin button, and catch the spin button's events (see wx manual pdf page 240) to step through file
+    - or just use pgup/pgdown or slider paging
 
 - add scroll wheel support for data frames, for scrolling through data
     - scroll by 40us in spike frame, 1ms in chart frame, 50ms in lfp frame
