@@ -53,15 +53,30 @@ EVENT DETECTION:
 ------------------------------------
 TEMPLATES:
 
+    - unsorted event list control should have sortable columns: id, maxchan, timestamp. Text background should be coloured according to maxchan
+        - second list control below it for trash?
+
     - subtemplates - recognize that two distinct events might be from the same cell, but in a different mode of operation
     - toggle the display of all the templates (their means) at once (button, or Ctrl-A?), with just their active channels displayed. This way, you can quickly see if some templates are very similar, and how the cells are distributed across the electrode. This also lets you decide which templates need more/fewer channels enabled to help distinguish between them. Each template should be a different colour (up to say 16 or so).
     - manual spike alignment
         - do this on a per spike basis as a feature, if automated alignment can't always get it right
-        - when doing alignment on a template, move all member events too
+        - when doing alignment on a template, move all member events too. Duh. We'll just be adjusting tref for the template, which should then trigger a re-cut of all member spikes?
 
     - custom spike duration per template
         - Need to make the spike duration (currently 1ms) user settable for every template. Some spikes are broad, others narrow, and it's best to confine the templates to just those times with useful information about the spike. Otherwise, if there's too much flatline on either side, then you're basically saying "it ain't a spike unless stuff doesn't happen immediately before or after it", which isn't true. You might get a spike very soon after from another cell, or even from the same cell if it's a fast spiker.
         - in other words, we want the ability to crop a template in time. This complements the ability to crop a template in channel space
+
+------------------------------------
+MINI RIPS:
+
+    - while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
+    - this would allow you to quickly increase the number of spikes in each template, and would reveal which spikes in your subset are still very different from any templates you've generated so far, so you can prioritize and focus on those next
+    - more importantly, this will aid in sweeping up spikes from those cells that fire a lot and distract you from those that fire rarely
+    - a degenerate version of this would be to do a self rip, where you rip across only the set of spikes that are currently members of the template. This would allow you to adjust the error thresh until the self rip just barely returns all of the current members of the template
+    - just as for a normal rip, you'll first need to set an error thresh for the template
+    - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
+
+
 
 
 
@@ -75,15 +90,6 @@ RIPPING:
     - to reduce spike variability due to correlated noise, for any given comparison between template and data (be it against any timepoint in data, or against a detected event), take the channels that aren't selected in the template (purportedly because they have no significant signal on them), and at every timepoint, take their mean, and subtract that from _all_ channels. This should make spikes in the raw data (or in the detected events) look more like one of the templates
         - mean might not be ideal - maybe take their covariance and subtract it or something (see hyperellipsoidal method ref'd in 200x Blanche)
         - this should be done during any comparison between template and data, including during min rips (see below)
-
-MINI RIPS:
-    - while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
-    - this would allow you to quickly increase the number of spikes in each template, and would reveal which spikes in your subset are still very different from any templates you've generated so far, so you can prioritize and focus on those next
-    - more importantly, this will aid in sweeping up spikes from those cells that fire a lot and distract you from those that fire rarely
-    - a degenerate version of this would be to do a self rip, where you rip across only the set of spikes that are currently members of the template. This would allow you to adjust the error thresh until the self rip just barely returns all of the current members of the template
-    - just as for a normal rip, you'll first need to set an error thresh for the template
-    - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
-
 
 
 
@@ -109,7 +115,7 @@ VERIFICATION:
 ------------------------------------
 LOW-PRIORITY:
 
-- try creating win32 package installer, see if it automatically compiles weave code so you don't need gcc on the client system
+- create a win32 package installer, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy on clients
 
 - CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames? and/or add that timepoint to a time drop-down combo box, which could be changed from the current spin edit type), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark (or select it from list of bookmarked times in time combo box)
     - good for skipping back and forth quickly between two (or more) spikes

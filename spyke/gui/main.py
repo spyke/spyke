@@ -25,7 +25,8 @@ DEFLFPTW = 1000000 # lfp frame temporal window width (us)
 SPIKEFRAMEPIXPERCHAN = 80 # horizontally
 SPIKEFRAMEHEIGHT = 700
 CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
-LFPFRAMESIZE   = (250, SPIKEFRAMEHEIGHT)
+LFPFRAMESIZE = (250, SPIKEFRAMEHEIGHT)
+SORTFRAMESIZE = (400, 600)
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
 
@@ -35,7 +36,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     DEFAULTDIR = '/data/ptc15'
     FRAMETYPE2ID = {'spike': wx.ID_SPIKEWIN,
                     'chart': wx.ID_CHARTWIN,
-                    'lfp': wx.ID_LFPWIN}
+                    'lfp': wx.ID_LFPWIN,
+                    'sort': wx.ID_SORTWIN}
     REFTYPE2ID = {'tref': wx.ID_TREF,
                   'vref': wx.ID_VREF,
                   'caret': wx.ID_CARET}
@@ -46,7 +48,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.dpos = {} # positions of data frames relative to main spyke frame
         self.surffname = ""
         self.sortfname = ""
-        self.frames = {} # holds spike, chart, and lfp frames
+        self.frames = {} # holds spike, chart, lfp, and sort frames
         self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
         self.charttw = DEFCHARTTW # chart frame temporal window width (us)
         self.lfptw = DEFLFPTW # lfp frame temporal window width (us)
@@ -133,6 +135,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """LFP window toggle menu/button event"""
         self.ToggleFrame('lfp')
 
+    def OnSort(self, event):
+        """Sort window toggle menu/button event"""
+        self.ToggleFrame('sort')
+
     def OnTref(self, event):
         """Time reference toggle menu event"""
         self.ToggleRef('tref')
@@ -156,7 +162,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Change file position using combo box control,
         convert start, now, and end to appropriate vals"""
         # TODO: I set a value manually, but the OS overrides the value
-        # after this handler finishes handling the event, don't know how to
+        # after this handler finishes handling the event. Eg, I want 'start'
+        # to be replaced with the actual self.t0 timestamp, which it is, but is then
+        # immediately replaced back to 'start' by the OS. Don't know how to
         # prevent its propagation to the OS. ComboBoxEvent is a COMMAND event
         t = self.file_combo_box.GetValue()
         try:
@@ -240,6 +248,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenFrame('spike')
         self.OpenFrame('chart')
         self.OpenFrame('lfp')
+        #self.OpenFrame('sort')
         self.ShowRef('tref')
         self.ShowRef('vref')
         self.ShowRef('caret')
@@ -338,7 +347,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(self.Title + ' - ' + self.sortfname)
 
     def OpenFrame(self, frametype):
-        """Create and bind a data frame, show it, plot its data"""
+        """Create and bind a frame, show it, plot its data if applicable"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
                 ncols = self.hpstream.probe.ncols
@@ -359,27 +368,34 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 frame = LFPFrame(parent=self, stream=self.lpstream,
                                  tw=self.lfptw, cw=self.charttw,
                                  pos=wx.Point(x, y), size=LFPFRAMESIZE)
+            elif frametype == 'sort':
+                x = self.GetPosition()[0] + self.GetSize()[0]
+                y = self.GetPosition()[1]
+                frame = SortFrame(parent=self, stream=self.hpstream,
+                                  pos=wx.Point(x, y), size=SORTFRAMESIZE)
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
         self.ShowFrame(frametype)
 
     def ShowFrame(self, frametype, enable=True):
-        """Show/hide a data frame, force menu and toolbar states to correspond"""
+        """Show/hide a frame, force menu and toolbar states to correspond"""
         self.frames[frametype].Show(enable)
-        self.menubar.Check(self.FRAMETYPE2ID[frametype], enable)
-        self.toolbar.ToggleTool(self.FRAMETYPE2ID[frametype], enable)
-        if enable:
-            self.plot(frametype) # update only the newly shown frame's data, in case self.t changed since it was last visible
-        #if enable:
-        #    self.Raise() # children wx.MiniFrames are always on top of main spyke frame, self.Raise() doesn't seem to help. Must be an inherent property of wx.MiniFrames, which maybe isn't such a bad idea after all...
+        id = self.FRAMETYPE2ID[frametype]
+        self.menubar.Check(id, enable)
+        self.toolbar.ToggleTool(id, enable)
+        if enable and frametype != 'sort':
+            self.plot(frametype) # update only the newly shown data frame's data, in case self.t changed since it was last visible
 
     def HideFrame(self, frametype):
         self.ShowFrame(frametype, False)
 
     def ToggleFrame(self, frametype):
         """Toggle visibility of a data frame"""
-        frame = self.frames[frametype]
-        self.ShowFrame(frametype, not frame.IsShown())
+        try:
+            frame = self.frames[frametype]
+            self.ShowFrame(frametype, not frame.IsShown()) # toggle it
+        except KeyError: # frame hasn't been opened yet
+            self.OpenFrame(frametype)
 
     def CloseFrame(self, frametype):
         """Hide frame, remove it from frames dict, destroy it"""
@@ -403,6 +419,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_SPIKEWIN, enable)
         self.menubar.Enable(wx.ID_CHARTWIN, enable)
         self.menubar.Enable(wx.ID_LFPWIN, enable)
+        #self.menubar.Enable(wx.ID_SORTWIN, enable) # sort win doesn't need an open .srf file
         self.menubar.Enable(wx.ID_TREF, enable)
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
@@ -410,6 +427,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
+        #self.toolbar.EnableTool(wx.ID_SORTWIN, enable) # sort win doesn't need an open .srf file
         self.file_control_panel.Show(enable)
         self.notebook.Show(enable)
         self.file_min_label.Show(enable)
@@ -602,6 +620,19 @@ class LFPFrame(DataFrame):
         self.SetTitle("LFP window")
 
 
+class SortFrame(wxglade_gui.SortFrame):
+    """Sort frame"""
+    def __init__(self, parent=None, stream=None, *args, **kwds):
+        wxglade_gui.SortFrame.__init__(self, parent, *args, **kwds)
+        #self.panel = SortPanel(self, -1, stream=stream, tw=tw)
+
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+    def OnClose(self, event):
+        frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
+        self.Parent.HideFrame(frametype)
+
+
 class SpykeAbout(wx.Dialog):
     text = '''
         <html>
@@ -644,8 +675,8 @@ class SpykeApp(wx.App):
         self.spykeframe = SpykeFrame(None)
         self.spykeframe.Show()
         self.SetTopWindow(self.spykeframe)
-        self.sortframe = wxglade_gui.SortFrame(None)
-        self.sortframe.Show()
+        #self.sortframe = wxglade_gui.SortFrame(None)
+        #self.sortframe.Show()
 
         # key presses aren't CommandEvents, and don't propagate up the window hierarchy, but
         # if left unhandled, are tested one final time here in the wx.App. Catch unhandled keypresses

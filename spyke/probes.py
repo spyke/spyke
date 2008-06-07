@@ -74,6 +74,7 @@ class uMap54_1a(Probe):
         assert len(SiteLoc) == self.nchans
         self.SiteLoc = SiteLoc
 
+
 class uMap54_1b(Probe):
     """uMap54_1b, 50um horzontal/46um vertical spacing, 3 column collinear"""
     def __init__(self):

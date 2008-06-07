@@ -16,6 +16,81 @@ from spyke.gui.plot import ClickableSortPanel
 from spyke.gui.manager import CollectionManager
 
 
+
+class SortSession(object): # maybe call this a SortSession, which correponds to .sort files? Collection is quite abstract
+    def __init__(self):
+        self.datapath = '/data' # path to root data folder
+        self.templates # first hierarchy of templates
+        self.spikes # sorted spikes
+        self.events # unsorted spikes
+        self.trash # discarded events
+        self.detections # history of detection runs, in chrono order
+        self.lastsrffname # last srf file that was open in this session, relative to .datapath
+
+class Template(object):
+    def __init__(self, session=None, id=None, parent=None):
+        self.session = session # parent SortSession
+        self.id = id # template id
+        self.parent = parent # parent template, if self is a subtemplates
+        self.children = None # subtemplates
+        self.maxchan
+        self.chans
+        self.spikes # member spikes that make up this template
+        #self.surffname # not here, let's allow templates to have spikes from different files?
+
+    def mean(self):
+        """Returns mean template from member spikes"""
+        for spike in self.spikes:
+            pass
+
+    def __del__(self):
+        """Is this run on 'del template'?"""
+        for spike in self.spikes:
+            spike.template = None # remove self from all spike.template fields
+
+    def pop(self, spikeid):
+        return self.spikes.pop(spikeid)
+
+
+class Spike(object):
+    """Either an unsorted spike, or a sorted spike in a SortSession, or a member spike in a Template"""
+    def __init__(self):
+        # or, instead of .session and .template, just make a .parent attrib?
+        self.id # some integer for easy user identification
+        self.session # optional attrib, if this is an unsorted spike?
+        self.template = None # template object it belongs to, None means unsorted spike
+        self.surffname # originating surf file name, with path relative to self.session.datapath
+        self.t # timestamp
+        self.maxchan # necessary? see .template
+        #self.chans # necessary? see .template
+        self.data # we'll see if having this here takes up too much space in a Collection
+        self.detection = None # detection run this Spike was detected on
+        self.cluster = None # cluster run this Spike was sorted on
+        #self.rip = None # rip this Spike was sorted on
+
+class Cluster(object):
+    """Cluster is an object that holds all the settings of a
+    cluster run. A cluster run is when you compare each of the
+    detected but unsorted spikes in the SortSession to all templates,
+    and decide which template it best fits. Compare with a Rip"""
+
+    def match(self, spike):
+
+
+class Rip(object):
+    """Holds all the Rip settings. A rip is when you take each template and
+    slide it across the entire file. A spike is detected and
+    sorted at timepoints where the error between template and file falls below
+    some threshold"""
+
+
+class ClusterRip(Cluster, Rip):
+    """A hybrid of the two. Rip each template across all of the unsorted spikes
+    instead of across the entire file"""
+
+
+####################################################
+
 class SpikeTreeCtrl(wx.TreeCtrl):
     def __init__(self, layout, *args, **kwargs):
         wx.TreeCtrl.__init__(self, *args, **kwargs)

@@ -46,7 +46,13 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 - expensive refinement for little payoff
 
         TODO: (maybe): chanii loop should go in random order on each ti, to prevent a chan from
-              dominating with its spatial lockout or something like that
+              dominating with its spatial lockout or something like that. So, shuffle chans in-place
+              on every ti, or have a second level of chan indices, shuffle those every ti, and iterate over chaniii
+
+        TODO: replace lockp with binary bitmask of length 1ms say,
+              shift bits on every ti, might let you search for spikes into future
+              semi-independently on each chan
+
         """
         if not wave.data.flags.contiguous:
             #print "wave.data ain't contig, strides:", wave.data.strides
@@ -84,7 +90,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef long long cut0 = cutrange[0]
         cdef long long cut1 = cutrange[1]
         if cut0 > cut1: # swap 'em for the test
-            cut0, cut1, = cut1, cut0
+            cut0, cut1 = cut1, cut0
 
         cdef ndarray xthresh = np.zeros(nchans, dtype=int) # per-channel thresh xing flags (0 or 1)
         cdef int *xthreshp = <int *>xthresh.data # int pointer to .data field
@@ -109,14 +115,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         #tcyloop = time.clock()
         for ti from 0 <= ti < nt: # iterate over all timepoints
-            # TODO: shuffle chans in-place here, or just have a second level of chan indices,
-            # shuffle those, and iterate over chaniii
-            # TODO: replace lockp with binary bitmask, shift bits on every ti, might let you search for spikes into future
-            # semi-independently on each chan
+            # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < nchans:
                 lockp[chanii] -= 1 # decr all chans' lockout counters
-                #if chanii == 33:
-                #    print 't: %d, decr ch33 lock to: %d' % (tsp[ti], lockp[chanii])
             for chanii from 0 <= chanii < nchans: # iterate over indices into chans
                 if lockp[chanii] < 0: # if this chan isn't locked out, search for a thresh xing or a peak
                     v = absdatap[chanii*nt + ti] # (absdata[chanii, ti])
