@@ -15,6 +15,7 @@ from copy import copy
 
 import spyke
 from spyke import core, surf, detect
+from spyke.gui.sort import SortSession, Detection
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
@@ -79,9 +80,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenSurfFile(fname) # have this here just to make testing faster
 
     def OnNew(self, event):
-        # TODO: what should actually go here? just check if an existing sort session exists,
-        # check if it's saved (if not, prompt to save), and then del it and init a new one?
-        wxglade_gui.SpykeFrame.OnNew(self, event)
+        self.CreateNewSession()
 
     def OnOpen(self, event):
         dlg = wx.FileDialog(self, message="Open surf or sort file",
@@ -184,16 +183,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, event):
         """Detect pane Search button click"""
-        try:
-            self.session
-        except AttributeError:
-            self.session = sort.SortSession(srffname=self.srffname)
         self.get_detector()
         events = self.det.search()
-        detection = Detection(id=self.get_next_detid(), events=events, datetime=datetime.datetime.now())
-        self.detections.append(detection)
-        self.total_nspikes_label.SetLabel(str(self.get_total_nspikes()))
-        print '%r' % events
+        detection = Detection(self.session, id=self.get_next_detid(),
+                              datetime=datetime.datetime.now(),
+                              events=events)
+        if detection not in self.session.detections: # suppress detections with an identical set of .events
+            self.session.detections.append(detection)
+            print 'appended'
+            self.total_nspikes_label.SetLabel(str(self.get_total_nspikes()))
+            print '%r' % events
 
     def get_next_detid(self):
         """Return next detector id, ids are consecutive and unique"""
@@ -207,7 +206,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def get_total_nspikes(self):
         """Get total nspikes across all detection runs"""
         nspikes = 0
-        for det in self.detections:
+        for det in self.session.detections:
             nspikes += det.events.shape[1]
         return nspikes
 
@@ -304,9 +303,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
         self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
 
-        self.get_detector() # bind a Detector to self
+        self.CreateNewSession() # create a new SortSession
+        self.get_detector() # bind a Detector to self.session
 
         self.EnableWidgets(True)
+
+    def CreateNewSession(self):
+        """Create a new SortSession and bind it to .self"""
+        try:
+            self.session
+            # check if it's saved (if not, prompt to save)
+            print 'deleting existing session'
+            del self.session # and all the entires in the Detection run list
+        except AttributeError:
+            pass
+        self.session = SortSession(srffname=self.srffname) # bind a new one
 
     def get_chans_enabled(self):
         return [ chan for chan, enable in self._chans_enabled.items() if enable ]
@@ -457,10 +468,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_max_label.Show(enable)
 
     def get_detector(self):
-        """Create a Detector object and bind it to self,
+        """Create a Detector object and bind it to self.session,
         overwriting any existing one"""
         detectorClass = self.get_detectorclass()
-        self.det = detectorClass(stream=self.hpstream)
+        self.session.det = detectorClass(stream=self.hpstream)
+        self.det = self.session.det # shorthand
         self.update_detector()
 
     def update_detector(self):

@@ -2,18 +2,20 @@
 
 __authors__ = 'Reza Lotun, Martin Spacek'
 
-import unittest
+#import unittest
 
 import wx
 
-import spyke
-from spyke.probes import *
-from spyke import Spike, Template, Collection
-from spyke import load_collection, write_collection
-from spyke.detect import BipolarAmplitudeFixedThresh, MultiPhasic, DynamicMultiPhasic
-from spyke.gui.events import *
-from spyke.gui.plot import ClickableSortPanel
-from spyke.gui.manager import CollectionManager
+import numpy as np
+
+#import spyke
+#from spyke.probes import *
+#from spyke import Spike, Template, Collection
+#from spyke import load_collection, write_collection
+#from spyke.detect import BipolarAmplitudeFixedThresh, MultiPhasic, DynamicMultiPhasic
+#from spyke.gui.events import *
+#from spyke.gui.plot import ClickableSortPanel
+#from spyke.gui.manager import CollectionManager
 
 
 
@@ -24,8 +26,8 @@ class SortSession(object):
     Formerly known as a Collection.
     A .sort file is a single SortSession object, pickled and gzipped"""
     def __init__(self, srffname=None):
-        self.srffname = srffname # last srf file that was open in this session, relative to .datapath
         self.datapath = '/data' # path to root data folder
+        self.srffname = srffname # last srf file that was open in this session, relative to .datapath
         self.detections = [] # history of detection runs, in chrono order
         self.templates = None # first hierarchy of templates
         self.det = None # this session's current Detector object
@@ -51,6 +53,11 @@ class Detection(object):
         self.events = events # unsorted spikes, 2D array output of Detector.search
         self.spikes = {} # a dict of Spike objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this SortSession when we delete a Detection
         self.trash = {} # discarded events
+
+    def __eq__(self, other):
+        """Compare detection runs by their .events"""
+        # TODO: see if there's any overlap between self.events and other.events, and raise a warning in a dialog box or something
+        return np.all(self.events == other.events)
 
 
 class Template(object):
@@ -106,20 +113,22 @@ class Cluster(object):
     and decide which template it best fits. Compare with a Rip"""
 
     def match(self, spike):
-
+        pass
 
 class Rip(object):
     """Holds all the Rip settings. A rip is when you take each template and
     slide it across the entire file. A spike is detected and
     sorted at timepoints where the error between template and file falls below
     some threshold"""
-
+    pass
 
 class ClusterRip(Cluster, Rip):
     """A hybrid of the two. Rip each template across all of the unsorted spikes
     instead of across the entire file"""
+    pass
 
 
+'''
 ####################################################
 
 class SpikeTreeCtrl(wx.TreeCtrl):
@@ -1136,3 +1145,4 @@ if __name__ == "__main__":
 
     app = TestApp(fname)
     app.MainLoop()
+'''
