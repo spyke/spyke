@@ -117,8 +117,6 @@ LOW-PRIORITY:
 
 - add time range selection to slider
 
-- create a win32 package installer, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy, and mpl on clients
-
 - CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames? and/or add that timepoint to file position drop-down combo box), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark (or select it from list of bookmarked times in file pos combo box)
     - good for skipping back and forth quickly between two (or more) spikes or otherwise interesting regions
 
@@ -316,5 +314,6 @@ DONE:
 - BUG: searching for next/last spike with only some channels enabled does weird multiple triggering off of bigger spikes on that channel, and sometimes segfaults if F3/F2 is held down
     - doing the same using search button alternates between two results when some chans are disabled
     - was due to a mistake in indexing into distance matrix in cython code
+- create a win32 package installer, or just do python setup.py install, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy, and mpl on clients
 
 

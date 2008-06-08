@@ -71,8 +71,9 @@ class File(Record):
         """Old deserialization code factored out as a method. Potentially
         on its way to deprecation"""
         print 'Trying to recover parse info from %r' % self.parsefname
-        pf = file(self.parsefname, 'rb')
+        pf = gzip.open(self.parsefname, 'rb')
         u = cPickle.Unpickler(pf)
+        # TODO: there's a nicer looking way to do this, see Python Cookbook 2nd ed recipe 7.4
         def persistent_load(persid):
             """required to restore the .srf file Record as an existing
             open file for reading"""
@@ -246,7 +247,7 @@ class File(Record):
         fat.lowpassmultichanrecords = self.lowpassmultichanrecords
         fat.displayrecords = self.displayrecords
         fat.digitalsvalrecords = self.digitalsvalrecords
-        pf = file(self.parsefname, 'wb')
+        pf = gzip.open(self.parsefname, 'wb') # compress pickle with gzip, can also control compression level
 
         # make a Pickler, use most efficient (least human readable) protocol
         p = cPickle.Pickler(pf, protocol=-1)

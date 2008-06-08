@@ -10,6 +10,7 @@ import cPickle
 import os
 import sys
 import time
+import datetime
 from copy import copy
 
 import spyke
@@ -46,7 +47,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
         self.SetPosition(wx.Point(x=0, y=0)) # upper left corner
         self.dpos = {} # positions of data frames relative to main spyke frame
-        self.surffname = ""
+        self.srffname = ""
         self.sortfname = ""
         self.frames = {} # holds spike, chart, lfp, and sort frames
         self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
@@ -78,7 +79,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenSurfFile(fname) # have this here just to make testing faster
 
     def OnNew(self, event):
-        # TODO: what should actually go here? just check if an existing collection exists,
+        # TODO: what should actually go here? just check if an existing sort session exists,
         # check if it's saved (if not, prompt to save), and then del it and init a new one?
         wxglade_gui.SpykeFrame.OnNew(self, event)
 
@@ -99,8 +100,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.SaveFile(self.sortfname) # save to existing sort fname
 
     def OnSaveAs(self, event):
-        """Save collection to new .sort file"""
-        dlg = wx.FileDialog(self, message="Save collection as",
+        """Save sort session to new .sort file"""
+        dlg = wx.FileDialog(self, message="Save sort session as",
                             defaultDir=self.DEFAULTDIR, defaultFile='',
                             wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
@@ -110,11 +111,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dlg.Destroy()
 
     def OnClose(self, event):
-        # TODO: add confirmation dialog if collection not saved
+        # TODO: add confirmation dialog if sort session not saved
         self.CloseSurfFile()
 
     def OnExit(self, event):
-        # TODO: add confirmation dialog if collection not saved
+        # TODO: add confirmation dialog if sort session not saved
         self.CloseSurfFile()
         self.Destroy()
 
@@ -183,10 +184,32 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, event):
         """Detect pane Search button click"""
+        try:
+            self.session
+        except AttributeError:
+            self.session = sort.SortSession(srffname=self.srffname)
         self.get_detector()
-        self.spikes = self.det.search()
-        self.total_nspikes_label.SetLabel(str(self.spikes.shape[1]))
-        print '%r' % self.spikes
+        events = self.det.search()
+        detection = Detection(id=self.get_next_detid(), events=events, datetime=datetime.datetime.now())
+        self.detections.append(detection)
+        self.total_nspikes_label.SetLabel(str(self.get_total_nspikes()))
+        print '%r' % events
+
+    def get_next_detid(self):
+        """Return next detector id, ids are consecutive and unique"""
+        try:
+            self._lastdetid
+        except AttributeError:
+            self._lastdetid = 0
+        self._lastdetid += 1
+        return self._lastdetid
+
+    def get_total_nspikes(self):
+        """Get total nspikes across all detection runs"""
+        nspikes = 0
+        for det in self.detections:
+            nspikes += det.events.shape[1]
+        return nspikes
 
     def OnKeyDown(self, event):
         """Handle key presses
@@ -237,8 +260,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: parsing progress dialog
         self.surff.parse()
         self.Refresh() # parsing takes long, can block repainting events
-        self.surffname = fname # bind it now that it's been successfully opened and parsed
-        self.SetTitle(self.Title + ' - ' + self.surffname) # update the caption
+        self.srffname = fname # bind it now that it's been successfully opened and parsed
+        self.SetTitle(self.Title + ' - ' + self.srffname) # update the caption
 
         self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
         self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
@@ -324,10 +347,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.EnableWidgets(False)
 
     def OpenSortFile(self, fname):
-        """Open a collection from a .sort file"""
-        # TODO: do something with data (data is the collection object????)
+        """Open a sort session from a .sort file"""
+        # TODO: do something with data (data is the SortSession object????)
         try:
-            f = file(fname, 'rb')
+            f = gzip.open(fname, 'rb')
             data = cPickle.load(f)
             f.close()
             self.sortfname = fname # bind it now that it's been successfully loaded
@@ -337,11 +360,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def SaveFile(self, fname):
-        """Save collection to a .sort file"""
+        """Save sort session to a .sort file"""
         if not os.path.splitext(fname)[1]:
             fname = fname + '.sort'
-        f = file(fname, 'wb')
-        cPickle.dump(self.collection, f)
+        f = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
+        cPickle.dump(self.session, f)
         f.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(self.Title + ' - ' + self.sortfname)

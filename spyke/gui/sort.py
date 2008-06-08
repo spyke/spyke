@@ -1,6 +1,6 @@
 """spike sorting gui elements"""
 
-__author__ = 'Reza Lotun'
+__authors__ = 'Reza Lotun, Martin Spacek'
 
 import unittest
 
@@ -17,29 +17,58 @@ from spyke.gui.manager import CollectionManager
 
 
 
-class SortSession(object): # maybe call this a SortSession, which correponds to .sort files? Collection is quite abstract
-    def __init__(self):
+class SortSession(object):
+    """A spike sorting session, in which you can do multiple Detection runs,
+    build Templates up from events in Detections, and then use Templates
+    to sort events into Spike objects.
+    Formerly known as a Collection.
+    A .sort file is a single SortSession object, pickled and gzipped"""
+    def __init__(self, srffname=None):
+        self.srffname = srffname # last srf file that was open in this session, relative to .datapath
         self.datapath = '/data' # path to root data folder
-        self.templates # first hierarchy of templates
-        self.spikes # sorted spikes
-        self.events # unsorted spikes
-        self.trash # discarded events
-        self.detections # history of detection runs, in chrono order
-        self.lastsrffname # last srf file that was open in this session, relative to .datapath
+        self.detections = [] # history of detection runs, in chrono order
+        self.templates = None # first hierarchy of templates
+        self.det = None # this session's current Detector object
+
+    def get_srffname(self):
+        return self._srffname
+
+    def set_srffname(self, srffname):
+        """Make sure srffname is relative to .datapath"""
+        self._srffname = srffname.lstrip(self.datapath)
+
+    srffname = property(get_srffname, set_srffname)
+
+
+class Detection(object):
+    """A spike detection run, which happens every time Search is pressed.
+    When you're merely searching for the previous/next spike with
+    F2/F3, that's not considered a detection run"""
+    def __init__(self, session, id=None, datetime=None, events=None):
+        self.session = session # parent SortSession
+        self.id = id
+        self.datetime = datetime
+        self.events = events # unsorted spikes, 2D array output of Detector.search
+        self.spikes = {} # a dict of Spike objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this SortSession when we delete a Detection
+        self.trash = {} # discarded events
+
 
 class Template(object):
-    def __init__(self, session=None, id=None, parent=None):
+    """A collection of spikes that have been deemed somehow, whether manually
+    or automatically, to have come from the same cell. A Template's waveform
+    is the mean of its member spikes"""
+    def __init__(self, session, id=None, parent=None):
         self.session = session # parent SortSession
         self.id = id # template id
-        self.parent = parent # parent template, if self is a subtemplates
+        self.parent = parent # parent template, if self is a subtemplate
         self.children = None # subtemplates
-        self.maxchan
-        self.chans
-        self.spikes # member spikes that make up this template
+        self.maxchan = None
+        self.chans = None # chans enabled
+        self.spikes = None # member spikes that make up this template
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
     def mean(self):
-        """Returns mean template from member spikes"""
+        """Returns mean waveform from member spikes"""
         for spike in self.spikes:
             pass
 
@@ -53,12 +82,13 @@ class Template(object):
 
 
 class Spike(object):
-    """Either an unsorted spike, or a sorted spike in a SortSession, or a member spike in a Template"""
+    """Either an unsorted event, or a member spike in a Template,
+    or a sorted spike in a Detection (or should that be SortSession?)"""
     def __init__(self):
         # or, instead of .session and .template, just make a .parent attrib?
         self.id # some integer for easy user identification
         self.session # optional attrib, if this is an unsorted spike?
-        self.template = None # template object it belongs to, None means unsorted spike
+        self.template = None # template object it belongs to, None means self is an unsorted event
         self.surffname # originating surf file name, with path relative to self.session.datapath
         self.t # timestamp
         self.maxchan # necessary? see .template
@@ -67,6 +97,7 @@ class Spike(object):
         self.detection = None # detection run this Spike was detected on
         self.cluster = None # cluster run this Spike was sorted on
         #self.rip = None # rip this Spike was sorted on
+
 
 class Cluster(object):
     """Cluster is an object that holds all the settings of a
