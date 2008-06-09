@@ -63,6 +63,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
+        columnlabels = ['detection ID', 'datetime', 'events']
+        for coli, label in enumerate(columnlabels):
+            self.detection_list.InsertColumn(coli, label)
+
         self.file_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
         self.range_units_label.SetLabel(MU+'s')
@@ -660,6 +664,10 @@ class SortFrame(wxglade_gui.SortFrame):
     def __init__(self, parent=None, stream=None, *args, **kwds):
         wxglade_gui.SortFrame.__init__(self, parent, *args, **kwds)
         #self.panel = SortPanel(self, -1, stream=stream, tw=tw)
+
+        columnlabels = ['ID', 'chan', 'time']
+        for coli, label in enumerate(columnlabels):
+            self.list.InsertColumn(coli, label)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
