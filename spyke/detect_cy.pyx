@@ -1,4 +1,4 @@
-"""Spike detection loops implemented in Cython for speed"""
+"""Event detection loops implemented in Cython for speed"""
 
 from __future__ import division
 
@@ -20,9 +20,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
     cpdef searchblock(self, wave, cutrange):
         """Search one timepoint at a time across chans in a manageable
-        block of waveform data and return a 2D array of spike times and maxchans.
+        block of waveform data and return a 2D array of event times and maxchans.
         Apply both temporal and spatial lockouts.
-        cutrange determines which spikes are saved and which are discarded as excess
+        cutrange determines which events are saved and which are discarded as excess
 
         TODO: get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type
               whose fields point to all the variables used in this method, and pass the struct to get_maxchan
@@ -31,7 +31,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         TODO: after searching for maxchan, search again for peak on that maxchan,
               maybe iterate a few times until stop seeing changes in result for
-              that spike. But iteration isn't really possible, because we have our
+              that event. But iteration isn't really possible, because we have our
               big ti loop to obey and its associated t and s locks.
               Maybe this is just an inherent limit to simple thresh detector?
 
@@ -50,7 +50,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
               on every ti, or have a second level of chan indices, shuffle those every ti, and iterate over chaniii
 
         TODO: replace lockp with binary bitmask of length 1ms say,
-              shift bits on every ti, might let you search for spikes into future
+              shift bits on every ti, might let you search for events into future
               semi-independently on each chan
 
         """
@@ -78,15 +78,15 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         cdef ndarray ts = wave.ts
         cdef long long *tsp = <long long *>ts.data # long long pointer to timestamp .data
-        cdef long long spiket # holds current spike timestamp
+        cdef long long eventt # holds current event timestamp
 
         #assert nchans == absdata.dimensions[0] # yup
         cdef int nt = absdata.dimensions[1]
-        cdef int totalnspikes = self.totalnspikes # num non-excess spikes found so far in this Detector.search()
-        cdef int maxnspikes = self.maxnspikes
+        cdef int totalnevents = self.totalnevents # num non-excess events found so far in this Detector.search()
+        cdef int maxnevents = self.maxnevents
         cdef float fixedthresh = self.fixedthresh
 
-        # cut times, these are for testing whether to inc totalnspikes
+        # cut times, these are for testing whether to inc totalnevents
         cdef long long cut0 = cutrange[0]
         cdef long long cut1 = cutrange[1]
         if cut0 > cut1: # swap 'em for the test
@@ -104,13 +104,13 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef ndarray dm = self.dm # Euclidean channel distance matrix, floats in um
         cdef double *dmp = <double *>dm.data # double pointer to .data field
 
-        cdef ndarray spiketimes = self._spiketimes # init'd in self.search()
+        cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
-        cdef long long *spiketimesp = <long long *>spiketimes.data # long long pointer to .data field
+        cdef long long *eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
         cdef int ti, chanii, maxchanii
-        cdef int spikei = -1 # index into spiketimes
+        cdef int eventi = -1 # index into eventtimes
         cdef float v # current signal voltage, uV
 
         #tcyloop = time.clock()
@@ -130,27 +130,27 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                     else: # xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
                         if v > lastp[chanii]: # if signal is still increasing
                             lastp[chanii] = v # update last value for this chan, continue searching for peak
-                        else: # signal is decreasing, declare previous ti as a spike timepoint
-                            spiket = tsp[ti-1] # spike time is timestamp of previous time index
+                        else: # signal is decreasing, declare previous ti as an event timepoint
+                            eventt = tsp[ti-1] # event time is timestamp of previous time index
                             # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
                             maxchanii = self.get_maxchanii(chanii, nchans, dmp, slock, absdatap, nt, ti-1)
-                            #print 't: %d, found spike at t=%d on chan %d' % (tsp[ti], spiket, maxchanii)
-                            # apply spatiotemporal lockout now that spike has been found, pass tilock relative to previous ti
+                            #print 't: %d, found event at t=%d on chan %d' % (tsp[ti], eventt, maxchanii)
+                            # apply spatiotemporal lockout now that event has been found, pass tilock relative to previous ti
                             self.set_lockout(maxchanii, nchans, dmp, slock, tilock-1, xthreshp, lastp, lockp)
-                            if cut0 <= spiket and spiket <= cut1: # spike falls within cutrange, save it
-                                spikei += 1
-                                spiketimesp[spikei] = spiket # save spike time
-                                maxchansp[spikei] = chansp[maxchanii] # save chan spike is centered on
-                                totalnspikes += 1 # this spike has been saved, so inc
-                            if totalnspikes >= maxnspikes: # exit here, don't search any more chans
+                            if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
+                                eventi += 1
+                                eventtimesp[eventi] = eventt # save event time
+                                maxchansp[eventi] = chansp[maxchanii] # save chan event is centered on
+                                totalnevents += 1 # this event has been saved, so inc
+                            if totalnevents >= maxnevents: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
                                 break # out of inner chanii loop
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
-        nnewspikes = totalnspikes - self.totalnspikes # num spikes added to spiketimes and maxchans
-        self.totalnspikes = totalnspikes # update
-        spiketimes = spiketimes[:nnewspikes] # keep only the entries that were filled
-        maxchans = maxchans[:nnewspikes] # keep only the entries that were filled
-        return np.asarray([spiketimes, maxchans])
+        nnewevents = totalnevents - self.totalnevents # num events added to eventtimes and maxchans
+        self.totalnevents = totalnevents # update
+        eventtimes = eventtimes[:nnewevents] # keep only the entries that were filled
+        maxchans = maxchans[:nnewevents] # keep only the entries that were filled
+        return np.asarray([eventtimes, maxchans])
 
     cdef int get_maxchanii(self, int maxchanii, int nchans, double *dmp,
                            double slock, float *absdatap, int nt, int ti):

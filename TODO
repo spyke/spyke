@@ -1,5 +1,7 @@
 TODO:
 
+- doubleclick detection_list row brings up textctrl in a dialog with entire 2D events array for that item
+
 - INTERPOLATION
     - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
         - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode

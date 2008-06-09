@@ -1,12 +1,10 @@
-"""Spike detection algorithms
+"""Event detection algorithms
 
 TODO: use median based noise estimation instead of std based
       - estimate noise level dynamically with sliding window
         and independently for each channel
 
-TODO: spatiotemporal lockout:
-      - do spatial lock out only during first 1/2 phase of trigger spike
-      - phases are part of same spike if less than 250us between each other
+TODO: for MultiPhasic, do spatial lockout only during first 1/2 phase of trigger spike
 
 TODO: for speed (esp comparing signal to thresh), consider converting all uV data
       from 64bit float to 16 bit integer (actually, just keep it as 16 bit to begin
@@ -30,37 +28,36 @@ import numpy as np
 
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd
-#from spyke import Spike, Template, Collection
 
 
 class Detector(object):
-    """Spike detector base class"""
+    """Event detector base class"""
     DEFFIXEDTHRESH = 50 # uV
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 4
     DEFNOISEWINDOW = 10000000 # 10 sec
-    DEFMAXNSPIKES = sys.maxint
+    DEFMAXNEVENTS = sys.maxint
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     DEFSLOCK = 175 # um
     DEFTLOCK = 440 # us
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
-    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
+    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for events. Only useful for ensuring event times within the actual block time range are accurate. Events detected in the excess are discarded
 
     def __init__(self, stream, chans=None,
                  fixedthresh=None, noisemethod=None, noisemult=None, noisewindow=None,
-                 trange=None, maxnspikes=None, blocksize=None,
+                 trange=None, maxnevents=None, blocksize=None,
                  slock=None, tlock=None):
         """Takes a data stream and sets various parameters"""
         self.stream = stream
         self.chans = chans # is a property
-        # for simplicity, assign all thresh and noise attribs to all subclasses, even if some won't apply
+        # assign all thresh and noise attribs, then reassign as None for subclasses where one of them doesn't apply
         self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
         self.noisewindow = noisewindow or self.DEFNOISEWINDOW
         self.trange = trange or (stream.t0, stream.tend)
-        self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes, applies across chans
+        self.maxnevents = maxnevents or self.DEFMAXNEVENTS # return at most this many events, applies across chans
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
         self.tlock = tlock or self.DEFTLOCK
@@ -84,19 +81,7 @@ class Detector(object):
         for chan in self.chans:
             coords.append(sl[chan])
         return eucd(coords)
-    '''
-    def __iter__(self):
-        """Returns an iterator object. Called in for loops and in 'in' statements, and by the iter() f'n?.
-        This is here to allow you to treat any of the detection classes directly as iterators"""
-        spikes = iter(self.find())
-        # why not just return the iterator, and let the outside world iterate over it, like this:?
-        return (chan, spiketime), or maybe a Spike object with .chan and .ts attribs
-        #while True:
-        #    try:
-        #        yield spikes.next()
-        #    except StopIteration:
-        #        break
-    '''
+
     def get_thresh(self, chan):
         """Calculate either median or stdev based threshold for a given chan"""
         if self.noisemethod == 'median':
@@ -129,12 +114,13 @@ class Detector(object):
 
 
 class FixedThresh(Detector):
-    """Base class for fixed threshold spike detection,
+    """Base class for fixed threshold event detection,
     Uses the same single static threshold throughout the entire file,
     with an independent threshold for every channel"""
 
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
+        self.noisemult = None # doesn't apply for FixedThresh Detector
 
     def get_median_noise(self, chan):
         pass
@@ -157,15 +143,18 @@ class FixedThresh(Detector):
     '''
 
 class DynamicThresh(Detector):
-    """Base class for dynamic threshold spike detection,
+    """Base class for dynamic threshold event detection,
     Uses varying thresholds throughout the entire file,
     depending on the local noise level
 
     Calculate noise level using, say, a 50ms sliding window centered on the
-    timepoint you're currently testing for a spike. Or, use fixed pos
+    timepoint you're currently testing for an event. Or, use fixed pos
     windows, pre calc noise for each of them, and take noise level from whichever
     window you happen to be in while checking a timepoint for thresh xing.
     """
+    def __init__(self, *args, **kwargs):
+        Detector.__init__(self, *args, **kwargs)
+        self.fixedthresh = None # doesn't apply for DynamicThresh Detector
 
     def get_median_noise(self, chan):
         pass
@@ -179,26 +168,24 @@ from detect_cy import BipolarAmplitudeFixedThresh_Cy
 
 
 class BipolarAmplitudeFixedThresh(FixedThresh,
-                                  #BipolarAmplitudeFixedThresh_Weave,
                                   BipolarAmplitudeFixedThresh_Cy):
     """Bipolar amplitude fixed threshold detector,
     with fixed temporal lockout on all channels, plus a spatial lockout"""
 
     def search(self):
-        """Search for spikes. Divides large searches into more manageable
+        """Search for events. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
-        then combines the results. method = 'all' or 'indep' treats chans
-        together or independently"""
+        then combines the results"""
         t0 = time.clock()
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
-        maxnspikesperchanperblock = bs/1000000 * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
+        maxneventsperchanperblock = bs/1000000 * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
-        self.totalnspikes = 0 # total num spikes found across all chans so far by this Detector
-        # hold temp spiketimes and maxchans for .searchblock, reused on every call
-        self._spiketimes = np.empty(len(self.chans)*maxnspikesperchanperblock, dtype=np.int64)
-        self._maxchans = np.empty(len(self.chans)*maxnspikesperchanperblock, dtype=int)
+        self.totalnevents = 0 # total num events found across all chans so far by this Detector
+        # hold temp eventtimes and maxchans for .searchblock, reused on every call
+        self._eventtimes = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=np.int64)
+        self._maxchans = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=int)
         self.tilock = self.us2nt(self.tlock)
 
         # generate time ranges for slightly overlapping blocks of data
@@ -213,32 +200,32 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
         for e in es:
             wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
-            cutranges.append((e, e+bs)) # time range of spikes to keep from those returned by .searchblock
+            cutranges.append((e, e+bs)) # time range of events to keep from those returned by .searchblock
         # last wavetrange and cutrange surpass self.trange[1], fix that here:
         wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
         cutranges[-1] = (cutranges[-1][0], self.trange[1])
 
-        spikes = [] # list of 2D spike arrays returned by .searchblock(), one array per block
+        events = [] # list of 2D event arrays returned by .searchblock(), one array per block
         for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
-            if self.totalnspikes < self.maxnspikes:
+            if self.totalnevents < self.maxnevents:
                 print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
                 tlo, thi = wavetrange # tlo could be > thi
                 wave = self.stream[tlo:thi:direction] # a block (Waveform) of multichan data, possibly reversed
-                spiketimesmaxchans = self.searchblock(wave, cutrange)
-                #wx.Yield() # allow wx GUI event processing during search
-                # TODO: remove any spikes that happen right at the first or last timepoint in the file,
+                eventtimesmaxchans = self.searchblock(wave, cutrange) # TODO: this should be threaded
+                #wx.Yield() # allow GUI to update
+                # TODO: remove any events that happen right at the first or last timepoint in the file,
                 # since we can't say when an interrupted rising edge would've reached peak
-                spikes.append(spiketimesmaxchans)
+                events.append(eventtimesmaxchans)
             else:
                 break # out of for loop
-        spikes = np.concatenate(spikes, axis=1)
-        print 'found %d spikes in total' % spikes.shape[1]
+        events = np.concatenate(events, axis=1)
+        print 'found %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
-        return spikes
+        return events
 
 
 class MultiPhasic(FixedThresh):
-    """Multiphasic filter - spikes triggered only when consecutive
+    """Multiphasic filter - events triggered only when consecutive
     thresholds of opposite polarity occur on a given channel within
     a specified time window delta_t
 
@@ -251,16 +238,16 @@ class MultiPhasic(FixedThresh):
     """
 
     STDEV_MULT = 4
-    SPIKE_PRE = 250
-    SPIKE_POST = 750
+    EVENT_PRE = 250
+    EVENT_POST = 750
     SEARCH_SPAN = 1000
     LOCKOUT = 1000
     delta_t = 300
 
     def find(self):
-        """Maintain state and search forward for a spike"""
+        """Maintain state and search forward for an event"""
 
-        # keep on sliding our search window forward to find spikes
+        # keep on sliding our search window forward to find events
         while True:
 
             # check if we have a channel firing above threshold
@@ -299,7 +286,7 @@ class MultiPhasic(FixedThresh):
 
 
 class DynamicMultiPhasic(FixedThresh):
-    """Dynamic Multiphasic filter - spikes triggered only when consecutive
+    """Dynamic Multiphasic filter - events triggered only when consecutive
     thresholds of opposite polarity occured on a given channel within
     a specified time window delta_t, where the second threshold level is
     determined relative to the amplitude of the waveform peak/valley
@@ -315,8 +302,8 @@ class DynamicMultiPhasic(FixedThresh):
     """
 
     STDEV_MULT = 4
-    SPIKE_PRE = 250
-    SPIKE_POST = 750
+    EVENT_PRE = 250
+    EVENT_POST = 750
     SEARCH_SPAN = 1000
     LOCKOUT = 1000
     delta_t = 300
@@ -329,9 +316,9 @@ class DynamicMultiPhasic(FixedThresh):
             self.f_inflect[chan] = 3.5 * val
 
     def find(self):
-        """Maintain state and search forward for a spike"""
+        """Maintain state and search forward for a event"""
 
-        # keep on sliding our search window forward to find spikes
+        # keep on sliding our search window forward to find events
         while True:
 
             # check if we have a channel firing above threshold

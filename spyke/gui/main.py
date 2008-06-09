@@ -63,9 +63,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-        columnlabels = ['detection ID', 'datetime', 'events']
+        columnlabels = ['ID', 'nevents', 'class', 'thresh', 'trange', 'slock', 'tlock', 'datetime']
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
+        for coli in range(len(columnlabels)):
+            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER)
 
         self.file_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
@@ -189,30 +191,33 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Detect pane Search button click"""
         self.get_detector()
         events = self.det.search()
-        detection = Detection(self.session, id=self.get_next_detid(),
+        detection = Detection(self.session, self.det, id=self._detid,
                               datetime=datetime.datetime.now(),
-                              events=events)
-        if detection not in self.session.detections: # suppress detections with an identical set of .events
+                              events=events) # generate a new Detection run
+        if detection not in self.session.detections: # suppress Detection runs with an identical set of .events
             self.session.detections.append(detection)
-            print 'appended'
-            self.total_nspikes_label.SetLabel(str(self.get_total_nspikes()))
+            row = [str(detection.id),
+                   str(detection.events.shape[1]),
+                   str(self.det.classstr),
+                   str(self.det.fixedthresh or self.det.noisemult),
+                   str(self.det.trange),
+                   str(self.det.slock),
+                   str(self.det.tlock),
+                   str(detection.datetime).rpartition('.')[0] ]
+            self.detection_list.Append(row)
+            for coli in range(len(row)):
+                self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER)
+
+            self._detid += 1 # inc for next unique Detection run
+            self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
             print '%r' % events
 
-    def get_next_detid(self):
-        """Return next detector id, ids are consecutive and unique"""
-        try:
-            self._lastdetid
-        except AttributeError:
-            self._lastdetid = 0
-        self._lastdetid += 1
-        return self._lastdetid
-
-    def get_total_nspikes(self):
-        """Get total nspikes across all detection runs"""
-        nspikes = 0
+    def get_total_nevents(self):
+        """Get total nevents across all detection runs"""
+        nevents = 0
         for det in self.session.detections:
-            nspikes += det.events.shape[1]
-        return nspikes
+            nevents += det.events.shape[1]
+        return nevents
 
     def OnKeyDown(self, event):
         """Handle key presses
@@ -231,10 +236,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.seek(self.t - self.spiketw)
             elif key == wx.WXK_NEXT: # PGDN
                 self.seek(self.t + self.spiketw)
-            elif key == wx.WXK_F2: # search for previous spike
-                self.findspike(which='previous')
-            elif key == wx.WXK_F3: # search for next spike
-                self.findspike(which='next')
+            elif key == wx.WXK_F2: # search for previous event
+                self.findevent(which='previous')
+            elif key == wx.WXK_F3: # search for next event
+                self.findevent(which='next')
         else: # CTRL is down
             if key == wx.WXK_PRIOR: # PGUP
                 self.seek(self.t - self.charttw)
@@ -300,7 +305,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
         #self.noise_method_choice.SetSelection(0)
-        self.nspikes_spin_ctrl.SetRange(0, sys.maxint)
+        self.nevents_spin_ctrl.SetRange(0, sys.maxint)
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetRange(0, sys.maxint)
         self.tlock_spin_ctrl.SetRange(0, sys.maxint)
@@ -309,6 +314,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.CreateNewSession() # create a new SortSession
         self.get_detector() # bind a Detector to self.session
+        self._detid = 0 # init/reset current Detection run ID
 
         self.EnableWidgets(True)
 
@@ -316,9 +322,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create a new SortSession and bind it to .self"""
         try:
             self.session
-            # check if it's saved (if not, prompt to save)
-            print 'deleting existing session'
-            del self.session # and all the entires in the Detection run list
+            # TODO: check if it's saved (if not, prompt to save)
+            print 'deleting existing session and entries in det list'
+            del self.session
+            self.detection_list.DeleteAllItems()
+            self._detid = 0 # reset current Detection run ID
+            self.total_nevents_label.SetLabel(str('0'))
         except AttributeError:
             pass
         self.session = SortSession(srffname=self.srffname) # bind a new one
@@ -474,9 +483,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def get_detector(self):
         """Create a Detector object and bind it to self.session,
         overwriting any existing one"""
-        detectorClass = self.get_detectorclass()
-        self.session.det = detectorClass(stream=self.hpstream)
-        self.det = self.session.det # shorthand
+        detectorClass, classstr = self.get_detectorclass()
+        self.session.detector = detectorClass(stream=self.hpstream)
+        self.det = self.session.detector # shorthand
+        self.det.classstr = classstr
         self.update_detector()
 
     def update_detector(self):
@@ -486,7 +496,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.det.noisemult = int(self.noisemult_spin_ctrl.GetValue())
         #self.det.noisewindow = int(self.noisewindow_spin_ctrl) # not in the gui yet
         self.det.trange = self.get_detectortrange()
-        self.det.maxnspikes = int(self.nspikes_spin_ctrl.GetValue()) or self.det.DEFMAXNSPIKES # if 0, use default
+        self.det.maxnevents = int(self.nevents_spin_ctrl.GetValue()) or self.det.DEFMAXNEVENTS # if 0, use default
         self.det.blocksize = int(self.blocksize_combo_box.GetValue())
         self.det.slock = self.slock_spin_ctrl.GetValue()
         self.det.tlock = self.tlock_spin_ctrl.GetValue()
@@ -502,7 +512,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             raise ValueError
         classstr = algorithm + threshmethod
-        return eval('detect.'+classstr)
+        return eval('detect.'+classstr), classstr
 
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
@@ -519,23 +529,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             tend = int(float(tend))
         return tstart, tend
 
-    def findspike(self, which='next'):
-        """Find next or previous spike, depending on which direction"""
+    def findevent(self, which='next'):
+        """Find next or previous event, depending on which direction"""
         self.update_detector()
-        self.det.maxnspikes = 1 # override whatever was in nspikes spin edit
-        self.det.blocksize = 100000 # smaller blocksize, since we're only looking for 1 spike
+        self.det.maxnevents = 1 # override whatever was in nevents spin edit
+        self.det.blocksize = 100000 # smaller blocksize, since we're only looking for 1 event
         if which == 'next':
             self.det.trange = (self.t+1, self.hpstream.tend)
         elif which == 'previous':
             self.det.trange = (self.t-1, self.hpstream.t0)
         else:
             raise ValueError, which
-        spike = self.det.search() # don't bind to self.spikes, don't update total_nspikes_label
+        event = self.det.search() # don't bother saving it, don't update total_nevents_label
         wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
-        try: # if a spike was found
-            t = spike[0, 0]
+        try: # if an event was found
+            t = event[0, 0]
             self.seek(t) # seek to it
-            print '%r' % spike
+            print '%r' % event
         except IndexError: # if not, do nothing
             pass
 

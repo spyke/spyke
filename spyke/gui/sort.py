@@ -30,7 +30,7 @@ class SortSession(object):
         self.srffname = srffname # last srf file that was open in this session, relative to .datapath
         self.detections = [] # history of detection runs, in chrono order
         self.templates = None # first hierarchy of templates
-        self.det = None # this session's current Detector object
+        self.detector = None # this session's current Detector object
 
     def get_srffname(self):
         return self._srffname
@@ -46,8 +46,9 @@ class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
-    def __init__(self, session, id=None, datetime=None, events=None):
+    def __init__(self, session, detector, id=None, datetime=None, events=None):
         self.session = session # parent SortSession
+        self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
         self.events = events # unsorted spikes, 2D array output of Detector.search
