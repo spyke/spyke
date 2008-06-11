@@ -103,7 +103,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if not self.sortfname:
             self.OnSaveAs(event)
         else:
-            self.SaveFile(self.sortfname) # save to existing sort fname
+            self.SaveSortFile(self.sortfname) # save to existing sort fname
 
     def OnSaveAs(self, event):
         """Save sort session to new .sort file"""
@@ -113,7 +113,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
-            self.SaveFile(fname)
+            self.SaveSortFile(fname)
         dlg.Destroy()
 
     def OnClose(self, event):
@@ -317,6 +317,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self._detid = 0 # init/reset current Detection run ID
 
         self.EnableWidgets(True)
+        #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSession(self):
         """Create a new SortSession and bind it to .self"""
@@ -363,6 +364,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.srff.close()
         except AttributeError:
             pass
+        self.hpstream = None
+        self.lpstream = None
+        self.chans_enabled = []
         self.t = None
         self.spiketw = DEFSPIKETW # reset
         self.charttw = DEFCHARTTW
@@ -376,36 +380,28 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f = gzip.open(fname, 'rb')
         self.session = cPickle.load(f)
         f.close()
+        try:
+            self.session.set_streams(self.hpstream) # restore missing stream object to session
+        except AttributeError: # no .srf file is open, no stream exists
+            pass
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(self.Title + ' - ' + self.sortfname)
         print 'done opening sort file'
-        try:
-            print self.session.detections[0].events
-        except IndexError:
-            pass
-        import pdb; pdb.set_trace()
         #except cPickle.UnpicklingError:
         #    wx.MessageBox("Couldn't open %s as a sort file" % fname,
         #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
-    def SaveFile(self, fname):
+    def SaveSortFile(self, fname):
         """Save sort session to a .sort file"""
         #try:
         if not os.path.splitext(fname)[1]:
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
-        # make a Pickler, use most efficient (least human readable) protocol
-        p = cPickle.Pickler(pf, protocol=-1)
-        # TEMPORARY HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        import pdb; pdb.set_trace()
-        del self.session.detector.stream
-        for detection in self.session.detections:
-            try:
-                del detection.detector.stream
-            except AttributeError: # .stream may have already been deleted
-                pass
+        p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
+        self.session.set_streams(None) # remove all stream objects from session before pickling
         p.dump(self.session)
         pf.close()
+        self.session.set_streams(self.hpstream) # restore stream object to session
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(self.Title + ' - ' + self.sortfname)
         #except TypeError:

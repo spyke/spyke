@@ -1,5 +1,7 @@
 TODO:
 
+- get tooltips to work on main spyke frame widgets
+
 - doubleclick detection_list row brings up textctrl in a dialog with entire 2D events array for that item
 
 - INTERPOLATION

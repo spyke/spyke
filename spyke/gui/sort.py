@@ -41,6 +41,14 @@ class SortSession(object):
 
     srffname = property(get_srffname, set_srffname)
 
+    def set_streams(self, stream=None):
+        """Set Stream object for self's detector and all detections,
+        for pickling/unpickling purposes"""
+        self.detector.stream = stream
+        for detection in self.detections:
+            # TODO: check that the srf file for each detection matches this session's srf file before binding its stream, or something like that!!!!!!!!!!
+            detection.detector.stream = stream
+
 
 class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
