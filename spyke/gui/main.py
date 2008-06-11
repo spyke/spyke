@@ -48,7 +48,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
         self.SetPosition(wx.Point(x=0, y=0)) # upper left corner
         self.dpos = {} # positions of data frames relative to main spyke frame
-        self.srffname = ""
+        self.srff = None # Surf File object
         self.sortfname = ""
         self.frames = {} # holds spike, chart, lfp, and sort frames
         self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
@@ -66,7 +66,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         columnlabels = ['ID', 'nevents', 'class', 'thresh', 'trange', 'slock', 'tlock', 'datetime']
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
-        for coli in range(len(columnlabels)):
+        for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER)
 
         self.file_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
@@ -81,9 +81,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
-        fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
         #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
-        self.OpenSurfFile(fname) # have this here just to make testing faster
+        fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
+        #self.OpenSurfFile(fname) # have this here just to make testing faster
 
     def OnNew(self, event):
         self.CreateNewSession()
@@ -264,15 +264,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenSurfFile(self, fname):
         """Open a .srf file, and update display accordingly"""
         self.CloseSurfFile() # in case a .srf file and frames are already open
-        self.surff = surf.File(fname)
+        self.srff = surf.File(fname)
         # TODO: parsing progress dialog
-        self.surff.parse()
+        self.srff.parse()
         self.Refresh() # parsing takes long, can block repainting events
-        self.srffname = fname # bind it now that it's been successfully opened and parsed
-        self.SetTitle(self.Title + ' - ' + self.srffname) # update the caption
+        self.SetTitle(self.Title + ' - ' + self.srff.name) # update the caption
 
-        self.hpstream = core.Stream(self.surff.highpassrecords) # highpass record (spike) stream
-        self.lpstream = core.Stream(self.surff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+        self.hpstream = core.Stream(self.srff.highpassrecords) # highpass record (spike) stream
+        self.lpstream = core.Stream(self.srff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
         self.chans_enabled = copy(self.hpstream.layout.chanlist) # property
         self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
@@ -330,7 +329,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.total_nevents_label.SetLabel(str('0'))
         except AttributeError:
             pass
-        self.session = SortSession(srffname=self.srffname) # bind a new one
+        self.session = SortSession(srffname=self.srff.name) # bind a new one
 
     def get_chans_enabled(self):
         return [ chan for chan, enable in self._chans_enabled.items() if enable ]
@@ -360,7 +359,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype in self.frames.keys():
             self.CloseFrame(frametype) # deletes from dict
         try:
-            self.surff.close()
+            self.srff.close()
         except AttributeError:
             pass
         self.t = None

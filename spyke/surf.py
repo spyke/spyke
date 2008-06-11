@@ -6,10 +6,12 @@ import itertools
 import numpy as np
 import os
 import cPickle
+#import gzip
 import struct
 import unittest
 from copy import copy
 import re
+import time
 
 import wx
 
@@ -56,7 +58,7 @@ class File(Record):
         self.name = name
         self.fileSize = os.stat(self.name)[6]
         self.open()
-        self.parsefname = os.path.splitext(self.f.name)[0] + '.parse'
+        self.parsefname = os.path.splitext(self.name)[0] + '.parse'
 
     def open(self):
         """Open the .srf file"""
@@ -67,17 +69,17 @@ class File(Record):
         """Close the .srf file"""
         self.f.close()
 
-    def _deserialize(self):
-        """Old deserialization code factored out as a method. Potentially
-        on its way to deprecation"""
+    def unpickle(self):
+        """Unpickle a Fat object from a .parse file, and restore all of its
+        attribs to self"""
         print 'Trying to recover parse info from %r' % self.parsefname
-        pf = gzip.open(self.parsefname, 'rb')
+        pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
         u = cPickle.Unpickler(pf)
-        # TODO: there's a nicer looking way to do this, see Python Cookbook 2nd ed recipe 7.4
+        # TODO: there's perhaps a nicer-looking way to do this, see Python Cookbook 2nd ed recipe 7.4
         def persistent_load(persid):
             """required to restore the .srf file Record as an existing
             open file for reading"""
-            if persid == self.f.name:
+            if persid == os.path.basename(self.name): # filename excluding path
                 return self.f
             else:
                 raise cPickle.UnpicklingError, 'Invalid persistent id: %r' % persid
@@ -121,26 +123,27 @@ class File(Record):
 
     def parse(self, force=True, save=False):
         """Parse the .srf file"""
-        # recover Fat Record pickled in .parse file
-        try:
-            # force a new parsing
-            if force:
-                # make the try fail, skip to the except block
-                raise IOError
-
-            self._deserialize()
+        t0 = time.clock()
+        try: # recover Fat Record pickled in .parse file
+            if force: # force a new parsing
+                raise IOError # make the try fail, skip to the except block
+            self.unpickle()
+            print 'unpickling took %f sec' % (time.clock()-t0)
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it. Parse the .srf file
         except IOError:
-            print 'Parsing %r' % self.f.name
+            print 'Parsing %r' % self.name
             f = self.f # abbrev
             self._parseDRDBS()
             self._parserecords()
-            print 'Done parsing %r' % self.f.name
+            print 'Done parsing %r' % self.name
             self._verifyParsing()
             self._connectRecords()
+            print 'parsing took %f sec' % (time.clock()-t0)
             if save:
-                self.serialize()
+                tsave = time.clock()
+                self.pickle()
+                print 'pickling took %f sec' % (time.clock()-tsave)
 
     def _parserecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
@@ -231,11 +234,11 @@ class File(Record):
         lpmclayout.probewinlayout = hplayout.probewinlayout
         return lpmclayout
 
-    def serialize(self):
+    def pickle(self):
         """Creates a Fat Record, saves all the parsed headers and records to
-        it, and pickles it to a file
+        it, and pickles it to a file"""
 
-        TODO: make sure no high or lowpass data that may have been loaded is saved!!!!"""
+        print 'TODO: make sure no high or lowpass data that may have been loaded is saved!!!!'
         print 'Saving parse info to %r' % self.parsefname
         fat = Fat()
         fat.fileheader = self.fileheader
@@ -245,9 +248,12 @@ class File(Record):
         fat.highpassrecords = self.highpassrecords
         fat.lowpassrecords = self.lowpassrecords
         fat.lowpassmultichanrecords = self.lowpassmultichanrecords
-        fat.displayrecords = self.displayrecords
-        fat.digitalsvalrecords = self.digitalsvalrecords
-        pf = gzip.open(self.parsefname, 'wb') # compress pickle with gzip, can also control compression level
+        try: # file might not have stimuli
+            fat.displayrecords = self.displayrecords
+            fat.digitalsvalrecords = self.digitalsvalrecords
+        except AttributeError:
+            pass
+        pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
 
         # make a Pickler, use most efficient (least human readable) protocol
         p = cPickle.Pickler(pf, protocol=-1)
@@ -258,7 +264,7 @@ class File(Record):
             if hasattr(obj, 'name'):
                 # the file Record's filename defines its persistent id for
                 # pickling purposes
-                return obj.name
+                return os.path.basename(obj.name)
             else:
                 return None
 
@@ -822,9 +828,9 @@ class DigitalSValRecord(Record):
 
 
 class Fat(Record):
-    """Stores all the stuff to be pickled into a .parse file and then
+    """Empty class that stores all the stuff to be pickled into a .parse file and then
     unpickled as saved parse info"""
-    # TODO
+
 
 
 def causalorder(records):
