@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import datetime
+import gzip
 from copy import copy
 
 import spyke
@@ -83,7 +84,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
         fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
-        #self.OpenSurfFile(fname) # have this here just to make testing faster
+        self.OpenSurfFile(fname) # have this here just to make testing faster
 
     def OnNew(self, event):
         self.CreateNewSession()
@@ -326,7 +327,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             del self.session
             self.detection_list.DeleteAllItems()
             self._detid = 0 # reset current Detection run ID
-            self.total_nevents_label.SetLabel(str('0'))
+            self.total_nevents_label.SetLabel(str(0))
         except AttributeError:
             pass
         self.session = SortSession(srffname=self.srff.name) # bind a new one
@@ -371,26 +372,46 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
-        # TODO: do something with data (data is the SortSession object????)
+        #try:
+        f = gzip.open(fname, 'rb')
+        self.session = cPickle.load(f)
+        f.close()
+        self.sortfname = fname # bind it now that it's been successfully loaded
+        self.SetTitle(self.Title + ' - ' + self.sortfname)
+        print 'done opening sort file'
         try:
-            f = gzip.open(fname, 'rb')
-            data = cPickle.load(f)
-            f.close()
-            self.sortfname = fname # bind it now that it's been successfully loaded
-            self.SetTitle(self.Title + ' - ' + self.sortfname)
-        except cPickle.UnpicklingError:
-            wx.MessageBox("Couldn't open %s as a sort file" % fname,
-                          caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
+            print self.session.detections[0].events
+        except IndexError:
+            pass
+        import pdb; pdb.set_trace()
+        #except cPickle.UnpicklingError:
+        #    wx.MessageBox("Couldn't open %s as a sort file" % fname,
+        #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def SaveFile(self, fname):
         """Save sort session to a .sort file"""
+        #try:
         if not os.path.splitext(fname)[1]:
             fname = fname + '.sort'
-        f = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
-        cPickle.dump(self.session, f)
-        f.close()
+        pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
+        # make a Pickler, use most efficient (least human readable) protocol
+        p = cPickle.Pickler(pf, protocol=-1)
+        # TEMPORARY HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        import pdb; pdb.set_trace()
+        del self.session.detector.stream
+        for detection in self.session.detections:
+            try:
+                del detection.detector.stream
+            except AttributeError: # .stream may have already been deleted
+                pass
+        p.dump(self.session)
+        pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(self.Title + ' - ' + self.sortfname)
+        #except TypeError:
+        #    wx.MessageBox("Couldn't save %s as a sort file" % fname,
+        #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
+
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""
