@@ -25,12 +25,12 @@ class SortSession(object):
     to sort events into Spike objects.
     Formerly known as a Collection.
     A .sort file is a single SortSession object, pickled and gzipped"""
-    def __init__(self, srffname=None):
+    def __init__(self, detector=None, srffname=None):
+        self.detector = detector # this session's current Detector object
         self.datapath = '/data' # path to root data folder
         self.srffname = srffname # last srf file that was open in this session, relative to .datapath
         self.detections = [] # history of detection runs, in chrono order
         self.templates = None # first hierarchy of templates
-        self.detector = None # this session's current Detector object
 
     def get_srffname(self):
         return self._srffname
@@ -46,8 +46,11 @@ class SortSession(object):
         for pickling/unpickling purposes"""
         self.detector.stream = stream
         for detection in self.detections:
-            # TODO: check that the srf file for each detection matches this session's srf file before binding its stream, or something like that!!!!!!!!!!
-            detection.detector.stream = stream
+            # check that the srf file for each detection matches stream's srf file before binding stream
+            if stream == None: # None has no .srffname
+                detection.detector.stream = stream
+            elif detection.detector.srffname == stream.srffname:
+                detection.detector.stream = stream
 
 
 class Detection(object):

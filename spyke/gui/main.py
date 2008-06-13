@@ -50,12 +50,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetPosition(wx.Point(x=0, y=0)) # upper left corner
         self.dpos = {} # positions of data frames relative to main spyke frame
         self.srff = None # Surf File object
-        self.sortfname = ""
+        self.srffname = '' # used for setting title caption
+        self.sortfname = '' # used for setting title caption
         self.frames = {} # holds spike, chart, lfp, and sort frames
         self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
         self.charttw = DEFCHARTTW # chart frame temporal window width (us)
         self.lfptw = DEFLFPTW # lfp frame temporal window width (us)
         self.t = None # current time position in recording (us)
+
+        self.hpstream = None
+        self.lpstream = None
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
@@ -70,6 +74,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER)
 
+        self.set_detect_pane_limits()
+
         self.file_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
         self.range_units_label.SetLabel(MU+'s')
@@ -79,12 +85,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # disable most widgets until a .srf file is opened
         self.EnableWidgets(False)
+        self.EnableSave(False) # disable Save until there's something to Save
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
         fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
-        self.OpenSurfFile(fname) # have this here just to make testing faster
+        #self.OpenSurfFile(fname) # have this here just to make testing faster
+
+    def set_detect_pane_limits(self):
+        self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
+        self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
+        self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
+        #self.noise_method_choice.SetSelection(0)
+        self.nevents_spin_ctrl.SetRange(0, sys.maxint)
+        self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
+        self.slock_spin_ctrl.SetRange(0, sys.maxint)
+        self.tlock_spin_ctrl.SetRange(0, sys.maxint)
+        self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
+        self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
 
     def OnNew(self, event):
         self.CreateNewSession()
@@ -190,21 +209,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, event):
         """Detect pane Search button click"""
-        self.get_detector()
-        events = self.det.search()
-        detection = Detection(self.session, self.det, id=self._detid,
+        self.session.detector = self.get_detector()
+        events = self.session.detector.search()
+        detection = Detection(self.session, self.session.detector, id=self._detid,
                               datetime=datetime.datetime.now(),
                               events=events) # generate a new Detection run
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
             self.session.detections.append(detection)
             self.append_detection_list_ctrl(detection)
+            self.EnableSave(True)
             print '%r' % detection.events
 
     def append_detection_list_ctrl(self, detection):
         """Appends Detection run to the detection list control"""
         row = [str(detection.id),
                str(detection.events.shape[1]),
-               str(detection.detector.classstr),
+               detection.detector.algorithm + detection.detector.threshmethod,
                str(detection.detector.fixedthresh or detection.det.noisemult),
                str(detection.detector.trange),
                str(detection.detector.slock),
@@ -271,8 +291,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = surf.File(fname)
         # TODO: parsing progress dialog
         self.srff.parse()
-        self.Refresh() # parsing takes long, can block repainting events
-        self.SetTitle(self.Title + ' - ' + self.srff.name) # update the caption
+        self.srffname = self.srff.name # update
+        self.SetTitle(os.path.basename(self.srffname)) # update the caption
 
         self.hpstream = core.Stream(self.srff.highpassrecords) # highpass record (spike) stream
         self.lpstream = core.Stream(self.srff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
@@ -304,37 +324,28 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
 
-        self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
-        self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
-        self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
-        #self.noise_method_choice.SetSelection(0)
-        self.nevents_spin_ctrl.SetRange(0, sys.maxint)
-        self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
-        self.slock_spin_ctrl.SetRange(0, sys.maxint)
-        self.tlock_spin_ctrl.SetRange(0, sys.maxint)
-        self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
-        self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
-
         self.CreateNewSession() # create a new SortSession
-        self.get_detector() # bind a Detector to self.session
-        self._detid = 0 # init/reset current Detection run ID
 
         self.EnableWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSession(self):
         """Create a new SortSession and bind it to .self"""
+        self.DeleteSession()
+        self.session = SortSession(detector=self.get_detector(),
+                                   srffname=self.srff.name)
+
+    def DeleteSession(self):
+        """Delete any existing SortSession"""
         try:
-            self.session
             # TODO: check if it's saved (if not, prompt to save)
-            print 'deleting existing session and entries in det list'
+            print 'deleting existing session and entries in detection list control'
             del self.session
-            self.detection_list.DeleteAllItems()
-            self._detid = 0 # reset current Detection run ID
-            self.total_nevents_label.SetLabel(str(0))
         except AttributeError:
             pass
-        self.session = SortSession(srffname=self.srff.name) # bind a new one
+        self.detection_list.DeleteAllItems()
+        self._detid = 0 # reset current Detection run ID
+        self.total_nevents_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
         return [ chan for chan, enable in self._chans_enabled.items() if enable ]
@@ -377,21 +388,31 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.lfptw = DEFLFPTW
         self.SetTitle('spyke') # update caption
         self.EnableWidgets(False)
+        self.srffname = ''
+        self.CloseSortFile()
+
+    def CloseSortFile(self):
+        self.DeleteSession()
+        self.EnableSave(False)
+        self.sortfname = '' # forces a SaveAs on next Save event
 
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
         #try:
+        self.DeleteSession() # delete any existing SortSession
         f = gzip.open(fname, 'rb')
         self.session = cPickle.load(f)
         f.close()
-        try:
+        if self.hpstream != None:
             self.session.set_streams(self.hpstream) # restore missing stream object to session
-        except AttributeError: # no .srf file is open, no stream exists
-            pass
+        else: # no .srf file is open, no stream exists
+            self.notebook.Show(True) # so we can do stuff with the SortSession
         for detection in self.session.detections:
             self.append_detection_list_ctrl(detection)
         self.sortfname = fname # bind it now that it's been successfully loaded
-        self.SetTitle(self.Title + ' - ' + self.sortfname)
+        self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
+        self.update_detect_pane(self.session.detector)
+        self.EnableSave(False)
         print 'done opening sort file'
         #except cPickle.UnpicklingError:
         #    wx.MessageBox("Couldn't open %s as a sort file" % fname,
@@ -400,7 +421,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def SaveSortFile(self, fname):
         """Save sort session to a .sort file"""
         #try:
-        if not os.path.splitext(fname)[1]:
+        if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
         p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
@@ -409,12 +430,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         pf.close()
         self.session.set_streams(self.hpstream) # restore stream object to session
         self.sortfname = fname # bind it now that it's been successfully saved
-        self.SetTitle(self.Title + ' - ' + self.sortfname)
+        self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
+        self.EnableSave(False)
         print 'done saving sort file'
         #except TypeError:
         #    wx.MessageBox("Couldn't save %s as a sort file" % fname,
         #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
+    def EnableSave(self, enable):
+        """Enable/disable Save menu item and toolbar button"""
+        self.menubar.Enable(wx.ID_SAVE, enable)
+        self.toolbar.EnableTool(wx.ID_SAVE, enable) # Save button
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""
@@ -486,6 +512,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def EnableWidgets(self, enable):
         """Enable/disable all widgets that require an open .srf file"""
+        self.menubar.Enable(wx.ID_NEW, enable)
         self.menubar.Enable(wx.ID_SPIKEWIN, enable)
         self.menubar.Enable(wx.ID_CHARTWIN, enable)
         self.menubar.Enable(wx.ID_LFPWIN, enable)
@@ -494,6 +521,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
+        self.toolbar.EnableTool(wx.ID_NEW, enable)
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
@@ -504,25 +532,40 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_max_label.Show(enable)
 
     def get_detector(self):
-        """Create a Detector object and bind it to self.session,
-        overwriting any existing one"""
-        detectorClass, classstr = self.get_detectorclass()
-        self.session.detector = detectorClass(stream=self.hpstream)
-        self.det = self.session.detector # shorthand
-        self.det.classstr = classstr
-        self.update_detector()
+        """Create a Detector object based on attribs from GUI"""
+        detectorClass = self.get_detectorclass()
+        det = detectorClass(stream=self.hpstream)
+        self.update_detector(det)
+        return det
 
-    def update_detector(self):
-        """Update current Detector object attribs from gui"""
-        self.det.chans = self.chans_enabled # property
-        self.det.fixedthresh = int(self.fixedthresh_spin_ctrl.GetValue())
-        self.det.noisemult = int(self.noisemult_spin_ctrl.GetValue())
-        #self.det.noisewindow = int(self.noisewindow_spin_ctrl) # not in the gui yet
-        self.det.trange = self.get_detectortrange()
-        self.det.maxnevents = int(self.nevents_spin_ctrl.GetValue()) or self.det.DEFMAXNEVENTS # if 0, use default
-        self.det.blocksize = int(self.blocksize_combo_box.GetValue())
-        self.det.slock = self.slock_spin_ctrl.GetValue()
-        self.det.tlock = self.tlock_spin_ctrl.GetValue()
+    def update_detector(self, det):
+        """Update detector object attribs from GUI"""
+        det.chans = self.chans_enabled # property
+        det.fixedthresh = self.fixedthresh_spin_ctrl.GetValue()
+        det.noisemult = self.noisemult_spin_ctrl.GetValue()
+        #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
+        det.trange = self.get_detectortrange()
+        det.maxnevents = self.nevents_spin_ctrl.GetValue() or det.DEFMAXNEVENTS # if 0, use default
+        det.blocksize = int(self.blocksize_combo_box.GetValue())
+        det.slock = self.slock_spin_ctrl.GetValue()
+        det.tlock = self.tlock_spin_ctrl.GetValue()
+
+    def update_detect_pane(self, det):
+        """Update detect pane with detector attribs"""
+        self.set_detectorclass(det)
+        self.chans_enabled = det.chans
+        self.fixedthresh_spin_ctrl.SetValue(det.fixedthresh)
+        self.noisemult_spin_ctrl.SetValue(det.noisemult)
+        #self.noisewindow_spin_ctrl.SetValue(det.noisewindow) # not in the gui yet
+        self.range_start_combo_box.SetValue(str(det.trange[0]))
+        self.range_end_combo_box.SetValue(str(det.trange[1]))
+        if det.maxnevents == det.DEFMAXNEVENTS:
+            self.nevents_spin_ctrl.SetValue(0) # if default, use 0
+        else:
+            self.nevents_spin_ctrl.SetValue(det.maxnevents)
+        self.blocksize_combo_box.SetValue(str(det.blocksize))
+        self.slock_spin_ctrl.SetValue(det.slock)
+        self.tlock_spin_ctrl.SetValue(det.tlock)
 
     def get_detectorclass(self):
         """Figure out which Detector class to use based on algorithm and
@@ -535,7 +578,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             raise ValueError
         classstr = algorithm + threshmethod
-        return eval('detect.'+classstr), classstr
+        return eval('detect.'+classstr)
+
+    def set_detectorclass(self, det):
+        """Update algorithm and threshmethod radio buttons to match current Detector"""
+        self.algorithm_radio_box.SetStringSelection(det.algorithm)
+        meth2radiobtn = {'FixedThresh': self.fixedthresh_radio_btn,
+                         'DynamicThresh': self.dynamicthresh_radio_btn}
+        meth2radiobtn[det.threshmethod].SetValue(True) # enable the appropriate radio button
 
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
@@ -554,16 +604,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def findevent(self, which='next'):
         """Find next or previous event, depending on which direction"""
-        self.update_detector()
-        self.det.maxnevents = 1 # override whatever was in nevents spin edit
-        self.det.blocksize = 100000 # smaller blocksize, since we're only looking for 1 event
+        det = self.session.detector
+        self.update_detector(det)
+        det.maxnevents = 1 # override whatever was in nevents spin edit
+        det.blocksize = 100000 # smaller blocksize, since we're only looking for 1 event
         if which == 'next':
-            self.det.trange = (self.t+1, self.hpstream.tend)
+            det.trange = (self.t+1, self.hpstream.tend)
         elif which == 'previous':
-            self.det.trange = (self.t-1, self.hpstream.t0)
+            det.trange = (self.t-1, self.hpstream.t0)
         else:
             raise ValueError, which
-        event = self.det.search() # don't bother saving it, don't update total_nevents_label
+        event = det.search() # don't bother saving it, don't update total_nevents_label
         wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
         try: # if an event was found
             t = event[0, 0]

@@ -9,6 +9,7 @@ import cPickle
 import gzip
 import hashlib
 import time
+import os
 
 import numpy as np
 
@@ -48,6 +49,7 @@ class Stream(object):
         sampfreq arg is useful for interpolation"""
         self.ctsrecords = ctsrecords
         self.layout = self.ctsrecords[0].layout # layout record for this stream
+        self.srffname = os.path.basename(self.layout.f.name) # filename excluding path
         # if no sampfreq passed in, use sampfreq of the raw data
         self.sampfreq = sampfreq or self.layout.sampfreqperchan
         self.units = units
@@ -136,7 +138,7 @@ class Stream(object):
             data = data[:, ::key.step]
             ts = ts[::key.step]
 
-        # transform AD values to uV
+        # transform AD values to uV, assume all chans in ctsrecords have same gain
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
         data = self.AD2uV(data, intgain, extgain)

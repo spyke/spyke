@@ -50,6 +50,7 @@ class Detector(object):
                  slock=None, tlock=None):
         """Takes a data stream and sets various parameters"""
         self.stream = stream
+        self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.chans = chans # is a property
         # assign all thresh and noise attribs, then reassign as None for subclasses where one of them doesn't apply
         self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
@@ -120,6 +121,7 @@ class FixedThresh(Detector):
 
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
+        self.threshmethod = 'FixedThresh'
         self.noisemult = None # doesn't apply for FixedThresh Detector
 
     def get_median_noise(self, chan):
@@ -154,6 +156,7 @@ class DynamicThresh(Detector):
     """
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
+        self.threshmethod = 'DynamicThresh'
         self.fixedthresh = None # doesn't apply for DynamicThresh Detector
 
     def get_median_noise(self, chan):
@@ -171,6 +174,10 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
                                   BipolarAmplitudeFixedThresh_Cy):
     """Bipolar amplitude fixed threshold detector,
     with fixed temporal lockout on all channels, plus a spatial lockout"""
+
+    def __init__(self, *args, **kwargs):
+        FixedThresh.__init__(self, *args, **kwargs)
+        self.algorithm = 'BipolarAmplitude'
 
     def search(self):
         """Search for events. Divides large searches into more manageable
