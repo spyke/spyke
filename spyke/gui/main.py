@@ -195,23 +195,26 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         detection = Detection(self.session, self.det, id=self._detid,
                               datetime=datetime.datetime.now(),
                               events=events) # generate a new Detection run
-        if detection not in self.session.detections: # suppress Detection runs with an identical set of .events
+        if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
             self.session.detections.append(detection)
-            row = [str(detection.id),
-                   str(detection.events.shape[1]),
-                   str(self.det.classstr),
-                   str(self.det.fixedthresh or self.det.noisemult),
-                   str(self.det.trange),
-                   str(self.det.slock),
-                   str(self.det.tlock),
-                   str(detection.datetime).rpartition('.')[0] ]
-            self.detection_list.Append(row)
-            for coli in range(len(row)):
-                self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER)
+            self.append_detection_list_ctrl(detection)
+            print '%r' % detection.events
 
-            self._detid += 1 # inc for next unique Detection run
-            self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
-            print '%r' % events
+    def append_detection_list_ctrl(self, detection):
+        """Appends Detection run to the detection list control"""
+        row = [str(detection.id),
+               str(detection.events.shape[1]),
+               str(detection.detector.classstr),
+               str(detection.detector.fixedthresh or detection.det.noisemult),
+               str(detection.detector.trange),
+               str(detection.detector.slock),
+               str(detection.detector.tlock),
+               str(detection.datetime).rpartition('.')[0] ]
+        self.detection_list.Append(row)
+        for coli in range(len(row)):
+            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+        self._detid += 1 # inc for next unique Detection run
+        self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
 
     def get_total_nevents(self):
         """Get total nevents across all detection runs"""
@@ -337,6 +340,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return [ chan for chan, enable in self._chans_enabled.items() if enable ]
 
     def set_chans_enabled(self, chans, enable=True):
+        """Updates enable flag of all chans in .chans_enabled dict"""
         if chans == None: # None means all chans
             chans = copy(self.hpstream.layout.chanlist)
         chans = toiter(chans) # need not be contiguous
@@ -371,7 +375,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.spiketw = DEFSPIKETW # reset
         self.charttw = DEFCHARTTW
         self.lfptw = DEFLFPTW
-        self.SetTitle("spyke") # update caption
+        self.SetTitle('spyke') # update caption
         self.EnableWidgets(False)
 
     def OpenSortFile(self, fname):
@@ -384,6 +388,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.session.set_streams(self.hpstream) # restore missing stream object to session
         except AttributeError: # no .srf file is open, no stream exists
             pass
+        for detection in self.session.detections:
+            self.append_detection_list_ctrl(detection)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(self.Title + ' - ' + self.sortfname)
         print 'done opening sort file'
@@ -404,6 +410,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.session.set_streams(self.hpstream) # restore stream object to session
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(self.Title + ' - ' + self.sortfname)
+        print 'done saving sort file'
         #except TypeError:
         #    wx.MessageBox("Couldn't save %s as a sort file" % fname,
         #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)

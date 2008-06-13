@@ -254,10 +254,8 @@ class File(Record):
         except AttributeError:
             pass
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
-
         # make a Pickler, use most efficient (least human readable) protocol
         p = cPickle.Pickler(pf, protocol=-1)
-
         # required to make the .srf file Record persistent and remain open for
         # reading when unpickled
         def persistent_id(obj):
@@ -267,10 +265,8 @@ class File(Record):
                 return os.path.basename(obj.name)
             else:
                 return None
-
         # assign this method to the pickler
         p.persistent_id = persistent_id
-
         # pickle fat to .parse file
         p.dump(fat)
         pf.close()
