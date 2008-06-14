@@ -817,21 +817,49 @@ class SortFrame(wxglade_gui.SortFrame):
         self.Parent.HideFrame(frametype)
 
 
-class PyShellFrame(wx.py.shell.ShellFrame):
+class PyShellFrame(wx.MiniFrame,
+                   wx.py.shell.ShellFrame,
+                   wx.py.frame.Frame,
+                   wx.py.frame.ShellFrameMixin):
     """PyShell frame"""
     STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.MAXIMIZE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW
+
     def __init__(self, *args, **kwargs):
-        """TODO: get my startup script to actually run on startup, maybe ExecStartupScript is set to 0 by default"""
+        """TODO: get my startup script to actually run on startup"""
         self.config = wx.FileConfig(localFilename=PYSHELLCFGFNAME) # get config fom file
         self.config.SetRecordDefaults(True)
+        self.startupScript = '/home/mspacek/scripts/minimal_startup.py'
         title = 'spyke PyShell'
         kwargs["style"] = self.STYLE
-        kwargs.update(dict(config=self.config, dataDir=os.path.dirname(PYSHELLCFGFNAME), title=title))
+        kwargs['title'] = title
 
-        wx.py.shell.ShellFrame.__init__(self, *args, **kwargs)
-        self.shell.run('self = app.spykeframe') # convenience
+        wx.MiniFrame.__init__(self, *args, **kwargs)
+        wx.py.frame.ShellFrameMixin.__init__(self, config=self.config, dataDir=os.path.dirname(PYSHELLCFGFNAME))
+        del kwargs['parent']
+        del kwargs['title']
+        self.shell = wx.py.shell.Shell(parent=self, id=-1, introText='',
+                                       locals=None, InterpClass=None,
+                                       startupScript=self.startupScript,
+                                       execStartupScript=True,
+                                       *args, **kwargs)
+        # Override the shell so that status messages go to the status bar.
+        self.shell.setStatusText = self.SetStatusText
+
+        self.shell.SetFocus()
+        self.LoadSettings()
+
+        self.CreateStatusBar()
+        wx.py.frame.Frame._Frame__createMenus(self)
+
+        self.iconized = False
+        self.findDlg = None
+        self.findData = wx.FindReplaceData()
+        self.findData.SetFlags(wx.FR_DOWN)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
+        self.Bind(wx.EVT_ICONIZE, self.OnIconize) # maybe this should be commented out?
+
+        self.shell.run('self = app.spykeframe') # convenience
 
     def OnClose(self, event):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
