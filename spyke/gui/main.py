@@ -6,6 +6,7 @@ __authors__ = 'Martin Spacek, Reza Lotun'
 
 import wx
 import wx.html
+import wx.py
 import cPickle
 import os
 import sys
@@ -30,6 +31,7 @@ SPIKEFRAMEHEIGHT = 700
 CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
 LFPFRAMESIZE = (250, SPIKEFRAMEHEIGHT)
 SORTFRAMESIZE = (400, 600)
+PYSHELLSIZE = (CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2)
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
 
@@ -40,7 +42,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     FRAMETYPE2ID = {'spike': wx.ID_SPIKEWIN,
                     'chart': wx.ID_CHARTWIN,
                     'lfp': wx.ID_LFPWIN,
-                    'sort': wx.ID_SORTWIN}
+                    'sort': wx.ID_SORTWIN,
+                    'pyshell': wx.ID_PYSHELL}
     REFTYPE2ID = {'tref': wx.ID_TREF,
                   'vref': wx.ID_VREF,
                   'caret': wx.ID_CARET}
@@ -52,7 +55,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = None # Surf File object
         self.srffname = '' # used for setting title caption
         self.sortfname = '' # used for setting title caption
-        self.frames = {} # holds spike, chart, lfp, and sort frames
+        self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
         self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
         self.charttw = DEFCHARTTW # chart frame temporal window width (us)
         self.lfptw = DEFLFPTW # lfp frame temporal window width (us)
@@ -164,6 +167,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSort(self, event):
         """Sort window toggle menu/button event"""
         self.ToggleFrame('sort')
+
+    def OnPyShell(self, event):
+        """PyShell window toggle menu/button event"""
+        self.ToggleFrame('pyshell')
 
     def OnTref(self, event):
         """Time reference toggle menu event"""
@@ -303,6 +310,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenFrame('chart')
         self.OpenFrame('lfp')
         #self.OpenFrame('sort')
+        #self.OpenFrame('pyshell')
         self.ShowRef('tref')
         self.ShowRef('vref')
         self.ShowRef('caret')
@@ -370,15 +378,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
     def CloseSurfFile(self):
-        """Destroy data frames, close .srf file"""
+        """Destroy data and sort frames, clean up, close .srf file"""
         # need to specifically get a list of keys, not an iterator,
         # since self.frames dict changes size during iteration
         for frametype in self.frames.keys():
-            self.CloseFrame(frametype) # deletes from dict
-        try:
-            self.srff.close()
-        except AttributeError:
-            pass
+            if frametype != 'pyshell': # leave pyshell frame alone
+                self.CloseFrame(frametype) # deletes from dict
         self.hpstream = None
         self.lpstream = None
         self.chans_enabled = []
@@ -388,6 +393,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.lfptw = DEFLFPTW
         self.SetTitle('spyke') # update caption
         self.EnableWidgets(False)
+        try:
+            self.srff.close()
+        except AttributeError: # self.srff is already None, no .close() method
+            pass
+        self.srff = None
         self.srffname = ''
         self.CloseSortFile()
 
@@ -469,6 +479,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 y = self.GetPosition()[1]
                 frame = SortFrame(parent=self, stream=self.hpstream,
                                   pos=wx.Point(x, y), size=SORTFRAMESIZE)
+            elif frametype == 'pyshell':
+                try:
+                    ncols = self.hpstream.probe.ncols
+                except AttributeError:
+                    ncols = 2 # assume 2 columns
+                x = self.GetPosition()[0] + ncols*SPIKEFRAMEPIXPERCHAN
+                y = self.GetPosition()[1] + self.GetSize()[1] + SPIKEFRAMEHEIGHT - PYSHELLSIZE[1]
+                frame = PyShellFrame(parent=self, pos=wx.Point(x, y), size=PYSHELLSIZE)
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
         self.ShowFrame(frametype)
@@ -479,7 +497,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         id = self.FRAMETYPE2ID[frametype]
         self.menubar.Check(id, enable)
         self.toolbar.ToggleTool(id, enable)
-        if enable and frametype != 'sort':
+        if enable and frametype not in ['sort', 'pyshell']:
             self.plot(frametype) # update only the newly shown data frame's data, in case self.t changed since it was last visible
 
     def HideFrame(self, frametype):
@@ -502,8 +520,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def ShowRef(self, ref, enable=True):
         """Show/hide a tref, vref, or the caret. Force menu states to correspond"""
         self.menubar.Check(self.REFTYPE2ID[ref], enable)
-        for frame in self.frames.values():
-            frame.panel.show_ref(ref, enable=enable)
+        for frametype, frame in self.frames.items():
+            if frametype not in ['sort', 'pyshell']:
+                frame.panel.show_ref(ref, enable=enable)
 
     def ToggleRef(self, ref):
         """Toggle visibility of a tref, vref, or the caret"""
@@ -517,6 +536,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_CHARTWIN, enable)
         self.menubar.Enable(wx.ID_LFPWIN, enable)
         #self.menubar.Enable(wx.ID_SORTWIN, enable) # sort win doesn't need an open .srf file
+        #self.menubar.Enable(wx.ID_PYSHELL, enable) # pyshell doesn't need an open .srf file
         self.menubar.Enable(wx.ID_TREF, enable)
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
@@ -526,6 +546,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
         #self.toolbar.EnableTool(wx.ID_SORTWIN, enable) # sort win doesn't need an open .srf file
+        #self.toolbar.EnableTool(wx.ID_PYSHELL, enable) # pyshell doesn't need an open .srf file
         self.file_control_panel.Show(enable)
         self.notebook.Show(enable)
         self.file_min_label.Show(enable)
@@ -760,6 +781,28 @@ class SortFrame(wxglade_gui.SortFrame):
         self.Parent.HideFrame(frametype)
 
 
+class PyShellFrame(wx.py.shell.ShellFrame):
+    """PyShell frame"""
+    def __init__(self, *args, **kwargs):
+        cfgdir = wx.StandardPaths.Get().GetUserDataDir() # '/home/mspacek/Application Data/pyshell'
+        if not os.path.exists(cfgdir):
+            os.mkdir(cfgdir)
+        cfgfname = 'minimal_config' # 'config' is the default that wx installs, I think
+        fname = os.path.join(cfgdir, cfgfname)
+        config = wx.FileConfig(localFilename=fname) # get config fom file
+        config.SetRecordDefaults(True)
+        title = 'spyke PyShell'
+        kwargs.update(dict(config=config, dataDir=cfgdir, title=title))
+        wx.py.shell.ShellFrame.__init__(self, *args, **kwargs)
+        self.shell.run('self = app.spykeframe') # convenience
+
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+    def OnClose(self, event):
+        frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
+        self.Parent.HideFrame(frametype)
+
+
 class SpykeAbout(wx.Dialog):
     text = '''
         <html>
@@ -808,7 +851,7 @@ class SpykeApp(wx.App):
         # key presses aren't CommandEvents, and don't propagate up the window hierarchy, but
         # if left unhandled, are tested one final time here in the wx.App. Catch unhandled keypresses
         # here and call appropriate methods in the main spyke frame
-        self.Bind(wx.EVT_KEY_DOWN, self.spykeframe.OnKeyDown)
+        #self.Bind(wx.EVT_KEY_DOWN, self.spykeframe.OnKeyDown)
 
         return True
 
