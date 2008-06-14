@@ -30,6 +30,7 @@ class SortSession(object):
         self.datapath = '/data' # path to root data folder
         self.srffname = srffname # last srf file that was open in this session, relative to .datapath
         self.detections = [] # history of detection runs, in chrono order
+        self.events = {} # all events detected in this sort session across all Detection runs, indexed by unique ID
         self.templates = None # first hierarchy of templates
 
     def get_srffname(self):
@@ -63,7 +64,7 @@ class Detection(object):
         self.id = id
         self.datetime = datetime
         self.events = events # unsorted spikes, 2D array output of Detector.search
-        self.spikes = {} # a dict of Spike objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this SortSession when we delete a Detection
+        self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this SortSession when we delete a Detection
         self.trash = {} # discarded events
 
     def __eq__(self, other):
@@ -100,21 +101,21 @@ class Template(object):
         return self.spikes.pop(spikeid)
 
 
-class Spike(object):
+class Event(object):
     """Either an unsorted event, or a member spike in a Template,
     or a sorted spike in a Detection (or should that be SortSession?)"""
-    def __init__(self):
+    def __init__(self, id, chan, t):
         # or, instead of .session and .template, just make a .parent attrib?
-        self.id # some integer for easy user identification
-        self.session # optional attrib, if this is an unsorted spike?
-        self.template = None # template object it belongs to, None means self is an unsorted event
-        self.surffname # originating surf file name, with path relative to self.session.datapath
-        self.t # timestamp
-        self.maxchan # necessary? see .template
+        self.id = id # some integer for easy user identification
+        #self.session # optional attrib, if this is an unsorted spike?
+        #self.template = None # template object it belongs to, None means self is an unsorted event
+        #self.surffname # originating surf file name, with path relative to self.session.datapath
+        self.chan = chan # necessary? see .template
+        self.t = t # timestamp
         #self.chans # necessary? see .template
-        self.data # we'll see if having this here takes up too much space in a Collection
-        self.detection = None # detection run this Spike was detected on
-        self.cluster = None # cluster run this Spike was sorted on
+        #self.data # we'll see if having this here takes up too much space in a Collection
+        #self.detection = None # detection run this Spike was detected on
+        #self.cluster = None # cluster run this Spike was sorted on
         #self.rip = None # rip this Spike was sorted on
 
 
@@ -127,12 +128,15 @@ class Cluster(object):
     def match(self, spike):
         pass
 
+# or just have two options in the Sort pane: Rip against: detected events; entire file
+
 class Rip(object):
     """Holds all the Rip settings. A rip is when you take each template and
     slide it across the entire file. A spike is detected and
     sorted at timepoints where the error between template and file falls below
     some threshold"""
     pass
+
 
 class ClusterRip(Cluster, Rip):
     """A hybrid of the two. Rip each template across all of the unsorted spikes

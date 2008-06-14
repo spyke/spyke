@@ -17,7 +17,7 @@ from copy import copy
 
 import spyke
 from spyke import core, surf, detect
-from spyke.gui.sort import SortSession, Detection
+from spyke.gui.sort import SortSession, Detection, Event
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
@@ -78,7 +78,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
-            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER)
+            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
 
         self.set_detect_pane_limits()
 
@@ -227,6 +227,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
             self.session.detections.append(detection)
             self.append_detection_list_ctrl(detection)
+            self.append_events(detection)
             self.EnableSave(True)
             print '%r' % detection.events
 
@@ -245,6 +246,28 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
         self._detid += 1 # inc for next unique Detection run
         self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
+
+    def append_events(self, detection):
+        """Append events from detection to .session, as well as
+        to sort frame's event list control
+
+        TODO: ensure you don't have duplicate events from previous detection runs"""
+        try:
+            self.frames['sort'] # ensure sort frame exists
+        except KeyError:
+            self.OpenFrame('sort') # create it
+        for t, chan in detection.events.T: # same as iterate over cols of non-transposed events array
+            e = Event(self._eventid, chan, t)
+            self.session.events[e.id] = e
+            row = [str(e.id), e.chan, e.t]
+            self.frames['sort'].list.Append(row)
+            self._eventid += 1
+        for coli in range(len(row)):
+            if coli == 0: # ID column doesn't size properly, set it manually
+                width = 40
+            else:
+                width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
+            self.frames['sort'].list.SetColumnWidth(coli, width)
 
     def get_total_nevents(self):
         """Get total nevents across all detection runs"""
@@ -350,12 +373,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Delete any existing SortSession"""
         try:
             # TODO: check if it's saved (if not, prompt to save)
-            print 'deleting existing session and entries in detection list control'
+            print 'deleting existing session and entries in list controls'
             del self.session
         except AttributeError:
             pass
         self.detection_list.DeleteAllItems()
+        try:
+            self.frames['sort'].list.DeleteAllItems()
+        except KeyError: # sort window hasn't been opened yet
+            pass
         self._detid = 0 # reset current Detection run ID
+        self._eventid = 0 # reset
         self.total_nevents_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
@@ -416,12 +444,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f = gzip.open(fname, 'rb')
         self.session = cPickle.load(f)
         f.close()
+        # TODO: reset ._eventid to highest spike id in session + 1
         if self.hpstream != None:
             self.session.set_streams(self.hpstream) # restore missing stream object to session
         else: # no .srf file is open, no stream exists
             self.notebook.Show(True) # so we can do stuff with the SortSession
         for detection in self.session.detections:
             self.append_detection_list_ctrl(detection)
+            self.append_events(detection)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)
@@ -774,9 +804,11 @@ class SortFrame(wxglade_gui.SortFrame):
         wxglade_gui.SortFrame.__init__(self, parent, *args, **kwds)
         #self.panel = SortPanel(self, -1, stream=stream, tw=tw)
 
-        columnlabels = ['ID', 'chan', 'time']
+        columnlabels = ['ID', 'chan', 'time'] # event list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
+        for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
+            self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
