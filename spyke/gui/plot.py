@@ -133,7 +133,7 @@ class PlotPanel(FigureCanvasWxAgg):
         # TODO: mpl is doing something weird that prevents arrow key press events
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-        self.Bind(wx.EVT_NAVIGATION_KEY, self.OnNavigation)
+        #self.Bind(wx.EVT_NAVIGATION_KEY, self.OnNavigation)
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
