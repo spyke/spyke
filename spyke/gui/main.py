@@ -510,8 +510,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             elif frametype == 'sort':
                 x = self.GetPosition()[0] + self.GetSize()[0]
                 y = self.GetPosition()[1]
-                frame = SortFrame(parent=self, stream=self.hpstream,
-                                  pos=wx.Point(x, y), size=SORTFRAMESIZE)
+                frame = SortFrame(parent=self, pos=wx.Point(x, y), size=SORTFRAMESIZE)
+                frame.stream = self.hpstream
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
@@ -800,9 +800,8 @@ class LFPFrame(DataFrame):
 
 class SortFrame(wxglade_gui.SortFrame):
     """Sort frame"""
-    def __init__(self, parent=None, stream=None, *args, **kwds):
-        wxglade_gui.SortFrame.__init__(self, parent, *args, **kwds)
-        #self.panel = SortPanel(self, -1, stream=stream, tw=tw)
+    def __init__(self, *args, **kwargs):
+        wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
 
         columnlabels = ['ID', 'chan', 'time'] # event list column labels
         for coli, label in enumerate(columnlabels):
@@ -849,7 +848,7 @@ class PyShellFrame(wx.MiniFrame,
         self.LoadSettings()
 
         self.CreateStatusBar()
-        wx.py.frame.Frame._Frame__createMenus(self)
+        wx.py.frame.Frame._Frame__createMenus(self) # stupid __ name mangling, see Python docs
 
         self.iconized = False
         self.findDlg = None

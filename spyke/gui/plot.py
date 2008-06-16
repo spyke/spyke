@@ -71,6 +71,9 @@ NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
+DEFSPIKESORTTW = 1000 # spike sort panel temporal window width (us)
+DEFCHARTSORTTW = 1000 # chart sort panel temporal window width (us)
+
 
 class SpykeLine(Line2D):
     """Line2Ds that can be compared to each other for equality"""
@@ -100,28 +103,15 @@ class PlotPanel(FigureCanvasWxAgg):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._ready = False
         self.stream = stream
-        self.SiteLoc = stream.probe.SiteLoc # probe site locations with origin at center top
+        if stream != None:
+            self._init_stream_dependencies(stream)
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
         self.cw = cw # time width of caret, in plot units
-
         self.pos = {} # positions of line centers, in plot units (us, uV)
-        self.chans = stream.probe.SiteLoc.keys()
-        self.chans.sort() # a sorted list of chans, keeps us from having to do this over and over
-        self.nchans = stream.probe.nchans
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
         self.SetBackgroundColour(WXBACKGROUNDCOLOUR)
-        self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
-
-        # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
-        siteloc = copy(self.SiteLoc) # lowercase means bottom origin
-        ys = [y for x, y in siteloc.values()]
-        maxy = max(ys)
-        for key, (x, y) in siteloc.items():
-            y = maxy - y
-            siteloc[key] = (x, y) # update
-        self.siteloc = siteloc # bottom origin
 
         tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
         tooltip.Enable(False) # leave disabled for now
@@ -137,6 +127,21 @@ class PlotPanel(FigureCanvasWxAgg):
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
+
+    def _init_stream_dependencies(self, stream):
+        self.SiteLoc = stream.probe.SiteLoc # probe site locations with origin at center top
+        self.chans = stream.probe.SiteLoc.keys()
+        self.chans.sort() # a sorted list of chans, keeps us from having to do this over and over
+        self.nchans = stream.probe.nchans
+        self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
+        # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
+        siteloc = copy(self.SiteLoc) # lowercase means bottom origin
+        ys = [ y for x, y in siteloc.values() ]
+        maxy = max(ys)
+        for key, (x, y) in siteloc.items():
+            y = maxy - y
+            siteloc[key] = (x, y) # update
+        self.siteloc = siteloc # bottom origin
 
     def init_plot(self, wave, tref):
         """Create the axes and its lines"""
@@ -526,6 +531,7 @@ class PlotPanel(FigureCanvasWxAgg):
             sign = np.sign(event.GetWheelRotation())
             self._zoomx(1.5**sign)
 
+
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
     layed out according to self.siteloc"""
@@ -663,6 +669,32 @@ class LFPPanel(ChartPanel):
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
 
+class SortPanel(PlotPanel):
+    def __init__(self, *args, **kwargs):
+        PlotPanel.__init__(self, *args, **kwargs)
+
+    def add_event(self, event):
+        pass
+
+    def remove_event(self, event):
+        pass
+
+
+class SpikeSortPanel(SortPanel, SpikePanel):
+    def __init__(self, *args, **kwargs):
+        kwargs['tw'] = DEFSPIKESORTTW
+        SortPanel.__init__(self, *args, **kwargs)
+
+
+class ChartSortPanel(SortPanel, ChartPanel):
+    def __init__(self, *args, **kwargs):
+        kwargs['tw'] = DEFCHARTSORTTW
+        SortPanel.__init__(self, *args, **kwargs)
+
+
+
+
+'''
 class SortPanel(SpikePanel):
     """Sort panel. Presents a narrow temporal window of all channels
     layed out according to self.siteloc. Also allows overplotting and some
@@ -800,3 +832,4 @@ class ClickableSortPanel(SortPanel):
             channels = [False] * len(self.channels)
             channels[channel] = True
             self._sendEvent(channels)
+'''
