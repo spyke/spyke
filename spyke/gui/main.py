@@ -17,7 +17,7 @@ from copy import copy
 
 import spyke
 from spyke import core, surf, detect
-from spyke.gui.sort import SortSession, Detection, Event
+from spyke.gui.sort import Session, Detection, Event
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 import wxglade_gui
@@ -257,7 +257,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except KeyError:
             self.OpenFrame('sort') # create it
         for t, chan in detection.events.T: # same as iterate over cols of non-transposed events array
-            e = Event(self._eventid, chan, t)
+            e = Event(self._eventid, chan, t, detection)
             self.session.events[e.id] = e
             row = [str(e.id), e.chan, e.t]
             self.frames['sort'].list.Append(row)
@@ -358,19 +358,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
 
-        self.CreateNewSession() # create a new SortSession
+        self.CreateNewSession() # create a new sort Session
 
         self.EnableWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSession(self):
-        """Create a new SortSession and bind it to .self"""
+        """Create a new sort Session and bind it to .self"""
         self.DeleteSession()
-        self.session = SortSession(detector=self.get_detector(),
-                                   srffname=self.srff.name)
+        self.session = Session(detector=self.get_detector(),
+                               srffname=self.srff.name,
+                               probe=self.hpstream.probe)
 
     def DeleteSession(self):
-        """Delete any existing SortSession"""
+        """Delete any existing sort Session"""
         try:
             # TODO: check if it's saved (if not, prompt to save)
             print 'deleting existing session and entries in list controls'
@@ -440,15 +441,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
         #try:
-        self.DeleteSession() # delete any existing SortSession
+        self.DeleteSession() # delete any existing sort Session
         f = gzip.open(fname, 'rb')
         self.session = cPickle.load(f)
         f.close()
         # TODO: reset ._eventid to highest spike id in session + 1
         if self.hpstream != None:
-            self.session.set_streams(self.hpstream) # restore missing stream object to session
+            self.session.set_stream(self.hpstream) # restore missing stream object to session
         else: # no .srf file is open, no stream exists
-            self.notebook.Show(True) # so we can do stuff with the SortSession
+            self.notebook.Show(True) # so we can do stuff with the sort Session
         for detection in self.session.detections:
             self.append_detection_list_ctrl(detection)
             self.append_events(detection)
@@ -468,10 +469,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
         p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
-        self.session.set_streams(None) # remove all stream objects from session before pickling
+        self.session.set_stream(None) # remove stream object from session before pickling
         p.dump(self.session)
         pf.close()
-        self.session.set_streams(self.hpstream) # restore stream object to session
+        self.session.set_stream(self.hpstream) # restore stream object to session
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.EnableSave(False)
@@ -511,7 +512,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 x = self.GetPosition()[0] + self.GetSize()[0]
                 y = self.GetPosition()[1]
                 frame = SortFrame(parent=self, pos=wx.Point(x, y), size=SORTFRAMESIZE)
-                frame.stream = self.hpstream
+                for panel in [frame.spikesortpanel, frame.chartsortpanel]:
+                    panel.init_probe_dependencies(self.session.probe) # doesn't need stream, just probe for its layout
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols

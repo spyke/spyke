@@ -103,11 +103,11 @@ class PlotPanel(FigureCanvasWxAgg):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self._ready = False
         self.stream = stream
-        if stream != None:
-            self._init_stream_dependencies(stream)
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
         self.cw = cw # time width of caret, in plot units
         self.pos = {} # positions of line centers, in plot units (us, uV)
+        if stream != None:
+            self.init_probe_dependencies(stream.probe)
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
@@ -128,11 +128,12 @@ class PlotPanel(FigureCanvasWxAgg):
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
-    def _init_stream_dependencies(self, stream):
-        self.SiteLoc = stream.probe.SiteLoc # probe site locations with origin at center top
-        self.chans = stream.probe.SiteLoc.keys()
+    def init_probe_dependencies(self, probe):
+        self.probe = probe
+        self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
+        self.chans = probe.SiteLoc.keys()
         self.chans.sort() # a sorted list of chans, keeps us from having to do this over and over
-        self.nchans = stream.probe.nchans
+        self.nchans = probe.nchans
         self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
         # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
@@ -142,29 +143,28 @@ class PlotPanel(FigureCanvasWxAgg):
             y = maxy - y
             siteloc[key] = (x, y) # update
         self.siteloc = siteloc # bottom origin
+        self.init_axes()
 
-    def init_plot(self, wave, tref):
-        """Create the axes and its lines"""
-        self.wave = wave
-        self.tref = tref
-        pos = [0, 0, 1, 1]
-        self.ax = self.figure.add_axes(pos,
+    def init_axes(self):
+        """Init the axes and ref lines"""
+        self.ax = self.figure.add_axes([0, 0, 1, 1], # lbwh relative to figure?
                                        axisbg=BACKGROUNDCOLOUR,
                                        frameon=False,
                                        alpha=1.)
         self.do_layout() # defined by subclasses, sets self.pos
-
         self.xy_um = self.get_xy_um()
         x = self.xy_um[0]
         self.colxs = np.asarray(list(set(x))) # unique x values that demarcate columns
         self.colxs.sort() # guarantee they're in order from left to right
-
         self.ax._visible = False
         self.ax.set_axis_off() # turn off the x and y axis
-
         for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
             self.add_ref(ref)
 
+    def init_lines(self, wave, tref):
+        """Create the plot lines"""
+        self.wave = wave
+        self.tref = tref
         self.lines = {} # chan to line mapping
         self.ax._autoscaleon = False # TODO: not sure if this is necessary
         for chan, (xpos, ypos) in self.pos.iteritems():
@@ -178,7 +178,6 @@ class PlotPanel(FigureCanvasWxAgg):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.ax.add_line(line)
-
         self.ax._visible = True
         self._ready = True
         # redraw the display
@@ -374,7 +373,7 @@ class PlotPanel(FigureCanvasWxAgg):
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
         # check if we've set up our axes yet
         if not self._ready: # TODO: does this really need to be checked on every single plot call?
-            self.init_plot(wave, tref)
+            self.init_lines(wave, tref)
         # update plots with new x and y vals
         for chan, line in self.lines.iteritems():
             xpos, ypos = self.pos[chan]
@@ -669,15 +668,81 @@ class LFPPanel(ChartPanel):
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
 
+class Plot(object):
+    """Plot slot, holds lines for a single plot in a SortPanel"""
+    def __init__(self, ploti, chans, npoints):
+        self.lines = {} # chan to line mapping
+        for chan in chans:
+            line = SpykeLine(np.arange(npoints), # dummy xdata
+                             np.zeros(npoints), # dummy ydata
+                             linewidth=SPIKELINEWIDTH,
+                             color=WHITE,
+                             antialiased=True,
+                             visible=False) # keep invisible until needed
+            line.chan = chan
+            line.ploti = ploti
+            line.set_pickradius(PICKRADIUS)
+            #line.set_picker(PICKTHRESH)
+            self.lines[chan] = line
+            self.ax.add_line(line) # add to the axes' pool of lines
+
+    def show(self, enable=True):
+        """Show/hide this plot"""
+        for line in self.lines.values():
+            line.set_visible = enable
+
+    def update(self, event):
+        """Update xdata and ydata from event"""
+        pass
+
+
 class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
+        self.events = {} # holds all events currently displayed in this panel
+        self.plots = [] # holds all Plot slots for this panel
+
+    def init_plots(self, wave):
+        """Create lines for multiple plots"""
+        self.ax._autoscaleon = False # TODO: not sure if this is necessary
+        nplots = len(self.plots) # number of existing plots, max ploti will be one less
+        chans = wave.chan2i.keys()
+        chans.sort()
+        npoints = len(wave)
+        for ploti in range(nplots, nplots+DEFNPLOTS):
+            plot = Plot(ploti, chans, npoints)
+            self.plots.append(plot)
+        self.ax._visible = True
+        # redraw the display
+        #self.draw(True) # no need to draw when all the new plots are invisible anyway
+
 
     def add_event(self, event):
-        pass
+        """Add event to a plot slot"""
+        wave = event.wave
+        tref = event.t
+        if len(self.events) == len(self.plots): # if we've run out of plots for additional events
+            self.init_plots(wave) # init another batch of plots
+        ploti = self.ploti # the plot slot we'll assign this event to
+        event.ploti = ploti
+        self.events[event.id] = event
+        plot = self.plots[ploti]
+
+        #plot.update(event) # maybe...
+
+        for chan, line in plot.lines.items():
+            xpos, ypos = self.pos[chan]
+            xdata = wave.ts - tref + xpos
+            ydata = wave[chan]*self.gain + ypos
+            line.set_data(xdata, ydata) # update the line's x and y data
+        plot.show()
+        #self.ax._visible = True # TODO: is this necessary?
+        self.draw(True)
+        #self.Refresh() # possibly faster, but adds a lot of flicker
+
 
     def remove_event(self, event):
-        pass
+        self.plots[event.ploti].show(False)
 
 
 class SpikeSortPanel(SortPanel, SpikePanel):
@@ -689,6 +754,7 @@ class SpikeSortPanel(SortPanel, SpikePanel):
 class ChartSortPanel(SortPanel, ChartPanel):
     def __init__(self, *args, **kwargs):
         kwargs['tw'] = DEFCHARTSORTTW
+        kwargs['cw'] = DEFSPIKESORTTW
         SortPanel.__init__(self, *args, **kwargs)
 
 
@@ -729,7 +795,7 @@ class SortPanel(SpikePanel):
         """(Over)plot a given spike"""
         # initialize
         if not self._initialized:
-            self.init_plot(spike)
+            self.init_lines(spike)
             lines = []
             for num, channel in self.channels.iteritems():
                 #xpos, ypos = self.pos[channel]

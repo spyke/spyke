@@ -3,7 +3,7 @@
 __authors__ = 'Reza Lotun, Martin Spacek'
 
 #import unittest
-
+import os
 import wx
 
 import numpy as np
@@ -19,30 +19,21 @@ import numpy as np
 
 
 
-class SortSession(object):
+class Session(object):
     """A spike sorting session, in which you can do multiple Detection runs,
     build Templates up from events in Detections, and then use Templates
     to sort events into Spike objects.
     Formerly known as a Collection.
-    A .sort file is a single SortSession object, pickled and gzipped"""
-    def __init__(self, detector=None, srffname=None):
+    A .sort file is a single sort Session object, pickled and gzipped"""
+    def __init__(self, detector=None, srffname=None, probe=None):
         self.detector = detector # this session's current Detector object
-        self.datapath = '/data' # path to root data folder
-        self.srffname = srffname # last srf file that was open in this session, relative to .datapath
+        self.srffname = os.path.basename(srffname) # last srf file that was open in this session
+        self.probe = probe # only one probe design per session allowed
         self.detections = [] # history of detection runs, in chrono order
         self.events = {} # all events detected in this sort session across all Detection runs, indexed by unique ID
         self.templates = None # first hierarchy of templates
 
-    def get_srffname(self):
-        return self._srffname
-
-    def set_srffname(self, srffname):
-        """Make sure srffname is relative to .datapath"""
-        self._srffname = srffname.lstrip(self.datapath)
-
-    srffname = property(get_srffname, set_srffname)
-
-    def set_streams(self, stream=None):
+    def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
         for pickling/unpickling purposes"""
         self.detector.stream = stream
@@ -59,12 +50,12 @@ class Detection(object):
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
     def __init__(self, session, detector, id=None, datetime=None, events=None):
-        self.session = session # parent SortSession
+        self.session = session # parent sort Session
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
         self.events = events # unsorted spikes, 2D array output of Detector.search
-        self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this SortSession when we delete a Detection
+        self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
         self.trash = {} # discarded events
 
     def __eq__(self, other):
@@ -78,7 +69,7 @@ class Template(object):
     or automatically, to have come from the same cell. A Template's waveform
     is the mean of its member spikes"""
     def __init__(self, session, id=None, parent=None):
-        self.session = session # parent SortSession
+        self.session = session # parent sort Session
         self.id = id # template id
         self.parent = parent # parent template, if self is a subtemplate
         self.children = None # subtemplates
@@ -103,26 +94,41 @@ class Template(object):
 
 class Event(object):
     """Either an unsorted event, or a member spike in a Template,
-    or a sorted spike in a Detection (or should that be SortSession?)"""
-    def __init__(self, id, chan, t):
+    or a sorted spike in a Detection (or should that be sort Session?)"""
+    def __init__(self, id, chan, t, detection):
         # or, instead of .session and .template, just make a .parent attrib?
         self.id = id # some integer for easy user identification
         #self.session # optional attrib, if this is an unsorted spike?
         #self.template = None # template object it belongs to, None means self is an unsorted event
         #self.surffname # originating surf file name, with path relative to self.session.datapath
         self.chan = chan # necessary? see .template
-        self.t = t # timestamp
+        self.t = t # timestamp, waveform is centered on this?
+        self.detection = detection # Detection run
         #self.chans # necessary? see .template
-        #self.data # we'll see if having this here takes up too much space in a Collection
+        #self.wave = wave
         #self.detection = None # detection run this Spike was detected on
         #self.cluster = None # cluster run this Spike was sorted on
         #self.rip = None # rip this Spike was sorted on
+
+    def __getitem__(self, key):
+        """Return WaveForm for this event given slice key"""
+        assert key.__class__ == slice
+        stream = self.detection.detector.stream
+        if stream != None: # stream is available
+            self.wave = stream[key]
+            return self.wave
+        else: # stream unavailable, assume .wave was set before last pickling
+            lo, hi = self.wave.ts.searchsorted([key.start, key.stop])
+            data = self.wave.data[:, lo:hi]
+            ts = ts[lo:hi+self.endinclusive]
+            return WaveForm(data=data, ts=ts,
+                            chan2i=self.wave.chan2i, sampfreq=self.wave.sampfreq)
 
 
 class Cluster(object):
     """Cluster is an object that holds all the settings of a
     cluster run. A cluster run is when you compare each of the
-    detected but unsorted spikes in the SortSession to all templates,
+    detected but unsorted spikes in the sort Session to all templates,
     and decide which template it best fits. Compare with a Rip"""
 
     def match(self, spike):

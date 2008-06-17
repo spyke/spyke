@@ -64,7 +64,7 @@ class Stream(object):
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
-        self.probe = probetype()
+        self.probe = probetype() # instantiate it
 
         self.t0 = self.rts[0] # us, time that recording began
         self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
