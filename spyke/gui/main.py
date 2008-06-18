@@ -90,7 +90,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.temporal_units_label.SetLabel(MU+'s')
 
         # disable most widgets until a .srf file is opened
-        self.EnableWidgets(False)
+        self.EnableSurfWidgets(False)
+        self.EnableSortWidgets(False)
         self.EnableSave(False) # disable Save until there's something to Save
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
@@ -360,12 +361,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.CreateNewSession() # create a new sort Session
 
-        self.EnableWidgets(True)
+        self.EnableSurfWidgets(True)
+        self.EnableSortWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSession(self):
         """Create a new sort Session and bind it to .self"""
         self.DeleteSession()
+        self.EnableSave(False)
         self.session = Session(detector=self.get_detector(),
                                srffname=self.srff.name,
                                probe=self.hpstream.probe)
@@ -410,7 +413,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
     def CloseSurfFile(self):
-        """Destroy data and sort frames, clean up, close .srf file"""
+        """Destroy data and sort frames, clean up, close .srf file
+        , and metaphorically, .sort file too"""
         # need to specifically get a list of keys, not an iterator,
         # since self.frames dict changes size during iteration
         for frametype in self.frames.keys():
@@ -424,7 +428,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.charttw = DEFCHARTTW
         self.lfptw = DEFLFPTW
         self.SetTitle('spyke') # update caption
-        self.EnableWidgets(False)
+        self.EnableSurfWidgets(False)
+        self.EnableSortWidgets(False)
         try:
             self.srff.close()
         except AttributeError: # self.srff is already None, no .close() method
@@ -456,6 +461,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)
+        self.EnableSortWidgets(True)
         self.EnableSave(False)
         print 'done opening sort file'
         #except cPickle.UnpicklingError:
@@ -514,6 +520,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 frame = SortFrame(parent=self, pos=wx.Point(x, y), size=SORTFRAMESIZE)
                 for panel in [frame.spikesortpanel, frame.chartsortpanel]:
                     panel.init_probe_dependencies(self.session.probe) # doesn't need stream, just probe for its layout
+                    # sync reference lines with menu settings since sort frame isn't normally init'd before surf file load
+                    for ref, REFID in self.REFTYPE2ID.items():
+                        if self.menubar.IsChecked(REFID):
+                            panel.show_ref(ref)
+
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
@@ -558,20 +569,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype, frame in self.frames.items():
             if frametype not in ['sort', 'pyshell']:
                 frame.panel.show_ref(ref, enable=enable)
+            elif frametype == 'sort':
+                frame.spikesortpanel.show_ref(ref, enable=enable)
+                frame.chartsortpanel.show_ref(ref, enable=enable)
 
     def ToggleRef(self, ref):
         """Toggle visibility of a tref, vref, or the caret"""
         enable = self.frames.items()[0] # pick a random frame
         self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
 
-    def EnableWidgets(self, enable):
+    def EnableSurfWidgets(self, enable):
         """Enable/disable all widgets that require an open .srf file"""
         self.menubar.Enable(wx.ID_NEW, enable)
         self.menubar.Enable(wx.ID_SPIKEWIN, enable)
         self.menubar.Enable(wx.ID_CHARTWIN, enable)
         self.menubar.Enable(wx.ID_LFPWIN, enable)
-        #self.menubar.Enable(wx.ID_SORTWIN, enable) # sort win doesn't need an open .srf file
-        #self.menubar.Enable(wx.ID_PYSHELL, enable) # pyshell doesn't need an open .srf file
         self.menubar.Enable(wx.ID_TREF, enable)
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
@@ -580,13 +592,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
-        #self.toolbar.EnableTool(wx.ID_SORTWIN, enable) # sort win doesn't need an open .srf file
-        #self.toolbar.EnableTool(wx.ID_PYSHELL, enable) # pyshell doesn't need an open .srf file
         self.file_control_panel.Show(enable)
         self.notebook.Show(enable)
         self.search_button.Enable(enable)
         self.file_min_label.Show(enable)
         self.file_max_label.Show(enable)
+
+    def EnableSortWidgets(self, enable):
+        """Enable/disable all widgets that require an "open" .sort file"""
+        self.menubar.Enable(wx.ID_SORTWIN, enable)
+        self.toolbar.EnableTool(wx.ID_SORTWIN, enable)
 
     def get_detector(self):
         """Create a Detector object based on attribs from GUI"""

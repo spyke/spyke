@@ -1,14 +1,6 @@
 """wx.Panels with embedded mpl figures based on FigureCanvasWxAgg.
 Everything is plotted in units of uV and us
 
-NOTE: it now seems best to center on the desired timepoint,
-instead of left justify. The center (midway between first and last phase)
-of a spike is the interesting part, and should therefore be the timestamp.
-To see equally well on either side of that peak, let's center all waveform
-views on the timestamp, instead of left justifying as before. This means
-we should treat probe siteloc coordinates as the centers of the channels,
-instead of the leftmost point of each channel.
-
 TODO: perhaps refactor, keep info about each channel together,
 make a Channel object with .id, .pos, .colour, .line, .enabled properties,
 and set_enable() method, and then stick them in a dict of chans indexed by id"""
@@ -72,7 +64,7 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 DEFSPIKESORTTW = 1000 # spike sort panel temporal window width (us)
-DEFCHARTSORTTW = 1000 # chart sort panel temporal window width (us)
+DEFCHARTSORTTW = 2000 # chart sort panel temporal window width (us)
 
 
 class SpykeLine(Line2D):
@@ -156,7 +148,7 @@ class PlotPanel(FigureCanvasWxAgg):
         x = self.xy_um[0]
         self.colxs = np.asarray(list(set(x))) # unique x values that demarcate columns
         self.colxs.sort() # guarantee they're in order from left to right
-        self.ax._visible = False
+        self.ax._visible = True
         self.ax.set_axis_off() # turn off the x and y axis
         for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
             self.add_ref(ref)
@@ -217,13 +209,15 @@ class PlotPanel(FigureCanvasWxAgg):
     def _add_vref(self):
         """Add horizontal voltage reference lines"""
         self.hlines = []
-        for (xpos, ypos) in self.pos.itervalues():
+        for chan, (xpos, ypos) in self.pos.items():
             hline = SpykeLine([xpos-self.tw/2, xpos+self.tw/2],
                               [ypos, ypos],
                               linewidth=VREFLINEWIDTH,
                               color=VREFCOLOUR,
                               antialiased=True,
                               visible=False)
+            hline.chan = chan
+            hline.set_pickradius(0) # don't normally want these to be pickable
             self.hlines.append(hline)
             self.ax.add_line(hline)
 
@@ -261,6 +255,8 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_vref(enable)
         elif ref == 'caret':
             self._show_caret(enable)
+        else:
+            raise ValueError, 'invalid ref: %r' % ref
         self.draw(True)
         #self.Refresh() # possibly faster, but adds flicker
 
@@ -701,6 +697,15 @@ class SortPanel(PlotPanel):
         PlotPanel.__init__(self, *args, **kwargs)
         self.events = {} # holds all events currently displayed in this panel
         self.plots = [] # holds all Plot slots for this panel
+        self.spykeframe = self.GrandParent.GrandParent # sort pane, splitter window, sort frame, spyke frame
+        del self.stream # always None, no need for it here
+
+    # make lines point to hlines, for finding closest chans, etc
+    def get_lines(self):
+        return self.hlines
+    def set_lines(self):
+        raise RuntimeError, "can't set lines cuz lines are hlines"
+    lines = property(get_lines, set_lines)
 
     def init_plots(self, wave):
         """Create lines for multiple plots"""
@@ -716,6 +721,12 @@ class SortPanel(PlotPanel):
         # redraw the display
         #self.draw(True) # no need to draw when all the new plots are invisible anyway
 
+    def _add_vref(self):
+        """Increase pick radius for vrefs from default zero, since we're
+        relying on them for tooltips"""
+        PlotPanel._add_vref(self)
+        for hline in self.hlines:
+            hline.set_pickradius(PICKRADIUS)
 
     def add_event(self, event):
         """Add event to a plot slot"""
@@ -740,15 +751,68 @@ class SortPanel(PlotPanel):
         self.draw(True)
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
-
     def remove_event(self, event):
         self.plots[event.ploti].show(False)
+
+    def get_closestline(self, event):
+        """Return line that's closest to mouse event coords
+        Slightly modified from PlotPanel's version"""
+        d2s = [] # sum squared distances
+        hitlines = []
+        closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
+        for chan in closestchans:
+            line = self.lines[chan] # consider all hlines, even if invisible
+            hit, tisdict = line.contains(event)
+            if hit:
+                tis = tisdict['ind'] # pull them out of the dict
+                xs = line.get_xdata()[tis]
+                ys = line.get_ydata()[tis]
+                d2 = (xs-event.xdata)**2 + (ys-event.ydata)**2
+                d2 = d2.min() # point on line closest to mouse
+                hitlines.append(line)
+                d2s.append(d2)
+        d2s = np.asarray(d2s)
+        if d2s.size != 0:
+            linei = d2s.argmin() # index of line with smallest d2
+            return hitlines[linei]
+        else:
+            return None
+
+    def OnMotion(self, event):
+        """Pop up a tooltip when figure mouse movement is over axes.
+        Slightly different from PlotPanel's version"""
+        tooltip = self.GetToolTip()
+        if event.inaxes:
+            # or, maybe better to just post a pick event, and let the pointed to chan
+            # (instead of clicked chan) stand up for itself
+            #chan = self.get_closestchans(event, n=1)
+            line = self.get_closestline(event) # get closest hline only
+            if line:
+                xpos, ypos = self.pos[line.chan]
+                try:
+                    tres = self.spykeframe.hpstream.tres
+                except AttributeError: # no srf file loaded in spyke
+                    tres = 1
+                t = event.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
+                v = (event.ydata - ypos) / self.gain
+                t = intround(t / tres) * tres # round to nearest (possibly interpolated) sample
+                tip = 'ch%d\n' % line.chan + \
+                      't=%d %s\n' % (t, MU+'s') + \
+                      'V=%.1f %s\n' % (v, MU+'V') + \
+                      'width=%.3f ms' % (self.tw/1000)
+                tooltip.SetTip(tip)
+                tooltip.Enable(True)
+            else:
+                tooltip.Enable(False)
+        else:
+            tooltip.Enable(False)
 
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):
         kwargs['tw'] = DEFSPIKESORTTW
         SortPanel.__init__(self, *args, **kwargs)
+        self.gain = 1.5
 
 
 class ChartSortPanel(SortPanel, ChartPanel):
@@ -756,9 +820,11 @@ class ChartSortPanel(SortPanel, ChartPanel):
         kwargs['tw'] = DEFCHARTSORTTW
         kwargs['cw'] = DEFSPIKESORTTW
         SortPanel.__init__(self, *args, **kwargs)
+        self.gain = 1
 
-
-
+    def _add_vref(self):
+        """Override ChartPanel, use vrefs for tooltips"""
+        SortPanel._add_vref(self)
 
 '''
 class SortPanel(SpikePanel):
