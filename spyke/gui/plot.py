@@ -64,15 +64,16 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 DEFSPIKESORTTW = 1000 # spike sort panel temporal window width (us)
-DEFCHARTSORTTW = 2000 # chart sort panel temporal window width (us)
-
+DEFCHARTSORTTW = 5000 # chart sort panel temporal window width (us)
+DEFEVENTTW = max(DEFSPIKESORTTW, DEFCHARTSORTTW) # default event time width, determines event.wave width
+DEFNPLOTS = 10 # default number of plot slots to init in SortPanel
 
 class SpykeLine(Line2D):
-    """Line2Ds that can be compared to each other for equality"""
+    """Line2Ds that can be compared to each other for equality
+    TODO: is subclassing Line2D really necessary?"""
     def __init__(self, *args, **kwargs):
         Line2D.__init__(self, *args, **kwargs)
         self.colour = 'none'
-        self.chan_mask = True # is this channel-as-line displayed?
 
     def __hash__(self):
         """Hash the string representation of the y data"""
@@ -666,13 +667,17 @@ class LFPPanel(ChartPanel):
 
 class Plot(object):
     """Plot slot, holds lines for a single plot in a SortPanel"""
-    def __init__(self, ploti, chans, npoints):
+    def __init__(self, ploti, wave, panel):
         self.lines = {} # chan to line mapping
-        for chan in chans:
-            line = SpykeLine(np.arange(npoints), # dummy xdata
-                             np.zeros(npoints), # dummy ydata
+        self.panel = panel # panel this Plot slot belongs to
+        self.chans = wave.chan2i.keys() # channels currently enable in this Plot slot
+        self.chans.sort()
+        colours = self.panel.colours
+        for chan in self.chans:
+            line = SpykeLine(wave.ts, # x and y data are just placeholders for now
+                             wave.data[chan],
                              linewidth=SPIKELINEWIDTH,
-                             color=WHITE,
+                             color=self.panel.colours[chan],
                              antialiased=True,
                              visible=False) # keep invisible until needed
             line.chan = chan
@@ -680,22 +685,27 @@ class Plot(object):
             line.set_pickradius(PICKRADIUS)
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
-            self.ax.add_line(line) # add to the axes' pool of lines
+            self.panel.ax.add_line(line) # add to panel's axes' pool of lines
 
     def show(self, enable=True):
-        """Show/hide this plot"""
-        for line in self.lines.values():
-            line.set_visible = enable
+        """Show/hide this plot slot"""
+        for chan in self.chans:
+            line = self.lines[chan]
+            line.set_visible(enable)
 
+    def hide(self):
+        """Hide this plot slot"""
+        self.show(False)
+    '''
     def update(self, event):
         """Update xdata and ydata from event"""
         pass
-
+    '''
 
 class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
-        self.events = {} # holds all events currently displayed in this panel
+        self.events = {} # holds all events currently displayed in this panel, indexed by event id
         self.plots = [] # holds all Plot slots for this panel
         self.spykeframe = self.GrandParent.GrandParent # sort pane, splitter window, sort frame, spyke frame
         del self.stream # always None, no need for it here
@@ -711,11 +721,8 @@ class SortPanel(PlotPanel):
         """Create lines for multiple plots"""
         self.ax._autoscaleon = False # TODO: not sure if this is necessary
         nplots = len(self.plots) # number of existing plots, max ploti will be one less
-        chans = wave.chan2i.keys()
-        chans.sort()
-        npoints = len(wave)
         for ploti in range(nplots, nplots+DEFNPLOTS):
-            plot = Plot(ploti, chans, npoints)
+            plot = Plot(ploti, wave, panel=self)
             self.plots.append(plot)
         self.ax._visible = True
         # redraw the display
@@ -730,29 +737,34 @@ class SortPanel(PlotPanel):
 
     def add_event(self, event):
         """Add event to a plot slot"""
-        wave = event.wave
         tref = event.t
+        try:
+            wave = event.wave # see if it's already been sliced
+        except AttributeError:
+            wave = event[tref-DEFEVENTTW/2 : tref+DEFEVENTTW/2] # slice it from the stream
+            event.wave = wave # store it in the event, this will get pickled (hopefully)
+        wave = event.wave[tref-self.tw/2 : tref+self.tw/2] # slice it according to the width of this panel
         if len(self.events) == len(self.plots): # if we've run out of plots for additional events
             self.init_plots(wave) # init another batch of plots
-        ploti = self.ploti # the plot slot we'll assign this event to
+        ploti = len(self.events) # the plot slot we'll assign this event to, index is 1 higher than last occupied slot
         event.ploti = ploti
-        self.events[event.id] = event
+        self.events[event.id] = event # add it to our dict of currently displayed events
         plot = self.plots[ploti]
 
         #plot.update(event) # maybe...
-
         for chan, line in plot.lines.items():
             xpos, ypos = self.pos[chan]
             xdata = wave.ts - tref + xpos
             ydata = wave[chan]*self.gain + ypos
             line.set_data(xdata, ydata) # update the line's x and y data
         plot.show()
-        #self.ax._visible = True # TODO: is this necessary?
         self.draw(True)
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
     def remove_event(self, event):
-        self.plots[event.ploti].show(False)
+        """Remove event from dict of displayed events, and hide its plot slot"""
+        del self.events[event.id]
+        self.plots[event.ploti].hide()
 
     def get_closestline(self, event):
         """Return line that's closest to mouse event coords

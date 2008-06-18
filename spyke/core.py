@@ -28,9 +28,16 @@ class WaveForm(object):
         self.sampfreq = sampfreq # Hz
 
     def __getitem__(self, key):
-        """Make waveform data directly indexable by channel id.
+        """Make waveform data sliceable in time, and directly indexable by channel id.
         Maybe this is where data should be interpolated?"""
-        return self.data[self.chan2i[key]] # TODO: should probably use .take here
+        if key.__class__ == slice: # slice self, return a new WaveForm
+            lo, hi = self.ts.searchsorted([key.start, key.stop])
+            data = self.data[:, lo:hi]
+            ts = self.ts[lo:hi]
+            return WaveForm(data=data, ts=ts,
+                            chan2i=self.chan2i, sampfreq=self.sampfreq)
+        else: # index into self by channel id, return that channel's data
+            return self.data[self.chan2i[key]] # TODO: should probably use .take here for speed
 
     def __len__(self):
         """Number of data points in time"""

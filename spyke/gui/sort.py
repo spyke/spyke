@@ -2,21 +2,23 @@
 
 __authors__ = 'Reza Lotun, Martin Spacek'
 
-#import unittest
 import os
 import wx
 
 import numpy as np
 
-#import spyke
-#from spyke.probes import *
-#from spyke import Spike, Template, Collection
-#from spyke import load_collection, write_collection
-#from spyke.detect import BipolarAmplitudeFixedThresh, MultiPhasic, DynamicMultiPhasic
-#from spyke.gui.events import *
-#from spyke.gui.plot import ClickableSortPanel
-#from spyke.gui.manager import CollectionManager
-
+'''# old imports:
+import unittest
+import spyke
+from spyke.probes import *
+from spyke import Spike, Template, Collection
+from spyke import load_collection, write_collection
+from spyke.detect import BipolarAmplitudeFixedThresh, MultiPhasic, DynamicMultiPhasic
+from spyke.gui.events import *
+from spyke.gui.plot import ClickableSortPanel
+from spyke.gui.manager import CollectionManager
+'''
+import plot
 
 
 class Session(object):
@@ -115,14 +117,10 @@ class Event(object):
         assert key.__class__ == slice
         stream = self.detection.detector.stream
         if stream != None: # stream is available
-            self.wave = stream[key]
+            self.wave = stream[key] # let stream handle the slicing, save result
             return self.wave
         else: # stream unavailable, assume .wave was set before last pickling
-            lo, hi = self.wave.ts.searchsorted([key.start, key.stop])
-            data = self.wave.data[:, lo:hi]
-            ts = ts[lo:hi+self.endinclusive]
-            return WaveForm(data=data, ts=ts,
-                            chan2i=self.wave.chan2i, sampfreq=self.wave.sampfreq)
+            return self.wave[key] # slice existing .wave
 
 
 class Cluster(object):

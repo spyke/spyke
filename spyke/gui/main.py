@@ -832,6 +832,21 @@ class SortFrame(wxglade_gui.SortFrame):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 
+    def OnSelect(self, evt):
+        """Item selection event in list control"""
+        # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
+        ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
+        event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
+        self.spikesortpanel.add_event(event)
+        self.chartsortpanel.add_event(event)
+
+    def OnDeselect(self, evt):
+        # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
+        ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
+        event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
+        self.spikesortpanel.remove_event(event) # TODO: could also just pass ID, let the panel figure it out
+        self.chartsortpanel.remove_event(event)
+
 
 class PyShellFrame(wx.MiniFrame,
                    wx.py.shell.ShellFrame,
@@ -876,6 +891,7 @@ class PyShellFrame(wx.MiniFrame,
         self.Bind(wx.EVT_ICONIZE, self.OnIconize) # maybe this should be commented out?
 
         self.shell.run('self = app.spykeframe') # convenience
+        self.shell.run("sf = self.frames['sort']") # convenience
 
     def OnClose(self, event):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
