@@ -745,7 +745,7 @@ class SortPanel(PlotPanel):
             self.available_plots.append(plot)
         self.ax._visible = True
         # redraw the display
-        #self.draw(True) # no need to draw when all the new plots are invisible anyway
+        self.draw()
 
     def _add_vref(self):
         """Increase pick radius for vrefs from default zero, since we're
@@ -753,6 +753,8 @@ class SortPanel(PlotPanel):
         PlotPanel._add_vref(self)
         for hline in self.hlines:
             hline.set_pickradius(PICKRADIUS)
+
+    # idea: have one background: black with ref lines. then, on each add(), you update current plot, draw the current plot's lines, and you blit the background _all_ the current used_plots to buffer in order. on remove(), you hide current plot, draw its lines?, then blit background and _all_ remaining used_plots to buffer in order. Might need to do a draw at very beginning (in init_lines?). no need to mess with animated flag!
 
     def add_event(self, event):
         """Add event to a plot slot"""
@@ -768,30 +770,36 @@ class SortPanel(PlotPanel):
             self.init_plots(wave) # init another batch of plots
         plot = self.available_plots.pop() # pop a plot slot to assign this event to
         self.used_plots[event.id] = plot # push plot slot to used plot stack
-        plot.set_animated(True) # turn on animated flag for current plot slot
-        if plot.background == None:
-            plot.background = self.copy_from_bbox(self.ax.bbox) # copies everything but plot from the buffer
+        #plot.set_animated(True) # turn on animated flag for current plot slot
+        #if plot.background == None:
+        #    plot.background = self.copy_from_bbox(self.ax.bbox) # copies everything but plot from the buffer
         plot.update(wave, tref)
         plot.show()
-        self.restore_region(plot.background)
-        plot.draw()
-        self.blit(self.ax.bbox)
+        #self.restore_region(plot.background)
+        #plot.draw()
+        #self.blit(self.ax.bbox)
+        self.plot = plot
+        self.draw()
 
     def remove_event(self, event):
         """Remove plot slot holding event's data"""
         print 'removing event %d' % event.id
         plot = self.used_plots.pop(event.id)
-        plot.set_animated(False)
+        #plot.set_animated(False)
         plot.hide()
         self.available_plots.append(plot) # put it back in the available pool
-        if event.id < len(self.used_plots):
-            # removed event not from top of stack, need to do a full canvas.draw()
+        #if event.id < len(self.used_plots):
+        #    # removed event not from top of stack, need to do a full canvas.draw()
+        #    self.draw()
+        #elif event.id == len(self.used_plots):
+        #    # removed event from top of stack, restore top plot's background and blit it
+        #    self.restore_region(plot.background)
+        #    self.blit(self.ax.bbox)
+        #    plot.background = None
+        if plot == self.plot:
+            pass # prevents flicker when deselecting last selected
+        else:
             self.draw()
-        elif event.id == len(self.used_plots):
-            # removed event from top of stack, restore top plot's background and blit it
-            self.restore_region(plot.background)
-            self.blit(self.ax.bbox)
-            plot.background = None
 
     def get_closestline(self, event):
         """Return line that's closest to mouse event coords
