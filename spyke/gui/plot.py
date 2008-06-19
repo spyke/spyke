@@ -64,7 +64,7 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 DEFSPIKESORTTW = 1000 # spike sort panel temporal window width (us)
-DEFCHARTSORTTW = 5000 # chart sort panel temporal window width (us)
+DEFCHARTSORTTW = 0 # chart sort panel temporal window width (us)
 DEFEVENTTW = max(DEFSPIKESORTTW, DEFCHARTSORTTW) # default event time width, determines event.wave width
 DEFNPLOTS = 10 # default number of plot slots to init in SortPanel
 
@@ -666,47 +666,66 @@ class LFPPanel(ChartPanel):
 
 
 class Plot(object):
-    """Plot slot, holds lines for a single plot in a SortPanel"""
-    def __init__(self, ploti, wave, panel):
+    """Plot slot, holds lines for plotting a single event in a SortPanel"""
+    def __init__(self, wave, panel):
         self.lines = {} # chan to line mapping
         self.panel = panel # panel this Plot slot belongs to
         self.chans = wave.chan2i.keys() # channels currently enable in this Plot slot
         self.chans.sort()
         colours = self.panel.colours
+        self.background = None
         for chan in self.chans:
             line = SpykeLine(wave.ts, # x and y data are just placeholders for now
                              wave.data[chan],
                              linewidth=SPIKELINEWIDTH,
                              color=self.panel.colours[chan],
                              antialiased=True,
+                             animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call
                              visible=False) # keep invisible until needed
             line.chan = chan
-            line.ploti = ploti
             line.set_pickradius(PICKRADIUS)
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
 
+    def update(self, wave, tref):
+        """Update lines data"""
+        # TODO: most of the time, updating the xdata won't be necessary, but I think updating takes no time at all relative to drawing time
+        for chan, line in self.lines.items():
+            xpos, ypos = self.panel.pos[chan]
+            xdata = wave.ts - tref + xpos
+            ydata = wave[chan]*self.panel.gain + ypos
+            line.set_data(xdata, ydata) # update the line's x and y data
+
     def show(self, enable=True):
-        """Show/hide this plot slot"""
+        """Show/hide all enabled chans in this plot slot"""
         for chan in self.chans:
             line = self.lines[chan]
             line.set_visible(enable)
 
     def hide(self):
-        """Hide this plot slot"""
+        """Hide all enabled chans in this plot slot"""
         self.show(False)
-    '''
-    def update(self, event):
-        """Update xdata and ydata from event"""
-        pass
-    '''
+
+    def set_animated(self, enable):
+        """Set animated flag for all enabled lines in this plot slot"""
+        for chan in self.chans:
+            line = self.lines[chan]
+            line.set_animated(enable)
+
+    def draw(self):
+        """Draw all the lines in self to axes buffer (or whatever),
+        avoiding unnecessary draws of all other artists in axes"""
+        for chan in self.chans:
+            line = self.lines[chan]
+            self.panel.ax.draw_artist(line)
+
 
 class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
-        self.events = {} # holds all events currently displayed in this panel, indexed by event id
-        self.plots = [] # holds all Plot slots for this panel
+        self.used_plots = {} # plot slots holding currently displayed event data, indexed by event id
+        self.available_plots = [] # pool of available plot slots
         self.spykeframe = self.GrandParent.GrandParent # sort pane, splitter window, sort frame, spyke frame
         del self.stream # always None, no need for it here
 
@@ -720,10 +739,10 @@ class SortPanel(PlotPanel):
     def init_plots(self, wave):
         """Create lines for multiple plots"""
         self.ax._autoscaleon = False # TODO: not sure if this is necessary
-        nplots = len(self.plots) # number of existing plots, max ploti will be one less
+        nplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
         for ploti in range(nplots, nplots+DEFNPLOTS):
-            plot = Plot(ploti, wave, panel=self)
-            self.plots.append(plot)
+            plot = Plot(wave, panel=self)
+            self.available_plots.append(plot)
         self.ax._visible = True
         # redraw the display
         #self.draw(True) # no need to draw when all the new plots are invisible anyway
@@ -737,6 +756,7 @@ class SortPanel(PlotPanel):
 
     def add_event(self, event):
         """Add event to a plot slot"""
+        print 'adding event %d' % event.id
         tref = event.t
         try:
             wave = event.wave # see if it's already been sliced
@@ -744,27 +764,34 @@ class SortPanel(PlotPanel):
             wave = event[tref-DEFEVENTTW/2 : tref+DEFEVENTTW/2] # slice it from the stream
             event.wave = wave # store it in the event, this will get pickled (hopefully)
         wave = event.wave[tref-self.tw/2 : tref+self.tw/2] # slice it according to the width of this panel
-        if len(self.events) == len(self.plots): # if we've run out of plots for additional events
+        if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots(wave) # init another batch of plots
-        ploti = len(self.events) # the plot slot we'll assign this event to, index is 1 higher than last occupied slot
-        event.ploti = ploti
-        self.events[event.id] = event # add it to our dict of currently displayed events
-        plot = self.plots[ploti]
-
-        #plot.update(event) # maybe...
-        for chan, line in plot.lines.items():
-            xpos, ypos = self.pos[chan]
-            xdata = wave.ts - tref + xpos
-            ydata = wave[chan]*self.gain + ypos
-            line.set_data(xdata, ydata) # update the line's x and y data
+        plot = self.available_plots.pop() # pop a plot slot to assign this event to
+        self.used_plots[event.id] = plot # push plot slot to used plot stack
+        plot.set_animated(True) # turn on animated flag for current plot slot
+        if plot.background == None:
+            plot.background = self.copy_from_bbox(self.ax.bbox) # copies everything but plot from the buffer
+        plot.update(wave, tref)
         plot.show()
-        self.draw(True)
-        #self.Refresh() # possibly faster, but adds a lot of flicker
+        self.restore_region(plot.background)
+        plot.draw()
+        self.blit(self.ax.bbox)
 
     def remove_event(self, event):
-        """Remove event from dict of displayed events, and hide its plot slot"""
-        del self.events[event.id]
-        self.plots[event.ploti].hide()
+        """Remove plot slot holding event's data"""
+        print 'removing event %d' % event.id
+        plot = self.used_plots.pop(event.id)
+        plot.set_animated(False)
+        plot.hide()
+        self.available_plots.append(plot) # put it back in the available pool
+        if event.id < len(self.used_plots):
+            # removed event not from top of stack, need to do a full canvas.draw()
+            self.draw()
+        elif event.id == len(self.used_plots):
+            # removed event from top of stack, restore top plot's background and blit it
+            self.restore_region(plot.background)
+            self.blit(self.ax.bbox)
+            plot.background = None
 
     def get_closestline(self, event):
         """Return line that's closest to mouse event coords
@@ -792,7 +819,7 @@ class SortPanel(PlotPanel):
 
     def OnMotion(self, event):
         """Pop up a tooltip when figure mouse movement is over axes.
-        Slightly different from PlotPanel's version"""
+        Slightly modified from PlotPanel's version"""
         tooltip = self.GetToolTip()
         if event.inaxes:
             # or, maybe better to just post a pick event, and let the pointed to chan
