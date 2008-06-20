@@ -98,7 +98,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
         fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
-        #self.OpenSurfFile(fname) # have this here just to make testing faster
+        self.OpenSurfFile(fname) # have this here just to make testing faster
 
     def set_detect_pane_limits(self):
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
@@ -838,15 +838,16 @@ class SortFrame(wxglade_gui.SortFrame):
         ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
         event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
         self.spikesortpanel.add_event(event)
-        self.chartsortpanel.add_event(event)
+        #self.chartsortpanel.add_event(event)
+        #evt.Skip()
 
     def OnDeselect(self, evt):
         # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
         ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
         event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
         self.spikesortpanel.remove_event(event) # TODO: could also just pass ID, let the panel figure it out
-        self.chartsortpanel.remove_event(event)
-
+        #self.chartsortpanel.remove_event(event)
+        #evt.Skip()
 
 class PyShellFrame(wx.MiniFrame,
                    wx.py.shell.ShellFrame,
