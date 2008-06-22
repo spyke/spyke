@@ -37,10 +37,10 @@ CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and ax
 DEFUVPERUM = 2
 DEFUSPERUM = 17
 
-DEFAULTCHANCOLOUR = "#00FF00" # garish green
-TREFCOLOUR = "#303030" # dark grey
-VREFCOLOUR = "#303030" # dark grey
-CARETCOLOUR = "#202020" # light black
+DEFAULTCHANCOLOUR = '#00FF00' # garish green
+TREFCOLOUR = '#303030' # dark grey
+VREFCOLOUR = '#303030' # dark grey
+CARETCOLOUR = '#202020' # light black
 BACKGROUNDCOLOUR = 'black'
 WXBACKGROUNDCOLOUR = wx.BLACK
 
@@ -66,21 +66,63 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 DEFSPIKESORTTW = 1000 # spike sort panel temporal window width (us)
 DEFCHARTSORTTW = 1000 # chart sort panel temporal window width (us)
 DEFEVENTTW = max(DEFSPIKESORTTW, DEFCHARTSORTTW) # default event time width, determines event.wave width
-DEFNPLOTS = 10 # default number of plot slots to init in SortPanel
+DEFNPLOTS = 10 # default number of plots to init in SortPanel
 
-class SpykeLine(Line2D):
-    """Line2Ds that can be compared to each other for equality
-    TODO: is subclassing Line2D really necessary?"""
-    def __init__(self, *args, **kwargs):
-        Line2D.__init__(self, *args, **kwargs)
-        self.colour = 'none'
 
-    def __hash__(self):
-        """Hash the string representation of the y data"""
-        return hash(self.colour + str(self._y))
+class Plot(object):
+    """Plot slot, holds lines for all chans for plotting
+    a single stretch of data, contiguous in time"""
+    def __init__(self, chans, panel):
+        self.lines = {} # chan to line mapping
+        self.panel = panel # panel that self belongs to
+        self.chans = chans # all channels available in this Plot, lines can be enabled/disabled
+        colours = self.panel.colours
+        #self.background = None
+        for chan in self.chans:
+            line = Line2D([0], # x and y data are just placeholders for now
+                          [0], # TODO: will such a small amount of data before first .draw() cause problems for blitting?
+                          linewidth=SPIKELINEWIDTH,
+                          color=self.panel.colours[chan],
+                          antialiased=True,
+                          animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call,
+                                          # but also unfortunately keeps it from being repainted upon occlusion
+                          visible=False) # keep invisible until needed
+            line.chan = chan
+            line.set_pickradius(PICKRADIUS)
+            #line.set_picker(PICKTHRESH)
+            self.lines[chan] = line
+            self.panel.ax.add_line(line) # add to panel's axes' pool of lines
 
-    def __eq__(self, other):
-        return hash(self) == hash(other)
+    def show(self, enable=True):
+        """Show/hide all chans in self"""
+        for line in self.lines.values():
+            line.set_visible(enable)
+
+    def hide(self):
+        """Hide all chans in self"""
+        self.show(False)
+
+    def update(self, wave, tref):
+        """Update lines data
+        TODO: most of the time, updating the xdata won't be necessary,
+        but I think updating takes no time at all relative to drawing time"""
+        self.tref = tref
+        for chan, line in self.lines.items():
+            xpos, ypos = self.panel.pos[chan]
+            xdata = wave.ts - tref + xpos
+            ydata = wave[chan]*self.panel.gain + ypos
+            line.set_data(xdata, ydata) # update the line's x and y data
+
+    def set_animated(self, enable=True):
+        """Set animated flag for all lines in self"""
+        for line in self.lines.values():
+            line.set_animated(enable)
+
+    def draw(self):
+        """Draw all the lines to axes buffer (or whatever),
+        avoiding unnecessary draws of all other artists in axes"""
+        for line in self.lines.values():
+            self.panel.ax.draw_artist(line)
 
 
 class PlotPanel(FigureCanvasWxAgg):
@@ -91,15 +133,13 @@ class PlotPanel(FigureCanvasWxAgg):
     uVperum = DEFUVPERUM
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
                          # 17 gives roughly no horizontal overlap for self.tw == 1000 us
-
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
-        self._ready = False
-        self.stream = stream
+        self.spykeframe = self.GrandParent
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
         self.cw = cw # time width of caret, in plot units
-        self.pos = {} # positions of line centers, in plot units (us, uV)
-        if stream != None:
+        if stream != None: # either use stream kw here, or directly call init_probe_dependencies later from outside
+            self.stream = stream
             self.init_probe_dependencies(stream.probe)
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
@@ -136,7 +176,23 @@ class PlotPanel(FigureCanvasWxAgg):
             y = maxy - y
             siteloc[key] = (x, y) # update
         self.siteloc = siteloc # bottom origin
+
         self.init_axes()
+        self.pos = {} # positions of line centers, in plot units (us, uV)
+        self.do_layout() # defined by subclasses, sets self.pos
+        self.xy_um = self.get_xy_um()
+        x = self.xy_um[0]
+        self.colxs = np.asarray(list(set(x))) # unique x values that demarcate columns
+        self.colxs.sort() # guarantee they're in order from left to right
+        self.ax.set_axis_off() # turn off the x and y axis
+        self.ax.set_visible(True)
+        self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
+        self.init_plots()
+        for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
+            self.add_ref(ref)
+            self.spykeframe.ShowRef(ref) # also enforces menu item toggle state
+        self.draw()
+        self.background = self.copy_from_bbox(self.ax.bbox)
 
     def init_axes(self):
         """Init the axes and ref lines"""
@@ -144,44 +200,11 @@ class PlotPanel(FigureCanvasWxAgg):
                                        axisbg=BACKGROUNDCOLOUR,
                                        frameon=False,
                                        alpha=1.)
-        self.do_layout() # defined by subclasses, sets self.pos
-        self.xy_um = self.get_xy_um()
-        x = self.xy_um[0]
-        self.colxs = np.asarray(list(set(x))) # unique x values that demarcate columns
-        self.colxs.sort() # guarantee they're in order from left to right
-        self.ax.set_axis_off() # turn off the x and y axis
-        for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
-            self.add_ref(ref)
-        self.ax.set_visible(True)
 
-    def init_lines(self, wave, tref):
-        """Create the plot lines"""
-        self.wave = wave
-        self.tref = tref
-        self.lines = {} # chan to line mapping
-        self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
-        for chan, (xpos, ypos) in self.pos.iteritems():
-            line = SpykeLine(wave.ts - tref + xpos,
-                             wave[chan]*self.gain + ypos,
-                             linewidth=SPIKELINEWIDTH,
-                             color=self.colours[chan],
-                             animated=False,
-                             antialiased=True)
-            line.chan = chan
-            line.set_pickradius(PICKRADIUS)
-            #line.set_picker(PICKTHRESH)
-            self.lines[chan] = line
-            self.ax.add_line(line)
-        #self.ax.set_visible(True)
-        self._ready = True
-        # redraw the display
-        for line in self.lines.values():
-            line.set_animated(True)
-        self.draw(True)
-        self.background = self.copy_from_bbox(self.ax.bbox)
-        for line in self.lines.values():
-            line.set_animated(False)
-
+    def init_plots(self):
+        """Create Plots for this panel"""
+        self.current_plot = Plot(chans=self.chans, panel=self) # just one for this base class
+        self.current_plot.show()
 
     def add_ref(self, ref):
         if ref == 'tref':
@@ -198,12 +221,12 @@ class PlotPanel(FigureCanvasWxAgg):
         ylims = self.ax.get_ylim()
         self.vlines = []
         for col in cols:
-            vline = SpykeLine([col, col],
-                              ylims,
-                              linewidth=TREFLINEWIDTH,
-                              color=TREFCOLOUR,
-                              antialiased=True,
-                              visible=False)
+            vline = Line2D([col, col],
+                           ylims,
+                           linewidth=TREFLINEWIDTH,
+                           color=TREFCOLOUR,
+                           antialiased=True,
+                           visible=False)
             self.vlines.append(vline)
             self.ax.add_line(vline)
 
@@ -218,12 +241,12 @@ class PlotPanel(FigureCanvasWxAgg):
         """Add horizontal voltage reference lines"""
         self.hlines = []
         for chan, (xpos, ypos) in self.pos.items():
-            hline = SpykeLine([xpos-self.tw/2, xpos+self.tw/2],
-                              [ypos, ypos],
-                              linewidth=VREFLINEWIDTH,
-                              color=VREFCOLOUR,
-                              antialiased=True,
-                              visible=False)
+            hline = Line2D([xpos-self.tw/2, xpos+self.tw/2],
+                           [ypos, ypos],
+                           linewidth=VREFLINEWIDTH,
+                           color=VREFCOLOUR,
+                           antialiased=True,
+                           visible=False)
             hline.chan = chan
             hline.set_pickradius(0) # don't normally want these to be pickable
             self.hlines.append(hline)
@@ -256,6 +279,33 @@ class PlotPanel(FigureCanvasWxAgg):
         self.caret.set_width(self.cw)
         #self.caret.set_height(ylim[1] - ylim[0])
 
+    def update_background(self, plot):
+        """Update background, exclude plot from it by temporarily setting its animated flag"""
+        '''
+        self.restore_region(self.blank)
+        reflines = []
+        try:
+            reflines.extend(self.vlines)
+        except AttributeError:
+            pass
+        try:
+            reflines.extend(self.hlines)
+        except AttributeError:
+            pass
+        try:
+            reflines.append(self.caret)
+        except AttributeError:
+            pass
+        for line in reflines:
+            self.ax.draw_artist(line)
+        self.blit(self.ax.bbox)
+        '''
+        plot.set_animated(True)
+        self.draw() # do a full draw of everything in self.ax
+        self.background = self.copy_from_bbox(self.ax.bbox) # grab everything except plot
+        plot.set_animated(False)
+        self.draw() # TODO: necessary?
+
     def show_ref(self, ref, enable=True):
         if ref == 'tref':
             self._show_tref(enable)
@@ -265,13 +315,8 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
-        for line in self.lines.values():
-            line.set_animated(True)
-        self.draw(True)
-        self.background = self.copy_from_bbox(self.ax.bbox)
-        for line in self.lines.values():
-            line.set_animated(False)
-        #self.Refresh() # possibly faster, but adds flicker
+        self.update_background(self.current_plot) # update bg, exclude curret plot
+        #self.draw()
 
     def _show_tref(self, enable):
         for vline in self.vlines:
@@ -356,7 +401,7 @@ class PlotPanel(FigureCanvasWxAgg):
         hitlines = []
         closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
-            line = self.lines[chan]
+            line = self.current_plot.lines[chan]
             if line.get_visible(): # only consider lines that are visible
                 hit, tisdict = line.contains(event)
                 if hit:
@@ -376,23 +421,15 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def plot(self, wave, tref=None):
         """Plot waveforms wrt a reference time point"""
-        self.wave = wave
-        self.tref = tref
         if tref == None:
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
-        # check if we've set up our axes yet
-        if not self._ready: # TODO: does this really need to be checked on every single plot call?
-            self.init_lines(wave, tref)
+        #self.update_background()
         self.restore_region(self.background)
         # update plots with new x and y vals
-        for chan, line in self.lines.iteritems():
-            xpos, ypos = self.pos[chan]
-            xdata = wave.ts - tref + xpos
-            ydata = wave[chan]*self.gain + ypos
-            line.set_data(xdata, ydata) # update the line's x and y data
-            self.ax.draw_artist(line)
+        self.current_plot.update(wave, tref)
+        self.current_plot.draw()
         self.blit(self.ax.bbox)
-        #self.ax.set_visible() # TODO: is this necessary?
+        #self.gui_repaint()
         #self.draw(True)
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
@@ -432,7 +469,7 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def OnKeyDown(self, event):
         """Let main spyke frame handle keypress events"""
-        self.GrandParent.OnKeyDown(event)
+        self.spykeframe.OnKeyDown(event)
         #key = event.GetKeyCode()
         #print 'in dataframe.onkeypress !!: ', key
         #event.guiEvent.Skip()
@@ -444,7 +481,7 @@ class PlotPanel(FigureCanvasWxAgg):
             direction = 1
         else: # backward
             direction = -1
-        self.GrandParent.seek(self.tref + direction*self.stream.tres)
+        self.spykeframe.seek(self.current_plot.tref + direction*self.stream.tres)
         event.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
 
     def OnButtonPress(self, event):
@@ -459,29 +496,29 @@ class PlotPanel(FigureCanvasWxAgg):
             # seek to timepoint
             chan = self.get_closestchans(event, n=1)
             xpos = self.pos[chan][0]
-            t = event.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
-            self.GrandParent.seek(t) # call main spyke frame's seek method
-        elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
+            t = event.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
+            self.spykeframe.seek(t) # call main spyke frame's seek method
+        elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift: # or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
             # enable/disable closest line
             chan = self.get_closestchans(event, n=1)
-            line = self.lines[chan]
-            if line.chan not in self.GrandParent.chans_enabled:
+            line = self.current_plot.lines[chan]
+            if line.chan not in self.spykeframe.chans_enabled:
                 enable = True
             else:
                 enable = False
-            self.GrandParent.set_chans_enabled(line.chan, enable)
+            self.spykeframe.set_chans_enabled(line.chan, enable)
         elif button == wx.MOUSE_BTN_LEFT and not ctrl and shift:
             # enable/disable all chans
-            if len(self.GrandParent.chans_enabled) == 0:
+            if len(self.spykeframe.chans_enabled) == 0:
                 enable = True
             else:
                 enable = False
-            self.GrandParent.set_chans_enabled(None, enable) # None means all chans
+            self.spykeframe.set_chans_enabled(None, enable) # None means all chans
 
     def enable_chans(self, chans, enable=True):
         """Enable/disable a specific set of channels in this frame"""
         for chan in chans:
-            self.lines[chan].set_visible(enable)
+            self.current_plot.lines[chan].set_visible(enable)
         self.draw(True)
     '''
     def OnPick(self, event):
@@ -491,7 +528,7 @@ class PlotPanel(FigureCanvasWxAgg):
             line = event.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
             chan = line.chan
             xpos, ypos = self.pos[chan]
-            t = event.mouseevent.xdata - xpos + self.tref # undo position correction and convert from relative to absolute time
+            t = event.mouseevent.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
             v = (event.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                 t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
@@ -516,7 +553,7 @@ class PlotPanel(FigureCanvasWxAgg):
             line = self.get_closestline(event)
             if line and line.get_visible():
                 xpos, ypos = self.pos[line.chan]
-                t = event.xdata - xpos + self.tref
+                t = event.xdata - xpos + self.current_plot.tref
                 v = (event.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
@@ -569,10 +606,10 @@ class SpikePanel(PlotPanel):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
-        self.GrandParent.spiketw = self.tw
-        self.GrandParent.frames['chart'].panel.cw = self.tw
-        self.GrandParent.frames['chart'].panel._update_caret_width()
-        self.GrandParent.plot(frametypes='spike') # replot
+        self.spykeframe.spiketw = self.tw
+        self.spykeframe.frames['chart'].panel.cw = self.tw
+        self.spykeframe.frames['chart'].panel._update_caret_width()
+        self.spykeframe.plot(frametypes='spike') # replot
 
     def _add_caret(self):
         """Disable for SpikePanel"""
@@ -612,10 +649,10 @@ class ChartPanel(PlotPanel):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
-        self.GrandParent.charttw = self.tw
-        self.GrandParent.frames['lfp'].panel.cw = self.tw
-        self.GrandParent.frames['lfp'].panel._update_caret_width()
-        self.GrandParent.plot(frametypes='chart') # replot
+        self.spykeframe.charttw = self.tw
+        self.spykeframe.frames['lfp'].panel.cw = self.tw
+        self.spykeframe.frames['lfp'].panel._update_caret_width()
+        self.spykeframe.plot(frametypes='chart') # replot
 
     def _add_vref(self):
         """Disable for ChartPanel"""
@@ -658,8 +695,8 @@ class LFPPanel(ChartPanel):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
-        self.GrandParent.lfptw = self.tw
-        self.GrandParent.plot(frametypes='lfp') # replot
+        self.spykeframe.lfptw = self.tw
+        self.spykeframe.plot(frametypes='lfp') # replot
 
     def _add_vref(self):
         """Override ChartPanel"""
@@ -680,89 +717,22 @@ class LFPPanel(ChartPanel):
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
 
-class Plot(object):
-    """Plot slot, holds lines for plotting a single event in a SortPanel"""
-    def __init__(self, wave, panel):
-        self.lines = {} # chan to line mapping
-        self.panel = panel # panel this Plot slot belongs to
-        self.chans = wave.chan2i.keys() # channels currently enable in this Plot slot
-        self.chans.sort()
-        colours = self.panel.colours
-        #self.background = None
-        for chan in self.chans:
-            line = SpykeLine(wave.ts, # x and y data are just placeholders for now
-                             wave.data[chan],
-                             linewidth=SPIKELINEWIDTH,
-                             color=self.panel.colours[chan],
-                             antialiased=True,
-                             animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call
-                             visible=False) # keep invisible until needed
-            line.chan = chan
-            line.set_pickradius(PICKRADIUS)
-            #line.set_picker(PICKTHRESH)
-            self.lines[chan] = line
-            self.panel.ax.add_line(line) # add to panel's axes' pool of lines
-
-    def update(self, wave, tref):
-        """Update lines data"""
-        # TODO: most of the time, updating the xdata won't be necessary, but I think updating takes no time at all relative to drawing time
-        for chan, line in self.lines.items():
-            xpos, ypos = self.panel.pos[chan]
-            xdata = wave.ts - tref + xpos
-            ydata = wave[chan]*self.panel.gain + ypos
-            line.set_data(xdata, ydata) # update the line's x and y data
-
-    def show(self, enable=True):
-        """Show/hide all enabled chans in this plot slot"""
-        for chan in self.chans:
-            line = self.lines[chan]
-            line.set_visible(enable)
-
-    def hide(self):
-        """Hide all enabled chans in this plot slot"""
-        self.show(False)
-
-    def set_animated(self, enable):
-        """Set animated flag for all enabled lines in this plot slot"""
-        for chan in self.chans:
-            line = self.lines[chan]
-            line.set_animated(enable)
-
-    def draw(self):
-        """Draw all the lines in self to axes buffer (or whatever),
-        avoiding unnecessary draws of all other artists in axes"""
-        for chan in self.chans:
-            line = self.lines[chan]
-            self.panel.ax.draw_artist(line)
-
-
 class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
+        self.available_plots = [] # pool of available Plots
+        self.used_plots = {} # Plots holding currently displayed event data, indexed by event id
+        self.current_plot = None # current Plot being cycled between used and available
         PlotPanel.__init__(self, *args, **kwargs)
-        self.used_plots = {} # plot slots holding currently displayed event data, indexed by event id
-        self.available_plots = [] # pool of available plot slots
         self.spykeframe = self.GrandParent.GrandParent # sort pane, splitter window, sort frame, spyke frame
-        del self.stream # always None, no need for it here
 
-    def init_axes(self):
-        PlotPanel.init_axes(self)
-        self.background = self.copy_from_bbox(self.ax.bbox)
-        self.draw()
-
-    # make lines point to hlines, for finding closest chans, etc
-    def get_lines(self):
-        return self.hlines
-    def set_lines(self):
-        raise RuntimeError, "can't set lines cuz lines are hlines"
-    lines = property(get_lines, set_lines)
-
-    def init_plots(self, wave):
+    def init_plots(self):
         """Create lines for multiple plots"""
-        self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
         nplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
         for ploti in range(nplots, nplots+DEFNPLOTS):
-            plot = Plot(wave, panel=self)
+            plot = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plot)
+        if self.current_plot == None:
+            self.current_plot = self.available_plots[-1] # last one, top of stack
         # redraw the display
         #self.draw()
 
@@ -776,7 +746,7 @@ class SortPanel(PlotPanel):
     # idea: have one background: black with ref lines. then, on each add(), you update current plot, draw the current plot's lines, and you blit the background _all_ the current used_plots to buffer in order. on remove(), you hide current plot, draw its lines?, then blit background and _all_ remaining used_plots to buffer in order. Might need to do a draw at very beginning (in init_lines?). no need to mess with animated flag!
 
     def add_event(self, event):
-        """Add event to a plot slot"""
+        """Add event to self, stick it in an available Plot"""
         print 'adding event %d' % event.id
         tref = event.t
         try:
@@ -786,43 +756,37 @@ class SortPanel(PlotPanel):
             event.wave = wave # store it in the event, this will get pickled (hopefully)
         wave = event.wave[tref-self.tw/2 : tref+self.tw/2] # slice it according to the width of this panel
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
-            self.init_plots(wave) # init another batch of plots
-        # redraw background and all other plots
-        self.restore_region(self.background)
-        for plot in self.used_plots.values():
-            plot.draw()
-        plot = self.available_plots.pop() # pop a plot slot to assign this event to
-        self.used_plots[event.id] = plot # push plot slot to used plot stack
-        #plot.set_animated(True) # turn on animated flag for current plot slot
-        #if plot.background == None:
-        #plot.background = self.copy_from_bbox(self.ax.bbox) # copies everything but plot from the buffer
-        plot.update(wave, tref)
-        plot.show()
-        #self.restore_region(plot.background)
-        #plot.set_animated(False)
-        plot.draw()
+            self.init_plots() # init another batch of plots
+        plot = self.available_plots.pop() # pop a Plot to assign this event to
+        if plot != self.current_plot: # if this isn't the plot that was last used
+            self.current_plot = plot # update current plot
+            self.update_background(self.current_plot) # update bg, exclude current plot
+        self.restore_region(self.background) # restore bg
+        self.used_plots[event.id] = self.current_plot # push it to the used plot stack
+        self.current_plot.update(wave, tref)
+        self.current_plot.show()
+        self.current_plot.draw()
         self.blit(self.ax.bbox)
-        self.Refresh()
+        #self.Refresh()
         #wx.SafeYield(onlyIfNeeded=True)
-        #self.plot = plot
         #self.draw()
 
     def remove_event(self, event):
-        """Remove plot slot holding event's data"""
-        #import pdb; pdb.set_trace()
+        """Remove Plot holding event's data"""
         print 'removing event %d' % event.id
         plot = self.used_plots.pop(event.id)
-        #plot.set_animated(False)
         plot.hide()
         #plot.draw()
-        self.available_plots.append(plot) # put it back in the available pool
-
-        # redraw background and all other plots
-        self.restore_region(self.background)
-        for plot in self.used_plots.values():
-            plot.draw()
-        self.blit(self.ax.bbox)
-        self.Refresh()
+        if plot == self.current_plot:
+            self.restore_region(self.background) # restore saved bg
+            self.blit(self.ax.bbox) # blit background to screen
+        else: # do a full redraw
+            self.current_plot = plot # update current plot
+            #self.draw() # see below
+            self.update_background(self.current_plot) # update bg, exclude current plot (which is invisible now anyway), does a full redraw
+        # put it back in the available pool, at top of stack, ready to be popped
+        self.available_plots.append(plot)
+        #self.Refresh()
 
         #if event.id < len(self.used_plots):
         #    # removed event not from top of stack, need to do a full canvas.draw()
@@ -832,7 +796,7 @@ class SortPanel(PlotPanel):
         #    self.restore_region(plot.background)
         #    self.blit(self.ax.bbox)
         #    plot.background = None
-        #if plot == self.plot:
+        #if plot == self.current_plot:
         #    pass # prevents flicker when deselecting last selected
         #else:
         #    self.draw()
@@ -844,7 +808,7 @@ class SortPanel(PlotPanel):
         hitlines = []
         closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
-            line = self.lines[chan] # consider all hlines, even if invisible
+            line = self.hlines[chan] # consider all hlines, even if invisible
             hit, tisdict = line.contains(event)
             if hit:
                 tis = tisdict['ind'] # pull them out of the dict
@@ -909,7 +873,35 @@ class ChartSortPanel(SortPanel, ChartPanel):
         """Override ChartPanel, use vrefs for tooltips"""
         SortPanel._add_vref(self)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 '''
+class SpykeLine(Line2D):
+    """Line2Ds that can be compared to each other for equality
+    TODO: is subclassing Line2D really necessary?"""
+    def __init__(self, *args, **kwargs):
+        Line2D.__init__(self, *args, **kwargs)
+        self.colour = 'none'
+
+    def __hash__(self):
+        """Hash the string representation of the y data"""
+        return hash(self.colour + str(self._y))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+
 class SortPanel(SpikePanel):
     """Sort panel. Presents a narrow temporal window of all channels
     layed out according to self.siteloc. Also allows overplotting and some

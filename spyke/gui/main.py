@@ -338,9 +338,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenFrame('lfp')
         #self.OpenFrame('sort')
         #self.OpenFrame('pyshell')
-        self.ShowRef('tref')
-        self.ShowRef('vref')
-        self.ShowRef('caret')
+        #self.ShowRef('tref')
+        #self.ShowRef('vref')
+        #self.ShowRef('caret')
 
         # self has focus, but isn't in foreground after opening data frames
         #self.Raise() # doesn't seem to bring self to foreground
@@ -522,9 +522,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     panel.init_probe_dependencies(self.session.probe) # doesn't need stream, just probe for its layout
                     # sync reference lines with menu settings since sort frame isn't normally init'd before surf file load
                     for ref, REFID in self.REFTYPE2ID.items():
-                        if self.menubar.IsChecked(REFID):
-                            panel.show_ref(ref)
-
+                        panel.show_ref(ref, enable=self.menubar.IsChecked(REFID))
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
@@ -567,11 +565,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Show/hide a tref, vref, or the caret. Force menu states to correspond"""
         self.menubar.Check(self.REFTYPE2ID[ref], enable)
         for frametype, frame in self.frames.items():
-            if frametype not in ['sort', 'pyshell']:
+            try:
                 frame.panel.show_ref(ref, enable=enable)
-            elif frametype == 'sort':
+            except AttributeError: # no .panel
                 frame.spikesortpanel.show_ref(ref, enable=enable)
                 frame.chartsortpanel.show_ref(ref, enable=enable)
+            except AttributeError: # probably a sort frame
+                pass
 
     def ToggleRef(self, ref):
         """Toggle visibility of a tref, vref, or the caret"""
