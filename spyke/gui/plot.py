@@ -64,7 +64,7 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 DEFSPIKESORTTW = 1000 # spike sort panel temporal window width (us)
-DEFCHARTSORTTW = 1000 # chart sort panel temporal window width (us)
+DEFCHARTSORTTW = 2000 # chart sort panel temporal window width (us)
 DEFEVENTTW = max(DEFSPIKESORTTW, DEFCHARTSORTTW) # default event time width, determines event.wave width
 DEFNPLOTS = 10 # default number of plots to init in SortPanel
 
@@ -867,7 +867,7 @@ class ChartSortPanel(SortPanel, ChartPanel):
         kwargs['tw'] = DEFCHARTSORTTW
         kwargs['cw'] = DEFSPIKESORTTW
         SortPanel.__init__(self, *args, **kwargs)
-        self.gain = 1
+        self.gain = 1.5
 
     def _add_vref(self):
         """Override ChartPanel, use vrefs for tooltips"""

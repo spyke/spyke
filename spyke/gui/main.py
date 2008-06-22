@@ -838,7 +838,7 @@ class SortFrame(wxglade_gui.SortFrame):
         ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
         event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
         self.spikesortpanel.add_event(event)
-        #self.chartsortpanel.add_event(event)
+        self.chartsortpanel.add_event(event)
         #evt.Skip()
 
     def OnDeselect(self, evt):
@@ -846,7 +846,7 @@ class SortFrame(wxglade_gui.SortFrame):
         ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
         event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
         self.spikesortpanel.remove_event(event) # TODO: could also just pass ID, let the panel figure it out
-        #self.chartsortpanel.remove_event(event)
+        self.chartsortpanel.remove_event(event)
         #evt.Skip()
 
 class PyShellFrame(wx.MiniFrame,
