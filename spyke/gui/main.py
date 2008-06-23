@@ -338,9 +338,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenFrame('lfp')
         #self.OpenFrame('sort')
         #self.OpenFrame('pyshell')
-        #self.ShowRef('tref')
-        #self.ShowRef('vref')
-        #self.ShowRef('caret')
+        self.ShowRef('tref')
+        self.ShowRef('vref')
+        self.ShowRef('caret')
 
         # self has focus, but isn't in foreground after opening data frames
         #self.Raise() # doesn't seem to bring self to foreground
@@ -565,13 +565,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Show/hide a tref, vref, or the caret. Force menu states to correspond"""
         self.menubar.Check(self.REFTYPE2ID[ref], enable)
         for frametype, frame in self.frames.items():
-            try:
+            if frametype in ['spike', 'chart', 'lfp']:
                 frame.panel.show_ref(ref, enable=enable)
-            except AttributeError: # no .panel
+            elif frametype == 'sort':
                 frame.spikesortpanel.show_ref(ref, enable=enable)
                 frame.chartsortpanel.show_ref(ref, enable=enable)
-            except AttributeError: # probably a sort frame
-                pass
 
     def ToggleRef(self, ref):
         """Toggle visibility of a tref, vref, or the caret"""
@@ -848,6 +846,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.remove_event(event) # TODO: could also just pass ID, let the panel figure it out
         self.chartsortpanel.remove_event(event)
         #evt.Skip()
+
 
 class PyShellFrame(wx.MiniFrame,
                    wx.py.shell.ShellFrame,

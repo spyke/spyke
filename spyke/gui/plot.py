@@ -68,6 +68,10 @@ DEFCHARTSORTTW = 2000 # chart sort panel temporal window width (us)
 DEFEVENTTW = max(DEFSPIKESORTTW, DEFCHARTSORTTW) # default event time width, determines event.wave width
 DEFNPLOTS = 10 # default number of plots to init in SortPanel
 
+CARETZORDER = 0 # layering
+REFLINEZORDER = 1
+PLOTZORDER = 2
+
 
 class Plot(object):
     """Plot slot, holds lines for all chans for plotting
@@ -83,6 +87,7 @@ class Plot(object):
                           [0], # TODO: will such a small amount of data before first .draw() cause problems for blitting?
                           linewidth=SPIKELINEWIDTH,
                           color=self.panel.colours[chan],
+                          zorder=PLOTZORDER,
                           antialiased=True,
                           animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call,
                                           # but also unfortunately keeps it from being repainted upon occlusion
@@ -188,9 +193,9 @@ class PlotPanel(FigureCanvasWxAgg):
         self.ax.set_visible(True)
         self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
         self.init_plots()
-        for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
-            self.add_ref(ref)
-            self.spykeframe.ShowRef(ref) # also enforces menu item toggle state
+        #for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
+        #    self.add_ref(ref)
+        #    self.spykeframe.ShowRef(ref) # also enforces menu item toggle state
         self.draw()
         self.background = self.copy_from_bbox(self.ax.bbox)
 
@@ -225,6 +230,7 @@ class PlotPanel(FigureCanvasWxAgg):
                            ylims,
                            linewidth=TREFLINEWIDTH,
                            color=TREFCOLOUR,
+                           zorder=REFLINEZORDER,
                            antialiased=True,
                            visible=False)
             self.vlines.append(vline)
@@ -245,6 +251,7 @@ class PlotPanel(FigureCanvasWxAgg):
                            [ypos, ypos],
                            linewidth=VREFLINEWIDTH,
                            color=VREFCOLOUR,
+                           zorder=REFLINEZORDER,
                            antialiased=True,
                            visible=False)
             hline.chan = chan
@@ -265,6 +272,7 @@ class PlotPanel(FigureCanvasWxAgg):
         height = ylim[1] - ylim[0]
         self.caret = Rectangle(xy, width, height,
                                facecolor=CARETCOLOUR,
+                               zorder=CARETZORDER,
                                linewidth=0,
                                antialiased=False,
                                visible=False)
@@ -272,12 +280,9 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def _update_caret_width(self):
         """Update caret"""
-        #ylim = self.ax.get_ylim()
         # bottom left coord of rectangle
         self.caret.set_x(-self.cw/2)
-        #self.caret.set_y(ylim[0])
         self.caret.set_width(self.cw)
-        #self.caret.set_height(ylim[1] - ylim[0])
 
     def update_background(self, plot):
         """Update background, exclude plot from it by temporarily setting its animated flag"""
@@ -304,7 +309,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.draw() # do a full draw of everything in self.ax
         self.background = self.copy_from_bbox(self.ax.bbox) # grab everything except plot
         plot.set_animated(False)
-        self.draw() # TODO: necessary?
+        #self.draw() # TODO: necessary?
 
     def show_ref(self, ref, enable=True):
         if ref == 'tref':
@@ -315,18 +320,30 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
-        self.update_background(self.current_plot) # update bg, exclude curret plot
-        #self.draw()
+        self.update_background(self.current_plot) # update saved bg, exclude curret plot
+        self.draw()
 
     def _show_tref(self, enable):
+        try:
+            self.vlines
+        except AttributeError:
+            self._add_tref()
         for vline in self.vlines:
             vline.set_visible(enable)
 
     def _show_vref(self, enable):
+        try:
+            self.hlines
+        except AttributeError:
+            self._add_vref()
         for hline in self.hlines:
             hline.set_visible(enable)
 
     def _show_caret(self, enable):
+        try:
+            self.caret
+        except AttributeError:
+            self._add_caret()
         self.caret.set_visible(enable)
 
     def get_spatialchans(self, order='vertical'):
