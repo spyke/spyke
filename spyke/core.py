@@ -240,6 +240,92 @@ class Stream(object):
         pl.show()
 
 
+class HybridList(set):
+    """A set with an append() method like a list"""
+    def append(self, item):
+        self.add(item)
+
+
+def get_sha1(fname, blocksize=2**20):
+    """Gets the sha1 hash of fname (with full path)"""
+    m = hashlib.sha1()
+    # automagically clean up after ourselves
+    with file(fname, 'rb') as f:
+        # continually update hash until EOF
+        while True:
+            block = f.read(blocksize)
+            if not block:
+                break
+            m.update(block)
+    return m.hexdigest()
+
+def intround(n):
+    """Round to the nearest integer, return an integer.
+    Saves on parentheses"""
+    return int(round(n))
+
+def iterable(x):
+    """Check if the input is iterable, stolen from numpy.iterable()"""
+    try:
+        iter(x)
+        return True
+    except:
+        return False
+
+def toiter(x):
+    """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
+    Useful when you want to iterate over a Record (like in a for loop),
+    and you don't want to have to do type checking or handle exceptions
+    when the Record isn't a sequence"""
+    if iterable(x):
+        return x
+    else:
+        return [x]
+
+def cut(ts, trange):
+    """Returns timestamps, where tstart <= timestamps <= tend
+    Copied and modified from neuropy rev 149"""
+    lo, hi = argcut(ts, trange)
+    return ts[lo:hi] # slice it
+
+def argcut(ts, trange):
+    """Returns timestamp slice indices, where tstart <= timestamps <= tend
+    Copied and modified from neuropy rev 149"""
+    tstart, tend = trange[0], trange[1]
+    '''
+    # this is what we're trying to do:
+    return ts[ (ts >= tstart) & (ts <= tend) ]
+    ts.searchsorted([tstart, tend]) method does it faster, because it assumes ts are ordered.
+    It returns an index where the values would fit in ts. The index is such that
+    ts[index-1] < value <= ts[index]. In this formula ts[ts.size]=inf and ts[-1]= -inf
+    '''
+    lo, hi = ts.searchsorted([tstart, tend]) # returns indices where tstart and tend would fit in ts
+    # can probably avoid all this end inclusion code by using the 'side' kwarg, not sure if I want end inclusion anyway
+    '''
+    if tend == ts[min(hi, len(ts)-1)]: # if tend matches a timestamp (protect from going out of index bounds when checking)
+        hi += 1 # inc to include a timestamp if it happens to exactly equal tend. This gives us end inclusion
+        hi = min(hi, len(ts)) # limit hi to max slice index (==max value index + 1)
+    '''
+    return lo, hi
+
+def eucd(coords):
+    """Generates Euclidean distance matrix from a
+    sequence of n dimensional coordinates
+    Written by Willi Richert
+    Taken from:
+    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498246
+    on 2006/11/11
+    """
+    coords = np.asarray(coords)
+    n, m = coords.shape
+    delta = np.zeros((n, n), dtype=np.float64)
+    for d in xrange(m):
+        data = coords[:, d]
+        delta += (data - data[:, np.newaxis]) ** 2
+    return np.sqrt(delta)
+
+
+'''
 class Spike(WaveForm):
     """A spike event"""
     def __init__(self, waveform=None, channel=None, event_time=None):
@@ -322,12 +408,6 @@ class Template(object):
         return 'Template (' + str(len(self)) + ')'
 
 
-class HybridList(set):
-    """A set with an append() method like a list"""
-    def append(self, item):
-        self.add(item)
-
-
 class Collection(object):
     """A container for Templates. Collections are associated with Surf Files.
     By default a Collection represents a single sorting session. Initially
@@ -370,22 +450,6 @@ class CollectionError(SpykeError):
     """Problem with collection file"""
     pass
 
-
-def get_sha1(fname, blocksize=2**20):
-    """Gets the sha1 hash of fname (with full path)"""
-    m = hashlib.sha1()
-    # automagically clean up after ourselves
-    with file(fname, 'rb') as f:
-
-        # continually update hash until EOF
-        while True:
-            block = f.read(blocksize)
-            if not block:
-                break
-            m.update(block)
-
-    return m.hexdigest()
-
 def load_collection(fname):
     """Loads a collection file. Returns None if fname is not a collection"""
     with file(fname, 'rb') as f:
@@ -406,68 +470,4 @@ def write_collection(collection, fname):
         except Exception, e:
             raise CollectionError(str(e))
         g.close()
-
-def intround(n):
-    """Round to the nearest integer, return an integer.
-    Saves on parentheses"""
-    return int(round(n))
-
-def iterable(x):
-    """Check if the input is iterable, stolen from numpy.iterable()"""
-    try:
-        iter(x)
-        return True
-    except:
-        return False
-
-def toiter(x):
-    """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
-    Useful when you want to iterate over an Record (like in a for loop),
-    and you don't want to have to do type checking or handle exceptions
-    when the Record isn't a sequence"""
-    if iterable(x):
-        return x
-    else:
-        return [x]
-
-def cut(ts, trange):
-    """Returns timestamps, where tstart <= timestamps <= tend
-    Copied and modified from neuropy rev 149"""
-    lo, hi = argcut(ts, trange)
-    return ts[lo:hi] # slice it
-
-def argcut(ts, trange):
-    """Returns timestamp slice indices, where tstart <= timestamps <= tend
-    Copied and modified from neuropy rev 149"""
-    tstart, tend = trange[0], trange[1]
-    '''
-    # this is what we're trying to do:
-    return ts[ (ts >= tstart) & (ts <= tend) ]
-    ts.searchsorted([tstart, tend]) method does it faster, because it assumes ts are ordered.
-    It returns an index where the values would fit in ts. The index is such that
-    ts[index-1] < value <= ts[index]. In this formula ts[ts.size]=inf and ts[-1]= -inf
-    '''
-    lo, hi = ts.searchsorted([tstart, tend]) # returns indices where tstart and tend would fit in ts
-    # can probably avoid all this end inclusion code by using the 'side' kwarg, not sure if I want end inclusion anyway
-    '''
-    if tend == ts[min(hi, len(ts)-1)]: # if tend matches a timestamp (protect from going out of index bounds when checking)
-        hi += 1 # inc to include a timestamp if it happens to exactly equal tend. This gives us end inclusion
-        hi = min(hi, len(ts)) # limit hi to max slice index (==max value index + 1)
-    '''
-    return lo, hi
-
-def eucd(coords):
-    """Generates Euclidean distance matrix from a
-    sequence of n dimensional coordinates
-    Written by Willi Richert
-    Taken from:
-    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498246
-    on 2006/11/11
-    """
-    coords = np.asarray(coords)
-    n, m = coords.shape
-    delta = np.zeros((n, n), dtype=np.float64)
-    for d in xrange(m):
-        data = coords[:, d]
-        delta += (data - data[:, np.newaxis]) ** 2
-    return np.sqrt(delta)
+'''

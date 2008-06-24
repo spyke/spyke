@@ -1,24 +1,14 @@
-"""spike sorting gui elements"""
+"""Spike sorting classes and frame"""
 
-__authors__ = 'Reza Lotun, Martin Spacek'
+__authors__ = 'Martin Spacek, Reza Lotun'
 
 import os
 import wx
 
 import numpy as np
 
-'''# old imports:
-import unittest
-import spyke
-from spyke.probes import *
-from spyke import Spike, Template, Collection
-from spyke import load_collection, write_collection
-from spyke.detect import BipolarAmplitudeFixedThresh, MultiPhasic, DynamicMultiPhasic
-from spyke.gui.events import *
-from spyke.gui.plot import ClickableSortPanel
-from spyke.gui.manager import CollectionManager
-'''
 import plot
+import wxglade_gui
 
 
 class Session(object):
@@ -33,7 +23,7 @@ class Session(object):
         self.probe = probe # only one probe design per session allowed
         self.detections = [] # history of detection runs, in chrono order
         self.events = {} # all events detected in this sort session across all Detection runs, indexed by unique ID
-        self.templates = None # first hierarchy of templates
+        self.templates = {} # first hierarchy of templates
 
     def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
@@ -77,19 +67,19 @@ class Template(object):
         self.children = None # subtemplates
         self.maxchan = None
         self.chans = None # chans enabled
-        self.spikes = None # member spikes that make up this template
+        self.events = {} # member spike events that make up this template
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
     def mean(self):
         """Returns mean waveform from member spikes"""
         for spike in self.spikes:
             pass
-
+    '''
     def __del__(self):
         """Is this run on 'del template'?"""
         for spike in self.spikes:
             spike.template = None # remove self from all spike.template fields
-
+    '''
     def pop(self, spikeid):
         return self.spikes.pop(spikeid)
 
@@ -146,6 +136,92 @@ class ClusterRip(Cluster, Rip):
     """A hybrid of the two. Rip each template across all of the unsorted spikes
     instead of across the entire file"""
     pass
+
+
+class SortFrame(wxglade_gui.SortFrame):
+    """Sort frame"""
+    def __init__(self, *args, **kwargs):
+        wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
+        self.spykeframe = self.Parent
+        self.session = self.spykeframe.session
+        self.deselect_all = False
+        self.deselect_count = 0
+
+        columnlabels = ['ID', 'chan', 'time'] # event list column labels
+        for coli, label in enumerate(columnlabels):
+            self.list.InsertColumn(coli, label)
+        for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
+            self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+
+        self.root = self.tree.AddRoot('Templates')
+
+        self.list.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+    def OnClose(self, event):
+        frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
+        self.spykeframe.HideFrame(frametype)
+
+    def OnLeftDown(self, evt):
+        """TODO: clicked item id may not be the same as spike event id, check with non consecutive spike event ids in list ctrl"""
+        i, pos = self.list.HitTest(evt.GetPosition())
+        print 'left down, on item %d' % i
+        #selected = (sf.list.GetItemState(11, wx.LIST_STATE_SELECTED) == wx.LIST_STATE_SELECTED)
+        #if not selected:
+        #    self.list.Select(i)
+        ctrl = evt.ControlDown()
+        if not ctrl: # plain left click any item, deselect all
+            self.deselect_all = True
+            self.deselect_count = self.list.GetSelectedItemCount() # skip this many deselect events
+        evt.Skip() # let select/deselect event processing happen
+
+    def OnSelect(self, evt):
+        """Item selection event in list control"""
+        # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
+        eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
+        event = self.session.events[eventi]
+        self.spikesortpanel.add_event(event)
+        self.chartsortpanel.add_event(event)
+
+    def OnDeselect(self, evt):
+        """Item deselection event in list control"""
+        #nselected = self.list.GetSelectedItemCount()
+        #print 'nselected: %d' % nselected
+        eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
+        #self._events_to_remove.append(eventi)
+        if self.deselect_all: # fast removal of all events
+            self.spikesortpanel.remove_all_events()
+            self.chartsortpanel.remove_all_events()
+            self.deselect_all = False
+            self.deselect_count -= 1
+        elif self.deselect_count > 0: # wait for all the deselect events to be processed
+            self.deselect_count -= 1
+        else: # deselect just the one event
+            event = self.session.events[eventi]
+            self.spikesortpanel.remove_event(event)
+            self.chartsortpanel.remove_event(event)
+
+    def CreateTemplate(self, event):
+        """Create a new template, given a spike event"""
+        templid = self.getNewTemplateID()
+        templ = Template(self.session, templid, parent=None)
+        templ.events[event.id] = event # add event to template
+        self.session.templates[templid] = templ # add template to session
+        templitem = self.tree.AppendItem(self.root, 't'+str(templid)) # add template to tree
+        templ.item = templitem # for convenience
+        self.tree.AppendItem(templitem, 'e'+str(event.id)) # add event to tree
+        self.tree.Expand(self.root) # expand root
+        self.tree.Expand(templitem) # expand template
+
+    def getNewTemplateID(self):
+        """Return a unique template ID (incrementing numbers)"""
+        try:
+            self._lasttemplateID
+        except AttributeError:
+            self._lasttemplateID = 0
+        self._lasttemplateID += 1
+        return self._lasttemplateID
+
 
 
 '''
