@@ -284,32 +284,12 @@ class PlotPanel(FigureCanvasWxAgg):
         self.caret.set_x(-self.cw/2)
         self.caret.set_width(self.cw)
 
-    def update_background(self, plot):
+    def update_background(self, plot=None):
         """Update background, exclude plot from it by temporarily setting its animated flag"""
-        '''
-        self.restore_region(self.blank)
-        reflines = []
-        try:
-            reflines.extend(self.vlines)
-        except AttributeError:
-            pass
-        try:
-            reflines.extend(self.hlines)
-        except AttributeError:
-            pass
-        try:
-            reflines.append(self.caret)
-        except AttributeError:
-            pass
-        for line in reflines:
-            self.ax.draw_artist(line)
-        self.blit(self.ax.bbox)
-        '''
-        plot.set_animated(True)
+        if plot != None: plot.set_animated(True)
         self.draw() # do a full draw of everything in self.ax
         self.background = self.copy_from_bbox(self.ax.bbox) # grab everything except plot
-        plot.set_animated(False)
-        #self.draw() # TODO: necessary?
+        if plot != None: plot.set_animated(False)
 
     def show_ref(self, ref, enable=True):
         if ref == 'tref':
@@ -775,25 +755,22 @@ class SortPanel(PlotPanel):
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this event to
+        self.used_plots[event.id] = plot # push it to the used plot stack
         if plot != self.current_plot: # if this isn't the plot that was last used
+            print 'plot not same as last one'
             self.current_plot = plot # update current plot
             self.update_background(self.current_plot) # update bg, exclude current plot
         self.restore_region(self.background) # restore bg
-        self.used_plots[event.id] = self.current_plot # push it to the used plot stack
         self.current_plot.update(wave, tref)
         self.current_plot.show()
         self.current_plot.draw()
         self.blit(self.ax.bbox)
-        #self.Refresh()
-        #wx.SafeYield(onlyIfNeeded=True)
-        #self.draw()
 
     def remove_event(self, event):
         """Remove Plot holding event's data"""
         print 'removing event %d' % event.id
         plot = self.used_plots.pop(event.id)
         plot.hide()
-        #plot.draw()
         if plot == self.current_plot:
             self.restore_region(self.background) # restore saved bg
             self.blit(self.ax.bbox) # blit background to screen
@@ -803,20 +780,16 @@ class SortPanel(PlotPanel):
             self.update_background(self.current_plot) # update bg, exclude current plot (which is invisible now anyway), does a full redraw
         # put it back in the available pool, at top of stack, ready to be popped
         self.available_plots.append(plot)
-        #self.Refresh()
 
-        #if event.id < len(self.used_plots):
-        #    # removed event not from top of stack, need to do a full canvas.draw()
-        #    self.draw()
-        #elif event.id == len(self.used_plots):
-        #    # removed event from top of stack, restore top plot's background and blit it
-        #    self.restore_region(plot.background)
-        #    self.blit(self.ax.bbox)
-        #    plot.background = None
-        #if plot == self.current_plot:
-        #    pass # prevents flicker when deselecting last selected
-        #else:
-        #    self.draw()
+    def remove_all_events(self):
+        """Remove all event Plots"""
+        print 'removing all events'
+        for ploti in self.used_plots.keys():
+            plot = self.used_plots.pop(ploti)
+            plot.hide()
+            self.available_plots.append(plot)
+        self.update_background(plot=None) # plot passed doesn't matter, since they're all hidden
+        self.current_plot = self.available_plots[-1]
 
     def get_closestline(self, event):
         """Return line that's closest to mouse event coords

@@ -817,6 +817,8 @@ class SortFrame(wxglade_gui.SortFrame):
     """Sort frame"""
     def __init__(self, *args, **kwargs):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
+        self.deselect_all = False
+        self.deselect_count = 0
 
         columnlabels = ['ID', 'chan', 'time'] # event list column labels
         for coli, label in enumerate(columnlabels):
@@ -824,28 +826,51 @@ class SortFrame(wxglade_gui.SortFrame):
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
             self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
 
+        self.list.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def OnClose(self, event):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 
+    def OnLeftDown(self, evt):
+        """TODO: clicked item id may not be the same as spike event id, check with non consecutive spike event ids in list ctrl"""
+        i, pos = self.list.HitTest(evt.GetPosition())
+        print 'left down, on item %d' % i
+        #selected = (sf.list.GetItemState(11, wx.LIST_STATE_SELECTED) == wx.LIST_STATE_SELECTED)
+        #if not selected:
+        #    self.list.Select(i)
+        ctrl = evt.ControlDown()
+        if not ctrl: # plain left click any item, deselect all
+            self.deselect_all = True
+            self.deselect_count = self.list.GetSelectedItemCount() # skip this many deselect events
+        evt.Skip() # let select/deselect event processing happen
+
     def OnSelect(self, evt):
         """Item selection event in list control"""
         # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
-        ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
-        event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
+        eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
+        event = self.Parent.session.events[eventi] # seems dumb that I have to call the parent to get the event
         self.spikesortpanel.add_event(event)
         self.chartsortpanel.add_event(event)
-        #evt.Skip()
 
     def OnDeselect(self, evt):
-        # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
-        ei = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
-        event = self.Parent.session.events[ei] # seems dumb that I have to call the parent to get the event
-        self.spikesortpanel.remove_event(event) # TODO: could also just pass ID, let the panel figure it out
-        self.chartsortpanel.remove_event(event)
-        #evt.Skip()
+        """Item deselection event in list control"""
+        #nselected = self.list.GetSelectedItemCount()
+        #print 'nselected: %d' % nselected
+        eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
+        #self._events_to_remove.append(eventi)
+        if self.deselect_all: # fast removal of all events
+            self.spikesortpanel.remove_all_events()
+            self.chartsortpanel.remove_all_events()
+            self.deselect_all = False
+            self.deselect_count -= 1
+        elif self.deselect_count > 0: # wait for all the deselect events to be processed
+            self.deselect_count -= 1
+        else: # deselect just the one event
+            event = self.Parent.session.events[eventi]
+            self.spikesortpanel.remove_event(event)
+            self.chartsortpanel.remove_event(event)
 
 
 class PyShellFrame(wx.MiniFrame,
