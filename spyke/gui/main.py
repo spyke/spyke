@@ -17,10 +17,10 @@ from copy import copy
 
 import spyke
 from spyke import core, surf, detect
-from spyke.gui.sort import Session, Detection, Event
+from spyke.sort import Session, Detection, Event
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
-from spyke.gui.sort import SortFrame
+from spyke.sort import SortFrame
 import wxglade_gui
 
 DEFSPIKETW = 1000 # spike frame temporal window width (us)

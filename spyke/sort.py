@@ -7,8 +7,7 @@ import wx
 
 import numpy as np
 
-import plot
-import wxglade_gui
+from spyke.gui import wxglade_gui
 
 
 class Session(object):
