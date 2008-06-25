@@ -83,7 +83,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.set_detect_pane_limits()
 
-        self.file_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
+        self.file_pos_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
         self.range_units_label.SetLabel(MU+'s')
         self.blocksize_units_label.SetLabel(MU+'s')
@@ -196,7 +196,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #event.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
 
-    def OnFileComboBox(self, event):
+    def OnFilePosComboBox(self, event):
         """Change file position using combo box control,
         convert start, now, and end to appropriate vals"""
         # TODO: I set a value manually, but the OS overrides the value
@@ -204,7 +204,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # to be replaced with the actual self.t0 timestamp, which it is, but is then
         # immediately replaced back to 'start' by the OS. Don't know how to
         # prevent its propagation to the OS. ComboBoxEvent is a COMMAND event
-        t = self.file_combo_box.GetValue()
+        t = self.file_pos_combo_box.GetValue()
         try:
             t = self.str2t[t]
         except KeyError:
@@ -223,7 +223,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Detect pane Search button click"""
         self.session.detector = self.get_detector()
         events = self.session.detector.search()
-        detection = Detection(self.session, self.session.detector, id=self._detid,
+        detection = Detection(self.session, self.session.detector,
+                              id=self.session._detid,
                               datetime=datetime.datetime.now(),
                               events=events) # generate a new Detection run
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
@@ -246,7 +247,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.detection_list.Append(row)
         for coli in range(len(row)):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        self._detid += 1 # inc for next unique Detection run
+        self.session._detid += 1 # inc for next unique Detection run
         self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
 
     def append_events(self, detection):
@@ -259,11 +260,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except KeyError:
             self.OpenFrame('sort') # create it
         for t, chan in detection.events.T: # same as iterate over cols of non-transposed events array
-            e = Event(self._eventid, chan, t, detection)
+            e = Event(self.session._eventid, chan, t, detection)
             self.session.events[e.id] = e
             row = [str(e.id), e.chan, e.t]
             self.frames['sort'].list.Append(row)
-            self._eventid += 1
+            self.session._eventid += 1 # inc for next unique Event
         for coli in range(len(row)):
             if coli == 0: # ID column doesn't size properly, set it manually
                 width = 40
@@ -285,11 +286,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         key = event.GetKeyCode()
         #print 'key: %r' % key
         in_widget = event.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
-        in_file_combo_box = event.GetEventObject() == self.file_combo_box
+        in_file_pos_combo_box = event.GetEventObject() == self.file_pos_combo_box
         if not event.ControlDown():
-            if key == wx.WXK_LEFT and not in_widget or key == wx.WXK_DOWN and in_file_combo_box:
+            if key == wx.WXK_LEFT and not in_widget or key == wx.WXK_DOWN and in_file_pos_combo_box:
                     self.seek(self.t - self.hpstream.tres)
-            elif key == wx.WXK_RIGHT and not in_widget or key == wx.WXK_UP and in_file_combo_box:
+            elif key == wx.WXK_RIGHT and not in_widget or key == wx.WXK_UP and in_file_pos_combo_box:
                     self.seek(self.t + self.hpstream.tres)
             elif key == wx.WXK_PRIOR: # PGUP
                 self.seek(self.t - self.spiketw)
@@ -304,8 +305,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.seek(self.t - self.charttw)
             elif key == wx.WXK_NEXT: # PGDN
                 self.seek(self.t + self.charttw)
-        # when key event comes from file_combo_box, reserve down/up for seeking through file
-        if in_widget and not in_file_combo_box or in_file_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
+        # when key event comes from file_pos_combo_box, reserve down/up for seeking through file
+        if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             event.Skip() # pass event on to OS to handle cursor movement
 
     def OpenFile(self, fname):
@@ -352,7 +353,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                       'end': self.hpstream.tend}
 
         self.range = (self.hpstream.t0, self.hpstream.tend) # us
-        self.file_combo_box.SetValue(str(self.t))
+        self.file_pos_combo_box.SetValue(str(self.t))
         self.file_min_label.SetLabel(str(self.hpstream.t0))
         self.file_max_label.SetLabel(str(self.hpstream.tend))
         self.slider.SetRange(self.range[0], self.range[1])
@@ -387,8 +388,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.frames['sort'].list.DeleteAllItems()
         except KeyError: # sort window hasn't been opened yet
             pass
-        self._detid = 0 # reset current Detection run ID
-        self._eventid = 0 # reset
         self.total_nevents_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
@@ -451,7 +450,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f = gzip.open(fname, 'rb')
         self.session = cPickle.load(f)
         f.close()
-        # TODO: reset ._eventid to highest spike id in session + 1
         if self.hpstream != None:
             self.session.set_stream(self.hpstream) # restore missing stream object to session
         else: # no .srf file is open, no stream exists
@@ -591,7 +589,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
-        self.file_control_panel.Show(enable)
+        self.file_pos_control_panel.Show(enable)
         self.notebook.Show(enable)
         self.search_button.Enable(enable)
         self.file_min_label.Show(enable)
@@ -705,7 +703,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # performance, maybe mpl is already doing something like this?
         if self.t != self.oldt:
             # update controls first so they don't lag
-            self.file_combo_box.SetValue(str(self.t)) # update file combo box
+            self.file_pos_combo_box.SetValue(str(self.t)) # update file combo box
             self.slider.SetValue(self.t) # update slider
             wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
             self.plot()

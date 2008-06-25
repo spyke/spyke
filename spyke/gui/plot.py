@@ -80,13 +80,13 @@ class Plot(object):
         self.lines = {} # chan to line mapping
         self.panel = panel # panel that self belongs to
         self.chans = chans # all channels available in this Plot, lines can be enabled/disabled
-        colours = self.panel.colours
+        self.colours = self.panel.colours
         #self.background = None
         for chan in self.chans:
             line = Line2D([0], # x and y data are just placeholders for now
                           [0], # TODO: will such a small amount of data before first .draw() cause problems for blitting?
                           linewidth=SPIKELINEWIDTH,
-                          color=self.panel.colours[chan],
+                          color=self.colours[chan],
                           zorder=PLOTZORDER,
                           antialiased=True,
                           animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call,
@@ -122,6 +122,17 @@ class Plot(object):
         """Set animated flag for all lines in self"""
         for line in self.lines.values():
             line.set_animated(enable)
+
+    def set_colours(self, colours):
+        """Set colour(s) for all lines in self"""
+        colours = toiter(colours)
+        if len(colours) == 1:
+            colours = colours * len(self.chans)
+        if len(colours) != len(self.chans):
+            raise ValueError, 'invalid colours length: %d' % len(colours)
+        self.colours = colours # now safe to save it
+        for chani, colour in enumerate(self.colours):
+            self.lines[chani].set_color(colour)
 
     def draw(self):
         """Draw all the lines to axes buffer (or whatever),

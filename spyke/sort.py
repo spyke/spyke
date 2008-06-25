@@ -12,8 +12,8 @@ from spyke.gui import wxglade_gui
 
 class Session(object):
     """A spike sorting session, in which you can do multiple Detection runs,
-    build Templates up from events in Detections, and then use Templates
-    to sort events into Spike objects.
+    build Templates up from events in those Detection runs, and then use Templates
+    to sort spike Events.
     Formerly known as a Collection.
     A .sort file is a single sort Session object, pickled and gzipped"""
     def __init__(self, detector=None, srffname=None, probe=None):
@@ -23,6 +23,10 @@ class Session(object):
         self.detections = [] # history of detection runs, in chrono order
         self.events = {} # all events detected in this sort session across all Detection runs, indexed by unique ID
         self.templates = {} # first hierarchy of templates
+
+        self._detid = 0 # used to count off unqiue Detection run IDs
+        self._eventid = 0 # used to count off unique Event IDs
+        self._templid = 0 # used to count off unique Template IDs
 
     def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
@@ -34,6 +38,14 @@ class Session(object):
                 detection.detector.stream = stream
             elif detection.detector.srffname == stream.srffname:
                 detection.detector.stream = stream
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        return sessiondict
+
+    def __setstate__(self, sessiondict):
+        """Set object state for unpickling"""
+
 
 
 class Detection(object):
@@ -174,7 +186,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.deselect_count = self.list.GetSelectedItemCount() # skip this many deselect events
         evt.Skip() # let select/deselect event processing happen
 
-    def OnSelect(self, evt):
+    def OnListSelect(self, evt):
         """Item selection event in list control"""
         # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
         eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
@@ -182,7 +194,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.add_event(event)
         self.chartsortpanel.add_event(event)
 
-    def OnDeselect(self, evt):
+    def OnListDeselect(self, evt):
         """Item deselection event in list control"""
         #nselected = self.list.GetSelectedItemCount()
         #print 'nselected: %d' % nselected
@@ -202,24 +214,19 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def CreateTemplate(self, event):
         """Create a new template, given a spike event"""
-        templid = self.getNewTemplateID()
-        templ = Template(self.session, templid, parent=None)
-        templ.events[event.id] = event # add event to template
-        self.session.templates[templid] = templ # add template to session
-        templitem = self.tree.AppendItem(self.root, 't'+str(templid)) # add template to tree
-        templ.item = templitem # for convenience
-        self.tree.AppendItem(templitem, 'e'+str(event.id)) # add event to tree
+        template = Template(self.session, self.session._templid, parent=None)
+        self.session._templid += 1 # inc for next unique Template
+        self.session.templates[templ.id] = template # add template to session
+        templitem = self.tree.AppendItem(self.root, 't'+str(templ.id)) # add template to tree
+        template.item = templitem # for convenience
         self.tree.Expand(self.root) # expand root
-        self.tree.Expand(templitem) # expand template
+        self.AddEvent2Template(event, template)
 
-    def getNewTemplateID(self):
-        """Return a unique template ID (incrementing numbers)"""
-        try:
-            self._lasttemplateID
-        except AttributeError:
-            self._lasttemplateID = 0
-        self._lasttemplateID += 1
-        return self._lasttemplateID
+    def AddEvent2Template(self, event, template):
+        """Add a spike event to a template in the tree"""
+        template.events[event.id] = event # add event to template
+        self.tree.AppendItem(template.item, 'e'+str(event.id)) # add event to tree
+        self.tree.Expand(templitem) # expand template
 
 
 
