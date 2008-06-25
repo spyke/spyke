@@ -30,36 +30,39 @@ class Session(object):
 
     def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
-        for pickling/unpickling purposes"""
-        self.detector.stream = stream
+        for unpickling purposes"""
+        self.detector.set_stream(stream)
         for detection in self.detections:
-            # check that the srf file for each detection matches stream's srf file before binding stream
-            if stream == None: # None has no .srffname
-                detection.detector.stream = stream
-            elif detection.detector.srffname == stream.srffname:
-                detection.detector.stream = stream
+            detection.detector.set_stream(stream)
 
-    def __getstate__(self):
-        """Get object state for pickling"""
-        return sessiondict
-
-    def __setstate__(self, sessiondict):
-        """Set object state for unpickling"""
-
-
+    def append_events(self, events):
+        """Append events to self
+        TODO: ensure you don't have duplicate events from previous detection runs"""
+        #for e in events.values():
+        #    self.events[e.id] = e
+        self.events.update(events)
 
 class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
-    def __init__(self, session, detector, id=None, datetime=None, events=None):
+    def __init__(self, session, detector, id=None, datetime=None, events_array=None):
         self.session = session # parent sort Session
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        self.events = events # unsorted spikes, 2D array output of Detector.search
+        self.events_array = events_array # unsorted spikes, 2D array output of Detector.search
+        self.set_events()
         self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
         self.trash = {} # discarded events
+
+    def set_events(self):
+        """Convert .events array to dict of Event objects, inc session's _eventid counter"""
+        self.events = {}
+        for t, chan in self.events_array.T: # same as iterate over cols of non-transposed events array
+            e = Event(self.session._eventid, chan, t, self)
+            self.session._eventid += 1 # inc for next unique Event
+            self.events[e.id] = e
 
     def __eq__(self, other):
         """Compare detection runs by their .events"""
@@ -99,17 +102,15 @@ class Event(object):
     """Either an unsorted event, or a member spike in a Template,
     or a sorted spike in a Detection (or should that be sort Session?)"""
     def __init__(self, id, chan, t, detection):
-        # or, instead of .session and .template, just make a .parent attrib?
         self.id = id # some integer for easy user identification
-        #self.session # optional attrib, if this is an unsorted spike?
-        #self.template = None # template object it belongs to, None means self is an unsorted event
-        #self.surffname # originating surf file name, with path relative to self.session.datapath
         self.chan = chan # necessary? see .template
         self.t = t # timestamp, waveform is centered on this?
-        self.detection = detection # Detection run
+        self.detection = detection # Detection run self was detected on
+        #self.session # optional attrib, if this is an unsorted spike?
+        #self.template = None # template object it belongs to, None means self is an unsorted event
+        # or, instead of .session and .template, just make a .parent attrib?
+        #self.srffname # originating surf file name, with path relative to self.session.datapath
         #self.chans # necessary? see .template
-        #self.wave = wave
-        #self.detection = None # detection run this Spike was detected on
         #self.cluster = None # cluster run this Spike was sorted on
         #self.rip = None # rip this Spike was sorted on
 

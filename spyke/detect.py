@@ -63,6 +63,19 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.tlock = tlock or self.DEFTLOCK
 
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
+        return d
+
+    def set_stream(self, stream=None):
+        """Check that self's srf file matches stream's srf file before binding stream"""
+        if stream != None and stream.srffname == self.srffname:
+            self.stream = stream # bind it if it's from the same file
+        else:
+            self.stream = None
+
     def get_chans(self):
         return self._chans
 

@@ -221,23 +221,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, event):
         """Detect pane Search button click"""
-        self.session.detector = self.get_detector()
-        events = self.session.detector.search()
+        self.session.detector = self.get_detector() # update session's current detector
+        events_array = self.session.detector.search()
         detection = Detection(self.session, self.session.detector,
                               id=self.session._detid,
                               datetime=datetime.datetime.now(),
-                              events=events) # generate a new Detection run
+                              events_array=events_array) # generate a new Detection run
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
+            self.session._detid += 1 # inc for next unique Detection run
             self.session.detections.append(detection)
-            self.append_detection_list_ctrl(detection)
-            self.append_events(detection)
+            self.append_detection_list(detection)
+            self.session.append_events(detection.events)
+            self.append_event_list(detection.events)
             self.EnableSave(True)
-            print '%r' % detection.events
+            print '%r' % detection.events_array
 
-    def append_detection_list_ctrl(self, detection):
+    def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
         row = [str(detection.id),
-               str(detection.events.shape[1]),
+               str(len(detection.events)),
                detection.detector.algorithm + detection.detector.threshmethod,
                str(detection.detector.fixedthresh or detection.det.noisemult),
                str(detection.detector.trange),
@@ -247,36 +249,32 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.detection_list.Append(row)
         for coli in range(len(row)):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        self.session._detid += 1 # inc for next unique Detection run
         self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
 
-    def append_events(self, detection):
-        """Append events from detection to .session, as well as
-        to sort frame's event list control
-
-        TODO: ensure you don't have duplicate events from previous detection runs"""
+    def append_event_list(self, events):
+        """Append events to sort frame's event list control"""
         try:
             self.frames['sort'] # ensure sort frame exists
         except KeyError:
             self.OpenFrame('sort') # create it
-        for t, chan in detection.events.T: # same as iterate over cols of non-transposed events array
-            e = Event(self.session._eventid, chan, t, detection)
-            self.session.events[e.id] = e
+        sf = self.frames['sort']
+        for e in events.values():
             row = [str(e.id), e.chan, e.t]
-            self.frames['sort'].list.Append(row)
-            self.session._eventid += 1 # inc for next unique Event
+            sf.list.Append(row)
         for coli in range(len(row)):
             if coli == 0: # ID column doesn't size properly, set it manually
                 width = 40
             else:
                 width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
-            self.frames['sort'].list.SetColumnWidth(coli, width)
+            sf.list.SetColumnWidth(coli, width)
 
     def get_total_nevents(self):
-        """Get total nevents across all detection runs"""
+        """Get total nevents across all detection runs
+        TODO: or should this just count nevents in .session,
+        which would make it number of unique events?"""
         nevents = 0
         for det in self.session.detections:
-            nevents += det.events.shape[1]
+            nevents += len(det.events)
         return nevents
 
     def OnKeyDown(self, event):
@@ -445,46 +443,35 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
-        #try:
         self.DeleteSession() # delete any existing sort Session
-        f = gzip.open(fname, 'rb')
-        self.session = cPickle.load(f)
-        f.close()
-        if self.hpstream != None:
-            self.session.set_stream(self.hpstream) # restore missing stream object to session
-        else: # no .srf file is open, no stream exists
-            self.notebook.Show(True) # so we can do stuff with the sort Session
-        for detection in self.session.detections:
-            self.append_detection_list_ctrl(detection)
-            self.append_events(detection)
+        pf = gzip.open(fname, 'rb')
+        self.session = cPickle.load(pf)
+        pf.close()
+        self.session.set_stream(self.hpstream) # restore missing stream object to session
+        if self.srff == None: # no .srf file is open
+            self.notebook.Show(True) # lets us do stuff with the sort Session
+        for detection in self.session.detections: # restore detections to detection list and events to events list
+            self.append_detection_list(detection)
+            self.append_event_list(detection.events)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)
         self.EnableSortWidgets(True)
         self.EnableSave(False)
         print 'done opening sort file'
-        #except cPickle.UnpicklingError:
-        #    wx.MessageBox("Couldn't open %s as a sort file" % fname,
-        #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def SaveSortFile(self, fname):
         """Save sort session to a .sort file"""
-        #try:
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
         p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
-        self.session.set_stream(None) # remove stream object from session before pickling
         p.dump(self.session)
         pf.close()
-        self.session.set_stream(self.hpstream) # restore stream object to session
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.EnableSave(False)
         print 'done saving sort file'
-        #except TypeError:
-        #    wx.MessageBox("Couldn't save %s as a sort file" % fname,
-        #                  caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def EnableSave(self, enable):
         """Enable/disable Save menu item and toolbar button"""
