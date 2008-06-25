@@ -17,7 +17,7 @@ from copy import copy
 
 import spyke
 from spyke import core, surf, detect
-from spyke.sort import Session, Detection, Event
+from spyke.sort import Session, Detection
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 from spyke.sort import SortFrame
@@ -113,10 +113,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
         self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
 
-    def OnNew(self, event):
+    def OnNew(self, evt):
         self.CreateNewSession()
 
-    def OnOpen(self, event):
+    def OnOpen(self, evt):
         dlg = wx.FileDialog(self, message="Open surf or sort file",
                             defaultDir=self.DEFAULTDIR, defaultFile='',
                             wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort",
@@ -126,13 +126,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.OpenFile(fname)
         dlg.Destroy()
 
-    def OnSave(self, event):
+    def OnSave(self, evt):
         if not self.sortfname:
-            self.OnSaveAs(event)
+            self.OnSaveAs(evt)
         else:
             self.SaveSortFile(self.sortfname) # save to existing sort fname
 
-    def OnSaveAs(self, event):
+    def OnSaveAs(self, evt):
         """Save sort session to new .sort file"""
         dlg = wx.FileDialog(self, message="Save sort session as",
                             defaultDir=self.DEFAULTDIR, defaultFile='',
@@ -143,60 +143,60 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.SaveSortFile(fname)
         dlg.Destroy()
 
-    def OnClose(self, event):
+    def OnClose(self, evt):
         # TODO: add confirmation dialog if sort session not saved
         self.CloseSurfFile()
 
-    def OnExit(self, event):
+    def OnExit(self, evt):
         # TODO: add confirmation dialog if sort session not saved
         self.CloseSurfFile()
         self.Destroy()
 
-    def OnAbout(self, event):
+    def OnAbout(self, evt):
         dlg = SpykeAbout(self)
         dlg.ShowModal()
         dlg.Destroy()
 
-    def OnSpike(self, event):
+    def OnSpike(self, evt):
         """Spike window toggle menu/button event"""
         self.ToggleFrame('spike')
 
-    def OnChart(self, event):
+    def OnChart(self, evt):
         """Chart window toggle menu/button event"""
         self.ToggleFrame('chart')
 
-    def OnLFP(self, event):
+    def OnLFP(self, evt):
         """LFP window toggle menu/button event"""
         self.ToggleFrame('lfp')
 
-    def OnSort(self, event):
+    def OnSort(self, evt):
         """Sort window toggle menu/button event"""
         self.ToggleFrame('sort')
 
-    def OnPyShell(self, event):
+    def OnPyShell(self, evt):
         """PyShell window toggle menu/button event"""
         self.ToggleFrame('pyshell')
 
-    def OnTref(self, event):
+    def OnTref(self, evt):
         """Time reference toggle menu event"""
         self.ToggleRef('tref')
 
-    def OnVref(self, event):
+    def OnVref(self, evt):
         """Voltage reference toggle menu event"""
         self.ToggleRef('vref')
 
-    def OnCaret(self, event):
+    def OnCaret(self, evt):
         """Caret toggle menu event"""
         self.ToggleRef('caret')
 
-    def OnMove(self, event):
+    def OnMove(self, evt):
         """Move frame, and all dataframes as well, like docked windows"""
         for frametype, frame in self.frames.items():
             frame.Move(self.GetPosition() + self.dpos[frametype])
-        #event.Skip() # apparently this isn't needed for a move event,
+        #evt.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
 
-    def OnFilePosComboBox(self, event):
+    def OnFilePosComboBox(self, evt):
         """Change file position using combo box control,
         convert start, now, and end to appropriate vals"""
         # TODO: I set a value manually, but the OS overrides the value
@@ -212,14 +212,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             t = float(t)
         self.seek(t)
 
-    def OnSlider(self, event):
+    def OnSlider(self, evt):
         """Strange: keyboard press or page on mouse click when slider in focus generates
         two slider events, and hence two plot events - mouse drag only generates one slider event"""
         self.seek(self.slider.GetValue())
         #print time.time(), 'OnSlider()'
-        #event.Skip() # doesn't seem to be necessary
+        #evt.Skip() # doesn't seem to be necessary
 
-    def OnSearch(self, event):
+    def OnSearch(self, evt):
         """Detect pane Search button click"""
         self.session.detector = self.get_detector() # update session's current detector
         events_array = self.session.detector.search()
@@ -229,6 +229,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               events_array=events_array) # generate a new Detection run
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
             self.session._detid += 1 # inc for next unique Detection run
+            detection.set_events() # now that we know this detection isn't redundant, let's actually generate the Event objects
             self.session.detections.append(detection)
             self.append_detection_list(detection)
             self.session.append_events(detection.events)
@@ -277,15 +278,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             nevents += len(det.events)
         return nevents
 
-    def OnKeyDown(self, event):
+    def OnKeyDown(self, evt):
         """Handle key presses
         TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
         """
-        key = event.GetKeyCode()
+        key = evt.GetKeyCode()
         #print 'key: %r' % key
-        in_widget = event.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
-        in_file_pos_combo_box = event.GetEventObject() == self.file_pos_combo_box
-        if not event.ControlDown():
+        in_widget = evt.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
+        in_file_pos_combo_box = evt.GetEventObject() == self.file_pos_combo_box
+        if not evt.ControlDown():
             if key == wx.WXK_LEFT and not in_widget or key == wx.WXK_DOWN and in_file_pos_combo_box:
                     self.seek(self.t - self.hpstream.tres)
             elif key == wx.WXK_RIGHT and not in_widget or key == wx.WXK_UP and in_file_pos_combo_box:
@@ -305,7 +306,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.seek(self.t + self.charttw)
         # when key event comes from file_pos_combo_box, reserve down/up for seeking through file
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
-            event.Skip() # pass event on to OS to handle cursor movement
+            evt.Skip() # pass event on to OS to handle cursor movement
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
@@ -383,7 +384,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             pass
         self.detection_list.DeleteAllItems()
         try:
-            self.frames['sort'].list.DeleteAllItems()
+            sf = self.frames['sort']
+            sf.list.DeleteAllItems()
+            sf.spikesortpanel.remove_all_events()
+            sf.chartsortpanel.remove_all_events()
         except KeyError: # sort window hasn't been opened yet
             pass
         self.total_nevents_label.SetLabel(str(0))
@@ -749,7 +753,7 @@ class DataFrame(wx.MiniFrame):
         self.SetSizer(dataframe_sizer)
         self.Layout()
 
-    def OnClose(self, event):
+    def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 
@@ -845,7 +849,7 @@ class PyShellFrame(wx.MiniFrame,
         self.shell.run('self = app.spykeframe') # convenience
         self.shell.run("sf = self.frames['sort']") # convenience
 
-    def OnClose(self, event):
+    def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 

@@ -475,40 +475,40 @@ class PlotPanel(FigureCanvasWxAgg):
         """Convert from us to um"""
         return us / self.usperum
 
-    def OnKeyDown(self, event):
+    def OnKeyDown(self, evt):
         """Let main spyke frame handle keypress events"""
-        self.spykeframe.OnKeyDown(event)
-        #key = event.GetKeyCode()
+        self.spykeframe.OnKeyDown(evt)
+        #key = evt.GetKeyCode()
         #print 'in dataframe.onkeypress !!: ', key
-        #event.guiEvent.Skip()
+        #evt.guiEvent.Skip()
 
-    def OnNavigation(self, event):
+    def OnNavigation(self, evt):
         """Navigation key press"""
-        #print 'nagivation event:', event
-        if event.GetDirection(): # forward
+        #print 'nagivation event:', evt
+        if evt.GetDirection(): # forward
             direction = 1
         else: # backward
             direction = -1
         self.spykeframe.seek(self.current_plot.tref + direction*self.stream.tres)
-        event.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
+        evt.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
 
-    def OnButtonPress(self, event):
+    def OnButtonPress(self, evt):
         """Seek to timepoint as represented on chan closest to left mouse click,
         enable/disable specific chans on Ctrl+left click or right click, enable/disable
         all chans on Shift+left click"""
-        button = event.guiEvent.GetButton()
-        ctrl = event.guiEvent.ControlDown()
-        shift = event.guiEvent.ShiftDown()
-        #dclick = event.guiEvent.ButtonDClick(but=wx.MOUSE_BTN_LEFT)
+        button = evt.guiEvent.GetButton()
+        ctrl = evt.guiEvent.ControlDown()
+        shift = evt.guiEvent.ShiftDown()
+        #dclick = evt.guiEvent.ButtonDClick(but=wx.MOUSE_BTN_LEFT)
         if button == wx.MOUSE_BTN_LEFT and not ctrl and not shift:
             # seek to timepoint
-            chan = self.get_closestchans(event, n=1)
+            chan = self.get_closestchans(evt, n=1)
             xpos = self.pos[chan][0]
-            t = event.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
+            t = evt.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
             self.spykeframe.seek(t) # call main spyke frame's seek method
         elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift: # or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
             # enable/disable closest line
-            chan = self.get_closestchans(event, n=1)
+            chan = self.get_closestchans(evt, n=1)
             line = self.current_plot.lines[chan]
             if line.chan not in self.spykeframe.chans_enabled:
                 enable = True
@@ -529,15 +529,15 @@ class PlotPanel(FigureCanvasWxAgg):
             self.current_plot.lines[chan].set_visible(enable)
         self.draw(True)
     '''
-    def OnPick(self, event):
+    def OnPick(self, evt):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""
         tooltip = self.GetToolTip()
-        if event.mouseevent.inaxes:
-            line = event.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
+        if evt.mouseevent.inaxes:
+            line = evt.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
             chan = line.chan
             xpos, ypos = self.pos[chan]
-            t = event.mouseevent.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
-            v = (event.mouseevent.ydata - ypos) / self.gain
+            t = evt.mouseevent.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
+            v = (evt.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                 t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d\n' % chan + \
@@ -551,18 +551,18 @@ class PlotPanel(FigureCanvasWxAgg):
         else:
             tooltip.Enable(False)
     '''
-    def OnMotion(self, event):
+    def OnMotion(self, evt):
         """Pop up a tooltip when figure mouse movement is over axes"""
         tooltip = self.GetToolTip()
-        if event.inaxes:
+        if evt.inaxes:
             # or, maybe better to just post a pick event, and let the pointed to chan
             # (instead of clicked chan) stand up for itself
-            #chan = self.get_closestchans(event, n=1)
-            line = self.get_closestline(event)
+            #chan = self.get_closestchans(evt, n=1)
+            line = self.get_closestline(evt)
             if line and line.get_visible():
                 xpos, ypos = self.pos[line.chan]
-                t = event.xdata - xpos + self.current_plot.tref
-                v = (event.ydata - ypos) / self.gain
+                t = evt.xdata - xpos + self.current_plot.tref
+                v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
                     tip = 'ch%d\n' % line.chan + \
@@ -578,13 +578,13 @@ class PlotPanel(FigureCanvasWxAgg):
         else:
             tooltip.Enable(False)
 
-    def OnMouseWheel(self, event):
+    def OnMouseWheel(self, evt):
         """Zoom horizontally on CTRL+mouse wheel scroll"""
-        if event.ControlDown():
-            #lines = event.GetWheelRotation() / event.GetWheelDelta() # +ve or -ve num lines to scroll
+        if evt.ControlDown():
+            #lines = evt.GetWheelRotation() / evt.GetWheelDelta() # +ve or -ve num lines to scroll
             #x = 1.1**lines # transform -ve line to 0<x<1, and +ve line to 1<x<inf
             #self._zoomx(x)
-            sign = np.sign(event.GetWheelRotation())
+            sign = np.sign(evt.GetWheelRotation())
             self._zoomx(1.5**sign)
 
 
@@ -760,9 +760,8 @@ class SortPanel(PlotPanel):
         try:
             wave = event.wave # see if it's already been sliced
         except AttributeError:
-            wave = event[tref-DEFEVENTTW/2 : tref+DEFEVENTTW/2] # slice it from the stream
-            event.wave = wave # store it in the event, this will get pickled (hopefully)
-        wave = event.wave[tref-self.tw/2 : tref+self.tw/2] # slice it according to the width of this panel
+            wave = event[tref-DEFEVENTTW/2 : tref+DEFEVENTTW/2] # slice it from the stream, this binds .wave to event
+        wave = wave[tref-self.tw/2 : tref+self.tw/2] # slice it according to the width of this panel
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this event to
@@ -802,20 +801,20 @@ class SortPanel(PlotPanel):
         self.update_background(plot=None) # plot passed doesn't matter, since they're all hidden
         self.current_plot = self.available_plots[-1]
 
-    def get_closestline(self, event):
+    def get_closestline(self, evt):
         """Return line that's closest to mouse event coords
         Slightly modified from PlotPanel's version"""
         d2s = [] # sum squared distances
         hitlines = []
-        closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
+        closestchans = self.get_closestchans(evt, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
             line = self.hlines[chan] # consider all hlines, even if invisible
-            hit, tisdict = line.contains(event)
+            hit, tisdict = line.contains(evt)
             if hit:
                 tis = tisdict['ind'] # pull them out of the dict
                 xs = line.get_xdata()[tis]
                 ys = line.get_ydata()[tis]
-                d2 = (xs-event.xdata)**2 + (ys-event.ydata)**2
+                d2 = (xs-evt.xdata)**2 + (ys-evt.ydata)**2
                 d2 = d2.min() # point on line closest to mouse
                 hitlines.append(line)
                 d2s.append(d2)
@@ -826,23 +825,23 @@ class SortPanel(PlotPanel):
         else:
             return None
 
-    def OnMotion(self, event):
+    def OnMotion(self, evt):
         """Pop up a tooltip when figure mouse movement is over axes.
         Slightly modified from PlotPanel's version"""
         tooltip = self.GetToolTip()
-        if event.inaxes:
+        if evt.inaxes:
             # or, maybe better to just post a pick event, and let the pointed to chan
             # (instead of clicked chan) stand up for itself
-            #chan = self.get_closestchans(event, n=1)
-            line = self.get_closestline(event) # get closest hline only
+            #chan = self.get_closestchans(evt, n=1)
+            line = self.get_closestline(evt) # get closest hline only
             if line:
                 xpos, ypos = self.pos[line.chan]
                 try:
                     tres = self.spykeframe.hpstream.tres
                 except AttributeError: # no srf file loaded in spyke
                     tres = 1
-                t = event.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
-                v = (event.ydata - ypos) / self.gain
+                t = evt.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
+                v = (evt.ydata - ypos) / self.gain
                 t = intround(t / tres) * tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d\n' % line.chan + \
                       't=%d %s\n' % (t, MU+'s') + \
@@ -873,171 +872,3 @@ class ChartSortPanel(SortPanel, ChartPanel):
     def _add_vref(self):
         """Override ChartPanel, use vrefs for tooltips"""
         SortPanel._add_vref(self)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-'''
-class SpykeLine(Line2D):
-    """Line2Ds that can be compared to each other for equality
-    TODO: is subclassing Line2D really necessary?"""
-    def __init__(self, *args, **kwargs):
-        Line2D.__init__(self, *args, **kwargs)
-        self.colour = 'none'
-
-    def __hash__(self):
-        """Hash the string representation of the y data"""
-        return hash(self.colour + str(self._y))
-
-    def __eq__(self, other):
-        return hash(self) == hash(other)
-
-
-class SortPanel(SpikePanel):
-    """Sort panel. Presents a narrow temporal window of all channels
-    layed out according to self.siteloc. Also allows overplotting and some
-    user interaction"""
-    def __init__(self, *args, **kwargs):
-        SpikePanel.__init__(self, *args, **kwargs)
-        self.colours = dict(zip(range(self.nchans), [YELLOW]*self.nchans))
-        self.spikes = {}  # (spike, colour) -> [[SpykeLine], plotted]
-        #self.x_vals = None
-        self._initialized = False
-        self.layers = {'g' : 0.5,
-                       'y' :   1,
-                       'r' : 0.7 }
-
-        self.all_chans = self.nchans * [True]
-
-    def _notVisible(self, spike, colour):
-        lines, curr_visible = self.spikes[(spike, colour)]
-        for line in lines:
-            line._visible = False
-        self.spikes[(spike, colour)][1] = False
-
-    def _Visible(self, spike, colour, channels):
-        lines, curr_visible = self.spikes[(spike, colour)]
-        for line, chan in zip(lines, channels):
-            line.chan_mask = chan
-            line._visible = line.chan_mask
-            line.zorder = self.layers[colour]
-        self.spikes[(spike, colour)][1] = True
-
-    def add(self, spike, colour, top=False, channels=None):
-        """(Over)plot a given spike"""
-        # initialize
-        if not self._initialized:
-            self.init_lines(spike)
-            lines = []
-            for num, channel in self.channels.iteritems():
-                #xpos, ypos = self.pos[channel]
-                channel._visible = channels[num]
-                channel.chan_mask = channels[num]
-                lines.append(channel)
-
-            self.spikes[(spike, colour)] = [lines, True]
-            self._initialized = True
-
-        elif (spike, colour) in self.spikes:
-            self.ax._visible = False
-            self._Visible(spike, colour, channels)
-            self.ax._visible = True
-
-        elif (spike, colour) not in self.spikes:
-            if channels is None:
-                channels = self.all_chans
-            self.ax._visible = False
-            lines = []
-            for chan in self.channels:
-                xpos, ypos = self.pos[chan]
-                line = SpykeLine(self.static_x_vals + xpos, # static_x_vals don't exist no more
-                                 spike.data[chan] + ypos,
-                                 linewidth=SPIKELINEWIDTH,
-                                 color=self.colours[chan],
-                                 antialiased=False)
-                line.set_picker(PICKTHRESH)
-                line._visible = False
-                line.colour = colour
-                line._visible = channels[chan]
-                lines.append(line)
-                line.zorder = self.layers[colour]
-                self.ax.add_line(line)
-            self.spikes[(spike, colour)] = [lines, True]
-            self.ax._visible = True
-        self.draw(True)
-
-    def remove(self, spike, colour):
-        """Remove the selected spike from the plot display"""
-        #self._toggleVisible(spike, colour)
-        self.ax._visible = False
-        self._notVisible(spike, colour)
-        #if colour in ('y'):
-        #    lines, _ = self.spikes.pop((spike, colour))
-        #    for line in lines:
-        #        self.ax.lines.remove(line)
-        self.ax._visible = True
-        self.draw(True)
-
-
-class ClickableSortPanel(SortPanel):
-    def __init__(self, *args, **kwargs):
-        SortPanel.__init__(self, *args, **kwargs)
-        self.Bind(wx.EVT_LEFT_DCLICK, self.OnDoubleClick, self)
-        self.mpl_connect('button_press_event', self.OnLeftDown)
-        self.created = False
-
-    def _createMaps(self):
-        xpos = sorted(list(set([x for x, y in self.pos.itervalues()])))
-        ypos = sorted(list(set([y for x, y in self.pos.itervalues()])))
-
-        self.numcols = len(xpos)
-        self.numrows = len(ypos)
-
-        dist = lambda tup: (tup[1] - tup[0])
-        self.x_width = dist(self.my_xlim) // self.numcols # my_xlim attrib has been deleted
-        self.y_height = dist(self.my_ylim) // self.numrows # my_ylim attrib has been deleted
-
-        self.intvalToChan = {}
-        for chan, (xpos, ypos) in self.pos.iteritems():
-            x_intval = xpos // self.x_width
-            y_intval = ypos // self.y_height
-            self.intvalToChan[(x_intval, y_intval)] = chan
-
-    def _sendEvent(self, channels):
-        event = ClickedChannelEvent(myEVT_CLICKED_CHANNEL, self.GetId())
-        event.selected_channels = channels
-        self.GetEventHandler().ProcessEvent(event)
-
-    def OnDoubleClick(self, evt):
-        channels = [True] * len(self.channels)
-        self._sendEvent(channels)
-
-    def pointToChannel(self, x, y):
-        """Given a coordinate in the axes, find out what channel
-        we're clicking on"""
-        if not self.created:
-            self._createMaps()
-            self.created = True
-        key = (int(x) // self.x_width, int(y) // self.y_height)
-        if key in self.intvalToChan:
-            return self.intvalToChan[key]
-        return None
-
-    def OnLeftDown(self, event):
-        # event.inaxes
-        channel = self.pointToChannel(event.xdata, event.ydata)
-        if channel is not None:
-            channels = [False] * len(self.channels)
-            channels[channel] = True
-            self._sendEvent(channels)
-'''

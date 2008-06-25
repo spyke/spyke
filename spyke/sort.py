@@ -52,12 +52,11 @@ class Detection(object):
         self.id = id
         self.datetime = datetime
         self.events_array = events_array # unsorted spikes, 2D array output of Detector.search
-        self.set_events()
         self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
         self.trash = {} # discarded events
 
     def set_events(self):
-        """Convert .events array to dict of Event objects, inc session's _eventid counter"""
+        """Convert .events_array to dict of Event objects, inc session's _eventid counter"""
         self.events = {}
         for t, chan in self.events_array.T: # same as iterate over cols of non-transposed events array
             e = Event(self.session._eventid, chan, t, self)
@@ -67,7 +66,7 @@ class Detection(object):
     def __eq__(self, other):
         """Compare detection runs by their .events"""
         # TODO: see if there's any overlap between self.events and other.events, and raise a warning in a dialog box or something
-        return np.all(self.events == other.events)
+        return np.all(self.events_array == other.events_array)
 
 
 class Template(object):
@@ -155,7 +154,6 @@ class SortFrame(wxglade_gui.SortFrame):
     def __init__(self, *args, **kwargs):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
         self.spykeframe = self.Parent
-        self.session = self.spykeframe.session
         self.deselect_all = False
         self.deselect_count = 0
 
@@ -169,6 +167,14 @@ class SortFrame(wxglade_gui.SortFrame):
 
         self.list.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+    def get_session(self):
+        return self.spykeframe.session
+
+    def set_session(self):
+        raise RunTimeError, "SortFrame's .session not setable"
+
+    session = property(get_session, set_session) # make this a property for proper behaviour after unpickling
 
     def OnClose(self, event):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
@@ -212,6 +218,10 @@ class SortFrame(wxglade_gui.SortFrame):
             event = self.session.events[eventi]
             self.spikesortpanel.remove_event(event)
             self.chartsortpanel.remove_event(event)
+
+    def OnListBeginDrag(self, evt):
+        """Begin list drag event"""
+        pass
 
     def CreateTemplate(self, event):
         """Create a new template, given a spike event"""
