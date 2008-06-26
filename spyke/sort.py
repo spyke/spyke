@@ -100,7 +100,7 @@ class Template(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        del d['item'] # remove tree item, since that'll have changed anyway on unpickle
+        del d['itemID'] # remove tree item ID, since that'll have changed anyway on unpickle
         return d
 
 
@@ -112,8 +112,8 @@ class Event(object):
         self.chan = chan # necessary? see .template
         self.t = t # timestamp, waveform is centered on this?
         self.detection = detection # Detection run self was detected on
+        self.template = None # template object it belongs to, None means self is an unsorted event
         #self.session # optional attrib, if this is an unsorted spike?
-        #self.template = None # template object it belongs to, None means self is an unsorted event
         # or, instead of .session and .template, just make a .parent attrib?
         #self.srffname # originating surf file name, with path relative to self.session.datapath
         #self.chans # necessary? see .template
@@ -133,7 +133,7 @@ class Event(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        del d['item'] # remove tree item, since that'll have changed anyway on unpickle
+        del d['itemID'] # remove tree item ID, since that'll have changed anyway on unpickle
         return d
 
 
@@ -237,32 +237,31 @@ class SortFrame(wxglade_gui.SortFrame):
         pass
     '''
     def OnListKeyDown(self, evt):
+        """Event list control key down event"""
         key = evt.GetKeyCode()
-        if key == ord('A'): # add Events to current Template
-            selected_rows = self.list_GetAllSelected()
-            template = self.GetFirstSelectedTemplate()
-            if template:
-                for row in selected_rows:
-                    eventi = int(self.list.GetItemText(row))
-                    event = self.session.events[eventi]
-                    self.MoveEvent2Template(event, row, template) # add it to the tree
-        elif key == ord('C'): # create new Template from current Events
-            selected_rows = self.list_GetAllSelected()
-            if selected_rows: # not an empty list
-                row = selected_rows.pop(0) # pop the first one
-                eventi = int(self.list.GetItemText(row))
-                event = self.session.events[eventi]
-                template = self.CreateTemplate(event)
-                self.MoveEvent2Template(event, row, template)
-            for row in selected_rows: # process any remaining ones
-                eventi = int(self.list.GetItemText(row))
-                event = self.session.events[eventi]
-                self.MoveEvent2Template(event, row, template)
-        elif key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
-            print 'left or right pressed'
+        if key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
+            self.MoveCurrentEvents2Template(which='selected')
+        elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
+            self.MoveCurrentEvents2Template(which='new')
+        if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
             evt.Veto() # stop propagation as navigation event or something
 
-    def list_GetAllSelected(self):
+    def MoveCurrentEvents2Template(self, which='selected'):
+        selected_rows = self.list_GetSelections()
+        if which == 'selected':
+            template = self.GetFirstSelectedTemplate()
+        elif which == 'new':
+            template = None # indicates we want a new template
+        for row in selected_rows:
+            event = self.row2event(row)
+            template = self.MoveEvent2Template(event, row, template)
+
+    def row2event(self, row):
+        eventi = int(self.list.GetItemText(row))
+        event = self.session.events[eventi]
+        return event
+
+    def list_GetSelections(self):
         """Stupid wxPython list ctrl doesn't have this as a method,
         should really subclass ListCtrl and add this to it.
         Returns row indices of selected list items"""
@@ -280,33 +279,43 @@ class SortFrame(wxglade_gui.SortFrame):
             last = next
 
     def GetFirstSelectedTemplate(self):
-        selecteditems = self.tree.GetSelections()
-        for item in selecteditems:
-            pyData = self.tree.GetItemPyData(item)
-            if pyData.__class__ == Template:
-                return pyData
+        selected_itemIDs = self.tree.GetSelections()
+        for itemID in selected_itemIDs:
+            obj = self.tree.GetItemPyData(itemID)
+            if obj.__class__ == Template:
+                return obj
+        # no template selected, check to see if an event is selected in the tree, grab its template
+        for itemID in selected_itemIDs:
+            obj = self.tree.GetItemPyData(itemID)
+            if obj.__class__ == Event:
+                return obj.template
+        return None
 
-    def CreateTemplate(self, event):
+    def MoveEvent2Template(self, event, row, template=None):
+        """Move a spike event from list control row to a template in the tree.
+        If template is None, create a new one"""
+        self.list.DeleteItem(row) # remove it from the event list
+        self.list.Select(row) # automatically select the new item at that position
+        if template == None:
+            template = self.CreateTemplate()
+        template.events[event.id] = event # add event to template
+        event.template = template # bind template to event
+        event.itemID = self.tree.AppendItem(template.itemID, 'e'+str(event.id)) # add event to tree
+        self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
+        self.tree.Expand(template.itemID) # expand template
+        return template
+
+    def CreateTemplate(self):
         """Create, select, and return a new template"""
         template = Template(self.session, self.session._templid, parent=None)
         self.session._templid += 1 # inc for next unique Template
         self.session.templates[template.id] = template # add template to session
-        template.item = self.tree.AppendItem(self.root, 't'+str(template.id)) # add template to tree
-        self.tree.SetItemPyData(template.item, template) # associate template tree item with template
+        template.itemID = self.tree.AppendItem(self.root, 't'+str(template.id)) # add template to tree
+        self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
         self.tree.Expand(self.root) # make sure root is expanded
         self.tree.UnselectAll() # first unselect all items in tree
-        self.tree.SelectItem(template.item) # now select the newly created template
+        self.tree.SelectItem(template.itemID) # now select the newly created template
         return template
-
-    def MoveEvent2Template(self, event, row, template):
-        """Move a spike event from list row to a template in the tree"""
-        #del self.session.events[event.id] # remove from dict of unsorted events, maybe deselect event before doing anything else, so plot is cleared properly
-        self.list.DeleteItem(row) # remove it from the event list
-        self.list.Select(row) # automatically select the new item at that position
-        template.events[event.id] = event # add event to template
-        event.item = self.tree.AppendItem(template.item, 'e'+str(event.id)) # add event to tree
-        self.tree.SetItemPyData(event.item, event) # associate event tree item with event
-        self.tree.Expand(template.item) # expand template
 
 
 
