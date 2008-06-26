@@ -256,6 +256,18 @@ class SortFrame(wxglade_gui.SortFrame):
             event = self.row2event(row)
             template = self.MoveEvent2Template(event, row, template)
 
+    def OnTreeKeyDown(self, evt):
+        key = evt.GetKeyCode()
+        if key in [wx.WXK_DELETE, wx.WXK_RIGHT]:
+            self.MoveCurrentEvents2List()
+
+    def MoveCurrentEvents2List(self):
+        selected_itemIDs = self.tree.GetSelections()
+        for itemID in selected_itemIDs:
+            obj = self.tree.GetItemPyData(itemID)
+            if obj.__class__ == Event:
+                self.MoveEvent2List(obj)
+
     def row2event(self, row):
         eventi = int(self.list.GetItemText(row))
         event = self.session.events[eventi]
@@ -305,6 +317,23 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.Expand(template.itemID) # expand template
         return template
 
+    def MoveEvent2List(self, event):
+        """Move a spike event from a template in the tree back to the list control"""
+        self.tree.Delete(event.itemID)
+        del event.template.events[event.id] # del event from its template's event dict
+        del event.template # unbind event's template from event
+        del event.itemID # no longer applicable
+        data = [event.id, event.chan, event.t]
+        self.list_InsertRow(0, data)
+        #self.list.Append(row)
+
+    def list_InsertRow(self, row, data):
+        """wxPython can be dumb.
+        data is a list of strings or numbers, one per column"""
+        row = self.list.InsertStringItem(row, str(data[0])) # inserts data's first column
+        for coli, val in enumerate(data[1:]):
+            self.list.SetStringItem(row, coli+1, str(val))
+
     def CreateTemplate(self):
         """Create, select, and return a new template"""
         template = Template(self.session, self.session._templid, parent=None)
@@ -316,7 +345,6 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.UnselectAll() # first unselect all items in tree
         self.tree.SelectItem(template.itemID) # now select the newly created template
         return template
-
 
 
 '''
