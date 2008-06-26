@@ -256,9 +256,14 @@ class SortFrame(wxglade_gui.SortFrame):
             event = self.row2event(row)
             template = self.MoveEvent2Template(event, row, template)
 
+    def row2event(self, row):
+        eventi = int(self.list.GetItemText(row))
+        event = self.session.events[eventi]
+        return event
+
     def OnTreeKeyDown(self, evt):
         key = evt.GetKeyCode()
-        if key in [wx.WXK_DELETE, wx.WXK_RIGHT]:
+        if key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentEvents2List()
 
     def MoveCurrentEvents2List(self):
@@ -267,11 +272,8 @@ class SortFrame(wxglade_gui.SortFrame):
             obj = self.tree.GetItemPyData(itemID)
             if obj.__class__ == Event:
                 self.MoveEvent2List(obj)
-
-    def row2event(self, row):
-        eventi = int(self.list.GetItemText(row))
-        event = self.session.events[eventi]
-        return event
+            elif obj.__class__ == Template:
+                self.DeleteTemplate(obj)
 
     def list_GetSelections(self):
         """Stupid wxPython list ctrl doesn't have this as a method,
@@ -321,11 +323,20 @@ class SortFrame(wxglade_gui.SortFrame):
         """Move a spike event from a template in the tree back to the list control"""
         self.tree.Delete(event.itemID)
         del event.template.events[event.id] # del event from its template's event dict
-        del event.template # unbind event's template from event
+        if len(event.template.events) == 0: # if this template doesn't have any events left in it
+            self.DeleteTemplate(event.template) # delete it
+        event.template = None # unbind event's template from event
         del event.itemID # no longer applicable
         data = [event.id, event.chan, event.t]
         self.list_InsertRow(0, data)
-        #self.list.Append(row)
+
+    def DeleteTemplate(self, template):
+        """Move a template's events back to the event list, delete it
+        from the tree, and remove it from the session"""
+        for event in template.events.values():
+            self.MoveEvent2List(event)
+        self.tree.Delete(template.itemID)
+        del self.session.templates[template.id]
 
     def list_InsertRow(self, row, data):
         """wxPython can be dumb.
