@@ -489,27 +489,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 frame = SpikeFrame(parent=self, stream=self.hpstream,
                                    tw=self.spiketw,
                                    pos=wx.Point(x, y), size=(ncols*SPIKEFRAMEPIXPERCHAN, SPIKEFRAMEHEIGHT))
+                frame.panel.callAfterFrameInit() # post frame creation tasks for panel
             elif frametype == 'chart':
                 x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0]
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = ChartFrame(parent=self, stream=self.hpstream,
                                    tw=self.charttw, cw=self.spiketw,
                                    pos=wx.Point(x, y), size=CHARTFRAMESIZE)
+                frame.panel.callAfterFrameInit() # post frame creation tasks for panel
             elif frametype == 'lfp':
                 x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0] + self.frames['chart'].GetSize()[0]
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = LFPFrame(parent=self, stream=self.lpstream,
                                  tw=self.lfptw, cw=self.charttw,
                                  pos=wx.Point(x, y), size=LFPFRAMESIZE)
+                frame.panel.callAfterFrameInit() # post frame creation tasks for panel
             elif frametype == 'sort':
                 x = self.GetPosition()[0] + self.GetSize()[0]
                 y = self.GetPosition()[1]
                 frame = SortFrame(parent=self, pos=wx.Point(x, y))
                 for panel in [frame.spikesortpanel, frame.chartsortpanel]:
-                    panel.init_probe_dependencies(self.session.probe) # doesn't need stream, just probe for its layout
-                    # sync reference lines with menu settings since sort frame isn't normally init'd before surf file load
-                    #for ref, REFID in self.REFTYPE2ID.items():
-                    #    panel.show_ref(ref, enable=self.menubar.IsChecked(REFID))
+                    panel.callAfterFrameInit(self.session.probe) # post frame creation tasks for panel
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols

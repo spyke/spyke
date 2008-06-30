@@ -152,11 +152,16 @@ class PlotPanel(FigureCanvasWxAgg):
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self.spykeframe = self.GrandParent
+
+        self.available_plots = [] # pool of available Plots
+        self.used_plots = {} # Plots holding currently displayed event data, indexed by event id
+        self.quickRemovePlot = None # current quickly removable Plot with associated .background
+
+        if stream != None:
+            self.stream = stream # only bind for those frames that actually use a stream (ie DataFrames)
         self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
         self.cw = cw # time width of caret, in plot units
-        if stream != None: # either use stream kw here, or directly call init_probe_dependencies later from outside
-            self.stream = stream
-            self.init_probe_dependencies(stream.probe)
+
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
@@ -177,7 +182,10 @@ class PlotPanel(FigureCanvasWxAgg):
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
-    def init_probe_dependencies(self, probe):
+    def callAfterFrameInit(self, probe=None):
+        """Panel tasks that need to be done after parent frame has been created (and shown?)"""
+        if probe == None:
+            probe = self.stream.probe
         self.probe = probe
         self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
         self.chans = probe.SiteLoc.keys()
@@ -191,7 +199,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for key, (x, y) in siteloc.items():
             y = maxy - y
             siteloc[key] = (x, y) # update
-        self.siteloc = siteloc # bottom origin
+        self.siteloc = siteloc # center bottom origin
 
         self.init_axes()
         self.pos = {} # positions of line centers, in plot units (us, uV)
@@ -203,18 +211,19 @@ class PlotPanel(FigureCanvasWxAgg):
         self.ax.set_axis_off() # turn off the x and y axis
         self.ax.set_visible(True)
         self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
+        self.draw()
+        self.black_background = self.copy_from_bbox(self.ax.bbox) # init
 
+        # add reference lines and caret in layered order
+        self._show_caret(True) # call the _ methods directly, to prevent unnecessary draws
         self._show_tref(True)
         self._show_vref(True)
-        self._show_caret(True)
+        for ref in ['caret', 'tref', 'vref']:
+            self.spykeframe.menubar.Check(self.spykeframe.REFTYPE2ID[ref], True) # enforce menu item toggle state
 
-        self.init_plots()
-        #for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
-        #    self.add_ref(ref)
-        #    self.spykeframe.ShowRef(ref) # also enforces menu item toggle state
-        self.draw()
+        self.draw() # do a full draw of the ref lines
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
-        self.background = self.copy_from_bbox(self.ax.bbox) # init
+        self.init_plots()
 
     def init_axes(self):
         """Init the axes and ref lines"""
@@ -227,14 +236,35 @@ class PlotPanel(FigureCanvasWxAgg):
         """Create Plots for this panel"""
         self.quickRemovePlot = Plot(chans=self.chans, panel=self) # just one for this base class
         self.quickRemovePlot.show()
+        self.used_plots[0] = self.quickRemovePlot
 
     def add_ref(self, ref):
+        """Helper method for external use"""
         if ref == 'tref':
             self._add_tref()
         elif ref == 'vref':
             self._add_vref()
         elif ref == 'caret':
             self._add_caret()
+
+    def show_ref(self, ref, enable=True):
+        """Helper method for external use"""
+        if ref == 'tref':
+            self._show_tref(enable)
+        elif ref == 'vref':
+            self._show_vref(enable)
+        elif ref == 'caret':
+            self._show_caret(enable)
+        else:
+            raise ValueError, 'invalid ref: %r' % ref
+        for plot in self.used_plots.values():
+            plot.hide()
+        self.draw() # draw the new ref
+        self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
+        for plot in self.used_plots.values():
+            plot.show()
+            plot.draw()
+        self.blit(self.ax.bbox)
 
     def _add_tref(self):
         """Add vertical time reference line(s)"""
@@ -253,13 +283,6 @@ class PlotPanel(FigureCanvasWxAgg):
             self.vlines.append(vline)
             self.ax.add_line(vline)
 
-    def _update_tref(self):
-        """Update position and size of vertical time reference line(s)"""
-        cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
-        ylims = self.ax.get_ylim()
-        for col, vline in zip(cols, self.vlines):
-            vline.set_data([col, col], ylims)
-
     def _add_vref(self):
         """Add horizontal voltage reference lines"""
         self.hlines = []
@@ -276,11 +299,6 @@ class PlotPanel(FigureCanvasWxAgg):
             self.hlines.append(hline)
             self.ax.add_line(hline)
 
-    def _update_vref(self):
-        """Update position and size of horizontal voltage reference lines"""
-        for (xpos, ypos), hline in zip(self.pos.itervalues(), self.hlines):
-            hline.set_data([xpos-self.tw/2, xpos+self.tw/2], [ypos, ypos])
-
     def _add_caret(self):
         """Add a shaded rectangle to represent the time window shown in the spike frame"""
         ylim = self.ax.get_ylim()
@@ -295,30 +313,23 @@ class PlotPanel(FigureCanvasWxAgg):
                                visible=False)
         self.ax.add_patch(self.caret)
 
+    def _update_tref(self):
+        """Update position and size of vertical time reference line(s)"""
+        cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
+        ylims = self.ax.get_ylim()
+        for col, vline in zip(cols, self.vlines):
+            vline.set_data([col, col], ylims)
+
+    def _update_vref(self):
+        """Update position and size of horizontal voltage reference lines"""
+        for (xpos, ypos), hline in zip(self.pos.itervalues(), self.hlines):
+            hline.set_data([xpos-self.tw/2, xpos+self.tw/2], [ypos, ypos])
+
     def _update_caret_width(self):
-        """Update caret"""
+        """Update caret width"""
         # bottom left coord of rectangle
         self.caret.set_x(-self.cw/2)
         self.caret.set_width(self.cw)
-
-    def update_background(self, plot=None):
-        """Update background, exclude plot from it by temporarily setting its animated flag"""
-        if plot != None: plot.set_animated(True)
-        self.draw() # do a full draw of everything in self.ax
-        self.background = self.copy_from_bbox(self.ax.bbox) # grab everything except plot
-        if plot != None: plot.set_animated(False)
-
-    def show_ref(self, ref, enable=True):
-        if ref == 'tref':
-            self._show_tref(enable)
-        elif ref == 'vref':
-            self._show_vref(enable)
-        elif ref == 'caret':
-            self._show_caret(enable)
-        else:
-            raise ValueError, 'invalid ref: %r' % ref
-        self.update_background(self.quickRemovePlot) # update saved bg, exclude current plot
-        self.draw()
 
     def _show_tref(self, enable=True):
         try:
@@ -437,13 +448,11 @@ class PlotPanel(FigureCanvasWxAgg):
         """Plot waveforms wrt a reference time point"""
         if tref == None:
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
-        #self.update_background()
-        self.restore_region(self.background)
+        self.restore_region(self.reflines_background)
         # update plots with new x and y vals
         self.quickRemovePlot.update(wave, tref)
         self.quickRemovePlot.draw()
         self.blit(self.ax.bbox)
-        self.Refresh()
         #self.gui_repaint()
         #self.draw(True)
         #self.Refresh() # possibly faster, but adds a lot of flicker
@@ -733,12 +742,10 @@ class LFPPanel(ChartPanel):
 
 
 class SortPanel(PlotPanel):
+    """A plot panel specialized for overplotting spike events"""
     def __init__(self, *args, **kwargs):
-        self.available_plots = [] # pool of available Plots
-        self.used_plots = {} # Plots holding currently displayed event data, indexed by event id
-        self.quickRemovePlot = None # current quickly removable Plot with associated .background
         PlotPanel.__init__(self, *args, **kwargs)
-        self.spykeframe = self.GrandParent.GrandParent # sort pane, splitter window, sort frame, spyke frame
+        self.spykeframe = self.GrandParent.GrandParent # plot pane, splitter, sort frame, spyke frame
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
@@ -755,21 +762,9 @@ class SortPanel(PlotPanel):
             hline.set_pickradius(PICKRADIUS)
 
     def show_ref(self, ref, enable=True):
-        if ref == 'tref':
-            self._show_tref(enable)
-        elif ref == 'vref':
-            self._show_vref(enable)
-        elif ref == 'caret':
-            self._show_caret(enable)
-        else:
-            raise ValueError, 'invalid ref: %r' % ref
-        for ref in [self.hlines, self.vlines, self.caret]:
-            ref.draw() # how could this possibly work? hlines is a list or dict of lines no?
-        self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
+        PlotPanel.show_ref(self, ref, enable)
         self.quickRemovePlot = None
         self.background = None
-        for plot in self.used_plots.values():
-            plot.draw()
 
     # idea: have one background: black with ref lines. then, on each add(), you update current plot, draw the current plot's lines, and you blit the background and _all_ the current used_plots to buffer in order. on remove(), you hide current plot, then blit background and _all_ remaining used_plots to buffer in order. Might need to do a draw at very beginning (in init_lines?). no need to mess with animated flag!
 
@@ -781,6 +776,7 @@ class SortPanel(PlotPanel):
             # before blitting this single event to screen, grab current buffer, save as new background for quick restore if the next action is removal of this very same event
             self.background = self.copy_from_bbox(self.ax.bbox)
             self.quickRemovePlot = self.addEvent(events[0]) # add the single event, save reference to its plot
+            print 'saved quick remove plot %r' % self.quickRemovePlot
         else:
             self.background = None
             for event in events: # add all events
