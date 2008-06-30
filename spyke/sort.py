@@ -171,6 +171,9 @@ class SortFrame(wxglade_gui.SortFrame):
         self.lastSelectedListEvents = []
         self.listTimer = wx.Timer(owner=self.list)
 
+        self.lastSelectedTreeEvents = []
+        self.lastSelectedTreeTemplates = []
+
         columnlabels = ['eID', 'chan', 'time'] # event list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
@@ -195,7 +198,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spykeframe.HideFrame(frametype)
     '''
     TODO: on any selection event, start or restart a timer for say 0.1 sec, record the item selected/deselected, and append it to a sel/desel queu. Then, when the timer eventually runs down to zero and fires a timing event, read the whole sel/desel queue, OR it with what was selected previously, and execute the approriate minimum number of clear/plot actions all at once. This prevents unnecessary draws/redraws/clears. Should make plotting and unplotting faster, and flicker free. Also gets rid of need for any mouse click event handling, like OnLeftDown, and associated key events that haven't even been written yet.
-        - event better: when timer runs down, just execute self.list_GetSelections and compare to previous list of selections, and execute your plots accordingly. This way, you don't even need to build up a queue on each sel/desel event. This will make all the sel event handling even faster, and allow you to reduce the timer duration for faster response.
+        - event better: when timer runs down, just execute self.list.GetSelections and compare to previous list of selections, and execute your plots accordingly. This way, you don't even need to build up a queue on each sel/desel event. This will make all the sel event handling even faster, and allow you to reduce the timer duration for faster response.
         - after completion of each selection epoch (say 0.1s), save current buffer as new background?
     '''
 
@@ -208,7 +211,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.OnListSelect(evt)
 
     def OnListTimer(self, evt):
-        selectedRows = self.list_GetSelections()
+        selectedRows = self.list.GetSelections()
         selectedListEvents = [ self.row2event(row) for row in selectedRows ]
         removeEvents = [ sel for sel in self.lastSelectedListEvents if sel not in selectedListEvents ]
         addEvents = [ sel for sel in selectedListEvents if sel not in self.lastSelectedListEvents ]
@@ -223,11 +226,43 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'after adding, quickRemovePlot is %r' % self.spikesortpanel.quickRemovePlot
         #self.chartsortpanel.addEvents(addEvents)
         self.lastSelectedListEvents = selectedListEvents # save for next time
-    '''
-    def OnListBeginDrag(self, evt):
-        """Begin list drag event"""
-        pass
-    '''
+
+    def OnTreeSelectChanged(self, evt):
+        print
+        print 'got tree sel changed event'
+        print
+        selected_itemIDs = self.tree.GetSelections()
+        selectedTreeEvents = []
+        selectedTreeTemplates = []
+        for itemID in selected_itemIDs:
+            item = self.tree.GetItemPyData(itemID)
+            if item.__class__ == Event:
+                selectedTreeEvents.append(item)
+            elif item.__class__ == Template:
+                selectedTreeTemplates.append(item)
+            else:
+                raise ValueError, 'weird type of item selected'
+        removeEvents = [ sel for sel in self.lastSelectedTreeEvents if sel not in selectedTreeEvents ]
+        removeTemplates = [ sel for sel in self.lastSelectedTreeTemplates if sel not in selectedTreeTemplates ]
+        addEvents = [ sel for sel in selectedTreeEvents if sel not in self.lastSelectedTreeEvents ]
+        addTemplates = [ sel for sel in selectedTreeTemplates if sel not in self.lastSelectedTreeTemplates ]
+
+        #import cProfile
+        print 'events to remove: %r' % [ event.id for event in removeEvents ]
+        #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
+        self.spikesortpanel.removeEvents(removeEvents)
+        #self.chartsortpanel.removeEvents(removeEvents)
+        print 'templates to remove: %r' % [ template.id for template in removeTemplates ]
+
+        print 'events to add: %r' % [ event.id for event in addEvents ]
+        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
+        self.spikesortpanel.addEvents(addEvents)
+        print 'after adding events, quickRemovePlot is %r' % self.spikesortpanel.quickRemovePlot
+        #self.chartsortpanel.addEvents(addEvents)
+        print 'templates to add: %r' % [ template.id for template in addTemplates ]
+        self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
+        self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
+
     def OnListKeyDown(self, evt):
         """Event list control key down event"""
         key = evt.GetKeyCode()
@@ -238,8 +273,13 @@ class SortFrame(wxglade_gui.SortFrame):
         if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
             evt.Veto() # stop propagation as navigation event or something
 
+    def OnTreeKeyDown(self, evt):
+        key = evt.GetKeyCode()
+        if key in [wx.WXK_DELETE, ord('D')]:
+            self.MoveCurrentEvents2List()
+
     def MoveCurrentEvents2Template(self, which='selected'):
-        selected_rows = self.list_GetSelections()
+        selected_rows = self.list.GetSelections()
         if which == 'selected':
             template = self.GetFirstSelectedTemplate()
         elif which == 'new':
@@ -253,11 +293,6 @@ class SortFrame(wxglade_gui.SortFrame):
         event = self.session.events[eventi]
         return event
 
-    def OnTreeKeyDown(self, evt):
-        key = evt.GetKeyCode()
-        if key in [wx.WXK_DELETE, ord('D')]:
-            self.MoveCurrentEvents2List()
-
     def MoveCurrentEvents2List(self):
         selected_itemIDs = self.tree.GetSelections()
         for itemID in selected_itemIDs:
@@ -266,23 +301,6 @@ class SortFrame(wxglade_gui.SortFrame):
                 self.MoveEvent2List(obj)
             elif obj.__class__ == Template:
                 self.DeleteTemplate(obj)
-
-    def list_GetSelections(self):
-        """Stupid wxPython list ctrl doesn't have this as a method,
-        should really subclass ListCtrl and add this to it.
-        Returns row indices of selected list items"""
-        selected_rows = []
-        first = self.list.GetFirstSelected()
-        if first == -1:
-            return selected_rows
-        selected_rows.append(first)
-        last = first
-        while True:
-            next = self.list.GetNextSelected(last)
-            if next == -1:
-                return selected_rows
-            selected_rows.append(next)
-            last = next
 
     def GetFirstSelectedTemplate(self):
         selected_itemIDs = self.tree.GetSelections()

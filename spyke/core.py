@@ -11,6 +11,8 @@ import hashlib
 import time
 import os
 
+import wx
+
 import numpy as np
 
 from spyke import probes
@@ -238,6 +240,25 @@ class Stream(object):
         height = heightinches / figheight
         self.a.set_position([0.035, bottom, 0.94, height])
         pl.show()
+
+
+class SpykeListCtrl(wx.ListCtrl):
+    """ListCtrl with GetSelections method"""
+    def GetSelections(self):
+        """Stupid wxPython list ctrl doesn't have something like this
+        as a method. Return row indices of selected list items"""
+        selected_rows = []
+        first = self.GetFirstSelected()
+        if first == -1: # no more selected rows
+            return selected_rows
+        selected_rows.append(first)
+        last = first
+        while True:
+            next = self.GetNextSelected(last)
+            if next == -1: # no more selected rows
+                return selected_rows
+            selected_rows.append(next)
+            last = next
 
 
 class HybridList(set):
