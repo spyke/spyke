@@ -167,10 +167,11 @@ class SortFrame(wxglade_gui.SortFrame):
     def __init__(self, *args, **kwargs):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
         self.spykeframe = self.Parent
-        self.deselect_all = False
-        self.deselect_count = 0
 
-        columnlabels = ['ID', 'chan', 'time'] # event list column labels
+        self.lastSelectedListEvents = []
+        self.listTimer = wx.Timer(owner=self.list)
+
+        columnlabels = ['eID', 'chan', 'time'] # event list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -178,7 +179,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
         self.root = self.tree.AddRoot('Templates')
 
-        self.list.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
+        self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def get_session(self):
@@ -192,45 +193,36 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnClose(self, event):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.spykeframe.HideFrame(frametype)
-
-    def OnLeftDown(self, evt):
-        """TODO: clicked item id may not be the same as spike event id, check with non consecutive spike event ids in list ctrl"""
-        i, pos = self.list.HitTest(evt.GetPosition())
-        print 'left down, on item %d' % i
-        #selected = (sf.list.GetItemState(11, wx.LIST_STATE_SELECTED) == wx.LIST_STATE_SELECTED)
-        #if not selected:
-        #    self.list.Select(i)
-        ctrl = evt.ControlDown()
-        if not ctrl: # plain left click any item, deselect all
-            self.deselect_all = True
-            self.deselect_count = self.list.GetSelectedItemCount() # skip this many deselect events
-        evt.Skip() # let select/deselect event processing happen
+    '''
+    TODO: on any selection event, start or restart a timer for say 0.1 sec, record the item selected/deselected, and append it to a sel/desel queu. Then, when the timer eventually runs down to zero and fires a timing event, read the whole sel/desel queue, OR it with what was selected previously, and execute the approriate minimum number of clear/plot actions all at once. This prevents unnecessary draws/redraws/clears. Should make plotting and unplotting faster, and flicker free. Also gets rid of need for any mouse click event handling, like OnLeftDown, and associated key events that haven't even been written yet.
+        - event better: when timer runs down, just execute self.list_GetSelections and compare to previous list of selections, and execute your plots accordingly. This way, you don't even need to build up a queue on each sel/desel event. This will make all the sel event handling even faster, and allow you to reduce the timer duration for faster response.
+        - after completion of each selection epoch (say 0.1s), save current buffer as new background?
+    '''
 
     def OnListSelect(self, evt):
-        """Item selection event in list control"""
-        # TODO: maybe use GetData instead, assign event id integer, so no conversion from str necessary
-        eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
-        event = self.session.events[eventi]
-        self.spikesortpanel.add_event(event)
-        self.chartsortpanel.add_event(event)
+        """Restart list selection timer"""
+        self.listTimer.Stop()
+        self.listTimer.Start(milliseconds=1, oneShot=True) # only fire one timer event after specified interval
 
     def OnListDeselect(self, evt):
-        """Item deselection event in list control"""
-        #nselected = self.list.GetSelectedItemCount()
-        #print 'nselected: %d' % nselected
-        eventi = int(evt.GetText()) # seems to always return the item's 0th column, which is its Event ID
-        #self._events_to_remove.append(eventi)
-        if self.deselect_all: # fast removal of all events
-            self.spikesortpanel.remove_all_events()
-            self.chartsortpanel.remove_all_events()
-            self.deselect_all = False
-            self.deselect_count -= 1
-        elif self.deselect_count > 0: # wait for all the deselect events to be processed
-            self.deselect_count -= 1
-        else: # deselect just the one event
-            event = self.session.events[eventi]
-            self.spikesortpanel.remove_event(event)
-            self.chartsortpanel.remove_event(event)
+        self.OnListSelect(evt)
+
+    def OnListTimer(self, evt):
+        selectedRows = self.list_GetSelections()
+        selectedListEvents = [ self.row2event(row) for row in selectedRows ]
+        removeEvents = [ sel for sel in self.lastSelectedListEvents if sel not in selectedListEvents ]
+        addEvents = [ sel for sel in selectedListEvents if sel not in self.lastSelectedListEvents ]
+        #import cProfile
+        print 'events to remove: %r' % [ event.id for event in removeEvents ]
+        #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
+        self.spikesortpanel.removeEvents(removeEvents)
+        #self.chartsortpanel.removeEvents(removeEvents)
+        print 'events to add: %r' % [ event.id for event in addEvents ]
+        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
+        self.spikesortpanel.addEvents(addEvents)
+        print 'after adding, quickRemovePlot is %r' % self.spikesortpanel.quickRemovePlot
+        #self.chartsortpanel.addEvents(addEvents)
+        self.lastSelectedListEvents = selectedListEvents # save for next time
     '''
     def OnListBeginDrag(self, evt):
         """Begin list drag event"""

@@ -203,12 +203,18 @@ class PlotPanel(FigureCanvasWxAgg):
         self.ax.set_axis_off() # turn off the x and y axis
         self.ax.set_visible(True)
         self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
+
+        self._show_tref(True)
+        self._show_vref(True)
+        self._show_caret(True)
+
         self.init_plots()
         #for ref in ['caret', 'vref', 'tref']: # add reference lines and caret in layered order
         #    self.add_ref(ref)
         #    self.spykeframe.ShowRef(ref) # also enforces menu item toggle state
         self.draw()
-        self.background = self.copy_from_bbox(self.ax.bbox)
+        self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
+        self.background = self.copy_from_bbox(self.ax.bbox) # init
 
     def init_axes(self):
         """Init the axes and ref lines"""
@@ -219,8 +225,8 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def init_plots(self):
         """Create Plots for this panel"""
-        self.current_plot = Plot(chans=self.chans, panel=self) # just one for this base class
-        self.current_plot.show()
+        self.quickRemovePlot = Plot(chans=self.chans, panel=self) # just one for this base class
+        self.quickRemovePlot.show()
 
     def add_ref(self, ref):
         if ref == 'tref':
@@ -311,10 +317,10 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
-        self.update_background(self.current_plot) # update saved bg, exclude curret plot
+        self.update_background(self.quickRemovePlot) # update saved bg, exclude current plot
         self.draw()
 
-    def _show_tref(self, enable):
+    def _show_tref(self, enable=True):
         try:
             self.vlines
         except AttributeError:
@@ -322,7 +328,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for vline in self.vlines:
             vline.set_visible(enable)
 
-    def _show_vref(self, enable):
+    def _show_vref(self, enable=True):
         try:
             self.hlines
         except AttributeError:
@@ -330,7 +336,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for hline in self.hlines:
             hline.set_visible(enable)
 
-    def _show_caret(self, enable):
+    def _show_caret(self, enable=True):
         try:
             self.caret
         except AttributeError:
@@ -409,7 +415,7 @@ class PlotPanel(FigureCanvasWxAgg):
         hitlines = []
         closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
-            line = self.current_plot.lines[chan]
+            line = self.quickRemovePlot.lines[chan]
             if line.get_visible(): # only consider lines that are visible
                 hit, tisdict = line.contains(event)
                 if hit:
@@ -434,9 +440,10 @@ class PlotPanel(FigureCanvasWxAgg):
         #self.update_background()
         self.restore_region(self.background)
         # update plots with new x and y vals
-        self.current_plot.update(wave, tref)
-        self.current_plot.draw()
+        self.quickRemovePlot.update(wave, tref)
+        self.quickRemovePlot.draw()
         self.blit(self.ax.bbox)
+        self.Refresh()
         #self.gui_repaint()
         #self.draw(True)
         #self.Refresh() # possibly faster, but adds a lot of flicker
@@ -481,7 +488,7 @@ class PlotPanel(FigureCanvasWxAgg):
         #key = evt.GetKeyCode()
         #print 'in dataframe.onkeypress !!: ', key
         #evt.guiEvent.Skip()
-
+    '''
     def OnNavigation(self, evt):
         """Navigation key press"""
         #print 'nagivation event:', evt
@@ -489,9 +496,9 @@ class PlotPanel(FigureCanvasWxAgg):
             direction = 1
         else: # backward
             direction = -1
-        self.spykeframe.seek(self.current_plot.tref + direction*self.stream.tres)
+        self.spykeframe.seek(self.quickRemovePlot.tref + direction*self.stream.tres)
         evt.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
-
+    '''
     def OnButtonPress(self, evt):
         """Seek to timepoint as represented on chan closest to left mouse click,
         enable/disable specific chans on Ctrl+left click or right click, enable/disable
@@ -504,12 +511,12 @@ class PlotPanel(FigureCanvasWxAgg):
             # seek to timepoint
             chan = self.get_closestchans(evt, n=1)
             xpos = self.pos[chan][0]
-            t = evt.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
+            t = evt.xdata - xpos + self.quickRemovePlot.tref # undo position correction and convert from relative to absolute time
             self.spykeframe.seek(t) # call main spyke frame's seek method
         elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift: # or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
             # enable/disable closest line
             chan = self.get_closestchans(evt, n=1)
-            line = self.current_plot.lines[chan]
+            line = self.quickRemovePlot.lines[chan]
             if line.chan not in self.spykeframe.chans_enabled:
                 enable = True
             else:
@@ -526,7 +533,7 @@ class PlotPanel(FigureCanvasWxAgg):
     def enable_chans(self, chans, enable=True):
         """Enable/disable a specific set of channels in this frame"""
         for chan in chans:
-            self.current_plot.lines[chan].set_visible(enable)
+            self.quickRemovePlot.lines[chan].set_visible(enable)
         self.draw(True)
     '''
     def OnPick(self, evt):
@@ -536,7 +543,7 @@ class PlotPanel(FigureCanvasWxAgg):
             line = evt.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
             chan = line.chan
             xpos, ypos = self.pos[chan]
-            t = evt.mouseevent.xdata - xpos + self.current_plot.tref # undo position correction and convert from relative to absolute time
+            t = evt.mouseevent.xdata - xpos + self.quickRemovePlot.tref # undo position correction and convert from relative to absolute time
             v = (evt.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                 t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
@@ -561,7 +568,7 @@ class PlotPanel(FigureCanvasWxAgg):
             line = self.get_closestline(evt)
             if line and line.get_visible():
                 xpos, ypos = self.pos[line.chan]
-                t = evt.xdata - xpos + self.current_plot.tref
+                t = evt.xdata - xpos + self.quickRemovePlot.tref
                 v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
@@ -627,7 +634,7 @@ class SpikePanel(PlotPanel):
         """Disable for SpikePanel"""
         pass
 
-    def _show_caret(self, enable):
+    def _show_caret(self, enable=True):
         """Disable for SpikePanel"""
         pass
 
@@ -670,7 +677,7 @@ class ChartPanel(PlotPanel):
         """Disable for ChartPanel"""
         pass
 
-    def _show_vref(self, enable):
+    def _show_vref(self, enable=True):
         """Disable for ChartPanel"""
         pass
 
@@ -714,7 +721,7 @@ class LFPPanel(ChartPanel):
         """Override ChartPanel"""
         PlotPanel._update_vref(self)
 
-    def _show_vref(self, enable):
+    def _show_vref(self, enable=True):
         """Override ChartPanel"""
         PlotPanel._show_vref(self, enable)
 
@@ -729,20 +736,16 @@ class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed event data, indexed by event id
-        self.current_plot = None # current Plot being cycled between used and available
+        self.quickRemovePlot = None # current quickly removable Plot with associated .background
         PlotPanel.__init__(self, *args, **kwargs)
         self.spykeframe = self.GrandParent.GrandParent # sort pane, splitter window, sort frame, spyke frame
 
-    def init_plots(self):
-        """Create lines for multiple plots"""
-        nplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
-        for ploti in range(nplots, nplots+DEFNPLOTS):
+    def init_plots(self, nplots=DEFNPLOTS):
+        """Add Plots to the pool of available ones"""
+        totalnplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
+        for ploti in range(totalnplots, totalnplots+nplots):
             plot = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plot)
-        if self.current_plot == None:
-            self.current_plot = self.available_plots[-1] # last one, top of stack
-        # redraw the display
-        #self.draw()
 
     def _add_vref(self):
         """Increase pick radius for vrefs from default zero, since we're
@@ -751,11 +754,41 @@ class SortPanel(PlotPanel):
         for hline in self.hlines:
             hline.set_pickradius(PICKRADIUS)
 
-    # idea: have one background: black with ref lines. then, on each add(), you update current plot, draw the current plot's lines, and you blit the background _all_ the current used_plots to buffer in order. on remove(), you hide current plot, draw its lines?, then blit background and _all_ remaining used_plots to buffer in order. Might need to do a draw at very beginning (in init_lines?). no need to mess with animated flag!
+    def show_ref(self, ref, enable=True):
+        if ref == 'tref':
+            self._show_tref(enable)
+        elif ref == 'vref':
+            self._show_vref(enable)
+        elif ref == 'caret':
+            self._show_caret(enable)
+        else:
+            raise ValueError, 'invalid ref: %r' % ref
+        for ref in [self.hlines, self.vlines, self.caret]:
+            ref.draw() # how could this possibly work? hlines is a list or dict of lines no?
+        self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
+        self.quickRemovePlot = None
+        self.background = None
+        for plot in self.used_plots.values():
+            plot.draw()
 
-    def add_event(self, event):
-        """Add event to self, stick it in an available Plot"""
-        print 'adding event %d' % event.id
+    # idea: have one background: black with ref lines. then, on each add(), you update current plot, draw the current plot's lines, and you blit the background and _all_ the current used_plots to buffer in order. on remove(), you hide current plot, then blit background and _all_ remaining used_plots to buffer in order. Might need to do a draw at very beginning (in init_lines?). no need to mess with animated flag!
+
+    def addEvents(self, events):
+        """Add events to self"""
+        if events == []:
+            return # do nothing
+        if len(events) == 1:
+            # before blitting this single event to screen, grab current buffer, save as new background for quick restore if the next action is removal of this very same event
+            self.background = self.copy_from_bbox(self.ax.bbox)
+            self.quickRemovePlot = self.addEvent(events[0]) # add the single event, save reference to its plot
+        else:
+            self.background = None
+            for event in events: # add all events
+                self.addEvent(event)
+        self.blit(self.ax.bbox)
+
+    def addEvent(self, event):
+        """Put event in an available Plot, return the Plot"""
         tref = event.t
         try:
             wave = event.wave # see if it's already been sliced
@@ -766,40 +799,39 @@ class SortPanel(PlotPanel):
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this event to
         self.used_plots[event.id] = plot # push it to the used plot stack
-        if plot != self.current_plot: # if this isn't the plot that was last used
-            print 'plot not same as last one'
-            self.current_plot = plot # update current plot
-            self.update_background(self.current_plot) # update bg, exclude current plot
-        self.restore_region(self.background) # restore bg
-        self.current_plot.update(wave, tref)
-        self.current_plot.show()
-        self.current_plot.draw()
-        self.blit(self.ax.bbox)
+        plot.update(wave, tref)
+        plot.show()
+        plot.draw()
+        return plot
 
-    def remove_event(self, event):
-        """Remove Plot holding event's data"""
-        print 'removing event %d' % event.id
+    def removeEvents(self, events):
+        """Remove events from self"""
+        if events == []: # do nothing
+            return
+        for event in events:
+            plot = self.removeEvent(event) # remove them all from .used_plots
+        # we're removing all events
+        if set([ event.id for event in events ]) == set(self.used_plots.keys()):
+            self.restore_region(self.reflines_background) # restore blank background with just the ref lines
+        # we're removing the last added plot and a saved bg is available
+        elif len(events) == 1 and plot == self.quickRemovePlot and self.background != None:
+            print 'quick removing plot %r' % self.quickRemovePlot
+            self.restore_region(self.background) # restore saved bg
+        # we're removing more than one, but not all events
+        else:
+            self.restore_region(self.reflines_background) # restore blank background with just the ref lines
+            for plot in self.used_plots.values():
+                plot.draw()
+        self.background = None # what was background is no longer useful for quick restoration on any other event removal
+        self.quickRemovePlot = None # quickRemovePlot set in addEvents is no longer quickly removable
+        self.blit(self.ax.bbox) # blit everything to screen
+
+    def removeEvent(self, event):
+        """Remove Plot holding event's data, return the Plot"""
         plot = self.used_plots.pop(event.id)
         plot.hide()
-        if plot == self.current_plot:
-            self.restore_region(self.background) # restore saved bg
-            self.blit(self.ax.bbox) # blit background to screen
-        else: # do a full redraw
-            self.current_plot = plot # update current plot
-            #self.draw() # see below
-            self.update_background(self.current_plot) # update bg, exclude current plot (which is invisible now anyway), does a full redraw
-        # put it back in the available pool, at top of stack, ready to be popped
         self.available_plots.append(plot)
-
-    def remove_all_events(self):
-        """Remove all event Plots"""
-        print 'removing all events'
-        for ploti in self.used_plots.keys():
-            plot = self.used_plots.pop(ploti)
-            plot.hide()
-            self.available_plots.append(plot)
-        self.update_background(plot=None) # plot passed doesn't matter, since they're all hidden
-        self.current_plot = self.available_plots[-1]
+        return plot
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords

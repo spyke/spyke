@@ -31,7 +31,6 @@ SPIKEFRAMEPIXPERCHAN = 80 # horizontally
 SPIKEFRAMEHEIGHT = 700
 CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
 LFPFRAMESIZE = (250, SPIKEFRAMEHEIGHT)
-SORTFRAMESIZE = (400, 600)
 PYSHELLSIZE = (CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2)
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
@@ -75,7 +74,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-        columnlabels = ['ID', 'nevents', 'class', 'thresh', 'trange', 'slock', 'tlock', 'datetime']
+        columnlabels = ['detID', 'nevents', 'class', 'thresh', 'trange', 'slock', 'tlock', 'datetime']
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -262,11 +261,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for e in events.values():
             row = [str(e.id), e.chan, e.t]
             sf.list.Append(row)
-        for coli in range(len(row)):
-            if coli == 0: # ID column doesn't size properly, set it manually
-                width = 40
-            else:
-                width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
+        #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
+        # hard code column widths for precise control, autosize seems buggy
+        for coli, width in {0:40, 1:40, 2:80}.items(): # (eID, chan, time)
             sf.list.SetColumnWidth(coli, width)
 
     def get_total_nevents(self):
@@ -339,9 +336,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenFrame('lfp')
         #self.OpenFrame('sort')
         #self.OpenFrame('pyshell')
-        self.ShowRef('tref')
-        self.ShowRef('vref')
-        self.ShowRef('caret')
+        #self.ShowRef('tref')
+        #self.ShowRef('vref')
+        #self.ShowRef('caret')
 
         # self has focus, but isn't in foreground after opening data frames
         #self.Raise() # doesn't seem to bring self to foreground
@@ -507,12 +504,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             elif frametype == 'sort':
                 x = self.GetPosition()[0] + self.GetSize()[0]
                 y = self.GetPosition()[1]
-                frame = SortFrame(parent=self, pos=wx.Point(x, y), size=SORTFRAMESIZE)
+                frame = SortFrame(parent=self, pos=wx.Point(x, y))
                 for panel in [frame.spikesortpanel, frame.chartsortpanel]:
                     panel.init_probe_dependencies(self.session.probe) # doesn't need stream, just probe for its layout
                     # sync reference lines with menu settings since sort frame isn't normally init'd before surf file load
-                    for ref, REFID in self.REFTYPE2ID.items():
-                        panel.show_ref(ref, enable=self.menubar.IsChecked(REFID))
+                    #for ref, REFID in self.REFTYPE2ID.items():
+                    #    panel.show_ref(ref, enable=self.menubar.IsChecked(REFID))
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
