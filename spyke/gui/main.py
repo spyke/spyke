@@ -261,9 +261,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except KeyError:
             self.OpenFrame('sort') # create it
         sf = self.frames['sort']
+        SiteLoc = self.session.probe.SiteLoc
         for e in events.values():
             row = [str(e.id), e.chan, e.t]
             sf.list.Append(row)
+            ycoord = SiteLoc[e.chan][1]
+            # add ycoord of maxchan of event as data for this row, use item
+            # count instead of counting from 0 cuz you want to handle there
+            # already being items in the list from prior append/removal
+            sf.list.SetItemData(sf.list.GetItemCount()-1, ycoord)
+        sf.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
         #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
         # hard code column widths for precise control, autosize seems buggy
         for coli, width in {0:40, 1:40, 2:80}.items(): # (eID, chan, time)
@@ -283,7 +290,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
         """
         key = evt.GetKeyCode()
-        #print 'key: %r' % key
+        print 'key: %r' % key
         in_widget = evt.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
         in_file_pos_combo_box = evt.GetEventObject() == self.file_pos_combo_box
         if not evt.ControlDown():

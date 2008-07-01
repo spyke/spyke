@@ -268,13 +268,12 @@ class SpykeListCtrl(wx.ListCtrl):
         for coli, val in enumerate(data[1:]):
             self.SetStringItem(row, coli+1, str(val))
 
-
-
+'''
 class HybridList(set):
     """A set with an append() method like a list"""
     def append(self, item):
         self.add(item)
-
+'''
 
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of fname (with full path)"""
