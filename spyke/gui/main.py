@@ -96,9 +96,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
+        # for faster testing:
         #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
-        fname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
-        self.OpenSurfFile(fname) # have this here just to make testing faster
+        srffname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
+        sortfname = self.DEFAULTDIR + '/87 testing.sort'
+        self.OpenSurfFile(srffname)
+        self.OpenSortFile(sortfname)
 
     def set_detect_pane_limits(self):
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
@@ -332,8 +335,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
         self.OpenFrame('spike')
-        self.OpenFrame('chart')
-        self.OpenFrame('lfp')
+        #self.OpenFrame('chart')
+        #self.OpenFrame('lfp')
         #self.OpenFrame('sort')
         #self.OpenFrame('pyshell')
         #self.ShowRef('tref')

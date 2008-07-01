@@ -183,6 +183,13 @@ class SortFrame(wxglade_gui.SortFrame):
         self.root = self.tree.AddRoot('Templates')
 
         self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
+        #self.tree.Bind(wx.EVT_LEFT_DOWN, self.OnTreeLeftDown) # doesn't fire when clicking on non focused item, bug #4448
+        self.tree.Bind(wx.EVT_KEY_DOWN, self.OnTreeKeyDown)
+        self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
+        self.tree.Bind(wx.EVT_LEFT_UP, self.OnTreeLeftUp)
+        self.tree.Bind(wx.EVT_RIGHT_DOWN, self.OnTreeRightDown)
+        #self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
+
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def get_session(self):
@@ -215,22 +222,43 @@ class SortFrame(wxglade_gui.SortFrame):
         selectedListEvents = [ self.row2event(row) for row in selectedRows ]
         removeEvents = [ sel for sel in self.lastSelectedListEvents if sel not in selectedListEvents ]
         addEvents = [ sel for sel in selectedListEvents if sel not in self.lastSelectedListEvents ]
+
         #import cProfile
-        print 'events to remove: %r' % [ event.id for event in removeEvents ]
         #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
+        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
+
+        print 'events to remove: %r' % [ event.id for event in removeEvents ]
         self.spikesortpanel.removeEvents(removeEvents)
         #self.chartsortpanel.removeEvents(removeEvents)
         print 'events to add: %r' % [ event.id for event in addEvents ]
-        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
         self.spikesortpanel.addEvents(addEvents)
-        print 'after adding, quickRemovePlot is %r' % self.spikesortpanel.quickRemovePlot
         #self.chartsortpanel.addEvents(addEvents)
         self.lastSelectedListEvents = selectedListEvents # save for next time
 
+    def OnTreeLeftDown(self, evt):
+        print 'in OnTreeLeftDown'
+        pt = evt.GetPosition();
+        item, flags = self.tree.HitTest(pt)
+        if item.IsOk(): # if we've clicked on an item
+            # let selection event happen uncaught, call selection handler
+            # after OS has finished doing the actual (de)selecting
+            wx.CallAfter(self.OnTreeSelectChanged, evt)
+            #self.OnTreeSelectChanged(evt)
+
+    def OnTreeLeftUp(self, evt):
+        print 'in OnTreeLeftUp'
+        self.OnTreeLeftDown(evt)
+
+    def OnTreeRightDown(self, evt):
+        print 'in OnTreeRightDown'
+        self.OnTreeLeftDown(evt)
+        # TODO: maybe put code here to toggle selection of current item, then veto the event
+
     def OnTreeSelectChanged(self, evt):
-        print
-        print 'got tree sel changed event'
-        print
+        """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
+        deselecting currently focused item in a tree with the wx.TR_MULTIPLE
+        flag set, as it is here"""
+        print 'in OnTreeSelectChanged'
         selected_itemIDs = self.tree.GetSelections()
         selectedTreeEvents = []
         selectedTreeTemplates = []
@@ -248,16 +276,15 @@ class SortFrame(wxglade_gui.SortFrame):
         addTemplates = [ sel for sel in selectedTreeTemplates if sel not in self.lastSelectedTreeTemplates ]
 
         #import cProfile
-        print 'events to remove: %r' % [ event.id for event in removeEvents ]
         #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
+        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
+
+        print 'events to remove: %r' % [ event.id for event in removeEvents ]
         self.spikesortpanel.removeEvents(removeEvents)
         #self.chartsortpanel.removeEvents(removeEvents)
         print 'templates to remove: %r' % [ template.id for template in removeTemplates ]
-
         print 'events to add: %r' % [ event.id for event in addEvents ]
-        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
         self.spikesortpanel.addEvents(addEvents)
-        print 'after adding events, quickRemovePlot is %r' % self.spikesortpanel.quickRemovePlot
         #self.chartsortpanel.addEvents(addEvents)
         print 'templates to add: %r' % [ template.id for template in addTemplates ]
         self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
@@ -275,8 +302,19 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeKeyDown(self, evt):
         key = evt.GetKeyCode()
+        print 'key down: %r' % key
         if key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentEvents2List()
+        elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
+            wx.CallAfter(self.OnTreeSelectChanged, evt)
+        evt.Skip()
+
+    def OnTreeKeyUp(self, evt):
+        key = evt.GetKeyCode()
+        print 'key up: %r' % key
+        if key == wx.WXK_SPACE: # space only triggered on key up, see bug #4448
+            wx.CallAfter(self.OnTreeSelectChanged, evt)
+        evt.Skip()
 
     def MoveCurrentEvents2Template(self, which='selected'):
         selected_rows = self.list.GetSelections()
@@ -362,7 +400,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.session.templates[template.id] = template # add template to session
         template.itemID = self.tree.AppendItem(self.root, 't'+str(template.id)) # add template to tree
         self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
-        self.tree.Expand(self.root) # make sure root is expanded
+        #self.tree.Expand(self.root) # make sure root is expanded
         self.tree.UnselectAll() # first unselect all items in tree
         self.tree.SelectItem(template.itemID) # now select the newly created template
         return template

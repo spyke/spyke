@@ -245,8 +245,8 @@ class Stream(object):
 class SpykeListCtrl(wx.ListCtrl):
     """ListCtrl with GetSelections method"""
     def GetSelections(self):
-        """Stupid wxPython list ctrl doesn't have something like this
-        as a method. Return row indices of selected list items"""
+        """Return row indices of selected list items.
+        wx.ListCtrl lacks something like this as a method"""
         selected_rows = []
         first = self.GetFirstSelected()
         if first == -1: # no more selected rows
