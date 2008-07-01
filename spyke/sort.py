@@ -183,11 +183,12 @@ class SortFrame(wxglade_gui.SortFrame):
         self.root = self.tree.AddRoot('Templates')
 
         self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
+        self.list.Bind(wx.EVT_RIGHT_DOWN, self.OnListRightDown)
         #self.tree.Bind(wx.EVT_LEFT_DOWN, self.OnTreeLeftDown) # doesn't fire when clicking on non focused item, bug #4448
-        self.tree.Bind(wx.EVT_KEY_DOWN, self.OnTreeKeyDown)
-        self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
         self.tree.Bind(wx.EVT_LEFT_UP, self.OnTreeLeftUp) # need this to catch clicking on non focused item, bug #4448
         self.tree.Bind(wx.EVT_RIGHT_DOWN, self.OnTreeRightDown)
+        self.tree.Bind(wx.EVT_KEY_DOWN, self.OnTreeKeyDown)
+        self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
         #self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -235,6 +236,34 @@ class SortFrame(wxglade_gui.SortFrame):
         #self.chartsortpanel.addEvents(addEvents)
         self.lastSelectedListEvents = selectedListEvents # save for next time
 
+    def OnListRightDown(self, evt):
+        """Toggle selection of the clicked item, without changing selection
+        status of any other items. This is a nasty hack required to get around
+        the selection TreeEvent happening before the MouseEvent"""
+        print 'in OnListRightDown'
+        pt = evt.GetPosition()
+        itemID, flags = self.list.HitTest(pt)
+        event = self.row2event(itemID)
+        print 'eventID is %r' % event.id
+        # this would be nice, but doesn't work (?) cuz apparently somehow the
+        # selection ListEvent happens before MouseEvent that caused it:
+        #selected = not self.list.IsSelected(itemID)
+        #self.list.Select(itemID, on=int(not selected))
+        # here is a yucky workaround:
+        try:
+            self.spikesortpanel.used_plots[event.id] # is it plotted?
+            selected = True # if so, item must be selected
+            print 'event %d in used_plots' % event.id
+        except KeyError:
+            selected = False # item is not selected
+            print 'event %d not in used_plots' % event.id
+        self.list.Select(itemID, on=not selected)
+        # now plot accordingly
+        self.OnTreeSelectChanged()
+        #evt.Veto() # not defined for mouse event?
+        #evt.StopPropagation() # doesn't seem to do anything
+
+
     def OnTreeLeftDown(self, evt):
         print 'in OnTreeLeftDown'
         pt = evt.GetPosition()
@@ -242,7 +271,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if itemID.IsOk(): # if we've clicked on an item
             # leave selection event uncaught, call selection handler
             # after OS has finished doing the actual (de)selecting
-            wx.CallAfter(self.OnTreeSelectChanged, evt)
+            wx.CallAfter(self.OnTreeSelectChanged)
 
     def OnTreeLeftUp(self, evt):
         """Need this to catch clicking on non focused item, bug #4448"""
@@ -280,11 +309,11 @@ class SortFrame(wxglade_gui.SortFrame):
                 if plottedEvent.itemID != event.itemID:
                     self.tree.SelectItem(plottedEvent.itemID)
             # now plot accordingly
-            self.OnTreeSelectChanged(evt)
+            self.OnTreeSelectChanged()
         #evt.Veto() # not defined for mouse event?
         #evt.StopPropagation() # doesn't seem to do anything
 
-    def OnTreeSelectChanged(self, evt):
+    def OnTreeSelectChanged(self, evt=None):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
         deselecting currently focused item in a tree with the wx.TR_MULTIPLE
         flag set, as it is here"""
@@ -342,14 +371,14 @@ class SortFrame(wxglade_gui.SortFrame):
         if key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentEvents2List()
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
-            wx.CallAfter(self.OnTreeSelectChanged, evt)
+            wx.CallAfter(self.OnTreeSelectChanged)
         evt.Skip()
 
     def OnTreeKeyUp(self, evt):
         key = evt.GetKeyCode()
         #print 'key up: %r' % key
         if key == wx.WXK_SPACE: # space only triggered on key up, see bug #4448
-            wx.CallAfter(self.OnTreeSelectChanged, evt)
+            wx.CallAfter(self.OnTreeSelectChanged)
         evt.Skip()
 
     def MoveCurrentEvents2Template(self, which='selected'):
@@ -406,6 +435,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def MoveEvent2List(self, event):
         """Move a spike event from a template in the tree back to the list control"""
         self.tree.Delete(event.itemID)
+        self.OnTreeSelectChanged() # update plot
         del event.template.events[event.id] # del event from its template's event dict
         if len(event.template.events) == 0: # if this template doesn't have any events left in it
             self.DeleteTemplate(event.template) # delete it
