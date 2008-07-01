@@ -186,7 +186,7 @@ class SortFrame(wxglade_gui.SortFrame):
         #self.tree.Bind(wx.EVT_LEFT_DOWN, self.OnTreeLeftDown) # doesn't fire when clicking on non focused item, bug #4448
         self.tree.Bind(wx.EVT_KEY_DOWN, self.OnTreeKeyDown)
         self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
-        self.tree.Bind(wx.EVT_LEFT_UP, self.OnTreeLeftUp)
+        self.tree.Bind(wx.EVT_LEFT_UP, self.OnTreeLeftUp) # need this to catch clicking on non focused item, bug #4448
         self.tree.Bind(wx.EVT_RIGHT_DOWN, self.OnTreeRightDown)
         #self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
 
@@ -237,22 +237,52 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeLeftDown(self, evt):
         print 'in OnTreeLeftDown'
-        pt = evt.GetPosition();
-        item, flags = self.tree.HitTest(pt)
-        if item.IsOk(): # if we've clicked on an item
-            # let selection event happen uncaught, call selection handler
+        pt = evt.GetPosition()
+        itemID, flags = self.tree.HitTest(pt)
+        if itemID.IsOk(): # if we've clicked on an item
+            # leave selection event uncaught, call selection handler
             # after OS has finished doing the actual (de)selecting
             wx.CallAfter(self.OnTreeSelectChanged, evt)
-            #self.OnTreeSelectChanged(evt)
 
     def OnTreeLeftUp(self, evt):
+        """Need this to catch clicking on non focused item, bug #4448"""
         print 'in OnTreeLeftUp'
         self.OnTreeLeftDown(evt)
 
     def OnTreeRightDown(self, evt):
+        """Toggle selection of the clicked item, without changing selection
+        status of any other items. This is a nasty hack required to get around
+        the selection TreeEvent happening before the MouseEvent"""
         print 'in OnTreeRightDown'
-        self.OnTreeLeftDown(evt)
-        # TODO: maybe put code here to toggle selection of current item, then veto the event
+        pt = evt.GetPosition()
+        itemID, flags = self.tree.HitTest(pt)
+        if itemID.IsOk(): # if we've clicked on an item
+            # this would be nice, but doesn't work cuz apparently somehow the
+            # selection TreeEvent happens before MouseEvent that caused it:
+            #selected = not self.tree.IsSelected(itemID)
+            # here is a yucky workaround:
+            event = self.tree.GetItemPyData(itemID)
+            try:
+                self.spikesortpanel.used_plots[event.id] # is it plotted?
+                selected = True # if so, item must be selected
+                print 'event %d in used_plots' % event.id
+            except KeyError:
+                selected = False # item is not selected
+                print 'event %d not in used_plots' % event.id
+            self.tree.SelectItem(itemID, select=not selected)
+            # restore selection of previously selected items that were inadvertently deselected earlier in the tree event
+            for plottedEventi in self.spikesortpanel.used_plots.keys():
+                plottedEvent = self.session.events[plottedEventi]
+                try:
+                    plottedEvent.itemID
+                except AttributeError:
+                    continue
+                if plottedEvent.itemID != event.itemID:
+                    self.tree.SelectItem(plottedEvent.itemID)
+            # now plot accordingly
+            self.OnTreeSelectChanged(evt)
+        #evt.Veto() # not defined for mouse event?
+        #evt.StopPropagation() # doesn't seem to do anything
 
     def OnTreeSelectChanged(self, evt):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
@@ -279,16 +309,22 @@ class SortFrame(wxglade_gui.SortFrame):
         #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
         #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
 
-        print 'events to remove: %r' % [ event.id for event in removeEvents ]
-        self.spikesortpanel.removeEvents(removeEvents)
-        #self.chartsortpanel.removeEvents(removeEvents)
+        self.RemoveEvents(removeEvents)
         print 'templates to remove: %r' % [ template.id for template in removeTemplates ]
-        print 'events to add: %r' % [ event.id for event in addEvents ]
-        self.spikesortpanel.addEvents(addEvents)
-        #self.chartsortpanel.addEvents(addEvents)
+        self.AddEvents(addEvents)
         print 'templates to add: %r' % [ template.id for template in addTemplates ]
         self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
         self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
+
+    def AddEvents(self, events):
+        print 'events to add: %r' % [ event.id for event in events ]
+        self.spikesortpanel.addEvents(events)
+        #self.chartsortpanel.addEvents(events)
+
+    def RemoveEvents(self, events):
+        print 'events to remove: %r' % [ event.id for event in events ]
+        self.spikesortpanel.removeEvents(events)
+        #self.chartsortpanel.removeEvents(events)
 
     def OnListKeyDown(self, evt):
         """Event list control key down event"""
@@ -302,7 +338,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeKeyDown(self, evt):
         key = evt.GetKeyCode()
-        print 'key down: %r' % key
+        #print 'key down: %r' % key
         if key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentEvents2List()
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
@@ -311,7 +347,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeKeyUp(self, evt):
         key = evt.GetKeyCode()
-        print 'key up: %r' % key
+        #print 'key up: %r' % key
         if key == wx.WXK_SPACE: # space only triggered on key up, see bug #4448
             wx.CallAfter(self.OnTreeSelectChanged, evt)
         evt.Skip()
