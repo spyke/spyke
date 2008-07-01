@@ -401,9 +401,15 @@ class SortFrame(wxglade_gui.SortFrame):
         for itemID in selected_itemIDs:
             obj = self.tree.GetItemPyData(itemID)
             if obj.__class__ == Event:
-                self.MoveEvent2List(obj)
+                event = obj
+                template = event.template
+                self.MoveEvent2List(event)
+                if len(template.events) == 0: # if this template doesn't have any events left in it
+                    self.DeleteTemplate(template) # delete it
             elif obj.__class__ == Template:
-                self.DeleteTemplate(obj)
+                template = obj
+                self.DeleteTemplate(template)
+        self.OnTreeSelectChanged() # update plot
 
     def GetFirstSelectedTemplate(self):
         selected_itemIDs = self.tree.GetSelections()
@@ -435,14 +441,11 @@ class SortFrame(wxglade_gui.SortFrame):
     def MoveEvent2List(self, event):
         """Move a spike event from a template in the tree back to the list control"""
         self.tree.Delete(event.itemID)
-        self.OnTreeSelectChanged() # update plot
         del event.template.events[event.id] # del event from its template's event dict
-        if len(event.template.events) == 0: # if this template doesn't have any events left in it
-            self.DeleteTemplate(event.template) # delete it
         event.template = None # unbind event's template from event
         del event.itemID # no longer applicable
         data = [event.id, event.chan, event.t]
-        self.list_InsertRow(0, data)
+        self.list.InsertRow(0, data)
 
     def DeleteTemplate(self, template):
         """Move a template's events back to the event list, delete it
@@ -451,13 +454,6 @@ class SortFrame(wxglade_gui.SortFrame):
             self.MoveEvent2List(event)
         self.tree.Delete(template.itemID)
         del self.session.templates[template.id]
-
-    def list_InsertRow(self, row, data):
-        """wxPython can be dumb.
-        data is a list of strings or numbers, one per column"""
-        row = self.list.InsertStringItem(row, str(data[0])) # inserts data's first column
-        for coli, val in enumerate(data[1:]):
-            self.list.SetStringItem(row, coli+1, str(val))
 
     def CreateTemplate(self):
         """Create, select, and return a new template"""

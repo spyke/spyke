@@ -243,7 +243,7 @@ class Stream(object):
 
 
 class SpykeListCtrl(wx.ListCtrl):
-    """ListCtrl with GetSelections method"""
+    """ListCtrl with a couple of extra methods defined"""
     def GetSelections(self):
         """Return row indices of selected list items.
         wx.ListCtrl lacks something like this as a method"""
@@ -259,6 +259,15 @@ class SpykeListCtrl(wx.ListCtrl):
                 return selected_rows
             selected_rows.append(next)
             last = next
+
+    def InsertRow(self, row, data):
+        """Insert data in list at row position.
+        data is a list of strings or numbers, one per column.
+        wx.ListCtrl lacks something like this as a method"""
+        row = self.InsertStringItem(row, str(data[0])) # inserts data's first column
+        for coli, val in enumerate(data[1:]):
+            self.SetStringItem(row, coli+1, str(val))
+
 
 
 class HybridList(set):
