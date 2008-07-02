@@ -255,12 +255,12 @@ class SortFrame(wxglade_gui.SortFrame):
         #self.list.Select(itemID, on=int(not selected))
         # here is a yucky workaround:
         try:
-            self.spikesortpanel.used_plots[event.id] # is it plotted?
+            self.spikesortpanel.event_plots[event.id] # is it plotted?
             selected = True # if so, item must be selected
-            print 'event %d in used_plots' % event.id
+            print 'event %d in event_plots' % event.id
         except KeyError:
             selected = False # item is not selected
-            print 'event %d not in used_plots' % event.id
+            print 'event %d not in event_plots' % event.id
         self.list.Select(itemID, on=not selected)
         # now plot accordingly
         self.OnTreeSelectChanged()
@@ -330,31 +330,45 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'in OnTreeRightDown'
         pt = evt.GetPosition()
         itemID, flags = self.tree.HitTest(pt)
-        if itemID.IsOk(): # if we've clicked on an item
-            # this would be nice, but doesn't work cuz apparently somehow the
-            # selection TreeEvent happens before MouseEvent that caused it:
-            #selected = not self.tree.IsSelected(itemID)
-            # here is a yucky workaround:
-            event = self.tree.GetItemPyData(itemID)
+        if not itemID.IsOk(): # if we haven't clicked on an item
+            return
+        # this would be nice, but doesn't work cuz apparently somehow the
+        # selection TreeEvent happens before the MouseEvent that caused it:
+        #selected = not self.tree.IsSelected(itemID)
+        # here is a yucky workaround:
+        obj = self.tree.GetItemPyData(itemID) # either an Event or a Template
+        if obj.__class__ == Event:
+            plots = self.spikesortpanel.event_plots
+        elif obj.__class__ == Template:
+            plots = self.spikesortpanel.template_plots
+        try:
+            plots[obj.id] # is it plotted?
+            selected = True # if so, item must be selected
+            print 'obj %d is in its plots list' % obj.id
+        except KeyError:
+            selected = False # item is not selected
+            print 'obj %d is not in its plots list' % obj.id
+        self.tree.SelectItem(itemID, select=not selected)
+        # restore selection of previously selected events and templates that were
+        # inadvertently deselected earlier in the TreeEvent
+        for plottedEventi in self.spikesortpanel.event_plots.keys():
+            plottedEvent = self.session.events[plottedEventi]
             try:
-                self.spikesortpanel.used_plots[event.id] # is it plotted?
-                selected = True # if so, item must be selected
-                print 'event %d in used_plots' % event.id
-            except KeyError:
-                selected = False # item is not selected
-                print 'event %d not in used_plots' % event.id
-            self.tree.SelectItem(itemID, select=not selected)
-            # restore selection of previously selected items that were inadvertently deselected earlier in the tree event
-            for plottedEventi in self.spikesortpanel.used_plots.keys():
-                plottedEvent = self.session.events[plottedEventi]
-                try:
-                    plottedEvent.itemID
-                except AttributeError:
-                    continue
-                if plottedEvent.itemID != event.itemID:
-                    self.tree.SelectItem(plottedEvent.itemID)
-            # now plot accordingly
-            self.OnTreeSelectChanged()
+                plottedEvent.itemID # has a tree itemID
+            except AttributeError:
+                continue # doesn't have a tree itemID, move on to next event in the loop
+            if plottedEvent.itemID != obj.itemID: # if it's not the one whose selected state we just handled
+                self.tree.SelectItem(plottedEvent.itemID) # enforce its selection
+        for plottedTemplatei in self.spikesortpanel.template_plots.keys():
+            plottedTemplate = self.session.templates[plottedTemplatei]
+            try:
+                plottedTemplate.itemID # has a tree itemID
+            except AttributeError:
+                continue # doesn't have a tree itemID, move on to next template in the loop
+            if plottedTemplate.itemID != obj.itemID: # if it's not the one whose selected state we just handled
+                self.tree.SelectItem(plottedTemplate.itemID) # enforce its selection
+        # now plot accordingly
+        self.OnTreeSelectChanged()
         #evt.Veto() # not defined for mouse event?
         #evt.StopPropagation() # doesn't seem to do anything
 

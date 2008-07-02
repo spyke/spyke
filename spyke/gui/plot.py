@@ -154,7 +154,8 @@ class PlotPanel(FigureCanvasWxAgg):
         self.spykeframe = self.GrandParent
 
         self.available_plots = [] # pool of available Plots
-        self.used_plots = {} # Plots holding currently displayed event data, indexed by event id
+        self.event_plots = {} # Plots holding currently displayed event data, indexed by event id
+        self.template_plots = {} # Plots holding currently displayed template mean, indexed by template id
         self.quickRemovePlot = None # current quickly removable Plot with associated .background
 
         if stream != None:
@@ -181,6 +182,14 @@ class PlotPanel(FigureCanvasWxAgg):
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
+
+    def get_used_plots(self):
+        return list(np.concatenate((self.event_plots, self.template_plots)))
+
+    def set_used_plots(self):
+        raise RunTimeError, "PlotPanel's .used_plots not setable"
+
+    used_plots = property(get_used_plots, set_used_plots)
 
     def callAfterFrameInit(self, probe=None):
         """Panel tasks that need to be done after parent frame has been created (and shown?)"""
@@ -236,7 +245,7 @@ class PlotPanel(FigureCanvasWxAgg):
         """Create Plots for this panel"""
         self.quickRemovePlot = Plot(chans=self.chans, panel=self) # just one for this base class
         self.quickRemovePlot.show()
-        self.used_plots[0] = self.quickRemovePlot
+        self.event_plots[0] = self.quickRemovePlot
 
     def add_ref(self, ref):
         """Helper method for external use"""
@@ -257,11 +266,11 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
-        for plot in self.used_plots.values():
+        for plot in self.event_plots.values():
             plot.hide()
         self.draw() # draw the new ref
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
-        for plot in self.used_plots.values():
+        for plot in self.event_plots.values():
             plot.show()
             plot.draw()
         self.blit(self.ax.bbox)
@@ -749,7 +758,7 @@ class SortPanel(PlotPanel):
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
-        totalnplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
+        totalnplots = len(self.available_plots) + len(self.event_plots) # total number of existing plots
         for ploti in range(totalnplots, totalnplots+nplots):
             plot = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plot)
@@ -765,8 +774,6 @@ class SortPanel(PlotPanel):
         PlotPanel.show_ref(self, ref, enable)
         self.quickRemovePlot = None
         self.background = None
-
-    # idea: have one background: black with ref lines. then, on each add(), you update current plot, draw the current plot's lines, and you blit the background and _all_ the current used_plots to buffer in order. on remove(), you hide current plot, then blit background and _all_ remaining used_plots to buffer in order. Might need to do a draw at very beginning (in init_lines?). no need to mess with animated flag!
 
     def addEvents(self, events):
         """Add events to self"""
@@ -794,7 +801,7 @@ class SortPanel(PlotPanel):
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this event to
-        self.used_plots[event.id] = plot # push it to the used plot stack
+        self.event_plots[event.id] = plot # push it to the event plot stack
         plot.update(wave, tref)
         plot.show()
         plot.draw()
@@ -805,13 +812,13 @@ class SortPanel(PlotPanel):
         if events == []: # do nothing
             return
         if events == None:
-            events = self.used_plots.keys()
+            events = self.event_plots.keys()
         for event in events:
-            # remove all specified events from .used_plots, use contents of
-            # .used_plots to decide how to do the actual plot removal
+            # remove all specified events from .event_plots, use contents of
+            # .event_plots to decide how to do the actual plot removal
             plot = self.removeEvent(event)
         # remove all events
-        if self.used_plots.keys() == []:
+        if self.event_plots.keys() == []:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
         # remove the last added plot if a saved bg is available
         elif len(events) == 1 and plot == self.quickRemovePlot and self.background != None:
@@ -820,8 +827,8 @@ class SortPanel(PlotPanel):
         # remove more than one, but not all events
         else:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-            for plot in self.used_plots.values():
-                plot.draw() # redraw the remaining plots in .used_plots
+            for plot in self.event_plots.values():
+                plot.draw() # redraw the remaining plots in .event_plots
         self.background = None # what was background is no longer useful for quick restoration on any other event removal
         self.quickRemovePlot = None # quickRemovePlot set in addEvents is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
@@ -836,7 +843,7 @@ class SortPanel(PlotPanel):
             eventi = event.id # it's an Event object
         except AttributeError:
             eventi = event # it's just an int denoting the event id
-        plot = self.used_plots.pop(eventi)
+        plot = self.event_plots.pop(eventi)
         plot.hide()
         self.available_plots.append(plot)
         return plot
