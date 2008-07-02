@@ -390,12 +390,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError:
             pass
         self.detection_list.DeleteAllItems()
-        try:
+        if 'sort' in self.frames.keys():
             sf = self.frames['sort']
             sf.list.DeleteAllItems()
-            sf.spikesortpanel.remove_all_events()
-            sf.chartsortpanel.remove_all_events()
-        except KeyError: # sort window hasn't been opened yet
+            sf.tree.DeleteAllItems()
+            sf.lastSelectedListEvents = []
+            sf.lastSelectedTreeEvents = []
+            sf.lastSelectedTreeTemplates = []
+            sf.spikesortpanel.removeAllEvents()
+            sf.chartsortpanel.removeAllEvents()
+        else: # sort window hasn't been opened yet
             pass
         self.total_nevents_label.SetLabel(str(0))
 

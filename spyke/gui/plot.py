@@ -800,31 +800,43 @@ class SortPanel(PlotPanel):
         plot.draw()
         return plot
 
-    def removeEvents(self, events):
-        """Remove events from self"""
+    def removeEvents(self, events=None):
+        """Remove event plots from self, events=None means remove all"""
         if events == []: # do nothing
             return
+        if events == None:
+            events = self.used_plots.keys()
         for event in events:
-            plot = self.removeEvent(event) # remove them all from .used_plots
-        # we're removing all events
-        if set([ event.id for event in events ]) == set(self.used_plots.keys()):
+            # remove all specified events from .used_plots, use contents of
+            # .used_plots to decide how to do the actual plot removal
+            plot = self.removeEvent(event)
+        # remove all events
+        if self.used_plots.keys() == []:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-        # we're removing the last added plot and a saved bg is available
+        # remove the last added plot if a saved bg is available
         elif len(events) == 1 and plot == self.quickRemovePlot and self.background != None:
             print 'quick removing plot %r' % self.quickRemovePlot
             self.restore_region(self.background) # restore saved bg
-        # we're removing more than one, but not all events
+        # remove more than one, but not all events
         else:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
             for plot in self.used_plots.values():
-                plot.draw()
+                plot.draw() # redraw the remaining plots in .used_plots
         self.background = None # what was background is no longer useful for quick restoration on any other event removal
         self.quickRemovePlot = None # quickRemovePlot set in addEvents is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
+    def removeAllEvents(self):
+        """Shortcut for removing all event plots"""
+        self.removeEvents(events=None)
+
     def removeEvent(self, event):
-        """Remove Plot holding event's data, return the Plot"""
-        plot = self.used_plots.pop(event.id)
+        """Restore Plot holding event's data from used to available plot pool, return the Plot"""
+        try:
+            eventi = event.id # it's an Event object
+        except AttributeError:
+            eventi = event # it's just an int denoting the event id
+        plot = self.used_plots.pop(eventi)
         plot.hide()
         self.available_plots.append(plot)
         return plot

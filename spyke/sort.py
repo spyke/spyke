@@ -168,9 +168,9 @@ class SortFrame(wxglade_gui.SortFrame):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
         self.spykeframe = self.Parent
 
-        self.lastSelectedListEvents = []
         self.listTimer = wx.Timer(owner=self.list)
 
+        self.lastSelectedListEvents = []
         self.lastSelectedTreeEvents = []
         self.lastSelectedTreeTemplates = []
 
@@ -179,8 +179,6 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
             self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-
-        self.root = self.tree.AddRoot('Templates')
 
         self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
         self.list.Bind(wx.EVT_RIGHT_DOWN, self.OnListRightDown)
@@ -191,6 +189,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
         #self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
 
+        self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def get_session(self):
@@ -201,7 +200,12 @@ class SortFrame(wxglade_gui.SortFrame):
 
     session = property(get_session, set_session) # make this a property for proper behaviour after unpickling
 
-    def OnClose(self, event):
+    def OnSize(self, evt):
+        """Put code here to re-save reflines_background"""
+        print 'resizing'
+        evt.Skip()
+
+    def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.spykeframe.HideFrame(frametype)
     '''
@@ -220,7 +224,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnListTimer(self, evt):
         selectedRows = self.list.GetSelections()
-        selectedListEvents = [ self.row2event(row) for row in selectedRows ]
+        selectedListEvents = [ self.listRow2Event(row) for row in selectedRows ]
         removeEvents = [ sel for sel in self.lastSelectedListEvents if sel not in selectedListEvents ]
         addEvents = [ sel for sel in selectedListEvents if sel not in self.lastSelectedListEvents ]
 
@@ -243,7 +247,7 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'in OnListRightDown'
         pt = evt.GetPosition()
         itemID, flags = self.list.HitTest(pt)
-        event = self.row2event(itemID)
+        event = self.listRow2Event(itemID)
         print 'eventID is %r' % event.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
@@ -263,6 +267,47 @@ class SortFrame(wxglade_gui.SortFrame):
         #evt.Veto() # not defined for mouse event?
         #evt.StopPropagation() # doesn't seem to do anything
 
+    def OnListKeyDown(self, evt):
+        """Event list control key down event"""
+        key = evt.GetKeyCode()
+        if key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
+            self.MoveCurrentEvents2Template(which='selected')
+        elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
+            self.MoveCurrentEvents2Template(which='new')
+        if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
+            evt.Veto() # stop propagation as navigation event or something
+
+    def OnTreeSelectChanged(self, evt=None):
+        """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
+        deselecting currently focused item in a tree with the wx.TR_MULTIPLE
+        flag set, as it is here"""
+        print 'in OnTreeSelectChanged'
+        selected_itemIDs = self.tree.GetSelections()
+        selectedTreeEvents = []
+        selectedTreeTemplates = []
+        for itemID in selected_itemIDs:
+            item = self.tree.GetItemPyData(itemID)
+            if item.__class__ == Event:
+                selectedTreeEvents.append(item)
+            elif item.__class__ == Template:
+                selectedTreeTemplates.append(item)
+            else:
+                raise ValueError, 'weird type of item selected'
+        removeEvents = [ sel for sel in self.lastSelectedTreeEvents if sel not in selectedTreeEvents ]
+        removeTemplates = [ sel for sel in self.lastSelectedTreeTemplates if sel not in selectedTreeTemplates ]
+        addEvents = [ sel for sel in selectedTreeEvents if sel not in self.lastSelectedTreeEvents ]
+        addTemplates = [ sel for sel in selectedTreeTemplates if sel not in self.lastSelectedTreeTemplates ]
+
+        #import cProfile
+        #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
+        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
+
+        self.RemoveEvents(removeEvents)
+        print 'templates to remove: %r' % [ template.id for template in removeTemplates ]
+        self.AddEvents(addEvents)
+        print 'templates to add: %r' % [ template.id for template in addTemplates ]
+        self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
+        self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
 
     def OnTreeLeftDown(self, evt):
         print 'in OnTreeLeftDown'
@@ -313,58 +358,6 @@ class SortFrame(wxglade_gui.SortFrame):
         #evt.Veto() # not defined for mouse event?
         #evt.StopPropagation() # doesn't seem to do anything
 
-    def OnTreeSelectChanged(self, evt=None):
-        """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
-        deselecting currently focused item in a tree with the wx.TR_MULTIPLE
-        flag set, as it is here"""
-        print 'in OnTreeSelectChanged'
-        selected_itemIDs = self.tree.GetSelections()
-        selectedTreeEvents = []
-        selectedTreeTemplates = []
-        for itemID in selected_itemIDs:
-            item = self.tree.GetItemPyData(itemID)
-            if item.__class__ == Event:
-                selectedTreeEvents.append(item)
-            elif item.__class__ == Template:
-                selectedTreeTemplates.append(item)
-            else:
-                raise ValueError, 'weird type of item selected'
-        removeEvents = [ sel for sel in self.lastSelectedTreeEvents if sel not in selectedTreeEvents ]
-        removeTemplates = [ sel for sel in self.lastSelectedTreeTemplates if sel not in selectedTreeTemplates ]
-        addEvents = [ sel for sel in selectedTreeEvents if sel not in self.lastSelectedTreeEvents ]
-        addTemplates = [ sel for sel in selectedTreeTemplates if sel not in self.lastSelectedTreeTemplates ]
-
-        #import cProfile
-        #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
-        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
-
-        self.RemoveEvents(removeEvents)
-        print 'templates to remove: %r' % [ template.id for template in removeTemplates ]
-        self.AddEvents(addEvents)
-        print 'templates to add: %r' % [ template.id for template in addTemplates ]
-        self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
-        self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
-
-    def AddEvents(self, events):
-        print 'events to add: %r' % [ event.id for event in events ]
-        self.spikesortpanel.addEvents(events)
-        #self.chartsortpanel.addEvents(events)
-
-    def RemoveEvents(self, events):
-        print 'events to remove: %r' % [ event.id for event in events ]
-        self.spikesortpanel.removeEvents(events)
-        #self.chartsortpanel.removeEvents(events)
-
-    def OnListKeyDown(self, evt):
-        """Event list control key down event"""
-        key = evt.GetKeyCode()
-        if key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
-            self.MoveCurrentEvents2Template(which='selected')
-        elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
-            self.MoveCurrentEvents2Template(which='new')
-        if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
-            evt.Veto() # stop propagation as navigation event or something
-
     def OnTreeKeyDown(self, evt):
         key = evt.GetKeyCode()
         #print 'key down: %r' % key
@@ -381,6 +374,68 @@ class SortFrame(wxglade_gui.SortFrame):
             wx.CallAfter(self.OnTreeSelectChanged)
         evt.Skip()
 
+    def AddEvents(self, events):
+        print 'events to add: %r' % [ event.id for event in events ]
+        self.spikesortpanel.addEvents(events)
+        #self.chartsortpanel.addEvents(events)
+
+    def RemoveEvents(self, events):
+        print 'events to remove: %r' % [ event.id for event in events ]
+        self.spikesortpanel.removeEvents(events)
+        #self.chartsortpanel.removeEvents(events)
+
+    def CreateTemplate(self):
+        """Create, select, and return a new template"""
+        template = Template(self.session, self.session._templid, parent=None)
+        self.session._templid += 1 # inc for next unique Template
+        self.session.templates[template.id] = template # add template to session
+        root = self.tree.GetRootItem()
+        if not root.IsOk(): # if tree doesn't have a valid root item
+            root = self.tree.AddRoot('Templates')
+        template.itemID = self.tree.AppendItem(root, 't'+str(template.id)) # add template to tree
+        self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
+        #self.tree.Expand(root) # make sure root is expanded
+        self.tree.UnselectAll() # first unselect all items in tree
+        self.tree.SelectItem(template.itemID) # now select the newly created template
+        return template
+
+    def DeleteTemplate(self, template):
+        """Move a template's events back to the event list, delete it
+        from the tree, and remove it from the session"""
+        for event in template.events.values():
+            self.MoveEvent2List(event)
+        self.tree.Delete(template.itemID)
+        del self.session.templates[template.id]
+
+    def listRow2Event(self, row):
+        """Return Event at list row"""
+        eventi = int(self.list.GetItemText(row))
+        event = self.session.events[eventi]
+        return event
+
+    def MoveEvent2Template(self, event, row, template=None):
+        """Move a spike event from list control row to a template in the tree.
+        If template is None, create a new one"""
+        self.list.DeleteItem(row) # remove it from the event list
+        self.list.Select(row) # automatically select the new item at that position
+        if template == None:
+            template = self.CreateTemplate()
+        template.events[event.id] = event # add event to template
+        event.template = template # bind template to event
+        event.itemID = self.tree.AppendItem(template.itemID, 'e'+str(event.id)) # add event to tree
+        self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
+        self.tree.Expand(template.itemID) # expand template
+        return template
+
+    def MoveEvent2List(self, event):
+        """Move a spike event from a template in the tree back to the list control"""
+        self.tree.Delete(event.itemID)
+        del event.template.events[event.id] # del event from its template's event dict
+        event.template = None # unbind event's template from event
+        del event.itemID # no longer applicable
+        data = [event.id, event.chan, event.t]
+        self.list.InsertRow(0, data)
+
     def MoveCurrentEvents2Template(self, which='selected'):
         selected_rows = self.list.GetSelections()
         if which == 'selected':
@@ -388,13 +443,8 @@ class SortFrame(wxglade_gui.SortFrame):
         elif which == 'new':
             template = None # indicates we want a new template
         for row in selected_rows:
-            event = self.row2event(row)
+            event = self.listRow2Event(row)
             template = self.MoveEvent2Template(event, row, template)
-
-    def row2event(self, row):
-        eventi = int(self.list.GetItemText(row))
-        event = self.session.events[eventi]
-        return event
 
     def MoveCurrentEvents2List(self):
         selected_itemIDs = self.tree.GetSelections()
@@ -423,49 +473,6 @@ class SortFrame(wxglade_gui.SortFrame):
             if obj.__class__ == Event:
                 return obj.template
         return None
-
-    def MoveEvent2Template(self, event, row, template=None):
-        """Move a spike event from list control row to a template in the tree.
-        If template is None, create a new one"""
-        self.list.DeleteItem(row) # remove it from the event list
-        self.list.Select(row) # automatically select the new item at that position
-        if template == None:
-            template = self.CreateTemplate()
-        template.events[event.id] = event # add event to template
-        event.template = template # bind template to event
-        event.itemID = self.tree.AppendItem(template.itemID, 'e'+str(event.id)) # add event to tree
-        self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
-        self.tree.Expand(template.itemID) # expand template
-        return template
-
-    def MoveEvent2List(self, event):
-        """Move a spike event from a template in the tree back to the list control"""
-        self.tree.Delete(event.itemID)
-        del event.template.events[event.id] # del event from its template's event dict
-        event.template = None # unbind event's template from event
-        del event.itemID # no longer applicable
-        data = [event.id, event.chan, event.t]
-        self.list.InsertRow(0, data)
-
-    def DeleteTemplate(self, template):
-        """Move a template's events back to the event list, delete it
-        from the tree, and remove it from the session"""
-        for event in template.events.values():
-            self.MoveEvent2List(event)
-        self.tree.Delete(template.itemID)
-        del self.session.templates[template.id]
-
-    def CreateTemplate(self):
-        """Create, select, and return a new template"""
-        template = Template(self.session, self.session._templid, parent=None)
-        self.session._templid += 1 # inc for next unique Template
-        self.session.templates[template.id] = template # add template to session
-        template.itemID = self.tree.AppendItem(self.root, 't'+str(template.id)) # add template to tree
-        self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
-        #self.tree.Expand(self.root) # make sure root is expanded
-        self.tree.UnselectAll() # first unselect all items in tree
-        self.tree.SelectItem(template.itemID) # now select the newly created template
-        return template
 
 
 '''
