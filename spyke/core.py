@@ -24,22 +24,12 @@ class WaveForm(object):
     """Waveform object, has data, timestamps, chan2i, and sample frequency attribs
     Index directly into it by channel using Waveform[chani]"""
     def __init__(self, data=None, ts=None, chan2i=None, sampfreq=None):
-        self.data = data # always in uV? potentially multichannel, depending on shape
-        self.ts = ts # timestamps array, one for each sample (column) in data
+        self.data = data # in uV, potentially multichannel, depending on shape
+        self.ts = ts # timestamps array in us, one for each sample (column) in data
+        # TODO: maybe change .chan2i to just .chans, have it as a simple list of chan indices, one per row in .data
         self.chan2i = chan2i # converts from chan id to .data row index
         self.sampfreq = sampfreq # Hz
-    '''
-    # this may or may not be useful:
-    def get_relts(self, t=None):
-        if t == None:
-            t = self.ts[0]
-        return self.ts - t # return timestamps relative to t
 
-    def set_relts(self):
-        raise RunTimeError, "WaveForm's .relts not setable"
-
-    relts = property(get_relts, set_relts)
-    '''
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
         Maybe this is where data should be interpolated?"""

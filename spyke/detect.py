@@ -49,8 +49,8 @@ class Detector(object):
                  trange=None, maxnevents=None, blocksize=None,
                  slock=None, tlock=None):
         """Takes a data stream and sets various parameters"""
-        self.stream = stream
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
+        self.stream = stream
         self.chans = chans # is a property
         # assign all thresh and noise attribs, then reassign as None for subclasses where one of them doesn't apply
         self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
@@ -69,12 +69,17 @@ class Detector(object):
         del d['stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
 
+    def get_stream(self):
+        return self._stream
+
     def set_stream(self, stream=None):
         """Check that self's srf file matches stream's srf file before binding stream"""
-        if stream != None and stream.srffname == self.srffname:
-            self.stream = stream # bind it if it's from the same file
+        if stream.srffname != self.srffname:
+            self._stream = None
         else:
-            self.stream = None
+            self._stream = stream # it's from the same file, bind it
+
+    stream = property(get_stream, set_stream)
 
     def get_chans(self):
         return self._chans

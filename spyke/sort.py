@@ -7,6 +7,7 @@ import wx
 
 import numpy as np
 
+from spyke.core import WaveForm
 from spyke.gui import wxglade_gui
 from spyke.gui.plot import DEFEVENTTW
 
@@ -20,11 +21,12 @@ class Session(object):
     to sort spike Events.
     Formerly known as a Collection.
     A .sort file is a single sort Session object, pickled and gzipped"""
-    def __init__(self, detector=None, srffname=None, probe=None):
+    def __init__(self, detector=None, srffname=None, probe=None, stream=None):
         self.detector = detector # this session's current Detector object
         self.srffname = os.path.basename(srffname) # last srf file that was open in this session
         self.probe = probe # only one probe design per session allowed
         self.detections = [] # history of detection runs, in chrono order
+        self.stream = stream
         self.events = {} # all events detected in this sort session across all Detection runs, indexed by unique ID
         self.templates = {} # first hierarchy of templates
 
@@ -32,12 +34,32 @@ class Session(object):
         self._eventid = 0 # used to count off unique Event IDs
         self._templid = 0 # used to count off unique Template IDs
 
+    def get_stream(self):
+        return self._stream
+
     def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
         for unpickling purposes"""
-        self.detector.set_stream(stream)
+        # Enforce a single fixed .tres and .sampfreq per Session object
+        # This means that the first stream that's set cannot be None
+        try:
+            self.tres
+            self.sampfreq
+        except AttributeError:
+            self.tres = stream.tres
+            self.sampfreq = stream.sampfreq
+        self._stream = stream
+        self.detector.stream = stream
         for detection in self.detections:
-            detection.detector.set_stream(stream)
+            detection.detector.stream = stream
+
+    stream = property(get_stream, set_stream)
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
+        return d
 
     def append_events(self, events):
         """Append events to self
@@ -84,8 +106,10 @@ class Template(object):
         self.parent = parent # parent template, if self is a subtemplate
         self.subtemplates = None
         self.maxchan = None
-        self.chans = None # chans enabled
+        self.chans = None # chans enabled for plotting/ripping
         self.events = {} # member spike events that make up this template
+        self.trange = (-DEFEVENTTW/2, DEFEVENTTW/2)
+        self.wave = None
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
     def get_events(self):
@@ -94,38 +118,51 @@ class Template(object):
     def set_events(self, events):
         """Update self's mean waveform every time member events change"""
         self._events = events
-        '''
-        if self.events == {}: # no member spikes yet
+        self.update_wave()
 
-        for event in events:
-            try:
-                event.relts
-                assert event.relts == template.relts
-            except AttributeError:
-
-                event.relts = template.relts
-
-        self._events = events
-        self.update_mean()
-        '''
     events = property(get_events, set_events)
-    '''
-    def update_mean(self):
-        """Update mean waveform
-        Hey, how come some events don't have a wave? Cuz they haven't been plotted yet...
-        All events and templates should have a relts (timestamps of all wave or mean wave samples relative to event.t).
-        Or scratch that, just use the absolute .ts in the WaveForm in .wave, and subtract event.t. on the fly to get relts
-        If relts don't match self's relts, you need to re-slice that event to match"""
-        ts = [] # event timestamps
-        for event in self.events.values():
-            ts.append(
 
-        self.mean =
-    '''
-    def cut(self, reltrange):
-        """Update self's mean .wave and .wave for all members spikes
-        according to relative trange"""
-        pass
+    def update_wave(self):
+        """Update mean waveform"""
+        if self.events == {}: # no member spikes yet
+            self.wave = None
+            return
+        wave = self.wave or WaveForm()
+        data = []
+        relts = np.arange(self.trange[0], self.trange[1], self.session.tres) # timestamps relative to spike time
+        event = self.events.values()[0] # grab a random event
+        if event.wave == None:
+            event.update_wave(trange=self.trange)
+        sampfreq = wave.sampfreq or event.wave.sampfreq
+        chan2i = wave.chan2i or event.wave.chan2i
+        for event in self.events.values():
+            # check each event for a .wave
+            if event.wave == None or not ((event.wave.ts - event.t) == relts).all():
+                event.update_wave(trange=self.trange)
+            assert event.wave.sampfreq == sampfreq # being really thorough here...
+            assert event.wave.chan2i == chan2i
+            data.append(event.wave.data)
+        data = np.asarray(data).mean(axis=0)
+        # TODO: search data and find maxchan, set self.maxchan
+        wave.data = data
+        wave.ts = relts
+        wave.sampfreq = sampfreq
+        wave.chan2i = chan2i
+        self.wave = wave
+        return self.wave
+
+    def get_trange(self):
+        return self._trange
+
+    def set_trange(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
+        """Reset self's time range relative to t=0 spike time,
+        update slice of member spikes, and mean waveform"""
+        self._trange = trange
+        for event in self.events.values():
+            event.update_wave(trange=trange)
+        self.update_wave()
+
+    trange = property(get_trange, set_trange)
 
     '''
     def __del__(self):
@@ -152,6 +189,8 @@ class Event(object):
         self.t = t # timestamp, waveform is centered on this?
         self.detection = detection # Detection run self was detected on
         self.template = None # template object it belongs to, None means self is an unsorted event
+        self.wave = None # WaveForm
+        self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.session # optional attrib, if this is an unsorted spike?
         # or, instead of .session and .template, just make a .parent attrib?
         #self.srffname # originating surf file name, with path relative to self.session.datapath
@@ -160,10 +199,10 @@ class Event(object):
         #self.rip = None # rip this Spike was sorted on
         # try loading it right away on init, instead of waiting until plot, see if it's fast enough
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
-        #self.load_wave()
+        #self.update_wave()
 
-    def load_wave(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
-        """Load self's waveform, defaults to default event time window centered on self.t"""
+    def update_wave(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
+        """Load/update self's waveform, defaults to default event time window centered on self.t"""
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
 
@@ -179,18 +218,13 @@ class Event(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        if SAVEALLEVENTWAVES:
-        # make sure .wave is loaded before pickling to file
-            try:
-                self.wave
-            except AttributeError:
-                self.load_wave()
+        if SAVEALLEVENTWAVES and self.wave == None:
+            # make sure .wave is loaded before pickling to file
+            self.update_wave()
         d = self.__dict__.copy()
-        # remove tree item ID, if it exists, since that'll have changed anyway on unpickle
-        try:
-            del d['itemID']
-        except KeyError:
-            pass
+        # clear tree item ID in dict, since that'll have changed anyway on unpickle
+        # TODO: this might be dangerous, cuz we rely on itemID in OnTreeRightDown
+        d['itemID'] = None
         return d
 
 
@@ -280,6 +314,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.OnListSelect(evt)
 
     def OnListTimer(self, evt):
+        """Run when started timer runs out and triggers a TimerEvent"""
         selectedRows = self.list.GetSelections()
         selectedListEvents = [ self.listRow2Event(row) for row in selectedRows ]
         removeEvents = [ sel for sel in self.lastSelectedListEvents if sel not in selectedListEvents ]
@@ -298,9 +333,9 @@ class SortFrame(wxglade_gui.SortFrame):
         self.lastSelectedListEvents = selectedListEvents # save for next time
 
     def OnListRightDown(self, evt):
-        """Toggle selection of the clicked item, without changing selection
+        """Toggle selection of the clicked list item, without changing selection
         status of any other items. This is a nasty hack required to get around
-        the selection TreeEvent happening before the MouseEvent"""
+        the selection ListEvent happening before the MouseEvent, or something"""
         print 'in OnListRightDown'
         pt = evt.GetPosition()
         itemID, flags = self.list.HitTest(pt)
@@ -318,11 +353,7 @@ class SortFrame(wxglade_gui.SortFrame):
         except KeyError:
             selected = False # item is not selected
             print 'event %d not in event_plots' % event.id
-        self.list.Select(itemID, on=not selected)
-        # now plot accordingly
-        self.OnTreeSelectChanged()
-        #evt.Veto() # not defined for mouse event?
-        #evt.StopPropagation() # doesn't seem to do anything
+        self.list.Select(itemID, on=not selected) # toggle selection, this fires sel event, which updates the plot
 
     def OnListKeyDown(self, evt):
         """Event list control key down event"""
@@ -336,7 +367,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeSelectChanged(self, evt=None):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
-        deselecting currently focused item in a tree with the wx.TR_MULTIPLE
+        deselecting the currently focused item in a tree with the wx.TR_MULTIPLE
         flag set, as it is here"""
         print 'in OnTreeSelectChanged'
         selected_itemIDs = self.tree.GetSelections()
@@ -360,9 +391,9 @@ class SortFrame(wxglade_gui.SortFrame):
         #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
 
         self.RemoveEvents(removeEvents)
-        print 'templates to remove: %r' % [ template.id for template in removeTemplates ]
+        self.RemoveTemplates(removeTemplates)
         self.AddEvents(addEvents)
-        print 'templates to add: %r' % [ template.id for template in addTemplates ]
+        self.AddTemplates(addTemplates)
         self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
         self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
 
@@ -405,23 +436,15 @@ class SortFrame(wxglade_gui.SortFrame):
         except KeyError:
             selected = False # item is not selected
             print 'obj %d is not in its plots list' % obj.id
-        self.tree.SelectItem(itemID, select=not selected)
+        self.tree.SelectItem(itemID, select=not selected) # toggle
         # restore selection of previously selected events and templates that were
         # inadvertently deselected earlier in the TreeEvent
         for plottedEventi in self.spikesortpanel.event_plots.keys():
             plottedEvent = self.session.events[plottedEventi]
-            try:
-                plottedEvent.itemID # has a tree itemID
-            except AttributeError:
-                continue # doesn't have a tree itemID, move on to next event in the loop
             if plottedEvent.itemID != obj.itemID: # if it's not the one whose selected state we just handled
                 self.tree.SelectItem(plottedEvent.itemID) # enforce its selection
         for plottedTemplatei in self.spikesortpanel.template_plots.keys():
             plottedTemplate = self.session.templates[plottedTemplatei]
-            try:
-                plottedTemplate.itemID # has a tree itemID
-            except AttributeError:
-                continue # doesn't have a tree itemID, move on to next template in the loop
             if plottedTemplate.itemID != obj.itemID: # if it's not the one whose selected state we just handled
                 self.tree.SelectItem(plottedTemplate.itemID) # enforce its selection
         # now plot accordingly
@@ -454,6 +477,18 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'events to remove: %r' % [ event.id for event in events ]
         self.spikesortpanel.removeEvents(events)
         #self.chartsortpanel.removeEvents(events)
+
+    def AddTemplates(self, templates):
+        print 'templates to add: %r' % [ template.id for template in templates ]
+        self.spikesortpanel.addTemplates(templates)
+        #self.chartsortpanel.addTemplates(templates)
+
+    def RemoveTemplates(self, templates):
+        print 'templates to remove: %r' % [ template.id for template in templates ]
+        self.spikesortpanel.removeTemplates(templates)
+        #self.chartsortpanel.removeTemplates(templates)
+
+    #TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
 
     def CreateTemplate(self):
         """Create, select, and return a new template"""
@@ -503,7 +538,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.Delete(event.itemID)
         del event.template.events[event.id] # del event from its template's event dict
         event.template = None # unbind event's template from event
-        del event.itemID # no longer applicable
+        event.itemID = None # no longer applicable
         data = [event.id, event.chan, event.t]
         self.list.InsertRow(0, data)
 

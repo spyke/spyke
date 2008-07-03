@@ -379,7 +379,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.EnableSave(False)
         self.session = Session(detector=self.get_detector(),
                                srffname=self.srff.name,
-                               probe=self.hpstream.probe)
+                               probe=self.hpstream.probe,
+                               stream=self.hpstream)
 
     def DeleteSession(self):
         """Delete any existing sort Session"""
@@ -462,7 +463,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         pf = gzip.open(fname, 'rb')
         self.session = cPickle.load(pf)
         pf.close()
-        self.session.set_stream(self.hpstream) # restore missing stream object to session
+        self.session.stream = self.hpstream # restore missing stream object to session
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort Session
         for detection in self.session.detections: # restore detections to detection list and events to events list

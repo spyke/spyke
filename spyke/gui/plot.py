@@ -793,10 +793,9 @@ class SortPanel(PlotPanel):
     def addEvent(self, event):
         """Put event in an available Plot, return the Plot"""
         t = event.t
-        try:
-            wave = event.wave # see if it's already been sliced
-        except AttributeError:
-            wave = event.load_wave(trange=(-DEFEVENTTW/2, DEFEVENTTW/2)) # this binds .wave to event
+        wave = event.wave
+        if wave == None: # if it hasn't already been sliced
+            wave = event.update_wave(trange=(-DEFEVENTTW/2, DEFEVENTTW/2)) # this binds .wave to event
         wave = wave[t-self.tw/2 : t+self.tw/2] # slice it according to the width of this panel
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
