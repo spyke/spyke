@@ -28,7 +28,18 @@ class WaveForm(object):
         self.ts = ts # timestamps array, one for each sample (column) in data
         self.chan2i = chan2i # converts from chan id to .data row index
         self.sampfreq = sampfreq # Hz
+    '''
+    # this may or may not be useful:
+    def get_relts(self, t=None):
+        if t == None:
+            t = self.ts[0]
+        return self.ts - t # return timestamps relative to t
 
+    def set_relts(self):
+        raise RunTimeError, "WaveForm's .relts not setable"
+
+    relts = property(get_relts, set_relts)
+    '''
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
         Maybe this is where data should be interpolated?"""

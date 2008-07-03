@@ -8,6 +8,10 @@ import wx
 import numpy as np
 
 from spyke.gui import wxglade_gui
+from spyke.gui.plot import DEFEVENTTW
+
+# save all Event waveforms, even for those that have never been plotted or added to a template
+SAVEALLEVENTWAVES = False
 
 
 class Session(object):
@@ -84,10 +88,45 @@ class Template(object):
         self.events = {} # member spike events that make up this template
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
-    def mean(self):
-        """Returns mean waveform from member spikes"""
-        for spike in self.spikes:
-            pass
+    def get_events(self):
+        return self._events
+
+    def set_events(self, events):
+        """Update self's mean waveform every time member events change"""
+        self._events = events
+        '''
+        if self.events == {}: # no member spikes yet
+
+        for event in events:
+            try:
+                event.relts
+                assert event.relts == template.relts
+            except AttributeError:
+
+                event.relts = template.relts
+
+        self._events = events
+        self.update_mean()
+        '''
+    events = property(get_events, set_events)
+    '''
+    def update_mean(self):
+        """Update mean waveform
+        Hey, how come some events don't have a wave? Cuz they haven't been plotted yet...
+        All events and templates should have a relts (timestamps of all wave or mean wave samples relative to event.t).
+        Or scratch that, just use the absolute .ts in the WaveForm in .wave, and subtract event.t. on the fly to get relts
+        If relts don't match self's relts, you need to re-slice that event to match"""
+        ts = [] # event timestamps
+        for event in self.events.values():
+            ts.append(
+
+        self.mean =
+    '''
+    def cut(self, reltrange):
+        """Update self's mean .wave and .wave for all members spikes
+        according to relative trange"""
+        pass
+
     '''
     def __del__(self):
         """Is this run on 'del template'?"""
@@ -119,6 +158,14 @@ class Event(object):
         #self.chans # necessary? see .template
         #self.cluster = None # cluster run this Spike was sorted on
         #self.rip = None # rip this Spike was sorted on
+        # try loading it right away on init, instead of waiting until plot, see if it's fast enough
+        # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
+        #self.load_wave()
+
+    def load_wave(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
+        """Load self's waveform, defaults to default event time window centered on self.t"""
+        self.wave = self[self.t+trange[0] : self.t+trange[1]]
+        return self.wave
 
     def __getitem__(self, key):
         """Return WaveForm for this event given slice key"""
@@ -132,8 +179,18 @@ class Event(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
+        if SAVEALLEVENTWAVES:
+        # make sure .wave is loaded before pickling to file
+            try:
+                self.wave
+            except AttributeError:
+                self.load_wave()
         d = self.__dict__.copy()
-        del d['itemID'] # remove tree item ID, since that'll have changed anyway on unpickle
+        # remove tree item ID, if it exists, since that'll have changed anyway on unpickle
+        try:
+            del d['itemID']
+        except KeyError:
+            pass
         return d
 
 

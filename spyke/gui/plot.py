@@ -3,7 +3,8 @@ Everything is plotted in units of uV and us
 
 TODO: perhaps refactor, keep info about each channel together,
 make a Channel object with .id, .pos, .colour, .line, .enabled properties,
-and set_enable() method, and then stick them in a dict of chans indexed by id"""
+and set_enable() method, and then stick them in a dict of chans indexed by id
+    - looks like I've more or less done this with the Plot object"""
 
 from __future__ import division
 
@@ -27,7 +28,6 @@ from matplotlib.patches import Rectangle
 
 from spyke import surf
 from spyke.core import MU, intround
-#from spyke.gui.events import *
 
 SPIKELINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
 TREFLINEWIDTH = 0.5
@@ -792,17 +792,17 @@ class SortPanel(PlotPanel):
 
     def addEvent(self, event):
         """Put event in an available Plot, return the Plot"""
-        tref = event.t
+        t = event.t
         try:
             wave = event.wave # see if it's already been sliced
         except AttributeError:
-            wave = event[tref-DEFEVENTTW/2 : tref+DEFEVENTTW/2] # slice it from the stream, this binds .wave to event
-        wave = wave[tref-self.tw/2 : tref+self.tw/2] # slice it according to the width of this panel
+            wave = event.load_wave(trange=(-DEFEVENTTW/2, DEFEVENTTW/2)) # this binds .wave to event
+        wave = wave[t-self.tw/2 : t+self.tw/2] # slice it according to the width of this panel
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this event to
         self.event_plots[event.id] = plot # push it to the event plot stack
-        plot.update(wave, tref)
+        plot.update(wave, t)
         plot.show()
         plot.draw()
         return plot

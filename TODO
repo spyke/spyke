@@ -7,6 +7,8 @@ TODO:
 
 - use .GetTopLevelParent() from (any?) widget to get a reference to spykeframe, safer than doing a bunch of Parent and GrandParent stuff
 
+- for Sort frame, catch Paint event or whatever so that instead of doing a full redraw after de-occlusion, you just restore the saved .background
+
 - doubleclick detection_list row brings up textctrl in a dialog with entire 2D events array for that item
 
 - INTERPOLATION
