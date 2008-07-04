@@ -447,8 +447,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.notebook.Show(True) # lets us do stuff with the sort Session
         for detection in self.session.detections: # restore detections to detection list and events to events list
             self.append_detection_list(detection)
-            sf = self.OpenFrame('sort') # ensure it's open
-            sf.Append2EventList(detection.events)
+        sf = self.OpenFrame('sort') # ensure it's open
+        sf.Append2EventList(self.session.events) # append unsorted events
+        for template in self.session.templates.values():
+            sf.AddTemplate2Tree(template)
+            for event in template.events.values():
+                sf.AddEvent2Tree(template.itemID, event)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)

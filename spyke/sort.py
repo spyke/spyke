@@ -27,7 +27,9 @@ class Session(object):
         self.probe = probe # only one probe design per session allowed
         self.detections = [] # history of detection runs, in chrono order, reuse deleted Detection IDs
         self.stream = stream
-        self.events = {} # all events detected in this sort session across all Detection runs, indexed by unique ID
+        # all unsorted events detected in this sort session across all Detection runs, indexed by unique ID
+        # sorted events go in their respective template's .events dict
+        self.events = {}
         self.templates = {} # first hierarchy of templates
 
         self._detid = 0 # used to count off unqiue Detection run IDs
@@ -78,7 +80,7 @@ class Detection(object):
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        self.events_array = events_array # unsorted spike events, 2D array output of Detector.search
+        self.events_array = events_array # 2D array output of Detector.search
         #self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
         self.trash = {} # discarded events
 
@@ -294,14 +296,12 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.spykeframe.HideFrame(frametype)
-    '''
-    TODO: on any selection event, start or restart a timer for say 0.1 sec, record the item selected/deselected, and append it to a sel/desel queu. Then, when the timer eventually runs down to zero and fires a timing event, read the whole sel/desel queue, OR it with what was selected previously, and execute the approriate minimum number of clear/plot actions all at once. This prevents unnecessary draws/redraws/clears. Should make plotting and unplotting faster, and flicker free. Also gets rid of need for any mouse click event handling, like OnLeftDown, and associated key events that haven't even been written yet.
-        - event better: when timer runs down, just execute self.list.GetSelections and compare to previous list of selections, and execute your plots accordingly. This way, you don't even need to build up a queue on each sel/desel event. This will make all the sel event handling even faster, and allow you to reduce the timer duration for faster response.
-        - after completion of each selection epoch (say 0.1s), save current buffer as new background?
-    '''
 
     def OnListSelect(self, evt):
-        """Restart list selection timer"""
+        """Restart list selection timer
+        listTimer explanation: on any selection event, start or restart the timer for say 1 msec.
+        Then, when timer runs down, run self.list.GetSelections() and compare to previous list of
+        selections, and execute your plots accordingly. This makes all the sel event handling fast"""
         self.listTimer.Stop()
         self.listTimer.Start(milliseconds=1, oneShot=True) # only fire one timer event after specified interval
 
@@ -507,15 +507,19 @@ class SortFrame(wxglade_gui.SortFrame):
         template = Template(self.session, self.session._templid, parent=None)
         self.session._templid += 1 # inc for next unique Template
         self.session.templates[template.id] = template # add template to session
+        self.AddTemplate2Tree(template)
+        #self.tree.Expand(root) # make sure root is expanded
+        self.tree.UnselectAll() # first unselect all items in tree
+        self.tree.SelectItem(template.itemID) # now select the newly created template
+        return template
+
+    def AddTemplate2Tree(self, template):
+        """Add a template to the tree control"""
         root = self.tree.GetRootItem()
         if not root.IsOk(): # if tree doesn't have a valid root item
             root = self.tree.AddRoot('Templates')
         template.itemID = self.tree.AppendItem(root, 't'+str(template.id)) # add template to tree
         self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
-        #self.tree.Expand(root) # make sure root is expanded
-        self.tree.UnselectAll() # first unselect all items in tree
-        self.tree.SelectItem(template.itemID) # now select the newly created template
-        return template
 
     def DeleteTemplate(self, template):
         """Move a template's events back to the event list, delete it
@@ -532,30 +536,40 @@ class SortFrame(wxglade_gui.SortFrame):
         return event
 
     def MoveEvent2Template(self, event, row, template=None):
-        """Move a spike event from list control row to a template in the tree.
+        """Move a spike event from unsorted session.events to a template.
+        Also, move it from a list control row to a template in the tree.
         If template is None, create a new one"""
         self.list.DeleteItem(row) # remove it from the event list
         self.list.Select(row) # automatically select the new item at that position
         if template == None:
             template = self.CreateTemplate()
+        del self.session.events[event.id] # remove event from unsorted session.events
         template.events[event.id] = event # add event to template
         template.update_wave() # update mean template waveform
         event.template = template # bind template to event
-        event.itemID = self.tree.AppendItem(template.itemID, 'e'+str(event.id)) # add event to tree
-        self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
+        self.AddEvent2Tree(template.itemID, event)
         self.tree.Expand(template.itemID) # expand template
+        self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
         return template
+
+    def AddEvent2Tree(self, parent, event):
+        """Add an event to the tree, where parent is a tree itemID"""
+        event.itemID = self.tree.AppendItem(parent, 'e'+str(event.id)) # add event to tree, save its itemID
+        self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
 
     def MoveEvent2List(self, event):
         """Move a spike event from a template in the tree back to the list control"""
         self.tree.Delete(event.itemID)
         template = event.template
         del template.events[event.id] # del event from its template's event dict
+        self.session.events[event.id] = event # restore event to unsorted session.events
         template.update_wave() # update mean template waveform
         event.template = None # unbind event's template from event
         event.itemID = None # no longer applicable
         data = [event.id, event.chan, event.t]
-        self.list.InsertRow(0, data)
+        self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
+        # TODO: re-sort the list
+        self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
 
     def MoveCurrentEvents2Template(self, which='selected'):
         selected_rows = self.list.GetSelections()
