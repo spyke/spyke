@@ -365,10 +365,10 @@ class SortFrame(wxglade_gui.SortFrame):
         deselecting the currently focused item in a tree with the wx.TR_MULTIPLE
         flag set, as it is here"""
         print 'in OnTreeSelectChanged'
-        selected_itemIDs = self.tree.GetSelections()
+        self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         selectedTreeEvents = []
         selectedTreeTemplates = []
-        for itemID in selected_itemIDs:
+        for itemID in self._selectedTreeItems:
             item = self.tree.GetItemPyData(itemID)
             if item.__class__ == Event:
                 selectedTreeEvents.append(item)
@@ -415,37 +415,15 @@ class SortFrame(wxglade_gui.SortFrame):
         itemID, flags = self.tree.HitTest(pt)
         if not itemID.IsOk(): # if we haven't clicked on an item
             return
-        # this would be nice, but doesn't work cuz apparently somehow the
-        # selection TreeEvent happens before the MouseEvent that caused it:
-        #selected = not self.tree.IsSelected(itemID)
-        # here is a yucky workaround:
         obj = self.tree.GetItemPyData(itemID) # either an Event or a Template
-        if obj.__class__ == Event:
-            plots = self.spikesortpanel.event_plots
-        elif obj.__class__ == Template:
-            plots = self.spikesortpanel.template_plots
-        try:
-            plots[obj.id] # is it plotted?
-            selected = True # if so, item must be selected
-            print 'obj %d is in its plots list' % obj.id
-        except KeyError:
-            selected = False # item is not selected
-            print 'obj %d is not in its plots list' % obj.id
-        self.tree.SelectItem(itemID, select=not selected) # toggle
-        # restore selection of previously selected events and templates that were
-        # inadvertently deselected earlier in the TreeEvent
-        for plottedEventi in self.spikesortpanel.event_plots.keys():
-            plottedEvent = self.session.events[plottedEventi]
-            if plottedEvent.itemID != obj.itemID: # if it's not the one whose selected state we just handled
-                self.tree.SelectItem(plottedEvent.itemID) # enforce its selection
-        for plottedTemplatei in self.spikesortpanel.template_plots.keys():
-            plottedTemplate = self.session.templates[plottedTemplatei]
-            if plottedTemplate.itemID != obj.itemID: # if it's not the one whose selected state we just handled
-                self.tree.SelectItem(plottedTemplate.itemID) # enforce its selection
-        # now plot accordingly
-        self.OnTreeSelectChanged()
-        #evt.Veto() # not defined for mouse event?
-        #evt.StopPropagation() # doesn't seem to do anything
+        # first, restore all prior selections in the tree (except our item) that were cleared by the right click selection event
+        for itemID in self._selectedTreeItems: # rely on _selectedTreeItems being judiciously kept up to date
+            self.tree.SelectItem(itemID)
+        if obj.itemID not in self._selectedTreeItems: # if it wasn't selected before, it is now, so no need to do anything
+            pass
+        else: # it was selected before, it still will be now, so need to deselect it
+            self.tree.SelectItem(obj.itemID, select=False)
+        self.OnTreeSelectChanged() # now plot accordingly
 
     def OnTreeKeyDown(self, evt):
         key = evt.GetKeyCode()
@@ -454,6 +432,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.MoveCurrentEvents2List()
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
             wx.CallAfter(self.OnTreeSelectChanged)
+        self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
     def OnTreeKeyUp(self, evt):
@@ -461,6 +440,7 @@ class SortFrame(wxglade_gui.SortFrame):
         #print 'key up: %r' % key
         if key == wx.WXK_SPACE: # space only triggered on key up, see bug #4448
             wx.CallAfter(self.OnTreeSelectChanged)
+        self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
     def Append2EventList(self, events):
