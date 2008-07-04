@@ -101,7 +101,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         srffname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
         sortfname = self.DEFAULTDIR + '/87 testing.sort'
         self.OpenSurfFile(srffname)
-        self.OpenSortFile(sortfname)
+        #self.OpenSortFile(sortfname)
 
     def set_detect_pane_limits(self):
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
@@ -235,7 +235,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.session.detections.append(detection)
             self.append_detection_list(detection)
             self.session.append_events(detection.events)
-            self.append_event_list(detection.events)
+            sf = self.OpenFrame('sort') # ensure it's open
+            sf.Append2EventList(detection.events)
             self.EnableSave(True)
             print '%r' % detection.events_array
 
@@ -253,28 +254,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for coli in range(len(row)):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
         self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
-
-    def append_event_list(self, events):
-        """Append events to sort frame's event list control"""
-        try:
-            self.frames['sort'] # ensure sort frame exists
-        except KeyError:
-            self.OpenFrame('sort') # create it
-        sf = self.frames['sort']
-        SiteLoc = self.session.probe.SiteLoc
-        for e in events.values():
-            row = [str(e.id), e.chan, e.t]
-            sf.list.Append(row)
-            ycoord = SiteLoc[e.chan][1]
-            # add ycoord of maxchan of event as data for this row, use item
-            # count instead of counting from 0 cuz you want to handle there
-            # already being items in the list from prior append/removal
-            sf.list.SetItemData(sf.list.GetItemCount()-1, ycoord)
-        sf.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
-        #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
-        # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:80}.items(): # (eID, chan, time)
-            sf.list.SetColumnWidth(coli, width)
 
     def get_total_nevents(self):
         """Get total nevents across all detection runs
@@ -468,7 +447,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.notebook.Show(True) # lets us do stuff with the sort Session
         for detection in self.session.detections: # restore detections to detection list and events to events list
             self.append_detection_list(detection)
-            self.append_event_list(detection.events)
+            sf = self.OpenFrame('sort') # ensure it's open
+            sf.Append2EventList(detection.events)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)
@@ -536,6 +516,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
         self.ShowFrame(frametype)
+        return self.frames[frametype]
 
     def ShowFrame(self, frametype, enable=True):
         """Show/hide a frame, force menu and toolbar states to correspond"""

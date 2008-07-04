@@ -34,9 +34,13 @@ class WaveForm(object):
         """Make waveform data sliceable in time, and directly indexable by channel id.
         Maybe this is where data should be interpolated?"""
         if key.__class__ == slice: # slice self, return a new WaveForm
-            lo, hi = self.ts.searchsorted([key.start, key.stop])
-            data = self.data[:, lo:hi]
-            ts = self.ts[lo:hi]
+            if self.ts == None:
+                data = None
+                ts = None
+            else:
+                lo, hi = self.ts.searchsorted([key.start, key.stop])
+                data = self.data[:, lo:hi]
+                ts = self.ts[lo:hi]
             return WaveForm(data=data, ts=ts,
                             chan2i=self.chan2i, sampfreq=self.sampfreq)
         else: # index into self by channel id, return that channel's data

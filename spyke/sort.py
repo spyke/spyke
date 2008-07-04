@@ -58,7 +58,7 @@ class Session(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
+        del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
 
     def append_events(self, events):
@@ -112,18 +112,11 @@ class Template(object):
         self.wave = None
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
-    def get_events(self):
-        return self._events
-
-    def set_events(self, events):
-        """Update self's mean waveform every time member events change"""
-        self._events = events
-        self.update_wave()
-
-    events = property(get_events, set_events)
-
     def update_wave(self):
-        """Update mean waveform"""
+        """Update mean waveform, should call this every time .events is modified.
+        Setting .events as a property to do so automatically doesn't work, because
+        properties only catch name binding events, not modification to an object
+        that's already been bound"""
         if self.events == {}: # no member spikes yet
             self.wave = None
             return
@@ -213,8 +206,10 @@ class Event(object):
         if stream != None: # stream is available
             self.wave = stream[key] # let stream handle the slicing, save result
             return self.wave
-        else: # stream unavailable, assume .wave was set before last pickling
+        elif self.wave != None: # stream unavailable, .wave from before last pickling is available
             return self.wave[key] # slice existing .wave
+        else: # neither stream nor existing .wave available
+            return WaveForm() # return empty waveform
 
     def __getstate__(self):
         """Get object state for pickling"""
@@ -390,10 +385,10 @@ class SortFrame(wxglade_gui.SortFrame):
         #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
         #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
 
-        self.RemoveEvents(removeEvents)
-        self.RemoveTemplates(removeTemplates)
-        self.AddEvents(addEvents)
-        self.AddTemplates(addTemplates)
+        self.RemoveEventsFromPlot(removeEvents)
+        self.RemoveTemplatesFromPlot(removeTemplates)
+        self.AddEvents2Plot(addEvents)
+        self.AddTemplates2Plot(addTemplates)
         self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
         self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
 
@@ -468,22 +463,39 @@ class SortFrame(wxglade_gui.SortFrame):
             wx.CallAfter(self.OnTreeSelectChanged)
         evt.Skip()
 
-    def AddEvents(self, events):
+    def Append2EventList(self, events):
+        """Append events to self's event list control"""
+        SiteLoc = self.spykeframe.session.probe.SiteLoc
+        for e in events.values():
+            row = [str(e.id), e.chan, e.t]
+            self.list.Append(row)
+            ycoord = SiteLoc[e.chan][1]
+            # add ycoord of maxchan of event as data for this row, use item
+            # count instead of counting from 0 cuz you want to handle there
+            # already being items in the list from prior append/removal
+            self.list.SetItemData(self.list.GetItemCount()-1, ycoord)
+        self.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
+        #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
+        # hard code column widths for precise control, autosize seems buggy
+        for coli, width in {0:40, 1:40, 2:80}.items(): # (eID, chan, time)
+            self.list.SetColumnWidth(coli, width)
+
+    def AddEvents2Plot(self, events):
         print 'events to add: %r' % [ event.id for event in events ]
         self.spikesortpanel.addEvents(events)
         #self.chartsortpanel.addEvents(events)
 
-    def RemoveEvents(self, events):
+    def RemoveEventsFromPlot(self, events):
         print 'events to remove: %r' % [ event.id for event in events ]
         self.spikesortpanel.removeEvents(events)
         #self.chartsortpanel.removeEvents(events)
 
-    def AddTemplates(self, templates):
+    def AddTemplates2Plot(self, templates):
         print 'templates to add: %r' % [ template.id for template in templates ]
         self.spikesortpanel.addTemplates(templates)
         #self.chartsortpanel.addTemplates(templates)
 
-    def RemoveTemplates(self, templates):
+    def RemoveTemplatesFromPlot(self, templates):
         print 'templates to remove: %r' % [ template.id for template in templates ]
         self.spikesortpanel.removeTemplates(templates)
         #self.chartsortpanel.removeTemplates(templates)
@@ -527,6 +539,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if template == None:
             template = self.CreateTemplate()
         template.events[event.id] = event # add event to template
+        template.update_wave() # update mean template waveform
         event.template = template # bind template to event
         event.itemID = self.tree.AppendItem(template.itemID, 'e'+str(event.id)) # add event to tree
         self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
@@ -536,7 +549,9 @@ class SortFrame(wxglade_gui.SortFrame):
     def MoveEvent2List(self, event):
         """Move a spike event from a template in the tree back to the list control"""
         self.tree.Delete(event.itemID)
-        del event.template.events[event.id] # del event from its template's event dict
+        template = event.template
+        del template.events[event.id] # del event from its template's event dict
+        template.update_wave() # update mean template waveform
         event.template = None # unbind event's template from event
         event.itemID = None # no longer applicable
         data = [event.id, event.chan, event.t]

@@ -83,8 +83,8 @@ class Plot(object):
         self.colours = self.panel.colours
         #self.background = None
         for chan in self.chans:
-            line = Line2D([0], # x and y data are just placeholders for now
-                          [0], # TODO: will such a small amount of data before first .draw() cause problems for blitting?
+            line = Line2D([],
+                          [], # TODO: will lack of data before first .draw() cause problems for blitting?
                           linewidth=SPIKELINEWIDTH,
                           color=self.colours[chan],
                           zorder=PLOTZORDER,
@@ -114,8 +114,13 @@ class Plot(object):
         self.tref = tref
         for chan, line in self.lines.items():
             xpos, ypos = self.panel.pos[chan]
-            xdata = wave.ts - tref + xpos
-            ydata = wave[chan]*self.panel.gain + ypos
+            if wave.ts == None:
+                xdata = []
+                ydata = []
+            else:
+                xdata = wave.ts - tref + xpos
+                # TODO: should be using wave.chan2i here?????????????????
+                ydata = wave[chan]*self.panel.gain + ypos
             line.set_data(xdata, ydata) # update the line's x and y data
 
     def set_animated(self, enable=True):
@@ -780,7 +785,8 @@ class SortPanel(PlotPanel):
         if events == []:
             return # do nothing
         if len(events) == 1:
-            # before blitting this single event to screen, grab current buffer, save as new background for quick restore if the next action is removal of this very same event
+            # before blitting this single event to screen, grab current buffer,
+            # save as new background for quick restore if the next action is removal of this very same event
             self.background = self.copy_from_bbox(self.ax.bbox)
             self.quickRemovePlot = self.addEvent(events[0]) # add the single event, save reference to its plot
             print 'saved quick remove plot %r' % self.quickRemovePlot
@@ -805,6 +811,9 @@ class SortPanel(PlotPanel):
         plot.show()
         plot.draw()
         return plot
+
+    def addTemplates(self, template):
+        pass
 
     def removeEvents(self, events=None):
         """Remove event plots from self, events=None means remove all"""
@@ -846,6 +855,9 @@ class SortPanel(PlotPanel):
         plot.hide()
         self.available_plots.append(plot)
         return plot
+
+    def removeTemplates(self, template):
+        pass
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords

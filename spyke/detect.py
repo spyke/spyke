@@ -66,7 +66,7 @@ class Detector(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
+        del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
 
     def get_stream(self):
@@ -74,7 +74,7 @@ class Detector(object):
 
     def set_stream(self, stream=None):
         """Check that self's srf file matches stream's srf file before binding stream"""
-        if stream.srffname != self.srffname:
+        if stream == None or stream.srffname != self.srffname:
             self._stream = None
         else:
             self._stream = stream # it's from the same file, bind it
