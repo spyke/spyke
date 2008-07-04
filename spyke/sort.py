@@ -259,8 +259,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.listTimer = wx.Timer(owner=self.list)
 
         self.lastSelectedListEvents = []
-        self.lastSelectedTreeEvents = []
-        self.lastSelectedTreeTemplates = []
+        self.lastSelectedTreeObjects = []
 
         columnlabels = ['eID', 'chan', 'time'] # event list column labels
         for coli, label in enumerate(columnlabels):
@@ -312,19 +311,10 @@ class SortFrame(wxglade_gui.SortFrame):
         """Run when started timer runs out and triggers a TimerEvent"""
         selectedRows = self.list.GetSelections()
         selectedListEvents = [ self.listRow2Event(row) for row in selectedRows ]
-        removeEvents = [ sel for sel in self.lastSelectedListEvents if sel not in selectedListEvents ]
-        addEvents = [ sel for sel in selectedListEvents if sel not in self.lastSelectedListEvents ]
-
-        #import cProfile
-        #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
-        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
-
-        print 'events to remove: %r' % [ event.id for event in removeEvents ]
-        self.spikesortpanel.removeEvents(removeEvents)
-        #self.chartsortpanel.removeEvents(removeEvents)
-        print 'events to add: %r' % [ event.id for event in addEvents ]
-        self.spikesortpanel.addEvents(addEvents)
-        #self.chartsortpanel.addEvents(addEvents)
+        removeEvents = [ event for event in self.lastSelectedListEvents if event not in selectedListEvents ]
+        addEvents = [ event for event in selectedListEvents if event not in self.lastSelectedListEvents ]
+        self.RemoveObjectsFromPlot(removeEvents)
+        self.AddObjects2Plot(addEvents)
         self.lastSelectedListEvents = selectedListEvents # save for next time
 
     def OnListRightDown(self, evt):
@@ -342,12 +332,12 @@ class SortFrame(wxglade_gui.SortFrame):
         #self.list.Select(itemID, on=int(not selected))
         # here is a yucky workaround:
         try:
-            self.spikesortpanel.event_plots[event.id] # is it plotted?
+            self.spikesortpanel.used_plots['e'+str(event.id)] # is it plotted?
             selected = True # if so, item must be selected
-            print 'event %d in event_plots' % event.id
+            print 'event %d in used_plots' % event.id
         except KeyError:
             selected = False # item is not selected
-            print 'event %d not in event_plots' % event.id
+            print 'event %d not in used_plots' % event.id
         self.list.Select(itemID, on=not selected) # toggle selection, this fires sel event, which updates the plot
 
     def OnListKeyDown(self, evt):
@@ -363,34 +353,19 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnTreeSelectChanged(self, evt=None):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
         deselecting the currently focused item in a tree with the wx.TR_MULTIPLE
-        flag set, as it is here"""
+        flag set, as it is here. So, this handler has to be called manually on mouse
+        and keyboard events"""
         print 'in OnTreeSelectChanged'
         self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
-        selectedTreeEvents = []
-        selectedTreeTemplates = []
+        selectedTreeObjects = [] # objects could be a mix of Events and Templates
         for itemID in self._selectedTreeItems:
             item = self.tree.GetItemPyData(itemID)
-            if item.__class__ == Event:
-                selectedTreeEvents.append(item)
-            elif item.__class__ == Template:
-                selectedTreeTemplates.append(item)
-            else:
-                raise ValueError, 'weird type of item selected'
-        removeEvents = [ sel for sel in self.lastSelectedTreeEvents if sel not in selectedTreeEvents ]
-        removeTemplates = [ sel for sel in self.lastSelectedTreeTemplates if sel not in selectedTreeTemplates ]
-        addEvents = [ sel for sel in selectedTreeEvents if sel not in self.lastSelectedTreeEvents ]
-        addTemplates = [ sel for sel in selectedTreeTemplates if sel not in self.lastSelectedTreeTemplates ]
-
-        #import cProfile
-        #cProfile.runctx('self.spikesortpanel.removeEvents(removeEvents)', globals(), locals())
-        #cProfile.runctx('self.spikesortpanel.addEvents(addEvents)', globals(), locals())
-
-        self.RemoveEventsFromPlot(removeEvents)
-        self.RemoveTemplatesFromPlot(removeTemplates)
-        self.AddEvents2Plot(addEvents)
-        self.AddTemplates2Plot(addTemplates)
-        self.lastSelectedTreeEvents = selectedTreeEvents # save for next time
-        self.lastSelectedTreeTemplates = selectedTreeTemplates # save for next time
+            selectedTreeObjects.append(item)
+        removeObjects = [ obj for obj in self.lastSelectedTreeObjects if obj not in selectedTreeObjects ]
+        addObjects = [ obj for obj in selectedTreeObjects if obj not in self.lastSelectedTreeObjects ]
+        self.RemoveObjectsFromPlot(removeObjects)
+        self.AddObjects2Plot(addObjects)
+        self.lastSelectedTreeObjects = selectedTreeObjects # save for next time
 
     def OnTreeLeftDown(self, evt):
         print 'in OnTreeLeftDown'
@@ -460,25 +435,15 @@ class SortFrame(wxglade_gui.SortFrame):
         for coli, width in {0:40, 1:40, 2:80}.items(): # (eID, chan, time)
             self.list.SetColumnWidth(coli, width)
 
-    def AddEvents2Plot(self, events):
-        print 'events to add: %r' % [ event.id for event in events ]
-        self.spikesortpanel.addEvents(events)
-        #self.chartsortpanel.addEvents(events)
+    def AddObjects2Plot(self, objects):
+        print 'objects to add: %r' % [ obj.id for obj in objects ]
+        self.spikesortpanel.addObjects(objects)
+        #self.chartsortpanel.addObjects(objects)
 
-    def RemoveEventsFromPlot(self, events):
-        print 'events to remove: %r' % [ event.id for event in events ]
-        self.spikesortpanel.removeEvents(events)
-        #self.chartsortpanel.removeEvents(events)
-
-    def AddTemplates2Plot(self, templates):
-        print 'templates to add: %r' % [ template.id for template in templates ]
-        self.spikesortpanel.addTemplates(templates)
-        #self.chartsortpanel.addTemplates(templates)
-
-    def RemoveTemplatesFromPlot(self, templates):
-        print 'templates to remove: %r' % [ template.id for template in templates ]
-        self.spikesortpanel.removeTemplates(templates)
-        #self.chartsortpanel.removeTemplates(templates)
+    def RemoveObjectsFromPlot(self, objects):
+        print 'objects to remove: %r' % [ obj.id for obj in objects ]
+        self.spikesortpanel.removeObjects(objects)
+        #self.chartsortpanel.removeObjects(objects)
 
     #TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
 
@@ -488,9 +453,6 @@ class SortFrame(wxglade_gui.SortFrame):
         self.session._templid += 1 # inc for next unique Template
         self.session.templates[template.id] = template # add template to session
         self.AddTemplate2Tree(template)
-        #self.tree.Expand(root) # make sure root is expanded
-        self.tree.UnselectAll() # first unselect all items in tree
-        self.tree.SelectItem(template.itemID) # now select the newly created template
         return template
 
     def AddTemplate2Tree(self, template):
@@ -521,14 +483,21 @@ class SortFrame(wxglade_gui.SortFrame):
         If template is None, create a new one"""
         self.list.DeleteItem(row) # remove it from the event list
         self.list.Select(row) # automatically select the new item at that position
+        createdTemplate = False
         if template == None:
             template = self.CreateTemplate()
+            createdTemplate = True
         del self.session.events[event.id] # remove event from unsorted session.events
         template.events[event.id] = event # add event to template
         template.update_wave() # update mean template waveform
         event.template = template # bind template to event
         self.AddEvent2Tree(template.itemID, event)
-        self.tree.Expand(template.itemID) # expand template
+        if createdTemplate:
+            #self.tree.Expand(root) # make sure root is expanded
+            self.tree.Expand(template.itemID) # expand template
+            #self.tree.UnselectAll() # unselect all items in tree
+            self.tree.SelectItem(template.itemID) # select the newly created template
+            self.OnTreeSelectChanged() # now plot accordingly
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
         return template
 

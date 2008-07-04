@@ -26,7 +26,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke import surf
+import spyke
 from spyke.core import MU, intround
 
 SPIKELINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
@@ -97,6 +97,7 @@ class Plot(object):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
+        self.obj = None # Event or Template associated with this plot
 
     def show(self, enable=True):
         """Show/hide all chans in self"""
@@ -159,8 +160,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.spykeframe = self.GrandParent
 
         self.available_plots = [] # pool of available Plots
-        self.event_plots = {} # Plots holding currently displayed event data, indexed by event id
-        self.template_plots = {} # Plots holding currently displayed template mean, indexed by template id
+        self.used_plots = {} # Plots holding currently displayed event/template, indexed by eid/tid with e or t prepended
         self.quickRemovePlot = None # current quickly removable Plot with associated .background
 
         if stream != None:
@@ -187,14 +187,6 @@ class PlotPanel(FigureCanvasWxAgg):
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
-
-    def get_used_plots(self):
-        return list(np.concatenate((self.event_plots, self.template_plots)))
-
-    def set_used_plots(self):
-        raise RunTimeError, "PlotPanel's .used_plots not setable"
-
-    used_plots = property(get_used_plots, set_used_plots)
 
     def callAfterFrameInit(self, probe=None):
         """Panel tasks that need to be done after parent frame has been created (and shown?)"""
@@ -250,7 +242,7 @@ class PlotPanel(FigureCanvasWxAgg):
         """Create Plots for this panel"""
         self.quickRemovePlot = Plot(chans=self.chans, panel=self) # just one for this base class
         self.quickRemovePlot.show()
-        self.event_plots[0] = self.quickRemovePlot
+        self.used_plots[0] = self.quickRemovePlot
 
     def add_ref(self, ref):
         """Helper method for external use"""
@@ -271,11 +263,11 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
-        for plot in self.event_plots.values():
+        for plot in self.used_plots.values():
             plot.hide()
         self.draw() # draw the new ref
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
-        for plot in self.event_plots.values():
+        for plot in self.used_plots.values():
             plot.show()
             plot.draw()
         self.blit(self.ax.bbox)
@@ -756,14 +748,14 @@ class LFPPanel(ChartPanel):
 
 
 class SortPanel(PlotPanel):
-    """A plot panel specialized for overplotting spike events"""
+    """A plot panel specialized for overplotting spike events and templates"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         self.spykeframe = self.GrandParent.GrandParent # plot pane, splitter, sort frame, spyke frame
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
-        totalnplots = len(self.available_plots) + len(self.event_plots) # total number of existing plots
+        totalnplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
         for ploti in range(totalnplots, totalnplots+nplots):
             plot = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plot)
@@ -780,84 +772,93 @@ class SortPanel(PlotPanel):
         self.quickRemovePlot = None
         self.background = None
 
-    def addEvents(self, events):
-        """Add events to self"""
-        if events == []:
+    def addObjects(self, objects):
+        """Add events/templates to self"""
+        if objects == []:
             return # do nothing
-        if len(events) == 1:
-            # before blitting this single event to screen, grab current buffer,
-            # save as new background for quick restore if the next action is removal of this very same event
+        if len(objects) == 1:
+            # before blitting this single objects to screen, grab current buffer,
+            # save as new background for quick restore if the next action is removal of this very same objects
             self.background = self.copy_from_bbox(self.ax.bbox)
-            self.quickRemovePlot = self.addEvent(events[0]) # add the single event, save reference to its plot
+            self.quickRemovePlot = self.addObject(objects[0]) # add the single object, save reference to its plot
             print 'saved quick remove plot %r' % self.quickRemovePlot
         else:
             self.background = None
-            for event in events: # add all events
-                self.addEvent(event)
+            for obj in objects: # add all objects
+                self.addObject(obj)
         self.blit(self.ax.bbox)
 
-    def addEvent(self, event):
-        """Put event in an available Plot, return the Plot"""
-        t = event.t
-        wave = event.wave
-        if wave == None: # if it hasn't already been sliced
-            wave = event.update_wave(trange=(-DEFEVENTTW/2, DEFEVENTTW/2)) # this binds .wave to event
-        wave = wave[t-self.tw/2 : t+self.tw/2] # slice it according to the width of this panel
+    def addObject(self, obj):
+        """Put object in an available Plot, return the Plot"""
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
-        plot = self.available_plots.pop() # pop a Plot to assign this event to
-        self.event_plots[event.id] = plot # push it to the event plot stack
+        plot = self.available_plots.pop() # pop a Plot to assign this object to
+        plot.obj = obj # bind object to plot for later use
+        if obj.__class__ == spyke.sort.Event:
+            event = obj
+            t = event.t
+            wave = event.wave
+            if wave == None: # if it hasn't already been sliced
+                wave = event.update_wave(trange=(-DEFEVENTTW/2, DEFEVENTTW/2)) # this binds .wave to event
+            self.used_plots['e'+str(event.id)] = plot # push it to the used plot stack
+        elif obj.__class__ == spyke.sort.Template:
+            template = obj
+            t = 0
+            wave = template.wave
+            if wave == None: # if mean waveform doesn't already exist for some reason
+                wave = template.update_wave() # update mean waveform
+            self.used_plots['t'+str(template.id)] = plot # push it to the used plot stack
+            # TODO: set template plot colour and line type here
+        else:
+            raise TypeError, 'weird object class to plot'
+        wave = wave[t-self.tw/2 : t+self.tw/2] # slice wave according to the width of this panel
         plot.update(wave, t)
         plot.show()
         plot.draw()
         return plot
 
-    def addTemplates(self, template):
-        pass
-
-    def removeEvents(self, events=None):
-        """Remove event plots from self, events=None means remove all"""
-        if events == []: # do nothing
+    def removeObjects(self, objects):
+        """Remove objects from plots"""
+        if objects == []: # do nothing
             return
-        if events == None:
-            events = self.event_plots.keys()
-        for event in events:
-            # remove all specified events from .event_plots, use contents of
-            # .event_plots to decide how to do the actual plot removal
-            plot = self.removeEvent(event)
-        # remove all events
-        if self.event_plots.keys() == []:
+        for obj in objects:
+            # remove specified objects from .used_plots, use contents of
+            # .used_plots to decide how to do the actual plot removal
+            plot = self.removeObject(obj)
+        # remove all objects
+        if self.used_plots == {}:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
         # remove the last added plot if a saved bg is available
-        elif len(events) == 1 and plot == self.quickRemovePlot and self.background != None:
+        elif len(objects) == 1 and plot == self.quickRemovePlot and self.background != None:
             print 'quick removing plot %r' % self.quickRemovePlot
             self.restore_region(self.background) # restore saved bg
-        # remove more than one, but not all events
+        # remove more than one, but not all objects
         else:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-            for plot in self.event_plots.values():
-                plot.draw() # redraw the remaining plots in .event_plots
-        self.background = None # what was background is no longer useful for quick restoration on any other event removal
-        self.quickRemovePlot = None # quickRemovePlot set in addEvents is no longer quickly removable
+            for plot in self.used_plots.values():
+                plot.draw() # redraw the remaining plots in .used_plots
+        self.background = None # what was background is no longer useful for quick restoration on any other object removal
+        self.quickRemovePlot = None # quickRemovePlot set in addObjects is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
-    def removeAllEvents(self):
-        """Shortcut for removing all event plots"""
-        self.removeEvents(events=None)
+    def removeAllObjects(self):
+        """Shortcut for removing all object from plots"""
+        objects = [ plot.obj for plot in self.used_plots.values() ]
+        self.removeObjects(objects)
 
-    def removeEvent(self, event):
-        """Restore Plot holding event's data from used to available plot pool, return the Plot"""
-        try:
-            eventi = event.id # it's an Event object
-        except AttributeError:
-            eventi = event # it's just an int denoting the event id
-        plot = self.event_plots.pop(eventi)
+    def removeObject(self, obj):
+        """Restore object's Plot from used to available plot pool, return the Plot"""
+        if obj.__class__ == spyke.sort.Event:
+            plot = self.used_plots.pop('e'+str(obj.id))
+        elif obj.__class__ == spyke.sort.Template:
+            plot = self.used_plots.pop('t'+str(obj.id))
+            # TODO: reset what were template plot colour and line stlye back to their default for an event
+        else:
+            raise TypeError, 'weird object class to plot'
+        plot.obj = None # unbind object from plot
         plot.hide()
         self.available_plots.append(plot)
         return plot
-
-    def removeTemplates(self, template):
-        pass
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords

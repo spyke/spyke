@@ -364,7 +364,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def DeleteSession(self):
         """Delete any existing sort Session"""
         try:
-            # TODO: check if it's saved (if not, prompt to save)
+            # TODO: if Save button is enabled, check if session is saved, if not, prompt to save
             print 'deleting existing session and entries in list controls'
             del self.session
         except AttributeError:
@@ -375,10 +375,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf.list.DeleteAllItems()
             sf.tree.DeleteAllItems()
             sf.lastSelectedListEvents = []
-            sf.lastSelectedTreeEvents = []
-            sf.lastSelectedTreeTemplates = []
-            sf.spikesortpanel.removeAllEvents()
-            sf.chartsortpanel.removeAllEvents()
+            sf.lastSelectedTreeObjects = []
+            sf.spikesortpanel.removeAllObjects()
+            #sf.chartsortpanel.removeAllObjects()
         else: # sort window hasn't been opened yet
             pass
         self.total_nevents_label.SetLabel(str(0))
@@ -445,11 +444,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.session.stream = self.hpstream # restore missing stream object to session
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort Session
-        for detection in self.session.detections: # restore detections to detection list and events to events list
+        for detection in self.session.detections: # restore detections to detection list
             self.append_detection_list(detection)
         sf = self.OpenFrame('sort') # ensure it's open
-        sf.Append2EventList(self.session.events) # append unsorted events
-        for template in self.session.templates.values():
+        sf.Append2EventList(self.session.events) # restore unsorted events to event list
+        for template in self.session.templates.values(): # restore templates and their sorted events to tree
             sf.AddTemplate2Tree(template)
             for event in template.events.values():
                 sf.AddEvent2Tree(template.itemID, event)
