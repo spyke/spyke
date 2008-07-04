@@ -799,7 +799,6 @@ class LFPFrame(DataFrame):
         self.SetTitle("LFP window")
 
 
-
 class PyShellFrame(wx.MiniFrame,
                    wx.py.shell.ShellFrame,
                    wx.py.frame.Frame,
