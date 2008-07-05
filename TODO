@@ -9,7 +9,18 @@ TODO:
 
 - for Sort frame, catch Paint event or whatever so that instead of doing a full redraw after de-occlusion, you just restore the saved .background
 
-- doubleclick detection_list row brings up textctrl in a dialog with entire 2D events array for that item
+- when a combination of templates and events are selected in the tree and you hit Delete, leave the templates selected, and only delete the events
+    - this should then update the plots for the templates, because their member spikes have just changed
+
+- cycle between next/previous set of 10 or so member events for current template (or first selected template) on > and < keypresses. Or maybe + and - keypresses
+
+- activation (double-click/enter) of either an event list item or a tree item will bring up a dialog box (one that doesn't prevent access to its parent while it's open. modeless?) with two spin ctrls which let you set the trange of the event/template. Plots should update dynamically while the dialog is still open.
+    - modifying a template's trange should do the same for all its member events
+    - modifying the trange of a template's member event should also modify the template's trange and that of all other member events
+    - for events, add a 3rd spin ctrl to modify the events .t timestamp, for aligning misaligned spikes (triggered off the wrong phase, etc.). Again, should have this dynamically update the event's plot on every spin ctrl event
+        - every time you modify the timestamp to your liking, maybe when you hit OK it should check to make sure you haven't duplicated some other existing event with exactly the same maxchan and timestamp. This can happen if two events which are really one and the same are detected by the detector, and you modify one to match the phase of the other
+
+- doubleclick detection_list row brings up textctrl in a (modeless?) dialog with entire 2D events array for that item
 
 - INTERPOLATION
     - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)

@@ -111,13 +111,16 @@ class Template(object):
         self.chans = None # chans enabled for plotting/ripping
         self.events = {} # member spike events that make up this template
         self.trange = (-DEFEVENTTW/2, DEFEVENTTW/2)
+        self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
         self.wave = None
+        self.plot = None # Plot currently holding self
+        self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
     def update_wave(self):
         """Update mean waveform, should call this every time .events is modified.
         Setting .events as a property to do so automatically doesn't work, because
-        properties only catch name binding events, not modification to an object
+        properties only catch name binding events, not modification of an object
         that's already been bound"""
         if self.events == {}: # no member spikes yet
             self.wave = None
@@ -138,7 +141,7 @@ class Template(object):
             assert event.wave.chan2i == chan2i
             data.append(event.wave.data)
         data = np.asarray(data).mean(axis=0)
-        # TODO: search data and find maxchan, set self.maxchan
+        # TODO: search data and find maxchan, set self.maxchan. Or not, just leave it up to user to select chans
         wave.data = data
         wave.ts = relts
         wave.sampfreq = sampfreq
@@ -171,7 +174,8 @@ class Template(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        del d['itemID'] # remove tree item ID, since that'll have changed anyway on unpickle
+        d['plot'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
 
@@ -181,11 +185,12 @@ class Event(object):
     def __init__(self, id, chan, t, detection):
         self.id = id # some integer for easy user identification
         self.chan = chan # necessary? see .template
-        self.t = t # timestamp, waveform is centered on this?
+        self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
         self.template = None # template object it belongs to, None means self is an unsorted event
         self.wave = None # WaveForm
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
+        self.plot = None # Plot currently holding self
         #self.session # optional attrib, if this is an unsorted spike?
         # or, instead of .session and .template, just make a .parent attrib?
         #self.srffname # originating surf file name, with path relative to self.session.datapath
@@ -219,9 +224,8 @@ class Event(object):
             # make sure .wave is loaded before pickling to file
             self.update_wave()
         d = self.__dict__.copy()
-        # clear tree item ID in dict, since that'll have changed anyway on unpickle
-        # TODO: this might be dangerous, cuz we rely on itemID in OnTreeRightDown
-        d['itemID'] = None
+        d['plot'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
 
@@ -341,7 +345,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.Select(itemID, on=not selected) # toggle selection, this fires sel event, which updates the plot
 
     def OnListKeyDown(self, evt):
-        """Event list control key down event"""
+        """Event list key down evt"""
         key = evt.GetKeyCode()
         if key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
             self.MoveCurrentEvents2Template(which='selected')
@@ -445,6 +449,11 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.removeObjects(objects)
         #self.chartsortpanel.removeObjects(objects)
 
+    def UpdateObjectsInPlot(self, objects):
+        print 'objects to update: %r' % [ obj.id for obj in objects ]
+        self.spikesortpanel.updateObjects(objects)
+        #self.chartsortpanel.updateObjects(objects)
+
     #TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
 
     def CreateTemplate(self):
@@ -495,7 +504,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if createdTemplate:
             #self.tree.Expand(root) # make sure root is expanded
             self.tree.Expand(template.itemID) # expand template
-            #self.tree.UnselectAll() # unselect all items in tree
+            self.tree.UnselectAll() # unselect all items in tree
             self.tree.SelectItem(template.itemID) # select the newly created template
             self.OnTreeSelectChanged() # now plot accordingly
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
@@ -521,14 +530,15 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
 
     def MoveCurrentEvents2Template(self, which='selected'):
-        selected_rows = self.list.GetSelections()
         if which == 'selected':
             template = self.GetFirstSelectedTemplate()
         elif which == 'new':
             template = None # indicates we want a new template
+        selected_rows = self.list.GetSelections()
         for row in selected_rows:
             event = self.listRow2Event(row)
-            template = self.MoveEvent2Template(event, row, template)
+            template = self.MoveEvent2Template(event, row, template) # if template was None, it isn't any more
+        self.UpdateObjectsInPlot([template])
 
     def MoveCurrentEvents2List(self):
         selected_itemIDs = self.tree.GetSelections()
@@ -551,9 +561,7 @@ class SortFrame(wxglade_gui.SortFrame):
             obj = self.tree.GetItemPyData(itemID)
             if obj.__class__ == Template:
                 return obj
-        # no template selected, check to see if an event is selected in the tree, grab its template
-        for itemID in selected_itemIDs:
-            obj = self.tree.GetItemPyData(itemID)
-            if obj.__class__ == Event:
+            # no template selected, check to see if an event is selected in the tree, grab its template
+            elif obj.__class__ == Event:
                 return obj.template
         return None

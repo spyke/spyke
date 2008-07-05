@@ -26,7 +26,6 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-import spyke
 from spyke.core import MU, intround
 
 SPIKELINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
@@ -98,6 +97,7 @@ class Plot(object):
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
         self.obj = None # Event or Template associated with this plot
+        self.id = None # string id that indexes into SortPanel.used_plots, starts with 'e' or 't' for event or template
 
     def show(self, enable=True):
         """Show/hide all chans in self"""
@@ -793,26 +793,19 @@ class SortPanel(PlotPanel):
         if len(self.available_plots) == 0: # if we've run out of plots for additional events
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this object to
-        plot.obj = obj # bind object to plot for later use
-        if obj.__class__ == spyke.sort.Event:
-            event = obj
-            t = event.t
-            wave = event.wave
-            if wave == None: # if it hasn't already been sliced
-                wave = event.update_wave(trange=(-DEFEVENTTW/2, DEFEVENTTW/2)) # this binds .wave to event
-            self.used_plots['e'+str(event.id)] = plot # push it to the used plot stack
-        elif obj.__class__ == spyke.sort.Template:
-            template = obj
-            t = 0
-            wave = template.wave
-            if wave == None: # if mean waveform doesn't already exist for some reason
-                wave = template.update_wave() # update mean waveform
-            self.used_plots['t'+str(template.id)] = plot # push it to the used plot stack
-            # TODO: set template plot colour and line type here
-        else:
-            raise TypeError, 'weird object class to plot'
-        wave = wave[t-self.tw/2 : t+self.tw/2] # slice wave according to the width of this panel
-        plot.update(wave, t)
+        try:
+            obj.events # it's a template
+            plot.id = 't' + str(obj.id)
+        except AttributeError: # it's an event
+            plot.id = 'e' + str(obj.id)
+        plot.obj = obj # bind object to plot
+        obj.plot = plot  # bind plot to object
+        if obj.wave == None: # if it hasn't already been sliced
+            obj.update_wave()
+        self.used_plots[plot.id] = plot # push it to the used plot stack
+        # TODO: set template/member event/unsorted event plot colour and line type here
+        wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
+        plot.update(wave, obj.t)
         plot.show()
         plot.draw()
         return plot
@@ -848,17 +841,37 @@ class SortPanel(PlotPanel):
 
     def removeObject(self, obj):
         """Restore object's Plot from used to available plot pool, return the Plot"""
-        if obj.__class__ == spyke.sort.Event:
-            plot = self.used_plots.pop('e'+str(obj.id))
-        elif obj.__class__ == spyke.sort.Template:
-            plot = self.used_plots.pop('t'+str(obj.id))
-            # TODO: reset what were template plot colour and line stlye back to their default for an event
-        else:
-            raise TypeError, 'weird object class to plot'
+        plot = self.used_plots.pop(obj.plot.id)
+        # TODO: reset plot colour and line style here, or just set them each time in addObject?
+        plot.id = None # clear its index into .used_plots
         plot.obj = None # unbind object from plot
+        obj.plot = None # unbind plot from object
         plot.hide()
         self.available_plots.append(plot)
         return plot
+
+    def updateObjects(self, objects):
+        """Re-plot objects, potentially because their WaveForms have changed.
+        Typical use case: event is added to a template, template's mean waveform has changed"""
+        if objects == []: # do nothing
+            return
+        if len(objects) == 1 and objects[0].plot == self.quickRemovePlot and self.background != None:
+            print 'quick removing and replotting plot %r' % self.quickRemovePlot
+            self.restore_region(self.background) # restore saved bg
+            self.updateObject(objects[0])
+        else: # update and redraw all objects
+            self.restore_region(self.reflines_background) # restore blank background with just the ref lines
+            for obj in objects:
+                self.updateObject(obj)
+            self.background = None # what was background is no longer useful for quick restoration on any other object removal
+            self.quickRemovePlot = None # quickRemovePlot set in addObjects is no longer quickly removable
+        self.blit(self.ax.bbox) # blit everything to screen
+
+    def updateObject(self, obj):
+        """Update and draw an event's/template's plot"""
+        wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
+        obj.plot.update(wave, obj.t)
+        obj.plot.draw()
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords
