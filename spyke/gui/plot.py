@@ -800,7 +800,7 @@ class SortPanel(PlotPanel):
             plot.id = 'e' + str(obj.id)
         plot.obj = obj # bind object to plot
         obj.plot = plot  # bind plot to object
-        if obj.wave == None: # if it hasn't already been sliced
+        if obj.wave.data == None: # if it hasn't already been sliced
             obj.update_wave()
         self.used_plots[plot.id] = plot # push it to the used plot stack
         # TODO: set template/member event/unsorted event plot colour and line type here
@@ -855,7 +855,7 @@ class SortPanel(PlotPanel):
         Typical use case: event is added to a template, template's mean waveform has changed"""
         if objects == []: # do nothing
             return
-        if len(objects) == 1 and objects[0].plot == self.quickRemovePlot and self.background != None:
+        if len(objects) == 1 and objects[0].plot != None and objects[0].plot == self.quickRemovePlot and self.background != None:
             print 'quick removing and replotting plot %r' % self.quickRemovePlot
             self.restore_region(self.background) # restore saved bg
             self.updateObject(objects[0])

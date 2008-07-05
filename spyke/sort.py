@@ -112,7 +112,7 @@ class Template(object):
         self.events = {} # member spike events that make up this template
         self.trange = (-DEFEVENTTW/2, DEFEVENTTW/2)
         self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
-        self.wave = None
+        self.wave = WaveForm() # init to empty waveform
         self.plot = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow templates to have spikes from different files?
@@ -122,31 +122,29 @@ class Template(object):
         Setting .events as a property to do so automatically doesn't work, because
         properties only catch name binding events, not modification of an object
         that's already been bound"""
-        if self.events == {}: # no member spikes yet
-            self.wave = None
+        if self.events == {}: # no member spikes
+            self.wave = WaveForm() # empty waveform
             return
-        wave = self.wave or WaveForm()
         data = []
         relts = np.arange(self.trange[0], self.trange[1], self.session.tres) # timestamps relative to spike time
         event = self.events.values()[0] # grab a random event
-        if event.wave == None:
+        if event.wave.data == None: # make sure its waveform isn't empty
             event.update_wave(trange=self.trange)
-        sampfreq = wave.sampfreq or event.wave.sampfreq
-        chan2i = wave.chan2i or event.wave.chan2i
+        sampfreq = self.wave.sampfreq or event.wave.sampfreq
+        chan2i = self.wave.chan2i or event.wave.chan2i
         for event in self.events.values():
-            # check each event for a .wave
-            if event.wave == None or not ((event.wave.ts - event.t) == relts).all():
+            # check each event for timepoints that don't match up, update so that they do
+            if event.wave.ts == None or not ((event.wave.ts - event.t) == relts).all():
                 event.update_wave(trange=self.trange)
             assert event.wave.sampfreq == sampfreq # being really thorough here...
             assert event.wave.chan2i == chan2i
             data.append(event.wave.data)
         data = np.asarray(data).mean(axis=0)
         # TODO: search data and find maxchan, set self.maxchan. Or not, just leave it up to user to select chans
-        wave.data = data
-        wave.ts = relts
-        wave.sampfreq = sampfreq
-        wave.chan2i = chan2i
-        self.wave = wave
+        self.wave.data = data
+        self.wave.ts = relts
+        self.wave.sampfreq = sampfreq
+        self.wave.chan2i = chan2i
         return self.wave
 
     def get_trange(self):
@@ -188,7 +186,7 @@ class Event(object):
         self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
         self.template = None # template object it belongs to, None means self is an unsorted event
-        self.wave = None # WaveForm
+        self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.plot = None # Plot currently holding self
         #self.session # optional attrib, if this is an unsorted spike?
@@ -220,7 +218,7 @@ class Event(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        if SAVEALLEVENTWAVES and self.wave == None:
+        if SAVEALLEVENTWAVES and self.wave.data == None:
             # make sure .wave is loaded before pickling to file
             self.update_wave()
         d = self.__dict__.copy()
@@ -538,7 +536,8 @@ class SortFrame(wxglade_gui.SortFrame):
         for row in selected_rows:
             event = self.listRow2Event(row)
             template = self.MoveEvent2Template(event, row, template) # if template was None, it isn't any more
-        self.UpdateObjectsInPlot([template])
+        if template.plot != None: # if it's plotted
+            self.UpdateObjectsInPlot([template]) # update its plot
 
     def MoveCurrentEvents2List(self):
         selected_itemIDs = self.tree.GetSelections()
