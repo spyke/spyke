@@ -9,6 +9,11 @@ TODO:
 
 - for Sort frame, catch Paint event or whatever so that instead of doing a full redraw after de-occlusion, you just restore the saved .background
 
+- tabbing between tree and list ctrl works, but there's something sort of in between that the tab lands on, yet after landing on that something, if you hit up/down, you realize you're actually focused on the event ctrl, just can't tell cuz the current selection fo the event list ctrl doesn't highlight where you're in that twilight focus zone
+    - i think the twilight zone is actually one or both of the sort panels, or perhaps a plotpanel in a dataframe, cuz the keydown printout happens when you hit a character in the twilight zone
+
+- TODO: yet another wxTreeCtrl | wxTreeMultiple flag bug to report to trac: when moving down from the last tree item, you lose highlight (but not focus). Then when you press up, focus and higlight jump to second last item. Similar situation at the top of the tree.
+
 - when a combination of templates and events are selected in the tree and you hit Delete, leave the templates selected, and only delete the events
     - this should then update the plots for the templates, because their member spikes have just changed
 
@@ -337,5 +342,8 @@ DONE:
     - doing the same using search button alternates between two results when some chans are disabled
     - was due to a mistake in indexing into distance matrix in cython code
 - create a win32 package installer, or just do python setup.py install, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy, and mpl on clients
+- deal with case where you've got just a .sort file open, and you try adding an event with no wave.data to a template. Prevent user from doing this! Right now it removes the event from the event list and gets as far as trying to update the template mean, at which point it runs into an AssertionError. Need to handle this properly
+    - maybe you shouldn't even be able to select an event when its wave.data is unatainable...
+
 
 

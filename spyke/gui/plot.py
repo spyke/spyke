@@ -72,20 +72,35 @@ REFLINEZORDER = 1
 PLOTZORDER = 2
 
 
+class ColourDict(dict):
+    """Just an easy way to cycle through COLOURS given some index,
+    like say a chan id or a template id. Better than using a generator,
+    cuz you don't need to keep calling .next(). This is like a dict
+    of inifite length"""
+    def __getitem__(self, key):
+        assert key.__class__ == int
+        i = key % len(COLOURS)
+        return COLOURS[i]
+
+    def __setitem__(self, key, val):
+        raise RuntimeError, 'ColourDict is unsettable'
+
+
+COLOURDICT = ColourDict()
+
+
 class Plot(object):
     """Plot slot, holds lines for all chans for plotting
     a single stretch of data, contiguous in time"""
     def __init__(self, chans, panel):
         self.lines = {} # chan to line mapping
         self.panel = panel # panel that self belongs to
-        self.chans = chans # all channels available in this Plot, lines can be enabled/disabled
-        self.colours = self.panel.colours
-        #self.background = None
+        self.chans = chans # all channels available in this Plot, lines can be enabled/disabled, but .chans shouldn't change
         for chan in self.chans:
             line = Line2D([],
                           [], # TODO: will lack of data before first .draw() cause problems for blitting?
                           linewidth=SPIKELINEWIDTH,
-                          color=self.colours[chan],
+                          color=self.panel.vcolours[chan],
                           zorder=PLOTZORDER,
                           antialiased=True,
                           animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call,
@@ -131,13 +146,11 @@ class Plot(object):
 
     def set_colours(self, colours):
         """Set colour(s) for all lines in self"""
-        colours = toiter(colours)
         if len(colours) == 1:
             colours = colours * len(self.chans)
         if len(colours) != len(self.chans):
             raise ValueError, 'invalid colours length: %d' % len(colours)
-        self.colours = colours # now safe to save it
-        for chani, colour in enumerate(self.colours):
+        for chani, colour in enumerate(colours):
             self.lines[chani].set_color(colour)
 
     def draw(self):
@@ -197,7 +210,6 @@ class PlotPanel(FigureCanvasWxAgg):
         self.chans = probe.SiteLoc.keys()
         self.chans.sort() # a sorted list of chans, keeps us from having to do this over and over
         self.nchans = probe.nchans
-        self.colours = dict(zip(range(self.nchans), [DEFAULTCHANCOLOUR]*self.nchans))
         # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
         ys = [ y for x, y in siteloc.values() ]
@@ -209,6 +221,7 @@ class PlotPanel(FigureCanvasWxAgg):
 
         self.init_axes()
         self.pos = {} # positions of line centers, in plot units (us, uV)
+        self.vcolours = {} # colour mapping that cycles vertically in space
         self.do_layout() # defined by subclasses, sets self.pos
         self.xy_um = self.get_xy_um()
         x = self.xy_um[0]
@@ -630,7 +643,7 @@ class SpikePanel(PlotPanel):
             # chan order doesn't matter for setting .pos, but it does for setting .colours
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
                               self.um2uv(self.siteloc[chan][1]))
-            self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
+            self.vcolours[chan] = colourgen.next() # assign colours so that they cycle vertically in space
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -673,7 +686,7 @@ class ChartPanel(PlotPanel):
         for chani, chan in enumerate(self.vchans):
             #self.pos[chan] = (0, self.um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
-            self.colours[chan] = colourgen.next() # assign colours so that they cycle nicely in space
+            self.vcolours[chan] = colourgen.next() # assign colours so that they cycle vertically in space
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -777,8 +790,8 @@ class SortPanel(PlotPanel):
         if objects == []:
             return # do nothing
         if len(objects) == 1:
-            # before blitting this single objects to screen, grab current buffer,
-            # save as new background for quick restore if the next action is removal of this very same objects
+            # before blitting this single object to screen, grab current buffer,
+            # save as new background for quick restore if the next action is removal of this very same object
             self.background = self.copy_from_bbox(self.ax.bbox)
             self.quickRemovePlot = self.addObject(objects[0]) # add the single object, save reference to its plot
             print 'saved quick remove plot %r' % self.quickRemovePlot
@@ -796,14 +809,21 @@ class SortPanel(PlotPanel):
         try:
             obj.events # it's a template
             plot.id = 't' + str(obj.id)
+            colours = [COLOURDICT[obj.id]]
+            # TODO: set line style type here
         except AttributeError: # it's an event
             plot.id = 'e' + str(obj.id)
+            try:
+                obj.template # it's a member event of a template. colour it the same as its template
+                colours = [COLOURDICT[obj.template.id]]
+            except AttributeError: # it's an unsorted spike, colour each chan separately
+                colours = [ self.vcolours[chan] for chan in plot.chans ] # remap to cycle vertically in space
+        plot.set_colours(colours)
         plot.obj = obj # bind object to plot
         obj.plot = plot  # bind plot to object
         if obj.wave.data == None: # if it hasn't already been sliced
             obj.update_wave()
         self.used_plots[plot.id] = plot # push it to the used plot stack
-        # TODO: set template/member event/unsorted event plot colour and line type here
         wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
         plot.update(wave, obj.t)
         plot.show()

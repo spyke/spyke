@@ -407,6 +407,12 @@ class SortFrame(wxglade_gui.SortFrame):
         #print 'key down: %r' % key
         if key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentEvents2List()
+        elif key == ord('A'): # allow us to add from event list even if tree is in focus
+            self.MoveCurrentEvents2Template(which='selected')
+        elif key in [ord('C'), ord('N'), ord('T')]: # ditto for creating a new template
+            self.MoveCurrentEvents2Template(which='new')
+        elif evt.ControlDown() and key == ord('S'):
+            self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
             wx.CallAfter(self.OnTreeSelectChanged)
         self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
@@ -535,8 +541,9 @@ class SortFrame(wxglade_gui.SortFrame):
         selected_rows = self.list.GetSelections()
         for row in selected_rows:
             event = self.listRow2Event(row)
-            template = self.MoveEvent2Template(event, row, template) # if template was None, it isn't any more
-        if template.plot != None: # if it's plotted
+            if event.wave.data != None: # only move it to template if it's got wave data
+                template = self.MoveEvent2Template(event, row, template) # if template was None, it isn't any more
+        if template != None and template.plot != None: # if it exists and it's plotted
             self.UpdateObjectsInPlot([template]) # update its plot
 
     def MoveCurrentEvents2List(self):
