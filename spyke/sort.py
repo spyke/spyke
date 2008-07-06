@@ -356,6 +356,9 @@ class SortFrame(wxglade_gui.SortFrame):
             print 'event %d not in used_plots' % event.id
         self.list.Select(itemID, on=not selected) # toggle selection, this fires sel event, which updates the plot
 
+    def OnListColClick(self, evt):
+        print 'list column clicked'
+
     def OnListKeyDown(self, evt):
         """Event list key down evt"""
         key = evt.GetKeyCode()
@@ -367,8 +370,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.MoveCurrentEvents2Trash()
         elif evt.ControlDown() and key == ord('S'):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
-        if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
-            evt.Veto() # stop propagation as navigation event or something
+        evt.Skip()
 
     def OnTreeSelectChanged(self, evt=None):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when

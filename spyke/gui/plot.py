@@ -28,7 +28,10 @@ from matplotlib.patches import Rectangle
 
 from spyke.core import MU, intround
 
-SPIKELINEWIDTH = 1 # mpl units - pixels? points? plot units (us)?
+EVENTLINEWIDTH = 1 # in points
+EVENTLINESTYLE = '-'
+TEMPLATELINEWIDTH = 1.5
+TEMPLATELINESTYLE = '--'
 TREFLINEWIDTH = 0.5
 VREFLINEWIDTH = 0.5
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
@@ -99,7 +102,8 @@ class Plot(object):
         for chan in self.chans:
             line = Line2D([],
                           [], # TODO: will lack of data before first .draw() cause problems for blitting?
-                          linewidth=SPIKELINEWIDTH,
+                          linewidth=EVENTLINEWIDTH,
+                          linestyle=EVENTLINESTYLE,
                           color=self.panel.vcolours[chan],
                           zorder=PLOTZORDER,
                           antialiased=True,
@@ -161,6 +165,12 @@ class Plot(object):
             raise ValueError, 'invalid colours length: %d' % len(colours)
         for chani, colour in enumerate(colours):
             self.lines[chani].set_color(colour)
+
+    def set_stylewidth(self, style, width):
+        """Set the line style and width for all lines in self"""
+        for line in self.lines.values():
+            line.set_linestyle(style)
+            line.set_linewidth(width)
 
     def draw(self):
         """Draw all the lines to axes buffer (or whatever),
@@ -819,15 +829,19 @@ class SortPanel(PlotPanel):
             obj.events # it's a template
             plot.id = 't' + str(obj.id)
             colours = [COLOURDICT[obj.id]]
-            # TODO: set line style type here
+            style = TEMPLATELINESTYLE
+            width = TEMPLATELINEWIDTH
         except AttributeError: # it's an event
             plot.id = 'e' + str(obj.id)
+            style = EVENTLINESTYLE
+            width = EVENTLINEWIDTH
             try:
                 obj.template # it's a member event of a template. colour it the same as its template
                 colours = [COLOURDICT[obj.template.id]]
             except AttributeError: # it's an unsorted spike, colour each chan separately
                 colours = [ self.vcolours[chan] for chan in plot.chans ] # remap to cycle vertically in space
         plot.set_colours(colours)
+        plot.set_stylewidth(style, width)
         plot.obj = obj # bind object to plot
         obj.plot = plot  # bind plot to object
         if obj.wave.data == None: # if it hasn't already been sliced
