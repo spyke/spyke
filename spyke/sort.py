@@ -66,10 +66,14 @@ class Session(object):
 
     def append_events(self, events):
         """Append events to self
-        TODO: ensure you don't have duplicate events from previous detection runs"""
-        #for e in events.values():
-        #    self.events[e.id] = e
-        self.events.update(events)
+        Don't add a new event from a new detection if the identical event
+        (same maxchan and t) is already in session.events"""
+        newevents = {}
+        for e in events.values():
+            if e not in self.events.values(): # prevent duplicates, see Event.__eq__
+                self.events[e.id] = e
+                newevents[e.id] = e
+        return newevents
 
 
 class Detection(object):
@@ -94,7 +98,8 @@ class Detection(object):
 
     def __eq__(self, other):
         """Compare detection runs by their .events_array"""
-        # TODO: see if there's any overlap between self.events and other.events, and raise a warning in a dialog box or something
+        # TODO: see if there's any overlap between self.events and other.events, ie duplicate events,
+        # and raise a warning in a dialog box or something
         return np.all(self.events_array == other.events_array)
 
 
@@ -216,6 +221,11 @@ class Event(object):
         """Load/update self's waveform, defaults to default event time window centered on self.t"""
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
+
+    def __eq__(self, other):
+        """Events are considered identical if they have the
+        same timepoint and the same maxchan"""
+        return self.t == other.t and self.maxchan == other.maxchan
 
     def __getitem__(self, key):
         """Return WaveForm for this event given slice key"""
@@ -513,7 +523,14 @@ class SortFrame(wxglade_gui.SortFrame):
     def MoveEvent2Template(self, event, row, template=None):
         """Move a spike event from unsorted session.events to a template.
         Also, move it from a list control row to a template in the tree.
-        If template is None, create a new one"""
+        If template is None, create a new one
+        """
+        # make sure this event isn't already a member event of this template,
+        # or of any other template
+        for templ in self.session.templates.values():
+            if event in templ.events.values():
+                print "Can't move: event %d is identical to a member event in template %d" % (event.id, templ.id)
+                return
         self.list.DeleteItem(row) # remove it from the event list
         self.list.Select(row) # automatically select the new item at that position
         createdTemplate = False
@@ -549,6 +566,12 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def MoveEvent2List(self, event):
         """Move a spike event from a template in the tree back to the list control"""
+        # make sure this event isn't already in session.events
+        if event in self.session.events.values():
+            # would be useful to print out the guilty event id in the event list, but that would require a more expensive search
+            print "Can't move: event %d (maxchan=%d, t=%d) in template %d is identical to an unsorted event in the event list" \
+                  % (event.id, event.maxchan, event.t, event.template.id)
+            return
         self.tree.Delete(event.itemID)
         template = event.template
         del template.events[event.id] # del event from its template's event dict

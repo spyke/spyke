@@ -234,9 +234,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             detection.set_events() # now that we know this detection isn't redundant, let's actually generate the Event objects
             self.session.detections.append(detection)
             self.append_detection_list(detection)
-            self.session.append_events(detection.events)
+            newevents = self.session.append_events(detection.events)
             sf = self.OpenFrame('sort') # ensure it's open
-            sf.Append2EventList(detection.events)
+            sf.Append2EventList(newevents)
             self.EnableSave(True)
             print '%r' % detection.events_array
 
