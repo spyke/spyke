@@ -31,6 +31,7 @@ class Session(object):
         # sorted events go in their respective template's .events dict
         self.events = {}
         self.templates = {} # first hierarchy of templates
+        self.trash = {} # discarded events
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._eventid = 0 # used to count off unique Event IDs
@@ -82,7 +83,6 @@ class Detection(object):
         self.datetime = datetime
         self.events_array = events_array # 2D array output of Detector.search
         #self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
-        self.trash = {} # discarded events
 
     def set_events(self):
         """Convert .events_array to dict of Event objects, inc session's _eventid counter"""
@@ -349,6 +349,8 @@ class SortFrame(wxglade_gui.SortFrame):
             self.MoveCurrentEvents2Template(which='selected')
         elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
             self.MoveCurrentEvents2Template(which='new')
+        elif key in [wx.WXK_DELETE, ord('D')]:
+            self.MoveCurrentEvents2Trash()
         if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
             evt.Veto() # stop propagation as navigation event or something
 
@@ -514,6 +516,14 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
         return template
 
+    def MoveEvent2Trash(self, event, row):
+        """Move event from event list to trash"""
+        self.list.DeleteItem(row) # remove it from the event list
+        self.list.Select(row) # automatically select the new item at that position
+        del self.session.events[event.id] # remove event from unsorted session.events
+        self.session.trash[event.id] = event # add it to trash
+        self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
+
     def AddEvent2Tree(self, parent, event):
         """Add an event to the tree, where parent is a tree itemID"""
         event.itemID = self.tree.AppendItem(parent, 'e'+str(event.id)) # add event to tree, save its itemID
@@ -560,6 +570,13 @@ class SortFrame(wxglade_gui.SortFrame):
                 template = obj
                 self.DeleteTemplate(template)
         self.OnTreeSelectChanged() # update plot
+
+    def MoveCurrentEvents2Trash(self):
+        """Move currently selected events in event list to trash"""
+        selected_rows = self.list.GetSelections()
+        for row in selected_rows:
+            event = self.listRow2Event(row)
+            self.MoveEvent2Trash(event, row)
 
     def GetFirstSelectedTemplate(self):
         selected_itemIDs = self.tree.GetSelections()
