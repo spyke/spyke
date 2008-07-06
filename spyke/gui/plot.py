@@ -123,6 +123,15 @@ class Plot(object):
         """Hide all chans in self"""
         self.show(False)
 
+    def show_chans(self, chans, enable=True):
+        """Show/hide specific chans in self"""
+        for chan in chans:
+            self.lines[chan].set_visible(enable)
+
+    def hide_chans(self, chans):
+        """Hide specific chans in self"""
+        self.show_chans(chans, enable=False)
+
     def update(self, wave, tref):
         """Update lines data
         TODO: most of the time, updating the xdata won't be necessary,
@@ -826,7 +835,7 @@ class SortPanel(PlotPanel):
         self.used_plots[plot.id] = plot # push it to the used plot stack
         wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
         plot.update(wave, obj.t)
-        plot.show()
+        plot.show_chans(obj.chans) # unhide object's enabled chans
         plot.draw()
         return plot
 
@@ -866,7 +875,7 @@ class SortPanel(PlotPanel):
         plot.id = None # clear its index into .used_plots
         plot.obj = None # unbind object from plot
         obj.plot = None # unbind plot from object
-        plot.hide()
+        plot.hide() # hide all chan lines
         self.available_plots.append(plot)
         return plot
 

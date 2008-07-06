@@ -125,6 +125,9 @@ class Template(object):
         if self.events == {}: # no member spikes
             self.wave = WaveForm() # empty waveform
             return
+        else: # has member spikes
+            self.maxchan = self.maxchan or self.events.values()[0].maxchan # set maxchan if it hasn't been already
+            self.chans = self.chans or self.events.values()[0].chans # set enabled chans if they haven't been already
         data = []
         relts = np.arange(self.trange[0], self.trange[1], self.session.tres) # timestamps relative to spike time
         event = self.events.values()[0] # grab a random event
@@ -133,7 +136,7 @@ class Template(object):
         sampfreq = self.wave.sampfreq or event.wave.sampfreq
         chan2i = self.wave.chan2i or event.wave.chan2i
         for event in self.events.values():
-            # check each event for timepoints that don't match up, update so that they do
+            # check each event for timepoints that don't match up, update the event so that they do
             if event.wave.ts == None or not ((event.wave.ts - event.t) == relts).all():
                 event.update_wave(trange=self.trange)
             assert event.wave.sampfreq == sampfreq # being really thorough here...
@@ -152,7 +155,7 @@ class Template(object):
 
     def set_trange(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
         """Reset self's time range relative to t=0 spike time,
-        update slice of member spikes, and mean waveform"""
+        update slice of member spikes, and update mean waveform"""
         self._trange = trange
         for event in self.events.values():
             event.update_wave(trange=trange)
@@ -165,10 +168,10 @@ class Template(object):
         """Is this run on 'del template'?"""
         for spike in self.spikes:
             spike.template = None # remove self from all spike.template fields
-    '''
+
     def pop(self, spikeid):
         return self.spikes.pop(spikeid)
-
+    '''
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
@@ -180,24 +183,34 @@ class Template(object):
 class Event(object):
     """Either an unsorted event, or a member spike in a Template,
     or a sorted spike in a Detection (or should that be sort Session?)"""
-    def __init__(self, id, chan, t, detection):
+    def __init__(self, id, maxchan, t, detection):
         self.id = id # some integer for easy user identification
-        self.chan = chan # necessary? see .template
+        self.maxchan = maxchan
         self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
+        self.chans = self.get_slock_chans()
         self.template = None # template object it belongs to, None means self is an unsorted event
         self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.plot = None # Plot currently holding self
-        #self.session # optional attrib, if this is an unsorted spike?
-        # or, instead of .session and .template, just make a .parent attrib?
-        #self.srffname # originating surf file name, with path relative to self.session.datapath
-        #self.chans # necessary? see .template
         #self.cluster = None # cluster run this Spike was sorted on
         #self.rip = None # rip this Spike was sorted on
         # try loading it right away on init, instead of waiting until plot, see if it's fast enough
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()
+
+    def get_slock_chans(self):
+        """Get chans within spatial lockout of maxchan, use
+        spatial lockout of detector that detected self"""
+        det = self.detection.detector
+        maxchani = det.chans.index(self.maxchan) # get index into det.dm that corresponds to maxchan
+        ndchans = len(det.chans) # number of chans enabled in the detector
+        chans = [] # chans enabled for plotting
+        for chani in range(ndchans):
+            if det.dm[chani, maxchani] <= det.slock:
+                chan = det.chans[chani]
+                chans.append(chan)
+        return chans
 
     def update_wave(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
         """Load/update self's waveform, defaults to default event time window centered on self.t"""
@@ -271,6 +284,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
         self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
         self.list.Bind(wx.EVT_RIGHT_DOWN, self.OnListRightDown)
+        self.list.Bind(wx.EVT_KEY_DOWN, self.OnListKeyDown)
         #self.tree.Bind(wx.EVT_LEFT_DOWN, self.OnTreeLeftDown) # doesn't fire when clicking on non focused item, bug #4448
         self.tree.Bind(wx.EVT_LEFT_UP, self.OnTreeLeftUp) # need this to catch clicking on non focused item, bug #4448
         self.tree.Bind(wx.EVT_RIGHT_DOWN, self.OnTreeRightDown)
@@ -351,6 +365,8 @@ class SortFrame(wxglade_gui.SortFrame):
             self.MoveCurrentEvents2Template(which='new')
         elif key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentEvents2Trash()
+        elif evt.ControlDown() and key == ord('S'):
+            self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         if key in [wx.WXK_LEFT, wx.WXK_RIGHT]:
             evt.Veto() # stop propagation as navigation event or something
 
@@ -432,9 +448,9 @@ class SortFrame(wxglade_gui.SortFrame):
         """Append events to self's event list control"""
         SiteLoc = self.spykeframe.session.probe.SiteLoc
         for e in events.values():
-            row = [str(e.id), e.chan, e.t]
+            row = [str(e.id), e.maxchan, e.t]
             self.list.Append(row)
-            ycoord = SiteLoc[e.chan][1]
+            ycoord = SiteLoc[e.maxchan][1]
             # add ycoord of maxchan of event as data for this row, use item
             # count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
@@ -538,7 +554,7 @@ class SortFrame(wxglade_gui.SortFrame):
         template.update_wave() # update mean template waveform
         event.template = None # unbind event's template from event
         event.itemID = None # no longer applicable
-        data = [event.id, event.chan, event.t]
+        data = [event.id, event.maxchan, event.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
         # TODO: re-sort the list
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save

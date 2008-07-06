@@ -68,7 +68,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         if self.chans != range(nchans): # if self.chans is not contiguous
             #ttake = time.clock()
             # pull our chans of data out, this assumes wave.data has all possible chans in it
-            data = wave.data.take(chans, axis=0) # returns a contiguous copy
+            data = wave.data.take(chans, axis=0) # returns a contiguous copy of data
             #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
         else: # save time by avoiding an unnecessary .take
             data = wave.data

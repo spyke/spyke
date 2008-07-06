@@ -7,53 +7,17 @@ TODO:
 
 - use .GetTopLevelParent() from (any?) widget to get a reference to spykeframe, safer than doing a bunch of Parent and GrandParent stuff
 
-- for Sort frame, catch Paint event or whatever so that instead of doing a full redraw after de-occlusion, you just restore the saved .background
-
-- tabbing between tree and list ctrl works, but there's something sort of in between that the tab lands on, yet after landing on that something, if you hit up/down, you realize you're actually focused on the event ctrl, just can't tell cuz the current selection fo the event list ctrl doesn't highlight where you're in that twilight focus zone
-    - i think the twilight zone is actually one or both of the sort panels, or perhaps a plotpanel in a dataframe, cuz the keydown printout happens when you hit a character in the twilight zone
-
-- TODO: yet another wxTreeCtrl | wxTreeMultiple flag bug to report to trac: when moving down from the last tree item, you lose highlight (but not focus). Then when you press up, focus and higlight jump to second last item. Similar situation at the top of the tree.
-
-- when a combination of templates and events are selected in the tree and you hit Delete, leave the templates selected, and only delete the events
-    - this should then update the plots for the templates, because their member spikes have just changed
-
-- cycle between next/previous set of 10 or so member events for current template (or first selected template) on > and < keypresses. Or maybe + and - keypresses
-
-- activation (double-click/enter) of either an event list item or a tree item will bring up a dialog box (one that doesn't prevent access to its parent while it's open. modeless?) with two spin ctrls which let you set the trange of the event/template. Plots should update dynamically while the dialog is still open.
-    - modifying a template's trange should do the same for all its member events
-    - modifying the trange of a template's member event should also modify the template's trange and that of all other member events
-    - for events, add a 3rd spin ctrl to modify the events .t timestamp, for aligning misaligned spikes (triggered off the wrong phase, etc.). Again, should have this dynamically update the event's plot on every spin ctrl event
-        - every time you modify the timestamp to your liking, maybe when you hit OK it should check to make sure you haven't duplicated some other existing event with exactly the same maxchan and timestamp. This can happen if two events which are really one and the same are detected by the detector, and you modify one to match the phase of the other
-
-- doubleclick detection_list row brings up textctrl in a (modeless?) dialog with entire 2D events array for that item
 
 - INTERPOLATION
     - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
         - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
     - if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
 
-- recreate Detector with current setting whenever user clicks on method or threshold radios
-    - clicking on other options can just update the current Detector
-    - or better, Detector is updated from other options only when you hit search or F3 or eq'v
-
-- toggle chan selection by Ctrl+click on chan in any of the data frames - this either makes them invisible (but that could cause problems for tooltip when it's looking for the nearest line) or toggles their colour to dark grey or something.
-
 
 - plot and control thresh level on spike and chart plots
     - use picker - when a thresh line is picked (within a tolerance of a couple pix), change mouse cursor to hand or vertical sizer, and while button is down, adjust position of thresh lines and value of the manual thresh level in Events tab
 
-- check if y data is being updated as efficiently as possible, want to prevent copying, increase scrolling speed
-    - seems alright: mostly just doing line.set_ydata() on each plot call
-    - check if you can shift a line's y_data, instead of having to replace it entirely on every plot call
-    - actually, looks like the limiting factor for speed is window size - if you resize the windows so they're really small, plotting is lightning fast. So this is a backend drawing issue, and probably has nothing to do with the efficiency of updating y values
-    - keyboard navigation commands and mouse paging on slider cause two slider scroll events, and hence two plot calls, probably cutting performance in half. Doesn't happen with mouse seeking (dragging marker directly with the mouse). This seems to be inherent to the slider widget. wx bug, or by design? Might be separate slider events for key down and key up? Can prolly work around this by handling keyboard events directly
-
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
-
-- make playback buttons work
-    - add really big skip buttons, that skip one page of chartwindow at a time
-
-- add keyboard event handling, and pass all keyboard events from data frames to main spyke frame to handle
 
 - separate groups of 3 digits in spin edit and end labels with commas (time in us)
 
@@ -68,14 +32,15 @@ TODO:
 EVENT DETECTION:
 
     - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
-    - be able to specify time range(s?) within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
     - static and dynamic thresholds, independent for each chan, based on stdev or median (or other measures?)
-    - specify chans that you want to search for events on. 2 benefits:
-        - helps you increase n for a template that rarely fires
-        - say you notice a shortage of cells in a certain part of the probe - you want to be sure there aren't any cells there that you've missed
-    - F3 and F2 to search forward and back one event
 
     - dynamic spatiotemporal lockout: some spikes span greater space and time than others, yet they're all given the same lockout. I guess on thresh xing and again on finding a spike, you could search locally in time and space and within the fixed slock and tlock, and see if signal drops below thresh in something less than slock and tlock, and adjust the lockout accordingly for that thresh xing or found spike
+
+    - doubleclick detection_list row brings up textctrl in a (modeless?) dialog with entire 2D events array for that item
+
+    - recreate Detector with current setting whenever user clicks on method or threshold radios
+        - clicking on other options can just update the current Detector
+        - or better, Detector is updated from other options only when you hit search or F3 or eq'v
 
 ------------------------------------
 TEMPLATES:
@@ -92,6 +57,26 @@ TEMPLATES:
     - custom spike duration per template
         - Need to make the spike duration (currently 1ms) user settable for every template. Some spikes are broad, others narrow, and it's best to confine the templates to just those times with useful information about the spike. Otherwise, if there's too much flatline on either side, then you're basically saying "it ain't a spike unless stuff doesn't happen immediately before or after it", which isn't true. You might get a spike very soon after from another cell, or even from the same cell if it's a fast spiker.
         - in other words, we want the ability to crop a template in time. This complements the ability to crop a template in channel space
+
+    - for Sort frame, catch Paint event or whatever so that instead of doing a full redraw after de-occlusion, you just restore the saved .background
+
+    - tabbing between tree and list ctrl works, but there's something sort of in between that the tab lands on, yet after landing on that something, if you hit up/down, you realize you're actually focused on the event ctrl, just can't tell cuz the current selection fo the event list ctrl doesn't highlight where you're in that twilight focus zone
+        - i think the twilight zone is actually one or both of the sort panels, or perhaps a plotpanel in a dataframe, cuz the keydown printout happens when you hit a character in the twilight zone
+
+    - TODO: yet another wxTreeCtrl | wxTreeMultiple flag bug to report to trac: when moving down from the last tree item, you lose highlight (but not focus). Then when you press up, focus and higlight jump to second last item. Similar situation at the top of the tree.
+
+    - when a combination of templates and events are selected in the tree and you hit Delete, leave the templates selected, and only delete the events
+        - this should then update the plots for the templates, because their member spikes have just changed
+
+    - cycle between next/previous set of 10 or so member events for current template (or first selected template) on > and < keypresses. Or maybe + and - keypresses
+
+    - activation (double-click/enter) of either an event list item or a tree item will bring up a dialog box (one that doesn't prevent access to its parent while it's open. modeless?) with two spin ctrls which let you set the trange of the event/template. Plots should update dynamically while the dialog is still open.
+        - modifying a template's trange should do the same for all its member events
+        - modifying the trange of a template's member event should also modify the template's trange and that of all other member events
+        - for events, add a 3rd spin ctrl to modify the events .t timestamp, for aligning misaligned spikes (triggered off the wrong phase, etc.). Again, should have this dynamically update the event's plot on every spin ctrl event
+            - every time you modify the timestamp to your liking, maybe when you hit OK it should check to make sure you haven't duplicated some other existing event with exactly the same maxchan and timestamp. This can happen if two events which are really one and the same are detected by the detector, and you modify one to match the phase of the other
+
+    - hover over event in tree should give you tooltip with event time and maxchan
 
 ------------------------------------
 MINI RIPS:
@@ -344,6 +329,12 @@ DONE:
 - create a win32 package installer, or just do python setup.py install, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy, and mpl on clients
 - deal with case where you've got just a .sort file open, and you try adding an event with no wave.data to a template. Prevent user from doing this! Right now it removes the event from the event list and gets as far as trying to update the template mean, at which point it runs into an AssertionError. Need to handle this properly
     - maybe you shouldn't even be able to select an event when its wave.data is unatainable...
+- be able to specify time range(s?) within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
+- specify chans that you want to search for events on. 2 benefits:
+    - helps you increase n for a template that rarely fires
+    - say you notice a shortage of cells in a certain part of the probe - you want to be sure there aren't any cells there that you've missed
+- F3 and F2 to search forward and back one event
+- toggle chan selection by Ctrl+click on chan in any of the data frames - this either makes them invisible (but that could cause problems for tooltip when it's looking for the nearest line) or toggles their colour to dark grey or something.
 
 
 
