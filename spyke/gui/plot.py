@@ -31,7 +31,7 @@ from spyke.core import MU, intround
 EVENTLINEWIDTH = 1 # in points
 EVENTLINESTYLE = '-'
 TEMPLATELINEWIDTH = 1.5
-TEMPLATELINESTYLE = '--'
+TEMPLATELINESTYLE = '-'
 TREFLINEWIDTH = 0.5
 VREFLINEWIDTH = 0.5
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
@@ -151,6 +151,11 @@ class Plot(object):
                 # TODO: should be using wave.chan2i here?????????????????
                 ydata = wave[chan]*self.panel.gain + ypos
             line.set_data(xdata, ydata) # update the line's x and y data
+
+    def set_alpha(self, alpha):
+        """Set alpha transparency for all lines in self"""
+        for line in self.lines.values():
+            line.set_alpha(alpha)
 
     def set_animated(self, enable=True):
         """Set animated flag for all lines in self"""
@@ -829,6 +834,7 @@ class SortPanel(PlotPanel):
             obj.events # it's a template
             plot.id = 't' + str(obj.id)
             colours = [COLOURDICT[obj.id]]
+            alpha = 1
             style = TEMPLATELINESTYLE
             width = TEMPLATELINEWIDTH
         except AttributeError: # it's an event
@@ -837,10 +843,13 @@ class SortPanel(PlotPanel):
             width = EVENTLINEWIDTH
             try:
                 obj.template # it's a member event of a template. colour it the same as its template
+                alpha = 0.5
                 colours = [COLOURDICT[obj.template.id]]
             except AttributeError: # it's an unsorted spike, colour each chan separately
+                alpha = 1
                 colours = [ self.vcolours[chan] for chan in plot.chans ] # remap to cycle vertically in space
         plot.set_colours(colours)
+        plot.set_alpha(alpha)
         plot.set_stylewidth(style, width)
         plot.obj = obj # bind object to plot
         obj.plot = plot  # bind plot to object

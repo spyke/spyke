@@ -444,7 +444,7 @@ class SortFrame(wxglade_gui.SortFrame):
         key = evt.GetKeyCode()
         #print 'key down: %r' % key
         if key in [wx.WXK_DELETE, ord('D')]:
-            self.MoveCurrentEvents2List()
+            self.MoveCurrentObjects2List()
         elif key == ord('A'): # allow us to add from event list even if tree is in focus
             self.MoveCurrentEvents2Template(which='selected')
         elif key in [ord('C'), ord('N'), ord('T')]: # ditto for creating a new template
@@ -596,6 +596,7 @@ class SortFrame(wxglade_gui.SortFrame):
         del self.session.events[event.id] # remove event from unsorted session.events
         self.session.trash[event.id] = event # add it to trash
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
+        print 'moved event %d to trash' % event.id
 
     def AddEvent2Tree(self, parent, event):
         """Add an event to the tree, where parent is a tree itemID"""
@@ -619,7 +620,7 @@ class SortFrame(wxglade_gui.SortFrame):
         event.itemID = None # no longer applicable
         data = [event.id, event.maxchan, event.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
-        # TODO: re-sort the list
+        # TODO: maybe re-sort the list
         self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
 
     def MoveCurrentEvents2Template(self, which='selected'):
@@ -637,24 +638,24 @@ class SortFrame(wxglade_gui.SortFrame):
         if template != None and template.plot != None: # if it exists and it's plotted
             self.UpdateObjectsInPlot([template]) # update its plot
 
-    def MoveCurrentEvents2List(self):
+    def MoveCurrentObjects2List(self):
         selected_itemIDs = self.tree.GetSelections()
+        selected_itemIDs.reverse()
         for itemID in selected_itemIDs:
+            if not itemID.IsOk(): # probably an event whose tree parent (template) has already been deleted
+                continue # skip to next itemID in loop
             obj = self.tree.GetItemPyData(itemID)
             if obj.__class__ == Event:
-                event = obj
-                template = event.template
-                self.MoveEvent2List(event)
-                if len(template.events) == 0: # if this template doesn't have any events left in it
-                    self.DeleteTemplate(template) # delete it
+                self.MoveEvent2List(obj)
             elif obj.__class__ == Template:
-                template = obj
-                self.DeleteTemplate(template)
+                self.DeleteTemplate(obj)
         self.OnTreeSelectChanged() # update plot
 
     def MoveCurrentEvents2Trash(self):
         """Move currently selected events in event list to trash"""
         selected_rows = self.list.GetSelections()
+        # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
+        selected_rows.reverse()
         for row in selected_rows:
             event = self.listRow2Event(row)
             self.MoveEvent2Trash(event, row)
