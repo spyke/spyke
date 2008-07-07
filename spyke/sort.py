@@ -367,7 +367,15 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.Select(itemID, on=not selected) # toggle selection, this fires sel event, which updates the plot
 
     def OnListColClick(self, evt):
-        print 'list column clicked'
+        coli = evt.GetColumn()
+        if coli == 0:
+            self.SortListByID()
+        elif coli == 1:
+            self.SortListByChan()
+        elif coli == 2:
+            self.SortListByTime()
+        else:
+            raise ValueError, 'weird column id %d' % coli
 
     def OnListKeyDown(self, evt):
         """Event list key down evt"""
@@ -456,9 +464,39 @@ class SortFrame(wxglade_gui.SortFrame):
         self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
+    def SortListByID(self):
+        """Sort event list by event ID"""
+        for rowi in range(self.list.GetItemCount()):
+            eid = int(self.list.GetItemText(rowi))
+            self.list.SetItemData(rowi, eid)
+        # now do the actual sort, based on the item data
+        self.list.SortItems(cmp)
+
+    def SortListByChan(self):
+        """Sort event list by ycoord of event maxchans,
+        from top to bottom of probe"""
+        # first set the itemdata for each row
+        SiteLoc = self.session.probe.SiteLoc
+        for rowi in range(self.list.GetItemCount()):
+            eid = int(self.list.GetItemText(rowi))
+            e = self.session.events[eid]
+            ycoord = SiteLoc[e.maxchan][1]
+            self.list.SetItemData(rowi, ycoord)
+        # now do the actual sort, based on the item data
+        self.list.SortItems(cmp)
+
+    def SortListByTime(self):
+        """Sort event list by event timepoint"""
+        for rowi in range(self.list.GetItemCount()):
+            eid = int(self.list.GetItemText(rowi))
+            t = self.session.events[eid].t
+            self.list.SetItemData(rowi, t)
+        # now do the actual sort, based on the item data
+        self.list.SortItems(cmp)
+
     def Append2EventList(self, events):
         """Append events to self's event list control"""
-        SiteLoc = self.spykeframe.session.probe.SiteLoc
+        SiteLoc = self.session.probe.SiteLoc
         for e in events.values():
             row = [str(e.id), e.maxchan, e.t]
             self.list.Append(row)
@@ -590,6 +628,8 @@ class SortFrame(wxglade_gui.SortFrame):
         elif which == 'new':
             template = None # indicates we want a new template
         selected_rows = self.list.GetSelections()
+        # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
+        selected_rows.reverse()
         for row in selected_rows:
             event = self.listRow2Event(row)
             if event.wave.data != None: # only move it to template if it's got wave data
