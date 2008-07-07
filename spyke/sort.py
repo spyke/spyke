@@ -464,6 +464,20 @@ class SortFrame(wxglade_gui.SortFrame):
         self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
+    def OnSortTree(self, evt):
+        root = self.tree.GetRootItem()
+        self.tree.SortChildren(root)
+        self.RelabelTemplates()
+
+    def RelabelTemplates(self):
+        root = self.tree.GetRootItem()
+        templates = self.tree.GetTreeChildrenPyData(root) # gets all children in order from top to bottom in a list
+        for templatei, template in enumerate(templates):
+            del self.session.templates[template.id] # remove template from its old key in template dict
+            template.id = templatei # update its id
+            self.session.templates[template.id] = template # add it to its (potentially) new key in template dict
+            self.tree.SetItemText(template.itemID, 't'+str(template.id)) # update its entry in the tree
+
     def SortListByID(self):
         """Sort event list by event ID"""
         for rowi in range(self.list.GetItemCount()):

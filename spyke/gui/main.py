@@ -237,7 +237,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             newevents = self.session.append_events(detection.events)
             sf = self.OpenFrame('sort') # ensure it's open
             sf.Append2EventList(newevents)
-            self.EnableSave(True)
+            #self.EnableSave(True)
             print '%r' % detection.events_array
 
     def append_detection_list(self, detection):
@@ -320,6 +320,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.chans_enabled = copy(self.hpstream.layout.chanlist) # property
         self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
+        self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEPIXPERCHAN
         self.OpenFrame('spike')
         #self.OpenFrame('chart')
         #self.OpenFrame('lfp')
@@ -355,7 +356,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CreateNewSession(self):
         """Create a new sort Session and bind it to .self"""
         self.DeleteSession()
-        self.EnableSave(False)
+        self.EnableSave(True)
         self.session = Session(detector=self.get_detector(),
                                srffname=self.srff.name,
                                probe=self.hpstream.probe,
@@ -456,7 +457,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)
         self.EnableSortWidgets(True)
-        self.EnableSave(False)
+        self.EnableSave(True)
         print 'done opening sort file'
 
     def SaveSortFile(self, fname):
@@ -469,7 +470,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        self.EnableSave(False)
+        #self.EnableSave(False)
         print 'done saving sort file'
 
     def EnableSave(self, enable):
@@ -481,22 +482,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create and bind a frame, show it, plot its data if applicable"""
         if frametype not in self.frames: # check it doesn't already exist
             if frametype == 'spike':
-                ncols = self.hpstream.probe.ncols
                 x = self.GetPosition()[0]
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = SpikeFrame(parent=self, stream=self.hpstream,
                                    tw=self.spiketw,
-                                   pos=wx.Point(x, y), size=(ncols*SPIKEFRAMEPIXPERCHAN, SPIKEFRAMEHEIGHT))
+                                   pos=wx.Point(x, y), size=(self.SPIKEFRAMEWIDTH, SPIKEFRAMEHEIGHT))
                 frame.panel.callAfterFrameInit() # post frame creation tasks for panel
             elif frametype == 'chart':
-                x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0]
+                x = self.GetPosition()[0] + self.SPIKEFRAMEWIDTH
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = ChartFrame(parent=self, stream=self.hpstream,
                                    tw=self.charttw, cw=self.spiketw,
                                    pos=wx.Point(x, y), size=CHARTFRAMESIZE)
                 frame.panel.callAfterFrameInit() # post frame creation tasks for panel
             elif frametype == 'lfp':
-                x = self.GetPosition()[0] + self.frames['spike'].GetSize()[0] + self.frames['chart'].GetSize()[0]
+                x = self.GetPosition()[0] + self.SPIKEFRAMEWIDTH + CHARTFRAMESIZE[0]
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 frame = LFPFrame(parent=self, stream=self.lpstream,
                                  tw=self.lfptw, cw=self.charttw,

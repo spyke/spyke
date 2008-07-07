@@ -273,6 +273,54 @@ class SpykeListCtrl(wx.ListCtrl):
         for coli, val in enumerate(data[1:]):
             self.SetStringItem(row, coli+1, str(val))
 
+
+class SpykeTreeCtrl(wx.TreeCtrl):
+    """TreeCtrl with overridden OnCompareItems().
+    Also has a couple of helper functions"""
+    def OnCompareItems(self, item1, item2):
+        """Compare templates in tree according to the vertical
+        position of the maxchan in space, for sorting purposes.
+        Called by self.SortChildren
+
+        TODO: sort member events by event times
+        """
+        try:
+            self.SiteLoc
+        except AttributeError:
+            sortframe = self.GetTopLevelParent()
+            self.SiteLoc = sortframe.session.probe.SiteLoc # do this here and not in __init__ due to binding order
+        obj1 = self.GetItemPyData(item1)
+        obj2 = self.GetItemPyData(item2)
+        try: # make sure they're both templates by checking for .events attrib
+            obj1.events
+            obj2.events
+            ycoord1 = self.SiteLoc[obj1.maxchan][1] # what about if the template's maxchan is still None?
+            ycoord2 = self.SiteLoc[obj2.maxchan][1]
+            return cmp(ycoord1, ycoord2)
+        except AttributeError:
+            raise RuntimeError, "can't yet deal with sorting events in tree"
+
+    def GetTreeChildrenPyData(self, itemID):
+        """Returns PyData of all children of item in
+        order from top to bottom in a list"""
+        children = []
+        childID, cookie = self.GetFirstChild(itemID)
+        while childID:
+            child = self.GetItemPyData(childID)
+            children.append(child)
+            childID, cookie = self.GetNextChild(itemID, cookie)
+        return children
+
+    def GetTreeChildren(self, itemID):
+        """Returns list of itemIDs of all children of item in
+        order from top to bottom of the tree"""
+        childrenIDs = []
+        childID, cookie = self.GetFirstChild(itemID)
+        while childID:
+            childrenIDs.append(child)
+            childID = self.GetNextChild(itemId, cookie)
+        return childrenIDs
+
 '''
 class HybridList(set):
     """A set with an append() method like a list"""
