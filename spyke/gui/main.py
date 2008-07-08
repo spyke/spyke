@@ -231,12 +231,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               events_array=events_array) # generate a new Detection run
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
             self.session._detid += 1 # inc for next unique Detection run
+            print 'detection.set_events()'
             detection.set_events() # now that we know this detection isn't redundant, let's actually generate the Event objects
+            print 'self.session.detections.append(detection)'
             self.session.detections.append(detection)
+            print 'self.append_detection_list(detection)'
             self.append_detection_list(detection)
-            newevents = self.session.append_events(detection.events)
+            print 'newevents = self.session.append_events(detection.events)'
+            uniqueevents = self.session.append_events(detection.events)
+            print "sf = self.OpenFrame('sort')"
             sf = self.OpenFrame('sort') # ensure it's open
-            sf.Append2EventList(newevents)
+            print 'sf.Append2EventList(uniqueevents)'
+            sf.Append2EventList(uniqueevents)
             #self.EnableSave(True)
             print '%r' % detection.events_array
 

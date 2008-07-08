@@ -40,6 +40,7 @@ class Detector(object):
     DEFNOISEWINDOW = 10000000 # 10 sec
     DEFMAXNEVENTS = sys.maxint
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
+    RANDOMBLOCKSIZE = 50000 # block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
     DEFTLOCK = 440 # us
     DEFRANDOMSAMPLE = False
@@ -73,32 +74,36 @@ class Detector(object):
         then combines the results"""
         t0 = time.clock()
 
+        if self.randomsample:
+            self.blocksize = RANDOMBLOCKSIZE # TODO: is this a safe thing to do?
         bs = self.blocksize
         bx = self.BLOCKEXCESS
         bs_sec = bs/1000000 # from us to sec
         maxneventsperchanperblock = bs_sec * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
         self.totalnevents = 0 # total num events found across all chans so far by this Detector
-        # hold temp eventtimes and maxchans for .searchblock, reused on every call
+        # these hold temp eventtimes and maxchans for .searchblock, reused on every call
         self._eventtimes = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=np.int64)
         self._maxchans = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=int)
         self.tilock = self.us2nt(self.tlock)
 
-        wavetranges, cutranges, direction = self.get_blockranges()
-        # if self.randomsample, make wavetranges and cutranges be iterators of infinite
-        # length that continue to spit out time ranges from random start time to end of file
+        wavetranges, (bs, bx, direction) = self.get_blockranges()
 
         events = [] # list of 2D event arrays returned by .searchblock(), one array per block
-        for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
+        for wavetrange in wavetranges: # iterate over time ranges with excess in them, one per block
             if self.totalnevents >= self.maxnevents:
                 break # out of for loop
-            print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
             tlo, thi = wavetrange # tlo could be > thi
-            wave = self.stream[tlo:thi:direction] # a block (Waveform) of multichan data, possibly reversed
+            cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
+            print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+            wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
             eventtimesmaxchans = self.searchblock(wave, cutrange) # TODO: this should be threaded
             #wx.Yield() # allow GUI to update
             # TODO: remove any events that happen right at the first or last timepoint in the file,
             # since we can't say when an interrupted rising edge would've reached peak
+            if self.randomsample:
+                # ensure all the new events in eventtimesmaxchans are not duplicates of any that are already in .events, if so, remove those new events that are duplicates, and update self.totalnevents. Duplicates are possible in random sampling cuz we might end up with blocks with overlapping tranges
+                pass
             events.append(eventtimesmaxchans)
         events = np.concatenate(events, axis=1)
         print 'found %d events in total' % events.shape[1]
@@ -108,23 +113,25 @@ class Detector(object):
     def get_blockranges(self):
         """Generate time ranges for slightly overlapping blocks of data"""
         wavetranges = []
-        cutranges = []
-        bs = self.blocksize
-        bx = self.BLOCKEXCESS
-        if self.trange[1] > self.trange[0]: # search forward
+        bs = abs(self.blocksize)
+        bx = abs(self.BLOCKEXCESS)
+        if self.trange[1] >= self.trange[0]: # search forward
             direction = 1
-        if self.trange[1] < self.trange[0]: # search backward
-            direction = -1
+        else: # self.trange[1] < self.trange[0], # search backward
             bs = -bs
             bx = -bx
-        es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
-        for e in es:
-            wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
-            cutranges.append((e, e+bs)) # time range of events to keep from those returned by .searchblock
-        # last wavetrange and cutrange surpass self.trange[1], fix that here:
-        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
-        cutranges[-1] = (cutranges[-1][0], self.trange[1])
-        return wavetranges, cutranges, direction
+            direction = -1
+
+        if self.randomsample:
+            #wavetranges = some kind of iterator/generator that spits out random ranges of width bs + 2bx
+            pass
+        else:
+            es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
+            for e in es:
+                wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
+            # last wavetrange surpasses self.trange[1] by some unknown amount, fix that here:
+            wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
+        return wavetranges, (bs, bx, direction)
 
     def __getstate__(self):
         """Get object state for pickling"""

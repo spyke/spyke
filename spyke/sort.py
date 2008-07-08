@@ -71,15 +71,18 @@ class Session(object):
         return d
 
     def append_events(self, events):
-        """Append events to self
+        """Append events to self.
         Don't add a new event from a new detection if the identical event
         (same maxchan and t) is already in session.events"""
-        newevents = {}
-        for e in events.values():
-            if e not in self.events.values(): # prevent duplicates, see Event.__eq__
-                self.events[e.id] = e
-                newevents[e.id] = e
-        return newevents
+        print 'newevents = set(events.values()).difference(self.events.values())'
+        newevents = set(events.values()).difference(self.events.values())
+        uniqueevents = {}
+        print 'filling uniqueevents dict'
+        for newevent in newevents:
+            uniqueevents[newevent.id] = newevent
+        print 'self.events.update(uniqueevents)'
+        self.events.update(uniqueevents)
+        return uniqueevents
 
 
 class Detection(object):
@@ -232,6 +235,11 @@ class Event(object):
         """Events are considered identical if they have the
         same timepoint and the same maxchan"""
         return self.t == other.t and self.maxchan == other.maxchan
+
+    def __hash__(self):
+        """Unique hash value for self, based on .t and .maxchan.
+        Required for effectively using Events in a Set"""
+        return hash((self.t, self.maxchan)) # hash of their tuple, should guarantee uniqueness
 
     def __getitem__(self, key):
         """Return WaveForm for this event given slice key"""
