@@ -609,6 +609,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.blocksize = int(self.blocksize_combo_box.GetValue())
         det.slock = self.slock_spin_ctrl.GetValue()
         det.tlock = self.tlock_spin_ctrl.GetValue()
+        det.randomsample = self.random_sample_checkbox.GetValue()
 
     def update_detect_pane(self, det):
         """Update detect pane with detector attribs"""

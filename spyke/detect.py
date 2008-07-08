@@ -16,7 +16,7 @@ TODO: check if python's cygwincompiler.py module has been updated to deal with
 
 from __future__ import division
 
-__authors__ = ['Reza Lotun, Martin Spacek']
+__authors__ = ['Martin Spacek, Reza Lotun']
 
 import itertools
 import sys
@@ -28,6 +28,8 @@ import numpy as np
 
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd
+#from detect_weave import BipolarAmplitudeFixedThresh_Weave
+from detect_cy import BipolarAmplitudeFixedThresh_Cy
 
 
 class Detector(object):
@@ -40,6 +42,7 @@ class Detector(object):
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     DEFSLOCK = 175 # um
     DEFTLOCK = 440 # us
+    DEFRANDOMSAMPLE = False
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for events. Only useful for ensuring event times within the actual block time range are accurate. Events detected in the excess are discarded
@@ -47,7 +50,7 @@ class Detector(object):
     def __init__(self, stream, chans=None,
                  fixedthresh=None, noisemethod=None, noisemult=None, noisewindow=None,
                  trange=None, maxnevents=None, blocksize=None,
-                 slock=None, tlock=None):
+                 slock=None, tlock=None, randomsample=None):
         """Takes a data stream and sets various parameters"""
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.stream = stream
@@ -62,6 +65,66 @@ class Detector(object):
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
         self.tlock = tlock or self.DEFTLOCK
+        self.randomsample = randomsample or self.DEFRANDOMSAMPLE
+
+    def search(self):
+        """Search for events. Divides large searches into more manageable
+        blocks of (slightly overlapping) multichannel waveform data, and
+        then combines the results"""
+        t0 = time.clock()
+
+        bs = self.blocksize
+        bx = self.BLOCKEXCESS
+        bs_sec = bs/1000000 # from us to sec
+        maxneventsperchanperblock = bs_sec * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
+        # reset this at the start of every search
+        self.totalnevents = 0 # total num events found across all chans so far by this Detector
+        # hold temp eventtimes and maxchans for .searchblock, reused on every call
+        self._eventtimes = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=np.int64)
+        self._maxchans = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=int)
+        self.tilock = self.us2nt(self.tlock)
+
+        wavetranges, cutranges, direction = self.get_blockranges()
+        # if self.randomsample, make wavetranges and cutranges be iterators of infinite
+        # length that continue to spit out time ranges from random start time to end of file
+
+        events = [] # list of 2D event arrays returned by .searchblock(), one array per block
+        for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
+            if self.totalnevents >= self.maxnevents:
+                break # out of for loop
+            print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+            tlo, thi = wavetrange # tlo could be > thi
+            wave = self.stream[tlo:thi:direction] # a block (Waveform) of multichan data, possibly reversed
+            eventtimesmaxchans = self.searchblock(wave, cutrange) # TODO: this should be threaded
+            #wx.Yield() # allow GUI to update
+            # TODO: remove any events that happen right at the first or last timepoint in the file,
+            # since we can't say when an interrupted rising edge would've reached peak
+            events.append(eventtimesmaxchans)
+        events = np.concatenate(events, axis=1)
+        print 'found %d events in total' % events.shape[1]
+        print 'inside .search() took %.3f sec' % (time.clock()-t0)
+        return events
+
+    def get_blockranges(self):
+        """Generate time ranges for slightly overlapping blocks of data"""
+        wavetranges = []
+        cutranges = []
+        bs = self.blocksize
+        bx = self.BLOCKEXCESS
+        if self.trange[1] > self.trange[0]: # search forward
+            direction = 1
+        if self.trange[1] < self.trange[0]: # search backward
+            direction = -1
+            bs = -bs
+            bx = -bx
+        es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
+        for e in es:
+            wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
+            cutranges.append((e, e+bs)) # time range of events to keep from those returned by .searchblock
+        # last wavetrange and cutrange surpass self.trange[1], fix that here:
+        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
+        cutranges[-1] = (cutranges[-1][0], self.trange[1])
+        return wavetranges, cutranges, direction
 
     def __getstate__(self):
         """Get object state for pickling"""
@@ -184,10 +247,6 @@ class DynamicThresh(Detector):
         pass
 
 
-#from detect_weave import BipolarAmplitudeFixedThresh_Weave
-from detect_cy import BipolarAmplitudeFixedThresh_Cy
-
-
 class BipolarAmplitudeFixedThresh(FixedThresh,
                                   BipolarAmplitudeFixedThresh_Cy):
     """Bipolar amplitude fixed threshold detector,
@@ -196,57 +255,6 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
     def __init__(self, *args, **kwargs):
         FixedThresh.__init__(self, *args, **kwargs)
         self.algorithm = 'BipolarAmplitude'
-
-    def search(self):
-        """Search for events. Divides large searches into more manageable
-        blocks of (slightly overlapping) multichannel waveform data, and
-        then combines the results"""
-        t0 = time.clock()
-
-        bs = self.blocksize
-        bx = self.BLOCKEXCESS
-        maxneventsperchanperblock = bs/1000000 * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
-        # reset this at the start of every search
-        self.totalnevents = 0 # total num events found across all chans so far by this Detector
-        # hold temp eventtimes and maxchans for .searchblock, reused on every call
-        self._eventtimes = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=np.int64)
-        self._maxchans = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=int)
-        self.tilock = self.us2nt(self.tlock)
-
-        # generate time ranges for slightly overlapping blocks of data
-        wavetranges = []
-        cutranges = []
-        if self.trange[1] > self.trange[0]: # search forward
-            direction = 1
-        if self.trange[1] < self.trange[0]: # search backward
-            direction = -1
-            bs = -bs
-            bx = -bx
-        es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
-        for e in es:
-            wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
-            cutranges.append((e, e+bs)) # time range of events to keep from those returned by .searchblock
-        # last wavetrange and cutrange surpass self.trange[1], fix that here:
-        wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
-        cutranges[-1] = (cutranges[-1][0], self.trange[1])
-
-        events = [] # list of 2D event arrays returned by .searchblock(), one array per block
-        for wavetrange, cutrange in zip(wavetranges, cutranges): # iterate over blocks
-            if self.totalnevents < self.maxnevents:
-                print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
-                tlo, thi = wavetrange # tlo could be > thi
-                wave = self.stream[tlo:thi:direction] # a block (Waveform) of multichan data, possibly reversed
-                eventtimesmaxchans = self.searchblock(wave, cutrange) # TODO: this should be threaded
-                #wx.Yield() # allow GUI to update
-                # TODO: remove any events that happen right at the first or last timepoint in the file,
-                # since we can't say when an interrupted rising edge would've reached peak
-                events.append(eventtimesmaxchans)
-            else:
-                break # out of for loop
-        events = np.concatenate(events, axis=1)
-        print 'found %d events in total' % events.shape[1]
-        print 'inside .search() took %.3f sec' % (time.clock()-t0)
-        return events
 
 
 class MultiPhasic(FixedThresh):
