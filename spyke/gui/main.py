@@ -27,7 +27,7 @@ DEFSPIKETW = 1000 # spike frame temporal window width (us)
 DEFCHARTTW = 50000 # chart frame temporal window width (us)
 DEFLFPTW = 1000000 # lfp frame temporal window width (us)
 
-SPIKEFRAMEPIXPERCHAN = 80 # horizontally
+SPIKEFRAMEWIDTHPERCOLUMN = 80
 SPIKEFRAMEHEIGHT = 700
 CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
 LFPFRAMESIZE = (250, SPIKEFRAMEHEIGHT)
@@ -320,7 +320,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.chans_enabled = copy(self.hpstream.layout.chanlist) # property
         self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
-        self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEPIXPERCHAN
+        self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         self.OpenFrame('spike')
         #self.OpenFrame('chart')
         #self.OpenFrame('lfp')
@@ -358,7 +358,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.DeleteSession()
         self.EnableSave(True)
         self.session = Session(detector=self.get_detector(),
-                               srffname=self.srff.name,
                                probe=self.hpstream.probe,
                                stream=self.hpstream)
 
@@ -406,8 +405,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
     def CloseSurfFile(self):
-        """Destroy data and sort frames, clean up, close .srf file
-        , and metaphorically, .sort file too"""
+        """Destroy data and sort frames, clean up, close .srf file,
+        and metaphorically, .sort file too"""
         # need to specifically get a list of keys, not an iterator,
         # since self.frames dict changes size during iteration
         for frametype in self.frames.keys():
@@ -513,7 +512,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     ncols = self.hpstream.probe.ncols
                 except AttributeError:
                     ncols = 2 # assume 2 columns
-                x = self.GetPosition()[0] + ncols*SPIKEFRAMEPIXPERCHAN
+                x = self.GetPosition()[0] + ncols*SPIKEFRAMEWIDTHPERCOLUMN
                 y = self.GetPosition()[1] + self.GetSize()[1] + SPIKEFRAMEHEIGHT - PYSHELLSIZE[1]
                 frame = PyShellFrame(parent=self, pos=wx.Point(x, y), size=PYSHELLSIZE)
             self.frames[frametype] = frame

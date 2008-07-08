@@ -1,5 +1,7 @@
 """Spike sorting classes and frame"""
 
+from __future__ import division
+
 __authors__ = 'Martin Spacek, Reza Lotun'
 
 import os
@@ -7,12 +9,17 @@ import wx
 
 import numpy as np
 
-from spyke.core import WaveForm
+from spyke.core import WaveForm, intround
 from spyke.gui import wxglade_gui
 from spyke.gui.plot import DEFEVENTTW
 
 # save all Event waveforms, even for those that have never been plotted or added to a template
 SAVEALLEVENTWAVES = False
+
+SPLITTERSASH = 300
+SORTSPLITTERSASH = 117
+SPIKESORTPANELWIDTHPERCOLUMN = 120
+SORTFRAMEHEIGHT = 950
 
 
 class Session(object):
@@ -21,9 +28,8 @@ class Session(object):
     to sort spike Events.
     Formerly known as a Collection.
     A .sort file is a single sort Session object, pickled and gzipped"""
-    def __init__(self, detector=None, srffname=None, probe=None, stream=None):
+    def __init__(self, detector=None, probe=None, stream=None):
         self.detector = detector # this session's current Detector object
-        self.srffname = os.path.basename(srffname) # last srf file that was open in this session
         self.probe = probe # only one probe design per session allowed
         self.detections = [] # history of detection runs, in chrono order, reuse deleted Detection IDs
         self.stream = stream
@@ -280,6 +286,10 @@ class SortFrame(wxglade_gui.SortFrame):
     def __init__(self, *args, **kwargs):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
         self.spykeframe = self.Parent
+        ncols = self.session.probe.ncols
+        size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols,
+                SORTFRAMEHEIGHT)
+        self.SetSize(size)
 
         self.listTimer = wx.Timer(owner=self.list)
 
@@ -466,12 +476,12 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnSortTree(self, evt):
         root = self.tree.GetRootItem()
-        self.tree.SortChildren(root)
-        self.RelabelTemplates()
+        if root: # tree isn't empty
+            self.tree.SortChildren(root)
+            self.RelabelTemplates(root)
 
-    def RelabelTemplates(self):
-        root = self.tree.GetRootItem()
-        templates = self.tree.GetTreeChildrenPyData(root) # gets all children in order from top to bottom in a list
+    def RelabelTemplates(self, root):
+        templates = self.tree.GetTreeChildrenPyData(root) # get all children in order from top to bottom
         for templatei, template in enumerate(templates):
             del self.session.templates[template.id] # remove template from its old key in template dict
             template.id = templatei # update its id
@@ -494,8 +504,11 @@ class SortFrame(wxglade_gui.SortFrame):
         for rowi in range(self.list.GetItemCount()):
             eid = int(self.list.GetItemText(rowi))
             e = self.session.events[eid]
+            xcoord = SiteLoc[e.maxchan][0]
             ycoord = SiteLoc[e.maxchan][1]
-            self.list.SetItemData(rowi, ycoord)
+            # hack to make items sort by ycoord, or xcoord if ycoords are identical
+            data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
+            self.list.SetItemData(rowi, data)
         # now do the actual sort, based on the item data
         self.list.SortItems(cmp)
 
@@ -514,11 +527,13 @@ class SortFrame(wxglade_gui.SortFrame):
         for e in events.values():
             row = [str(e.id), e.maxchan, e.t]
             self.list.Append(row)
+            xcoord = SiteLoc[e.maxchan][0]
             ycoord = SiteLoc[e.maxchan][1]
-            # add ycoord of maxchan of event as data for this row, use item
-            # count instead of counting from 0 cuz you want to handle there
+            # hack to make items sort by ycoord, or xcoord if ycoords are identical
+            data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
+            # use item count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
-            self.list.SetItemData(self.list.GetItemCount()-1, ycoord)
+            self.list.SetItemData(self.list.GetItemCount()-1, data)
         self.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
         #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
         # hard code column widths for precise control, autosize seems buggy
@@ -653,16 +668,13 @@ class SortFrame(wxglade_gui.SortFrame):
             self.UpdateObjectsInPlot([template]) # update its plot
 
     def MoveCurrentObjects2List(self):
-        selected_itemIDs = self.tree.GetSelections()
-        selected_itemIDs.reverse()
-        for itemID in selected_itemIDs:
-            if not itemID.IsOk(): # probably an event whose tree parent (template) has already been deleted
-                continue # skip to next itemID in loop
-            obj = self.tree.GetItemPyData(itemID)
-            if obj.__class__ == Event:
-                self.MoveEvent2List(obj)
-            elif obj.__class__ == Template:
-                self.DeleteTemplate(obj)
+        for itemID in self.tree.GetSelections():
+            if itemID: # check if event's tree parent (template) has already been deleted
+                obj = self.tree.GetItemPyData(itemID)
+                if obj.__class__ == Event:
+                    self.MoveEvent2List(obj)
+                elif obj.__class__ == Template:
+                    self.DeleteTemplate(obj)
         self.OnTreeSelectChanged() # update plot
 
     def MoveCurrentEvents2Trash(self):
@@ -675,8 +687,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.MoveEvent2Trash(event, row)
 
     def GetFirstSelectedTemplate(self):
-        selected_itemIDs = self.tree.GetSelections()
-        for itemID in selected_itemIDs:
+        for itemID in self.tree.GetSelections():
             obj = self.tree.GetItemPyData(itemID)
             if obj.__class__ == Template:
                 return obj
