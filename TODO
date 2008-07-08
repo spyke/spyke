@@ -43,6 +43,10 @@ EVENT DETECTION:
         - clicking on other options can just update the current Detector
         - or better, Detector is updated from other options only when you hit search or F3 or eq'v
 
+    - Detection deletion:
+        - allow if none of the Detector's events have a non-None .template attrib
+        - if we allow deletion, maybe session.detections should be a dict instead of a list
+
 ------------------------------------
 TEMPLATES:
 

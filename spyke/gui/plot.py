@@ -136,6 +136,14 @@ class Plot(object):
         """Hide specific chans in self"""
         self.show_chans(chans, enable=False)
 
+    def get_shown_chans(self):
+        """Get list of currently shown chans"""
+        chans = []
+        for line in self.lines.values():
+            if line.get_visible():
+                chans.append(line.chan)
+        return chans
+
     def update(self, wave, tref):
         """Update lines data
         TODO: most of the time, updating the xdata won't be necessary,
@@ -300,12 +308,20 @@ class PlotPanel(FigureCanvasWxAgg):
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
-        for plot in self.used_plots.values():
-            plot.hide()
-        self.draw() # draw the new ref
+        self.draw_refs()
+
+    def draw_refs(self):
+        """Redraws all enabled reflines, resaves reflines_background"""
+        showns = {}
+        for plotid, plot in self.used_plots.items():
+            shown = plot.get_shown_chans()
+            showns[plotid] = shown
+            plot.hide_chans(shown)
+        self.draw() # draw all the enabled refs
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
-        for plot in self.used_plots.values():
-            plot.show()
+        for plotid, plot in self.used_plots.items():
+            shown = showns[plotid]
+            plot.show_chans(shown) # re-show just the chans that were shown previously
             plot.draw()
         self.blit(self.ax.bbox)
 

@@ -441,6 +441,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         pf = gzip.open(fname, 'rb')
         self.session = cPickle.load(pf)
         pf.close()
+        sessionProbe = self.session.probe.__class__
+        if self.hpstream != None and sessionProbe != self.hpstream.probe.__class__:
+            self.CreateNewSession() # overwrite the failed Session
+            raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
+                                % (sessionProbe, self.hpstream.probe.__class__)
         self.session.stream = self.hpstream # restore missing stream object to session
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort Session

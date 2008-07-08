@@ -325,7 +325,9 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnSize(self, evt):
         """Put code here to re-save reflines_background"""
-        print 'resizing'
+        # resize doesn't actually happen until after this handler exits,
+        # so we have to CallAfter
+        wx.CallAfter(self.DrawRefs)
         evt.Skip()
 
     def OnClose(self, evt):
@@ -520,6 +522,11 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.SetItemData(rowi, t)
         # now do the actual sort, based on the item data
         self.list.SortItems(cmp)
+
+    def DrawRefs(self):
+        """Redraws refs and resaves background of sort panel(s)"""
+        self.spikesortpanel.draw_refs()
+        #self.chartsortpanel.draw_refs()
 
     def Append2EventList(self, events):
         """Append events to self's event list control"""
