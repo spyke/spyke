@@ -231,19 +231,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               events_array=events_array) # generate a new Detection run
         if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
             self.session._detid += 1 # inc for next unique Detection run
-            print 'detection.set_events()'
-            t0 = time.clock()
             detection.set_events() # now that we know this detection isn't redundant, let's actually generate the Event objects
-            print 'detection.set_events() took %.3f sec' % (time.clock()-t0)
-            print 'self.session.detections.append(detection)'
             self.session.detections.append(detection)
-            print 'self.append_detection_list(detection)'
             self.append_detection_list(detection)
-            print 'newevents = self.session.append_events(detection.events)'
             uniqueevents = self.session.append_events(detection.events)
-            print "sf = self.OpenFrame('sort')"
             sf = self.OpenFrame('sort') # ensure it's open
-            print 'sf.Append2EventList(uniqueevents)'
             t0 = time.clock()
             sf.Append2EventList(uniqueevents)
             print 'sf.Append2EventList(uniqueevents) took %.3f sec' % (time.clock()-t0)
@@ -678,7 +670,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det = self.session.detector
         self.update_detector(det)
         det.maxnevents = 1 # override whatever was in nevents spin edit
-        det.blocksize = 100000 # smaller blocksize, since we're only looking for 1 event
+        det.blocksize = 50000 # smaller blocksize, since we're only looking for 1 event
+        det.randomsample = False # ensure random sampling is turned off
         if which == 'next':
             det.trange = (self.t+1, self.hpstream.tend)
         elif which == 'previous':

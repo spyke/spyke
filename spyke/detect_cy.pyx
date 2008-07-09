@@ -18,11 +18,12 @@ import wx
 
 cpdef class BipolarAmplitudeFixedThresh_Cy:
 
-    cpdef searchblock(self, wave, cutrange):
+    cpdef searchblock(self, wave, cutrange, int maxnevents):
         """Search one timepoint at a time across chans in a manageable
         block of waveform data and return a 2D array of event times and maxchans.
         Apply both temporal and spatial lockouts.
-        cutrange determines which events are saved and which are discarded as excess
+        cutrange: determines which events are saved and which are discarded as excess
+        maxnevents: maximum number of events to return while searching this block
 
         TODO: get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type
               whose fields point to all the variables used in this method, and pass the struct to get_maxchan
@@ -82,11 +83,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         #assert nchans == absdata.dimensions[0] # yup
         cdef int nt = absdata.dimensions[1]
-        cdef int totalnevents = self.totalnevents # num non-excess events found so far in this Detector.search()
-        cdef int maxnevents = self.maxnevents
         cdef float fixedthresh = self.fixedthresh
 
-        # cut times, these are for testing whether to inc totalnevents
+        # cut times, these are for testing whether to inc nevents
         cdef long long cut0 = cutrange[0]
         cdef long long cut1 = cutrange[1]
         if cut0 > cut1: # swap 'em for the test
@@ -110,6 +109,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
         cdef int ti, chanii, maxchanii
+        cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # index into eventtimes
         cdef float v # current signal voltage, uV
 
@@ -141,15 +141,13 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                                 eventi += 1
                                 eventtimesp[eventi] = eventt # save event time
                                 maxchansp[eventi] = chansp[maxchanii] # save chan event is centered on
-                                totalnevents += 1 # this event has been saved, so inc
-                            if totalnevents >= maxnevents: # exit here, don't search any more chans
+                                nevents += 1 # this event has been saved, so inc
+                            if nevents >= maxnevents: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
                                 break # out of inner chanii loop
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
-        nnewevents = totalnevents - self.totalnevents # num events added to eventtimes and maxchans
-        self.totalnevents = totalnevents # update
-        eventtimes = eventtimes[:nnewevents] # keep only the entries that were filled
-        maxchans = maxchans[:nnewevents] # keep only the entries that were filled
+        eventtimes = eventtimes[:nevents] # keep only the entries that were filled
+        maxchans = maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
 
     cdef int get_maxchanii(self, int maxchanii, int nchans, double *dmp,

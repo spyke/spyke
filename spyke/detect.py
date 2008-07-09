@@ -32,6 +32,24 @@ from spyke.core import WaveForm, toiter, argcut, intround, eucd
 from detect_cy import BipolarAmplitudeFixedThresh_Cy
 
 
+class RandomWaveTranges(object):
+    """Iterator that spits out time ranges of width bs with
+    excess bx that begin randomly from within the given trange"""
+    def __init__(self, trange, bs, bx):
+        self.trange = trange
+        self.bs = bs
+        self.bx = bx
+
+    def next(self):
+        # random int within trange
+        t0 = np.random.randint(low=self.trange[0], high=self.trange[1])
+        tend = t0 + self.bs
+        return (t0-self.bx, tend+self.bx)
+
+    def __iter__(self):
+        return self
+
+
 class Detector(object):
     """Event detector base class"""
     DEFFIXEDTHRESH = 50 # uV
@@ -40,7 +58,7 @@ class Detector(object):
     DEFNOISEWINDOW = 10000000 # 10 sec
     DEFMAXNEVENTS = sys.maxint
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
-    RANDOMBLOCKSIZE = 50000 # block size to use if we're randomly sampling
+    RANDOMBLOCKSIZE = 10000 # block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
     DEFTLOCK = 440 # us
     DEFRANDOMSAMPLE = False
@@ -75,13 +93,13 @@ class Detector(object):
         t0 = time.clock()
 
         if self.randomsample:
-            self.blocksize = RANDOMBLOCKSIZE # TODO: is this a safe thing to do?
+            self.blocksize = self.RANDOMBLOCKSIZE # TODO: is this a safe thing to do?
         bs = self.blocksize
         bx = self.BLOCKEXCESS
         bs_sec = bs/1000000 # from us to sec
         maxneventsperchanperblock = bs_sec * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
-        self.totalnevents = 0 # total num events found across all chans so far by this Detector
+        self.nevents = 0 # total num events found across all chans so far by this Detector
         # these hold temp eventtimes and maxchans for .searchblock, reused on every call
         self._eventtimes = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=np.int64)
         self._maxchans = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=int)
@@ -91,20 +109,31 @@ class Detector(object):
 
         events = [] # list of 2D event arrays returned by .searchblock(), one array per block
         for wavetrange in wavetranges: # iterate over time ranges with excess in them, one per block
-            if self.totalnevents >= self.maxnevents:
+            if self.nevents >= self.maxnevents:
                 break # out of for loop
             tlo, thi = wavetrange # tlo could be > thi
             cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
-            print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
             wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
-            eventtimesmaxchans = self.searchblock(wave, cutrange) # TODO: this should be threaded
+            if self.randomsample:
+                maxnevents = 1 # how many more we're looking for in the next block
+            else:
+                maxnevents = self.maxnevents - self.nevents
+                print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+            eventarr = self.searchblock(wave, cutrange, maxnevents) # TODO: this should be threaded
+            nnewevents = eventarr.shape[1] # number of columns
             #wx.Yield() # allow GUI to update
             # TODO: remove any events that happen right at the first or last timepoint in the file,
             # since we can't say when an interrupted rising edge would've reached peak
-            if self.randomsample:
-                # ensure all the new events in eventtimesmaxchans are not duplicates of any that are already in .events, if so, remove those new events that are duplicates, and update self.totalnevents. Duplicates are possible in random sampling cuz we might end up with blocks with overlapping tranges
-                pass
-            events.append(eventtimesmaxchans)
+            #if self.randomsample:
+            #    assert nnewevents in (0, 1) # should have found zero or one events
+            #    print eventarr
+            # ensure that the new event in eventarr is not a duplicate of any that are already in .events, if so, don't append this new event, and don't inc self.nevents. Duplicates are possible in random sampling cuz we might end up with blocks with overlapping tranges
+            # this test is probably slow cuz it's lists, but at least it's legible and correct
+            if self.randomsample and eventarr.tolist() in np.asarray(events).tolist():
+                print 'found duplicate random sampled event'
+            elif nnewevents != 0:
+                events.append(eventarr)
+                self.nevents += nnewevents # update
         events = np.concatenate(events, axis=1)
         print 'found %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
@@ -123,8 +152,11 @@ class Detector(object):
             direction = -1
 
         if self.randomsample:
-            #wavetranges = some kind of iterator/generator that spits out random ranges of width bs + 2bx
-            pass
+            # wavetranges is an iterator that spits out random ranges starting from within
+            # self.trange, and of width bs + 2bx
+            if direction == -1:
+                raise ValueError, "Check trange - I'd rather not do a backwards random search"
+            wavetranges = RandomWaveTranges(self.trange, bs, bx)
         else:
             es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
             for e in es:
