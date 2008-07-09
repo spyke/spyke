@@ -265,29 +265,37 @@ class Event(object):
         return d
 
 
-class Cluster(object):
-    """Cluster is an object that holds all the settings of a
-    cluster run. A cluster run is when you compare each of the
-    detected but unsorted spikes in the sort Session to all templates,
-    and decide which template it best fits. Compare with a Rip"""
+class Match(object):
+    """Holds all the settings of a match run. A match run is when you compare each
+    template to all of the detected but unsorted spikes in Session.events, plot an
+    error histogram for each template, and set the error threshold for each to
+    decide which events match the template. Fast, simple, no noise events to worry
+    about, but is susceptible to spike misalignment. Compare with a Rip"""
 
-    def match(self, spike):
+    def match(self):
         pass
 
-# or just have two options in the Sort pane: Rip against: detected events; entire file
 
 class Rip(object):
     """Holds all the Rip settings. A rip is when you take each template and
     slide it across the entire file. A spike is detected and
     sorted at timepoints where the error between template and file falls below
-    some threshold"""
-    pass
+    some threshold. Slow, and requires distinguishing a whole lotta noise events"""
+
+    def rip(self):
+        pass
 
 
-class ClusterRip(Cluster, Rip):
+class MatchRip(Match, Rip):
     """A hybrid of the two. Rip each template across all of the unsorted spikes
-    instead of across the entire file"""
-    pass
+    instead of across the entire file. Compared to a Match, a MatchRip can better
+    handle unsorted unspikes that are misaligned, with the downside that you now
+    have a lot of noise events to distinguish as well, but not as many as in a normal Rip"""
+
+    def matchrip(self):
+        pass
+
+# or just have two options in the Sort pane: Rip against: detected events; entire file
 
 
 class SortFrame(wxglade_gui.SortFrame):
