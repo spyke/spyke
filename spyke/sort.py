@@ -686,6 +686,8 @@ class SortFrame(wxglade_gui.SortFrame):
             event = self.listRow2Event(row)
             if event.wave.data != None: # only move it to template if it's got wave data
                 template = self.MoveEvent2Template(event, row, template) # if template was None, it isn't any more
+            else:
+                print "can't add event %d to template because its data isn't accessible" % event.id
         if template != None and template.plot != None: # if it exists and it's plotted
             self.UpdateObjectsInPlot([template]) # update its plot
 
