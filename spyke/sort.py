@@ -74,13 +74,10 @@ class Session(object):
         """Append events to self.
         Don't add a new event from a new detection if the identical event
         (same maxchan and t) is already in session.events"""
-        print 'newevents = set(events.values()).difference(self.events.values())'
         newevents = set(events.values()).difference(self.events.values())
         uniqueevents = {}
-        print 'filling uniqueevents dict'
         for newevent in newevents:
             uniqueevents[newevent.id] = newevent
-        print 'self.events.update(uniqueevents)'
         self.events.update(uniqueevents)
         return uniqueevents
 
@@ -95,6 +92,7 @@ class Detection(object):
         self.id = id
         self.datetime = datetime
         self.events_array = events_array # 2D array output of Detector.search
+        self._slock_chans = {}
         #self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
 
     def set_events(self):
@@ -104,6 +102,22 @@ class Detection(object):
             e = Event(self.session._eventid, chan, t, self)
             self.session._eventid += 1 # inc for next unique Event
             self.events[e.id] = e
+
+    def get_slock_chans(self, maxchan):
+        """Get or generate list of chans within spatial lockout of maxchan, use
+        spatial lockout of self.detector
+        Note this can't be used as the getter in a property, I think cuz you can't pass
+        args in a getter"""
+        try:
+            return self._slock_chans[maxchan]
+        except KeyError:
+            det = self.detector
+            chans = np.asarray(det.chans) # chans that correspond to rows/columns in det.dm
+            maxchani, = np.where(chans == maxchan) # get index into det.dm that corresponds to maxchan
+            chanis, = np.where(det.dm[maxchani].flat <= det.slock) # flat removes the singleton dimension
+            chans = list(chans[chanis]) # chans within slock of maxchan
+            self._slock_chans[maxchan] = chans # save for quick retrieval next time
+            return chans
 
     def __eq__(self, other):
         """Compare detection runs by their .events_array"""
@@ -202,7 +216,7 @@ class Event(object):
         self.maxchan = maxchan
         self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
-        self.chans = self.get_slock_chans()
+        self.chans = self.detection.get_slock_chans(maxchan)
         self.template = None # template object it belongs to, None means self is an unsorted event
         self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
@@ -212,19 +226,6 @@ class Event(object):
         # try loading it right away on init, instead of waiting until plot, see if it's fast enough
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()
-
-    def get_slock_chans(self):
-        """Get chans within spatial lockout of maxchan, use
-        spatial lockout of detector that detected self"""
-        det = self.detection.detector
-        maxchani = det.chans.index(self.maxchan) # get index into det.dm that corresponds to maxchan
-        ndchans = len(det.chans) # number of chans enabled in the detector
-        chans = [] # chans enabled for plotting
-        for chani in range(ndchans):
-            if det.dm[chani, maxchani] <= det.slock:
-                chan = det.chans[chani]
-                chans.append(chan)
-        return chans
 
     def update_wave(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
         """Load/update self's waveform, defaults to default event time window centered on self.t"""
@@ -327,7 +328,7 @@ class SortFrame(wxglade_gui.SortFrame):
         return self.spykeframe.session
 
     def set_session(self):
-        raise RunTimeError, "SortFrame's .session not setable"
+        raise RuntimeError, "SortFrame's .session not settable"
 
     session = property(get_session, set_session) # make this a property for proper behaviour after unpickling
 
@@ -542,6 +543,12 @@ class SortFrame(wxglade_gui.SortFrame):
         for e in events.values():
             row = [str(e.id), e.maxchan, e.t]
             self.list.Append(row)
+            # using this instead of .Append(row) is just as slow:
+            #rowi = self.list.InsertStringItem(sys.maxint, str(e.id))
+            #self.list.SetStringItem(rowi, 1, str(e.maxchan))
+            #self.list.SetStringItem(rowi, 2, str(e.t))
+            # should probably use a virtual listctrl to speed up listctrl creation
+            # and subsequent addition and especially removal of items
             xcoord = SiteLoc[e.maxchan][0]
             ycoord = SiteLoc[e.maxchan][1]
             # hack to make items sort by ycoord, or xcoord if ycoords are identical
