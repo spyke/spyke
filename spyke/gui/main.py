@@ -104,16 +104,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_limits(self):
+        """Set widget limits and initial values"""
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
         #self.noise_method_choice.SetSelection(0)
         self.nevents_spin_ctrl.SetRange(0, sys.maxint)
+        self.nevents_spin_ctrl.SetValue(detect.Detector.DEFMAXNEVENTS)
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetRange(0, sys.maxint)
         self.tlock_spin_ctrl.SetRange(0, sys.maxint)
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
         self.tlock_spin_ctrl.SetValue(detect.Detector.DEFTLOCK)
+        self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def OnNew(self, evt):
         self.CreateNewSession()
@@ -601,20 +604,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return det
 
     def update_detector(self, det):
-        """Update detector object attribs from GUI"""
+        """Update detector from detect pane widget values"""
         det.chans = self.chans_enabled # property
         det.fixedthresh = self.fixedthresh_spin_ctrl.GetValue()
         det.noisemult = self.noisemult_spin_ctrl.GetValue()
         #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
         det.trange = self.get_detectortrange()
-        det.maxnevents = self.nevents_spin_ctrl.GetValue() or det.DEFMAXNEVENTS # if 0, use default
+        det.maxnevents = self.nevents_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
         det.blocksize = int(self.blocksize_combo_box.GetValue())
         det.slock = self.slock_spin_ctrl.GetValue()
         det.tlock = self.tlock_spin_ctrl.GetValue()
         det.randomsample = self.random_sample_checkbox.GetValue()
 
     def update_detect_pane(self, det):
-        """Update detect pane with detector attribs"""
+        """Update detect pane widgets from detector attribs"""
         self.set_detectorclass(det)
         self.chans_enabled = det.chans
         self.fixedthresh_spin_ctrl.SetValue(det.fixedthresh)
@@ -622,13 +625,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.noisewindow_spin_ctrl.SetValue(det.noisewindow) # not in the gui yet
         self.range_start_combo_box.SetValue(str(det.trange[0]))
         self.range_end_combo_box.SetValue(str(det.trange[1]))
-        if det.maxnevents == det.DEFMAXNEVENTS:
-            self.nevents_spin_ctrl.SetValue(0) # if default, use 0
+        if det.maxnevents == sys.maxint:
+            self.nevents_spin_ctrl.SetValue(0) # represent unlimited with 0
         else:
             self.nevents_spin_ctrl.SetValue(det.maxnevents)
         self.blocksize_combo_box.SetValue(str(det.blocksize))
         self.slock_spin_ctrl.SetValue(det.slock)
         self.tlock_spin_ctrl.SetValue(det.tlock)
+        self.random_sample_checkbox.SetValue(det.randomsample)
 
     def get_detectorclass(self):
         """Figure out which Detector class to use based on algorithm and

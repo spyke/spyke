@@ -56,12 +56,12 @@ class Detector(object):
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 4
     DEFNOISEWINDOW = 10000000 # 10 sec
-    DEFMAXNEVENTS = sys.maxint
+    DEFMAXNEVENTS = 500
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     RANDOMBLOCKSIZE = 10000 # block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
     DEFTLOCK = 440 # us
-    DEFRANDOMSAMPLE = False
+    DEFRANDOMSAMPLE = True
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for events. Only useful for ensuring event times within the actual block time range are accurate. Events detected in the excess are discarded
@@ -89,7 +89,11 @@ class Detector(object):
     def search(self):
         """Search for events. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
-        then combines the results"""
+        then combines the results
+
+        TODO: remove any events that happen right at the first or last timepoint in the file,
+        since we can't say when an interrupted rising or falling edge would've reached peak
+        """
         t0 = time.clock()
 
         if self.randomsample:
@@ -113,29 +117,27 @@ class Detector(object):
                 break # out of for loop
             tlo, thi = wavetrange # tlo could be > thi
             cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
+            #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+            sys.stdout.write('.') # no line feed
             wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
             if self.randomsample:
                 maxnevents = 1 # how many more we're looking for in the next block
             else:
                 maxnevents = self.maxnevents - self.nevents
-                print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
             eventarr = self.searchblock(wave, cutrange, maxnevents) # TODO: this should be threaded
             nnewevents = eventarr.shape[1] # number of columns
             #wx.Yield() # allow GUI to update
-            # TODO: remove any events that happen right at the first or last timepoint in the file,
-            # since we can't say when an interrupted rising edge would've reached peak
-            #if self.randomsample:
-            #    assert nnewevents in (0, 1) # should have found zero or one events
-            #    print eventarr
-            # ensure that the new event in eventarr is not a duplicate of any that are already in .events, if so, don't append this new event, and don't inc self.nevents. Duplicates are possible in random sampling cuz we might end up with blocks with overlapping tranges
-            # this test is probably slow cuz it's lists, but at least it's legible and correct
             if self.randomsample and eventarr.tolist() in np.asarray(events).tolist():
-                print 'found duplicate random sampled event'
+                # check if eventarr is a duplicate of any that are already in .events, if so,
+                # don't append this new event, and don't inc self.nevents. Duplicates are possible
+                # in random sampling cuz we might end up with blocks with overlapping tranges
+                # converting to lists for the check is probably slow cuz, but at least it's legible and correct
+                sys.stdout.write('found duplicate random sampled event')
             elif nnewevents != 0:
                 events.append(eventarr)
                 self.nevents += nnewevents # update
         events = np.concatenate(events, axis=1)
-        print 'found %d events in total' % events.shape[1]
+        print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
 
