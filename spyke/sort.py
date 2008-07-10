@@ -5,6 +5,9 @@ from __future__ import division
 __authors__ = 'Martin Spacek, Reza Lotun'
 
 import os
+import sys
+import time
+
 import wx
 
 import numpy as np
@@ -80,6 +83,24 @@ class Session(object):
             uniqueevents[newevent.id] = newevent
         self.events.update(uniqueevents)
         return uniqueevents
+
+    def match(self):
+        """Match all .templates to all .events, save error values to each template"""
+        sys.stdout.write('matching')
+        t0 = time.clock()
+        nevents = len(self.events)
+        # TODO: slice out just the enabled chans
+        for template in self.templates.values():
+            template.errids = np.empty((nevents), dtype=int) # overwrite any existing one
+            template.errs = np.empty((nevents), dtype=np.float32) # overwrite any existing one
+            trange = template.trange
+            for i, event in enumerate(self.events.values()):
+                event.update_wave(trange)
+                err = ((template.wave.data - event.wave.data)**2).sum(axis=None) # sum of squared error
+                template.errids[i] = event.id
+                template.errs[i] = err
+                sys.stdout.write('.')
+        print '\nmatch took %.3f sec' % (time.clock()-t0)
 
 
 class Detection(object):

@@ -243,29 +243,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             print 'sf.Append2EventList(uniqueevents) took %.3f sec' % (time.clock()-t0)
             print '%r' % detection.events_array
 
-    def append_detection_list(self, detection):
-        """Appends Detection run to the detection list control"""
-        row = [str(detection.id),
-               str(len(detection.events)),
-               detection.detector.algorithm + detection.detector.threshmethod,
-               str(detection.detector.fixedthresh or detection.det.noisemult),
-               str(detection.detector.trange),
-               str(detection.detector.slock),
-               str(detection.detector.tlock),
-               str(detection.datetime).rpartition('.')[0] ]
-        self.detection_list.Append(row)
-        for coli in range(len(row)):
-            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
-
-    def get_total_nevents(self):
-        """Get total nevents across all detection runs
-        TODO: or should this just count nevents in .session,
-        which would make it number of unique events?"""
-        nevents = 0
-        for det in self.session.detections:
-            nevents += len(det.events)
-        return nevents
+    def OnMatch(self, evt):
+        """Sort pane Match button click"""
+        self.session.match()
 
     def OnKeyDown(self, evt):
         """Handle key presses
@@ -296,6 +276,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # when key event comes from file_pos_combo_box, reserve down/up for seeking through file
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
+
+    def append_detection_list(self, detection):
+        """Appends Detection run to the detection list control"""
+        row = [str(detection.id),
+               str(len(detection.events)),
+               detection.detector.algorithm + detection.detector.threshmethod,
+               str(detection.detector.fixedthresh or detection.det.noisemult),
+               str(detection.detector.trange),
+               str(detection.detector.slock),
+               str(detection.detector.tlock),
+               str(detection.datetime).rpartition('.')[0] ]
+        self.detection_list.Append(row)
+        for coli in range(len(row)):
+            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+        self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
+
+    def get_total_nevents(self):
+        """Get total nevents across all detection runs
+        TODO: or should this just count nevents in .session,
+        which would make it number of unique events?"""
+        nevents = 0
+        for det in self.session.detections:
+            nevents += len(det.events)
+        return nevents
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""
