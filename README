@@ -1,9 +1,10 @@
 For now, has these specific version dependencies:
 
+Python 2.5.2
 numpy 1.1.0
 Cython 0.9.6.14 (0.9.8 doesn't like from __future__ import division)
 wxPython 2.8.7.1 (2.8.8.0 has keyboard entry issue for spinctrls or comboboxes or something)
-matplotlib 0.98.2 or better (for compatibility with numpy 1.1.0)
+matplotlib 0.98.1 or better (for compatibility with numpy 1.1.0)
 
 To install:
 
