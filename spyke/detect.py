@@ -97,6 +97,7 @@ class Detector(object):
         t0 = time.clock()
 
         if self.randomsample:
+            oldblocksize = self.blocksize # save so it can be restored when we're done random sampling
             self.blocksize = self.RANDOMBLOCKSIZE # TODO: is this a safe thing to do?
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -137,6 +138,7 @@ class Detector(object):
                 events.append(eventarr)
                 self.nevents += nnewevents # update
         events = np.concatenate(events, axis=1)
+        self.blocksize = oldblocksize # restore previous blocksize
         print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
