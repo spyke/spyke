@@ -16,6 +16,8 @@ from spyke.core import WaveForm, intround
 from spyke.gui import wxglade_gui
 from spyke.gui.plot import DEFEVENTTW
 
+DEFEVENTTRANGE = (-DEFEVENTTW/2, DEFEVENTTW/2)
+
 # save all Event waveforms, even for those that have never been plotted or added to a template
 SAVEALLEVENTWAVES = False
 
@@ -91,14 +93,14 @@ class Session(object):
         nevents = len(self.events)
         # TODO: slice out just the enabled chans
         for template in self.templates.values():
-            template.errids = np.empty((nevents), dtype=int) # overwrite any existing one
-            template.errs = np.empty((nevents), dtype=np.float32) # overwrite any existing one
+            template.err = np.empty((2, nevents), dtype=int) # overwrite any existing one
             trange = template.trange
             for i, event in enumerate(self.events.values()):
-                event.update_wave(trange)
+                if event.wave.data == None or template.trange != DEFEVENTTRANGE:
+                    event.update_wave(trange) # this slows things down by 2 orders of magnitude, yet is prolly necessary
                 err = ((template.wave.data - event.wave.data)**2).sum(axis=None) # sum of squared error
-                template.errids[i] = event.id
-                template.errs[i] = err
+                template.err[0, i] = event.id
+                template.err[1, i] = intround(err)
                 sys.stdout.write('.')
         print '\nmatch took %.3f sec' % (time.clock()-t0)
 
@@ -159,7 +161,7 @@ class Template(object):
         self.maxchan = None
         self.chans = None # chans enabled for plotting/ripping
         self.events = {} # member spike events that make up this template
-        self.trange = (-DEFEVENTTW/2, DEFEVENTTW/2)
+        self.trange = DEFEVENTTRANGE
         self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
         self.wave = WaveForm() # init to empty waveform
         self.plot = None # Plot currently holding self
@@ -202,7 +204,7 @@ class Template(object):
     def get_trange(self):
         return self._trange
 
-    def set_trange(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
+    def set_trange(self, trange=DEFEVENTTRANGE):
         """Reset self's time range relative to t=0 spike time,
         update slice of member spikes, and update mean waveform"""
         self._trange = trange
@@ -248,7 +250,7 @@ class Event(object):
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()
 
-    def update_wave(self, trange=(-DEFEVENTTW/2, DEFEVENTTW/2)):
+    def update_wave(self, trange=DEFEVENTTRANGE):
         """Load/update self's waveform, defaults to default event time window centered on self.t"""
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
