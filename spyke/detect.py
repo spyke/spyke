@@ -97,9 +97,10 @@ class Detector(object):
         t0 = time.clock()
 
         if self.randomsample:
-            oldblocksize = self.blocksize # save so it can be restored when we're done random sampling
-            self.blocksize = self.RANDOMBLOCKSIZE # TODO: is this a safe thing to do?
-        bs = self.blocksize
+            # random sampling ignores Detector's blocksize and enforces its own specially sized one
+            bs = self.RANDOMBLOCKSIZE
+        else:
+            bs = self.blocksize
         bx = self.BLOCKEXCESS
         bs_sec = bs/1000000 # from us to sec
         maxneventsperchanperblock = bs_sec * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
@@ -110,7 +111,7 @@ class Detector(object):
         self._maxchans = np.empty(len(self.chans)*maxneventsperchanperblock, dtype=int)
         self.tilock = self.us2nt(self.tlock)
 
-        wavetranges, (bs, bx, direction) = self.get_blockranges()
+        wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
         events = [] # list of 2D event arrays returned by .searchblock(), one array per block
         for wavetrange in wavetranges: # iterate over time ranges with excess in them, one per block
@@ -138,16 +139,16 @@ class Detector(object):
                 events.append(eventarr)
                 self.nevents += nnewevents # update
         events = np.concatenate(events, axis=1)
-        self.blocksize = oldblocksize # restore previous blocksize
         print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
 
-    def get_blockranges(self):
-        """Generate time ranges for slightly overlapping blocks of data"""
+    def get_blockranges(self, bs, bx):
+        """Generate time ranges for slightly overlapping blocks of data,
+        given blocksize and blockexcess"""
         wavetranges = []
-        bs = abs(self.blocksize)
-        bx = abs(self.BLOCKEXCESS)
+        bs = abs(bs)
+        bx = abs(bx)
         if self.trange[1] >= self.trange[0]: # search forward
             direction = 1
         else: # self.trange[1] < self.trange[0], # search backward

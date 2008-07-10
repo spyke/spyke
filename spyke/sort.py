@@ -87,21 +87,36 @@ class Session(object):
         return uniqueevents
 
     def match(self):
-        """Match all .templates to all .events, save error values to each template"""
+        """Match all .templates to all .events, save error values to respective templates
+
+        Note: slowest step by far is loading in the wave data from disk.
+        (First match is slow, subsequent ones are ~ 15X faster.)
+        Unless something's done about that in advance, don't bother optimizing here much.
+        Right now, once waves are loaded, performance is roughly 20000 matches/sec
+
+        TODO: need to give more weight to chans in template with more of the signal. Otherwise, you often
+        end up getting good matches even when the main chan or two don't match at all, cuz all the others
+        are hovering around noise level and happen to match well.
+        Maybe square all the data in both template and waveform first (ie take sum of squared difference
+        of squared signals)? That wouldn't be so great though, cuz you'd lose sign. Maybe cube it instead?
+        """
         sys.stdout.write('matching')
         t0 = time.clock()
         nevents = len(self.events)
-        # TODO: slice out just the enabled chans
         for template in self.templates.values():
-            template.err = np.empty((2, nevents), dtype=int) # overwrite any existing one
+            chans = template.chans # template's enabled chans
+            template.err = [] # overwrite any existing one
             trange = template.trange
-            for i, event in enumerate(self.events.values()):
+            for event in self.events.values():
+                if event.maxchan not in chans: # if event's maxchan is outside of template's enabled chans
+                    continue # don't even bother
                 if event.wave.data == None or template.trange != DEFEVENTTRANGE:
-                    event.update_wave(trange) # this slows things down by 2 orders of magnitude, yet is prolly necessary
-                err = ((template.wave.data - event.wave.data)**2).sum(axis=None) # sum of squared error
-                template.err[0, i] = event.id
-                template.err[1, i] = intround(err)
+                    event.update_wave(trange) # this slows things down a lot, but is necessary
+                # slice out enabled chans, calculate sum of squared error
+                err = ((template.wave[chans] - event.wave[chans])**2).sum(axis=None)
+                template.err.append((event.id, intround(err)))
                 sys.stdout.write('.')
+            template.err = np.asarray(template.err)
         print '\nmatch took %.3f sec' % (time.clock()-t0)
 
 
@@ -159,7 +174,7 @@ class Template(object):
         self.parent = parent # parent template, if self is a subtemplate
         self.subtemplates = None
         self.maxchan = None
-        self.chans = None # chans enabled for plotting/ripping
+        self.chans = None # chans enabled for plotting/matching/ripping
         self.events = {} # member spike events that make up this template
         self.trange = DEFEVENTTRANGE
         self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
@@ -185,20 +200,20 @@ class Template(object):
         if event.wave.data == None: # make sure its waveform isn't empty
             event.update_wave(trange=self.trange)
         sampfreq = self.wave.sampfreq or event.wave.sampfreq
-        chan2i = self.wave.chan2i or event.wave.chan2i
+        chans = self.wave.chans or event.wave.chans
         for event in self.events.values():
             # check each event for timepoints that don't match up, update the event so that they do
             if event.wave.ts == None or not ((event.wave.ts - event.t) == relts).all():
                 event.update_wave(trange=self.trange)
             assert event.wave.sampfreq == sampfreq # being really thorough here...
-            assert event.wave.chan2i == chan2i
+            assert event.wave.chans == chans
             data.append(event.wave.data)
         data = np.asarray(data).mean(axis=0)
         # TODO: search data and find maxchan, set self.maxchan. Or not, just leave it up to user to select chans
         self.wave.data = data
         self.wave.ts = relts
         self.wave.sampfreq = sampfreq
-        self.wave.chan2i = chan2i
+        self.wave.chans = chans
         return self.wave
 
     def get_trange(self):
@@ -239,13 +254,11 @@ class Event(object):
         self.maxchan = maxchan
         self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
-        self.chans = self.detection.get_slock_chans(maxchan)
+        self.chans = self.detection.get_slock_chans(maxchan) # chans enabled for plotting/matching/ripping
         self.template = None # template object it belongs to, None means self is an unsorted event
         self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.plot = None # Plot currently holding self
-        #self.cluster = None # cluster run this Spike was sorted on
-        #self.rip = None # rip this Spike was sorted on
         # try loading it right away on init, instead of waiting until plot, see if it's fast enough
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()

@@ -21,13 +21,12 @@ MU = '\xb5' # greek mu symbol
 
 
 class WaveForm(object):
-    """Waveform object, has data, timestamps, chan2i, and sample frequency attribs
-    Index directly into it by channel using Waveform[chani]"""
-    def __init__(self, data=None, ts=None, chan2i=None, sampfreq=None):
+    """Waveform object, has data, timestamps, channels, and sample frequency attribs
+    Index directly into it by channel(s) using Waveform[chanis]"""
+    def __init__(self, data=None, ts=None, chans=None, sampfreq=None):
         self.data = data # in uV, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
-        # TODO: maybe change .chan2i to just .chans, have it as a simple list of chan indices, one per row in .data
-        self.chan2i = chan2i # converts from chan id to .data row index
+        self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
         self.sampfreq = sampfreq # Hz
 
     def __getitem__(self, key):
@@ -42,9 +41,15 @@ class WaveForm(object):
                 data = self.data[:, lo:hi]
                 ts = self.ts[lo:hi]
             return WaveForm(data=data, ts=ts,
-                            chan2i=self.chan2i, sampfreq=self.sampfreq)
+                            chans=self.chans, sampfreq=self.sampfreq)
         else: # index into self by channel id, return that channel's data
-            return self.data[self.chan2i[key]] # TODO: should probably use .take here for speed
+            if self.chans == None: # simple and fast
+                return self.data[key] # TODO: should probably use .take here for speed
+            else: # complicated, probably slower
+                # converts from chan id to data array row index, identical to
+                # .layout.chanlist unless there are channel gaps in .layout
+                #self.chan2i = dict(zip(self.layout.chanlist, range(self.nchans)))
+                raise NotImplementedError, 'need to handle non contiguous channels in .data rows'
 
     def __len__(self):
         """Number of data points in time"""
@@ -70,9 +75,6 @@ class Stream(object):
         self.endinclusive = endinclusive
 
         self.nchans = len(self.layout.chanlist)
-        # converts from chan id to data array row index, identical to
-        # .layout.chanlist unless there are channel gaps in .layout
-        self.chan2i = dict(zip(self.layout.chanlist, range(self.nchans)))
         # array of ctsrecord timestamps
         self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords])
         probename = self.layout.electrode_name
@@ -158,7 +160,7 @@ class Stream(object):
         data = self.AD2uV(data, intgain, extgain)
 
         # return a WaveForm object - TODO: does this return a copy or just a ref to data? I think just a ref
-        return WaveForm(data=data, ts=ts, chan2i=self.chan2i, sampfreq=self.sampfreq)
+        return WaveForm(data=data, ts=ts, chans=None, sampfreq=self.sampfreq)
 
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV
