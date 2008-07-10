@@ -28,6 +28,7 @@ TODO:
     - messages: maybe just a combo box with timestamp:message entries. Choosing one of them skips you to that timestamp. Changing current file position with other methods should automatically scroll you through the combo box at appropriate times
     - stimulus din: similar to above: drop down combo box with timestamp:DIN value entries
 
+- stop forcing the main window to position itself at (0, 0), check what the upper leftmost available position is - for someone like Nick with the taskbar along the top of the screen, it's more like (0, 30)
 
 ------------------------------------
 EVENT DETECTION:

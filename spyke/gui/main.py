@@ -92,15 +92,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # disable most widgets until a .srf file is opened
         self.EnableSurfWidgets(False)
         self.EnableSortWidgets(False)
-        self.EnableSave(False) # disable Save until there's something to Save
 
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
         #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
-        srffname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
-        sortfname = self.DEFAULTDIR + '/87 testing.sort'
-        self.OpenSurfFile(srffname)
+        #srffname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
+        #sortfname = self.DEFAULTDIR + '/87 testing.sort'
+        #self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_limits(self):
@@ -242,7 +241,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             t0 = time.clock()
             sf.Append2EventList(uniqueevents)
             print 'sf.Append2EventList(uniqueevents) took %.3f sec' % (time.clock()-t0)
-            #self.EnableSave(True)
             print '%r' % detection.events_array
 
     def append_detection_list(self, detection):
@@ -355,16 +353,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.CreateNewSession() # create a new sort Session
 
         self.EnableSurfWidgets(True)
-        self.EnableSortWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSession(self):
         """Create a new sort Session and bind it to .self"""
         self.DeleteSession()
-        self.EnableSave(True)
         self.session = Session(detector=self.get_detector(),
                                probe=self.hpstream.probe,
                                stream=self.hpstream)
+        self.EnableSortWidgets(True)
 
     def DeleteSession(self):
         """Delete any existing sort Session"""
@@ -426,7 +423,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.lfptw = DEFLFPTW
         self.SetTitle('spyke') # update caption
         self.EnableSurfWidgets(False)
-        self.EnableSortWidgets(False)
         try:
             self.srff.close()
         except AttributeError: # self.srff is already None, no .close() method
@@ -437,7 +433,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def CloseSortFile(self):
         self.DeleteSession()
-        self.EnableSave(False)
+        self.EnableSortWidgets(False)
         self.sortfname = '' # forces a SaveAs on next Save event
 
     def OpenSortFile(self, fname):
@@ -466,7 +462,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.session.detector)
         self.EnableSortWidgets(True)
-        self.EnableSave(True)
         print 'done opening sort file'
 
     def SaveSortFile(self, fname):
@@ -479,13 +474,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        #self.EnableSave(False)
         print 'done saving sort file'
-
-    def EnableSave(self, enable):
-        """Enable/disable Save menu item and toolbar button"""
-        self.menubar.Enable(wx.ID_SAVE, enable)
-        self.toolbar.EnableTool(wx.ID_SAVE, enable) # Save button
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""
@@ -595,6 +584,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Enable/disable all widgets that require an "open" .sort file"""
         self.menubar.Enable(wx.ID_SORTWIN, enable)
         self.toolbar.EnableTool(wx.ID_SORTWIN, enable)
+        self.menubar.Enable(wx.ID_SAVE, enable)
+        self.toolbar.EnableTool(wx.ID_SAVE, enable)
+        self.sort_pane.Enable()
 
     def get_detector(self):
         """Create a Detector object based on attribs from GUI"""

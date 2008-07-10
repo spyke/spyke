@@ -645,7 +645,6 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.UnselectAll() # unselect all items in tree
             self.tree.SelectItem(template.itemID) # select the newly created template
             self.OnTreeSelectChanged() # now plot accordingly
-        self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
         return template
 
     def MoveEvent2Trash(self, event, row):
@@ -654,7 +653,6 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.Select(row) # automatically select the new item at that position
         del self.session.events[event.id] # remove event from unsorted session.events
         self.session.trash[event.id] = event # add it to trash
-        self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
         print 'moved event %d to trash' % event.id
 
     def AddEvent2Tree(self, parent, event):
@@ -680,7 +678,6 @@ class SortFrame(wxglade_gui.SortFrame):
         data = [event.id, event.maxchan, event.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
         # TODO: maybe re-sort the list
-        self.spykeframe.EnableSave(True) # we've made a change, now we have something to save
 
     def MoveCurrentEvents2Template(self, which='selected'):
         if which == 'selected':
