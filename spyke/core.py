@@ -43,13 +43,15 @@ class WaveForm(object):
             return WaveForm(data=data, ts=ts,
                             chans=self.chans, sampfreq=self.sampfreq)
         else: # index into self by channel id, return that channel's data
-            if self.chans == None: # simple and fast
+            if self.chans == None: # contiguous chans, simple and fast
                 return self.data[key] # TODO: should probably use .take here for speed
-            else: # complicated, probably slower
-                # converts from chan id to data array row index, identical to
-                # .layout.chanlist unless there are channel gaps in .layout
-                #self.chan2i = dict(zip(self.layout.chanlist, range(self.nchans)))
-                raise NotImplementedError, 'need to handle non contiguous channels in .data rows'
+            else: # non contiguous chans
+                try:
+                    self.chan2i # converts from chan id to data array row index
+                except AttributeError:
+                    nchans = len(self.chans)
+                    self.chan2i = dict(zip(self.chans, range(nchans)))
+                return self.data[self.chan2i[key]] # TODO: should probably use .take here for speed
 
     def __len__(self):
         """Number of data points in time"""
@@ -75,6 +77,9 @@ class Stream(object):
         self.endinclusive = endinclusive
 
         self.nchans = len(self.layout.chanlist)
+        self.chans = self.layout.chanlist
+        if self.chans == range(self.nchans): # if it's contiguous
+            self.chans = None # use this as a signal to indicate so to the WaveForm
         # array of ctsrecord timestamps
         self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords])
         probename = self.layout.electrode_name
@@ -89,7 +94,7 @@ class Stream(object):
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating
@@ -160,7 +165,7 @@ class Stream(object):
         data = self.AD2uV(data, intgain, extgain)
 
         # return a WaveForm object - TODO: does this return a copy or just a ref to data? I think just a ref
-        return WaveForm(data=data, ts=ts, chans=None, sampfreq=self.sampfreq)
+        return WaveForm(data=data, ts=ts, chans=self.chans, sampfreq=self.sampfreq)
 
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV
