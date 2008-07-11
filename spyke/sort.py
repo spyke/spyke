@@ -100,6 +100,10 @@ class Session(object):
         are hovering around noise level and happen to match well.
         Maybe square all the data in both template and waveform first (ie take sum of squared difference
         of squared signals)? That wouldn't be so great though, cuz you'd lose sign. Maybe cube it instead?
+
+        TODO: Maybe introduce a weighted error per template chan, where the template's maxchan is weighted
+        the most and surrounding chans are weighted less as you get further away, maybe a 2D gaussian distance
+        weighting function - use a 2D matrix, generate it from the actual distances between channels in the probe layout
         """
         sys.stdout.write('matching')
         t0 = time.clock()
@@ -110,28 +114,7 @@ class Session(object):
             trange = template.trange
             templatewave = template.wave[template.chans] # slice out template's enabled chans
             for event in self.events.values():
-                # TODO: take intersection of template's and event's enabled chans, and only find error
-                # between those. This means that for a given template compared to different events,
-                # you'll get different numbers of channels contributing to err. Could take the mean err per
-                # chan, but a low per chan err for high chan overlap should be more significant than the same
-                # per chan err for a low chan overlap. Maybe solution is to introduce a weighted error per template
-                # chan, where the template's maxchan is weighted the most and surrounding chans are weighted less
-                # as you get further away, maybe a 2D gaussian distance weighting function - use a 2D matrix, generate it
-                # from the actual distances between channels in the probe layout
-
-                # get intersection of enabled chans in template and event
-                #chans = list(set(template.chans).intersection(event.chans)) # faster?
-                #chans = [ chan for chan in template.chans if chan in event.chans ] # slower?
-
-                # actually, scratch the above. Just make sure their maxchans are close enough to each other,
-                # and then use template.chans to compare them, don't worry about event.chans, those are set
-                # rather arbitrarily according to slock, whereas template.chans are (or will be) user set
-
-                #if event.maxchan not in template.chans: # if event's maxchan is outside of template's enabled chans
-                #    continue # don't even bother
-
-                # TODO: better yet, check if event.maxchan is outside some minimum distance from template.maxchan
-                # say 1 channel distance away - reuse distance matrix from detector.dm?
+                # check if event.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
                 if event.wave.data == None or template.trange != EVENTTRANGE: # make sure their data line up
