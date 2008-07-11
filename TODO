@@ -1,5 +1,7 @@
 TODO:
 
+- just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
+
 - get tooltips to work on main spyke frame widgets
 
 - when assigning an event to a plot, change the zorder of the lines such that the maxchan is always on top, only really need to deal with the maxchan, which can sometimes be big enough to span over to the screen real estate of other chans
@@ -95,6 +97,9 @@ TEMPLATES:
         - smells like another wxWidgets bug
 
     - BUG: splitterwindow doesn't actually set itself to desired size until after you move the mouse for the first time
+
+    - BUG: stop clicks in spikesortpanel from moving current file position in main spyke frame and data frames
+
 
 ------------------------------------
 MINI RIPS:
@@ -353,3 +358,4 @@ DONE:
     - this could simply be an integrated pyshell window (see manual), so you can do things from command line instead of being forced to use the GUI
     - also, use it to examine and mess with internals, including wxpy internals
 - keep spyke importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy, or any other python project.
+- Template.chans should be a property. Every time the user changes the channel selection for a template, you should do Template.chans = Template.get_maxchan() to get the new maxchan from the new set of enabled chans

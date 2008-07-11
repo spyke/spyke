@@ -88,7 +88,8 @@ class Session(object):
         return uniqueevents
 
     def match(self):
-        """Match all .templates to all .events, save error values to respective templates.
+        """Match all .templates to all .events with nearby maxchans,
+        save error values to respective templates.
 
         Note: slowest step by far is loading in the wave data from disk.
         (First match is slow, subsequent ones are ~ 15X faster.)
@@ -101,9 +102,16 @@ class Session(object):
         Maybe square all the data in both template and waveform first (ie take sum of squared difference
         of squared signals)? That wouldn't be so great though, cuz you'd lose sign. Maybe cube it instead?
 
-        TODO: Maybe introduce a weighted error per template chan, where the template's maxchan is weighted
+        TODO: introduce a weighted error per template chan, where the template's maxchan is weighted
         the most and surrounding chans are weighted less as you get further away, maybe a 2D gaussian distance
-        weighting function - use a 2D matrix, generate it from the actual distances between channels in the probe layout
+        weighting function with standard deviation of one spatial lockout radius
+            - use a 2D matrix?, generate it from the actual distances between channels in the probe layout?
+
+        TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean template, and an stdev
+        template, and weight the error between each matched event and the mean on each chan at each timepoint by
+        the corresponding stdev value (divide the error by the stdev, so that timepoints with low stdev are more
+        sensitive to error)
+
         """
         sys.stdout.write('matching')
         t0 = time.clock()
@@ -113,14 +121,16 @@ class Session(object):
             template.err = [] # overwrite any existing one
             trange = template.trange
             templatewave = template.wave[template.chans] # slice out template's enabled chans
+            weights = template.get_weights(slock=self.detector.slock)
             for event in self.events.values():
                 # check if event.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
                 if event.wave.data == None or template.trange != EVENTTRANGE: # make sure their data line up
                     event.update_wave(trange) # this slows things down a lot, but is necessary
-                # slice template's enabled chans out of event, calculate sum of squared error
-                err = ((templatewave - event.wave[template.chans])**2).sum(axis=None)
+                # slice template's enabled chans out of event, calculate sum of squared weighted error
+                err = (templatewave - event.wave[template.chans]) * weights
+                err = (err**2).sum(axis=None)
                 template.err.append((event.id, intround(err)))
             template.err = np.asarray(template.err)
             sys.stdout.write('.')
@@ -152,7 +162,7 @@ class Detection(object):
         """Get or generate list of chans within spatial lockout of maxchan, use
         spatial lockout of self.detector
         Note this can't be used as the getter in a property, I think cuz you can't pass
-        args in a getter"""
+        args to a getter"""
         try:
             return self._slock_chans[maxchan]
         except KeyError:
@@ -180,48 +190,86 @@ class Template(object):
         self.id = id # template id
         self.parent = parent # parent template, if self is a subtemplate
         self.subtemplates = None
+        self.wave = WaveForm() # init to empty waveform
         self.maxchan = None
         self.chans = None # chans enabled for plotting/matching/ripping
         self.events = {} # member spike events that make up this template
         self.trange = EVENTTRANGE
         self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
-        self.wave = WaveForm() # init to empty waveform
         self.plot = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
     def update_wave(self):
-        """Update mean waveform, should call this every time .events is modified.
+        """Update mean waveform, should call this every time .events or .trange
+        are modified.
+        Setting .trange as a property to do so automatically works.
         Setting .events as a property to do so automatically doesn't work, because
         properties only catch name binding events, not modification of an object
         that's already been bound"""
         if self.events == {}: # no member spikes
             self.wave = WaveForm() # empty waveform
             return
-        else: # has member spikes
-            self.maxchan = self.maxchan or self.events.values()[0].maxchan # set maxchan if it hasn't been already
-            self.chans = self.chans or self.events.values()[0].chans # set enabled chans if they haven't been already
-        data = []
-        relts = np.arange(self.trange[0], self.trange[1], self.session.tres) # timestamps relative to spike time
-        event = self.events.values()[0] # grab a random event
-        if event.wave.data == None: # make sure its waveform isn't empty
+        event = self.events.values()[0] # get a random member event
+        if event.wave.data == None: # make sure its WaveForm isn't empty
             event.update_wave(trange=self.trange)
+        #self.maxchan = self.maxchan or event.maxchan # set maxchan if it hasn't been already
+        self.chans = self.chans or event.chans # set enabled chans if they haven't been already
+        ts = self.wave.ts # see if they've already been set
+        if ts == None:
+            ts = event.wave.ts - event.t # timestamps relative to self.t=0
+        lo, hi = ts.searchsorted(self.trange)
+        ts = ts[lo:hi] # slice them according to trange
+
         sampfreq = self.wave.sampfreq or event.wave.sampfreq
-        chans = self.wave.chans or event.wave.chans
+        wavechans = self.wave.chans or event.wave.chans # chan ids that correspond to rows in wave.data
+        data = []
         for event in self.events.values():
             # check each event for timepoints that don't match up, update the event so that they do
-            if event.wave.ts == None or not ((event.wave.ts - event.t) == relts).all():
+            # note: event is no longer just some random member event as it was above
+            if event.wave.ts == None or ((event.wave.ts - event.t) != ts).all():
                 event.update_wave(trange=self.trange)
             assert event.wave.sampfreq == sampfreq # being really thorough here...
-            assert event.wave.chans == chans
-            data.append(event.wave.data)
+            assert event.wave.chans == wavechans
+            data.append(event.wave.data) # collect event's data
         data = np.asarray(data).mean(axis=0)
-        # TODO: search data and find maxchan, set self.maxchan. Or not, just leave it up to user to select chans
         self.wave.data = data
-        self.wave.ts = relts
+        self.wave.ts = ts
+        #print 'template[%d].wave.ts = %r' % (self.id, ts)
         self.wave.sampfreq = sampfreq
-        self.wave.chans = chans
+        self.wave.chans = wavechans # could be None, to indicate to WaveForm that data is contiguous and complete
+        self.maxchan = self.get_maxchan()
+        #self.chans = event.detection.get_slock_chans(self.maxchan) # from random event's detection
         return self.wave
+
+    def get_chans(self):
+        return self._chans
+
+    def set_chans(self, chans):
+        """Update maxchan on replacement of enabled chans.
+        User chan selection should trigger search for maxchan"""
+        self._chans = chans
+        self.maxchan = self.get_maxchan()
+
+    chans = property(get_chans, set_chans)
+
+    def get_maxchan(self):
+        """Find maxchan at t=0 in mean waveform, constrained to enabled chans
+
+        Notes:
+            - don't recenter self.chans on maxchan, leave actual chan selection to user
+            - maxchan should however be constrained to currently enabled chans
+        """
+        if self.wave.data == None or self.chans == None:
+            return None
+        data = self.wave.data
+        ts = self.wave.ts
+        t0i, = np.where(ts == 0) # find column index that corresponds to t=0
+        assert len(t0i) == 1 # make sure there's only one reference timepoint
+        maxchani = abs(data[self.chans, t0i]).argmax() # find index into self.chans with greatest abs(signal) at t=0
+        #maxchani = abs(data).max(axis=1).argmax() # ignore sign, find max across columns, find row with greatest max
+        maxchan = self.chans[maxchani] # dereference
+        return maxchan
 
     def get_trange(self):
         return self._trange
@@ -235,6 +283,16 @@ class Template(object):
         self.update_wave()
 
     trange = property(get_trange, set_trange)
+
+    def get_weights(self, slock):
+        """Return a vector that weights self.chans according to a 2D gaussian
+        centered on self.maxchan with standard deviation slock um"""
+        #maxchani = self.chans.index(self.maxchan)
+        #self.maxchan
+        print '\nweights arent done yet!'
+        nchans = len(self.chans)
+        weights = np.ones((nchans, 1)) # vector with nchans rows, one column
+        return weights
 
     '''
     def __del__(self):

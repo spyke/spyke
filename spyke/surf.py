@@ -828,7 +828,6 @@ class Fat(Record):
     unpickled as saved parse info"""
 
 
-
 def causalorder(records):
     """Checks to see if the timestamps of all the records are in
     causal (increasing) order. Returns True or False"""

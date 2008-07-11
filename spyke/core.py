@@ -21,8 +21,8 @@ MU = '\xb5' # greek mu symbol
 
 
 class WaveForm(object):
-    """Waveform object, has data, timestamps, channels, and sample frequency attribs
-    Index directly into it by channel(s) using Waveform[chanis]"""
+    """Waveform object, a place to hold data, timestamps, channels, and sampling frequency attribs
+    Sliceable in time, and indexable in channel space"""
     def __init__(self, data=None, ts=None, chans=None, sampfreq=None):
         self.data = data # in uV, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
@@ -164,7 +164,7 @@ class Stream(object):
         intgain = self.ctsrecords[0].layout.intgain
         data = self.AD2uV(data, intgain, extgain)
 
-        # return a WaveForm object - TODO: does this return a copy or just a ref to data? I think just a ref
+        # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans, sampfreq=self.sampfreq)
 
     def AD2uV(self, data, intgain, extgain):
@@ -277,7 +277,7 @@ class SpykeListCtrl(wx.ListCtrl):
         data is a list of strings or numbers, one per column.
         wx.ListCtrl lacks something like this as a method"""
         row = self.InsertStringItem(row, str(data[0])) # inserts data's first column
-        for coli, val in enumerate(data[1:]):
+        for coli, val in enumerate(data[1:]): # insert the rest of data's columns
             self.SetStringItem(row, coli+1, str(val))
 
 

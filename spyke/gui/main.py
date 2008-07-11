@@ -848,8 +848,10 @@ class PyShellFrame(wx.MiniFrame,
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.Bind(wx.EVT_ICONIZE, self.OnIconize) # maybe this should be commented out?
 
-        self.shell.run('self = app.spykeframe') # convenience
-        self.shell.run("sf = self.frames['sort']") # convenience
+        self.shell.run('from __future__ import division; '
+                       'import numpy as np; '
+                       'self = app.spykeframe; '
+                       "sf = self.frames['sort']") # convenience
 
     def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
