@@ -14,9 +14,10 @@ import numpy as np
 
 from spyke.core import WaveForm, intround
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import DEFEVENTTW
+from spyke.gui.plot import EVENTTW
 
-DEFEVENTTRANGE = (-DEFEVENTTW/2, DEFEVENTTW/2)
+EVENTTRANGE = (-EVENTTW/2, EVENTTW/2)
+MAXCHANTOLERANCE = 100 # um
 
 # save all Event waveforms, even for those that have never been plotted or added to a template
 SAVEALLEVENTWAVES = False
@@ -87,7 +88,7 @@ class Session(object):
         return uniqueevents
 
     def match(self):
-        """Match all .templates to all .events, save error values to respective templates
+        """Match all .templates to all .events, save error values to respective templates.
 
         Note: slowest step by far is loading in the wave data from disk.
         (First match is slow, subsequent ones are ~ 15X faster.)
@@ -103,20 +104,43 @@ class Session(object):
         sys.stdout.write('matching')
         t0 = time.clock()
         nevents = len(self.events)
+        dm = self.detector.dm
         for template in self.templates.values():
-            chans = template.chans # template's enabled chans
             template.err = [] # overwrite any existing one
             trange = template.trange
+            templatewave = template.wave[template.chans] # slice out template's enabled chans
             for event in self.events.values():
-                if event.maxchan not in chans: # if event's maxchan is outside of template's enabled chans
+                # TODO: take intersection of template's and event's enabled chans, and only find error
+                # between those. This means that for a given template compared to different events,
+                # you'll get different numbers of channels contributing to err. Could take the mean err per
+                # chan, but a low per chan err for high chan overlap should be more significant than the same
+                # per chan err for a low chan overlap. Maybe solution is to introduce a weighted error per template
+                # chan, where the template's maxchan is weighted the most and surrounding chans are weighted less
+                # as you get further away, maybe a 2D gaussian distance weighting function - use a 2D matrix, generate it
+                # from the actual distances between channels in the probe layout
+
+                # get intersection of enabled chans in template and event
+                #chans = list(set(template.chans).intersection(event.chans)) # faster?
+                #chans = [ chan for chan in template.chans if chan in event.chans ] # slower?
+
+                # actually, scratch the above. Just make sure their maxchans are close enough to each other,
+                # and then use template.chans to compare them, don't worry about event.chans, those are set
+                # rather arbitrarily according to slock, whereas template.chans are (or will be) user set
+
+                #if event.maxchan not in template.chans: # if event's maxchan is outside of template's enabled chans
+                #    continue # don't even bother
+
+                # TODO: better yet, check if event.maxchan is outside some minimum distance from template.maxchan
+                # say 1 channel distance away - reuse distance matrix from detector.dm?
+                if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
-                if event.wave.data == None or template.trange != DEFEVENTTRANGE:
+                if event.wave.data == None or template.trange != EVENTTRANGE: # make sure their data line up
                     event.update_wave(trange) # this slows things down a lot, but is necessary
-                # slice out enabled chans, calculate sum of squared error
-                err = ((template.wave[chans] - event.wave[chans])**2).sum(axis=None)
+                # slice template's enabled chans out of event, calculate sum of squared error
+                err = ((templatewave - event.wave[template.chans])**2).sum(axis=None)
                 template.err.append((event.id, intround(err)))
-                sys.stdout.write('.')
             template.err = np.asarray(template.err)
+            sys.stdout.write('.')
         print '\nmatch took %.3f sec' % (time.clock()-t0)
 
 
@@ -176,7 +200,7 @@ class Template(object):
         self.maxchan = None
         self.chans = None # chans enabled for plotting/matching/ripping
         self.events = {} # member spike events that make up this template
-        self.trange = DEFEVENTTRANGE
+        self.trange = EVENTTRANGE
         self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
         self.wave = WaveForm() # init to empty waveform
         self.plot = None # Plot currently holding self
@@ -219,7 +243,7 @@ class Template(object):
     def get_trange(self):
         return self._trange
 
-    def set_trange(self, trange=DEFEVENTTRANGE):
+    def set_trange(self, trange):
         """Reset self's time range relative to t=0 spike time,
         update slice of member spikes, and update mean waveform"""
         self._trange = trange
@@ -254,7 +278,7 @@ class Event(object):
         self.maxchan = maxchan
         self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
-        self.chans = self.detection.get_slock_chans(maxchan) # chans enabled for plotting/matching/ripping
+        self.chans = self.detection.get_slock_chans(maxchan) # chans enabled for plotting/matching/matchripping
         self.template = None # template object it belongs to, None means self is an unsorted event
         self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
@@ -263,7 +287,7 @@ class Event(object):
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()
 
-    def update_wave(self, trange=DEFEVENTTRANGE):
+    def update_wave(self, trange=EVENTTRANGE):
         """Load/update self's waveform, defaults to default event time window centered on self.t"""
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
@@ -330,8 +354,6 @@ class MatchRip(Match, Rip):
 
     def matchrip(self):
         pass
-
-# or just have two options in the Sort pane: Rip against: detected events; entire file
 
 
 class SortFrame(wxglade_gui.SortFrame):

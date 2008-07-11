@@ -73,7 +73,8 @@ class Detector(object):
         """Takes a data stream and sets various parameters"""
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.stream = stream
-        self.chans = chans # is a property
+        self.chans = chans or range(self.stream.nchans) # None means search all channels
+        self.dm = self.get_full_chan_distance_matrix() # channel distance matrix, identical for all Detectors on the same probe
         # assign all thresh and noise attribs, then reassign as None for subclasses where one of them doesn't apply
         self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
@@ -187,7 +188,7 @@ class Detector(object):
             self._stream = stream # it's from the same file, bind it
 
     stream = property(get_stream, set_stream)
-
+    '''
     def get_chans(self):
         return self._chans
 
@@ -196,16 +197,28 @@ class Detector(object):
             chans = range(self.stream.nchans) # search all channels
         self._chans = toiter(chans) # need not be contiguous
         self._chans.sort() # make sure they're in order
-        self.dm = self.get_distance_matrix() # Euclidean channel distance matrix, in self.chans order
+        self.dm = self.get_chan_distance_matrix() # Euclidean channel distance matrix, in self.chans order
 
     chans = property(get_chans, set_chans)
 
-    def get_distance_matrix(self):
-        """Get channel distance matrix, in um"""
+    def get_chan_distance_matrix(self):
+        """Get subset of channel distance matrix, in um, based on self.chans"""
         sl = self.stream.probe.SiteLoc
         coords = []
         for chan in self.chans:
             coords.append(sl[chan])
+        return eucd(coords)
+    '''
+    def get_full_chan_distance_matrix(self):
+        """Get full channel distance matrix, in um"""
+        chans_coords = self.stream.probe.SiteLoc.items() # list of tuples
+        chans_coords.sort() # sort by chanid
+        # TODO: what if this probe is missing some channel ids, ie chans aren't consecutive in layout?
+        # That'll screw up indexing into the distance matrix, unless we insert dummy entries in the matrix
+        # for those chans missing from the layout
+        chans = [ chan_coord[0] for chan_coord in chans_coords ] # pull out the sorted chans and check them
+        assert chans == range(len(chans)), 'is probe layout channel list not consecutive starting from 0?'
+        coords = [ chan_coord[1] for chan_coord in chans_coords ] # pull out the coords, now in channel id order
         return eucd(coords)
 
     def get_thresh(self, chan):

@@ -68,14 +68,14 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         if self.chans != range(nchans): # if self.chans is not contiguous
             #ttake = time.clock()
-            # pull our chans of data out, this assumes wave.data has all possible chans in it
+            # pull our chans of data out, this assumes wave.data has all possible chans in it, which it should
             data = wave.data.take(chans, axis=0) # returns a contiguous copy of data
             #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
         else: # save time by avoiding an unnecessary .take
             data = wave.data
         cdef ndarray absdata = data # name it absdata
         arrabs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
-        cdef float *absdatap = <float *>absdata.data # float pointer to .data field
+        cdef float *absdatap = <float *>absdata.data # float pointer to absdata .data field, rows correspond to chans in chansp
 
         cdef ndarray ts = wave.ts
         cdef long long *tsp = <long long *>ts.data # long long pointer to timestamp .data
@@ -100,8 +100,9 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         cdef int tilock = self.tilock # temporal index lockout, in num timepoints
         cdef double slock = self.slock # spatial lockout, in um
-        cdef ndarray dm = self.dm # Euclidean channel distance matrix, floats in um
+        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um
         cdef double *dmp = <double *>dm.data # double pointer to .data field
+        cdef int ndmchans = len(self.dm) # number of all possible chans in dm
 
         cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
@@ -132,15 +133,15 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             lastp[chanii] = v # update last value for this chan, continue searching for peak
                         else: # signal is decreasing, declare previous ti as an event timepoint
                             eventt = tsp[ti-1] # event time is timestamp of previous time index
-                            # find maxchanii within slock of chanii, start with current chan as max chan, pass previous ti
-                            maxchanii = self.get_maxchanii(chanii, nchans, dmp, slock, absdatap, nt, ti-1)
-                            #print 't: %d, found event at t=%d on chan %d' % (tsp[ti], eventt, maxchanii)
+                            # find maxchanii within slock of chanii, start with current chanii as maxchanii, pass previous ti
+                            maxchanii = self.get_maxchanii(chanii, chansp, nchans, ndmchans, dmp, slock, absdatap, nt, ti-1)
+                            #print 't: %d, found event at t=%d on chanii %d' % (tsp[ti], eventt, maxchanii)
                             # apply spatiotemporal lockout now that event has been found, pass tilock relative to previous ti
-                            self.set_lockout(maxchanii, nchans, dmp, slock, tilock-1, xthreshp, lastp, lockp)
+                            self.set_lockout(maxchanii, chansp, nchans, ndmchans, dmp, slock, tilock-1, xthreshp, lastp, lockp)
                             if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
                                 eventi += 1
                                 eventtimesp[eventi] = eventt # save event time
-                                maxchansp[eventi] = chansp[maxchanii] # save chan event is centered on
+                                maxchansp[eventi] = chansp[maxchanii] # save maxchani that event is centered on
                                 nevents += 1 # this event has been saved, so inc
                             if nevents >= maxnevents: # exit here, don't search any more chans
                                 ti = nt # TODO: nasty hack to get out of outer ti loop
@@ -150,36 +151,38 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         maxchans = maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
 
-    cdef int get_maxchanii(self, int maxchanii, int nchans, double *dmp,
+    cdef int get_maxchanii(self, int maxchanii, int *chansp, int nchans, int ndmchans, double *dmp,
                            double slock, float *absdatap, int nt, int ti):
-        """Finds max chanii at timepoint ti
+        """Find maxchanii at timepoint ti
 
         TODO: this should really be applied over and over, recentering the search radius, until maxchanii stops changing,
               although that would probably be a very minor refinement at a rather high cost
-        TODO: might be able to speed this up by pulling out the maxchanii'th row (or column, whatever your fancy) from dm,
-              sorting it from smallest to largest distance while keeping track of associated chaniis, doing a searchsorted on it
+        TODO: might be able to speed this up by pulling out the maxchani'th row (or column, whatever your fancy) from dm,
+              sorting it from smallest to largest distance while keeping track of associated chanis, doing a searchsorted on it
               to find index of first distance that's outside slock, and then only checking those chans that fall less than that
               index for larger signal
         """
-        cdef int chanjj
+        cdef int chanjj, chanj, maxchani
         for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
-            # if chanjj is within slock of maxchanii and has higher signal:
-            if dmp[maxchanii*nchans + chanjj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
+            maxchani = chansp[maxchanii] # dereference to index into dmp
+            chanj = chansp[chanjj] # dereference to index into dmp
+            # if chanj is within slock of maxchani and has higher signal:
+            if dmp[maxchani*ndmchans + chanj] <= slock and absdatap[chanjj*nt + ti] > absdatap[maxchanii*nt + ti]:
                 maxchanii = chanjj # update maxchanii
-        # recursive call goes here to search with newly centered slock radius
+        # TODO: recursive call goes here to search with newly centered slock radius
         return maxchanii
 
-    cdef set_lockout(self, int maxchanii, int nchans, double *dmp, double slock,
-                     int tilock, int *xthreshp, float *lastp, int *lockp):
+    cdef set_lockout(self, int maxchanii, int *chansp, int nchans, int ndmchans, double *dmp,
+                     double slock, int tilock, int *xthreshp, float *lastp, int *lockp):
         """Applies spatiotemporal lockout centered on maxchanii from current ti forward"""
-        cdef int chanjj
+        cdef int chanjj, chanj, maxchani
         for chanjj from 0 <= chanjj < nchans: # iterate over all chan indices
-            if dmp[maxchanii*nchans + chanjj] <= slock: # (dm[maxchanii, chanjj]) chanjj is within spatial lockout in um
+            maxchani = chansp[maxchanii] # dereference to index into dmp
+            chanj = chansp[chanjj] # dereference to index into dmp
+            if dmp[maxchani*ndmchans + chanj] <= slock: # (dm[maxchani, chanj]) chanjj is within spatial lockout in um
                 xthreshp[chanjj] = 0 # clear its threshx flag
                 lastp[chanjj] = 0.0 # reset last so it's ready when it comes out of lockout
                 lockp[chanjj] = tilock # apply its temporal lockout
-                #if chanjj == 33:
-                #    print 'locked ch33:', lockp[chanjj]
 
 
 cdef arrabs(ndarray a):

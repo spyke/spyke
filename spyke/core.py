@@ -394,7 +394,7 @@ def argcut(ts, trange):
 
 def eucd(coords):
     """Generates Euclidean distance matrix from a
-    sequence of n dimensional coordinates
+    sequence of n dimensional coordinates. Nice and fast.
     Written by Willi Richert
     Taken from:
     http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498246

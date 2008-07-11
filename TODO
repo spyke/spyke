@@ -30,6 +30,12 @@ TODO:
 
 - stop forcing the main window to position itself at (0, 0), check what the upper leftmost available position is - for someone like Nick with the taskbar along the top of the screen, it's more like (0, 30)
 
+- this might speed up plotting even further: have only one actual Plot object per plot panel (the quickRemovePlot), and then another that's just a shell for temporarily holding plot attribs (data, colour, style) which are updated, drawn to buffer, updated, drawn to buffer, etc. and then blitted (this is actually a lot like having axes.hold = True)
+    - I this would vastly reduce the number of Line2D objects needed - initing them takes a long time, and once they've been inited, they sit there taking up memory
+    - not sure how this would affect used_plots and available_plots
+    - seems like a good solution for overplotting thousands of plots in the error threshold window
+        - or maybe better thing there would be to only overplot on top of the template mean say the 10 or 20 events with the highest errors that fall below the current error threshold
+
 ------------------------------------
 EVENT DETECTION:
 

@@ -96,10 +96,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        #fname = '/home/mspacek/Desktop/Work/spyke/data/large_data.srf'
-        #srffname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
+        srffname = self.DEFAULTDIR + '/87 - track 7c spontaneous craziness.srf'
         #sortfname = self.DEFAULTDIR + '/87 testing.sort'
-        #self.OpenSurfFile(srffname)
+        self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_limits(self):
