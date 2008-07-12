@@ -87,7 +87,7 @@ class Session(object):
         self.events.update(uniqueevents)
         return uniqueevents
 
-    def match(self, sort=True):
+    def match(self, weighting='spatiotemporal', sort=True):
         """Match all .templates to all .events with nearby maxchans,
         save error values to respective templates.
 
@@ -95,18 +95,6 @@ class Session(object):
         (First match is slow, subsequent ones are ~ 15X faster.)
         Unless something's done about that in advance, don't bother optimizing here much.
         Right now, once waves are loaded, performance is roughly 20000 matches/sec
-
-        TODO: need to give more weight to chans in template with more of the signal. Otherwise, you often
-        end up getting good matches even when the main chan or two don't match at all, cuz all the others
-        are hovering around noise level and happen to match well.
-        Maybe square all the data in both template and waveform first (ie take sum of squared difference
-        of squared signals)? That wouldn't be so great though, cuz you'd lose sign. Maybe cube it instead?
-
-        TODO: introduce a weighted error per template chan, where the template's maxchan is weighted
-        the most and surrounding chans are weighted less as you get further away, maybe a 2D gaussian distance
-        weighting function with standard deviation of one spatial lockout radius
-            - use a 2D matrix?, generate it from the actual distances between channels in the probe layout?
-            - could also weight points with a gaussian in time, centered on t=0, with stdev=tlock
 
         TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean template, and an stdev
         template, and weight the error between each matched event and the mean on each chan at each timepoint by
@@ -122,7 +110,8 @@ class Session(object):
             template.err = [] # overwrite any existing one
             trange = template.trange
             templatewave = template.wave[template.chans] # slice out template's enabled chans
-            weights = template.get_gaussian_weights(slock=self.detector.slock)
+            weights = template.get_weights(weighting=weighting, sstdev=self.detector.slock/2,
+                                           tstdev=self.detector.tlock/2)
             for event in self.events.values():
                 # check if event.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
@@ -171,10 +160,12 @@ class Detection(object):
             return self._slock_chans[maxchan]
         except KeyError:
             det = self.detector
-            chans = np.asarray(det.chans) # chans that correspond to rows/columns in det.dm
-            maxchani, = np.where(chans == maxchan) # get index into det.dm that corresponds to maxchan
-            chanis, = np.where(det.dm[maxchani].flat <= det.slock) # flat removes the singleton dimension
-            chans = list(chans[chanis]) # chans within slock of maxchan
+            # NOTE: dm is now always a full matrix, where its row indices always correspond
+            # to channel indices, so no need for messing around with indices into indices...
+            #chans = np.asarray(det.chans) # chans that correspond to rows/columns in det.dm
+            #maxchani, = np.where(chans == maxchan) # get index into det.dm that corresponds to maxchan
+            chans, = np.where(det.dm[maxchan].flat <= det.slock) # flat removes the singleton dimension
+            chans = list(chans)
             self._slock_chans[maxchan] = chans # save for quick retrieval next time
             return chans
 
@@ -288,18 +279,40 @@ class Template(object):
 
     trange = property(get_trange, set_trange)
 
-    def get_gaussian_weights(self, slock):
+    def get_weights(self, weighting=None, sstdev=None, tstdev=None):
+        """Returns unity, spatial, temporal, or spatialtemporal Gaussian weights
+        for self's enabled chans in self.wave.data, given spatial and temporal
+        stdevs"""
+        nchans = len(self.chans)
+        nt = len(self.wave.data[self.chans[0]]) # assume all chans have the same number of timepoints
+        if weighting == None:
+            weights = np.ones((nchans, 1)) # vector
+        elif weighting == 'spatial':
+            weights = self.get_gaussian_spatial_weights(sstdev) # vector
+        elif weighting == 'temporal':
+            weights = self.get_gaussian_temporal_weights(tstdev) # vector
+        elif weighting == 'spatiotemporal':
+            sweights = self.get_gaussian_spatial_weights(sstdev)
+            tweights = self.get_gaussian_temporal_weights(tstdev)
+            weights = np.outer(sweights, tweights) # matrix, outer product of the two
+        print '\nweights:\n%r' % weights
+        return weights
+
+    def get_gaussian_spatial_weights(self, stdev):
         """Return a vector that weights self.chans according to a 2D gaussian
-        centered on self.maxchan with standard deviation slock um"""
-        maxchani = self.chans.index(self.maxchan)
-        g = Gaussian(mean=0, stdev=slock)
-        weights = []
-        for chan in self.chans:
-            d = self.session.detector.dm[self.maxchan, chan] # distance between the two chans
-            weight = g[d]
-            weights.append(weight)
-        weights = np.asarray(weights)
-        weights.shape = (-1, 1) # vector with nchans rows, one column
+        centered on self.maxchan with standard deviation stdev in um"""
+        g = Gaussian(mean=0, stdev=stdev)
+        d = self.session.detector.dm[self.maxchan, self.chans] # distances between maxchan and all enabled chans
+        weights = g[d]
+        weights.shape = (-1, 1) # vertical vector with nchans rows, 1 column
+        return weights
+
+    def get_gaussian_temporal_weights(self, stdev):
+        """Return a vector that weights timepoints in self's mean waveform
+        by a gaussian centered on t=0, with standard deviation stdev in us"""
+        g = Gaussian(mean=0, stdev=stdev)
+        ts = self.wave.ts # template mean timepoints relative to t=0 spike time
+        weights = g[ts] # horizontal vector with 1 row, nt timepoints
         return weights
 
     '''

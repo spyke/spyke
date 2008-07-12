@@ -415,7 +415,7 @@ def eucd(coords):
 
 
 class Gaussian(object):
-    """Gaussian function, works with vectors"""
+    """Gaussian function, works with ndarray inputs"""
     def __init__(self, mean, stdev):
         self.mean = mean
         self.stdev = stdev
