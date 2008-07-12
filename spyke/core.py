@@ -412,3 +412,20 @@ def eucd(coords):
         data = coords[:, d]
         delta += (data - data[:, np.newaxis]) ** 2
     return np.sqrt(delta)
+
+
+class Gaussian(object):
+    """Gaussian function, works with vectors"""
+    def __init__(self, mean, stdev):
+        self.mean = mean
+        self.stdev = stdev
+
+    def f(self, x):
+        mu = self.mean
+        sigma = self.stdev
+        # don't bother normalizing by 1/(sigma*np.sqrt(2*np.pi)), don't care about normalizing the integral,
+        # just want to make sure that f(0) == 1
+        return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
+
+    def __getitem__(self, x):
+        return self.f(x)

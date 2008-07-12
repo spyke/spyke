@@ -106,6 +106,7 @@ class Session(object):
         the most and surrounding chans are weighted less as you get further away, maybe a 2D gaussian distance
         weighting function with standard deviation of one spatial lockout radius
             - use a 2D matrix?, generate it from the actual distances between channels in the probe layout?
+            - could also weight points with a gaussian in time, centered on t=0, with stdev=tlock
 
         TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean template, and an stdev
         template, and weight the error between each matched event and the mean on each chan at each timepoint by
@@ -121,7 +122,7 @@ class Session(object):
             template.err = [] # overwrite any existing one
             trange = template.trange
             templatewave = template.wave[template.chans] # slice out template's enabled chans
-            weights = template.get_weights(slock=self.detector.slock)
+            weights = template.get_gaussian_weights(slock=self.detector.slock)
             for event in self.events.values():
                 # check if event.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
@@ -284,14 +285,18 @@ class Template(object):
 
     trange = property(get_trange, set_trange)
 
-    def get_weights(self, slock):
+    def get_gaussian_weights(self, slock):
         """Return a vector that weights self.chans according to a 2D gaussian
         centered on self.maxchan with standard deviation slock um"""
-        #maxchani = self.chans.index(self.maxchan)
-        #self.maxchan
-        print '\nweights arent done yet!'
-        nchans = len(self.chans)
-        weights = np.ones((nchans, 1)) # vector with nchans rows, one column
+        maxchani = self.chans.index(self.maxchan)
+        g = Gaussian(mean=0, stdev=slock)
+        weights = []
+        for chan in self.chans:
+            d = dm[maxchan, chan]
+            weight = g[d]
+            weights.append(weight)
+        weights = np.asarray(weights)
+        weights = weights.T # vector with nchans rows, one column
         return weights
 
     '''
