@@ -12,7 +12,7 @@ import wx
 
 import numpy as np
 
-from spyke.core import WaveForm, intround
+from spyke.core import WaveForm, Gaussian, intround
 from spyke.gui import wxglade_gui
 from spyke.gui.plot import EVENTTW
 
@@ -87,7 +87,7 @@ class Session(object):
         self.events.update(uniqueevents)
         return uniqueevents
 
-    def match(self):
+    def match(self, sort=True):
         """Match all .templates to all .events with nearby maxchans,
         save error values to respective templates.
 
@@ -134,6 +134,9 @@ class Session(object):
                 err = (err**2).sum(axis=None)
                 template.err.append((event.id, intround(err)))
             template.err = np.asarray(template.err)
+            if sort:
+                i = template.err[:,1].argsort() # row indices that sort by error
+                template.err = template.err[i]
             sys.stdout.write('.')
         print '\nmatch took %.3f sec' % (time.clock()-t0)
 
@@ -292,11 +295,11 @@ class Template(object):
         g = Gaussian(mean=0, stdev=slock)
         weights = []
         for chan in self.chans:
-            d = dm[maxchan, chan]
+            d = self.session.detector.dm[self.maxchan, chan] # distance between the two chans
             weight = g[d]
             weights.append(weight)
         weights = np.asarray(weights)
-        weights = weights.T # vector with nchans rows, one column
+        weights.shape = (-1, 1) # vector with nchans rows, one column
         return weights
 
     '''
