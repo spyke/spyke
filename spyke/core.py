@@ -280,6 +280,13 @@ class SpykeListCtrl(wx.ListCtrl):
         for coli, val in enumerate(data[1:]): # insert the rest of data's columns
             self.SetStringItem(row, coli+1, str(val))
 
+    def DeleteItemByData(self, data):
+        """Delete first item whose first column matches data"""
+        row = self.FindItem(0, str(data)) # start search from row 0
+        assert row != -1, "couldn't find data %r in SpykeListCtrl" % str(data)
+        success = self.DeleteItem(row) # remove from event listctrl
+        assert success, "couldn't delete data %r from SpykeListCtrl" % str(data)
+
 
 class SpykeTreeCtrl(wx.TreeCtrl):
     """TreeCtrl with overridden OnCompareItems().

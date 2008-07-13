@@ -52,9 +52,6 @@ EVENT DETECTION:
         - clicking on other options can just update the current Detector
         - or better, Detector is updated from other options only when you hit search or F3 or eq'v
 
-    - Detection deletion:
-        - allow if none of the Detector's events have a non-None .template attrib
-        - if we allow deletion, maybe session.detections should be a dict instead of a list
 
 ------------------------------------
 TEMPLATES:
@@ -359,3 +356,9 @@ DONE:
     - also, use it to examine and mess with internals, including wxpy internals
 - keep spyke importable as a library, not just as a standalone program. This way, you can parse files, spike sort, etc directly from interpreter, or neuropy, or any other python project.
 - Template.chans should be a property. Every time the user changes the channel selection for a template, you should do Template.chans = Template.get_maxchan() to get the new maxchan from the new set of enabled chans
+- introduce a weighted error per template chan, where the template's maxchan is weighted the most and surrounding chans are weighted less as you get further away, maybe a 2D gaussian distance weighting function with standard deviation of one spatial lockout radius
+    - use a 2D matrix?, generate it from the actual distances between channels in the probe layout?
+    - could also weight points with a gaussian in time, centered on t=0, with stdev=tlock
+- Detection deletion:
+    - allow if none of the Detector's events have a non-None .template attrib
+    - if we allow deletion, maybe session.detections should be a dict instead of a list

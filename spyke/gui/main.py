@@ -71,6 +71,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.Bind(wx.EVT_MOVE, self.OnMove)
 
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
+        self.detection_list.Bind(wx.EVT_KEY_DOWN, self.OnDetectionListKeyDown)
 
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
@@ -230,10 +231,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               id=self.session._detid,
                               datetime=datetime.datetime.now(),
                               events_array=events_array) # generate a new Detection run
-        if detection not in self.session.detections: # suppress Detection runs with an identical set of .events (see __eq__)
+        if detection not in self.session.detections.values(): # suppress Detections with an identical set of .events (see __eq__)
             self.session._detid += 1 # inc for next unique Detection run
             detection.set_events() # now that we know this detection isn't redundant, let's actually generate the Event objects
-            self.session.detections.append(detection)
+            self.session.detections[detection.id] = detection
             self.append_detection_list(detection)
             uniqueevents = self.session.append_events(detection.events)
             sf = self.OpenFrame('sort') # ensure it's open
@@ -251,7 +252,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
         """
         key = evt.GetKeyCode()
-        print 'key: %r' % key
+        #print 'key: %r' % key
         in_widget = evt.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
         in_file_pos_combo_box = evt.GetEventObject() == self.file_pos_combo_box
         if not evt.ControlDown():
@@ -276,6 +277,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
 
+    def OnDetectionListKeyDown(self, evt):
+        key = evt.GetKeyCode()
+        if key == wx.WXK_DELETE:
+            self.delete_selected_detections()
+
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
         row = [str(detection.id),
@@ -291,12 +297,40 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
         self.total_nevents_label.SetLabel(str(self.get_total_nevents()))
 
+    def delete_selected_detections(self):
+        """Delete selected rows in detection list"""
+        selectedRows = self.detection_list.GetSelections()
+        selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
+        for det in selectedDetections:
+            for event in det.events.values(): # first check all detection's events to ensure they aren't template members
+                if event.template != None:
+                    raise RuntimeError, "can't remove detection %d: event %d is a member of template %d" \
+                                        % (det.id, event.id, event.template.id)
+            for eventi in det.events.keys(): # now do the actual removal
+                try:
+                    del self.session.events[eventi] # remove from unsorted events dict
+                    if 'sort' in self.frames.keys(): # if sort frame exists, which it should
+                        self.frames['sort'].list.DeleteItemByData(eventi) # remove from event listctrl
+                except KeyError: # check if it's in the trash
+                    try:
+                        del self.session.trash[eventi] # remove from trash
+                    except KeyError:
+                        print "can't find event %d in session.events or in session.trash, it may have been a duplicate" % eventi
+            del self.session.detections[det.id] # remove from session's detections dict
+            self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
+
+    def listRow2Detection(self, row):
+        """Return Detection at detection list row"""
+        detectioni = int(self.detection_list.GetItemText(row))
+        detection = self.session.detections[detectioni]
+        return detection
+
     def get_total_nevents(self):
         """Get total nevents across all detection runs
         TODO: or should this just count nevents in .session,
         which would make it number of unique events?"""
         nevents = 0
-        for det in self.session.detections:
+        for det in self.session.detections.values():
             nevents += len(det.events)
         return nevents
 
@@ -453,7 +487,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.session.stream = self.hpstream # restore missing stream object to session
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort Session
-        for detection in self.session.detections: # restore detections to detection list
+        for detection in self.session.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
         sf = self.OpenFrame('sort') # ensure it's open
         sf.Append2EventList(self.session.events) # restore unsorted events to event list

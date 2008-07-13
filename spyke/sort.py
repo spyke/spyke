@@ -37,7 +37,7 @@ class Session(object):
     def __init__(self, detector=None, probe=None, stream=None):
         self.detector = detector # this session's current Detector object
         self.probe = probe # only one probe design per session allowed
-        self.detections = [] # history of detection runs, in chrono order, reuse deleted Detection IDs
+        self.detections = {} # history of detection runs
         self.stream = stream
         # all unsorted events detected in this sort session across all Detection runs, indexed by unique ID
         # sorted events go in their respective template's .events dict
@@ -81,6 +81,9 @@ class Session(object):
         Don't add a new event from a new detection if the identical event
         (same maxchan and t) is already in session.events"""
         newevents = set(events.values()).difference(self.events.values())
+        duplicates = set(events.values()).difference(newevents)
+        if duplicates:
+            print 'not adding duplicate events %r' % [ event.id for event in duplicates ]
         uniqueevents = {}
         for newevent in newevents:
             uniqueevents[newevent.id] = newevent
