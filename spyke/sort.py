@@ -113,8 +113,10 @@ class Session(object):
             template.err = [] # overwrite any existing one
             trange = template.trange
             templatewave = template.wave[template.chans] # slice out template's enabled chans
+            #stdev = template.get_stdev()[template.chans] # slice out template's enabled chans
+            #stdev[stdev == 0] = 1 # replace any 0s with 1s - TODO: what's the best way to avoid these singularities?
             weights = template.get_weights(weighting=weighting, sstdev=self.detector.slock/2,
-                                           tstdev=self.detector.tlock/2)
+                                           tstdev=self.detector.tlock/2) # Gaussian weighting in space and/or time
             for event in self.events.values():
                 # check if event.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
@@ -122,6 +124,8 @@ class Session(object):
                 if event.wave.data == None or template.trange != EVENTTRANGE: # make sure their data line up
                     event.update_wave(trange) # this slows things down a lot, but is necessary
                 # slice template's enabled chans out of event, calculate sum of squared weighted error
+                # first impression is that dividing by stdev makes separation worse, not better
+                #err = (templatewave - event.wave[template.chans]) / stdev * weights # low stdev means more sensitive to error
                 err = (templatewave - event.wave[template.chans]) * weights
                 err = (err**2).sum(axis=None)
                 template.err.append((event.id, intround(err)))
@@ -240,6 +244,15 @@ class Template(object):
         #self.chans = event.detection.get_slock_chans(self.maxchan) # from random event's detection
         return self.wave
 
+    def get_stdev(self):
+        """Return 2D array of stddev of each timepoint of each chan of member events.
+        Assumes self.update_wave has already been called"""
+        data = []
+        for event in self.events.values():
+            data.append(event.wave.data) # collect event's data
+        stdev = np.asarray(data).std(axis=0)
+        return stdev
+
     def get_chans(self):
         return self._chans
 
@@ -289,7 +302,7 @@ class Template(object):
         nchans = len(self.chans)
         nt = len(self.wave.data[self.chans[0]]) # assume all chans have the same number of timepoints
         if weighting == None:
-            weights = np.ones((nchans, 1)) # vector
+            weights = 1
         elif weighting == 'spatial':
             weights = self.get_gaussian_spatial_weights(sstdev) # vector
         elif weighting == 'temporal':

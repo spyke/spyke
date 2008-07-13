@@ -281,6 +281,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         key = evt.GetKeyCode()
         if key == wx.WXK_DELETE:
             self.delete_selected_detections()
+        evt.Skip()
 
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
@@ -304,8 +305,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for det in selectedDetections:
             for event in det.events.values(): # first check all detection's events to ensure they aren't template members
                 if event.template != None:
-                    raise RuntimeError, "can't remove detection %d: event %d is a member of template %d" \
-                                        % (det.id, event.id, event.template.id)
+                    wx.MessageBox("can't remove detection %d: event %d is a member of template %d" \
+                                  % (det.id, event.id, event.template.id),
+                                  "Error", wx.OK|wx.ICON_EXCLAMATION)
+                    raise RuntimeError
             for eventi in det.events.keys(): # now do the actual removal
                 try:
                     del self.session.events[eventi] # remove from unsorted events dict
