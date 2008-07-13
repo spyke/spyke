@@ -52,6 +52,9 @@ EVENT DETECTION:
         - clicking on other options can just update the current Detector
         - or better, Detector is updated from other options only when you hit search or F3 or eq'v
 
+    - change event array returned by detector.search() to be many rows, two columns, instead of 2 cols, many rows. Would be more natural that way:
+        - printouts, no matter how long, would always have maxchan and timepoint right next to each other
+        - length checking (of number of events) would only need len, which works on rows
 
 ------------------------------------
 TEMPLATES:

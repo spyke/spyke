@@ -121,7 +121,6 @@ class Detector(object):
             tlo, thi = wavetrange # tlo could be > thi
             cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
             #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
-            sys.stdout.write('.') # no line feed
             wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
             if self.randomsample:
                 maxnevents = 1 # how many more we're looking for in the next block
@@ -139,6 +138,7 @@ class Detector(object):
             elif nnewevents != 0:
                 events.append(eventarr)
                 self.nevents += nnewevents # update
+                sys.stdout.write('.')
         events = np.concatenate(events, axis=1)
         print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)

@@ -318,6 +318,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         print "can't find event %d in session.events or in session.trash, it may have been a duplicate" % eventi
             del self.session.detections[det.id] # remove from session's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
+        self.total_nevents_label.SetLabel(str(self.get_total_nevents())) # update
 
     def listRow2Detection(self, row):
         """Return Detection at detection list row"""

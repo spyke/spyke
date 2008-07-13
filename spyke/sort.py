@@ -65,7 +65,7 @@ class Session(object):
             self.sampfreq = stream.sampfreq
         self._stream = stream
         self.detector.stream = stream
-        for detection in self.detections:
+        for detection in self.detections.values():
             detection.detector.stream = stream
 
     stream = property(get_stream, set_stream)
@@ -298,7 +298,7 @@ class Template(object):
             sweights = self.get_gaussian_spatial_weights(sstdev)
             tweights = self.get_gaussian_temporal_weights(tstdev)
             weights = np.outer(sweights, tweights) # matrix, outer product of the two
-        print '\nweights:\n%r' % weights
+        #print '\nweights:\n%r' % weights
         return weights
 
     def get_gaussian_spatial_weights(self, stdev):
