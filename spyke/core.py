@@ -19,15 +19,68 @@ from spyke import probes
 
 MU = '\xb5' # greek mu symbol
 
+DEFHIGHPASSSAMPFREQ = 25000 # default (possibly interpolated) high pass sample frequency, in Hz
+
 
 class WaveForm(object):
-    """Waveform object, a place to hold data, timestamps, channels, and sampling frequency attribs
-    Sliceable in time, and indexable in channel space"""
-    def __init__(self, data=None, ts=None, chans=None, sampfreq=None):
+    """Waveform object holds raw and interpolated data, timestamps, channels, and sampling frequency.
+    Sliceable in time, and indexable in channel space. Resamples data as needed"""
+    def __init__(self, data=None, ts=None, chans=None, rawsampfreq=None, sampfreq=None):
         self.data = data # in uV, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
+        self.rawsampfreq = rawsampfreq # Hz
         self.sampfreq = sampfreq # Hz
+
+    def get_data(self):
+        """Return s+h corrected and potentially interpolated data"""
+        try:
+            return self._data
+        except AttributeError:
+            self._data, self._ts = self.interp()
+            return self._data
+
+    def set_rawdata(self, rawdata):
+        """Set raw data. This should really only happen on init"""
+        self._rawdata = rawdata
+
+    data = property(get_data, set_rawdata)
+
+    def get_ts(self):
+        """Return potentially interpolated timestamps corresponding to data"""
+        try:
+            return self._ts
+        except AttributeError:
+            self.data # accessing this property should generate potentially interpolated ._ts
+            return self._ts
+
+    def set_rawts(self, rawts):
+        """Set raw data timepoints. This should really only happen on init"""
+        self._rawts = rawts
+
+    ts = property(get_ts, set_rawts)
+
+    def get_sampfreq(self):
+        return self._sampfreq
+
+    def set_sampfreq(self, sampfreq):
+        """Delete current potentially interpolated data and ts
+        on resetting of desired sampfreq"""
+        try:
+            del self._data
+            del self._ts
+        except AttributeError:
+            pass
+        self._sampfreq = sampfreq
+
+    sampfreq = property(get_sampfreq, set_sampfreq)
+
+    def interp(self):
+        """Return sample-and-hold corrected and potentially Nyquist interpolated
+        data and timepoints"""
+        #t = ts # not sure if I need to multiply by period or something here... or not, might need to be in unitless number of sample points, see paper
+        #np.sinc(t) # should be eqv't to (sin pi*t) / pi * t
+        return self._rawdata, self._rawts
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
@@ -55,25 +108,40 @@ class WaveForm(object):
 
     def __len__(self):
         """Number of data points in time"""
-        return self.data.shape[-1]
+        nt = len(self.ts)
+        assert nt == self.data.shape[1] # obsessive
+        return nt
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        try:
+            del d['_data'] # to save space and time, don't pickle the potentially interpolated data
+            del d['_ts'] # or timestamps
+        except KeyError:
+            pass
+        return d
 
 
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk. Converts from AD units to uV"""
-    DEFAULTINTERPSAMPFREQ = 50000 # default interpolated sample rate, in Hz
 
-    def __init__(self, ctsrecords=None, sampfreq=None, units='uV', endinclusive=False):
+    def __init__(self, ctsrecords=None, sampfreq=None, endinclusive=False):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation"""
         self.ctsrecords = ctsrecords
         self.layout = self.ctsrecords[0].layout # layout record for this stream
         self.srffname = os.path.basename(self.layout.f.name) # filename excluding path
-        # if no sampfreq passed in, use sampfreq of the raw data
-        self.sampfreq = sampfreq or self.layout.sampfreqperchan
-        self.units = units
+        self.rawsampfreq = self.layout.sampfreqperchan
+        try:
+            self.ctsrecords[0].lowpassrecords # it's a low pass stream
+            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+        except AttributeError: # it's a high pass stream
+            self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
+        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
         self.endinclusive = endinclusive
 
         self.nchans = len(self.layout.chanlist)
@@ -88,7 +156,6 @@ class Stream(object):
         self.probe = probetype() # instantiate it
 
         self.t0 = self.rts[0] # us, time that recording began
-        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
         lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres)
         self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
 
@@ -125,14 +192,13 @@ class Stream(object):
             try:
                 record.waveform
             except AttributeError:
-                # to save time, only load the waveform if not already loaded
+                # to save time, only load the waveform if it's not already loaded
                 record.load()
 
         # join all waveforms, returns a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
         # Don't need float64 precision anyway.
-        # TODO: do interpolation here too, which will also need more memory.
         data = np.concatenate([np.float32(record.waveform) for record in cutrecords], axis=1)
         # all ctsrecords should be using the same layout, use tres from the first one
         tres = cutrecords[0].layout.tres
@@ -153,8 +219,7 @@ class Stream(object):
         ts = ts[lo:hi+self.endinclusive]
         #ts = ts.take(np.arange(lo, hi+self.endinclusive)) # doesn't seem to help performance
 
-        # interp and s+h correct here, reverse if need be
-        data, ts = self.interp(data, ts, self.sampfreq)
+        # reverse data if need be
         if key.step == -1:
             data = data[:, ::key.step]
             ts = ts[::key.step]
@@ -165,30 +230,14 @@ class Stream(object):
         data = self.AD2uV(data, intgain, extgain)
 
         # return a WaveForm object
-        return WaveForm(data=data, ts=ts, chans=self.chans, sampfreq=self.sampfreq)
+        return WaveForm(data=data, ts=ts, chans=self.chans, rawsampfreq=self.rawsampfreq, sampfreq=self.sampfreq)
 
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV
-        Delphi code:
-        Round((ADValue - 2048)*(10 / (2048
-                         * ProbeArray[m_ProbeIndex].IntGain
-                         * ProbeArray[m_ProbeIndex].ExtGain[m_CurrentChan]))
-                         * V2uV);
-
         TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
         TODO: stop hard-coding 10V, should be max range at intgain of 1
         """
         return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
-
-    def interp(self, data, ts, sampfreq=None, kind='nyquist'):
-        """Returns interpolated and sample-and-hold corrected data and
-        timepoints, at the given sample frequency"""
-        if kind == 'nyquist':
-            # do Nyquist interpolation and S+H correction here, find a scipy function that'll do Nyquist interpolation?
-            # TODO: Implement this!
-            return data, ts
-        else:
-            raise ValueError, 'Unknown kind of interpolation %r' % kind
 
     def plot(self, chanis=None, trange=None):
         """Creates a simple matplotlib plot of the specified chanis over trange"""

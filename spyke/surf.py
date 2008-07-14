@@ -677,8 +677,9 @@ class ContinuousRecord(Record):
         #self.waveform = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
         self.waveform = np.fromfile(self.f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
         # reshape to have nchans rows, as indicated in layout
-        nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
-        self.waveform.shape = (self.layout.nchans, nt)
+        #nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
+        #self.waveform.shape = (self.layout.nchans, nt)
+        self.waveform.shape = (self.layout.nchans, -1)
 
 
 class HighPassRecord(ContinuousRecord):

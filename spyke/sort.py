@@ -57,6 +57,7 @@ class Session(object):
         for unpickling purposes"""
         # Enforce a single fixed .tres and .sampfreq per Session object
         # This means that the first stream that's set cannot be None
+        # TODO: I think sampfreq (and hence tres) can be dynamic after all...
         try:
             self.tres
             self.sampfreq
