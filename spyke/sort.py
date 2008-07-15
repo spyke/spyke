@@ -224,23 +224,29 @@ class Template(object):
         lo, hi = ts.searchsorted(self.trange)
         ts = ts[lo:hi] # slice them according to trange
 
-        sampfreq = self.wave.sampfreq or event.wave.sampfreq
         wavechans = self.wave.chans or event.wave.chans # chan ids that correspond to rows in wave.data
+        rawsampfreq = self.wave.rawsampfreq or event.wave.rawsampfreq
+        sampfreq = self.wave.sampfreq or event.wave.sampfreq
+        shcorrect = self.wave.shcorrect or event.wave.shcorrect
         data = []
         for event in self.events.values():
             # check each event for timepoints that don't match up, update the event so that they do
             # note: event is no longer just some random member event as it was above
             if event.wave.ts == None or ((event.wave.ts - event.t) != ts).all():
                 event.update_wave(trange=self.trange)
-            assert event.wave.sampfreq == sampfreq # being really thorough here...
-            assert event.wave.chans == wavechans
+            assert event.wave.chans == wavechans # being really thorough here...
+            assert event.wave.rawsampfreq == rawsampfreq
+            assert event.wave.sampfreq == sampfreq
+            assert event.wave.shcorrect == shcorrect
             data.append(event.wave.data) # collect event's data
         data = np.asarray(data).mean(axis=0)
         self.wave.data = data
         self.wave.ts = ts
         #print 'template[%d].wave.ts = %r' % (self.id, ts)
-        self.wave.sampfreq = sampfreq
         self.wave.chans = wavechans # could be None, to indicate to WaveForm that data is contiguous and complete
+        self.wave.rawsampfreq = rawsampfreq
+        self.wave.sampfreq = sampfreq
+        self.wave.shcorrect = shcorrect # boolean
         self.maxchan = self.get_maxchan()
         #self.chans = event.detection.get_slock_chans(self.maxchan) # from random event's detection
         return self.wave

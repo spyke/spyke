@@ -834,7 +834,7 @@ class SortPanel(PlotPanel):
             # save as new background for quick restore if the next action is removal of this very same object
             self.background = self.copy_from_bbox(self.ax.bbox)
             self.quickRemovePlot = self.addObject(objects[0]) # add the single object, save reference to its plot
-            print 'saved quick remove plot %r' % self.quickRemovePlot
+            #print 'saved quick remove plot %r' % self.quickRemovePlot
         else:
             self.background = None
             for obj in objects: # add all objects
@@ -869,7 +869,7 @@ class SortPanel(PlotPanel):
         plot.set_stylewidth(style, width)
         plot.obj = obj # bind object to plot
         obj.plot = plot  # bind plot to object
-        if obj.wave.data == None: # if it hasn't already been sliced
+        if obj.wave.data == None: # if it hasn't already been loaded
             obj.update_wave()
         self.used_plots[plot.id] = plot # push it to the used plot stack
         wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
@@ -891,7 +891,7 @@ class SortPanel(PlotPanel):
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
         # remove the last added plot if a saved bg is available
         elif len(objects) == 1 and plot == self.quickRemovePlot and self.background != None:
-            print 'quick removing plot %r' % self.quickRemovePlot
+            #print 'quick removing plot %r' % self.quickRemovePlot
             self.restore_region(self.background) # restore saved bg
         # remove more than one, but not all objects
         else:

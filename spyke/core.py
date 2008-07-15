@@ -20,24 +20,30 @@ from spyke import probes
 MU = '\xb5' # greek mu symbol
 
 DEFHIGHPASSSAMPFREQ = 25000 # default (possibly interpolated) high pass sample frequency, in Hz
+SAMPLEANDHOLDCORRECT = False
 
 
 class WaveForm(object):
     """Waveform object holds raw and interpolated data, timestamps, channels, and sampling frequency.
     Sliceable in time, and indexable in channel space. Resamples data as needed"""
-    def __init__(self, data=None, ts=None, chans=None, rawsampfreq=None, sampfreq=None):
+    def __init__(self, data=None, ts=None, chans=None,
+                 rawsampfreq=None, sampfreq=None, shcorrect=None):
         self.data = data # in uV, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
         self.rawsampfreq = rawsampfreq # Hz
         self.sampfreq = sampfreq # Hz
+        self.shcorrect = shcorrect # boolean
+        if self.shcorrect == None:
+            self.shcorrect = SAMPLEANDHOLDCORRECT
 
     def get_data(self):
         """Return s+h corrected and potentially interpolated data"""
+        #print 'getting data from WaveForm object: %r' % self
         try:
             return self._data
         except AttributeError:
-            self._data, self._ts = self.interp()
+            self._data, self._ts = self.resample()
             return self._data
 
     def set_rawdata(self, rawdata):
@@ -51,7 +57,7 @@ class WaveForm(object):
         try:
             return self._ts
         except AttributeError:
-            self.data # accessing this property should generate potentially interpolated ._ts
+            self.data # accessing this property should generate resampled ._ts
             return self._ts
 
     def set_rawts(self, rawts):
@@ -75,26 +81,35 @@ class WaveForm(object):
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
-    def interp(self):
-        """Return sample-and-hold corrected and potentially Nyquist interpolated
+    def resample(self):
+        """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints"""
-        #t = ts # not sure if I need to multiply by period or something here... or not, might need to be in unitless number of sample points, see paper
-        #np.sinc(t) # should be eqv't to (sin pi*t) / pi * t
-        return self._rawdata, self._rawts
+        print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
+        if self.sampfreq == self.rawsampfreq and self.shcorrect == False:
+            return self._rawdata, self._rawts # don't need to do anything, fast
+        t = ts # not sure if I need to multiply by period or something here... or not, might need to be in unitless number of sample points, see paper
+        np.sinc(t) # should be eqv't to (sin pi*t) / pi * t
+
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
-        Maybe this is where data should be interpolated?"""
-        if key.__class__ == slice: # slice self, return a new WaveForm
+        Return a WaveForm if slicing.
+        TODO: Right now, this Works off of raw data for consistency and simplicity,
+        although this means you can't slice at interpolated timepoints, which might be bad..."""
+        if key.__class__ == slice: # slice self, return a WaveForm
             if self.ts == None:
-                data = None
-                ts = None
+                rawdata = None
+                rawts = None
             else:
-                lo, hi = self.ts.searchsorted([key.start, key.stop])
-                data = self.data[:, lo:hi]
-                ts = self.ts[lo:hi]
-            return WaveForm(data=data, ts=ts,
-                            chans=self.chans, sampfreq=self.sampfreq)
+                lo, hi = self._rawts.searchsorted([key.start, key.stop])
+                rawdata = self._rawdata[:, lo:hi]
+                rawts = self._rawts[lo:hi]
+            if np.asarray(rawdata == self._rawdata).all() and np.asarray(rawts == self._rawts).all():
+                return self # no need for a new WaveForm
+            else:
+                return WaveForm(data=rawdata, ts=rawts, chans=self.chans,
+                                rawsampfreq=self.rawsampfreq, sampfreq=self.sampfreq,
+                                shcorrect=self.shcorrect)
         else: # index into self by channel id, return that channel's data
             if self.chans == None: # contiguous chans, simple and fast
                 return self.data[key] # TODO: should probably use .take here for speed
@@ -128,7 +143,7 @@ class Stream(object):
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk. Converts from AD units to uV"""
 
-    def __init__(self, ctsrecords=None, sampfreq=None, endinclusive=False):
+    def __init__(self, ctsrecords=None, sampfreq=None, shcorrect=None, endinclusive=False):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation"""
@@ -142,6 +157,7 @@ class Stream(object):
         except AttributeError: # it's a high pass stream
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
         self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
+        self.shcorrect = shcorrect
         self.endinclusive = endinclusive
 
         self.nchans = len(self.layout.chanlist)
@@ -190,7 +206,7 @@ class Stream(object):
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
         for record in cutrecords:
             try:
-                record.waveform
+                record.data
             except AttributeError:
                 # to save time, only load the waveform if it's not already loaded
                 record.load()
@@ -199,7 +215,7 @@ class Stream(object):
         # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
         # Don't need float64 precision anyway.
-        data = np.concatenate([np.float32(record.waveform) for record in cutrecords], axis=1)
+        data = np.concatenate([np.float32(record.data) for record in cutrecords], axis=1)
         # all ctsrecords should be using the same layout, use tres from the first one
         tres = cutrecords[0].layout.tres
 
@@ -209,9 +225,9 @@ class Stream(object):
         for record in cutrecords:
             tstart = record.TimeStamp
             # number of timepoints (columns) in this record's waveform
-            nt = record.waveform.shape[-1]
+            nt = record.data.shape[1]
             ts.extend(range(tstart, tstart + nt*tres, tres))
-            #del record.waveform # save memory by unloading waveform data from records that aren't needed anymore
+            #del record.data # save memory by unloading waveform data from records that aren't needed anymore
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([start, stop])
         data = data[:, lo:hi+self.endinclusive] # TODO: is this the slowest step? use .take instead?
@@ -230,7 +246,9 @@ class Stream(object):
         data = self.AD2uV(data, intgain, extgain)
 
         # return a WaveForm object
-        return WaveForm(data=data, ts=ts, chans=self.chans, rawsampfreq=self.rawsampfreq, sampfreq=self.sampfreq)
+        return WaveForm(data=data, ts=ts, chans=self.chans,
+                        rawsampfreq=self.rawsampfreq, sampfreq=self.sampfreq,
+                        shcorrect=self.shcorrect)
 
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV

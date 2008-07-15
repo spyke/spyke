@@ -663,7 +663,7 @@ class ContinuousRecord(Record):
         # for speed and memory, read all 28 bytes at a time, skip reading
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = self.unpack('qqhhii', f.read(28))
-        self.waveformoffset = f.tell()
+        self.dataoffset = f.tell()
         # skip the waveform data for now
         f.seek(self.NumSamples*2, 1)
 
@@ -671,15 +671,15 @@ class ContinuousRecord(Record):
         """Loads waveform data for this continuous record, assumes that the
         appropriate probe layout record has been assigned as a .layout attrib"""
         f = self.f
-        f.seek(self.waveformoffset)
+        f.seek(self.dataoffset)
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
         # Using stuct.unpack for this is super slow:
-        #self.waveform = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
-        self.waveform = np.fromfile(self.f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
+        #self.data = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
+        self.data = np.fromfile(self.f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
         # reshape to have nchans rows, as indicated in layout
         #nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
-        #self.waveform.shape = (self.layout.nchans, nt)
-        self.waveform.shape = (self.layout.nchans, -1)
+        #self.data.shape = (self.layout.nchans, nt)
+        self.data.shape = (self.layout.nchans, -1)
 
 
 class HighPassRecord(ContinuousRecord):
@@ -702,7 +702,7 @@ class LowPassMultiChanRecord(Record):
         '''
         self.tres = self.lowpassrecords[0].layout.tres
         self.chanis = []
-        self.waveformoffsets = []
+        self.dataoffsets = []
         for recordi, record in enumerate(self.lowpassrecords): # typically 10 of these records
             # make sure all passed lowpassrecords have the same timestamp
             assert record.TimeStamp == self.TimeStamp
@@ -717,14 +717,14 @@ class LowPassMultiChanRecord(Record):
 
     def load(self):
         """Load waveform data for each lowpass record, appending it as
-        channel(s) to a single 2D waveform array"""
-        self.waveform = []
+        channel(s) to a single 2D data array"""
+        self.data = []
         for record in self.lowpassrecords:
             record.load()
-            # shouldn't matter if record.waveform is one channel (row) or several
-            self.waveform.append(record.waveform)
+            # shouldn't matter if record.data is one channel (row) or several
+            self.data.append(record.data)
         # save as array, removing singleton dimensions
-        self.waveform = np.squeeze(self.waveform)
+        self.data = np.squeeze(self.data)
 
 
 class DisplayRecord(Record):
