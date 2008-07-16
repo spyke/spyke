@@ -14,28 +14,25 @@ import os
 import wx
 
 import numpy as np
+import scipy.signal
 
 from spyke import probes
 
 MU = '\xb5' # greek mu symbol
 
-DEFHIGHPASSSAMPFREQ = 25000 # default (possibly interpolated) high pass sample frequency, in Hz
-SAMPLEANDHOLDCORRECT = False
+DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample frequency, in Hz
+DEFHIGHPASSSHCORRECT = False
 
 
 class WaveForm(object):
     """Waveform object holds raw and interpolated data, timestamps, channels, and sampling frequency.
     Sliceable in time, and indexable in channel space. Resamples data as needed"""
-    def __init__(self, data=None, ts=None, chans=None,
-                 rawsampfreq=None, sampfreq=None, shcorrect=None):
+    def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in uV, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
-        self.rawsampfreq = rawsampfreq # Hz
-        self.sampfreq = sampfreq # Hz
-        self.shcorrect = shcorrect # boolean
-        if self.shcorrect == None:
-            self.shcorrect = SAMPLEANDHOLDCORRECT
+
+        # change of plans. interpolation stuff is going back in Stream, keep WaveForm as just a dumb container for data and ts and chans. nothing more
 
     def get_data(self):
         """Return s+h corrected and potentially interpolated data"""
@@ -67,29 +64,62 @@ class WaveForm(object):
     ts = property(get_ts, set_rawts)
 
     def get_sampfreq(self):
-        return self._sampfreq
+        return self.stream.sampfreq
 
     def set_sampfreq(self, sampfreq):
         """Delete current potentially interpolated data and ts
-        on resetting of desired sampfreq"""
+        on resetting desired sampfreq in .stream"""
         try:
             del self._data
             del self._ts
         except AttributeError:
             pass
-        self._sampfreq = sampfreq
+        self.stream.sampfreq = sampfreq
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
     def resample(self):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
-        data and timepoints"""
+        data and timepoints. See Blanche & Swindale, 2006"""
         print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         if self.sampfreq == self.rawsampfreq and self.shcorrect == False:
             return self._rawdata, self._rawts # don't need to do anything, fast
-        t = ts # not sure if I need to multiply by period or something here... or not, might need to be in unitless number of sample points, see paper
-        np.sinc(t) # should be eqv't to (sin pi*t) / pi * t
+        rawtres = intround(1 / self.rawsampfreq * 1e6) # us
+        tres = intround(1 / self.sampfreq * 1e6) # us
+        # number of raw samples per interpolated sampe (0.5 when interpolating from 25 to 50 kHz):
+        nrspis = self.rawsampfreq / self.sampfreq # inverse of interpolation factor
+        # normalize timepoints so that sampling period delta t = 1, ie divide all timepoints by tres
+        #tns = self._rawts / rawtres # raw timepoints normalized - should I bother introunding here?
+        N = 12 # number of kernel points
 
+        # generate separate kernels per chan to correct each channel's s+h delay
+        # TODO: does chan 0 have 0 delay, or a delay of 1us???
+        chans = self.chans or range(len(self._rawdata)) # None indicates channel ids == data row indices
+        nchansperboard = 32 # TODO: stop hard coding number of chans per board (32)
+        i = np.asarray(chans) % nchansperboard # ordinal position of each chan in the hold queue
+        dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
+        ds = dis / rawtres # normalized per channel delays
+        kernels = []
+        wh = hamming
+        h = np.sinc # sin(pi*t) / pi*t
+        for d in ds:
+            t = np.arange(start=-N/2-d, stop=N/2-d+nrspis, step=nrspis) # kernel sample points
+            kernel = wh(t, N) * h(t)
+            kernels.append(kernel)
+        kernels = np.asarray(kernels)
+
+        # TODO: need _rawdata to be 6 data points longer at either end, then do full convolution, then discard them after convolution
+        #data = scipy.signal.convolve(self._rawdata, kernels, mode='full') # takes nD arrays, allowing us to convolve each chan (rows in a) with its appropriate kernel in (rows of) v, all in one fell swoop. No for loop required. In comparison, np.convolve only works on 1D arrays for some reason
+        data = []
+        for chani, chan in enumerate(chans):
+            row = np.convolve(self._rawdata[chani], kernels[chani], mode='full')
+            data.append(row)
+        data = np.asarray(data)
+        #ts = np.arange(self._rawts[0], self._rawts[-1] + rawtres, tres) # generate interpolated timepoints
+        ts = np.arange(self._rawts[0], self._rawts[-1] + tres, tres) # generate interpolated timepoints
+        #assert data.shape[1] == len(ts)
+        print 'data.shape = %r' % (data.shape,)
+        return data, ts
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
@@ -135,6 +165,7 @@ class WaveForm(object):
             del d['_ts'] # or timestamps
         except KeyError:
             pass
+        #d['stream'] = None # we'll need to do something in Stream that keeps its attibs like .sampfreq, .rawsampfreq., etc, upon pickling, while still not trying to access an unavailable .srf file - maybe set its ctsrecords to []?
         return d
 
 
@@ -154,10 +185,10 @@ class Stream(object):
         try:
             self.ctsrecords[0].lowpassrecords # it's a low pass stream
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+            self.shcorrect = shcorrect or False # don't s+h correct by default
         except AttributeError: # it's a high pass stream
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
-        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
-        self.shcorrect = shcorrect
+            self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
         self.endinclusive = endinclusive
 
         self.nchans = len(self.layout.chanlist)
@@ -174,6 +205,16 @@ class Stream(object):
         self.t0 = self.rts[0] # us, time that recording began
         lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres)
         self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
+
+    def get_sampfreq(self):
+        return self._sampfreq
+
+    def set_sampfreq(self, sampfreq):
+        """Updates .tres on .sampfreq change"""
+        self._sampfreq = sampfreq
+        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
+
+    sampfreq = property(get_sampfreq, set_sampfreq)
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
@@ -246,9 +287,7 @@ class Stream(object):
         data = self.AD2uV(data, intgain, extgain)
 
         # return a WaveForm object
-        return WaveForm(data=data, ts=ts, chans=self.chans,
-                        rawsampfreq=self.rawsampfreq, sampfreq=self.sampfreq,
-                        shcorrect=self.shcorrect)
+        return WaveForm(data=data, ts=ts, chans=self.chans, stream=self)
 
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV
@@ -503,3 +542,10 @@ class Gaussian(object):
 
     def __getitem__(self, x):
         return self.f(x)
+
+def hamming(t, N=None):
+    """Return y values of Hamming window at sample points t,
+    centered on the middle sample"""
+    if N == None:
+        N = (len(t) - 1) / 2
+    return 0.54 - 0.46 * np.cos(np.pi * (2*t + N)/N)

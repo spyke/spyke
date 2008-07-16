@@ -55,15 +55,6 @@ class Session(object):
     def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
         for unpickling purposes"""
-        # Enforce a single fixed .tres and .sampfreq per Session object
-        # This means that the first stream that's set cannot be None
-        # TODO: I think sampfreq (and hence tres) can be dynamic after all...
-        try:
-            self.tres
-            self.sampfreq
-        except AttributeError:
-            self.tres = stream.tres
-            self.sampfreq = stream.sampfreq
         self._stream = stream
         self.detector.stream = stream
         for detection in self.detections.values():
