@@ -1,5 +1,10 @@
 TODO:
 
+- Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
+
+- Nick: add kmeans to quickly generate templates
+    - maybe not so hard, since kmeans is built into scipy I think, but it's still going to require arbitrary parameter values that you'll have to set, and it might give you a false sense of completeness/correctness
+
 - just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
 
 - get tooltips to work on main spyke frame widgets

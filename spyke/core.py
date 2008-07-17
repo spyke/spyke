@@ -20,8 +20,10 @@ from spyke import probes
 
 MU = '\xb5' # greek mu symbol
 
-DEFHIGHPASSSAMPFREQ = 25000 # default (possibly interpolated) high pass sample frequency, in Hz
-DEFHIGHPASSSHCORRECT = False
+DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample frequency, in Hz
+DEFHIGHPASSSHCORRECT = True
+KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems to depend on the phase of the kernel, some have one less. Anyway, total number of points in the kernel is this plus 1 (for the middle point) - see Blanche2006
+assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 
 
 class WaveForm(object):
@@ -85,8 +87,8 @@ class Stream(object):
         self.srffname = os.path.basename(self.layout.f.name) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us, for convenience
-        try:
-            self.ctsrecords[0].lowpassrecords # it's a low pass stream
+        try: # is this a low pass stream?
+            self.ctsrecords[0].lowpassrecords # yes, it's a low pass stream
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
         except AttributeError: # it's a high pass stream
@@ -141,7 +143,7 @@ class Stream(object):
 
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
-            xs = something # excess data in us that needs to be available to do our desired interpolation
+            xs = KERNELSIZE * self.rawtres # excess data in us at either end, to eliminate interpolation distortion at the true endpoints
         else:
             xs = 0
 
@@ -190,16 +192,19 @@ class Stream(object):
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
         data = self.AD2uV(data, intgain, extgain)
+        print 'raw data shape before resample: %r' % (data.shape,)
 
         # do any resampling if necessary
         if resample:
-            data, ts = self.resample()
+            data, ts = self.resample(data, ts)
 
         # now get rid of any excess
         if xs:
             lo, hi = ts.searchsorted([start, stop])
             data = data[:, lo:hi+self.endinclusive]
             ts = ts[lo:hi+self.endinclusive]
+
+        print 'data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape)
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans)
@@ -211,47 +216,73 @@ class Stream(object):
         """
         return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
 
-    def resample(self):
+    def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
-        data and timepoints. See Blanche & Swindale, 2006"""
+        data and timepoints. See Blanche & Swindale, 2006
+
+        TODO: should interpolation be multithreaded?
+        """
         print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
-        # number of raw samples per interpolated sampe (0.5 when interpolating from 25 to 50 kHz):
-        nrspis = self.rawsampfreq / self.sampfreq # inverse of interpolation factor
+        npoints = self.sampfreq / self.rawsampfreq # number of output resampled points per input raw point
+        assert npoints >= 1
+        nrspis = 1 / npoints # number of raw samples per interpolated sampe (0.5 when interpolating from 25 to 50 kHz)
         # normalize timepoints so that sampling period delta t = 1, ie divide all timepoints by tres
         #tns = self._rawts / rawtres # raw timepoints normalized - should I bother introunding here?
-        N = 12 # number of kernel points
+        N = KERNELSIZE
 
         # generate separate kernels per chan to correct each channel's s+h delay
-        # TODO: does chan 0 have 0 delay, or a delay of 1us???
-        chans = self.chans or range(len(self._rawdata)) # None indicates channel ids == data row indices
-        nchansperboard = 32 # TODO: stop hard coding number of chans per board (32)
+        # TODO: take DIN channel into account, might need to shift all highpass chans
+        # by 1us, see line 2412 in SurfBawdMain.pas
+        chans = self.chans or range(len(rawdata)) # None indicates channel ids == data row indices
+        nchansperboard = 32 # TODO: stop hard coding this
         i = np.asarray(chans) % nchansperboard # ordinal position of each chan in the hold queue
-        dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
+        if self.shcorrect:
+            dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
+        else:
+            dis = 0 * i
         ds = dis / rawtres # normalized per channel delays
-        kernels = []
         wh = hamming
         h = np.sinc # sin(pi*t) / pi*t
-        for d in ds:
-            t = np.arange(start=-N/2-d, stop=N/2-d+nrspis, step=nrspis) # kernel sample points
-            kernel = wh(t, N) * h(t)
-            kernels.append(kernel)
-        kernels = np.asarray(kernels)
-
-        # TODO: need _rawdata to be 6 data points longer at either end, then do full convolution, then discard them after convolution
-        #data = scipy.signal.convolve(self._rawdata, kernels, mode='full') # takes nD arrays, allowing us to convolve each chan (rows in a) with its appropriate kernel in (rows of) v, all in one fell swoop. No for loop required. In comparison, np.convolve only works on 1D arrays for some reason
-        data = []
+        kernels = [] # list of list of kernels, indexed by [chan][resample point]
         for chani, chan in enumerate(chans):
-            row = np.convolve(self._rawdata[chani], kernels[chani], mode='full')
-            data.append(row)
-        data = np.asarray(data)
-        #ts = np.arange(self._rawts[0], self._rawts[-1] + rawtres, tres) # generate interpolated timepoints
-        ts = np.arange(self._rawts[0], self._rawts[-1] + tres, tres) # generate interpolated timepoints
-        #assert data.shape[1] == len(ts)
-        print 'data.shape = %r' % (data.shape,)
-        return data, ts
+            d = ds[chani] # delay for this chan
+            kernelrow = []
+            for point in range(npoints): # iterate over resampled points per raw point
+                t0 = point/npoints # some fraction of 1
+                start = -N/2 - t0 - d
+                t = np.arange(start=start, stop=start+(N+1), step=1) # kernel sample timepoints, of length N+1
+                print t
+                kernel = wh(t, N) * h(t)
+                kernelrow.append(kernel)
+            kernels.append(kernelrow)
 
+        # now convolve the data with each kernel
+        nrawts = len(rawts)
+        nt = nrawts + (npoints-1) * (nrawts - 1) # all the interpolated points have to fit in between the existing raw points, so there's nrawts - 1 of each of the interpolated points
+        start = rawts[0]
+        ts = np.arange(start=start, stop=start+tres*nt, step=tres) # generate interpolated timepoints
+        print 'len(ts) is %r' % len(ts)
+        assert len(ts) == nt
+        data = np.empty((len(chans), nt), dtype=np.float32) # resampled data, float32 uses half the space
+        print 'data.shape = %r' % (data.shape,)
+        for chani, chan in enumerate(chans):
+            for point, kernel in enumerate(kernels[chani]):
+                # np.convolve(a, v, mode)
+                # for mode='same', only the K middle values are returned starting at n = (M-1)/2
+                # where K = len(a)-1 and M = len(v) - 1 and K >= M
+                # for mode='valid', you get the middle len(a) - len(v) + 1 number of values
+                row = np.convolve(rawdata[chani], kernel, mode='same')
+                print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
+                print 'len(kernel) = %r' % len(kernel)
+                print 'len(row): %r' % len(row)
+                # assign from point to end in steps of npoints
+                ti0 = (npoints - point) % npoints # index to start filling data from for this kernel's points
+                rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
+                data[chani, ti0::npoints] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
+        return data, ts
+    '''
     def plot(self, chanis=None, trange=None):
         """Creates a simple matplotlib plot of the specified chanis over trange"""
         import pylab as pl # wouldn't otherwise need this, so import here
@@ -314,7 +345,7 @@ class Stream(object):
         height = heightinches / figheight
         self.a.set_position([0.035, bottom, 0.94, height])
         pl.show()
-
+    '''
 
 class SpykeListCtrl(wx.ListCtrl):
     """ListCtrl with a couple of extra methods defined"""
@@ -499,8 +530,8 @@ class Gaussian(object):
     def __getitem__(self, x):
         return self.f(x)
 
-def hamming(t, N=None):
+def hamming(t, N):
     """Return y values of Hamming window at sample points t"""
-    if N == None:
-        N = (len(t) - 1) / 2
+    #if N == None:
+    #    N = (len(t) - 1) / 2
     return 0.54 - 0.46 * np.cos(np.pi * (2*t + N)/N)
