@@ -131,7 +131,7 @@ class Stream(object):
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
 
-        tslice = time.clock()
+        #tslice = time.clock()
 
         # for now, accept only slice objects as keys
         assert key.__class__ == slice
@@ -199,9 +199,9 @@ class Stream(object):
 
         # do any resampling if necessary
         if resample:
-            tresample = time.clock()
+            #tresample = time.clock()
             data, ts = self.resample(data, ts)
-            print 'resample took %.3f sec' % (time.clock()-tresample)
+            #print 'resample took %.3f sec' % (time.clock()-tresample)
 
         # now get rid of any excess
         if xs:
@@ -210,7 +210,7 @@ class Stream(object):
             ts = ts[lo:hi+self.endinclusive]
 
         #print 'data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape)
-        print 'Stream slice took %.3f sec' % (time.clock()-tslice)
+        #print 'Stream slice took %.3f sec' % (time.clock()-tslice)
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans)
@@ -232,7 +232,7 @@ class Stream(object):
         #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
-        npoints = self.sampfreq / self.rawsampfreq # number of output resampled points per input raw point
+        npoints = intround(self.sampfreq / self.rawsampfreq) # number of output resampled points per input raw point
         assert npoints >= 1, 'no decimation allowed'
         N = KERNELSIZE
 

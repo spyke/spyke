@@ -50,6 +50,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     REFTYPE2ID = {'tref': wx.ID_TREF,
                   'vref': wx.ID_VREF,
                   'caret': wx.ID_CARET}
+    SAMPFREQ2ID = {25000: wx.ID_25,
+                   50000: wx.ID_50,
+                   100000: wx.ID_100}
 
     def __init__(self, *args, **kwargs):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
@@ -90,7 +93,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.spatial_units_label.SetLabel(MU+'m')
         self.temporal_units_label.SetLabel(MU+'s')
 
-        # disable most widgets until a .srf file is opened
+        # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
         self.EnableSortWidgets(False)
 
@@ -192,6 +195,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnCaret(self, evt):
         """Caret toggle menu event"""
         self.ToggleRef('caret')
+
+    def OnSampling(self, evt):
+        """Sampling frequency menu choice event"""
+        menuitem = self.menubar.FindItemById(evt.GetId())
+        sampfreq = int(menuitem.GetLabel().rstrip(' kHz'))
+        sampfreq *= 1000 # convert from kHz to Hz
+        self.SetSampling(sampfreq)
+
+    def OnSHCorrect(self, evt):
+        """Sample & hold menu event"""
+        enable = self.menubar.IsChecked(wx.ID_SHCORRECT) # maybe not safe, but seems to work
+        self.SetSHCorrect(enable)
 
     def OnMove(self, evt):
         """Move frame, and all dataframes as well, like docked windows"""
@@ -390,6 +405,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetValue(self.t)
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
+
+        self.SetSampling(spyke.core.DEFHIGHPASSSAMPFREQ)
+        self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
         self.CreateNewSession() # create a new sort Session
 
@@ -598,8 +616,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def ToggleRef(self, ref):
         """Toggle visibility of a tref, vref, or the caret"""
-        enable = self.frames.items()[0] # pick a random frame
         self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
+
+    def SetSampling(self, sampfreq):
+        """Set highpass stream sampling frequency, enforce menu state.
+        TODO: refresh data frames too
+        """
+        self.hpstream.sampfreq = sampfreq
+        self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
+
+    def SetSHCorrect(self, enable):
+        """Set sample & hold correct flag in highpass stream, enforce menu state.
+        TODO: refresh data frames too
+        """
+        self.hpstream.shcorrect = enable
+        self.menubar.Check(wx.ID_SHCORRECT, enable)
 
     def EnableSurfWidgets(self, enable):
         """Enable/disable all widgets that require an open .srf file"""
@@ -610,7 +641,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_TREF, enable)
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
-        self.menubar.Enable(wx.ID_CARET, enable)
+        self.menubar.Enable(wx.ID_SAMPLING, enable)
         self.toolbar.EnableTool(wx.ID_NEW, enable)
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
