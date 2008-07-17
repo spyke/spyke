@@ -131,6 +131,8 @@ class Stream(object):
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
 
+        tslice = time.clock()
+
         # for now, accept only slice objects as keys
         assert key.__class__ == slice
         # key.step == -1 indicates we want the returned Waveform reversed in time
@@ -192,11 +194,13 @@ class Stream(object):
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
         data = self.AD2uV(data, intgain, extgain)
-        print 'raw data shape before resample: %r' % (data.shape,)
+        #print 'raw data shape before resample: %r' % (data.shape,)
 
         # do any resampling if necessary
+        tresample = time.clock()
         if resample:
             data, ts = self.resample(data, ts)
+        print 'resample took %.3f sec' % (time.clock()-tresample)
 
         # now get rid of any excess
         if xs:
@@ -204,7 +208,8 @@ class Stream(object):
             data = data[:, lo:hi+self.endinclusive]
             ts = ts[lo:hi+self.endinclusive]
 
-        print 'data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape)
+        #print 'data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape)
+        print 'Stream slice took %.3f sec' % (time.clock()-tslice)
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans)
@@ -222,7 +227,7 @@ class Stream(object):
 
         TODO: should interpolation be multithreaded?
         """
-        print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
+        #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
         npoints = self.sampfreq / self.rawsampfreq # number of output resampled points per input raw point
@@ -253,7 +258,6 @@ class Stream(object):
                 t0 = point/npoints # some fraction of 1
                 start = -N/2 - t0 - d
                 t = np.arange(start=start, stop=start+(N+1), step=1) # kernel sample timepoints, of length N+1
-                print t
                 kernel = wh(t, N) * h(t)
                 kernelrow.append(kernel)
             kernels.append(kernelrow)
@@ -263,10 +267,10 @@ class Stream(object):
         nt = nrawts + (npoints-1) * (nrawts - 1) # all the interpolated points have to fit in between the existing raw points, so there's nrawts - 1 of each of the interpolated points
         start = rawts[0]
         ts = np.arange(start=start, stop=start+tres*nt, step=tres) # generate interpolated timepoints
-        print 'len(ts) is %r' % len(ts)
+        #print 'len(ts) is %r' % len(ts)
         assert len(ts) == nt
         data = np.empty((len(chans), nt), dtype=np.float32) # resampled data, float32 uses half the space
-        print 'data.shape = %r' % (data.shape,)
+        #print 'data.shape = %r' % (data.shape,)
         for chani, chan in enumerate(chans):
             for point, kernel in enumerate(kernels[chani]):
                 # np.convolve(a, v, mode)
@@ -274,9 +278,9 @@ class Stream(object):
                 # where K = len(a)-1 and M = len(v) - 1 and K >= M
                 # for mode='valid', you get the middle len(a) - len(v) + 1 number of values
                 row = np.convolve(rawdata[chani], kernel, mode='same')
-                print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
-                print 'len(kernel) = %r' % len(kernel)
-                print 'len(row): %r' % len(row)
+                #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
+                #print 'len(kernel) = %r' % len(kernel)
+                #print 'len(row): %r' % len(row)
                 # assign from point to end in steps of npoints
                 ti0 = (npoints - point) % npoints # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
