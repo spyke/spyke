@@ -5,8 +5,6 @@ TODO:
 - Nick: add kmeans to quickly generate templates
     - maybe not so hard, since kmeans is built into scipy I think, but it's still going to require arbitrary parameter values that you'll have to set, and it might give you a false sense of completeness/correctness
 
-- need to handle OnResize in DataFrames like I do in the SortFrame - background needs to be regenerated on every resize event
-
 - just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
 
 - get tooltips to work on main spyke frame widgets
@@ -372,3 +370,4 @@ DONE:
 - Detection deletion:
     - allow if none of the Detector's events have a non-None .template attrib
     - if we allow deletion, maybe session.detections should be a dict instead of a list
+- need to handle OnResize in DataFrames like I do in the SortFrame - background needs to be regenerated on every resize event

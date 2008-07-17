@@ -70,8 +70,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.hpstream = None
         self.lpstream = None
 
-        self.Bind(wx.EVT_CLOSE, self.OnExit)
         self.Bind(wx.EVT_MOVE, self.OnMove)
+        self.Bind(wx.EVT_CLOSE, self.OnExit)
 
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
         self.detection_list.Bind(wx.EVT_KEY_DOWN, self.OnDetectionListKeyDown)
@@ -815,6 +815,9 @@ class DataFrame(wx.MiniFrame):
         kwds["style"] = self.STYLE
         wx.MiniFrame.__init__(self, *args, **kwds)
 
+        self.Bind(wx.EVT_SIZE, self.OnSize)
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
     def set_properties(self):
         self.SetTitle("data window")
         self.SetSize((160, 24))
@@ -825,9 +828,20 @@ class DataFrame(wx.MiniFrame):
         self.SetSizer(dataframe_sizer)
         self.Layout()
 
+    def OnSize(self, evt):
+        """Re-save reflines_background after resizing the frame"""
+        # resize doesn't actually happen until after this handler exits,
+        # so we have to CallAfter
+        wx.CallAfter(self.DrawRefs)
+        evt.Skip()
+
     def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
+
+    def DrawRefs(self):
+        """Redraws refs and resaves panel background"""
+        self.panel.draw_refs()
 
 
 class SpikeFrame(DataFrame):
@@ -835,8 +849,6 @@ class SpikeFrame(DataFrame):
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
         DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = SpikePanel(self, -1, stream=stream, tw=tw, cw=cw)
-
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         self.set_properties()
         self.do_layout()
@@ -851,8 +863,6 @@ class ChartFrame(DataFrame):
         DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = ChartPanel(self, -1, stream=stream, tw=tw, cw=cw)
 
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-
         self.set_properties()
         self.do_layout()
 
@@ -865,8 +875,6 @@ class LFPFrame(DataFrame):
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
         DataFrame.__init__(self, parent, *args, **kwds)
         self.panel = LFPPanel(self, -1, stream=stream, tw=tw, cw=cw)
-
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         self.set_properties()
         self.do_layout()

@@ -466,7 +466,7 @@ class SortFrame(wxglade_gui.SortFrame):
     session = property(get_session, set_session) # make this a property for proper behaviour after unpickling
 
     def OnSize(self, evt):
-        """Put code here to re-save reflines_background"""
+        """Re-save reflines_background after resizing the frame"""
         # resize doesn't actually happen until after this handler exits,
         # so we have to CallAfter
         wx.CallAfter(self.DrawRefs)
