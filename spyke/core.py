@@ -145,7 +145,8 @@ class Stream(object):
 
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
-            xs = KERNELSIZE * self.rawtres # excess data in us at either end, to eliminate interpolation distortion at the true endpoints
+            xs = KERNELSIZE * self.rawtres # excess data in us at either end, to eliminate
+                                           # interpolation distortion at our desired start and stop
         else:
             xs = 0
 
@@ -197,10 +198,10 @@ class Stream(object):
         #print 'raw data shape before resample: %r' % (data.shape,)
 
         # do any resampling if necessary
-        tresample = time.clock()
         if resample:
+            tresample = time.clock()
             data, ts = self.resample(data, ts)
-        print 'resample took %.3f sec' % (time.clock()-tresample)
+            print 'resample took %.3f sec' % (time.clock()-tresample)
 
         # now get rid of any excess
         if xs:
@@ -226,53 +227,34 @@ class Stream(object):
         data and timepoints. See Blanche & Swindale, 2006
 
         TODO: should interpolation be multithreaded?
+        TODO: self.kernels should be deleted when selected chans change
         """
         #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
         npoints = self.sampfreq / self.rawsampfreq # number of output resampled points per input raw point
-        assert npoints >= 1
-        nrspis = 1 / npoints # number of raw samples per interpolated sampe (0.5 when interpolating from 25 to 50 kHz)
-        # normalize timepoints so that sampling period delta t = 1, ie divide all timepoints by tres
-        #tns = self._rawts / rawtres # raw timepoints normalized - should I bother introunding here?
+        assert npoints >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        # generate separate kernels per chan to correct each channel's s+h delay
-        # TODO: take DIN channel into account, might need to shift all highpass chans
-        # by 1us, see line 2412 in SurfBawdMain.pas
+        # check if kernels have been generated already
         chans = self.chans or range(len(rawdata)) # None indicates channel ids == data row indices
-        nchansperboard = 32 # TODO: stop hard coding this
-        i = np.asarray(chans) % nchansperboard # ordinal position of each chan in the hold queue
-        if self.shcorrect:
-            dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
-        else:
-            dis = 0 * i
-        ds = dis / rawtres # normalized per channel delays
-        wh = hamming
-        h = np.sinc # sin(pi*t) / pi*t
-        kernels = [] # list of list of kernels, indexed by [chan][resample point]
-        for chani, chan in enumerate(chans):
-            d = ds[chani] # delay for this chan
-            kernelrow = []
-            for point in range(npoints): # iterate over resampled points per raw point
-                t0 = point/npoints # some fraction of 1
-                start = -N/2 - t0 - d
-                t = np.arange(start=start, stop=start+(N+1), step=1) # kernel sample timepoints, of length N+1
-                kernel = wh(t, N) * h(t)
-                kernelrow.append(kernel)
-            kernels.append(kernelrow)
+        try:
+            self.kernels
+        except AttributeError:
+            self.kernels = self.get_kernels(chans, npoints, N)
 
-        # now convolve the data with each kernel
+        # convolve the data with each kernel
         nrawts = len(rawts)
-        nt = nrawts + (npoints-1) * (nrawts - 1) # all the interpolated points have to fit in between the existing raw points, so there's nrawts - 1 of each of the interpolated points
-        start = rawts[0]
-        ts = np.arange(start=start, stop=start+tres*nt, step=tres) # generate interpolated timepoints
+        nt = nrawts + (npoints-1) * (nrawts - 1) # all the interpolated points have to fit in between the existing raw
+                                                 # points, so there's nrawts - 1 of each of the interpolated points
+        tstart = rawts[0]
+        ts = np.arange(start=tstart, stop=tstart+tres*nt, step=tres) # generate interpolated timepoints
         #print 'len(ts) is %r' % len(ts)
         assert len(ts) == nt
         data = np.empty((len(chans), nt), dtype=np.float32) # resampled data, float32 uses half the space
         #print 'data.shape = %r' % (data.shape,)
         for chani, chan in enumerate(chans):
-            for point, kernel in enumerate(kernels[chani]):
+            for point, kernel in enumerate(self.kernels[chani]):
                 # np.convolve(a, v, mode)
                 # for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 # where K = len(a)-1 and M = len(v) - 1 and K >= M
@@ -286,70 +268,33 @@ class Stream(object):
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[chani, ti0::npoints] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
         return data, ts
-    '''
-    def plot(self, chanis=None, trange=None):
-        """Creates a simple matplotlib plot of the specified chanis over trange"""
-        import pylab as pl # wouldn't otherwise need this, so import here
-        from pylab import get_current_fig_manager as gcfm
 
-        try:
-            # see if neuropy is available
-            from neuropy.Core import lastcmd, neuropyScalarFormatter, neuropyAutoLocator
-        except ImportError:
-            pass
+    def get_kernels(self, chans, npoints, N):
+        """Generate separate kernels per chan to correct each channel's s+h delay.
+        TODO: take DIN channel into account, might need to shift all highpass chans
+        by 1us, see line 2412 in SurfBawdMain.pas"""
+        NCHANSPERBOARD = 32 # TODO: stop hard coding this
+        i = np.asarray(chans) % NCHANSPERBOARD # ordinal position of each chan in the hold queue
+        if self.shcorrect:
+            dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
+        else:
+            dis = 0 * i
+        ds = dis / self.rawtres # normalized per channel delays
+        wh = hamming # window function
+        h = np.sinc # sin(pi*t) / pi*t
+        kernels = [] # list of list of kernels, indexed by [chan][resample point]
+        for chani, chan in enumerate(chans):
+            d = ds[chani] # delay for this chan
+            kernelrow = []
+            for point in range(npoints): # iterate over resampled points per raw point
+                t0 = point/npoints # some fraction of 1
+                tstart = -N/2 - t0 - d
+                t = np.arange(start=tstart, stop=tstart+(N+1), step=1) # kernel sample timepoints, all of length N+1
+                kernel = wh(t, N) * h(t) # windowed sinc
+                kernelrow.append(kernel)
+            kernels.append(kernelrow)
+        return kernels
 
-        if chanis == None:
-            # all high pass records should have the same chanlist
-            if self.ctsrecords[0].__class__ == HighPassRecord:
-                chanis = self.records[0].layout.chanlist
-            # same goes for lowpassmultichanrecords, each has its own set of chanis,
-            # derived previously from multiple single layout.chanlists
-            elif self.ctsrecords[0].__class__ == LowPassMultiChanRecord:
-                chanis = self.ctsrecords[0].chanis
-            else:
-                raise ValueError, 'unknown record type %s in self.records' % self.ctsrecords[0].__class__
-        nchans = len(chanis)
-        if trange == None:
-            trange = (self.rts[0], self.rts[0]+100000)
-        # make a waveform object
-        wf = self[trange[0]:trange[1]]
-        figheight = 1.25+0.2*nchans
-        self.f = pl.figure(figsize=(16, figheight))
-        self.a = self.f.add_subplot(111)
-
-        try:
-            gcfm().frame.SetTitle(lastcmd())
-        except NameError:
-            pass
-        except AttributeError:
-            pass
-
-        try:
-            # better behaved tick label formatter
-            self.formatter = neuropyScalarFormatter()
-            # use a thousands separator
-            self.formatter.thousandsSep = ','
-            # better behaved tick locator
-            self.a.xaxis.set_major_locator(neuropyAutoLocator())
-            self.a.xaxis.set_major_formatter(self.formatter)
-        except NameError:
-            pass
-        for chanii, chani in enumerate(chanis):
-            # upcast to int32 to prevent int16 overflow
-            self.a.plot(wf.ts/1e3, (np.int32(wf.data[chanii])-2048+500*chani)/500., '-', label=str(chani))
-        #self.a.legend()
-        self.a.set_xlabel('time (ms)')
-        self.a.set_ylabel('channel id')
-
-        # assumes chanis are sorted
-        self.a.set_ylim(chanis[0]-1, chanis[-1]+1)
-        bottominches = 0.75
-        heightinches = 0.15+0.2*nchans
-        bottom = bottominches / figheight
-        height = heightinches / figheight
-        self.a.set_position([0.035, bottom, 0.94, height])
-        pl.show()
-    '''
 
 class SpykeListCtrl(wx.ListCtrl):
     """ListCtrl with a couple of extra methods defined"""
