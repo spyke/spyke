@@ -252,6 +252,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.session.detections[detection.id] = detection
             self.append_detection_list(detection)
             uniqueevents = self.session.append_events(detection.events)
+            # disable sampling menu, don't want to allow sampfreq or shcorrect changes
+            # now that we've had at least one detection run
+            self.menubar.Enable(wx.ID_SAMPLING, False)
             sf = self.OpenFrame('sort') # ensure it's open
             t0 = time.clock()
             sf.Append2EventList(uniqueevents)
@@ -336,6 +339,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         print "can't find event %d in session.events or in session.trash, it may have been a duplicate" % eventi
             del self.session.detections[det.id] # remove from session's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
+        if len(self.session.detections) == 0: # if no detection runs are left
+            self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
         self.total_nevents_label.SetLabel(str(self.get_total_nevents())) # update
 
     def listRow2Detection(self, row):
@@ -619,18 +624,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
 
     def SetSampling(self, sampfreq):
-        """Set highpass stream sampling frequency, enforce menu state.
-        TODO: refresh data frames too
-        """
+        """Set highpass stream sampling frequency, enforce menu state"""
         self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
+        self.plot()
 
     def SetSHCorrect(self, enable):
-        """Set sample & hold correct flag in highpass stream, enforce menu state.
-        TODO: refresh data frames too
-        """
+        """Set sample & hold correct flag in highpass stream, enforce menu state"""
         self.hpstream.shcorrect = enable
         self.menubar.Check(wx.ID_SHCORRECT, enable)
+        self.plot()
 
     def EnableSurfWidgets(self, enable):
         """Enable/disable all widgets that require an open .srf file"""

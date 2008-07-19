@@ -115,11 +115,28 @@ class Stream(object):
         return self._sampfreq
 
     def set_sampfreq(self, sampfreq):
-        """Updates .tres on .sampfreq change"""
+        """Deletes .kernels (if set), and updates .tres on .sampfreq change"""
         self._sampfreq = sampfreq
+        try:
+            del self.kernels
+        except AttributeError:
+            pass
         self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
 
     sampfreq = property(get_sampfreq, set_sampfreq)
+
+    def get_shcorrect(self):
+        return self._shcorrect
+
+    def set_shcorrect(self, shcorrect):
+        """Deletes .kernels (if set) on .shcorrect change"""
+        self._shcorrect = shcorrect
+        try:
+            del self.kernels
+        except AttributeError:
+            pass
+
+    shcorrect = property(get_shcorrect, set_shcorrect)
 
     def __len__(self):
         """Total number of timepoints? Length in time? Interp'd or raw?"""
