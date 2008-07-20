@@ -54,7 +54,12 @@ class Session(object):
 
     def set_stream(self, stream=None):
         """Set Stream object for self's detector and all detections,
-        for unpickling purposes"""
+        for (un)pickling purposes"""
+        try:
+            stream.sampfreq = self.sampfreq # restore sampfreq and shcorrect to stream
+            stream.shcorrect = self.shcorrect
+        except AttributeError:
+            pass # either stream is None or self.sampfreq/shcorrect aren't bound
         self._stream = stream
         self.detector.stream = stream
         for detection in self.detections.values():
@@ -65,6 +70,9 @@ class Session(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
+        if self.stream != None:
+            d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
+            d['shcorrect'] = self.stream.shcorrect
         del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
 

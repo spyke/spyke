@@ -201,7 +201,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         menuitem = self.menubar.FindItemById(evt.GetId())
         sampfreq = int(menuitem.GetLabel().rstrip(' kHz'))
         sampfreq *= 1000 # convert from kHz to Hz
-        self.SetSampling(sampfreq)
+        self.SetSampfreq(sampfreq)
 
     def OnSHCorrect(self, evt):
         """Sample & hold menu event"""
@@ -411,7 +411,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
         self.slider.SetPageSize(self.spiketw) # us
 
-        self.SetSampling(spyke.core.DEFHIGHPASSSAMPFREQ)
+        self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
         self.CreateNewSession() # create a new sort Session
@@ -507,11 +507,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.session = cPickle.load(pf)
         pf.close()
         sessionProbe = self.session.probe.__class__
-        if self.hpstream != None and sessionProbe != self.hpstream.probe.__class__:
-            self.CreateNewSession() # overwrite the failed Session
-            raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
-                                % (sessionProbe, self.hpstream.probe.__class__)
+        if self.hpstream != None:
+            if sessionProbe != self.hpstream.probe.__class__:
+                self.CreateNewSession() # overwrite the failed Session
+                raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
+                                    % (sessionProbe, self.hpstream.probe.__class__)
         self.session.stream = self.hpstream # restore missing stream object to session
+        self.SetSampfreq(self.session.sampfreq)
+        self.SetSHCorrect(self.session.shcorrect)
+        self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort Session
         for detection in self.session.detections.values(): # restore detections to detection list
@@ -623,15 +627,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Toggle visibility of a tref, vref, or the caret"""
         self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
 
-    def SetSampling(self, sampfreq):
+    def SetSampfreq(self, sampfreq):
         """Set highpass stream sampling frequency, enforce menu state"""
-        self.hpstream.sampfreq = sampfreq
+        if self.hpstream != None:
+            self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
         self.plot()
 
     def SetSHCorrect(self, enable):
-        """Set sample & hold correct flag in highpass stream, enforce menu state"""
-        self.hpstream.shcorrect = enable
+        """Set highpass stream sample & hold correct flag, enforce menu state"""
+        if self.hpstream != None:
+            self.hpstream.shcorrect = enable
         self.menubar.Check(wx.ID_SHCORRECT, enable)
         self.plot()
 

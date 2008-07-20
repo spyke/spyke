@@ -27,14 +27,12 @@ assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 
 
 class WaveForm(object):
-    """Waveform object holds raw and interpolated data, timestamps, channels, and sampling frequency.
-    Sliceable in time, and indexable in channel space. Resamples data as needed"""
+    """Just a container for data, timestamps, and channels.
+    Sliceable in time, and indexable in channel space"""
     def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in uV, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
-
-        # change of plans. interpolation stuff is going back in Stream, keep WaveForm as just a dumb container for data and ts and chans. nothing more
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
