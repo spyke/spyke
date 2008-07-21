@@ -24,13 +24,14 @@ detect_cy = Extension('spyke.detect_cy',
                       #extra_compile_args=["-g"], # debug
                       #extra_link_args=["-g"],
                       )
+'''
 cython_test = Extension('spyke.cython_test',
-                        sources=['spyke/cython_test.pyx'],
+                        sources=['demo/cython_test.pyx'],
                         include_dirs=include_dirs,
                         #extra_compile_args=["-g"], # debug
                         #extra_link_args=["-g"],
                         )
-
+'''
 setup(name='spyke',
       version='0.1',
       license='BSD',
@@ -41,5 +42,7 @@ setup(name='spyke',
       #long_description='',
       packages=['spyke', 'spyke.gui', 'spyke.gui.res'],
       cmdclass={'build_ext': build_ext},
-      ext_modules=[detect_cy, cython_test],
+      ext_modules=[detect_cy,
+                   #cython_test,
+                   ],
       )
