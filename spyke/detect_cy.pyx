@@ -136,7 +136,6 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                             #print 't: %d, thresh xing, chan: %d' % (s.tsp[ti], chanii)
                             s.xthreshp[chanii] = 1 # set maxchan's crossed threshold flag
                             s.lastp[chanii] = v # update maxchan's last value
-                            #s.lockp[chanii] = -1 # ensure maxchan's lockout is off - unnecessary
                     else: # s.xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
                         if v > s.lastp[chanii]: # if signal is still increasing
                             s.lastp[chanii] = v # update last value for this chan, continue searching for peak
@@ -239,8 +238,9 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # if this chan isn't locked out, and we've met or exceeded threshold
                 if s.lockp[chanii] < 0 and s.absdatap[chanii*s.nt + ti] >= fixedthresh:
-
-                    pass
+                    peakti = find_peak(s, chanii, ti) # search forward from ti for next absdata peak ti on chanii
+                    maxchanii = get_maxchanii(s, chanii, peakti) # find maxchanii within slock of chanii at peakti
+                    #while dti <= 250 / tres and : # maximum time between phases of opposite sign of same spike
 
                     '''
                     else: # s.xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
@@ -285,8 +285,8 @@ cdef int get_maxchanii(det_vars_t s, int maxchanii, int ti):
     # TODO: recursive call goes here to search with newly centered slock radius
     return maxchanii
 
-cdef int find_peak(det_vars_t s, int maxchanii, int ti):
-    """Returns timpoint index of peak absdata on maxchanii searching forward from passed ti"""
+cdef int find_peak(det_vars_t s, int chanii, int ti):
+    """Returns timpoint index of peak absdata on chanii searching forward from passed ti"""
 
 cdef set_lockout(det_vars_t s, int maxchanii, int tilock):
     """Applies spatiotemporal lockout centered on maxchanii from current ti forward"""

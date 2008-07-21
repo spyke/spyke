@@ -244,7 +244,7 @@ class Detector(object):
 
     def us2nt(self, us):
         """Convert time in us to nearest number of eq'v timepoints in stream"""
-        nt = intround(self.stream.layout.sampfreqperchan * us / 1000000)
+        nt = intround(us / self.stream.tres)
         # prevent rounding nt down to 0. This way, even the smallest
         # non-zero us will get you at least 1 timepoint
         if nt == 0 and us != 0:
