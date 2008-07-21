@@ -29,7 +29,7 @@ import numpy as np
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd
 #from detect_weave import BipolarAmplitudeFixedThresh_Weave
-from detect_cy import BipolarAmplitudeFixedThresh_Cy
+from detect_cy import BipolarAmplitudeFixedThresh_Cy, DynamicMultiphasicFixedThresh_Cy
 
 
 class RandomWaveTranges(object):
@@ -314,6 +314,13 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
         self.algorithm = 'BipolarAmplitude'
 
 
+class DynamicMultiphasicFixedThresh(FixedThresh,
+                                   DynamicMultiphasicFixedThresh_Cy):
+    def __init__(self, *args, **kwargs):
+        FixedThresh.__init__(self, *args, **kwargs)
+        self.algorithm = 'DynamicMultiphasic'
+
+
 class MultiPhasic(FixedThresh):
     """Multiphasic filter - events triggered only when consecutive
     thresholds of opposite polarity occur on a given channel within
@@ -388,7 +395,7 @@ class DynamicMultiPhasic(FixedThresh):
     or  2) s_i(t) < -f and s_it(t + t') > f_val + f'
 
     for -delta_t < t' <= delta_t
-    and where f' is the minimum amplitdude inflection in delta_t
+    and where f' is the minimum amplitude inflection in delta_t
     """
 
     STDEV_MULT = 4
@@ -406,7 +413,7 @@ class DynamicMultiPhasic(FixedThresh):
             self.f_inflect[chan] = 3.5 * val
 
     def find(self):
-        """Maintain state and search forward for a event"""
+        """Maintain state and search forward for an event"""
 
         # keep on sliding our search window forward to find events
         while True:

@@ -371,3 +371,5 @@ DONE:
     - allow if none of the Detector's events have a non-None .template attrib
     - if we allow deletion, maybe session.detections should be a dict instead of a list
 - need to handle OnResize in DataFrames like I do in the SortFrame - background needs to be regenerated on every resize event
+- in detect_cy.pyx, get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type whose fields point to all the variables used in this method, and pass the struct to get_maxchan and set_lockout
+    - or, just make most of the variables globals, using global keyword
