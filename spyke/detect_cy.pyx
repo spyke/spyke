@@ -15,9 +15,9 @@ import numpy as np
 import time
 import wx
 
-
-DEF INF = float('+inf')
-
+#DEF INF = float('+inf') # doesn't work on windows until Python 2.6+
+DEF INF = float(2**128)
+DEF MAXINT = 2**31
 
 # struct of relevant detector vars that need to be passed around to functions
 ctypedef struct det_vars_t:
@@ -28,6 +28,7 @@ ctypedef struct det_vars_t:
     double *dmp
     double slock
     int tilock
+    float *datap
     float *absdatap
     long long *tsp
     int *xthreshp
@@ -189,20 +190,19 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         if self.chans != range(s.nchans): # if self.chans is not contiguous
             #ttake = time.clock()
             # pull our chans of data out, this assumes wave.data has all possible chans in it, which it should
-            data = wave.data.take(chans, axis=0) # returns a contiguous copy of data
+            contigdata = wave.data.take(chans, axis=0) # returns a contiguous copy of data
             #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
         else: # save time by avoiding an unnecessary .take
-            data = wave.data
-        cdef ndarray absdata = data # name it absdata
-        arrabs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
-        s.absdatap = <float *>absdata.data # float pointer to absdata .data field, rows correspond to chans in chansp
+            contigdata = wave.data
+        cdef ndarray data = contigdata
+        s.datap = <float *>data.data # float pointer to data's .data field, rows correspond to chans in chansp
 
         cdef ndarray ts = wave.ts
         s.tsp = <long long *>ts.data # long long pointer to timestamp .data
         cdef long long eventt # holds current event timestamp
 
-        #assert s.nchans == absdata.dimensions[0] # yup
-        s.nt = absdata.dimensions[1]
+        assert s.nchans == data.dimensions[0] # yup
+        s.nt = data.dimensions[1]
         cdef float fixedthresh = self.fixedthresh
 
         # cut times, these are for testing whether to inc nevents
@@ -239,23 +239,23 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check if chan is eligible and we've met or exceeded threshold
-                if ti <= s.lockp[chanii] or s.absdatap[chanii*s.nt + ti] < fixedthresh:
+                if ti <= s.lockp[chanii] or abs(s.datap[chanii*s.nt + ti]) < fixedthresh:
                     continue # no, skip to next chan in chan loop
+                sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
-                find_maxchanii2(s, chanii, ti)
+                find_maxchanii2(s, chanii, ti, sign)
                 # search forward indefinitely for the first peak, this will be used as the event time
-                sign = get_sign(data[s.maxchanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
-                eventti = find_peak(s, ti, 2**31, sign) # search forward indefinitely for peak of correct phase
+                eventti = find_peak(s, ti, MAXINT, sign) # search forward indefinitely for peak of correct phase
                 if eventti == -1: # couldn't find a peak
                     continue # skip to next chan in chan loop
-                find_maxchanii2(s, s.maxchanii, eventti) # update maxchan one last time for this putative event
+                find_maxchanii2(s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 # search forward one tlock on the maxchan for another peak of opposite phase
                 # that is 2*thresh greater (in the right direction) than the previous peak
                 sign = -sign
                 peak2ti = find_peak(s, eventti, s.tilock, sign)
-                if peak2ti == -1 # couldn't find a 2nd peak
+                if peak2ti == -1: # couldn't find a 2nd peak of opposite phase
                     continue # skip to next chan in chan loop
-                if fabs(data[s.maxchanii*s.nt + eventi] - data[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
+                if abs(s.datap[s.maxchanii*s.nt + eventi] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
                     continue # 2nd peak isn't big enough, skip to next chan in chan loop
                 # if we get this far, it's a valid event
                 eventt = s.tsp[eventti] # event time
@@ -300,8 +300,9 @@ cdef int find_maxchanii(det_vars_t s, int maxchanii, int ti):
             maxchanii = chanjj # update
     s.maxchanii = maxchanii # store it
 
-cdef int find_maxchanii2(det_vars_t s, int maxchanii, int ti):
-    """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii
+cdef int find_maxchanii2(det_vars_t s, int maxchanii, int ti, int sign):
+    """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii.
+    Finds most negative (sign == -1) or most positive (sign == 1) chan.
     TODO: this could be applied over and over, recentering the search, until maxchanii stops changing,
           although that would probably be a very minor refinement at a rather high cost, and might
           start to creep onto other events nearby in space and time
@@ -312,7 +313,7 @@ cdef int find_maxchanii2(det_vars_t s, int maxchanii, int ti):
         chanj = s.chansp[chanjj] # dereference to index into dmp
         # if chanj is within slock of maxchani and has higher signal and isn't locked out:
         if s.dmp[maxchani*s.ndmchans + chanj] <= s.slock and \
-            s.absdatap[chanjj*s.nt + ti] > s.absdatap[maxchanii*s.nt + ti] and \
+            s.datap[chanjj*s.nt + ti]*sign > s.datap[maxchanii*s.nt + ti]*sign and \
             s.lockp[chanjj] < ti:
             maxchanii = chanjj # update
     s.maxchanii = maxchanii # store it
@@ -321,7 +322,7 @@ cdef int get_sign(float val):
     """Return the sign of the float input"""
     if val < 0.0:
         return -1
-    else
+    else:
         return 1
 
 cdef int find_peak(det_vars_t s, int ti, int tirange, int sign):
@@ -333,9 +334,9 @@ cdef int find_peak(det_vars_t s, int ti, int tirange, int sign):
     last = -INF * sign # uV
     for tj from ti <= tj < (ti + tirange):
         # if signal is becoming more -ve (sign == -1) or +ve (sign == 1)
-        if data[offset + tj] * sign > last * sign:
+        if s.datap[offset + tj] * sign > last * sign:
             peaktj = tj # update
-            last = data[offset + tj] # update
+            last = s.datap[offset + tj] # update
         else: # signal is becoming less -ve (sign == -1) or +ve (sign == 1)
             return peaktj
     return -1 # a peak was never found
@@ -373,7 +374,7 @@ cdef arrabs(ndarray a):
         for j from 0 <= j < ncols:
             if datap[i*ncols + j] < 0.0:
                 datap[i*ncols + j] *= -1.0 # modify in-place
-
+'''
 cdef abs(int x):
     """Absolute value of an integer"""
     if x < 0:
@@ -386,3 +387,4 @@ cdef fabs(float x):
     if x < 0.0:
         x *= -1.0
     return x
+'''
