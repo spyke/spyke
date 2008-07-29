@@ -46,6 +46,8 @@ TODO:
 ------------------------------------
 EVENT DETECTION:
 
+    - change lockp from being a counter to holding the absolute timepoint until which the chan is locked out, that way you don't have to decr.
+
     - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
     - static and dynamic thresholds, independent for each chan, based on stdev or median (or other measures?)
 
