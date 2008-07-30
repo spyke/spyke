@@ -105,3 +105,46 @@ cpdef swap(int i, int j):
     """Show that you can use Python tuple notation to swap two C types"""
     i, j = j, i
     print 'i: %d, j: %d' % (i, j)
+
+
+cdef struct Settings:
+    int maxchanii
+    int *chansp
+    int nchans
+    int ndmchans
+    double *dmp
+    double slock
+    int tilock
+    float *datap
+    float *absdatap
+    long long *tsp
+    int *xthreshp
+    float *lastp
+    int *lockp
+    int nt
+    int ti
+
+cdef Settings s
+
+cdef modstruct(Settings *s, int chanii): # can't be a cpdef
+    s.maxchanii = chanii
+
+print s.maxchanii
+s.maxchanii = 1
+print s.maxchanii
+modstruct(&s, 53) # pass by reference
+print s.maxchanii
+'''
+cdef struct Spam:
+    int tons
+
+cdef void myfun(Spam *s): # not sure if void is necessary...
+    s.tons = 20
+
+cdef Spam myspam
+myspam.tons = 10
+
+print myspam.tons
+myfun(&myspam)
+print myspam.tons
+'''

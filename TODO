@@ -48,6 +48,8 @@ EVENT DETECTION:
 
     - change lockp from being a counter to holding the absolute timepoint until which the chan is locked out, that way you don't have to decr.
 
+    - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
+
     - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
     - static and dynamic thresholds, independent for each chan, based on stdev or median (or other measures?)
 

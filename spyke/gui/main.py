@@ -628,10 +628,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
 
     def SetSampfreq(self, sampfreq):
-        """Set highpass stream sampling frequency, enforce menu state"""
+        """Set highpass stream sampling frequency, update widgets"""
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
+        self.slider.SetLineSize(self.hpstream.tres)
         self.plot()
 
     def SetSHCorrect(self, enable):

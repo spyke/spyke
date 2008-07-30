@@ -139,7 +139,11 @@ class Detector(object):
                 events.append(eventarr)
                 self.nevents += nnewevents # update
                 sys.stdout.write('.')
-        events = np.concatenate(events, axis=1)
+        try:
+            events = np.concatenate(events, axis=1)
+        except ValueError: # events is an empty list
+            events = np.asarray(events)
+            events.shape = (2, 0)
         print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
@@ -315,7 +319,7 @@ class BipolarAmplitudeFixedThresh(FixedThresh,
 
 
 class DynamicMultiphasicFixedThresh(FixedThresh,
-                                   DynamicMultiphasicFixedThresh_Cy):
+                                    DynamicMultiphasicFixedThresh_Cy):
     def __init__(self, *args, **kwargs):
         FixedThresh.__init__(self, *args, **kwargs)
         self.algorithm = 'DynamicMultiphasic'
