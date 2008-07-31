@@ -60,7 +60,7 @@ class Detector(object):
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     RANDOMBLOCKSIZE = 10000 # block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
-    DEFTLOCK = 440 # us
+    DEFTLOCK = 250 # us
     DEFRANDOMSAMPLE = True
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block

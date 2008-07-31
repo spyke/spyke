@@ -139,9 +139,10 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 find_maxchanii2(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
 
-                #with default 1e6 search settings (no random sample), event on chan 21, t=41340 is misaligned by 2 datapoints (too late) for some reason - why is this happening? might need to do 2nd find_peak starting earlier, maybe from original ti instead of current eventti - also, perhaps find_peak should ensure the maxchanii isn't locked out over any of the tirange it's searching
+                #with default 1e6 search settings (no random sample), event on chan 21, t=41340 is misaligned by 2 datapoints (too late) for some reason - why is this happening? duh, because that chan was locked out from previous spike! default lockout of 440us is too long anyway
 
                 eventt = s.tsp[eventti] # event time
+                print 'ti, sign, eventt:', ti, sign, eventt
                 if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
                     eventi += 1
                     eventtimesp[eventi] = eventt # save event time
@@ -317,7 +318,12 @@ cdef int get_sign(float val):
 cdef int find_peak(Settings *s, int ti, int tirange, int sign):
     """Return timepoint index of first peak (if sign == 1) or valley (if sign == -1)
     on s.maxchanii searching forward up to tirange from passed ti.
-    Return -1 if no peak is found"""
+    Return -1 if no peak is found
+
+    TODO: perhaps find_peak should ensure the maxchanii isn't locked out over any of
+    the tirange it's searching, although this is implicit when it's called, ie,
+    don't call find_peak without first checking for lockout up to ti
+    """
     cdef int tj, peaktj = -1
     cdef long long offset = s.maxchanii*s.nt # this is a constant during the loop
     cdef float last = -INF * sign # uV
