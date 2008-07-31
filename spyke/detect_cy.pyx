@@ -116,7 +116,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
-        cdef int ti, chanii, sign
+        cdef int ti, chanii, peakti, lastpeakti
+        cdef float sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # event index (indexes into .eventtimes)
         cdef int eventti # event time index (indexes into .data and .ts)
@@ -138,9 +139,6 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 # if we get this far, it's a valid event
                 find_maxchanii2(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
-
-                #with default 1e6 search settings (no random sample), event on chan 21, t=41340 is misaligned by 2 datapoints (too late) for some reason - why is this happening? duh, because that chan was locked out from previous spike! default lockout of 440us is too long anyway
-
                 eventt = s.tsp[eventti] # event time
                 print 'ti, sign, eventt:', ti, sign, eventt
                 if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
@@ -151,7 +149,21 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 if nevents >= maxnevents: # exit here, don't search any more chans
                     ti = s.nt # TODO: nasty hack to get out of outer ti loop
                     break # out of inner chanii loop
-                set_lockout2(&s, eventti+s.tilock) # lock out for tlock following the event time
+                lastpeakti = eventti
+                # to set lockout, continue searching forward for consecutive threshold
+                # exceeding peaks of alternating phase within tlock of each other that are conceivably
+                # part of the same spike, yet large enough and far enough away in time to trigger an
+                # unwanted threshold crossing
+                # ch31 t=40880 is a corner case where this fails badly, can probably only be fixed by using multiphasic detection
+                # ch46 t=68420 is another tough case where a distorted spike screws up alignment
+                while True:
+                    sign = -sign
+                    peakti = find_peak(&s, lastpeakti, s.tilock, sign)
+                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < fixedthresh:
+                        # no peak found, or found peak doesn't exceed thresh
+                        break # out of while loop
+                    lastpeakti = peakti # update
+                set_lockout2(&s, lastpeakti+s.tilock) # lock out for tlock following peak of last spike phase
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
         eventtimes = eventtimes[:nevents] # keep only the entries that were filled
         maxchans = maxchans[:nevents] # keep only the entries that were filled
@@ -218,7 +230,8 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
-        cdef int ti, chanii, sign, peakti, peak2ti, lastpeakti
+        cdef int ti, chanii, peakti, peak2ti, lastpeakti
+        cdef float sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # event index (indexes into .eventtimes)
         cdef int eventti # event time index (indexes into .data and .ts)
@@ -237,15 +250,23 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
                 if eventti == -1: # couldn't find a peak
                     continue # skip to next chan in chan loop
+                print 'new thresh xing: ti, chanii, sign:', ti, chanii, sign
+                print 'maxchanii', s.maxchanii
+                print 'eventti, eventt', eventti, s.tsp[eventti]
                 find_maxchanii2(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
+                print 'maxchanii', s.maxchanii
+                print 'eventti, eventt', eventti, s.tsp[eventti]
                 # search forward one tlock on the maxchan for another peak of opposite phase
                 # that is 2*thresh greater (in the right direction) than the previous peak
                 sign = -sign
+                print 'sign', sign
                 peak2ti = find_peak(&s, eventti, s.tilock, sign)
                 if peak2ti == -1: # couldn't find a 2nd peak of opposite phase
                     continue # skip to next chan in chan loop
+                print 'peak2ti, peak2t', peak2ti, s.tsp[peak2ti]
                 if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
+                    print 'peak2ti isnt big enough'
                     continue # 2nd peak isn't big enough, skip to next chan in chan loop
                 # if we get this far, it's a valid event
                 eventt = s.tsp[eventti] # event time
@@ -257,16 +278,23 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 if nevents >= maxnevents: # exit here, don't search any more chans
                     ti = s.nt # TODO: nasty hack to get out of outer ti loop
                     break # out of inner chanii loop
-                # to set lockout, continue searching forward for consecutive peaks of
-                # alternating phase within tlock of each other
+                # to set lockout, continue searching forward for consecutive threshold
+                # exceeding peaks of alternating phase within tlock of each other that are conceivably
+                # part of the same spike, yet large enough and far enough away in time to trigger an
+                # unwanted threshold crossing
                 lastpeakti = peak2ti
-                while True: # do Python booleans translate to fast C?
+                print 'lastpeakti, lastpeakt', lastpeakti, s.tsp[lastpeakti]
+                while True:
                     sign = -sign
+                    print 'sign', sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
-                    if peakti == -1:
+                    print 'peakti, peakt', peakti, s.tsp[peakti]
+                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < fixedthresh:
+                        # no peak found, or found peak doesn't exceed thresh
                         break # out of while loop
                     lastpeakti = peakti # update
-                set_lockout2(&s, lastpeakti)
+                    print 'lastpeakti, lastpeakt', lastpeakti, s.tsp[lastpeakti]
+                set_lockout2(&s, lastpeakti) # lock out only up to peak of last spike phase
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
         eventtimes = eventtimes[:nevents] # keep only the entries that were filled
         maxchans = maxchans[:nevents] # keep only the entries that were filled
@@ -290,7 +318,7 @@ cdef find_maxchanii(Settings *s, int maxchanii, int ti):
             maxchanii = chanjj # update
     s.maxchanii = maxchanii # store it
 '''
-cdef find_maxchanii2(Settings *s, int maxchanii, int ti, int sign):
+cdef find_maxchanii2(Settings *s, int maxchanii, int ti, float sign):
     """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii.
     Finds most negative (sign == -1) or most positive (sign == 1) chan.
     TODO: this could be applied over and over, recentering the search, until maxchanii stops changing,
@@ -308,14 +336,14 @@ cdef find_maxchanii2(Settings *s, int maxchanii, int ti, int sign):
             maxchanii = chanjj # update
     s.maxchanii = maxchanii # store it
 
-cdef int get_sign(float val):
+cdef float get_sign(float val):
     """Return the sign of the float input"""
     if val < 0.0:
-        return -1
+        return -1.0
     else:
-        return 1
+        return 1.0
 
-cdef int find_peak(Settings *s, int ti, int tirange, int sign):
+cdef int find_peak(Settings *s, int ti, int tirange, float sign):
     """Return timepoint index of first peak (if sign == 1) or valley (if sign == -1)
     on s.maxchanii searching forward up to tirange from passed ti.
     Return -1 if no peak is found
@@ -329,7 +357,7 @@ cdef int find_peak(Settings *s, int ti, int tirange, int sign):
     cdef float last = -INF * sign # uV
     for tj from ti <= tj < (ti + tirange):
         # if signal is becoming more -ve (sign == -1) or +ve (sign == 1)
-        if s.datap[offset + tj] * sign > last * sign:
+        if s.datap[offset + tj]*sign > last*sign:
             peaktj = tj # update
             last = s.datap[offset + tj] # update
         else: # signal is becoming less -ve (sign == -1) or +ve (sign == 1)

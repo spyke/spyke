@@ -71,6 +71,8 @@ TEMPLATES:
     - unsorted event list control should have sortable columns: id, maxchan, timestamp. Text background should be coloured according to maxchan
         - second list control below it for trash?
 
+    - hitting ENTER on a single event in event list should seek the dataframes to that timepoint (just as clicking on the event in the sort window does the same, sort of by accident)
+
     - subtemplates - recognize that two distinct events might be from the same cell, but in a different mode of operation
     - toggle the display of all the templates (their means) at once (button, or Ctrl-A?), with just their active channels displayed. This way, you can quickly see if some templates are very similar, and how the cells are distributed across the electrode. This also lets you decide which templates need more/fewer channels enabled to help distinguish between them. Each template should be a different colour (up to say 16 or so).
     - manual spike alignment
