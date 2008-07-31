@@ -18,7 +18,8 @@ import numpy as np
 #DEF INF = float('+inf') # doesn't work on Windows until Python 2.6+
 DEF INF = float(2**128)
 #DEF MAXINT = int(sys.maxint) # declare it here to prevent Python name lookups, doesn't work
-DEF MAXINT = int(2**31-1)
+#DEF MAXINT = int(2**31-1)
+DEF DEFTIRANGE = 1000 # more reasonable to use this than MAXINT, won't overflow when added to an int32
 
 # struct of relevant detector vars that need to be passed around to functions
 cdef struct Settings:
@@ -30,13 +31,9 @@ cdef struct Settings:
     double slock
     int tilock
     float *datap
-    float *absdatap
     long long *tsp
-    int *xthreshp
-    float *lastp
     int *lockp
     int nt
-    int ti
 
 
 cpdef class BipolarAmplitudeFixedThresh_Cy:
@@ -68,114 +65,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
               semi-independently on each chan
 
         """
-        cdef Settings s
-
-        if not wave.data.flags.contiguous:
-            #print "wave.data ain't contig, strides:", wave.data.strides
-            wave.data = wave.data.copy() # make it contiguous for easy pointer indexing
-        if not wave.ts.flags.contiguous:
-            #print "wave.ts ain't contig, strides:", wave.ts.strides
-            wave.ts = wave.ts.copy()
-
-        s.nchans = len(self.chans)
-        cdef ndarray chans = np.asarray(self.chans)
-        s.chansp = <int *>chans.data # int pointer to .data field
-
-        if self.chans != range(s.nchans): # if self.chans is not contiguous
-            #ttake = time.clock()
-            # pull our chans of data out, this assumes wave.data has all possible chans in it, which it should
-            data = wave.data.take(chans, axis=0) # returns a contiguous copy of data
-            #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
-        else: # save time by avoiding an unnecessary .take
-            data = wave.data
-        cdef ndarray absdata = data # name it absdata
-        arrabs(absdata) # now do the actual abs, in-place, about 2x faster than np.abs
-        s.absdatap = <float *>absdata.data # float pointer to absdata .data field, rows correspond to chans in chansp
-
-        cdef ndarray ts = wave.ts
-        s.tsp = <long long *>ts.data # long long pointer to timestamp .data
-        cdef long long eventt # holds current event timestamp
-
-        #assert s.nchans == absdata.dimensions[0] # yup
-        s.nt = absdata.dimensions[1]
-        cdef float fixedthresh = self.fixedthresh
-
-        # cut times, these are for testing whether to inc nevents
-        cdef long long cut0 = cutrange[0]
-        cdef long long cut1 = cutrange[1]
-        if cut0 > cut1: # swap 'em for the test
-            cut0, cut1 = cut1, cut0
-
-        cdef ndarray xthresh = np.zeros(s.nchans, dtype=int) # per-channel thresh xing flags (0 or 1)
-        s.xthreshp = <int *>xthresh.data # int pointer to .data field
-        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint counters, >= 0 indicates locked out
-        s.lockp = <int *>lock.data # int pointer to .data field
-        cdef ndarray last = np.zeros(s.nchans, dtype=np.float32) # holds last signal value per chan, floats in uV
-        s.lastp = <float *>last.data # float pointer to .data field
-
-        s.tilock = self.tilock # temporal index lockout, in num timepoints
-        s.slock = self.slock # spatial lockout, in um
-        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um
-        s.dmp = <double *>dm.data # double pointer to .data field
-        s.ndmchans = len(self.dm) # number of all possible chans in dm
-
-        cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
-        cdef ndarray maxchans = self._maxchans # init'd in self.search()
-        cdef long long *eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
-        cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
-
-        cdef int ti, chanii
-        cdef int nevents = 0 # num non-excess events found so far while searching this block
-        cdef int eventi = -1 # index into eventtimes
-        cdef float v # current signal voltage, uV
-
-        #tcyloop = time.clock()
-        for ti from 0 <= ti < s.nt: # iterate over all timepoints
-            # TODO: shuffle chans in-place here
-            for chanii from 0 <= chanii < s.nchans:
-                s.lockp[chanii] -= 1 # decr all chans' lockout counters
-            for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
-                if s.lockp[chanii] < 0: # if this chan isn't locked out, search for a thresh xing or a peak
-                    v = s.absdatap[chanii*s.nt + ti] # (absdata[chanii, ti])
-                    if s.xthreshp[chanii] == 0: # we're looking for a thresh xing
-                        if v >= fixedthresh: # met or exceeded threshold
-                            #print 't: %d, thresh xing, chan: %d' % (s.tsp[ti], chanii)
-                            s.xthreshp[chanii] = 1 # set maxchan's crossed threshold flag
-                            s.lastp[chanii] = v # update maxchan's last value
-                    else: # s.xthresh[chanii] == 1, in crossed thresh state, now we're look for a peak
-                        if v > s.lastp[chanii]: # if signal is still increasing
-                            s.lastp[chanii] = v # update last value for this chan, continue searching for peak
-                        else: # signal is decreasing, declare previous ti as an event timepoint
-                            eventt = s.tsp[ti-1] # event time is timestamp of previous time index
-                            # find maxchanii within slock of chanii, start centered on current chanii, pass previous ti
-                            find_maxchanii(&s, chanii, ti-1)
-                            #print 't: %d, found event at t=%d on chanii %d' % (s.tsp[ti], eventt, s.maxchanii)
-                            # apply spatiotemporal lockout now that event has been found, pass tilock relative to previous ti
-                            set_lockout(&s, s.tilock-1)
-                            if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
-                                eventi += 1
-                                eventtimesp[eventi] = eventt # save event time
-                                maxchansp[eventi] = s.chansp[s.maxchanii] # save maxchani that event is centered on
-                                nevents += 1 # this event has been saved, so inc
-                            if nevents >= maxnevents: # exit here, don't search any more chans
-                                ti = s.nt # TODO: nasty hack to get out of outer ti loop
-                                break # out of inner chanii loop
-        #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
-        eventtimes = eventtimes[:nevents] # keep only the entries that were filled
-        maxchans = maxchans[:nevents] # keep only the entries that were filled
-        return np.asarray([eventtimes, maxchans])
-
-
-cpdef class DynamicMultiphasicFixedThresh_Cy:
-
-    cpdef searchblock(self, wave, cutrange, int maxnevents):
-        """Search one timepoint at a time across chans in a manageable
-        block of waveform data and return a 2D array of event times and maxchans.
-        Apply both temporal and spatial lockouts.
-        cutrange: determines which events are saved and which are discarded as excess
-        maxnevents: maximum number of events to return while searching this block
-        """
-        cdef Settings s
+        cdef Settings s # has to be passed by reference
 
         if not wave.data.flags.contiguous:
             #print "wave.data ain't contig, strides:", wave.data.strides
@@ -212,12 +102,8 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         if cut0 > cut1: # swap 'em for the test
             cut0, cut1 = cut1, cut0
 
-        cdef ndarray xthresh = np.zeros(s.nchans, dtype=int) # per-channel thresh xing flags (0 or 1)
-        s.xthreshp = <int *>xthresh.data # int pointer to .data field
-        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoints (end inclusive?)
+        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?
         s.lockp = <int *>lock.data # int pointer to .data field
-        cdef ndarray last = np.zeros(s.nchans, dtype=np.float32) # holds last signal value per chan, floats in uV
-        s.lastp = <float *>last.data # float pointer to .data field
 
         s.tilock = self.tilock # temporal index lockout, in num timepoints
         s.slock = self.slock # spatial lockout, in um
@@ -226,14 +112,14 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         s.ndmchans = len(self.dm) # number of all possible chans in dm
 
         cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
-        cdef ndarray maxchans = self._maxchans # init'd in self.search()
         cdef long long *eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
+        cdef ndarray maxchans = self._maxchans # init'd in self.search()
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
-        cdef int ti, chanii
+        cdef int ti, chanii, sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
-        cdef int eventi = -1 # index into eventtimes
-        cdef float v # current signal voltage, uV
+        cdef int eventi = -1 # event index (indexes into .eventtimes)
+        cdef int eventti # event time index (indexes into .data and .ts)
 
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoints
@@ -246,17 +132,119 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
                 find_maxchanii2(&s, chanii, ti, sign)
                 # search forward indefinitely for the first peak, this will be used as the event time
-                eventti = find_peak(&s, ti, MAXINT, sign) # search forward indefinitely for peak of correct phase
+                eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
+                if eventti == -1: # couldn't find a peak
+                    continue # skip to next chan in chan loop
+                # if we get this far, it's a valid event
+                find_maxchanii2(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this event
+                eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
+
+                #with default 1e6 search settings (no random sample), event on chan 21, t=41340 is misaligned by 2 datapoints (too late) for some reason - why is this happening? might need to do 2nd find_peak starting earlier, maybe from original ti instead of current eventti - also, perhaps find_peak should ensure the maxchanii isn't locked out over any of the tirange it's searching
+
+                eventt = s.tsp[eventti] # event time
+                if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
+                    eventi += 1
+                    eventtimesp[eventi] = eventt # save event time
+                    maxchansp[eventi] = s.chansp[s.maxchanii] # save maxchani that event is centered on
+                    nevents += 1 # this event has been saved, so inc
+                if nevents >= maxnevents: # exit here, don't search any more chans
+                    ti = s.nt # TODO: nasty hack to get out of outer ti loop
+                    break # out of inner chanii loop
+                set_lockout2(&s, eventti+s.tilock) # lock out for tlock following the event time
+        #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
+        eventtimes = eventtimes[:nevents] # keep only the entries that were filled
+        maxchans = maxchans[:nevents] # keep only the entries that were filled
+        return np.asarray([eventtimes, maxchans])
+
+
+cpdef class DynamicMultiphasicFixedThresh_Cy:
+
+    cpdef searchblock(self, wave, cutrange, int maxnevents):
+        """Search one timepoint at a time across chans in a manageable
+        block of waveform data and return a 2D array of event times and maxchans.
+        Apply both temporal and spatial lockouts.
+        cutrange: determines which events are saved and which are discarded as excess
+        maxnevents: maximum number of events to return while searching this block
+        """
+        cdef Settings s # has to be passed by reference
+
+        if not wave.data.flags.contiguous:
+            #print "wave.data ain't contig, strides:", wave.data.strides
+            wave.data = wave.data.copy() # make it contiguous for easy pointer indexing
+        if not wave.ts.flags.contiguous:
+            #print "wave.ts ain't contig, strides:", wave.ts.strides
+            wave.ts = wave.ts.copy()
+
+        s.nchans = len(self.chans)
+        cdef ndarray chans = np.asarray(self.chans)
+        s.chansp = <int *>chans.data # int pointer to .data field
+
+        if self.chans != range(s.nchans): # if self.chans is not contiguous
+            #ttake = time.clock()
+            # pull our chans of data out, this assumes wave.data has all possible chans in it, which it should
+            contigdata = wave.data.take(chans, axis=0) # returns a contiguous copy of data
+            #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
+        else: # save time by avoiding an unnecessary .take
+            contigdata = wave.data
+        cdef ndarray data = contigdata
+        s.datap = <float *>data.data # float pointer to data's .data field, rows correspond to chans in chansp
+
+        cdef ndarray ts = wave.ts
+        s.tsp = <long long *>ts.data # long long pointer to timestamp .data
+        cdef long long eventt # holds current event timestamp
+
+        assert s.nchans == data.dimensions[0] # yup
+        s.nt = data.dimensions[1]
+        cdef float fixedthresh = self.fixedthresh
+
+        # cut times, these are for testing whether to inc nevents
+        cdef long long cut0 = cutrange[0]
+        cdef long long cut1 = cutrange[1]
+        if cut0 > cut1: # swap 'em for the test
+            cut0, cut1 = cut1, cut0
+
+        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?)
+        s.lockp = <int *>lock.data # int pointer to .data field
+
+        s.tilock = self.tilock # temporal index lockout, in num timepoints
+        s.slock = self.slock # spatial lockout, in um
+        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um
+        s.dmp = <double *>dm.data # double pointer to .data field
+        s.ndmchans = len(self.dm) # number of all possible chans in dm
+
+        cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
+        cdef long long *eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
+        cdef ndarray maxchans = self._maxchans # init'd in self.search()
+        cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
+
+        cdef int ti, chanii, sign, peakti, peak2ti, lastpeakti
+        cdef int nevents = 0 # num non-excess events found so far while searching this block
+        cdef int eventi = -1 # event index (indexes into .eventtimes)
+        cdef int eventti # event time index (indexes into .data and .ts)
+
+        #tcyloop = time.clock()
+        for ti from 0 <= ti < s.nt: # iterate over all timepoints
+            # TODO: shuffle chans in-place here
+            for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
+                # check if chan is eligible and we've met or exceeded threshold
+                if ti <= s.lockp[chanii] or abs(s.datap[chanii*s.nt + ti]) < fixedthresh:
+                    continue # no, skip to next chan in chan loop
+                sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
+                # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
+                find_maxchanii2(&s, chanii, ti, sign)
+                # search forward indefinitely for the first peak, this will be used as the event time
+                eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
                 if eventti == -1: # couldn't find a peak
                     continue # skip to next chan in chan loop
                 find_maxchanii2(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
+                eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
                 # search forward one tlock on the maxchan for another peak of opposite phase
                 # that is 2*thresh greater (in the right direction) than the previous peak
                 sign = -sign
                 peak2ti = find_peak(&s, eventti, s.tilock, sign)
                 if peak2ti == -1: # couldn't find a 2nd peak of opposite phase
                     continue # skip to next chan in chan loop
-                if abs(s.datap[s.maxchanii*s.nt + eventi] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
+                if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
                     continue # 2nd peak isn't big enough, skip to next chan in chan loop
                 # if we get this far, it's a valid event
                 eventt = s.tsp[eventti] # event time
@@ -283,7 +271,7 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         maxchans = maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
 
-
+'''
 cdef find_maxchanii(Settings *s, int maxchanii, int ti):
     """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii
     TODO: this could be applied over and over, recentering the search, until maxchanii stops changing,
@@ -300,7 +288,7 @@ cdef find_maxchanii(Settings *s, int maxchanii, int ti):
             s.lockp[chanjj] < 0:
             maxchanii = chanjj # update
     s.maxchanii = maxchanii # store it
-
+'''
 cdef find_maxchanii2(Settings *s, int maxchanii, int ti, int sign):
     """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii.
     Finds most negative (sign == -1) or most positive (sign == 1) chan.
@@ -330,9 +318,9 @@ cdef int find_peak(Settings *s, int ti, int tirange, int sign):
     """Return timepoint index of first peak (if sign == 1) or valley (if sign == -1)
     on s.maxchanii searching forward up to tirange from passed ti.
     Return -1 if no peak is found"""
-    peaktj = -1
-    offset = s.maxchanii*s.nt # this is a constant during the loop
-    last = -INF * sign # uV
+    cdef int tj, peaktj = -1
+    cdef long long offset = s.maxchanii*s.nt # this is a constant during the loop
+    cdef float last = -INF * sign # uV
     for tj from ti <= tj < (ti + tirange):
         # if signal is becoming more -ve (sign == -1) or +ve (sign == 1)
         if s.datap[offset + tj] * sign > last * sign:
@@ -341,8 +329,7 @@ cdef int find_peak(Settings *s, int ti, int tirange, int sign):
         else: # signal is becoming less -ve (sign == -1) or +ve (sign == 1)
             return peaktj
     return -1 # a peak was never found
-    #return peaktj # a peak was never found, or return last tj in loop as the peaktj
-
+'''
 cdef set_lockout(Settings *s, int tilock):
     """Apply spatiotemporal lockout centered on s.maxchanii from current ti forward"""
     cdef int chanjj, chanj, maxchani
@@ -353,7 +340,7 @@ cdef set_lockout(Settings *s, int tilock):
             s.xthreshp[chanjj] = 0 # clear its threshx flag
             s.lastp[chanjj] = 0.0 # reset last so it's ready when it comes out of lockout
             s.lockp[chanjj] = tilock # apply its temporal lockout, use passed tilock, not s.tilock
-
+'''
 cdef set_lockout2(Settings *s, int ti):
     """Apply spatiotemporal lockout centered on s.maxchanii, lock out all chans
     within slock up to timepoint ti"""
@@ -363,7 +350,7 @@ cdef set_lockout2(Settings *s, int ti):
         chanj = s.chansp[chanjj] # dereference to index into dmp
         if s.dmp[maxchani*s.ndmchans + chanj] <= s.slock: # chanjj is within spatial lockout in um
             s.lockp[chanjj] = ti # lock it out up to ti
-
+'''
 cdef arrabs(ndarray a):
     """In-place absolute value of 2D float32 array.
     Or, might be better to just use fabs from C math library?"""
@@ -375,6 +362,7 @@ cdef arrabs(ndarray a):
         for j from 0 <= j < ncols:
             if datap[i*ncols + j] < 0.0:
                 datap[i*ncols + j] *= -1.0 # modify in-place
+'''
 '''
 cdef abs(int x):
     """Absolute value of an integer"""
