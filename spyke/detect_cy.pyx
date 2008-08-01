@@ -236,6 +236,26 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         cdef int eventi = -1 # event index (indexes into .eventtimes)
         cdef int eventti # event time index (indexes into .data and .ts)
 
+        '''procedure according to paper (indented stuff are my additions/speculations):
+            - for all methods, get thresh xing, make sure it's a +ve thresh xing, ie make sure the
+              signal at the preceding timepoint isn't locked out and is below threshold!
+                - center on non locked-out maxchan within slock of chan with thresh xing?
+            - search forward indefinitely to find waveform peak/valley? this is your spike time?
+                - again, center on non locked-out maxchan within slock of chan with thresh xing?
+                - again, search forward a bit to ensure you're at the waveform peak/valley? this is your spike time?
+            - search forward and back by one tlock relative to timepoint of thresh xing
+                - or should this search be relative to time of the peak/valley?
+            - within that search, look for signal 2f greater than valley/2f less than peak
+            - if you find such signal, you've got a spike
+                - respect previously set lockouts during this search?
+
+            - general lockout procedure (applies to all): only those chans within slock of maxchan that are over
+              threshold at spike time are locked out, and are locked out only until the end of the first half of the
+              first phase of the spike, although I'm not too clear why. Why not until the end of the first half of
+              the last phase of the spike?
+
+
+        '''
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoints
             # TODO: shuffle chans in-place here
@@ -351,6 +371,9 @@ cdef int find_peak(Settings *s, int ti, int tirange, float sign):
     TODO: perhaps find_peak should ensure the maxchanii isn't locked out over any of
     the tirange it's searching, although this is implicit when it's called, ie,
     don't call find_peak without first checking for lockout up to ti
+
+    NOTE: right now, this only finds the first peak, not the biggest peak within tirange!!!!!!!!!!!!!!!!!!!!
+
     """
     cdef int tj, peaktj = -1
     cdef long long offset = s.maxchanii*s.nt # this is a constant during the loop
