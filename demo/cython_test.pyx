@@ -95,12 +95,6 @@ cpdef strides(ndarray a):
         for chani from 0 <= chani < nchans:
             print datap[chani*nt + ti*dt]
 
-cdef abs(int x):
-    """Absolute value of an integer"""
-    if x < 0:
-        x *= -1
-    return x
-
 cpdef swap(int i, int j):
     """Show that you can use Python tuple notation to swap two C types"""
     i, j = j, i
@@ -148,3 +142,36 @@ print myspam.tons
 myfun(&myspam)
 print myspam.tons
 '''
+cdef int max(int x, int y):
+    """Return maximum of two ints"""
+    if x >= y:
+        return x
+    else:
+        return y
+
+print 'max(1,1):', max(1,1)
+print 'max(1,2):', max(1,2)
+print 'max(2,1):', max(2, 1)
+print 'max(-1,0):', max(-1, 0)
+
+cdef int iabs(int x):
+    """Absolute value of an integer"""
+    if x < 0:
+        x *= -1
+    return x
+
+print 'iabs(-5):', iabs(-5)
+print 'iabs(5):', iabs(5)
+
+
+cdef float abs(float x):
+    """Absolute value of a float"""
+    if x < 0.0:
+        x *= -1.0
+    return x
+
+print 'abs(-5):', abs(-5)
+print 'abs(5):', abs(5)
+print 'abs(-5.0):', abs(-5.0)
+print 'abs(5.0):', abs(5.0)
+

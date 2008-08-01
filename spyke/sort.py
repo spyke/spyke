@@ -704,17 +704,17 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.SetColumnWidth(coli, width)
 
     def AddObjects2Plot(self, objects):
-        print 'objects to add: %r' % [ obj.id for obj in objects ]
+        #print 'objects to add: %r' % [ obj.id for obj in objects ]
         self.spikesortpanel.addObjects(objects)
         #self.chartsortpanel.addObjects(objects)
 
     def RemoveObjectsFromPlot(self, objects):
-        print 'objects to remove: %r' % [ obj.id for obj in objects ]
+        #print 'objects to remove: %r' % [ obj.id for obj in objects ]
         self.spikesortpanel.removeObjects(objects)
         #self.chartsortpanel.removeObjects(objects)
 
     def UpdateObjectsInPlot(self, objects):
-        print 'objects to update: %r' % [ obj.id for obj in objects ]
+        #print 'objects to update: %r' % [ obj.id for obj in objects ]
         self.spikesortpanel.updateObjects(objects)
         #self.chartsortpanel.updateObjects(objects)
 
