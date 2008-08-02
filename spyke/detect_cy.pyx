@@ -324,13 +324,15 @@ cdef find_maxchanii(Settings *s, int maxchanii, int ti, float sign):
     """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii.
     Finds most negative (sign == -1) or most positive (sign == 1) chan"""
     cdef int chanjj, chanj, maxchani
+    cdef int prevti = max(ti-1, 0) # previous timepoint, ensuring to go no earlier than first timepoint
     s.maxchanii = maxchanii # init
     maxchani = s.chansp[maxchanii] # dereference to index into dmp
     for chanjj from 0 <= chanjj < s.nchans: # iterate over all chan indices
         chanj = s.chansp[chanjj] # dereference to index into dmp
-        # if chanj is within slock of original maxchani, and has higher signal of correct sign than the biggest maxchan found so far, and isn't locked out:
+        # if chanj is within slock of original maxchani, and has higher signal of correct sign than the biggest maxchan found so far, and has the slope of the same sign wrt previous timepoint, and isn't locked out:
         if s.dmp[maxchani*s.ndmchans + chanj] <= s.slock and \
             s.datap[chanjj*s.nt + ti]*sign > s.datap[s.maxchanii*s.nt + ti]*sign and \
+            s.datap[chanjj*s.nt + ti]*sign > s.datap[chanjj*s.nt + prevti]*sign and \
             s.lockp[chanjj] < ti:
             s.maxchanii = chanjj # update
 
