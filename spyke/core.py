@@ -24,6 +24,7 @@ DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample f
 DEFHIGHPASSSHCORRECT = True
 KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems to depend on the phase of the kernel, some have one less. Anyway, total number of points in the kernel is this plus 1 (for the middle point) - see Blanche2006
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
+NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
 
 class WaveForm(object):
@@ -288,7 +289,6 @@ class Stream(object):
         """Generate separate kernels per chan to correct each channel's s+h delay.
         TODO: take DIN channel into account, might need to shift all highpass chans
         by 1us, see line 2412 in SurfBawdMain.pas"""
-        NCHANSPERBOARD = 32 # TODO: stop hard coding this
         i = np.asarray(chans) % NCHANSPERBOARD # ordinal position of each chan in the hold queue
         if self.shcorrect:
             dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position

@@ -102,7 +102,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         if cut0 > cut1: # swap 'em for the test
             cut0, cut1 = cut1, cut0
 
-        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?
+        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?)
         s.lockp = <int *>lock.data # int pointer to .data field
 
         s.tilock = self.tilock # temporal index lockout, in num timepoints
@@ -151,13 +151,13 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 if nevents >= maxnevents: # exit here, don't search any more chans
                     ti = s.nt # TODO: nasty hack to get out of outer ti loop
                     break # out of inner chanii loop
-                lastpeakti = eventti
                 # to set lockout, continue searching forward for consecutive threshold-exceeding peaks
                 # of alternating phase within tlock of each other that are conceivably
                 # part of the same spike, yet large enough and far enough away in time to trigger an
                 # unwanted threshold crossing
                 # ch31 t=40880 is a corner case where this fails badly, can probably only be fixed by using multiphasic detection
-                # ch46 t=68420 is another tough case where it centers on a smaller chan with a premature peak due to distorted signal
+                # ch46 t=68420 is another tough case centered on a smaller chan with a premature peak due to distorted signal
+                lastpeakti = eventti
                 while True:
                     sign = -sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
@@ -232,7 +232,7 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
-        cdef int ti, chanii, peakti, peak2ti, lastpeakti
+        cdef int ti, prevti, chanii, peakti, peak2ti, lastpeakti
         cdef float sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # event index (indexes into .eventtimes)
@@ -260,10 +260,12 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         '''
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoints
+            prevti = max(ti-1, 0) # previous timepoint, ensuring to go no earlier than first timepoint
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
-                # check if chan is eligible and we've met or exceeded threshold
-                if ti <= s.lockp[chanii] or abs(s.datap[chanii*s.nt + ti]) < fixedthresh:
+                # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
+                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < fixedthresh \
+                         and abs(s.datap[chanii*s.nt + ti]) >= fixedthresh ):
                     continue # no, skip to next chan in chan loop
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
@@ -272,13 +274,9 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
                 if eventti == -1: # couldn't find a peak
                     continue # skip to next chan in chan loop
-                print 'new thresh xing: ti, chanii, sign:', ti, chanii, sign
-                print 'maxchanii', s.maxchanii
-                print 'eventti, eventt', eventti, s.tsp[eventti]
                 find_maxchanii(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
-                print 'maxchanii', s.maxchanii
-                print 'eventti, eventt', eventti, s.tsp[eventti]
+                print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, s.tsp[eventti], s.maxchanii)
                 # search forward one tlock on the maxchan for another peak of opposite phase
                 # that is 2*thresh greater (in the right direction) than the previous peak
                 sign = -sign
@@ -300,8 +298,8 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 if nevents >= maxnevents: # exit here, don't search any more chans
                     ti = s.nt # TODO: nasty hack to get out of outer ti loop
                     break # out of inner chanii loop
-                # to set lockout, continue searching forward for consecutive threshold
-                # exceeding peaks of alternating phase within tlock of each other that are conceivably
+                # to set lockout, continue searching forward for consecutive threshold-exceeding
+                # peaks of alternating phase within tlock of each other that are conceivably
                 # part of the same spike, yet large enough and far enough away in time to trigger an
                 # unwanted threshold crossing
                 lastpeakti = peak2ti
@@ -330,9 +328,9 @@ cdef find_maxchanii(Settings *s, int maxchanii, int ti, float sign):
     maxchani = s.chansp[maxchanii] # dereference to index into dmp
     for chanjj from 0 <= chanjj < s.nchans: # iterate over all chan indices
         chanj = s.chansp[chanjj] # dereference to index into dmp
-        # if chanj is within slock of maxchani and has higher signal and isn't locked out:
+        # if chanj is within slock of original maxchani, and has higher signal of correct sign than the biggest maxchan found so far, and isn't locked out:
         if s.dmp[maxchani*s.ndmchans + chanj] <= s.slock and \
-            s.datap[chanjj*s.nt + ti]*sign > s.datap[maxchanii*s.nt + ti]*sign and \
+            s.datap[chanjj*s.nt + ti]*sign > s.datap[s.maxchanii*s.nt + ti]*sign and \
             s.lockp[chanjj] < ti:
             s.maxchanii = chanjj # update
 
