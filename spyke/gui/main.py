@@ -632,7 +632,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
-        self.slider.SetLineSize(self.hpstream.tres)
+        tres = intround(1 / sampfreq * 1e6)
+        self.slider.SetLineSize(tres)
         self.plot()
 
     def SetSHCorrect(self, enable):

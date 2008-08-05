@@ -123,8 +123,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         cdef int eventti # event time index (indexes into .data and .ts)
 
         #tcyloop = time.clock()
-        for ti from 0 <= ti < s.nt: # iterate over all timepoints
-            prevti = max(ti-1, 0) # previous timepoint, ensuring to go no earlier than first timepoint
+        for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
+            prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
@@ -246,10 +246,12 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 - again, center on non locked-out maxchan within slock of chan with thresh xing?
                 - again, search forward a bit to ensure you're at the waveform peak/valley? this is your spike time?
             - search forward and back by one tlock relative to timepoint of thresh xing
-                - or should this search be relative to time of the peak/valley?
+                - or should this search be relative to time of the peak/valley? This seems much better
             - within that search, look for signal 2f greater than valley/2f less than peak
-            - if you find such signal, you've got a spike
-                - respect previously set lockouts during this search?
+                - if you find such signal, you've got a spike
+                - respect previously set lockouts during this search? maybe yes, or maybe lockouts should just be considered when looking for threshold xings. Maybe yes though, cuz otherwise one spike's phase might incorrectly be considered to be the phase of another, ie it might get duplicate treatment
+                - this seems to prevent detection of uniphase spikes - maybe if the above search fails, search forward 1/2 a tlock for a return of the signal to 0?
+                - seem to require a tlock > 250us, say 300us, to search far enough for the next phase of the putative spike, for exceptionally fat spikes, like ch26 t=14720
 
             - general lockout procedure (applies to all): only those chans within slock of maxchan that are over
               threshold at spike time are locked out, and are locked out only until the end of the first half of the
@@ -259,8 +261,8 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
 
         '''
         #tcyloop = time.clock()
-        for ti from 0 <= ti < s.nt: # iterate over all timepoints
-            prevti = max(ti-1, 0) # previous timepoint, ensuring to go no earlier than first timepoint
+        for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
+            prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
@@ -277,18 +279,24 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 find_maxchanii(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
                 print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, s.tsp[eventti], s.maxchanii)
+
+                # search backwards one tlock on the maxchan for another peak of opposite phase
+                # that is 2*thresh greater (in the right direction) than the current peak
+
+
                 # search forward one tlock on the maxchan for another peak of opposite phase
                 # that is 2*thresh greater (in the right direction) than the previous peak
                 sign = -sign
-                print 'sign', sign
                 peak2ti = find_peak(&s, eventti, s.tilock, sign)
                 if peak2ti == -1: # couldn't find a 2nd peak of opposite phase
+                    print 'couldnt find a 2nd peak of sign=%s' % sign
                     continue # skip to next chan in chan loop
-                print 'peak2ti, peak2t', peak2ti, s.tsp[peak2ti]
+                print 'peak2ti=%s, sign=%s, peak2t=%s' % (peak2ti, sign, s.tsp[peak2ti])
                 if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
-                    print 'peak2ti isnt big enough'
+                    print 'peak2 isnt big enough'
                     continue # 2nd peak isn't big enough, skip to next chan in chan loop
                 # if we get this far, it's a valid event
+                print 'FOUND A SPIKE!!!!!!!!!!!!!!!!!!'
                 eventt = s.tsp[eventti] # event time
                 if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
                     eventi += 1
@@ -352,8 +360,8 @@ cdef int find_peak(Settings *s, int ti, int tirange, float sign):
     the tirange it's searching, although this is implicit when it's called, ie,
     don't call find_peak without first checking for lockout up to ti
 
-    NOTE: right now, this only finds the first peak, not the biggest peak within tirange!!!!!!!!!!!!!!!!!!!!
-
+    NOTE: this only finds the first peak, not the biggest peak within tirange
+          but perhaps it should stay this way
     """
     cdef int tj, peaktj = -1
     cdef long long offset = s.maxchanii*s.nt # this is a constant during the loop
