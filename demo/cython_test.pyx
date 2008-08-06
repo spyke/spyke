@@ -154,6 +154,19 @@ print 'max(1,2):', max(1,2)
 print 'max(2,1):', max(2, 1)
 print 'max(-1,0):', max(-1, 0)
 
+
+cdef int min(int x, int y):
+    """Return minimum of two ints"""
+    if x <= y:
+        return x
+    else:
+        return y
+
+print 'min(1,1):', min(1,1)
+print 'min(1,2):', min(1,2)
+print 'min(2,1):', min(2, 1)
+print 'min(-1,0):', min(-1, 0)
+
 cdef int iabs(int x):
     """Absolute value of an integer"""
     if x < 0:

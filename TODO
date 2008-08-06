@@ -15,6 +15,8 @@ TODO:
 - use .GetTopLevelParent() from (any?) widget to get a reference to spykeframe, safer than doing a bunch of Parent and GrandParent stuff
     - actually, that only seems to return the frame the widget is in
 
+- hovering over waveforms should highlight the closest datapoint on the closest chan with a circle point or something, while displaying its time and exact voltage in the tooltip - this would probably be more useful than displaying the voltage in the potentially empty space under the mouse
+    - should do this both for spike window and sort window (not really necessary for chart or lfp, might be slow, but might be nice too), although in sort window it wouldn't be clear which waveform to do it on, for overlapping waveforms
 
 - INTERPOLATION
     - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)

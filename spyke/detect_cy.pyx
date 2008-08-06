@@ -232,7 +232,7 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
         cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
 
-        cdef int ti, prevti, chanii, peakti, peak2ti, lastpeakti
+        cdef int ti, prevti, chanii, prepeakti, postpeakti, peak2ti, peakti, lastpeakti
         cdef float sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # event index (indexes into .eventtimes)
@@ -275,26 +275,32 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 # search forward indefinitely for the first peak, this will be used as the event time
                 eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
                 if eventti == -1: # couldn't find a peak
+                    print 'couldnt find any peak at all'
                     continue # skip to next chan in chan loop
                 find_maxchanii(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
                 print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, s.tsp[eventti], s.maxchanii)
-
-                # search backwards one tlock on the maxchan for another peak of opposite phase
-                # that is 2*thresh greater (in the right direction) than the current peak
-
-
-                # search forward one tlock on the maxchan for another peak of opposite phase
-                # that is 2*thresh greater (in the right direction) than the previous peak
+                # search forward and backward one tlock on the maxchan for another peak of opposite phase
+                # that is 2*thresh greater (in the right direction) than the event peak
                 sign = -sign
-                peak2ti = find_peak(&s, eventti, s.tilock, sign)
-                if peak2ti == -1: # couldn't find a 2nd peak of opposite phase
-                    print 'couldnt find a 2nd peak of sign=%s' % sign
+                prepeakti = find_peak(&s, eventti, -s.tilock, sign)
+                postpeakti = find_peak(&s, eventti, s.tilock, sign)
+                if prepeakti != -1 and postpeakti != -1: # both exist, need to find the biggest one relative to event
+                    if s.datap[s.maxchanii*s.nt + prepeakti] * sign > s.datap[s.maxchanii*s.nt + postpeakti] * sign:
+                        peak2ti = prepeakti
+                    else:
+                        peak2ti = postpeakti
+                elif prepeakti != -1 and postpeakti == -1:
+                    peak2ti = prepeakti
+                elif prepeakti == -1 and postpeakti != -1:
+                    peak2ti = postpeakti
+                else:
+                    print 'couldnt find a pre or post event peak'
                     continue # skip to next chan in chan loop
-                print 'peak2ti=%s, sign=%s, peak2t=%s' % (peak2ti, sign, s.tsp[peak2ti])
+                print 'eventt=%s, peak2t=%s, sign=%s' % (s.tsp[eventti], s.tsp[peak2ti], sign)
                 if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
                     print 'peak2 isnt big enough'
-                    continue # 2nd peak isn't big enough, skip to next chan in chan loop
+                    continue # skip to next chan in chan loop
                 # if we get this far, it's a valid event
                 print 'FOUND A SPIKE!!!!!!!!!!!!!!!!!!'
                 eventt = s.tsp[eventti] # event time
@@ -310,18 +316,17 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 # peaks of alternating phase within tlock of each other that are conceivably
                 # part of the same spike, yet large enough and far enough away in time to trigger an
                 # unwanted threshold crossing
-                lastpeakti = peak2ti
-                print 'lastpeakti, lastpeakt', lastpeakti, s.tsp[lastpeakti]
+                lastpeakti = max(eventti, peak2ti)
+                print 'lastpeakt=%s' % s.tsp[lastpeakti]
                 while True:
                     sign = -sign
-                    print 'sign', sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
-                    print 'peakti, peakt', peakti, s.tsp[peakti]
                     if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < fixedthresh:
                         # no peak found, or found peak doesn't exceed thresh
                         break # out of while loop
+                    print 'found new lockout peakt=%s, sign=%s' % (s.tsp[peakti], sign)
                     lastpeakti = peakti # update
-                    print 'lastpeakti, lastpeakt', lastpeakti, s.tsp[lastpeakti]
+                print 'lockout to lastpeakt=%s' % s.tsp[lastpeakti]
                 set_lockout(&s, lastpeakti) # lock out up to and including peak of last spike phase, and no further
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
         eventtimes = eventtimes[:nevents] # keep only the entries that were filled
@@ -353,7 +358,8 @@ cdef float get_sign(float val):
 
 cdef int find_peak(Settings *s, int ti, int tirange, float sign):
     """Return timepoint index of first peak (if sign == 1) or valley (if sign == -1)
-    on s.maxchanii searching forward up to tirange from passed ti.
+    on s.maxchanii searching forward up to tirange from passed ti. Searches backwards
+    if tirange is -ve.
     Return -1 if no peak is found
 
     TODO: perhaps find_peak should ensure the maxchanii isn't locked out over any of
@@ -363,16 +369,27 @@ cdef int find_peak(Settings *s, int ti, int tirange, float sign):
     NOTE: this only finds the first peak, not the biggest peak within tirange
           but perhaps it should stay this way
     """
-    cdef int tj, peaktj = -1
+    cdef int end, tj, peaktj = -1
     cdef long long offset = s.maxchanii*s.nt # this is a constant during the loop
     cdef float last = -INF * sign # uV
-    for tj from ti <= tj < (ti + tirange):
-        # if signal is becoming more -ve (sign == -1) or +ve (sign == 1)
-        if s.datap[offset + tj]*sign > last*sign:
-            peaktj = tj # update
-            last = s.datap[offset + tj] # update
-        else: # signal is becoming less -ve (sign == -1) or +ve (sign == 1)
-            return peaktj
+    if tirange >= 0:
+        end = min(ti+tirange, s.nt) # prevent exceeding max t index in data
+        for tj from ti <= tj < end:
+            # if signal is becoming more -ve (sign == -1) or +ve (sign == 1)
+            if s.datap[offset + tj]*sign > last*sign:
+                peaktj = tj # update
+                last = s.datap[offset + tj] # update
+            else: # signal is becoming less -ve (sign == -1) or +ve (sign == 1)
+                return peaktj
+    else: # tirange is -ve
+        end = max(ti+tirange, 0) # prevent exceeding min t index in data
+        for tj from ti >= tj > end:
+            # if signal is becoming more -ve (sign == -1) or +ve (sign == 1)
+            if s.datap[offset + tj]*sign > last*sign:
+                peaktj = tj # update
+                last = s.datap[offset + tj] # update
+            else: # signal is becoming less -ve (sign == -1) or +ve (sign == 1)
+                return peaktj
     return -1 # a peak was never found
 
 cdef set_lockout(Settings *s, int ti):
@@ -388,6 +405,13 @@ cdef set_lockout(Settings *s, int ti):
 cdef int max(int x, int y):
     """Return maximum of two ints"""
     if x >= y:
+        return x
+    else:
+        return y
+
+cdef int min(int x, int y):
+    """Return minimum of two ints"""
+    if x <= y:
         return x
     else:
         return y

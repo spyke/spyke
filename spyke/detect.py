@@ -52,16 +52,16 @@ class RandomWaveTranges(object):
 
 class Detector(object):
     """Event detector base class"""
-    DEFFIXEDTHRESH = 50 # uV
+    DEFFIXEDTHRESH = 40 # uV
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 4
     DEFNOISEWINDOW = 10000000 # 10 sec
-    DEFMAXNEVENTS = 500
+    DEFMAXNEVENTS = 15
     DEFBLOCKSIZE = 1000000 # waveform data block size, us
     RANDOMBLOCKSIZE = 10000 # block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
-    DEFTLOCK = 250 # us
-    DEFRANDOMSAMPLE = True
+    DEFTLOCK = 300 # us
+    DEFRANDOMSAMPLE = False
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for events. Only useful for ensuring event times within the actual block time range are accurate. Events detected in the excess are discarded
