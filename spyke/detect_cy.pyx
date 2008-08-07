@@ -26,8 +26,8 @@ cdef struct Settings:
     int maxchanii
     int *chansp
     int nchans
-    int ndmchans
     double *dmp
+    int ndmchans
     double slock
     int tilock
     float *datap
@@ -36,7 +36,7 @@ cdef struct Settings:
     int nt
 
 
-cpdef class BipolarAmplitudeFixedThresh_Cy:
+cpdef class BipolarAmplitude_Cy:
 
     cpdef searchblock(self, wave, cutrange, int maxnevents):
         """Search one timepoint at a time across chans in a manageable
@@ -44,12 +44,6 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         Apply both temporal and spatial lockouts.
         cutrange: determines which events are saved and which are discarded as excess
         maxnevents: maximum number of events to return while searching this block
-
-        TODO: after searching for maxchan, search again for peak on that maxchan,
-              maybe iterate a few times until stop seeing changes in result for
-              that event. But iteration isn't really possible, because we have our
-              big ti loop to obey and its associated t and s locks.
-              Maybe this is just an inherent limit to simple thresh detector?
 
         TODO: instead of searching forward indefinitely for a peak, maybe search
               forward and backwards say 0.5ms. Ah, but then searching backwards would
@@ -59,11 +53,6 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         TODO: (maybe): chanii loop should go in random order on each ti, to prevent a chan from
               dominating with its spatial lockout or something like that. So, shuffle chans in-place
               on every ti, or have a second level of chan indices, shuffle those every ti, and iterate over chaniii
-
-        TODO: replace lockp with binary bitmask of length 1ms say,
-              shift bits on every ti, might let you search for events into future
-              semi-independently on each chan
-
         """
         cdef Settings s # has to be passed by reference
 
@@ -94,7 +83,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
 
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
-        cdef float fixedthresh = self.fixedthresh
+        cdef ndarray thresh = np.asarray(self.thresh)
+        cdef float *threshp = <float *>thresh.data # float pointer to thresh .data
 
         # cut times, these are for testing whether to inc nevents
         cdef long long cut0 = cutrange[0]
@@ -128,8 +118,8 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
-                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < fixedthresh \
-                         and abs(s.datap[chanii*s.nt + ti]) >= fixedthresh ):
+                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < threshp[chanii] \
+                         and abs(s.datap[chanii*s.nt + ti]) >= threshp[chanii] ):
                     continue # no, skip to next chan in chan loop
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
@@ -161,7 +151,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
                 while True:
                     sign = -sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
-                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < fixedthresh:
+                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < threshp[s.maxchanii]:
                         # no peak found, or found peak doesn't meet or exceed thresh
                         break # out of while loop
                     lastpeakti = peakti # update
@@ -172,7 +162,7 @@ cpdef class BipolarAmplitudeFixedThresh_Cy:
         return np.asarray([eventtimes, maxchans])
 
 
-cpdef class DynamicMultiphasicFixedThresh_Cy:
+cpdef class DynamicMultiphasic_Cy:
 
     cpdef searchblock(self, wave, cutrange, int maxnevents):
         """Search one timepoint at a time across chans in a manageable
@@ -210,7 +200,8 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
 
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
-        cdef float fixedthresh = self.fixedthresh
+        cdef ndarray thresh = np.asarray(self.thresh)
+        cdef float *threshp = <float *>thresh.data # float pointer to thresh .data
 
         # cut times, these are for testing whether to inc nevents
         cdef long long cut0 = cutrange[0]
@@ -268,8 +259,8 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
-                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < fixedthresh \
-                         and abs(s.datap[chanii*s.nt + ti]) >= fixedthresh ):
+                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < threshp[chanii] \
+                         and abs(s.datap[chanii*s.nt + ti]) >= threshp[chanii] ):
                     continue # no, skip to next chan in chan loop
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
@@ -300,7 +291,7 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                     #print 'couldnt find a pre or post event peak'
                     continue # skip to next chan in chan loop
                 #print 'eventt=%s, peak2t=%s, sign=%s' % (s.tsp[eventti], s.tsp[peak2ti], sign)
-                if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*fixedthresh:
+                if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*threshp[s.maxchanii]:
                     #print 'peak2 isnt big enough'
                     continue # skip to next chan in chan loop
                 # if we get this far, it's a valid event
@@ -323,7 +314,7 @@ cpdef class DynamicMultiphasicFixedThresh_Cy:
                 while True:
                     sign = -sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
-                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < fixedthresh:
+                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < threshp[s.maxchanii]:
                         # no peak found, or found peak doesn't exceed thresh
                         break # out of while loop
                     #print 'found new lockout peakt=%s, sign=%s' % (s.tsp[peakti], sign)

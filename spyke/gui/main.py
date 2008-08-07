@@ -109,7 +109,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Set widget limits and initial values"""
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
-        self.noisemult_spin_ctrl.SetValue(detect.Detector.DEFNOISEMULT)
+        self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
         #self.noise_method_choice.SetSelection(0)
         self.nevents_spin_ctrl.SetRange(0, sys.maxint)
         self.nevents_spin_ctrl.SetValue(detect.Detector.DEFMAXNEVENTS)
@@ -673,16 +673,26 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def get_detector(self):
         """Create a Detector object based on attribs from GUI"""
-        detectorClass = self.get_detectorclass()
-        det = detectorClass(stream=self.hpstream)
+        algorithm = self.algorithm_radio_box.GetStringSelection()
+        detclass = eval('detect.'+algorithm)
+        det = detclass(stream=self.hpstream)
         self.update_detector(det)
         return det
 
     def update_detector(self, det):
         """Update detector from detect pane widget values"""
         det.chans = self.chans_enabled # property
+        if self.globalfixedthresh_radio_btn.GetValue():
+            threshmethod = 'GlobalFixed'
+        elif self.chanfixedthresh_radio_btn.GetValue():
+            threshmethod = 'ChanFixed'
+        elif self.dynamicthresh_radio_btn.GetValue():
+            threshmethod = 'Dynamic'
+        else:
+            raise ValueError
+        det.threshmethod = threshmethod
         det.fixedthresh = self.fixedthresh_spin_ctrl.GetValue()
-        det.noisemult = self.noisemult_spin_ctrl.GetValue()
+        det.noisemult = float(self.noisemult_text_ctrl.GetValue())
         #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
         det.trange = self.get_detectortrange()
         det.maxnevents = self.nevents_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
@@ -696,7 +706,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.set_detectorclass(det)
         self.chans_enabled = det.chans
         self.fixedthresh_spin_ctrl.SetValue(det.fixedthresh)
-        self.noisemult_spin_ctrl.SetValue(det.noisemult)
+        self.noisemult_text_ctrl.SetValue(str(det.noisemult))
         #self.noisewindow_spin_ctrl.SetValue(det.noisewindow) # not in the gui yet
         self.range_start_combo_box.SetValue(str(det.trange[0]))
         self.range_end_combo_box.SetValue(str(det.trange[1]))
@@ -708,19 +718,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slock_spin_ctrl.SetValue(det.slock)
         self.tlock_spin_ctrl.SetValue(det.tlock)
         self.random_sample_checkbox.SetValue(det.randomsample)
-
-    def get_detectorclass(self):
-        """Figure out which Detector class to use based on algorithm and
-        threshmethod radio selections"""
-        algorithm = self.algorithm_radio_box.GetStringSelection()
-        if self.fixedthresh_radio_btn.GetValue():
-            threshmethod = 'FixedThresh'
-        elif self.dynamicthresh_radio_btn.GetValue():
-            threshmethod = 'DynamicThresh'
-        else:
-            raise ValueError
-        classstr = algorithm + threshmethod
-        return eval('detect.'+classstr)
 
     def set_detectorclass(self, det):
         """Update algorithm and threshmethod radio buttons to match current Detector"""
