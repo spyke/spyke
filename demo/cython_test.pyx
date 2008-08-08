@@ -13,6 +13,9 @@ cdef extern from "stdio.h":
     int printf(char *, ...)
 
 import numpy as np
+import time
+
+NAN = 0x7fffffff # one of the many possible hex values that code for single float IEEE standard 754 NaN (quiet NaN)
 
 
 def cy_setmat(ndarray a, int val):
@@ -188,3 +191,54 @@ print 'abs(5):', abs(5)
 print 'abs(-5.0):', abs(-5.0)
 print 'abs(5.0):', abs(5.0)
 
+
+cdef float select(float *a, int l, int r, int k):
+    """Returns the k'th (0-based) ranked entry from float array a within left
+    and right pointers l and r. This is quicksort partitioning based
+    selection, taken from Sedgewick (Algorithms, 2ed 1988, p128).
+    Note that this modifies a in-place"""
+    cdef int i, j
+    cdef float v, temp
+    if r < l:
+        print 'bad pointer range in select()'
+        return NAN
+    while r > l:
+        v = a[r]
+        i = l-1
+        j = r
+        while True:
+            while True:
+                i += 1
+                if a[i] >= v: break
+            while True:
+                j -= 1
+                if a[j] <= v: break
+            temp = a[i] # swap a[i] and a[j]
+            a[i] = a[j]
+            a[j] = temp
+            if j <= i: break
+        a[j] = a[i]
+        a[i] = a[r]
+        a[r] = temp # temp was old a[j]
+        if i >= k: r = i-1
+        if i <= k: l = i+1
+    return a[k] # return kth in 0-based
+
+
+def selectpy(ndarray data, int k):
+    """Test Cython select() from Python
+
+    data = np.float32(np.random.rand(10000000))
+    data = np.array([1., 2., 2., 3., 1., 3., 5.], dtype=np.float32)
+    """
+    cdef int N = len(data)
+    print data
+    tpy = time.clock()
+    sorteddata = np.sort(data) # do a full quicksort
+    print 'Python:', sorteddata[k]
+    print 'Python took %.3f sec' % (time.clock()-tpy)
+    cdef float *a = <float *>data.data # float pointer to data's .data field
+    tcy = time.clock()
+    print 'Cython:', select(a, 0, N-1, k)
+    print 'Cython took %.3f sec' % (time.clock()-tcy)
+    print sorteddata

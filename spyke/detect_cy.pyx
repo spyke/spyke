@@ -31,6 +31,7 @@ cdef struct Settings:
     double slock
     int tilock
     float *datap
+    float *threshp
     long long *tsp
     int *lockp
     int nt
@@ -84,7 +85,7 @@ cpdef class BipolarAmplitude_Cy:
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
         cdef ndarray thresh = np.asarray(self.thresh)
-        cdef float *threshp = <float *>thresh.data # float pointer to thresh .data
+        s.threshp = <float *>thresh.data # float pointer to thresh .data
 
         # cut times, these are for testing whether to inc nevents
         cdef long long cut0 = cutrange[0]
@@ -118,8 +119,8 @@ cpdef class BipolarAmplitude_Cy:
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
-                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < threshp[chanii] \
-                         and abs(s.datap[chanii*s.nt + ti]) >= threshp[chanii] ):
+                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < s.threshp[chanii] \
+                         and abs(s.datap[chanii*s.nt + ti]) >= s.threshp[chanii] ):
                     continue # no, skip to next chan in chan loop
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
@@ -151,7 +152,7 @@ cpdef class BipolarAmplitude_Cy:
                 while True:
                     sign = -sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
-                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < threshp[s.maxchanii]:
+                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < s.threshp[s.maxchanii]:
                         # no peak found, or found peak doesn't meet or exceed thresh
                         break # out of while loop
                     lastpeakti = peakti # update
@@ -201,7 +202,7 @@ cpdef class DynamicMultiphasic_Cy:
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
         cdef ndarray thresh = np.asarray(self.thresh)
-        cdef float *threshp = <float *>thresh.data # float pointer to thresh .data
+        s.threshp = <float *>thresh.data # float pointer to thresh .data
 
         # cut times, these are for testing whether to inc nevents
         cdef long long cut0 = cutrange[0]
@@ -256,11 +257,13 @@ cpdef class DynamicMultiphasic_Cy:
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
+            #if s.threshmethod == 'dynamic' and ti % s.ntnoise == 0: # update channel thresholds every ntnoise'th timepoint
+            #    set_thresh(&s, ti)
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
-                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < threshp[chanii] \
-                         and abs(s.datap[chanii*s.nt + ti]) >= threshp[chanii] ):
+                if not ( s.lockp[chanii] < prevti and abs(s.datap[chanii*s.nt + prevti]) < s.threshp[chanii] \
+                         and abs(s.datap[chanii*s.nt + ti]) >= s.threshp[chanii] ):
                     continue # no, skip to next chan in chan loop
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
@@ -291,7 +294,7 @@ cpdef class DynamicMultiphasic_Cy:
                     #print 'couldnt find a pre or post event peak'
                     continue # skip to next chan in chan loop
                 #print 'eventt=%s, peak2t=%s, sign=%s' % (s.tsp[eventti], s.tsp[peak2ti], sign)
-                if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*threshp[s.maxchanii]:
+                if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*s.threshp[s.maxchanii]:
                     #print 'peak2 isnt big enough'
                     continue # skip to next chan in chan loop
                 # if we get this far, it's a valid event
@@ -314,7 +317,7 @@ cpdef class DynamicMultiphasic_Cy:
                 while True:
                     sign = -sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
-                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < threshp[s.maxchanii]:
+                    if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < s.threshp[s.maxchanii]:
                         # no peak found, or found peak doesn't exceed thresh
                         break # out of while loop
                     #print 'found new lockout peakt=%s, sign=%s' % (s.tsp[peakti], sign)
@@ -325,6 +328,63 @@ cpdef class DynamicMultiphasic_Cy:
         eventtimes = eventtimes[:nevents] # keep only the entries that were filled
         maxchans = maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
+
+'''
+cdef set_thresh(Settings *s, int ti):
+    """Calculates channel specific threshold (either median or stdev-based)
+    from the last RANDOMBLOCKSIZE amount of data leading up to ti"""
+    cdef int chanii
+        for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
+            s.threshp[chanii] = get_noise(&s, ti) * s.noisemult
+
+
+cdef get_noise(self, data):
+    """Calculates noise over last dim in data (time), using .noisemethod"""
+
+    starti = max(ti - ntnoise, 0) # bounds checking
+    endti = min(startti + ntnoise, s.nt)
+
+    ntnoise
+
+    if self.noisemethod == 'median':
+        return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+    elif self.noisemethod == 'stdev':
+        return np.stdev(data, axis=-1)
+    else:
+        raise ValueError
+
+
+cdef median(Settings *s, int chanii, int starti, int endi)
+    pass
+'''
+cdef select(Settings *s, int chanii, int l, int r, int k):
+    """Selects the k'th ranked entry from chanii's data within left
+    and right pointers l and r. This is quicksort partitioning based
+    selection, taken from Sedgewick 1988"""
+    cdef int i, j
+    cdef float v, temp
+    cdef long long offset = chanii*s.nt # this stays constant
+
+    while r > l:
+        v = s.datap[offset+r]
+        i = l-1
+        j = r
+        while True:
+            while True:
+                i += 1
+                if s.datap[i] >= v: break
+            while True:
+                j -= 1
+                if s.datap[j] >= v: break
+            temp = s.datap[offset+i]
+            s.datap[offset+i] = s.datap[offset+r]
+            s.datap[offset+r] = temp
+            if j <= i: break
+        s.datap[offset+j] = s.datap[offset+i]
+        s.datap[offset+i] = s.datap[offset+r]
+        s.datap[offset+r] = temp
+        if i >= k: r = i-1
+        if i <= k: l = i+1
 
 cdef find_maxchanii(Settings *s, int maxchanii, int ti, float sign):
     """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii.
@@ -363,7 +423,7 @@ cdef int find_peak(Settings *s, int ti, int tirange, float sign):
           but perhaps it should stay this way
     """
     cdef int end, tj, peaktj = -1
-    cdef long long offset = s.maxchanii*s.nt # this is a constant during the loop
+    cdef long long offset = s.maxchanii*s.nt # this stays constant
     cdef float last = -INF * sign # uV
     if tirange >= 0:
         end = min(ti+tirange, s.nt) # prevent exceeding max t index in data
