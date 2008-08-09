@@ -4,12 +4,6 @@ TODO: use median based noise estimation instead of std based
       - estimate noise level dynamically with sliding window
         and independently for each channel
 
-TODO: for MultiPhasic, do spatial lockout only during first 1/2 phase of trigger spike
-
-TODO: for speed (esp comparing signal to thresh), consider converting all uV data
-      from 64bit float to 16 bit integer (actually, just keep it as 16 bit to begin
-      with) - ack, not being in uV would complicate things all over the place
-
 TODO: check if python's cygwincompiler.py module has been updated to deal with
       extra version fields in latest mingw
 """
@@ -58,10 +52,12 @@ class RandomWaveTranges(object):
 
 class Detector(object):
     """Event detector base class"""
-    DEFFIXEDTHRESH = 40 # uV
+    DEFTHRESHMETHOD = 'Dynamic'
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 3.5
-    DEFFIXEDNOISEWINDOW = 1000000 # 1 s
+    DEFFIXEDTHRESH = 40 # uV
+    DEFFIXEDNOISEWIN = 1000000 # 1s
+    DEFDYNAMICNOISEWIN = 10000 # 10ms
     DEFMAXNEVENTS = 15
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
     RANDOMBLOCKSIZE = 10000 # us, block size to use if we're randomly sampling
@@ -73,7 +69,8 @@ class Detector(object):
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for events. Only useful for ensuring event times within the actual block time range are accurate. Events detected in the excess are discarded
 
     def __init__(self, stream, chans=None,
-                 fixedthresh=None, noisemethod=None, noisemult=None, noisewindow=None,
+                 threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
+                 fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnevents=None, blocksize=None,
                  slock=None, tlock=None, randomsample=None):
         """Takes a data stream and sets various parameters"""
@@ -82,11 +79,12 @@ class Detector(object):
         self.chans = chans or range(self.stream.nchans) # None means search all channels
         self.nchans = len(self.chans)
         self.dm = self.get_full_chan_distance_matrix() # channel distance matrix, identical for all Detectors on the same probe
-        # assign all thresh and noise attribs, then reassign as None for subclasses where one of them doesn't apply
-        self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
+        self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
-        self.noisewindow = noisewindow or self.DEFFIXEDNOISEWINDOW
+        self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
+        self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
+        self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
         self.trange = trange or (stream.t0, stream.tend)
         self.maxnevents = maxnevents or self.DEFMAXNEVENTS # return at most this many events, applies across chans
         self.blocksize = blocksize or self.DEFBLOCKSIZE
@@ -219,10 +217,10 @@ class Detector(object):
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
             thresh = np.ones(self.nchans, dtype=np.float32) * self.fixedthresh
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh, calculate from start of stream
-            # randomly sample DEFFIXEDNOISEWINDOW's worth of data from the entire file in blocks of self.RANDOMBLOCKSIZE
+            # randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.RANDOMBLOCKSIZE
             # NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
             # will contribute more than once to the noise calculation
-            nblocks = intround(self.DEFFIXEDNOISEWINDOW / self.RANDOMBLOCKSIZE)
+            nblocks = intround(self.DEFFIXEDNOISEWIN / self.RANDOMBLOCKSIZE)
             wavetranges = RandomWaveTranges(self.trange, bs=self.RANDOMBLOCKSIZE, bx=0, maxntranges=nblocks)
             data = []
             for wavetrange in wavetranges:

@@ -7,6 +7,13 @@ __author__ = 'Martin Spacek'
 cdef extern from "stdio.h":
     int printf(char *, ...)
 
+cdef extern from "stdlib.h":
+    cdef void *malloc(int)
+
+cdef extern from "string.h":
+    cdef void *memcpy(void *, void *, int)
+
+
 include "Python.pxi" # include from the python headers
 include "numpy.pxi" # include the Numpy C API for use via Cython extension code
 import_array() # initialize numpy - this MUST be done before any other code is executed.
@@ -14,6 +21,8 @@ import_array() # initialize numpy - this MUST be done before any other code is e
 #import sys
 import time
 import numpy as np
+
+from spyke.core import intround
 
 #DEF INF = float('+inf') # doesn't work on Windows until Python 2.6+
 DEF INF = float(2**128)
@@ -32,9 +41,16 @@ cdef struct Settings:
     int tilock
     float *datap
     float *threshp
+    int threshmethod # see STRTHRESH2ID
+    int noisemethod # see STRNOISE2ID
+    float noisemult
     long long *tsp
     int *lockp
     int nt
+    int ntnoise
+
+STRTHRESH2ID = {'GlobalFixed': 0, 'ChanFixed': 1, 'Dynamic': 2}
+STRNOISE2ID = {'median': 0, 'stdev': 1}
 
 
 cpdef class BipolarAmplitude_Cy:
@@ -201,6 +217,10 @@ cpdef class DynamicMultiphasic_Cy:
 
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
+        s.threshmethod = STRTHRESH2ID[self.threshold] # ID
+        # number of noise timepoints to consider for dynamic thresh
+        s.ntnoise = intround(self.dynamicnoisewin / 1000000 * self.sampfreq )
+        s.noisemult = self.noisemult
         cdef ndarray thresh = np.asarray(self.thresh)
         s.threshp = <float *>thresh.data # float pointer to thresh .data
 
@@ -257,8 +277,8 @@ cpdef class DynamicMultiphasic_Cy:
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
-            #if s.threshmethod == 'dynamic' and ti % s.ntnoise == 0: # update channel thresholds every ntnoise'th timepoint
-            #    set_thresh(&s, ti)
+            if s.threshmethod == 2 and ti % s.ntnoise == 0: # update dynamic channel thresholds every ntnoise'th timepoint
+                set_thresh(&s, ti)
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
@@ -329,62 +349,67 @@ cpdef class DynamicMultiphasic_Cy:
         maxchans = maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
 
-'''
 cdef set_thresh(Settings *s, int ti):
-    """Calculates channel specific threshold (either median or stdev-based)
-    from the last RANDOMBLOCKSIZE amount of data leading up to ti"""
+    """Sets channel specific threshold (either median or stdev-based)
+    based on the last available s.ntnoise datapoints leading up to ti
+    (and possibly including it, if we're near the beginning of the block we're
+    currently searching)"""
     cdef int chanii
-        for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
-            s.threshp[chanii] = get_noise(&s, ti) * s.noisemult
+    cdef long long l, startti = max(ti - s.ntnoise, 0) # bounds checking
+    cdef long long r, endti = min(startti + s.ntnoise, s.nt)
+    cdef float noise
+    cdef float *data
+    for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
+        offset = chanii*s.nt
+        l = offset + startti
+        r = offset + endti
+        if s.noisemethod == 0: # median
+            # create a copy, to prevent modification of the original
+            data = malloc(s.ntnoise*sizeof(float))
+            data = memcpy(data, s.datap+l, s.ntnoise) # TODO: prolly wrong, not sure how to specify that I want to start from somewhere within datap
+            faabs(data, s.ntnoise) # do in-place abs
+            noise = median(data, 0, s.ntnoise-1) / 0.6745 # see Quiroga, 2004
+        elif s.noisemethod == 1: # stdev
+            #return np.stdev(data, axis=-1)
+            raise NotImplementedError
+        else:
+            raise ValueError
+        s.threshp[chanii] = noise * s.noisemult
 
+cdef float median(float *a, int l, int r):
+    """Select the median value in a, between l and r pointers"""
+    return select(a, l, r, (r-l) // 2)
 
-cdef get_noise(self, data):
-    """Calculates noise over last dim in data (time), using .noisemethod"""
-
-    starti = max(ti - ntnoise, 0) # bounds checking
-    endti = min(startti + ntnoise, s.nt)
-
-    ntnoise
-
-    if self.noisemethod == 'median':
-        return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
-    elif self.noisemethod == 'stdev':
-        return np.stdev(data, axis=-1)
-    else:
-        raise ValueError
-
-
-cdef median(Settings *s, int chanii, int starti, int endi)
-    pass
-'''
-cdef select(Settings *s, int chanii, int l, int r, int k):
-    """Selects the k'th ranked entry from chanii's data within left
+cdef float select(float *a, int l, int r, int k):
+    """Returns the k'th (0-based) ranked entry from float array a within left
     and right pointers l and r. This is quicksort partitioning based
-    selection, taken from Sedgewick 1988"""
+    selection, taken from Sedgewick (Algorithms, 2ed 1988, p128).
+    Note that this modifies a in-place"""
     cdef int i, j
     cdef float v, temp
-    cdef long long offset = chanii*s.nt # this stays constant
-
+    if r < l:
+        raise ValueError, 'bad pointer range in select()'
     while r > l:
-        v = s.datap[offset+r]
+        v = a[r]
         i = l-1
         j = r
         while True:
             while True:
                 i += 1
-                if s.datap[i] >= v: break
+                if a[i] >= v: break
             while True:
                 j -= 1
-                if s.datap[j] >= v: break
-            temp = s.datap[offset+i]
-            s.datap[offset+i] = s.datap[offset+r]
-            s.datap[offset+r] = temp
+                if a[j] <= v: break
+            temp = a[i] # swap a[i] and a[j]
+            a[i] = a[j]
+            a[j] = temp
             if j <= i: break
-        s.datap[offset+j] = s.datap[offset+i]
-        s.datap[offset+i] = s.datap[offset+r]
-        s.datap[offset+r] = temp
+        a[j] = a[i]
+        a[i] = a[r]
+        a[r] = temp # temp was old a[j]
         if i >= k: r = i-1
         if i <= k: l = i+1
+    return a[k] # return kth in 0-based
 
 cdef find_maxchanii(Settings *s, int maxchanii, int ti, float sign):
     """Update s.maxchanii at timepoint ti over non locked-out chans within slock of maxchanii.
@@ -474,6 +499,14 @@ cdef float abs(float x):
     if x < 0.0:
         x *= -1.0
     return x
+
+cdef faabs(float *a, long long length):
+    """Do in-place abs of a float array of length length"""
+    cdef long long i
+    for i from 0 <= i < length:
+        if a[i] < 0.0:
+            a[i] *= -1.0 # modify in-place
+
 '''
 cdef int iabs(int x):
     """Absolute value of an integer"""

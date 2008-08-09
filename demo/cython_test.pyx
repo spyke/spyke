@@ -200,8 +200,7 @@ cdef float select(float *a, int l, int r, int k):
     cdef int i, j
     cdef float v, temp
     if r < l:
-        print 'bad pointer range in select()'
-        return NAN
+        raise ValueError, 'bad pointer range in select()'
     while r > l:
         v = a[r]
         i = l-1
