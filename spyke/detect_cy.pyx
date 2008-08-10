@@ -46,8 +46,8 @@ cdef struct Settings:
     float noisemult
     long long *tsp
     int *lockp
-    int nt
-    int ntnoise
+    int nt # number of timepoints in data
+    int nnt # number of noise timepoints to consider when calculating thresholds
 
 STRTHRESH2ID = {'GlobalFixed': 0, 'ChanFixed': 1, 'Dynamic': 2}
 STRNOISE2ID = {'median': 0, 'stdev': 1}
@@ -217,9 +217,9 @@ cpdef class DynamicMultiphasic_Cy:
 
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
-        s.threshmethod = STRTHRESH2ID[self.threshold] # ID
+        s.threshmethod = STRTHRESH2ID[self.threshmethod] # ID
         # number of noise timepoints to consider for dynamic thresh
-        s.ntnoise = intround(self.dynamicnoisewin / 1000000 * self.sampfreq )
+        s.nnt = intround(self.dynamicnoisewin / 1000000 * self.stream.sampfreq )
         s.noisemult = self.noisemult
         cdef ndarray thresh = np.asarray(self.thresh)
         s.threshp = <float *>thresh.data # float pointer to thresh .data
@@ -277,7 +277,7 @@ cpdef class DynamicMultiphasic_Cy:
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
-            if s.threshmethod == 2 and ti % s.ntnoise == 0: # update dynamic channel thresholds every ntnoise'th timepoint
+            if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
                 set_thresh(&s, ti)
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
@@ -351,24 +351,26 @@ cpdef class DynamicMultiphasic_Cy:
 
 cdef set_thresh(Settings *s, int ti):
     """Sets channel specific threshold (either median or stdev-based)
-    based on the last available s.ntnoise datapoints leading up to ti
+    based on the last available s.nnt datapoints leading up to ti
     (and possibly including it, if we're near the beginning of the block we're
     currently searching)"""
     cdef int chanii
-    cdef long long l, startti = max(ti - s.ntnoise, 0) # bounds checking
-    cdef long long r, endti = min(startti + s.ntnoise, s.nt)
+
+    cdef long long l, offset, startti = max(ti - s.nnt, 0) # bounds checking
+    cdef long long endti = min(startti + s.nnt, s.nt-1)
+    cdef long long nnt = endti - startti + 1 # may differ from s.nnt depending on whether we're near limits of recording
     cdef float noise
     cdef float *data
     for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
         offset = chanii*s.nt
-        l = offset + startti
-        r = offset + endti
+        l = offset + startti # left offset
+        #r = offset + endti # right offset
         if s.noisemethod == 0: # median
             # create a copy, to prevent modification of the original
-            data = malloc(s.ntnoise*sizeof(float))
-            data = memcpy(data, s.datap+l, s.ntnoise) # TODO: prolly wrong, not sure how to specify that I want to start from somewhere within datap
-            faabs(data, s.ntnoise) # do in-place abs
-            noise = median(data, 0, s.ntnoise-1) / 0.6745 # see Quiroga, 2004
+            data = <float *>malloc(nnt*sizeof(float))
+            data = <float *>memcpy(data, s.datap+l, nnt) # copy nnt points starting from datap offset l
+            faabs(data, nnt) # do in-place abs
+            noise = median(data, 0, nnt-1) / 0.6745 # see Quiroga, 2004
         elif s.noisemethod == 1: # stdev
             #return np.stdev(data, axis=-1)
             raise NotImplementedError
@@ -501,7 +503,7 @@ cdef float abs(float x):
     return x
 
 cdef faabs(float *a, long long length):
-    """Do in-place abs of a float array of length length"""
+    """In-place abs of a float array of given length"""
     cdef long long i
     for i from 0 <= i < length:
         if a[i] < 0.0:

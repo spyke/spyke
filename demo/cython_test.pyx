@@ -11,6 +11,11 @@ import_array() # Initialize numpy - this MUST be done before any other code is e
 
 cdef extern from "stdio.h":
     int printf(char *, ...)
+    cdef void *malloc(int)
+
+cdef extern from "string.h":
+    cdef void *memcpy(void *, void *, int)
+
 
 import numpy as np
 import time
@@ -241,3 +246,21 @@ def selectpy(ndarray data, int k):
     print 'Cython:', select(a, 0, N-1, k)
     print 'Cython took %.3f sec' % (time.clock()-tcy)
     print sorteddata
+
+
+def copy_test():
+    cdef float *a
+    cdef int i, length = 10
+    cdef ndarray data = np.arange(length, dtype=np.float32)
+    print data
+    print data.dtype
+    cdef float *datap = <float *>data.data # float pointer to data's .data field
+    #cdef char *datap = 'testing'
+    #length = len(datap)
+    for i in range(length):
+        print datap[i]
+    a = <float *>malloc(length*sizeof(float))
+    a = <float *>memcpy(a, datap+5, (length-5)*sizeof(float)) # TODO: prolly wrong, not sure how to specify that I want to start from
+    for i in range(length):
+        print a[i]
+    print 'sizeof(float) is', sizeof(float)
