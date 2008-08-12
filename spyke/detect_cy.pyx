@@ -1,6 +1,6 @@
 """Event detection loops implemented in Cython for speed"""
 
-from __future__ import division
+#from __future__ import division # doesn't seem to work in Cython as of 0.9.6.1.4
 
 __author__ = 'Martin Spacek'
 
@@ -218,8 +218,10 @@ cpdef class DynamicMultiphasic_Cy:
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
         s.threshmethod = STRTHRESH2ID[self.threshmethod] # ID
+        s.noisemethod = STRNOISE2ID[self.noisemethod] # ID
         # number of noise timepoints to consider for dynamic thresh
-        s.nnt = intround(self.dynamicnoisewin / 1000000 * self.stream.sampfreq )
+        s.nnt = intround(self.dynamicnoisewin / 1000000. * self.stream.sampfreq )
+        print 's.nnt is', s.nnt
         s.noisemult = self.noisemult
         cdef ndarray thresh = np.asarray(self.thresh)
         s.threshp = <float *>thresh.data # float pointer to thresh .data
@@ -279,6 +281,9 @@ cpdef class DynamicMultiphasic_Cy:
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
                 set_thresh(&s, ti)
+                #print 'ti:', ti
+                #for pi in range(54):
+                #    print pi, s.threshp[pi]
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
@@ -355,21 +360,25 @@ cdef set_thresh(Settings *s, int ti):
     (and possibly including it, if we're near the beginning of the block we're
     currently searching)"""
     cdef int chanii
-
     cdef long long l, offset, startti = max(ti - s.nnt, 0) # bounds checking
-    cdef long long endti = min(startti + s.nnt, s.nt-1)
-    cdef long long nnt = endti - startti + 1 # may differ from s.nnt depending on whether we're near limits of recording
+    cdef long long endti = min(startti + s.nnt - 1, s.nt-1)
+    cdef long long nnt = endti - startti + 1 # will differ from s.nnt if ti is near limits of recording
+    #print 'nnt, nnt*sizeof(float):', nnt, nnt*sizeof(float)
     cdef float noise
-    cdef float *data
+    cdef float *data = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to
     for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
         offset = chanii*s.nt
+        #print 'chanii, s.nt, offset:', chanii, s.nt, offset
+        #print 'startti:', startti
         l = offset + startti # left offset
         #r = offset + endti # right offset
         if s.noisemethod == 0: # median
-            # create a copy, to prevent modification of the original
-            data = <float *>malloc(nnt*sizeof(float))
-            data = <float *>memcpy(data, s.datap+l, nnt) # copy nnt points starting from datap offset l
+            # copy the data, to prevent modification of the original
+            data = <float *>memcpy(data, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l
             faabs(data, nnt) # do in-place abs
+            #import sys
+            #for i in range(nnt):
+            #    sys.stdout.write('%.1f, ' % data[i])
             noise = median(data, 0, nnt-1) / 0.6745 # see Quiroga, 2004
         elif s.noisemethod == 1: # stdev
             #return np.stdev(data, axis=-1)

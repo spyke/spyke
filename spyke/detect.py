@@ -52,6 +52,7 @@ class RandomWaveTranges(object):
 
 class Detector(object):
     """Event detector base class"""
+    DEFALGORITHM = 'DynamicMultiphasic'
     DEFTHRESHMETHOD = 'Dynamic'
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 3.5

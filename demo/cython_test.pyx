@@ -197,6 +197,22 @@ print 'abs(-5.0):', abs(-5.0)
 print 'abs(5.0):', abs(5.0)
 
 
+cdef faabs(float *a, long long length):
+    """In-place abs of a float array of given length"""
+    cdef long long i
+    for i from 0 <= i < length:
+        if a[i] < 0.0:
+            a[i] *= -1.0 # modify in-place
+
+cdef ndarray data = np.array([-3., -10, 10, 3, 3.], dtype=np.float32)
+cdef float *datap = <float *>data.data # float pointer to data's .data field
+for i in range(5):
+    print datap[i]
+faabs(datap, 5)
+for i in range(5):
+    print datap[i]
+
+
 cdef float select(float *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
     and right pointers l and r. This is quicksort partitioning based
@@ -260,7 +276,12 @@ def copy_test():
     for i in range(length):
         print datap[i]
     a = <float *>malloc(length*sizeof(float))
-    a = <float *>memcpy(a, datap+5, (length-5)*sizeof(float)) # TODO: prolly wrong, not sure how to specify that I want to start from
-    for i in range(length):
+    a = <float *>memcpy(a, datap+5, (length-5)*sizeof(float))
+    for i in range(length-5):
         print a[i]
     print 'sizeof(float) is', sizeof(float)
+    a = <float *>memcpy(a, datap+2, (length-2)*sizeof(float))
+    for i in range(length-2):
+        print a[i]
+    print 'sizeof(float) is', sizeof(float)
+

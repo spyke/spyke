@@ -16,7 +16,7 @@ import gzip
 from copy import copy
 
 import spyke
-from spyke import core, surf, detect
+from spyke import core, surf, detect, detect_cy
 from spyke.sort import Session, Detection
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
@@ -84,7 +84,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
 
-        self.set_detect_pane_limits()
+        self.set_detect_pane_defaults()
 
         self.file_pos_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
@@ -105,12 +105,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
-    def set_detect_pane_limits(self):
-        """Set widget limits and initial values"""
+    def set_detect_pane_defaults(self):
+        """Set widget initial values and limits"""
+        self.algorithm_radio_box.SetStringSelection(detect.Detector.DEFALGORITHM)
+        self.METH2RADIOBTN = {'GlobalFixed': self.globalfixedthresh_radio_btn,
+                              'ChanFixed': self.chanfixedthresh_radio_btn,
+                              'Dynamic': self.dynamicthresh_radio_btn}
+        self.METH2RADIOBTN[detect.Detector.DEFTHRESHMETHOD].SetValue(True) # enable the appropriate radio button
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
-        #self.noise_method_choice.SetSelection(0)
+        self.noise_method_choice.SetSelection(detect_cy.STRNOISE2ID[detect.Detector.DEFNOISEMETHOD])
         self.nevents_spin_ctrl.SetRange(0, sys.maxint)
         self.nevents_spin_ctrl.SetValue(detect.Detector.DEFMAXNEVENTS)
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
@@ -722,9 +727,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def set_detectorclass(self, det):
         """Update algorithm and threshmethod radio buttons to match current Detector"""
         self.algorithm_radio_box.SetStringSelection(det.algorithm)
-        meth2radiobtn = {'FixedThresh': self.fixedthresh_radio_btn,
-                         'DynamicThresh': self.dynamicthresh_radio_btn}
-        meth2radiobtn[det.threshmethod].SetValue(True) # enable the appropriate radio button
+        self.METH2RADIOBTN[det.threshmethod].SetValue(True) # enable the appropriate radio button
 
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
