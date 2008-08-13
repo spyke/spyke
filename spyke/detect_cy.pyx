@@ -13,10 +13,11 @@ __author__ = 'Martin Spacek'
 
 cdef extern from "stdio.h":
     int printf(char *, ...)
-    cdef void *memcpy(void *, void *, int)
+    void *memcpy(void *, void *, int)
 
 cdef extern from "stdlib.h":
-    cdef void *malloc(int)
+    void *malloc(int)
+    void free(void *ptr)
 
 
 include "Python.pxi" # include from the python headers
@@ -76,7 +77,8 @@ cpdef class Detector_Cy:
             wave.ts = wave.ts.copy()
 
         s.nchans = len(self.chans)
-        cdef ndarray chans = np.asarray(self.chans)
+        self._chans = np.asarray(self.chans) # bind a reference to prevent garbage collection
+        cdef ndarray chans = self._chans
         s.chansp = <int *>chans.data # int pointer to .data field
 
         if self.chans != range(s.nchans): # if self.chans is not contiguous
@@ -86,10 +88,12 @@ cpdef class Detector_Cy:
             #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
         else: # save time by avoiding an unnecessary .take
             contigdata = wave.data
-        cdef ndarray data = contigdata
+        self._contigdata = contigdata # bind a reference to prevent garbage collection
+        cdef ndarray data = self._contigdata
         s.datap = <float *>data.data # float pointer to data's .data field, rows correspond to chans in chansp
 
-        cdef ndarray ts = wave.ts
+        self._ts = wave.ts # bind a reference to prevent garbage collection
+        cdef ndarray ts = self._ts
         s.tsp = <long long *>ts.data # long long pointer to timestamp .data
 
         assert s.nchans == data.dimensions[0] # yup
@@ -99,7 +103,7 @@ cpdef class Detector_Cy:
         # number of noise timepoints to consider for dynamic thresh
         s.nnt = intround(self.dynamicnoisewin / 1000000. * self.stream.sampfreq )
         s.noisemult = self.noisemult
-        cdef ndarray thresh = np.asarray(self.thresh)
+        cdef ndarray thresh = self.thresh # already bound, no need to worry about garbage collection
         s.threshp = <float *>thresh.data # float pointer to thresh .data
 
         # cut times, these are for testing whether to inc nevents
@@ -108,18 +112,19 @@ cpdef class Detector_Cy:
         if s.cut0 > s.cut1: # swap 'em for the test
             s.cut0, s.cut1 = s.cut1, s.cut0
 
-        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?)
+        self._lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices, bind a ref to prevent gc
+        cdef ndarray lock = self._lock
         s.lockp = <int *>lock.data # int pointer to .data field
 
         s.tilock = self.tilock # temporal index lockout, in num timepoints
         s.slock = self.slock # spatial lockout, in um
-        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um
+        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um, gc safe
         s.dmp = <double *>dm.data # double pointer to .data field
         s.ndmchans = len(self.dm) # number of all possible chans in dm
 
-        cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
+        cdef ndarray eventtimes = self._eventtimes # init'd in self.search(), already bound, gc safe
         s.eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
-        cdef ndarray maxchans = self._maxchans # init'd in self.search()
+        cdef ndarray maxchans = self._maxchans # init'd in self.search(), already bound, gc safe
         s.maxchansp = <int *>maxchans.data # int pointer to .data field
 
         return s
@@ -252,7 +257,9 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
+                print 'about to set_thresh'
                 set_thresh(&s, ti)
+                print 'done with set_thresh'
                 #print 'ti:', ti
                 #for pi in range(54):
                 #    print pi, s.threshp[pi]
@@ -339,6 +346,7 @@ cdef set_thresh(Settings *s, int ti):
     cdef long long nnt = endti - startti + 1 # will differ from s.nnt if ti is near limits of recording
     #print 'nnt, nnt*sizeof(float):', nnt, nnt*sizeof(float)
     cdef float noise
+    print 'about to malloc'
     cdef float *data = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to in turn
     for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
         offset = chanii*s.nt
@@ -348,7 +356,8 @@ cdef set_thresh(Settings *s, int ti):
         #r = offset + endti # right offset, not required
         if s.noisemethod == 0: # median
             # copy the data, to prevent modification of the original
-            data = <float *>memcpy(data, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l
+            print 'about to memcpy'
+            memcpy(data, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l
             faabs(data, nnt) # do in-place abs
             #import sys
             #for i in range(nnt):
@@ -360,6 +369,8 @@ cdef set_thresh(Settings *s, int ti):
         else:
             raise ValueError
         s.threshp[chanii] = noise * s.noisemult
+    print 'about to free'
+    free(data)
 
 cdef float median(float *a, int l, int r):
     """Select the median value in a, between l and r pointers"""
