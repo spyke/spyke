@@ -257,9 +257,7 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
-                print 'about to set_thresh'
                 set_thresh(&s, ti)
-                print 'done with set_thresh'
                 #print 'ti:', ti
                 #for pi in range(54):
                 #    print pi, s.threshp[pi]
@@ -346,7 +344,6 @@ cdef set_thresh(Settings *s, int ti):
     cdef long long nnt = endti - startti + 1 # will differ from s.nnt if ti is near limits of recording
     #print 'nnt, nnt*sizeof(float):', nnt, nnt*sizeof(float)
     cdef float noise
-    print 'about to malloc'
     cdef float *data = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to in turn
     for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
         offset = chanii*s.nt
@@ -356,7 +353,6 @@ cdef set_thresh(Settings *s, int ti):
         #r = offset + endti # right offset, not required
         if s.noisemethod == 0: # median
             # copy the data, to prevent modification of the original
-            print 'about to memcpy'
             memcpy(data, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l
             faabs(data, nnt) # do in-place abs
             #import sys
@@ -369,7 +365,6 @@ cdef set_thresh(Settings *s, int ti):
         else:
             raise ValueError
         s.threshp[chanii] = noise * s.noisemult
-    print 'about to free'
     free(data)
 
 cdef float median(float *a, int l, int r):
