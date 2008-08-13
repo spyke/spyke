@@ -698,6 +698,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.threshmethod = threshmethod
         det.fixedthresh = self.fixedthresh_spin_ctrl.GetValue()
         det.noisemult = float(self.noisemult_text_ctrl.GetValue())
+        det.noisemethod = self.noise_method_choice.GetStringSelection()
         #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
         det.trange = self.get_detectortrange()
         det.maxnevents = self.nevents_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited

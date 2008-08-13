@@ -1,4 +1,11 @@
-"""Event detection loops implemented in Cython for speed"""
+"""Event detection loops implemented in Cython for speed
+
+TODO: (maybe): chanii loop should go in random order on each ti, to prevent a chan from
+      dominating with its spatial lockout or something like that. So, shuffle chans in-place
+      on every ti, or have a second level of chan indices, shuffle those every ti, and
+      iterate over chaniii
+
+"""
 
 #from __future__ import division # doesn't seem to work in Cython as of 0.9.6.1.4
 
@@ -6,12 +13,10 @@ __author__ = 'Martin Spacek'
 
 cdef extern from "stdio.h":
     int printf(char *, ...)
+    cdef void *memcpy(void *, void *, int)
 
 cdef extern from "stdlib.h":
     cdef void *malloc(int)
-
-cdef extern from "string.h":
-    cdef void *memcpy(void *, void *, int)
 
 
 include "Python.pxi" # include from the python headers
@@ -28,50 +33,40 @@ from spyke.core import intround
 DEF INF = float(2**128)
 #DEF MAXINT = int(sys.maxint) # declare it here to prevent Python name lookups, doesn't work
 #DEF MAXINT = int(2**31-1)
-DEF DEFTIRANGE = 1000 # more reasonable to use this than MAXINT, won't overflow when added to an int32
+DEF DEFTIRANGE = 1000 # us, more reasonable to use this than MAXINT, won't overflow when added to an int32
 
-# struct of relevant detector vars that need to be passed around to functions
+# struct of settings common to both BipolarAmplitude and DynamicMultiphasic methods
 cdef struct Settings:
     int maxchanii
-    int *chansp
+    int *chansp # pointer to array of channel ids
     int nchans
-    double *dmp
+    double *dmp # pointer to 2D array distance matrix
     int ndmchans
     double slock
     int tilock
-    float *datap
-    float *threshp
+    float *datap # pointer to 2D array of waveform data
+    float *threshp # pointer to channel-specific thresholds
     int threshmethod # see STRTHRESH2ID
     int noisemethod # see STRNOISE2ID
     float noisemult
-    long long *tsp
-    int *lockp
+    long long *tsp # pointer to 2D array of timestamps
+    int *lockp # pointer to channel-specific lockouts
     int nt # number of timepoints in data
     int nnt # number of noise timepoints to consider when calculating thresholds
+    long long cut0 # cutrange start
+    long long cut1 # cutrange end
+    long long *eventtimesp
+    int *maxchansp
 
 STRTHRESH2ID = {'GlobalFixed': 0, 'ChanFixed': 1, 'Dynamic': 2}
 STRNOISE2ID = {'median': 0, 'stdev': 1}
 
 
-cpdef class BipolarAmplitude_Cy:
-
-    cpdef searchblock(self, wave, cutrange, int maxnevents):
-        """Search one timepoint at a time across chans in a manageable
-        block of waveform data and return a 2D array of event times and maxchans.
-        Apply both temporal and spatial lockouts.
-        cutrange: determines which events are saved and which are discarded as excess
-        maxnevents: maximum number of events to return while searching this block
-
-        TODO: instead of searching forward indefinitely for a peak, maybe search
-              forward and backwards say 0.5ms. Ah, but then searching backwards would
-              ignore any tlock you may have had on that chan in the past. Maybe that means
-              having to change how tlock is implemented
-
-        TODO: (maybe): chanii loop should go in random order on each ti, to prevent a chan from
-              dominating with its spatial lockout or something like that. So, shuffle chans in-place
-              on every ti, or have a second level of chan indices, shuffle those every ti, and iterate over chaniii
-        """
-        cdef Settings s # has to be passed by reference
+cpdef class Detector_Cy:
+    """Base Cython Detector class for BipolarAmplitude and DynamicMultiphasic Cython .searchblock container classes"""
+    cdef Settings init_settings(self, wave, cutrange):
+        """Returns Settings structure s with init'd values"""
+        cdef Settings s
 
         if not wave.data.flags.contiguous:
             #print "wave.data ain't contig, strides:", wave.data.strides
@@ -96,18 +91,22 @@ cpdef class BipolarAmplitude_Cy:
 
         cdef ndarray ts = wave.ts
         s.tsp = <long long *>ts.data # long long pointer to timestamp .data
-        cdef long long eventt # holds current event timestamp
 
         assert s.nchans == data.dimensions[0] # yup
         s.nt = data.dimensions[1]
+        s.threshmethod = STRTHRESH2ID[self.threshmethod] # ID
+        s.noisemethod = STRNOISE2ID[self.noisemethod] # ID
+        # number of noise timepoints to consider for dynamic thresh
+        s.nnt = intround(self.dynamicnoisewin / 1000000. * self.stream.sampfreq )
+        s.noisemult = self.noisemult
         cdef ndarray thresh = np.asarray(self.thresh)
         s.threshp = <float *>thresh.data # float pointer to thresh .data
 
         # cut times, these are for testing whether to inc nevents
-        cdef long long cut0 = cutrange[0]
-        cdef long long cut1 = cutrange[1]
-        if cut0 > cut1: # swap 'em for the test
-            cut0, cut1 = cut1, cut0
+        s.cut0 = cutrange[0]
+        s.cut1 = cutrange[1]
+        if s.cut0 > s.cut1: # swap 'em for the test
+            s.cut0, s.cut1 = s.cut1, s.cut0
 
         cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?)
         s.lockp = <int *>lock.data # int pointer to .data field
@@ -119,19 +118,46 @@ cpdef class BipolarAmplitude_Cy:
         s.ndmchans = len(self.dm) # number of all possible chans in dm
 
         cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
-        cdef long long *eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
+        s.eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
         cdef ndarray maxchans = self._maxchans # init'd in self.search()
-        cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
+        s.maxchansp = <int *>maxchans.data # int pointer to .data field
+
+        return s
+
+
+cpdef class BipolarAmplitude_Cy(Detector_Cy):
+
+    cpdef searchblock(self, wave, cutrange, int maxnevents):
+        """Search for threshold xings one timepoint at a time across chans in a manageable
+        block of waveform data, determine which ones are spike events
+        and return a 2D array of event times and maxchans.
+        Apply both temporal and spatial lockouts.
+        Uses simple BipolarAmplitude detection algorithm (see Blanche2008)
+        cutrange: determines which events are saved and which are discarded as excess
+        maxnevents: maximum number of events to return while searching this block
+
+        TODO: instead of searching forward indefinitely for a peak, maybe search
+              forward and backwards say 0.5ms. Ah, but then searching backwards would
+              ignore any tlock you may have had on that chan in the past. Maybe that means
+              having to change how tlock is implemented
+        """
+        cdef Settings s = self.init_settings(wave, cutrange)
 
         cdef int ti, prevti, chanii, peakti, lastpeakti
         cdef float sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # event index (indexes into .eventtimes)
         cdef int eventti # event time index (indexes into .data and .ts)
+        cdef int eventt # event time
 
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
+            if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
+                set_thresh(&s, ti)
+                #print 'ti:', ti
+                #for pi in range(54):
+                #    print pi, s.threshp[pi]
             # TODO: shuffle chans in-place here
             for chanii from 0 <= chanii < s.nchans: # iterate over indices into chans
                 # check that chan is free at previous timepoint and that we've gone from below to at or above threshold
@@ -141,8 +167,7 @@ cpdef class BipolarAmplitude_Cy:
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
                 find_maxchanii(&s, chanii, ti, sign)
-                # search forward indefinitely for the first peak, this will be used as the event time
-                eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
+                eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward for peak of correct phase to get event time
                 if eventti == -1: # couldn't find a peak
                     continue # skip to next chan in chan loop
                 # if we get this far, it's a valid event
@@ -150,10 +175,10 @@ cpdef class BipolarAmplitude_Cy:
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
                 eventt = s.tsp[eventti] # event time
                 #print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, eventt, s.maxchanii)
-                if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
+                if s.cut0 <= eventt and eventt <= s.cut1: # event falls within cutrange, save it
                     eventi += 1
-                    eventtimesp[eventi] = eventt # save event time
-                    maxchansp[eventi] = s.chansp[s.maxchanii] # save maxchani that event is centered on
+                    s.eventtimesp[eventi] = eventt # save event time
+                    s.maxchansp[eventi] = s.chansp[s.maxchanii] # save maxchani that event is centered on
                     nevents += 1 # this event has been saved, so inc
                 if nevents >= maxnevents: # exit here, don't search any more chans
                     ti = s.nt # TODO: nasty hack to get out of outer ti loop
@@ -174,108 +199,55 @@ cpdef class BipolarAmplitude_Cy:
                     lastpeakti = peakti # update
                 set_lockout(&s, lastpeakti+s.tilock) # lock out up to peak of last spike phase plus another tlock
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
-        eventtimes = eventtimes[:nevents] # keep only the entries that were filled
-        maxchans = maxchans[:nevents] # keep only the entries that were filled
+        eventtimes = self._eventtimes[:nevents] # keep only the entries that were filled
+        maxchans = self._maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
 
 
-cpdef class DynamicMultiphasic_Cy:
+cpdef class DynamicMultiphasic_Cy(Detector_Cy):
 
     cpdef searchblock(self, wave, cutrange, int maxnevents):
-        """Search one timepoint at a time across chans in a manageable
-        block of waveform data and return a 2D array of event times and maxchans.
+        """Search for threshold xings one timepoint at a time across chans in a manageable
+        block of waveform data, determine which ones are spike events
+        and return a 2D array of event times and maxchans.
         Apply both temporal and spatial lockouts.
+        Uses DynamicMultiphasic detection algorithm (see Blanche2008)
         cutrange: determines which events are saved and which are discarded as excess
         maxnevents: maximum number of events to return while searching this block
+
+        PROCEDURE ACCORDING TO PAPER (indented stuff are my additions/speculations):
+         - for all methods, get thresh xing, make sure it's a +ve thresh xing from low abs(signal)
+           to high abs(signal), ie make sure the signal at the preceding timepoint isn't locked out
+           and is below threshold
+             - center on non locked-out maxchan within slock of chan with thresh xing?
+         - search forward indefinitely (?) to find waveform peak/valley - this is your spike time?
+             - again, center on non locked-out maxchan within slock of chan with thresh xing?
+             - again, search forward a bit to ensure you're at the waveform peak/valley - this is your spike time
+         - search forward and back by one tlock relative to timepoint of thresh xing
+             - or should this search be relative to time of the peak/valley? This seems much better
+         - within that search, look for signal 2f greater than valley/2f less than peak
+             - if you find such signal, you've got a spike
+             - respect previously set lockouts during this search? maybe yes, or maybe lockouts should just be considered when looking for threshold xings. Maybe yes though, cuz otherwise one spike's phase might incorrectly be considered to be the phase of another, ie it might get duplicate treatment
+             - this seems to prevent detection of uniphase spikes - maybe if the above search fails, search forward 1/2 a tlock for a return of the signal to 0?
+                 - actually, this may be solved by going to dynamic median based thresholds, separate for each chan
+             - seem to require a tlock > 250us, say 300us, to search far enough for the next phase of the putative spike, for exceptionally fat spikes, like ch26 t=14720
+
+         - general lockout procedure (applies to all): only those chans within slock of maxchan that are over
+           threshold at spike time are locked out, and are locked out only until the end of the first half of the
+           first phase of the spike, although I'm not too clear why. Why not until the end of the first half of
+           the last phase of the spike?
+             - I'm going to end of first half of last phase of the spike, but this sometimes causes double triggers of the same spike (which is dangerous, false +ves and worse than false -ves) due to surrounding channels sometimes being distorted and peaking slightly later than the maxchan, so perhaps I should lockout for at least s.tilock relative to eventti, ie for max(lastpeakti, eventti+s.tilock)
         """
-        cdef Settings s # has to be passed by reference
+        cdef Settings s = self.init_settings(wave, cutrange)
 
-        if not wave.data.flags.contiguous:
-            #print "wave.data ain't contig, strides:", wave.data.strides
-            wave.data = wave.data.copy() # make it contiguous for easy pointer indexing
-        if not wave.ts.flags.contiguous:
-            #print "wave.ts ain't contig, strides:", wave.ts.strides
-            wave.ts = wave.ts.copy()
-
-        s.nchans = len(self.chans)
-        cdef ndarray chans = np.asarray(self.chans)
-        s.chansp = <int *>chans.data # int pointer to .data field
-
-        if self.chans != range(s.nchans): # if self.chans is not contiguous
-            #ttake = time.clock()
-            # pull our chans of data out, this assumes wave.data has all possible chans in it, which it should
-            contigdata = wave.data.take(chans, axis=0) # returns a contiguous copy of data
-            #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
-        else: # save time by avoiding an unnecessary .take
-            contigdata = wave.data
-        cdef ndarray data = contigdata
-        s.datap = <float *>data.data # float pointer to data's .data field, rows correspond to chans in chansp
-
-        cdef ndarray ts = wave.ts
-        s.tsp = <long long *>ts.data # long long pointer to timestamp .data
-        cdef long long eventt # holds current event timestamp
-
-        assert s.nchans == data.dimensions[0] # yup
-        s.nt = data.dimensions[1]
-        s.threshmethod = STRTHRESH2ID[self.threshmethod] # ID
-        s.noisemethod = STRNOISE2ID[self.noisemethod] # ID
-        # number of noise timepoints to consider for dynamic thresh
-        s.nnt = intround(self.dynamicnoisewin / 1000000. * self.stream.sampfreq )
-        print 's.nnt is', s.nnt
-        s.noisemult = self.noisemult
-        cdef ndarray thresh = np.asarray(self.thresh)
-        s.threshp = <float *>thresh.data # float pointer to thresh .data
-
-        # cut times, these are for testing whether to inc nevents
-        cdef long long cut0 = cutrange[0]
-        cdef long long cut1 = cutrange[1]
-        if cut0 > cut1: # swap 'em for the test
-            cut0, cut1 = cut1, cut0
-
-        cdef ndarray lock = np.zeros(s.nchans, dtype=int) # per-channel lockout timepoint indices (end inclusive?)
-        s.lockp = <int *>lock.data # int pointer to .data field
-
-        s.tilock = self.tilock # temporal index lockout, in num timepoints
-        s.slock = self.slock # spatial lockout, in um
-        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um
-        s.dmp = <double *>dm.data # double pointer to .data field
-        s.ndmchans = len(self.dm) # number of all possible chans in dm
-
-        cdef ndarray eventtimes = self._eventtimes # init'd in self.search()
-        cdef long long *eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
-        cdef ndarray maxchans = self._maxchans # init'd in self.search()
-        cdef int *maxchansp = <int *>maxchans.data # int pointer to .data field
-
-        cdef int ti, prevti, chanii, prepeakti, postpeakti, peak2ti, peakti, lastpeakti
+        cdef int ti, prevti, chanii, peakti, lastpeakti
         cdef float sign
         cdef int nevents = 0 # num non-excess events found so far while searching this block
         cdef int eventi = -1 # event index (indexes into .eventtimes)
         cdef int eventti # event time index (indexes into .data and .ts)
+        cdef int eventt # event time
+        cdef int prepeakti, postpeakti, peak2ti
 
-        '''procedure according to paper (indented stuff are my additions/speculations):
-            - for all methods, get thresh xing, make sure it's a +ve thresh xing from low abs(signal)
-              to high abs(signal), ie make sure the signal at the preceding timepoint isn't locked out
-              and is below threshold
-                - center on non locked-out maxchan within slock of chan with thresh xing?
-            - search forward indefinitely (?) to find waveform peak/valley - this is your spike time?
-                - again, center on non locked-out maxchan within slock of chan with thresh xing?
-                - again, search forward a bit to ensure you're at the waveform peak/valley - this is your spike time
-            - search forward and back by one tlock relative to timepoint of thresh xing
-                - or should this search be relative to time of the peak/valley? This seems much better
-            - within that search, look for signal 2f greater than valley/2f less than peak
-                - if you find such signal, you've got a spike
-                - respect previously set lockouts during this search? maybe yes, or maybe lockouts should just be considered when looking for threshold xings. Maybe yes though, cuz otherwise one spike's phase might incorrectly be considered to be the phase of another, ie it might get duplicate treatment
-                - this seems to prevent detection of uniphase spikes - maybe if the above search fails, search forward 1/2 a tlock for a return of the signal to 0?
-                    - actually, this may be solved by going to dynamic median based thresholds, separate for each chan
-                - seem to require a tlock > 250us, say 300us, to search far enough for the next phase of the putative spike, for exceptionally fat spikes, like ch26 t=14720
-
-            - general lockout procedure (applies to all): only those chans within slock of maxchan that are over
-              threshold at spike time are locked out, and are locked out only until the end of the first half of the
-              first phase of the spike, although I'm not too clear why. Why not until the end of the first half of
-              the last phase of the spike?
-                - I'm going to end of first half of last phase of the spike, but this sometimes causes double triggers of the same spike (which is dangerous, false +ves and worse than false -ves) due to surrounding channels sometimes being distorted and peaking slightly later than the maxchan, so perhaps I should lockout for at least s.tilock relative to eventti, ie for max(lastpeakti, eventti+s.tilock)
-
-        '''
         #tcyloop = time.clock()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
@@ -293,18 +265,19 @@ cpdef class DynamicMultiphasic_Cy:
                 sign = get_sign(s.datap[chanii*s.nt + ti]) # find whether thresh xing was +ve or -ve
                 # find maxchan at timepoint ti by searching across eligible chans, center search on chanii
                 find_maxchanii(&s, chanii, ti, sign)
-                # search forward indefinitely for the first peak, this will be used as the event time
-                eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward almost indefinitely for peak of correct phase
+                eventti = find_peak(&s, ti, DEFTIRANGE, sign) # search forward for peak of correct phase to get event time
                 if eventti == -1: # couldn't find a peak
-                    #print 'couldnt find any peak at all'
                     continue # skip to next chan in chan loop
                 find_maxchanii(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
                 #print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, s.tsp[eventti], s.maxchanii)
-                # search forward and backward one tlock on the maxchan for another peak of opposite phase
-                # that is 2*thresh greater (in the right direction) than the event peak
+                # search backward and forward one tlock on the maxchan for another peak
+                # of opposite phase that is 2*thresh greater than the event peak
                 sign = -sign
                 prepeakti = find_peak(&s, eventti, -s.tilock, sign)
+                # if a peak was found while searching backwards, yet that peak is locked out
+                if prepeakti != -1 and prepeakti <= s.lockp[s.maxchanii]:
+                    prepeakti = -1 # ignore it
                 postpeakti = find_peak(&s, eventti, s.tilock, sign)
                 if prepeakti != -1 and postpeakti != -1: # both exist, need to find the biggest one relative to event
                     if s.datap[s.maxchanii*s.nt + prepeakti] * sign > s.datap[s.maxchanii*s.nt + postpeakti] * sign:
@@ -325,10 +298,10 @@ cpdef class DynamicMultiphasic_Cy:
                 # if we get this far, it's a valid event
                 #print 'FOUND A SPIKE!!!!!!!!!!!!!!!!!!'
                 eventt = s.tsp[eventti] # event time
-                if cut0 <= eventt and eventt <= cut1: # event falls within cutrange, save it
+                if s.cut0 <= eventt and eventt <= s.cut1: # event falls within cutrange, save it
                     eventi += 1
-                    eventtimesp[eventi] = eventt # save event time
-                    maxchansp[eventi] = s.chansp[s.maxchanii] # save maxchani that event is centered on
+                    s.eventtimesp[eventi] = eventt # save event time
+                    s.maxchansp[eventi] = s.chansp[s.maxchanii] # save maxchani that event is centered on
                     nevents += 1 # this event has been saved, so inc
                 if nevents >= maxnevents: # exit here, don't search any more chans
                     ti = s.nt # TODO: nasty hack to get out of outer ti loop
@@ -350,9 +323,10 @@ cpdef class DynamicMultiphasic_Cy:
                 #print 'lockout to lastpeakt=%s' % s.tsp[lastpeakti]
                 set_lockout(&s, lastpeakti) # lock out up to and including peak of last spike phase, and no further
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
-        eventtimes = eventtimes[:nevents] # keep only the entries that were filled
-        maxchans = maxchans[:nevents] # keep only the entries that were filled
+        eventtimes = self._eventtimes[:nevents] # keep only the entries that were filled
+        maxchans = self._maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
+
 
 cdef set_thresh(Settings *s, int ti):
     """Sets channel specific threshold (either median or stdev-based)
@@ -365,13 +339,13 @@ cdef set_thresh(Settings *s, int ti):
     cdef long long nnt = endti - startti + 1 # will differ from s.nnt if ti is near limits of recording
     #print 'nnt, nnt*sizeof(float):', nnt, nnt*sizeof(float)
     cdef float noise
-    cdef float *data = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to
+    cdef float *data = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to in turn
     for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
         offset = chanii*s.nt
         #print 'chanii, s.nt, offset:', chanii, s.nt, offset
         #print 'startti:', startti
         l = offset + startti # left offset
-        #r = offset + endti # right offset
+        #r = offset + endti # right offset, not required
         if s.noisemethod == 0: # median
             # copy the data, to prevent modification of the original
             data = <float *>memcpy(data, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l

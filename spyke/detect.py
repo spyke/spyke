@@ -218,9 +218,11 @@ class Detector(object):
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
             thresh = np.ones(self.nchans, dtype=np.float32) * self.fixedthresh
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh, calculate from start of stream
-            # randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.RANDOMBLOCKSIZE
-            # NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
-            # will contribute more than once to the noise calculation
+            """randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.RANDOMBLOCKSIZE
+            NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
+            will contribute more than once to the noise calculation
+            This sometimes causes an 'unhandled exception' for BipolarAmplitude algorithm, don't know why
+            """
             nblocks = intround(self.DEFFIXEDNOISEWIN / self.RANDOMBLOCKSIZE)
             wavetranges = RandomWaveTranges(self.trange, bs=self.RANDOMBLOCKSIZE, bx=0, maxntranges=nblocks)
             data = []
@@ -257,13 +259,14 @@ class Detector(object):
 
 
 class BipolarAmplitude(Detector, BipolarAmplitude_Cy):
-    """Bipolar amplitude detector,
-    with fixed temporal lockout on all channels, plus a spatial lockout"""
+    """Bipolar amplitude detector"""
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'BipolarAmplitude'
 
+
 class DynamicMultiphasic(Detector, DynamicMultiphasic_Cy):
+    """Dynamic multiphasic detector"""
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'DynamicMultiphasic'

@@ -3,7 +3,7 @@ for i in range(len(s.events)):
 
 tlock = 300us
 slock = 175um
-fixedthresh = 40uV
+globalfixedthresh = 40uV
 
 0 51 1480
 1 28 4460

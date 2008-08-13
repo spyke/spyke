@@ -1,9 +1,5 @@
-TODO:
+GENERAL:
 
-- Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
-
-- Nick: add kmeans to quickly generate templates
-    - maybe not so hard, since kmeans is built into scipy I think, but it's still going to require arbitrary parameter values that you'll have to set, and it might give you a false sense of completeness/correctness
 
 - just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
 
@@ -19,9 +15,7 @@ TODO:
     - should do this both for spike window and sort window (not really necessary for chart or lfp, might be slow, but might be nice too), although in sort window it wouldn't be clear which waveform to do it on, for overlapping waveforms
 
 - INTERPOLATION
-    - waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
         - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
-    - if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
 
 
 - plot and control thresh level on spike and chart plots
@@ -48,20 +42,12 @@ TODO:
 ------------------------------------
 EVENT DETECTION:
 
-    - change lockp from being a counter to holding the absolute timepoint until which the chan is locked out, that way you don't have to decr.
 
     - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
-
-    - randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
-    - static and dynamic thresholds, independent for each chan, based on stdev or median (or other measures?)
 
     - dynamic spatiotemporal lockout: some spikes span greater space and time than others, yet they're all given the same lockout. I guess on thresh xing and again on finding a spike, you could search locally in time and space and within the fixed slock and tlock, and see if signal drops below thresh in something less than slock and tlock, and adjust the lockout accordingly for that thresh xing or found spike
 
     - doubleclick detection_list row brings up textctrl in a (modeless?) dialog with entire 2D events array for that item
-
-    - recreate Detector with current setting whenever user clicks on method or threshold radios
-        - clicking on other options can just update the current Detector
-        - or better, Detector is updated from other options only when you hit search or F3 or eq'v
 
     - change event array returned by detector.search() to be many rows, two columns, instead of 2 cols, many rows. Would be more natural that way:
         - printouts, no matter how long, would always have maxchan and timepoint right next to each other
@@ -70,20 +56,34 @@ EVENT DETECTION:
 ------------------------------------
 TEMPLATES:
 
-    - unsorted event list control should have sortable columns: id, maxchan, timestamp. Text background should be coloured according to maxchan
+    - Nick: add kmeans to quickly generate templates
+        - maybe not so hard, since kmeans is built into scipy I think, but it's still going to require arbitrary parameter values that you'll have to set, and it might give you a false sense of completeness/correctness
+
+    - unsorted event list text background should be coloured according to maxchan
         - second list control below it for trash?
 
     - hitting ENTER on a single event in event list should seek the dataframes to that timepoint (just as clicking on the event in the sort window does the same, sort of by accident)
 
+    - make SPACE alone, without CTRL, toggle selection of currently focused item
+
     - subtemplates - recognize that two distinct events might be from the same cell, but in a different mode of operation
     - toggle the display of all the templates (their means) at once (button, or Ctrl-A?), with just their active channels displayed. This way, you can quickly see if some templates are very similar, and how the cells are distributed across the electrode. This also lets you decide which templates need more/fewer channels enabled to help distinguish between them. Each template should be a different colour (up to say 16 or so).
-    - manual spike alignment
+
+
+    - MANUAL SPIKE ALIGNMENT/DURATION:
+
+        - activation (double-click/enter) of either an event list item or a tree item will bring up a dialog box (one that doesn't prevent access to its parent while it's open. modeless?) with two spin ctrls which let you set the trange of the event/template. Plots should update dynamically while the dialog is still open.
+            - modifying a template's trange should do the same for all its member events
+            - modifying the trange of a template's member event should also modify the template's trange and that of all other member events
+            - for events, add a 3rd spin ctrl to modify the events .t timestamp, for aligning misaligned spikes (triggered off the wrong phase, etc.). Again, should have this dynamically update the event's plot on every spin ctrl event
+                - every time you modify the timestamp to your liking, maybe when you hit OK it should check to make sure you haven't duplicated some other existing event with exactly the same maxchan and timestamp. This can happen if two events which are really one and the same are detected by the detector, and you modify one to match the phase of the other
+
         - do this on a per spike basis as a feature, if automated alignment can't always get it right
         - when doing alignment on a template, move all member events too. Duh. We'll just be adjusting tref for the template, which should then trigger a re-cut of all member spikes?
 
-    - custom spike duration per template
-        - Need to make the spike duration (currently 1ms) user settable for every template. Some spikes are broad, others narrow, and it's best to confine the templates to just those times with useful information about the spike. Otherwise, if there's too much flatline on either side, then you're basically saying "it ain't a spike unless stuff doesn't happen immediately before or after it", which isn't true. You might get a spike very soon after from another cell, or even from the same cell if it's a fast spiker.
-        - in other words, we want the ability to crop a template in time. This complements the ability to crop a template in channel space
+        - custom spike duration per template
+            - Need to make the spike duration (currently 1ms) user settable for every template. Some spikes are broad, others narrow, and it's best to confine the templates to just those times with useful information about the spike. Otherwise, if there's too much flatline on either side, then you're basically saying "it ain't a spike unless stuff doesn't happen immediately before or after it", which isn't true. You might get a spike very soon after from another cell, or even from the same cell if it's a fast spiker.
+            - in other words, we want the ability to crop a template in time. This complements the ability to crop a template in channel space
 
     - for Sort frame, catch Paint event or whatever so that instead of doing a full redraw after de-occlusion, you just restore the saved .background
 
@@ -98,20 +98,12 @@ TEMPLATES:
 
     - cycle between next/previous set of 10 or so member events for current template (or first selected template) on > and < keypresses. Or maybe + and - keypresses
 
-    - activation (double-click/enter) of either an event list item or a tree item will bring up a dialog box (one that doesn't prevent access to its parent while it's open. modeless?) with two spin ctrls which let you set the trange of the event/template. Plots should update dynamically while the dialog is still open.
-        - modifying a template's trange should do the same for all its member events
-        - modifying the trange of a template's member event should also modify the template's trange and that of all other member events
-        - for events, add a 3rd spin ctrl to modify the events .t timestamp, for aligning misaligned spikes (triggered off the wrong phase, etc.). Again, should have this dynamically update the event's plot on every spin ctrl event
-            - every time you modify the timestamp to your liking, maybe when you hit OK it should check to make sure you haven't duplicated some other existing event with exactly the same maxchan and timestamp. This can happen if two events which are really one and the same are detected by the detector, and you modify one to match the phase of the other
-
     - hover over event in tree should give you tooltip with event time and maxchan
 
     - BUG: after opening a .sort file, if your first click is on the first template, no selection event happens, and template mean isn't plotted. Have to move to another one first, then back. Not a problem if first click is on something other than first template
         - smells like another wxWidgets bug
 
     - BUG: splitterwindow doesn't actually set itself to desired size until after you move the mouse for the first time
-
-    - BUG: stop clicks in spikesortpanel from moving current file position in main spyke frame and data frames
 
 
 ------------------------------------
@@ -125,7 +117,7 @@ MINI RIPS:
     - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
 
-
+    - Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
 
 
 ------------------------------------
@@ -163,7 +155,7 @@ VERIFICATION:
 ------------------------------------
 LOW-PRIORITY:
 
-- add time range selection to slider
+- add mouse-controlled time range selection to slider
 
 - CTRL-B to bookmark a position (plot a red vline at that timepoint in all data frames? and/or add that timepoint to file position drop-down combo box), CTRL-F3 and CTRL-F2 to skip forward/back to next/previous bookmark (or select it from list of bookmarked times in file pos combo box)
     - good for skipping back and forth quickly between two (or more) spikes or otherwise interesting regions
@@ -318,12 +310,10 @@ much of this might be outdated, since a Collection class instance now includes a
 DONE:
 
 - move code to /spyke subfolder, make a setup.py in root, keep TODO in root
-
 - how hard will it be to generate highpass, lowpass, chartwindow, and fistogram widgets in wxpython?
     - email wxpython list on displaying time series data.
     - wxpy 2.8 should be faster, doesn't need to copy data, can use numpy data directly?
     - borrow something from MPL?
-
 - need ability to take a spike that's assigned to an existing template and remove it and generate a new template from it
 - NOPE: destory data windows instead of hiding them - should be simpler in the end
     - set up config system to, among other things, remember window positions and sizes when you re-open a window, whether within the same session or across sessions
@@ -381,3 +371,12 @@ DONE:
 - need to handle OnResize in DataFrames like I do in the SortFrame - background needs to be regenerated on every resize event
 - in detect_cy.pyx, get_maxchan and set_lockout both have awkwardly long arg lists, maybe make up a struct type whose fields point to all the variables used in this method, and pass the struct to get_maxchan and set_lockout
     - or, just make most of the variables globals, using global keyword
+- change lockp from being a counter to holding the absolute timepoint until which the chan is locked out, that way you don't have to decr.
+- waveform widgets should display data with the current level of interpolation (surfbawd only ever displayed raw data)
+- if matplotlib is used for waveform widgets, will get subpixel rendering and antialiasing for free, which should make interpolated data visibly different from raw data even at low zoom
+- randomly sample the srf file to get some (hopefully) representative subset of all the multichannel spike waveforms
+- static and dynamic thresholds, independent for each chan, based on stdev or median (or other measures?)
+- recreate Detector with current setting whenever user clicks on method or threshold radios
+    - clicking on other options can just update the current Detector
+    - or better, Detector is updated from other options only when you hit search or F3 or eq'v
+- unsorted event list control should have sortable columns: id, maxchan, timestamp.
