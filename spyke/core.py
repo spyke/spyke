@@ -344,6 +344,17 @@ class SpykeListCtrl(wx.ListCtrl):
         success = self.DeleteItem(row) # remove from event listctrl
         assert success, "couldn't delete data %r from SpykeListCtrl" % str(data)
 
+    def ToggleFocusedItem(self):
+        """Toggles selection of focused list item"""
+        itemID = self.GetFocusedItem()
+        if itemID == -1: # no item focused
+            return
+        selectedIDs = self.GetSelections()
+        if itemID in selectedIDs: # is already selected
+            self.Select(itemID, on=0) # deselect it
+        else: # isn't selected
+            self.Select(itemID, on=1)
+
 
 class SpykeTreeCtrl(wx.TreeCtrl):
     """TreeCtrl with overridden OnCompareItems().
@@ -391,6 +402,18 @@ class SpykeTreeCtrl(wx.TreeCtrl):
             childrenIDs.append(child)
             childID = self.GetNextChild(itemId, cookie)
         return childrenIDs
+    '''
+    def ToggleFocusedItem(self):
+        """Toggles selection of focused list item"""
+        itemID = self.GetFocusedItem()
+        if itemID == -1: # no item focused
+            return
+        selectedIDs = self.GetSelections()
+        if itemID in selectedIDs: # is already selected
+            self.Select(itemID, on=0) # deselect it
+        else: # isn't selected
+            self.Select(itemID, on=1)
+    '''
 
 '''
 class HybridList(set):

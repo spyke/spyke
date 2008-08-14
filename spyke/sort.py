@@ -544,7 +544,10 @@ class SortFrame(wxglade_gui.SortFrame):
         key = evt.GetKeyCode()
         if key == wx.WXK_TAB:
             self.tree.SetFocus() # change focus to tree
-        elif key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
+        elif key in [wx.WXK_SPACE, wx.WXK_RETURN]:
+            self.list.ToggleFocusedItem()
+            return # evt.Skip() seems to prevent toggling, or maybe it untoggles
+        elif key in [ord('A'), wx.WXK_LEFT]:
             self.MoveCurrentEvents2Template(which='selected')
         elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
             self.MoveCurrentEvents2Template(which='new')
