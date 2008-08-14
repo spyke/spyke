@@ -126,8 +126,8 @@ class Session(object):
                 # slice template's enabled chans out of event, calculate sum of squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
                 #err = (templatewave - event.wave[template.chans]) / stdev * weights # low stdev means more sensitive to error
-                err = (templatewave - event.wave[template.chans]) * weights
-                err = (err**2).sum(axis=None)
+                err = (templatewave - event.wave[template.chans]) * weights # weighted error
+                err = (err**2).sum(axis=None) # sum of squared weighted error
                 template.err.append((event.id, intround(err)))
             template.err = np.asarray(template.err)
             if sort:
@@ -293,7 +293,7 @@ class Template(object):
     trange = property(get_trange, set_trange)
 
     def get_weights(self, weighting=None, sstdev=None, tstdev=None):
-        """Returns unity, spatial, temporal, or spatialtemporal Gaussian weights
+        """Returns unity, spatial, temporal, or spatiotemporal Gaussian weights
         for self's enabled chans in self.wave.data, given spatial and temporal
         stdevs"""
         nchans = len(self.chans)
@@ -542,7 +542,9 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnListKeyDown(self, evt):
         """Event list key down evt"""
         key = evt.GetKeyCode()
-        if key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
+        if key == wx.WXK_TAB:
+            self.tree.SetFocus() # change focus to tree
+        elif key in [ord('A'), wx.WXK_LEFT]: # wx.WXK_RETURN doesn't seem to work
             self.MoveCurrentEvents2Template(which='selected')
         elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
             self.MoveCurrentEvents2Template(which='new')
@@ -605,7 +607,9 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnTreeKeyDown(self, evt):
         key = evt.GetKeyCode()
         #print 'key down: %r' % key
-        if key in [wx.WXK_DELETE, ord('D')]:
+        if key == wx.WXK_TAB:
+            self.list.SetFocus() # change focus to list
+        elif key in [wx.WXK_DELETE, ord('D'), wx.WXK_RIGHT]:
             self.MoveCurrentObjects2List()
         elif key == ord('A'): # allow us to add from event list even if tree is in focus
             self.MoveCurrentEvents2Template(which='selected')

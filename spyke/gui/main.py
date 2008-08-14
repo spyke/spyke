@@ -577,7 +577,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 x = self.GetPosition()[0] + self.GetSize()[0]
                 y = self.GetPosition()[1]
                 frame = SortFrame(parent=self, pos=wx.Point(x, y))
-                for panel in [frame.spikesortpanel, frame.chartsortpanel]:
+                for panel in [frame.spikesortpanel]:#, frame.chartsortpanel]:
                     panel.callAfterFrameInit(self.session.probe) # post frame creation tasks for panel
             elif frametype == 'pyshell':
                 try:

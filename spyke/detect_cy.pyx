@@ -344,7 +344,8 @@ cdef set_thresh(Settings *s, int ti):
     cdef long long nnt = endti - startti + 1 # will differ from s.nnt if ti is near limits of recording
     #print 'nnt, nnt*sizeof(float):', nnt, nnt*sizeof(float)
     cdef float noise
-    cdef float *data = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to in turn
+    #cdef float temp[nnt] # doesn't work, seems to require constant length when declared like this in Cython
+    cdef float *temp = <float *>malloc(nnt*sizeof(float)) # temp array to copy each chan's data to in turn
     for chanii from 0 <= chanii < s.nchans: # iterate over all chan indices
         offset = chanii*s.nt
         #print 'chanii, s.nt, offset:', chanii, s.nt, offset
@@ -353,19 +354,19 @@ cdef set_thresh(Settings *s, int ti):
         #r = offset + endti # right offset, not required
         if s.noisemethod == 0: # median
             # copy the data, to prevent modification of the original
-            memcpy(data, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l
-            faabs(data, nnt) # do in-place abs
+            memcpy(temp, s.datap+l, nnt*sizeof(float)) # copy nnt points starting from datap offset l
+            faabs(temp, nnt) # do in-place abs
             #import sys
             #for i in range(nnt):
-            #    sys.stdout.write('%.1f, ' % data[i])
-            noise = median(data, 0, nnt-1) / 0.6745 # see Quiroga, 2004
+            #    sys.stdout.write('%.1f, ' % temp[i])
+            noise = median(temp, 0, nnt-1) / 0.6745 # see Quiroga, 2004
         elif s.noisemethod == 1: # stdev
-            #return np.stdev(data, axis=-1)
+            #return np.stdev(temp, axis=-1)
             raise NotImplementedError
         else:
             raise ValueError
         s.threshp[chanii] = noise * s.noisemult
-    free(data)
+    free(temp)
 
 cdef float median(float *a, int l, int r):
     """Select the median value in a, between l and r pointers"""

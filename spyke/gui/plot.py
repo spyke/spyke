@@ -202,7 +202,7 @@ class PlotPanel(FigureCanvasWxAgg):
                          # 17 gives roughly no horizontal overlap for self.tw == 1000 us
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
-        self.spykeframe = self.GrandParent
+        self.spykeframe = self.GetTopLevelParent().Parent
 
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed event/template, indexed by eid/tid with e or t prepended
@@ -804,7 +804,7 @@ class SortPanel(PlotPanel):
     """A plot panel specialized for overplotting spike events and templates"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
-        self.spykeframe = self.GrandParent.GrandParent # plot pane, splitter, sort frame, spyke frame
+        #self.spykeframe = self.GetTopLevelParent().Parent
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""

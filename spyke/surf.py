@@ -793,18 +793,13 @@ class StimulusHeader(Record):
         # dimstim's text header
         if self.version == 110: # only Cat >= 15 has the text header
             self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
-        # cm, single float
-        self.screen_width, = self.unpack('f', f.read(4))
-        # cm
-        self.screen_height, = self.unpack('f', f.read(4))
-        # cm
-        self.view_distance, = self.unpack('f', f.read(4))
-        # Hz
-        self.frame_rate, = self.unpack('f', f.read(4))
+        self.screen_width, = self.unpack('f', f.read(4)) # cm, single float
+        self.screen_height, = self.unpack('f', f.read(4)) # cm
+        self.view_distance, = self.unpack('f', f.read(4)) # cm
+        self.frame_rate, = self.unpack('f', f.read(4)) # Hz
         self.gamma_correct, = self.unpack('f', f.read(4))
         self.gamma_offset, = self.unpack('f', f.read(4))
-        # in seconds
-        self.est_runtime, = self.unpack('H', f.read(2))
+        self.est_runtime, = self.unpack('H', f.read(2)) # in seconds
         self.checksum, = self.unpack('H', f.read(2))
 
 
