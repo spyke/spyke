@@ -130,8 +130,8 @@ class Session(object):
                 err = (err**2).sum(axis=None) # sum of squared weighted error
                 template.err.append((event.id, intround(err)))
             template.err = np.asarray(template.err)
-            if sort:
-                i = template.err[:,1].argsort() # row indices that sort by error
+            if sort and len(template.err) != 0:
+                i = template.err[:, 1].argsort() # row indices that sort by error
                 template.err = template.err[i]
             sys.stdout.write('.')
         print '\nmatch took %.3f sec' % (time.clock()-t0)
