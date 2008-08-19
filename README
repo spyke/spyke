@@ -13,3 +13,5 @@ To install:
 To develop:
 
 >>> python setup.py build_ext --compiler=mingw32 --inplace
+
+Launch the program by running /spyke/gui/main.py

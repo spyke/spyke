@@ -612,6 +612,9 @@ class SortFrame(wxglade_gui.SortFrame):
         #print 'key down: %r' % key
         if key == wx.WXK_TAB:
             self.list.SetFocus() # change focus to list
+        elif key == wx.WXK_RETURN: # space only triggered on key up, see bug #4448
+            self.tree.ToggleFocusedItem()
+            return # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [wx.WXK_DELETE, ord('D'), wx.WXK_RIGHT]:
             self.MoveCurrentObjects2List()
         elif key == ord('A'): # allow us to add from event list even if tree is in focus
@@ -629,7 +632,11 @@ class SortFrame(wxglade_gui.SortFrame):
         key = evt.GetKeyCode()
         #print 'key up: %r' % key
         if key == wx.WXK_SPACE: # space only triggered on key up, see bug #4448
-            wx.CallAfter(self.OnTreeSelectChanged)
+            if evt.ControlDown():
+                wx.CallAfter(self.OnTreeSelectChanged)
+            else:
+                self.tree.ToggleFocusedItem()
+                return # evt.Skip() seems to prevent toggling, or maybe it untoggles
         self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
@@ -640,12 +647,15 @@ class SortFrame(wxglade_gui.SortFrame):
             self.RelabelTemplates(root)
 
     def RelabelTemplates(self, root):
+        """Consecutively relabel templates according to their vertical order in the TreeCtrl.
+        Relabeling happens both in the TreeCtrl and in the in .session.templates dict"""
         templates = self.tree.GetTreeChildrenPyData(root) # get all children in order from top to bottom
+        self.session.templates = {} # clear the dict, gc won't kick in cuz we still have a ref
         for templatei, template in enumerate(templates):
-            del self.session.templates[template.id] # remove template from its old key in template dict
             template.id = templatei # update its id
-            self.session.templates[template.id] = template # add it to its (potentially) new key in template dict
+            self.session.templates[template.id] = template # add it to its key in template dict
             self.tree.SetItemText(template.itemID, 't'+str(template.id)) # update its entry in the tree
+        self.session._templid = templatei + 1 # reset unique Template ID counter to make next added template consecutive
 
     def SortListByID(self):
         """Sort event list by event ID"""
