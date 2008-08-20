@@ -22,7 +22,7 @@ MAXCHANTOLERANCE = 100 # um
 # save all Event waveforms, even for those that have never been plotted or added to a template
 SAVEALLEVENTWAVES = False
 
-SPLITTERSASH = 300
+SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
@@ -90,8 +90,8 @@ class Session(object):
         self.events.update(uniqueevents)
         return uniqueevents
 
-    def match(self, weighting='spatiotemporal', sort=True):
-        """Match all .templates to all .events with nearby maxchans,
+    def match(self, templates=None, weighting='spatiotemporal', sort=True):
+        """Match templates to all .events with nearby maxchans,
         save error values to respective templates.
 
         Note: slowest step by far is loading in the wave data from disk.
@@ -104,13 +104,22 @@ class Session(object):
         the corresponding stdev value (divide the error by the stdev, so that timepoints with low stdev are more
         sensitive to error)
 
+        TODO: looks like I still need to make things more nonlinear - errors at high signal values aren't penalized enough,
+        while errors at small signal values are penalized too much. Try cubing both signals, then taking sum(err**2)
+
+        TODO: maybe even better, instead of doing an elaborate cubing of signal, followed by a rather elaborate
+        gaussian spatiotemporal weighting of errors, just take difference of signals, and weight the error according
+        to the abs(template_signal) at each point in time and across chans. That way, error in parts of the signal far from
+        zero are considered more important than deviance of perhaps similar absolute value for signal close to zero
+
         """
+        templates = templates or self.templates.values() # None defaults to matching all templates
         sys.stdout.write('matching')
         t0 = time.clock()
         nevents = len(self.events)
         dm = self.detector.dm
-        for template in self.templates.values():
-            template.err = [] # overwrite any existing one
+        for template in templates:
+            template.err = [] # overwrite any existing .err attrib
             trange = template.trange
             templatewave = template.wave[template.chans] # slice out template's enabled chans
             #stdev = template.get_stdev()[template.chans] # slice out template's enabled chans
@@ -129,7 +138,7 @@ class Session(object):
                 err = (templatewave - event.wave[template.chans]) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
                 template.err.append((event.id, intround(err)))
-            template.err = np.asarray(template.err)
+            template.err = np.asarray(template.err, dtype=int)
             if sort and len(template.err) != 0:
                 i = template.err[:, 1].argsort() # row indices that sort by error
                 template.err = template.err[i]
@@ -440,13 +449,15 @@ class SortFrame(wxglade_gui.SortFrame):
         size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols,
                 SORTFRAMEHEIGHT)
         self.SetSize(size)
+        self.splitter.SetSashPosition(SPLITTERSASH) # do this here because wxGlade keeps messing this up
+        self.sort_splitter.SetSashPosition(SORTSPLITTERSASH)
 
         self.listTimer = wx.Timer(owner=self.list)
 
         self.lastSelectedListEvents = []
         self.lastSelectedTreeObjects = []
 
-        columnlabels = ['eID', 'chan', 'time'] # event list column labels
+        columnlabels = ['eID', 'chan', 'time', 'err'] # event list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -479,6 +490,12 @@ class SortFrame(wxglade_gui.SortFrame):
         # so we have to CallAfter
         wx.CallAfter(self.DrawRefs)
         evt.Skip()
+
+    def OnSplitterSashChanged(self, evt):
+        """Re-save reflines_background after resizing the SortPanel(s)
+        with the frame's primary splitter"""
+        print 'in OnSplitterSashChanged'
+        wx.CallAfter(self.DrawRefs)
 
     def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
@@ -536,6 +553,8 @@ class SortFrame(wxglade_gui.SortFrame):
             self.SortListByChan()
         elif coli == 2:
             self.SortListByTime()
+        elif coli == 3:
+            self.SortListByErr()
         else:
             raise ValueError, 'weird column id %d' % coli
 
@@ -646,6 +665,24 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.SortChildren(root)
             self.RelabelTemplates(root)
 
+    def OnMatchTemplate(self, evt):
+        """Match events in event list against first selected template, populate err column"""
+        errcol = 3 # err is in 3rd column (0-based)
+        template = self.GetFirstSelectedTemplate()
+        if not template: # no templates selected
+            return
+        self.session.match(templates=[template])
+        eid2err = dict(template.err) # maps event ID to its error for this template
+        for rowi in range(self.list.GetItemCount()):
+            eid = int(self.list.GetItemText(rowi))
+            try:
+                err = str(eid2err[eid])
+            except KeyError: # no err for this eid because the event and template don't overlap enough
+                err = ''
+            erritem = self.list.GetItem(rowi, errcol)
+            erritem.SetText(err)
+            self.list.SetItem(erritem)
+
     def RelabelTemplates(self, root):
         """Consecutively relabel templates according to their vertical order in the TreeCtrl.
         Relabeling happens both in the TreeCtrl and in the in .session.templates dict"""
@@ -671,7 +708,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # first set the itemdata for each row
         SiteLoc = self.session.probe.SiteLoc
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi))
+            eid = int(self.list.GetItemText(rowi)) # 0th column
             e = self.session.events[eid]
             xcoord = SiteLoc[e.maxchan][0]
             ycoord = SiteLoc[e.maxchan][1]
@@ -684,9 +721,23 @@ class SortFrame(wxglade_gui.SortFrame):
     def SortListByTime(self):
         """Sort event list by event timepoint"""
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi))
+            eid = int(self.list.GetItemText(rowi)) # 0th column
             t = self.session.events[eid].t
             self.list.SetItemData(rowi, t)
+        # now do the actual sort, based on the item data
+        self.list.SortItems(cmp)
+
+    def SortListByErr(self):
+        """Sort event list by match error"""
+        errcol = 3 # err is in 3rd column (0-based)
+        for rowi in range(self.list.GetItemCount()):
+            eid = int(self.list.GetItemText(rowi)) # 0th column
+            err = self.list.GetItem(rowi, errcol).GetText()
+            try:
+                err = int(err)
+            except ValueError: # err is empty string
+                err = sys.maxint
+            self.list.SetItemData(rowi, err)
         # now do the actual sort, based on the item data
         self.list.SortItems(cmp)
 
@@ -699,7 +750,7 @@ class SortFrame(wxglade_gui.SortFrame):
         """Append events to self's event list control"""
         SiteLoc = self.session.probe.SiteLoc
         for e in events.values():
-            row = [str(e.id), e.maxchan, e.t]
+            row = [str(e.id), e.maxchan, e.t] # leave err column empty for now
             self.list.Append(row)
             # using this instead of .Append(row) is just as slow:
             #rowi = self.list.InsertStringItem(sys.maxint, str(e.id))
@@ -717,7 +768,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
         #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
         # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:80}.items(): # (eID, chan, time)
+        for coli, width in {0:40, 1:40, 2:80, 3:60}.items(): # (eID, chan, time, err)
             self.list.SetColumnWidth(coli, width)
 
     def AddObjects2Plot(self, objects):

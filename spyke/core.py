@@ -499,6 +499,10 @@ def eucd(coords):
         delta += (data - data[:, np.newaxis]) ** 2
     return np.sqrt(delta)
 
+def revcmp(x, y):
+    """Does the reverse of cmp():
+    Return negative if y<x, zero if y==x, positive if y>x"""
+    return cmp(y, x)
 
 class Gaussian(object):
     """Gaussian function, works with ndarray inputs"""
