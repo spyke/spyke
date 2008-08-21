@@ -471,7 +471,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.Bind(wx.EVT_RIGHT_DOWN, self.OnTreeRightDown)
         self.tree.Bind(wx.EVT_KEY_DOWN, self.OnTreeKeyDown)
         self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
-        #self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
+        self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
 
         self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -578,13 +578,21 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeSelectChanged(self, evt=None):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
-        deselecting the currently focused item in a tree with the wx.TR_MULTIPLE
+        (de)selecting the currently focused item in a tree with the wx.TR_MULTIPLE
         flag set, as it is here. So, this handler has to be called manually on mouse
-        and keyboard events"""
+        and keyboard events. Don't think there's any harm in calling this handler twice
+        for all other cases where a SEL_CHANGED event is fired"""
         print 'in OnTreeSelectChanged'
-        self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
+        if evt: # just use this as a hack to update currently focused
+            item = evt.GetItem()
+            if item:
+                self.tree._focusedItem = item
+                print 'currently focused item: %s' % self.tree.GetItemText(item)
+            return # don't allow the selection event to actually happen?????????????
+        self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
+        print [ self.tree.GetItemText(item) for item in self.tree._selectedItems ]
         selectedTreeObjects = [] # objects could be a mix of Events and Templates
-        for itemID in self._selectedTreeItems:
+        for itemID in self.tree._selectedItems:
             item = self.tree.GetItemPyData(itemID)
             selectedTreeObjects.append(item)
         removeObjects = [ obj for obj in self.lastSelectedTreeObjects if obj not in selectedTreeObjects ]
@@ -618,9 +626,28 @@ class SortFrame(wxglade_gui.SortFrame):
             return
         obj = self.tree.GetItemPyData(itemID) # either an Event or a Template
         # first, restore all prior selections in the tree (except our item) that were cleared by the right click selection event
-        for itemID in self._selectedTreeItems: # rely on _selectedTreeItems being judiciously kept up to date
+        for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
             self.tree.SelectItem(itemID)
-        if obj.itemID not in self._selectedTreeItems: # if it wasn't selected before, it is now, so no need to do anything
+        if obj.itemID not in self.tree._selectedItems: # if it wasn't selected before, it is now, so no need to do anything
+            pass
+        else: # it was selected before, it still will be now, so need to deselect it
+            self.tree.SelectItem(obj.itemID, select=False)
+        self.OnTreeSelectChanged() # now plot accordingly
+
+    def OnTreeSpaceUp(self, evt):
+        """Toggle selection of the clicked item, without changing selection
+        status of any other items. This is a nasty hack required to get around
+        the selection TreeEvent happening before the SPACE KeyUp event.
+        This causes an annoying flicker of the currently selected items, because they
+        all unfortunately get deselected on the uncatchable SPACE keydown event,
+        and aren't reselected until the SPACE keyup event"""
+        print 'in OnTreeSpaceUp'
+        itemID = self.tree.GetFocusedItem()
+        obj = self.tree.GetItemPyData(itemID) # either an Event or a Template
+        # first, restore all prior selections in the tree (except our item) that were cleared by the space selection event
+        for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
+            self.tree.SelectItem(itemID)
+        if obj.itemID not in self.tree._selectedItems: # if it wasn't selected before, it is now, so no need to do anything
             pass
         else: # it was selected before, it still will be now, so need to deselect it
             self.tree.SelectItem(obj.itemID, select=False)
@@ -633,7 +660,9 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.SetFocus() # change focus to list
         elif key == wx.WXK_RETURN: # space only triggered on key up, see bug #4448
             self.tree.ToggleFocusedItem()
-            return # evt.Skip() seems to prevent toggling, or maybe it untoggles
+            #wx.CallAfter(self.OnTreeSelectChanged)
+            self.OnTreeSelectChanged()
+            # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [wx.WXK_DELETE, ord('D'), wx.WXK_RIGHT]:
             self.MoveCurrentObjects2List()
         elif key == ord('A'): # allow us to add from event list even if tree is in focus
@@ -644,7 +673,8 @@ class SortFrame(wxglade_gui.SortFrame):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
             wx.CallAfter(self.OnTreeSelectChanged)
-        self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
+            #self.OnTreeSelectChanged()
+        self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
     def OnTreeKeyUp(self, evt):
@@ -652,11 +682,15 @@ class SortFrame(wxglade_gui.SortFrame):
         #print 'key up: %r' % key
         if key == wx.WXK_SPACE: # space only triggered on key up, see bug #4448
             if evt.ControlDown():
-                wx.CallAfter(self.OnTreeSelectChanged)
+                #wx.CallAfter(self.OnTreeSelectChanged)
+                self.OnTreeSelectChanged()
             else:
-                self.tree.ToggleFocusedItem()
-                return # evt.Skip() seems to prevent toggling, or maybe it untoggles
-        self._selectedTreeItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
+                #self.tree.ToggleFocusedItem()
+                #wx.CallAfter(self.OnTreeSelectChanged)
+                #self.OnTreeSelectChanged()
+                self.OnTreeSpaceUp(evt)
+                #evt.Skip() seems to prevent toggling, or maybe it untoggles
+        self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
     def OnSortTree(self, evt):

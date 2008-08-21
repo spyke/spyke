@@ -403,16 +403,27 @@ class SpykeTreeCtrl(wx.TreeCtrl):
             childID = self.GetNextChild(itemId, cookie)
         return childrenIDs
 
+    def GetFocusedItem(self):
+        """This relies on _focusedItem being set externally by handling
+        tree events appropriately"""
+        return self._focusedItem
+    '''
+    def GetSelectedItems(self):
+        """This relies on _selectedItems being set externally by handling
+        tree events appropriately. I think this differs from .GetSelections()
+        in that the currently focused item isn't incorrectly assumed to
+        also be a selected item"""
+        return self._selectedItems
+    '''
     def ToggleFocusedItem(self):
-        """Toggles selection of focused list item
-
-        TODO: Multi-select tree ctrls don't seem to have a method that lets
-        you determine which item is currently focused, so I don't see
-        any way of implementing this, short of generating a fake Ctrl+Space
-        keyevent and using wx.PostEvent to send it to the tree
-
-        """
-        print 'SpykeTreeCtrl.ToggleFocusedItem() not implemented yet, use Ctrl+Space instead'
+        """Toggles selection of focused tree item"""
+        item = self.GetFocusedItem()
+        if item in self.GetSelections(): # already selected
+            select = False # deselect
+        else: # not selected
+            select = True # select it
+        self.SelectItem(item, select)
+        #print 'SpykeTreeCtrl.ToggleFocusedItem() not implemented yet, use Ctrl+Space instead'
 
 '''
 class HybridList(set):

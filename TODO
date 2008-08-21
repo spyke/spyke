@@ -5,6 +5,8 @@ GENERAL:
 
 - get tooltips to work on main spyke frame widgets
 
+- make ESC in tree and event list clear the current selection
+
 - when assigning an event to a plot, change the zorder of the lines such that the maxchan is always on top, only really need to deal with the maxchan, which can sometimes be big enough to span over to the screen real estate of other chans
     - can make this a template method too, such that it sets the zorder for all lines in constituent events to be the same as it is for the template mean
 
