@@ -12,7 +12,7 @@ import wx
 
 import numpy as np
 
-from spyke.core import WaveForm, Gaussian, intround
+from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
 from spyke.gui.plot import EVENTTW
 
@@ -90,7 +90,7 @@ class Session(object):
         self.events.update(uniqueevents)
         return uniqueevents
 
-    def match(self, templates=None, weighting='spatiotemporal', sort=True):
+    def match(self, templates=None, weighting='signal', sort=True):
         """Match templates to all .events with nearby maxchans,
         save error values to respective templates.
 
@@ -107,7 +107,7 @@ class Session(object):
         TODO: looks like I still need to make things more nonlinear - errors at high signal values aren't penalized enough,
         while errors at small signal values are penalized too much. Try cubing both signals, then taking sum(err**2)
 
-        TODO: maybe even better, instead of doing an elaborate cubing of signal, followed by a rather elaborate
+        DONE: maybe even better, instead of doing an elaborate cubing of signal, followed by a rather elaborate
         gaussian spatiotemporal weighting of errors, just take difference of signals, and weight the error according
         to the abs(template_signal) at each point in time and across chans. That way, error in parts of the signal far from
         zero are considered more important than deviance of perhaps similar absolute value for signal close to zero
@@ -135,10 +135,13 @@ class Session(object):
                 # slice template's enabled chans out of event, calculate sum of squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
                 #err = (templatewave - event.wave[template.chans]) / stdev * weights # low stdev means more sensitive to error
-                err = (templatewave - event.wave[template.chans]) * weights # weighted error
+                eventwave = event.wave[template.chans] # slice out template's enabled chans from event
+                if weighting == 'signal':
+                    weights = np.abs(np.asarray([templatewave, eventwave])).max(axis=0) # take elementwise max of abs of template and event
+                err = (templatewave - eventwave) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
                 template.err.append((event.id, intround(err)))
-            template.err = np.asarray(template.err, dtype=int)
+            template.err = np.asarray(template.err, dtype=np.int64)
             if sort and len(template.err) != 0:
                 i = template.err[:, 1].argsort() # row indices that sort by error
                 template.err = template.err[i]
@@ -317,6 +320,8 @@ class Template(object):
             sweights = self.get_gaussian_spatial_weights(sstdev)
             tweights = self.get_gaussian_temporal_weights(tstdev)
             weights = np.outer(sweights, tweights) # matrix, outer product of the two
+        elif weighting == 'signal':
+            weights = None # this is handled by caller
         #print '\nweights:\n%r' % weights
         return weights
 
@@ -733,8 +738,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for rowi in range(self.list.GetItemCount()):
             eid = int(self.list.GetItemText(rowi))
             self.list.SetItemData(rowi, eid)
-        # now do the actual sort, based on the item data
-        self.list.SortItems(cmp)
+        self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByChan(self):
         """Sort event list by ycoord of event maxchans,
@@ -749,31 +753,33 @@ class SortFrame(wxglade_gui.SortFrame):
             # hack to make items sort by ycoord, or xcoord if ycoords are identical
             data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
             self.list.SetItemData(rowi, data)
-        # now do the actual sort, based on the item data
-        self.list.SortItems(cmp)
+        self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByTime(self):
         """Sort event list by event timepoint"""
         for rowi in range(self.list.GetItemCount()):
             eid = int(self.list.GetItemText(rowi)) # 0th column
             t = self.session.events[eid].t
+            # this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
             self.list.SetItemData(rowi, t)
-        # now do the actual sort, based on the item data
-        self.list.SortItems(cmp)
+        self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByErr(self):
-        """Sort event list by match error"""
+        """Sort event list by match error.
+        Hack to get around stupid SetItemData being limited to int32s"""
         errcol = 3 # err is in 3rd column (0-based)
+        errs = []
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi)) # 0th column
             err = self.list.GetItem(rowi, errcol).GetText()
             try:
                 err = int(err)
             except ValueError: # err is empty string
-                err = sys.maxint
-            self.list.SetItemData(rowi, err)
-        # now do the actual sort, based on the item data
-        self.list.SortItems(cmp)
+                err = MAXLONGLONG
+            errs.append(err)
+        erris = np.asarray(errs).argsort() # indices that return errs sorted
+        for rowi, erri in enumerate(erris):
+            self.list.SetItemData(erri, rowi) # the erri'th row is set the rowi'th rank value
+        self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""

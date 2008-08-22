@@ -14,10 +14,6 @@ GENERAL:
 - hovering over waveforms should highlight the closest datapoint on the closest chan with a circle point or something, while displaying its time and exact voltage in the tooltip - this would probably be more useful than displaying the voltage in the potentially empty space under the mouse
     - should do this both for spike window and sort window (not really necessary for chart or lfp, might be slow, but might be nice too), although in sort window it wouldn't be clear which waveform to do it on, for overlapping waveforms
 
-- INTERPOLATION
-        - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
-
-
 - plot and control thresh level on spike and chart plots
     - use picker - when a thresh line is picked (within a tolerance of a couple pix), change mouse cursor to hand or vertical sizer, and while button is down, adjust position of thresh lines and value of the manual thresh level in Events tab
 
@@ -34,16 +30,24 @@ GENERAL:
 - stop forcing the main window to position itself at (0, 0), check what the upper leftmost available position is - for someone like Nick with the taskbar along the top of the screen, it's more like (0, 30)
 
 - this might speed up plotting even further: have only one actual Plot object per plot panel (the quickRemovePlot), and then another that's just a shell for temporarily holding plot attribs (data, colour, style) which are updated, drawn to buffer, updated, drawn to buffer, etc. and then blitted (this is actually a lot like having axes.hold = True)
-    - I this would vastly reduce the number of Line2D objects needed - initing them takes a long time, and once they've been inited, they sit there taking up memory
+    - I think this would vastly reduce the number of Line2D objects needed - initing them takes a long time, and once they've been inited, they sit there taking up memory
     - not sure how this would affect used_plots and available_plots
     - seems like a good solution for overplotting thousands of plots in the error threshold window
         - or maybe better thing there would be to only overplot on top of the template mean say the 10 or 20 events with the highest errors that fall below the current error threshold
 
 ------------------------------------
+INTERPOLATION
+
+    - could use speed improvement
+
+    - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
+
+------------------------------------
 EVENT DETECTION:
 
-
     - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
+
+    - create a new thread for each searchblock() call - not sure if this will help much, cuz I think the slowest part is the loading of waveform data off the disk
 
     - dynamic spatiotemporal lockout: some spikes span greater space and time than others, yet they're all given the same lockout. I guess on thresh xing and again on finding a spike, you could search locally in time and space and within the fixed slock and tlock, and see if signal drops below thresh in something less than slock and tlock, and adjust the lockout accordingly for that thresh xing or found spike
 
@@ -59,12 +63,12 @@ TEMPLATES:
     - Nick: add kmeans to quickly generate templates
         - maybe not so hard, since kmeans is built into scipy I think, but it's still going to require arbitrary parameter values that you'll have to set, and it might give you a false sense of completeness/correctness
 
+    - replace event listctrl with a virtual listctrl, for faster populating of (and scrolling through?) many thousands of detected events
+
     - unsorted event list text background should be coloured according to maxchan
         - second list control below it for trash?
 
-    - hitting ENTER on a single event in event list should seek the dataframes to that timepoint (just as clicking on the event in the sort window does the same, sort of by accident)
-
-    - make SPACE alone, without CTRL, toggle selection of currently focused item
+    - hitting ENTER on a single event in event list should seek the dataframes to that timepoint (just as clicking on the event in the sort window does the same, sort of by accident) - right now it toggles selection of currently focused item, as does SPACE
 
     - subtemplates - recognize that two distinct events might be from the same cell, but in a different mode of operation
     - toggle the display of all the templates (their means) at once (button, or Ctrl-A?), with just their active channels displayed. This way, you can quickly see if some templates are very similar, and how the cells are distributed across the electrode. This also lets you decide which templates need more/fewer channels enabled to help distinguish between them. Each template should be a different colour (up to say 16 or so).
@@ -102,7 +106,7 @@ TEMPLATES:
 
 
 ------------------------------------
-MINI RIPS:
+MINI MATCH/RIP:
 
     - while building up templates, have ability to do sort of a mini rip of your current templates across the current subset of spikes.
     - this would allow you to quickly increase the number of spikes in each template, and would reveal which spikes in your subset are still very different from any templates you've generated so far, so you can prioritize and focus on those next
@@ -112,11 +116,8 @@ MINI RIPS:
     - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
 
-    - Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
-
-
 ------------------------------------
-RIPPING:
+MATCHING/RIPPING:
 
     - instead of ripping against all the raw data, spike detect the whole file, and then rip against the detected spikes. If you center both your templates and your events on the peak, then comparing a template to an event is a one-shot process - no timeshifting required. 2 benefits:
         - much faster
@@ -125,7 +126,6 @@ RIPPING:
     - to reduce spike variability due to correlated noise, for any given comparison between template and data (be it against any timepoint in data, or against a detected event), take the channels that aren't selected in the template (purportedly because they have no significant signal on them), and at every timepoint, take their mean, and subtract that from _all_ channels. This should make spikes in the raw data (or in the detected events) look more like one of the templates
         - mean might not be ideal - maybe take their covariance and subtract it or something (see hyperellipsoidal method ref'd in 200x Blanche)
         - this should be done during any comparison between template and data, including during min rips (see below)
-
 
 
 ------------------------------------
@@ -139,12 +139,11 @@ VERIFICATION:
         - wasn't there some other related test that we should be doing?
     - Nick: create a distance/similarity metric that, for all pairs of templates, for all overlapping channels, measures the difference between the signals, normalized by, say, the number of overlapping channels and the number of points per channel. This would help confirm that two templates are indeed two separate cells
 
-    - plot spikes as fat bright vertical lines or something underneath the chart window so you can scroll through and see just what was classified as a spike and what wasn't. line colour should match template colour
+    - plot spikes as fat bright vertical lines or something underneath the chart window so you can scroll through and see just what was classified as a spike and what wasn't. Vertical line colour should match template colour
 
     - limit template generation to specific part of file
-        - Nick's idea: randomly sample events from, say, only the first 10 minutes of a recording, build up your templates with those. Then, rip across the whole file, and watch if the goodness of fit gets worse the further away you get in time.
+        - Nick's idea: randomly sample events from, say, only the first 10 minutes of a recording, build up your templates with those. Then, rip across the whole file, and watch if fit gets worse the further away you get in time.
             - plot goodness of fit over time - Goodness of fit might change over time, especially over hours, and in recordings different from which the templates were generated. Either divide each recording up into pieces say 10 minutes long, and plot that, or have a sliding window that calculates the goodness of fit for the last 10 minutes (that would give you lots more data points)
-
 
 
 ------------------------------------
@@ -178,11 +177,13 @@ LOW-PRIORITY:
 - parsing progress bar with pause/stop button
     - use threading, so widget draw events aren't blocked during parsing
 
+- load progress bar
+
 - save progress bar
 
 - event detection progress bar with pause/stop button
 
-- ripping progress bar with pause/stop button
+- matching/ripping progress bar with pause/stop button
 
 
 
@@ -383,3 +384,6 @@ DONE:
     - OK, now I've figured it out. It's the stupid .plot_pane that's getting the focus. By deleting the plot_pane, I get rid of the problem. So the trick will be to enforce that the plot_pane can't get focus. Normally, you'd override AcceptsFocusFromKeyboard, but that doesn't work for C++ classes, so you have to do something else. See: http://lists.wxwidgets.org/pipermail/wxpython-users/2008-April/074292.html
     - captured tab keypress in both tree and list controls, use them to transfer focus to the other control
 - BUG: splitterwindow doesn't actually set itself to desired size until after you move the mouse for the first time
+- make SPACE alone, without CTRL, toggle selection of currently focused item - DONE, but there's an annoying flicker due to the hack around a wx bug, probably can't be eliminated til the wx bug is fixed
+- Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
+

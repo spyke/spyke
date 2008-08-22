@@ -26,6 +26,7 @@ KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems 
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
+MAXLONGLONG = 2**63-1
 
 class WaveForm(object):
     """Just a container for data, timestamps, and channels.
