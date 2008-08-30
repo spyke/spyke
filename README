@@ -2,9 +2,11 @@ Dependency versions:
 
 Python 2.5.2
 numpy 1.1.0
-Cython 0.9.6.14 or better
 wxPython 2.8.8.1 (2.8.8.0 has keyboard entry issue for spinctrls or comboboxes or something)
 matplotlib 0.98.1 or better (for compatibility with numpy 1.1.0)
+
+If installing from source (as opposed to from a win32 binary), you'll also need Cython 0.9.6.14 or better. If installing from source on win32, you'll also need the free MinGW compiler. See http://wiki.cython.org/InstallingOnWindows
+
 
 To install:
 

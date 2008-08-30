@@ -78,7 +78,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-        columnlabels = ['detID', 'nevents', 'class', 'thresh', 'trange', 'slock', 'tlock', 'datetime']
+        columnlabels = ['detID', 'class', 'thresh', 'trange', 'nevents', 'slock', 'tlock', 'datetime']
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -309,10 +309,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
         row = [str(detection.id),
-               str(len(detection.events)),
                detection.detector.algorithm + detection.detector.threshmethod,
                str(detection.detector.fixedthresh or detection.det.noisemult),
                str(detection.detector.trange),
+               str(len(detection.events)),
                str(detection.detector.slock),
                str(detection.detector.tlock),
                str(detection.datetime).rpartition('.')[0] ]

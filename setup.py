@@ -16,6 +16,7 @@ from distutils.core import setup, Extension
 import os
 from Cython.Distutils import build_ext
 
+# modify this to point to your numpy/core/include
 include_dirs=['/bin/Python25/Lib/site-packages/numpy/core/include']
 
 detect_cy = Extension('spyke.detect_cy',
