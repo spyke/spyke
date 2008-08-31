@@ -1,0 +1,3 @@
+include README TODO
+recursive-include demo *.py *.png *.pxi
+recursive-include spyke *.py *.pyx *.pxi *.wxg *.png

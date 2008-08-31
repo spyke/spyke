@@ -1,22 +1,57 @@
 README
+TODO
 setup.py
+demo\0Template (5).png
+demo\0histTemplate (5).png
+demo\1Template (6).png
+demo\1histTemplate (6).png
+demo\2Template (5).png
+demo\2histTemplate (5).png
+demo\3Template (5).png
+demo\3histTemplate (5).png
+demo\4Template (2).png
+demo\4histTemplate (2).png
+demo\BipolarAmplitude_test.py
+demo\Blanche2006_fig2c_reproduction.png
+demo\Blanche2006_fig2c_reproduction.py
+demo\DynamicMultiphasic_test.py
+demo\Python.pxi
+demo\__init__.py
+demo\cython_test.pyx
+demo\interpolating_a_sine_wave.png
+demo\interpolating_a_sine_wave.py
+demo\numpy.pxi
+demo\rip.py
+demo\test_detector.py
+demo\treedrag.py
+demo\weave_example.py
+spyke\Python.pxi
 spyke\__init__.py
 spyke\core.py
-spyke\cython_test.pyx
 spyke\detect.py
 spyke\detect_cy.pyx
+spyke\detect_threading_branch.py
 spyke\detect_weave.py
+spyke\numpy.pxi
 spyke\probes.py
 spyke\rip.py
+spyke\sort.py
 spyke\surf.py
-spyke\test_detector.py
-spyke\weave_example.py
 spyke\gui\__init__.py
-spyke\gui\events.py
 spyke\gui\main.py
 spyke\gui\main_threading_branch.py
-spyke\gui\manager.py
 spyke\gui\plot.py
-spyke\gui\sort.py
 spyke\gui\wxglade_gui.py
-spyke\gui\res\__init__.py
+spyke\gui\wxglade_gui.wxg
+spyke\gui\res\blank.png
+spyke\gui\res\chart.png
+spyke\gui\res\close.png
+spyke\gui\res\lfp.png
+spyke\gui\res\new.png
+spyke\gui\res\open.png
+spyke\gui\res\pyshell.png
+spyke\gui\res\save.png
+spyke\gui\res\sort.png
+spyke\gui\res\sort_green.png
+spyke\gui\res\spike.png
+spyke\gui\res\splash.png

@@ -8,7 +8,8 @@ to create binary distribution:
 >>> python setup.py build --compiler=mingw32
 >>> python setup.py bdist_wininst
 
-TODO: force .png icons to be included in distribs
+NOTE: Make sure there's a MANIFEST.in that includes all the files you want to place
+in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 
 """
 
@@ -33,6 +34,8 @@ cython_test = Extension('demo.cython_test',
                         #extra_link_args=["-g"],
                         )
 
+spyke_files = ["gui/res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
+
 setup(name='spyke',
       version='0.1',
       license='BSD',
@@ -41,7 +44,8 @@ setup(name='spyke',
       author_email='mspacek at interchange ubc ca',
       url='http://swindale.ecc.ubc.ca/spyke',
       #long_description='',
-      packages=['spyke', 'spyke.gui', 'spyke.gui.res'],
+      packages=['spyke', 'spyke.gui'], # have to explicitly include subfolders with code as additional packages
+      package_data = {'spyke' : spyke_files },
       cmdclass={'build_ext': build_ext},
       ext_modules=[detect_cy,
                    cython_test,
