@@ -15,6 +15,7 @@ __authors__ = ['Martin Spacek, Reza Lotun']
 import itertools
 import sys
 import time
+import processing
 
 import wx
 
@@ -123,31 +124,23 @@ class Detector(object):
 
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
-        events = [] # list of 2D event arrays returned by .searchblock(), one array per block
-        for wavetrange in wavetranges: # iterate over time ranges with excess in them, one per block
-            if self.nevents >= self.maxnevents:
-                break # out of for loop
-            tlo, thi = wavetrange # tlo could be > thi
-            cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
-            #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
-            wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
-            if self.randomsample:
-                maxnevents = 1 # how many more we're looking for in the next block
-            else:
-                maxnevents = self.maxnevents - self.nevents
-            eventarr = self.searchblock(wave, cutrange, maxnevents) # TODO: this should be threaded
-            nnewevents = eventarr.shape[1] # number of columns
-            #wx.Yield() # allow GUI to update
-            if self.randomsample and eventarr.tolist() in np.asarray(events).tolist():
-                # check if eventarr is a duplicate of any that are already in .events, if so,
-                # don't append this new eventarr, and don't inc self.nevents. Duplicates are possible
-                # in random sampling cuz we might end up with blocks with overlapping tranges.
-                # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
-                sys.stdout.write('found duplicate random sampled event')
-            elif nnewevents != 0:
-                events.append(eventarr)
-                self.nevents += nnewevents # update
-                sys.stdout.write('.')
+        #events = [] # list of 2D event arrays returned by .searchblock(), one array per block
+        #TODO: create only 2 threads, add them to a queue, and make sure to use a lock when appending to .events
+
+        pool = processing.Pool() # spawns as many worker processes as there are CPUs/cores on the machine
+
+        #for wavetrange in wavetranges: # iterate over time ranges with excess in them, one per block
+            #pool.apply(self.work, wavetrange)
+            #thread = SearchBlockThread(detector=self, wavetrange=wavetrange)
+            #thread.start()
+        # if random sampling, use only a single process
+        #ntranges = len(wavetranges)
+        #args = (self.stream,)*ntranges, wavetranges, (direction,)*ntranges
+        #events = pool.map(self.work, (self.stream,)*ntranges, wavetranges, (direction,)*ntranges) # overwrites with a list
+        for wavetrange in wavetranges:
+            events = pool.apply(self.work, (self.stream, wavetrange, direction))
+        # might need to use apply in a loop instead, to check nevents and exit appropriately. Or use map in a loop, where you loop over pairs or quads (depending on number of CPUs) of wavetranges and check after each map call. Or, use poll or something?
+
         try:
             events = np.concatenate(events, axis=1)
         except ValueError: # events is an empty list
@@ -156,6 +149,34 @@ class Detector(object):
         print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
+
+    def work(self, stream, wavetrange, direction):
+        if self.nevents >= self.maxnevents:
+            return # break out of for loop
+        tlo, thi = wavetrange # tlo could be > thi
+        bx = self.BLOCKEXCESS
+        cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
+        #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+        wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
+        if self.randomsample:
+            maxnevents = 1 # how many more we're looking for in the next block
+        else:
+            maxnevents = self.maxnevents - self.nevents
+        eventarr = self.searchblock(wave, cutrange, maxnevents)
+        nnewevents = eventarr.shape[1] # number of columns
+        #wx.Yield() # allow GUI to update
+        if self.randomsample and eventarr.tolist() in np.asarray(self.events).tolist():
+            # check if eventarr is a duplicate of any that are already in .events, if so,
+            # don't append this new eventarr, and don't inc self.nevents. Duplicates are possible
+            # in random sampling cuz we might end up with blocks with overlapping tranges.
+            # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
+            sys.stdout.write('found duplicate random sampled event')
+        elif nnewevents != 0:
+            #self.events.append(eventarr)
+            self.nevents += nnewevents # update
+            sys.stdout.write('.')
+            return eventarr
+
 
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
@@ -183,12 +204,13 @@ class Detector(object):
             # last wavetrange surpasses self.trange[1] by some unknown amount, fix that here:
             wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
         return wavetranges, (bs, bx, direction)
-
+    '''
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
+    '''
 
     def get_stream(self):
         return self._stream

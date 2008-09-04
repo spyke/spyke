@@ -38,6 +38,8 @@ GENERAL:
 ------------------------------------
 INTERPOLATION
 
+    - take DIN channel into account, might need to shift all highpass chans by 1us, see line 2412 in SurfBawdMain.pas
+
     - could use speed improvement
 
     - only bother displaying interpolated data for spike frame - not necessary for chart and lfp frames, and will conserve update speed to a large extent compared to uninterpolated mode
@@ -56,6 +58,10 @@ EVENT DETECTION:
     - change event array returned by detector.search() to be many rows, two columns, instead of 2 cols, many rows. Would be more natural that way:
         - printouts, no matter how long, would always have maxchan and timepoint right next to each other
         - length checking (of number of events) would only need len, which works on rows
+
+    - maybe consider looking for some kind of multichannel threshold crossing instead of testing each channel separately at the start of the inner loop: if say sum or sumsquared of all chans exceeds some (potentially dynamic) threshold (say 3.5*median for each chan * number of chans), then maybe you've stumbled across some event that's hard to see on a single chan basis, but is more obvious if you squint your eyes and look across a few chans at once (see ptc15/87 @ t=102000520, chans=[30,22,31], most easily visible in chart window)
+        - or maybe for each timepoint, grab triplets (or quads or something) of neighbouring channels and look at their sum, instead of the sum for all chans, but then for each timepoint you'd have to do this for all possible neighbouring triplets
+
 
 ------------------------------------
 TEMPLATES:

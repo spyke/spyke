@@ -25,7 +25,7 @@ class DRDBError(ValueError):
 
 
 class Record(object):
-    """Used to explicity represent the endianness of the surf file and that
+    """Used to explicitly represent the endianness of the surf file and that
     of the machine. The machine endianness doesn't strictly have to be known
     but it might come in useful"""
     SURF_ENDIANNESS = '<'
@@ -42,9 +42,9 @@ class Record(object):
 class File(Record):
     """Open a .srf file and, after parsing, expose all of its headers and
     records as attribs.
-    Disabled: If no synonymous .parse file exists, parses
-              the .srf file and saves the parsing in a .parse file.
-    Stores as attribs:
+    Disabled: If no synonymous .parse file exists, parse
+              the .srf file and save the parsing in a .parse file.
+    Store as attribs:
         - Surf file header
         - Surf data record descriptor blocks
         - electrode layout records
@@ -62,7 +62,7 @@ class File(Record):
 
     def open(self):
         """Open the .srf file"""
-        self.f = file(self.name, 'rb')
+        self.f = open(self.name, 'rb')
         self._parseFileHeader()
 
     def close(self):
@@ -696,6 +696,7 @@ class LowPassMultiChanRecord(Record):
         """Takes several low pass records, all at the same timestamp"""
         Record.__init__(self)
         self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
+        self.fname = self.lowpassrecords[0].f.name # full filename with path, needed for unpickling
         self.TimeStamp = self.lowpassrecords[0].TimeStamp
         self.layout = self.lowpassrecords[0].layout
         self.NumSamples = self.lowpassrecords[0].NumSamples
@@ -726,6 +727,24 @@ class LowPassMultiChanRecord(Record):
         # save as array, removing singleton dimensions
         self.data = np.squeeze(self.data)
 
+    def get_f(self):
+        """Get open .srf file, should be the same for all lowpassrecords"""
+        return self.lowpassrecords[0].f
+
+    def set_f(self, f):
+        """This can be called by Stream when unpickling self. Instead of binding and open
+        .srf file to self, bind it to its constituent lowpassrecords"""
+        for lowpassrecord in self.lowpassrecords:
+            lowpassrecord.f = f
+
+    """Make this LowPassMultiChanRecord look like it has its own open .srf file, when really it's that
+    of its constiuent lowpassrecords"""
+    f = property(get_f, set_f)
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+        for record in self.lowpassrecords:
+            record
 
 class DisplayRecord(Record):
     """Stimulus display header record"""
