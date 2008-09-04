@@ -204,6 +204,8 @@ class Detector(object):
             # last wavetrange surpasses self.trange[1] by some unknown amount, fix that here:
             wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
         return wavetranges, (bs, bx, direction)
+
+    # leave the stream be, let it be pickled
     '''
     def __getstate__(self):
         """Get object state for pickling"""
@@ -211,7 +213,6 @@ class Detector(object):
         del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
     '''
-
     def get_stream(self):
         return self._stream
 

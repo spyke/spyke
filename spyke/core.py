@@ -84,10 +84,9 @@ class Stream(object):
         sampfreq arg is useful for interpolation"""
         self.ctsrecords = ctsrecords
         self.layout = self.ctsrecords[0].layout # layout record for this stream
-        self.fname = self.ctsrecords[0].f.name # full filename with path, needed for unpickling
-        #self.srffname = os.path.basename(self.layout.f.name) # filename excluding path
-        self.srffname = os.path.basename(self.fname) # filename excluding path
-        print "Stream's full fname: %s; base fname: %s" % (self.fname, self.srffname)
+        #self.fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling
+        fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling
+        self.srffname = os.path.basename(fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us, for convenience
         try: # is this a low pass stream?
@@ -150,7 +149,6 @@ class Stream(object):
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
-        print 'in __getitem__'
         #tslice = time.clock()
 
         # for now, accept only slice objects as keys
@@ -179,13 +177,11 @@ class Stream(object):
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
-        print 'about to load cutrecords'
         for record in cutrecords:
             try:
                 record.data
             except AttributeError:
                 record.load() # to save time, only load the waveform if it's not already loaded
-        print 'done loading cutrecords'
         # join all waveforms, returns a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
@@ -235,7 +231,7 @@ class Stream(object):
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans)
-
+    '''
     def __setstate__(self, d):
         """Restore self on unpickle per usual, but also restore open .srf file
         for all records that self relies on, so they can once again read from the file"""
@@ -244,7 +240,7 @@ class Stream(object):
         for ctsrecord in self.ctsrecords:
             ctsrecord.f = f # reset the open srf file for each ctsrecord
         self.layout.f = f # reset it for this stream's layout record as well
-
+    '''
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV
         TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2

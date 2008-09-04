@@ -10,14 +10,11 @@ GENERAL:
 - when assigning an event to a plot, change the zorder of the lines such that the maxchan is always on top, only really need to deal with the maxchan, which can sometimes be big enough to span over to the screen real estate of other chans
     - can make this a template method too, such that it sets the zorder for all lines in constituent events to be the same as it is for the template mean
 
-
 - hovering over waveforms should highlight the closest datapoint on the closest chan with a circle point or something, while displaying its time and exact voltage in the tooltip - this would probably be more useful than displaying the voltage in the potentially empty space under the mouse
     - should do this both for spike window and sort window (not really necessary for chart or lfp, might be slow, but might be nice too), although in sort window it wouldn't be clear which waveform to do it on, for overlapping waveforms
 
 - plot and control thresh level on spike and chart plots
     - use picker - when a thresh line is picked (within a tolerance of a couple pix), change mouse cursor to hand or vertical sizer, and while button is down, adjust position of thresh lines and value of the manual thresh level in Events tab
-
-- try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 
 - separate groups of 3 digits in spin edit and end labels with commas (time in us)
 
@@ -25,7 +22,7 @@ GENERAL:
 
 - combined message and stimulus DIN window:
     - messages: maybe just a combo box with timestamp:message entries. Choosing one of them skips you to that timestamp. Changing current file position with other methods should automatically scroll you through the combo box at appropriate times
-    - stimulus din: similar to above: drop down combo box with timestamp:DIN value entries
+    - stimulus din: similar to above: drop down combo box with timestamp:DIN value entries. Again, changing current file position with other methods should automatically scroll you through the combo box at appropriate times
 
 - stop forcing the main window to position itself at (0, 0), check what the upper leftmost available position is - for someone like Nick with the taskbar along the top of the screen, it's more like (0, 30)
 
@@ -49,7 +46,7 @@ EVENT DETECTION:
 
     - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
 
-    - create a new thread for each searchblock() call - not sure if this will help much, cuz I think the slowest part is the loading of waveform data off the disk
+    - create a new thread or process for each searchblock() call - not sure if this will help much, cuz I think the slowest part is the loading of waveform data off the disk
 
     - dynamic spatiotemporal lockout: some spikes span greater space and time than others, yet they're all given the same lockout. I guess on thresh xing and again on finding a spike, you could search locally in time and space and within the fixed slock and tlock, and see if signal drops below thresh in something less than slock and tlock, and adjust the lockout accordingly for that thresh xing or found spike
 
@@ -60,7 +57,7 @@ EVENT DETECTION:
         - length checking (of number of events) would only need len, which works on rows
 
     - maybe consider looking for some kind of multichannel threshold crossing instead of testing each channel separately at the start of the inner loop: if say sum or sumsquared of all chans exceeds some (potentially dynamic) threshold (say 3.5*median for each chan * number of chans), then maybe you've stumbled across some event that's hard to see on a single chan basis, but is more obvious if you squint your eyes and look across a few chans at once (see ptc15/87 @ t=102000520, chans=[30,22,31], most easily visible in chart window)
-        - or maybe for each timepoint, grab triplets (or quads or something) of neighbouring channels and look at their sum, instead of the sum for all chans, but then for each timepoint you'd have to do this for all possible neighbouring triplets
+        - or maybe for each timepoint, grab triplets (or quads or something) of neighbouring channels and look at their sum, instead of the sum for all chans, but then for each timepoint you'd have to do this for all possible neighbouring triplets, which might start getting slow
 
 
 ------------------------------------
@@ -392,4 +389,5 @@ DONE:
 - BUG: splitterwindow doesn't actually set itself to desired size until after you move the mouse for the first time
 - make SPACE alone, without CTRL, toggle selection of currently focused item - DONE, but there's an annoying flicker due to the hack around a wx bug, probably can't be eliminated til the wx bug is fixed
 - Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
+- try parsing by restoring from .parse files again for speed, especially when it comes to testing...
 

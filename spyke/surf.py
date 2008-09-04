@@ -52,49 +52,23 @@ class File(Record):
         - high and low pass continuous waveform records
         - stimulus display header records
         - stimulus digital single val records"""
-    def __init__(self, name):
+    def __init__(self, fname):
         Record.__init__(self)
+        # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
 
-        self.name = name
-        self.fileSize = os.stat(self.name)[6]
-        self.open()
-        self.parsefname = os.path.splitext(self.name)[0] + '.parse'
-
-    def open(self):
-        """Open the .srf file"""
-        self.f = open(self.name, 'rb')
+        self.fname = fname
+        self.fileSize = os.stat(fname)[6]
+        self.f = open(fname, 'rb')
         self._parseFileHeader()
+        self.parsefname = os.path.splitext(fname)[0] + '.parse'
 
     def close(self):
         """Close the .srf file"""
         self.f.close()
 
-    def unpickle(self):
-        """Unpickle a Fat object from a .parse file, and restore all of its
-        attribs to self"""
-        print 'Trying to recover parse info from %r' % self.parsefname
-        pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
-        u = cPickle.Unpickler(pf)
-        # TODO: there's perhaps a nicer-looking way to do this, see Python Cookbook 2nd ed recipe 7.4
-        def persistent_load(persid):
-            """required to restore the .srf file Record as an existing
-            open file for reading"""
-            if persid == os.path.basename(self.name): # filename excluding path
-                return self.f
-            else:
-                raise cPickle.UnpicklingError, 'Invalid persistent id: %r' % persid
-        # add this method to the unpickler
-        u.persistent_load = persistent_load
-        fat = u.load()
-        pf.close()
-        # Grab all normal attribs of fat and assign them to self
-        for key, val in fat.__dict__.items():
-            self.__setattr__(key, val)
-        print 'Recovered parse info from %r' % self.parsefname
-
     def _parseFileHeader(self):
         """Parse the Surf file header"""
-        self.fileheader = FileHeader(self.f)
+        self.fileheader = FileHeader(self)
         self.fileheader.parse()
         #print 'Parsed fileheader'
 
@@ -102,7 +76,7 @@ class File(Record):
         """Parse the DRDBs (Data Record Descriptor Blocks)"""
         self.drdbs = []
         while True:
-            drdb = DRDB(self.f)
+            drdb = DRDB(self)
             try:
                 drdb.parse()
                 self.drdbs.append(drdb)
@@ -121,10 +95,12 @@ class File(Record):
                 #print 'Asserting ' + item + ' is in causal order'
                 assert causalorder(self.__dict__[item])
 
-    def parse(self, force=True, save=False):
-        """Parse the .srf file"""
+    def parse(self, force=False, save=True):
+        """Parse the .srf file, potentially unpickling parse info from
+        a .parse file. If doing a new parsing, optionally save parse info
+        to a .parse file"""
         t0 = time.clock()
-        try: # recover Fat Record pickled in .parse file
+        try: # recover self pickled in .parse file
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
             self.unpickle()
@@ -132,11 +108,10 @@ class File(Record):
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it. Parse the .srf file
         except IOError:
-            print 'Parsing %r' % self.name
-            f = self.f # abbrev
+            print 'Parsing %r' % self.fname
             self._parseDRDBS()
             self._parserecords()
-            print 'Done parsing %r' % self.name
+            print 'Done parsing %r' % self.fname
             self._verifyParsing()
             self._connectRecords()
             print 'parsing took %f sec' % (time.clock()-t0)
@@ -166,7 +141,7 @@ class File(Record):
             f.seek(-2, 1)
             if flag in FLAG2RECTYPE:
                 rectype = FLAG2RECTYPE[flag]
-                rec = rectype(f)
+                rec = rectype(self)
                 rec.parse()
                 wx.Yield() # allow wx GUI event processing during parsing
                 # collect records in lists - this kind of metacode is prolly a bad idea
@@ -235,42 +210,29 @@ class File(Record):
         return lpmclayout
 
     def pickle(self):
-        """Creates a Fat Record, saves all the parsed headers and records to
-        it, and pickles it to a file"""
-
-        print 'TODO: make sure no high or lowpass data that may have been loaded is saved!!!!'
+        """Pickle self to a .parse file"""
         print 'Saving parse info to %r' % self.parsefname
-        fat = Fat()
-        fat.fileheader = self.fileheader
-        fat.drdbs = self.drdbs
-        fat.layoutrecords = self.layoutrecords
-        fat.messagerecords = self.messagerecords
-        fat.highpassrecords = self.highpassrecords
-        fat.lowpassrecords = self.lowpassrecords
-        fat.lowpassmultichanrecords = self.lowpassmultichanrecords
-        try: # file might not have stimuli
-            fat.displayrecords = self.displayrecords
-            fat.digitalsvalrecords = self.digitalsvalrecords
-        except AttributeError:
-            pass
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
-        # make a Pickler, use most efficient (least human readable) protocol
-        p = cPickle.Pickler(pf, protocol=-1)
-        # required to make the .srf file Record persistent and remain open for
-        # reading when unpickled
-        def persistent_id(obj):
-            if hasattr(obj, 'name'):
-                # the file Record's filename defines its persistent id for
-                # pickling purposes
-                return os.path.basename(obj.name)
-            else:
-                return None
-        # assign this method to the pickler
-        p.persistent_id = persistent_id
-        # pickle fat to .parse file
-        p.dump(fat)
+        p = cPickle.Pickler(pf, protocol=-1) # use most efficient (least human readable) protocol
+        p.dump(self) # pickle self to .parse file
         pf.close()
         print 'Saved parse info to %r' % self.parsefname
+
+    def unpickle(self):
+        """Unpickle self from a .parse file"""
+        print 'Trying to recover parse info from %r' % self.parsefname
+        pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
+        u = cPickle.Unpickler(pf)
+        #self = u.load() # NOTE: this doesn't work as intended
+        other = u.load()
+        self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
+        pf.close()
+        print 'Recovered parse info from %r' % self.parsefname
+
+    def __setstate__(self, d):
+        """Restore open .srf file on unpickle"""
+        self.__dict__ = d
+        self.f = open(self.fname, 'rb')
 
 
 class FileHeader(Record):
@@ -291,15 +253,15 @@ class FileHeader(Record):
     UFF_FILEDESC_LEN = 64
     UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
 
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 2050
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         self.offset = f.tell()
         self.FH_rec_type, = self.unpack('B', f.read(1)) # must be 1
         assert self.FH_rec_type == 1
@@ -322,11 +284,11 @@ class FileHeader(Record):
         self.OS_major, = self.unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = self.unpack('B', f.read(1)) # OS minor rev
         # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
-        self.create = TimeDate(f)
+        self.create = TimeDate(self.srff)
         self.create.parse()
         # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes,
         # although this tends to be identical to creation time for some reason
-        self.append = TimeDate(f)
+        self.append = TimeDate(self.srff)
         self.append.parse()
         # system node name - same as BDT
         self.node = f.read(self.UFF_NODENAME_LEN).rstrip(NULL)
@@ -366,15 +328,15 @@ class FileHeader(Record):
 
 class TimeDate(Record):
     """TimeDate record, reverse of C'S DateTime"""
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 18
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
         self.sec, = self.unpack('H', f.read(2))
@@ -394,10 +356,10 @@ class DRDB(Record):
     UFF_DRDB_PAD_LEN = 16
     UFF_RSFD_PER_DRDB = 77
 
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
+        self.srff = srff
         self.DR_subfields = []
-        self.f = f
 
     def __len__(self):
         return 2208
@@ -410,7 +372,7 @@ class DRDB(Record):
         return info
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         self.offset = f.tell()
         # record type; must be 2
         self.DRDB_rec_type, = self.unpack('B', f.read(1))
@@ -436,7 +398,7 @@ class DRDB(Record):
         self.DR_pad = self.unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
         # sub fields desc. RSFD = Record Subfield Descriptor
         for rsfdi in xrange(self.UFF_RSFD_PER_DRDB):
-            rsfd = RSFD(f)
+            rsfd = RSFD(self.srff)
             rsfd.parse()
             self.DR_subfields.append(rsfd)
         assert f.tell() - self.offset == self.UFF_DRDB_BLOCK_LEN
@@ -463,20 +425,19 @@ class RSFD(Record):
     """Record Subfield Descriptor for Data Record Descriptor Block"""
     UFF_DRDB_RSFD_NAME_LEN = 20
 
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 26
 
     def __str__(self):
-        return "%s of type: %s with field size: %s" % (self.subfield_name,
-                                                       self.subfield_data_type,
-                                                       self.subfield_size)
+        return "%s of type: %s with field size: %s" \
+                % (self.subfield_name, self.subfield_data_type, self.subfield_size)
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         self.offset = f.tell()
         # DRDB subfield name
         self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
@@ -493,15 +454,15 @@ class LayoutRecord(Record):
     # Surf layout record constants
     SURF_MAX_CHANNELS = 64 # currently supports one or two DT3010 boards, could be higher
 
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 1725
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
         # Record type 'L'
@@ -581,7 +542,7 @@ class LayoutRecord(Record):
         f.seek(2, 1)
         # MOVE BELOW CHANLIST FOR CAT 9
         # v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
-        self.probewinlayout = ProbeWinLayout(f)
+        self.probewinlayout = ProbeWinLayout(self.srff)
         self.probewinlayout.parse()
         # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE;
         # {pad for future expansion/modification}
@@ -592,15 +553,15 @@ class LayoutRecord(Record):
 
 class ProbeWinLayout(Record):
     """Probe window layout"""
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 16
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
 
@@ -622,15 +583,15 @@ class AnalogSingleValRecord(Record):
 
 class MessageRecord(Record):
     """Message record"""
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 28 + self.MsgLength
 
     def parse(self):
-        f = self.f # abbrev
+        f = self.srff.f # abbrev
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
         # 1 byte -- SURF_MSG_REC_UFFTYPE: 'M'
@@ -651,15 +612,15 @@ class MessageRecord(Record):
 
 class ContinuousRecord(Record):
     """Continuous waveform record"""
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 28 + self.NumSamples*2
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         # for speed and memory, read all 28 bytes at a time, skip reading
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = self.unpack('qqhhii', f.read(28))
@@ -670,17 +631,26 @@ class ContinuousRecord(Record):
     def load(self):
         """Loads waveform data for this continuous record, assumes that the
         appropriate probe layout record has been assigned as a .layout attrib"""
-        f = self.f
+        f = self.srff.f
         f.seek(self.dataoffset)
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
         # Using stuct.unpack for this is super slow:
         #self.data = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
-        self.data = np.fromfile(self.f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
+        self.data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
         # reshape to have nchans rows, as indicated in layout
         #nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
         #self.data.shape = (self.layout.nchans, nt)
         self.data.shape = (self.layout.nchans, -1)
-
+    '''
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        try:
+            del d['data'] # don't pickle the data, that can always be reloaded after unpickling
+        except KeyError:
+            pass
+        return d
+    '''
 
 class HighPassRecord(ContinuousRecord):
     """High-pass continuous waveform record"""
@@ -696,7 +666,8 @@ class LowPassMultiChanRecord(Record):
         """Takes several low pass records, all at the same timestamp"""
         Record.__init__(self)
         self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
-        self.fname = self.lowpassrecords[0].f.name # full filename with path, needed for unpickling
+        self.srff = self.lowpassrecords[0].srff
+        #self.fname = self.lowpassrecords[0].f.name # full filename with path, needed for unpickling
         self.TimeStamp = self.lowpassrecords[0].TimeStamp
         self.layout = self.lowpassrecords[0].layout
         self.NumSamples = self.lowpassrecords[0].NumSamples
@@ -726,37 +697,38 @@ class LowPassMultiChanRecord(Record):
             self.data.append(record.data)
         # save as array, removing singleton dimensions
         self.data = np.squeeze(self.data)
-
+    '''
     def get_f(self):
         """Get open .srf file, should be the same for all lowpassrecords"""
         return self.lowpassrecords[0].f
 
     def set_f(self, f):
-        """This can be called by Stream when unpickling self. Instead of binding and open
-        .srf file to self, bind it to its constituent lowpassrecords"""
+        """This can be called by Stream when unpickling self. Instead of binding
+        an open .srf file to self, bind it to its constituent lowpassrecords"""
         for lowpassrecord in self.lowpassrecords:
             lowpassrecord.f = f
 
-    """Make this LowPassMultiChanRecord look like it has its own open .srf file, when really it's that
-    of its constiuent lowpassrecords"""
+    """Make this LowPassMultiChanRecord look like it has its own open .srf file,
+    when really it's that of its constiuent lowpassrecords"""
     f = property(get_f, set_f)
 
     def __setstate__(self, d):
         self.__dict__ = d
         for record in self.lowpassrecords:
             record
+    '''
 
 class DisplayRecord(Record):
     """Stimulus display header record"""
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 24 + len(self.Header) + 4
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         #self.offset = f.tell() # not really necessary, comment out to save memory
         # 1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
         self.UffType = f.read(1)
@@ -766,7 +738,7 @@ class DisplayRecord(Record):
         self.TimeStamp, = self.unpack('q', f.read(8))
         # double, 8 bytes - number of days (integral and fractional) since 30 Dec 1899
         self.DateTime, = self.unpack('d', f.read(8))
-        self.Header = StimulusHeader(f)
+        self.Header = StimulusHeader(self.srff)
         self.Header.parse()
         # hack to skip next 4 bytes
         f.seek(4, 1)
@@ -780,9 +752,9 @@ class StimulusHeader(Record):
     NVS_PARAM_LEN = 749
     PYTHON_TBL_LEN = 50000
 
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         if self.version == 100: # Cat < 15
@@ -791,7 +763,7 @@ class StimulusHeader(Record):
             return 4 + self.STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + self.PYTHON_TBL_LEN + 28
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         #self.offset = f.tell() # not really necessary, comment out to save memory
         self.header = f.read(2).rstrip(NULL) # always 'DS'?
         self.version, = self.unpack('H', f.read(2))
@@ -824,23 +796,18 @@ class StimulusHeader(Record):
 
 class DigitalSValRecord(Record):
     """Digital single value record"""
-    def __init__(self, f):
+    def __init__(self, srff):
         Record.__init__(self)
-        self.f = f
+        self.srff = srff
 
     def __len__(self):
         return 24
 
     def parse(self):
-        f = self.f
+        f = self.srff.f
         # for speed and memory, read all 24 bytes at a time, skip UffType and SubType
         # Cardinal, 64 bit signed int; 16 bit single value
         junk, self.TimeStamp, self.SVal, junk, junk = self.unpack('QQHHI', f.read(24))
-
-
-class Fat(Record):
-    """Empty class that stores all the stuff to be pickled into a .parse file and then
-    unpickled as saved parse info"""
 
 
 def causalorder(records):

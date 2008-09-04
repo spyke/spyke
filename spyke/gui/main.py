@@ -381,7 +381,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = surf.File(fname)
         # TODO: parsing progress dialog
         self.srff.parse()
-        self.srffname = self.srff.name # update
+        self.srffname = self.srff.fname # update
         self.SetTitle(os.path.basename(self.srffname)) # update the caption
 
         self.hpstream = core.Stream(self.srff.highpassrecords) # highpass record (spike) stream
@@ -642,7 +642,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.plot()
 
     def SetSHCorrect(self, enable):
-        """Set highpass stream sample & hold correct flag, enforce menu state"""
+        """Set highpass stream sample & hold correct flag, update widgets"""
         if self.hpstream != None:
             self.hpstream.shcorrect = enable
         self.menubar.Check(wx.ID_SHCORRECT, enable)
@@ -959,7 +959,7 @@ class SpykeAbout(wx.Dialog):
         </tr>
         </table>
         </center>
-        <p><b>spyke</b> is a tool for neuronal spike sorting.
+        <p><b>spyke</b> is a tool for neuronal waveform visualization and spike sorting.
         </p>
 
         <p>Copyright &copy; 2008 Martin Spacek, Reza Lotun</p>
