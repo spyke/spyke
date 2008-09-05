@@ -9,8 +9,8 @@ outputs = []
 
 def f(x):
     for i in xrange(10000000): # to slow things down a bit
-        a = x*x
-    return a
+        output = x*x
+    return output
 
 def handleOutput(output):
     """This f'n, as a callback, is blocking.

@@ -124,45 +124,48 @@ class Detector(object):
 
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
-        #events = [] # list of 2D event arrays returned by .searchblock(), one array per block
-        #TODO: create only 2 threads, add them to a queue, and make sure to use a lock when appending to .events
-
+        # should probably do a check here to see if it's worth using multiple processes
+        # so, check if wavetrange is big enough, and/or if maxnevents is big enough
+        # if random sampling, use only a single process?
         pool = processing.Pool() # spawns as many worker processes as there are CPUs/cores on the machine
-
-        #for wavetrange in wavetranges: # iterate over time ranges with excess in them, one per block
-            #pool.apply(self.work, wavetrange)
-            #thread = SearchBlockThread(detector=self, wavetrange=wavetrange)
-            #thread.start()
-        # if random sampling, use only a single process
-        #ntranges = len(wavetranges)
-        #args = (self.stream,)*ntranges, wavetranges, (direction,)*ntranges
-        #events = pool.map(self.work, (self.stream,)*ntranges, wavetranges, (direction,)*ntranges) # overwrites with a list
+        self.events = [] # list of 2D event arrays returned by .searchblockprocess(), one array per block
+        results = [] # stores ApplyResult objects returned by pool.applyAsync
         for wavetrange in wavetranges:
-            events = pool.apply(self.work, (self.stream, wavetrange, direction))
-        # might need to use apply in a loop instead, to check nevents and exit appropriately. Or use map in a loop, where you loop over pairs or quads (depending on number of CPUs) of wavetranges and check after each map call. Or, use poll or something?
+            args = (wavetrange, direction)
+            result = pool.applyAsync(self.searchblockprocess, args=args, callback=self.handle_eventarr)
+            results.append(result) # not really necessary
+        print 'done queueing tasks, result objects are: %r' % results
+        pool.close() # prevent any more tasks from being added to pool
+        pool.join() # wait until all tasks are done
 
         try:
-            events = np.concatenate(events, axis=1)
-        except ValueError: # events is an empty list
-            events = np.asarray(events)
+            events = np.concatenate(self.events, axis=1)
+        except ValueError: # self.events is an empty list
+            events = np.asarray(self.events)
             events.shape = (2, 0)
         print '\nfound %d events in total' % events.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
 
-    def work(self, stream, wavetrange, direction):
+    def searchblockprocess(self, wavetrange, direction):
+        """This is what a worker process executes"""
         if self.nevents >= self.maxnevents:
-            return # break out of for loop
+            return # skip this iteration. TODO: this should really cancel all enqueued tasks
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
         #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
-        wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
+        wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
         if self.randomsample:
             maxnevents = 1 # how many more we're looking for in the next block
         else:
             maxnevents = self.maxnevents - self.nevents
-        eventarr = self.searchblock(wave, cutrange, maxnevents)
+        eventarr = self.searchblock(wave, cutrange, maxnevents) # drop into C loop
+        return eventarr
+
+    def handle_eventarr(self, eventarr):
+        """Blocking callback, called every time a worker process completes a task"""
+        print 'handle_eventarr got: %r' % eventarr
         nnewevents = eventarr.shape[1] # number of columns
         #wx.Yield() # allow GUI to update
         if self.randomsample and eventarr.tolist() in np.asarray(self.events).tolist():
@@ -172,11 +175,9 @@ class Detector(object):
             # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
             sys.stdout.write('found duplicate random sampled event')
         elif nnewevents != 0:
-            #self.events.append(eventarr)
+            self.events.append(eventarr)
             self.nevents += nnewevents # update
             sys.stdout.write('.')
-            return eventarr
-
 
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
