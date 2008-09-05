@@ -34,6 +34,14 @@ cython_test = Extension('demo.cython_test',
                         #extra_link_args=["-g"],
                         )
 
+cython_test = Extension('demo.cy_thread_test',
+                        sources=['demo/cy_thread_test.pyx'],
+                        include_dirs=include_dirs,
+                        #extra_compile_args=["-g"], # debug
+                        #extra_link_args=["-g"],
+                        )
+
+
 spyke_files = ["gui/res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
 
 setup(name='spyke',
