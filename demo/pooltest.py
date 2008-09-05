@@ -1,4 +1,4 @@
-"""Demonstrates use of a processing.Pool"""
+"""Demonstrate use of a processing.Pool"""
 
 from processing import Pool
 import time
@@ -6,17 +6,20 @@ import time
 global outputs
 outputs = []
 
+
 def f(x):
-    for i in xrange(2000000): # to slow things down a bit
+    for i in xrange(10000000): # to slow things down a bit
         a = x*x
     return a
 
 def handleOutput(output):
     """This f'n, as a callback, is blocking.
-    I think it blocks the whole program,
-    regardless of number of processes or cores??"""
+    It blocks the whole program, regardless of number of processes or CPUs/cores"""
     print 'handleOutput got: %r' % output
     outputs.append(output)
+    #print 'pausing'
+    #for i in xrange(100000000):
+    #    pass
 
 if __name__ == '__main__':
     pool = Pool() # create a processing pool with as many processes as there are CPUs/cores on this machine
@@ -31,9 +34,4 @@ if __name__ == '__main__':
     pool.join()
     print 'tasks took %.3f sec' % time.clock()
     print 'outputs: %r' % outputs
-
-    #import pdb; pdb.set_trace()
-    #time.sleep(10)
-    #result = pool.applyAsync(f, [10])     # evaluate "f(10)" asynchronously
-    #print result.get(timeout=1)           # prints "100" unless your computer is *very* slow
-    #print pool.map(f, range(10))          # prints "[0, 1, 4,..., 81]"
+    time.sleep(2) # pause so you can watch the parent process in taskman hang around after worker processes exit
