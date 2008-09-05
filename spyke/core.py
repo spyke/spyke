@@ -84,8 +84,8 @@ class Stream(object):
         sampfreq arg is useful for interpolation"""
         self.ctsrecords = ctsrecords
         self.layout = self.ctsrecords[0].layout # layout record for this stream
-        #self.fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling
-        fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling
+        #self.fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling?
+        fname = self.ctsrecords[0].srff.fname # full filename with path
         self.srffname = os.path.basename(fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us, for convenience
