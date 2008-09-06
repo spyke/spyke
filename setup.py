@@ -15,10 +15,16 @@ in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 
 from distutils.core import setup, Extension
 import os
+import sys
 from Cython.Distutils import build_ext
 
 # modify this to point to your numpy/core/include
-include_dirs=['/bin/Python25/Lib/site-packages/numpy/core/include']
+if sys.platform == 'win32':
+    include_dirs=['/bin/Python25/Lib/site-packages/numpy/core/include']
+elif sys.platform == 'linux2':
+    include_dirs=['/usr/lib/python2.5/site-packages/numpy/core/include']
+else:
+    raise RuntimeError
 
 detect_cy = Extension('spyke.detect_cy',
                       sources=['spyke/detect_cy.pyx'],
@@ -34,7 +40,7 @@ cython_test = Extension('demo.cython_test',
                         #extra_link_args=["-g"],
                         )
 
-cython_test = Extension('demo.cy_thread_test',
+cy_thread_test = Extension('demo.cy_thread_test',
                         sources=['demo/cy_thread_test.pyx'],
                         include_dirs=include_dirs,
                         #extra_compile_args=["-g"], # debug
@@ -57,5 +63,6 @@ setup(name='spyke',
       cmdclass={'build_ext': build_ext},
       ext_modules=[detect_cy,
                    cython_test,
+		   cy_thread_test
                    ],
       )
