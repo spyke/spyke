@@ -258,21 +258,24 @@ class Stream(object):
         #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
-        npoints = intround(self.sampfreq / self.rawsampfreq) # number of output resampled points per input raw point
-        assert npoints >= 1, 'no decimation allowed'
+        resamplex = intround(self.sampfreq / self.rawsampfreq) # resample factor: n output resampled points per input raw point
+        assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        # check if kernels have been generated already
         chans = self.chans or range(len(rawdata)) # None indicates channel ids == data row indices
+        # check if kernels have been generated already
         try:
             self.kernels
         except AttributeError:
-            self.kernels = self.get_kernels(chans, npoints, N)
+            self.kernels = self.get_kernels(chans, resamplex, N)
 
         # convolve the data with each kernel
         nrawts = len(rawts)
-        nt = nrawts + (npoints-1) * (nrawts - 1) # all the interpolated points have to fit in between the existing raw
-                                                 # points, so there's nrawts - 1 of each of the interpolated points
+        # all the interpolated points have to fit in between the existing raw
+        # points, so there's nrawts - 1 of each of the interpolated points:
+        #nt = nrawts + (resamplex-1) * (nrawts - 1)
+        # the above can be simplified to:
+        nt = nrawts*resamplex - (resamplex - 1)
         tstart = rawts[0]
         ts = np.arange(start=tstart, stop=tstart+tres*nt, step=tres) # generate interpolated timepoints
         #print 'len(ts) is %r' % len(ts)
@@ -281,21 +284,21 @@ class Stream(object):
         #print 'data.shape = %r' % (data.shape,)
         for chani, chan in enumerate(chans):
             for point, kernel in enumerate(self.kernels[chani]):
-                # np.convolve(a, v, mode)
-                # for mode='same', only the K middle values are returned starting at n = (M-1)/2
-                # where K = len(a)-1 and M = len(v) - 1 and K >= M
-                # for mode='valid', you get the middle len(a) - len(v) + 1 number of values
+                """ np.convolve(a, v, mode)
+                for mode='same', only the K middle values are returned starting at n = (M-1)/2
+                where K = len(a)-1 and M = len(v) - 1 and K >= M
+                for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
                 row = np.convolve(rawdata[chani], kernel, mode='same')
                 #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
-                # assign from point to end in steps of npoints
-                ti0 = (npoints - point) % npoints # index to start filling data from for this kernel's points
+                # assign from point to end in steps of resamplex
+                ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
-                data[chani, ti0::npoints] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
+                data[chani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
         return data, ts
 
-    def get_kernels(self, chans, npoints, N):
+    def get_kernels(self, chans, resamplex, N):
         """Generate a different set of kernels for each chan to correct each channel's s+h delay.
         TODO: take DIN channel into account, might need to shift all highpass chans
         by 1us, see line 2412 in SurfBawdMain.pas"""
@@ -311,8 +314,8 @@ class Stream(object):
         for chani, chan in enumerate(chans):
             d = ds[chani] # delay for this chan
             kernelrow = []
-            for point in range(npoints): # iterate over resampled points per raw point
-                t0 = point/npoints # some fraction of 1
+            for point in range(resamplex): # iterate over resampled points per raw point
+                t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
                 tstop = tstart + (N+1)
                 t = np.arange(start=tstart, stop=tstop, step=1) # kernel sample timepoints, all of length N+1

@@ -132,6 +132,7 @@ class Detector(object):
         results = [] # stores ApplyResult objects returned by pool.applyAsync
         for wavetrange in wavetranges:
             args = (wavetrange, direction)
+            # NOTE: might need to make a dummyDetector object with the right attribs to prevent mpl stuff and everything else from being copied over to each new spawned process???
             result = pool.applyAsync(self.searchblockprocess, args=args, callback=self.handle_eventarr)
             results.append(result) # not really necessary
         print 'done queueing tasks, result objects are: %r' % results
