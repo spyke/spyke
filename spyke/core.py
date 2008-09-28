@@ -292,7 +292,7 @@ class Stream(object):
                 #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
-                # assign from point to end in steps of resamplex
+                # interleave by assigning from point to end in steps of resamplex
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[chani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
@@ -300,6 +300,11 @@ class Stream(object):
 
     def get_kernels(self, chans, resamplex, N):
         """Generate a different set of kernels for each chan to correct each channel's s+h delay.
+
+        TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
+        You don't need a kernel for the original raw data points. Those won't be shifted,
+        so you can just interleave appropriately.
+
         TODO: take DIN channel into account, might need to shift all highpass chans
         by 1us, see line 2412 in SurfBawdMain.pas"""
         i = np.asarray(chans) % NCHANSPERBOARD # ordinal position of each chan in the hold queue
@@ -384,7 +389,7 @@ class SpykeTreeCtrl(wx.TreeCtrl):
             self.SiteLoc
         except AttributeError:
             sortframe = self.GetTopLevelParent()
-            self.SiteLoc = sortframe.session.probe.SiteLoc # do this here and not in __init__ due to binding order
+            self.SiteLoc = sortframe.sort.probe.SiteLoc # do this here and not in __init__ due to binding order
         obj1 = self.GetItemPyData(item1)
         obj2 = self.GetItemPyData(item2)
         try: # make sure they're both templates by checking for .events attrib

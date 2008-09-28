@@ -150,6 +150,7 @@ class Detector(object):
 
     def searchblockprocess(self, wavetrange, direction):
         """This is what a worker process executes"""
+        print 'in searchblockprocess, self.nevents=%r, self.maxnevents=%r' % (self.nevents, self.maxnevents)
         if self.nevents >= self.maxnevents:
             return # skip this iteration. TODO: this should really cancel all enqueued tasks
         tlo, thi = wavetrange # tlo could be > thi
@@ -167,6 +168,8 @@ class Detector(object):
     def handle_eventarr(self, eventarr):
         """Blocking callback, called every time a worker process completes a task"""
         print 'handle_eventarr got: %r' % eventarr
+        if eventarr == None:
+            return
         nnewevents = eventarr.shape[1] # number of columns
         #wx.Yield() # allow GUI to update
         if self.randomsample and eventarr.tolist() in np.asarray(self.events).tolist():

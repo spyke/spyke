@@ -17,7 +17,7 @@ from copy import copy
 
 import spyke
 from spyke import core, surf, detect, detect_cy
-from spyke.sort import Session, Detection
+from spyke.sort import Sort, Detection
 from spyke.core import toiter, MU, intround
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 from spyke.sort import SortFrame
@@ -126,7 +126,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def OnNew(self, evt):
-        self.CreateNewSession()
+        self.CreateNewSort()
 
     def OnOpen(self, evt):
         dlg = wx.FileDialog(self, message="Open surf or sort file",
@@ -245,18 +245,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, evt):
         """Detect pane Search button click"""
-        self.session.detector = self.get_detector() # update session's current detector
-        events_array = self.session.detector.search()
-        detection = Detection(self.session, self.session.detector,
-                              id=self.session._detid,
+        self.sort.detector = self.get_detector() # update sort session's current detector
+        events_array = self.sort.detector.search()
+        detection = Detection(self.sort, self.sort.detector,
+                              id=self.sort._detid,
                               datetime=datetime.datetime.now(),
                               events_array=events_array) # generate a new Detection run
-        if detection not in self.session.detections.values(): # suppress Detections with an identical set of .events (see __eq__)
-            self.session._detid += 1 # inc for next unique Detection run
+        if detection not in self.sort.detections.values(): # suppress Detections with an identical set of .events (see __eq__)
+            self.sort._detid += 1 # inc for next unique Detection run
             detection.set_events() # now that we know this detection isn't redundant, let's actually generate the Event objects
-            self.session.detections[detection.id] = detection
+            self.sort.detections[detection.id] = detection
             self.append_detection_list(detection)
-            uniqueevents = self.session.append_events(detection.events)
+            uniqueevents = self.sort.append_events(detection.events)
             # disable sampling menu, don't want to allow sampfreq or shcorrect changes
             # now that we've had at least one detection run
             self.menubar.Enable(wx.ID_SAMPLING, False)
@@ -268,7 +268,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnMatch(self, evt):
         """Sort pane Match button click"""
-        self.session.match()
+        self.sort.match()
 
     def OnKeyDown(self, evt):
         """Handle key presses
@@ -334,32 +334,32 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     raise RuntimeError
             for eventi in det.events.keys(): # now do the actual removal
                 try:
-                    del self.session.events[eventi] # remove from unsorted events dict
+                    del self.sort.events[eventi] # remove from unsorted events dict
                     if 'sort' in self.frames.keys(): # if sort frame exists, which it should
                         self.frames['sort'].list.DeleteItemByData(eventi) # remove from event listctrl
                 except KeyError: # check if it's in the trash
                     try:
-                        del self.session.trash[eventi] # remove from trash
+                        del self.sort.trash[eventi] # remove from trash
                     except KeyError:
-                        print "can't find event %d in session.events or in session.trash, it may have been a duplicate" % eventi
-            del self.session.detections[det.id] # remove from session's detections dict
+                        print "can't find event %d in sort.events or in sort.trash, it may have been a duplicate" % eventi
+            del self.sort.detections[det.id] # remove from sort's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
-        if len(self.session.detections) == 0: # if no detection runs are left
+        if len(self.sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
         self.total_nevents_label.SetLabel(str(self.get_total_nevents())) # update
 
     def listRow2Detection(self, row):
         """Return Detection at detection list row"""
         detectioni = int(self.detection_list.GetItemText(row))
-        detection = self.session.detections[detectioni]
+        detection = self.sort.detections[detectioni]
         return detection
 
     def get_total_nevents(self):
         """Get total nevents across all detection runs
-        TODO: or should this just count nevents in .session,
+        TODO: or should this just count nevents in .sort,
         which would make it number of unique events?"""
         nevents = 0
-        for det in self.session.detections.values():
+        for det in self.sort.detections.values():
             nevents += len(det.events)
         return nevents
 
@@ -419,25 +419,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
-        self.CreateNewSession() # create a new sort Session
+        self.CreateNewSortSession() # create a new sort session
 
         self.EnableSurfWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
-    def CreateNewSession(self):
-        """Create a new sort Session and bind it to .self"""
-        self.DeleteSession()
-        self.session = Session(detector=self.get_detector(),
-                               probe=self.hpstream.probe,
-                               stream=self.hpstream)
+    def CreateNewSortSession(self):
+        """Create a new sort session and bind it to .self"""
+        self.DeleteSortSession()
+        self.sort  = Sort(detector=self.get_detector(),
+                          probe=self.hpstream.probe,
+                          stream=self.hpstream)
         self.EnableSortWidgets(True)
 
-    def DeleteSession(self):
-        """Delete any existing sort Session"""
+    def DeleteSortSession(self):
+        """Delete any existing sort session"""
         try:
-            # TODO: if Save button is enabled, check if session is saved, if not, prompt to save
-            print 'deleting existing session and entries in list controls'
-            del self.session
+            # TODO: if Save button is enabled, check if sort session is saved, if not, prompt to save
+            print 'deleting existing sort session and entries in list controls'
+            del self.sort
         except AttributeError:
             pass
         self.detection_list.DeleteAllItems()
@@ -501,49 +501,49 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.CloseSortFile()
 
     def CloseSortFile(self):
-        self.DeleteSession()
+        self.DeleteSortSession()
         self.EnableSortWidgets(False)
         self.sortfname = '' # forces a SaveAs on next Save event
 
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
-        self.DeleteSession() # delete any existing sort Session
+        self.DeleteSortSession() # delete any existing sort Session
         pf = gzip.open(fname, 'rb')
-        self.session = cPickle.load(pf)
+        self.sort = cPickle.load(pf)
         pf.close()
-        sessionProbe = self.session.probe.__class__
+        sortProbe = self.sort.probe.__class__
         if self.hpstream != None:
-            if sessionProbe != self.hpstream.probe.__class__:
-                self.CreateNewSession() # overwrite the failed Session
+            if sortProbe != self.hpstream.probe.__class__:
+                self.CreateNewSortSession() # overwrite the failed sort session
                 raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
-                                    % (sessionProbe, self.hpstream.probe.__class__)
-        self.session.stream = self.hpstream # restore missing stream object to session
-        self.SetSampfreq(self.session.sampfreq)
-        self.SetSHCorrect(self.session.shcorrect)
+                                    % (sortProbe, self.hpstream.probe.__class__)
+        self.sort.stream = self.hpstream # restore missing stream object to sort session
+        self.SetSampfreq(self.sort.sampfreq)
+        self.SetSHCorrect(self.sort.shcorrect)
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
-            self.notebook.Show(True) # lets us do stuff with the sort Session
-        for detection in self.session.detections.values(): # restore detections to detection list
+            self.notebook.Show(True) # lets us do stuff with the sort session
+        for detection in self.sort.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
         sf = self.OpenFrame('sort') # ensure it's open
-        sf.Append2EventList(self.session.events) # restore unsorted events to event list
-        for template in self.session.templates.values(): # restore templates and their sorted events to tree
+        sf.Append2EventList(self.sort.events) # restore unsorted events to event list
+        for template in self.sort.templates.values(): # restore templates and their sorted events to tree
             sf.AddTemplate2Tree(template)
             for event in template.events.values():
                 sf.AddEvent2Tree(template.itemID, event)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        self.update_detect_pane(self.session.detector)
+        self.update_detect_pane(self.sort.detector)
         self.EnableSortWidgets(True)
         print 'done opening sort file'
 
     def SaveSortFile(self, fname):
-        """Save sort session to a .sort file"""
+        """Save sort sort to a .sort file"""
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
         p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
-        p.dump(self.session)
+        p.dump(self.sort)
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
@@ -578,7 +578,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 y = self.GetPosition()[1]
                 frame = SortFrame(parent=self, pos=wx.Point(x, y))
                 for panel in [frame.spikesortpanel]:#, frame.chartsortpanel]:
-                    panel.callAfterFrameInit(self.session.probe) # post frame creation tasks for panel
+                    panel.callAfterFrameInit(self.sort.probe) # post frame creation tasks for panel
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
@@ -747,7 +747,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def findevent(self, which='next'):
         """Find next or previous event, depending on which direction"""
-        det = self.session.detector
+        det = self.sort.detector
         self.update_detector(det)
         det.maxnevents = 1 # override whatever was in nevents spin edit
         det.blocksize = 50000 # smaller blocksize, since we're only looking for 1 event
@@ -941,7 +941,7 @@ class PyShellFrame(wx.MiniFrame,
         self.shell.run('import numpy as np')
         self.shell.run('self = app.spykeframe')
         self.shell.run("sf = self.frames['sort']") # convenience
-        self.shell.run('s = self.session') # convenience
+        self.shell.run('s = self.sort') # convenience
 
     def OnClose(self, evt):
         frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name

@@ -28,15 +28,15 @@ SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
 
 
-class Session(object):
+class Sort(object):
     """A spike sorting session, in which you can do multiple Detection runs,
     build Templates up from events in those Detection runs, and then use Templates
     to sort spike Events.
-    Formerly known as a Collection.
-    A .sort file is a single sort Session object, pickled and gzipped"""
+    Formerly known as a Session, and before that, a Collection.
+    A .sort file is a single Sort object, pickled and gzipped"""
     def __init__(self, detector=None, probe=None, stream=None):
-        self.detector = detector # this session's current Detector object
-        self.probe = probe # only one probe design per session allowed
+        self.detector = detector # this sort session's current Detector object
+        self.probe = probe # only one probe design per sort allowed
         self.detections = {} # history of detection runs
         self.stream = stream
         # all unsorted events detected in this sort session across all Detection runs, indexed by unique ID
@@ -79,7 +79,7 @@ class Session(object):
     def append_events(self, events):
         """Append events to self.
         Don't add a new event from a new detection if the identical event
-        (same maxchan and t) is already in session.events"""
+        (same maxchan and t) is already in self.events"""
         newevents = set(events.values()).difference(self.events.values())
         duplicates = set(events.values()).difference(newevents)
         if duplicates:
@@ -153,21 +153,21 @@ class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
-    def __init__(self, session, detector, id=None, datetime=None, events_array=None):
-        self.session = session # parent sort Session
+    def __init__(self, sort, detector, id=None, datetime=None, events_array=None):
+        self.sort = sort # parent sort session
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
         self.events_array = events_array # 2D array output of Detector.search
         self._slock_chans = {}
-        #self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort Session when we delete a Detection
+        #self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort session when we delete a Detection
 
     def set_events(self):
-        """Convert .events_array to dict of Event objects, inc session's _eventid counter"""
+        """Convert .events_array to dict of Event objects, inc sort's _eventid counter"""
         self.events = {}
         for t, chan in self.events_array.T: # same as iterate over cols of non-transposed events array
-            e = Event(self.session._eventid, chan, t, self)
-            self.session._eventid += 1 # inc for next unique Event
+            e = Event(self.sort._eventid, chan, t, self)
+            self.sort._eventid += 1 # inc for next unique Event
             self.events[e.id] = e
 
     def get_slock_chans(self, maxchan):
@@ -199,8 +199,8 @@ class Template(object):
     """A collection of spikes that have been deemed somehow, whether manually
     or automatically, to have come from the same cell. A Template's waveform
     is the mean of its member spikes"""
-    def __init__(self, session, id=None, parent=None):
-        self.session = session # parent sort Session
+    def __init__(self, sort, id=None, parent=None):
+        self.sort = sort # parent sort session
         self.id = id # template id
         self.parent = parent # parent template, if self is a subtemplate
         self.subtemplates = None
@@ -329,7 +329,7 @@ class Template(object):
         """Return a vector that weights self.chans according to a 2D gaussian
         centered on self.maxchan with standard deviation stdev in um"""
         g = Gaussian(mean=0, stdev=stdev)
-        d = self.session.detector.dm[self.maxchan, self.chans] # distances between maxchan and all enabled chans
+        d = self.sort.detector.dm[self.maxchan, self.chans] # distances between maxchan and all enabled chans
         weights = g[d]
         weights.shape = (-1, 1) # vertical vector with nchans rows, 1 column
         return weights
@@ -361,7 +361,7 @@ class Template(object):
 
 class Event(object):
     """Either an unsorted event, or a member spike in a Template,
-    or a sorted spike in a Detection (or should that be sort Session?)"""
+    or a sorted spike in a Detection (or should that be sort session?)"""
     def __init__(self, id, maxchan, t, detection):
         self.id = id # some integer for easy user identification
         self.maxchan = maxchan
@@ -416,7 +416,7 @@ class Event(object):
 
 class Match(object):
     """Holds all the settings of a match run. A match run is when you compare each
-    template to all of the detected but unsorted spikes in Session.events, plot an
+    template to all of the detected but unsorted spikes in Sort.events, plot an
     error histogram for each template, and set the error threshold for each to
     decide which events match the template. Fast, simple, no noise events to worry
     about, but is susceptible to spike misalignment. Compare with a Rip"""
@@ -450,7 +450,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def __init__(self, *args, **kwargs):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
         self.spykeframe = self.Parent
-        ncols = self.session.probe.ncols
+        ncols = self.sort.probe.ncols
         size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols,
                 SORTFRAMEHEIGHT)
         self.SetSize(size)
@@ -481,13 +481,13 @@ class SortFrame(wxglade_gui.SortFrame):
         self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-    def get_session(self):
-        return self.spykeframe.session
+    def get_sort(self):
+        return self.spykeframe.sort
 
-    def set_session(self):
-        raise RuntimeError, "SortFrame's .session not settable"
+    def set_sort(self):
+        raise RuntimeError, "SortFrame's .sort not settable"
 
-    session = property(get_session, set_session) # make this a property for proper behaviour after unpickling
+    sort = property(get_sort, set_sort) # make this a property for proper behaviour after unpickling
 
     def OnSize(self, evt):
         """Re-save reflines_background after resizing the frame"""
@@ -710,7 +710,7 @@ class SortFrame(wxglade_gui.SortFrame):
         template = self.GetFirstSelectedTemplate()
         if not template: # no templates selected
             return
-        self.session.match(templates=[template])
+        self.sort.match(templates=[template])
         eid2err = dict(template.err) # maps event ID to its error for this template
         for rowi in range(self.list.GetItemCount()):
             eid = int(self.list.GetItemText(rowi))
@@ -724,14 +724,14 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def RelabelTemplates(self, root):
         """Consecutively relabel templates according to their vertical order in the TreeCtrl.
-        Relabeling happens both in the TreeCtrl and in the in .session.templates dict"""
+        Relabeling happens both in the TreeCtrl and in the in .sort.templates dict"""
         templates = self.tree.GetTreeChildrenPyData(root) # get all children in order from top to bottom
-        self.session.templates = {} # clear the dict, gc won't kick in cuz we still have a ref
+        self.sort.templates = {} # clear the dict, gc won't kick in cuz we still have a ref
         for templatei, template in enumerate(templates):
             template.id = templatei # update its id
-            self.session.templates[template.id] = template # add it to its key in template dict
+            self.sort.templates[template.id] = template # add it to its key in template dict
             self.tree.SetItemText(template.itemID, 't'+str(template.id)) # update its entry in the tree
-        self.session._templid = templatei + 1 # reset unique Template ID counter to make next added template consecutive
+        self.sort._templid = templatei + 1 # reset unique Template ID counter to make next added template consecutive
 
     def SortListByID(self):
         """Sort event list by event ID"""
@@ -744,10 +744,10 @@ class SortFrame(wxglade_gui.SortFrame):
         """Sort event list by ycoord of event maxchans,
         from top to bottom of probe"""
         # first set the itemdata for each row
-        SiteLoc = self.session.probe.SiteLoc
+        SiteLoc = self.sort.probe.SiteLoc
         for rowi in range(self.list.GetItemCount()):
             eid = int(self.list.GetItemText(rowi)) # 0th column
-            e = self.session.events[eid]
+            e = self.sort.events[eid]
             xcoord = SiteLoc[e.maxchan][0]
             ycoord = SiteLoc[e.maxchan][1]
             # hack to make items sort by ycoord, or xcoord if ycoords are identical
@@ -759,7 +759,7 @@ class SortFrame(wxglade_gui.SortFrame):
         """Sort event list by event timepoint"""
         for rowi in range(self.list.GetItemCount()):
             eid = int(self.list.GetItemText(rowi)) # 0th column
-            t = self.session.events[eid].t
+            t = self.sort.events[eid].t
             # this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
             self.list.SetItemData(rowi, t)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
@@ -788,7 +788,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def Append2EventList(self, events):
         """Append events to self's event list control"""
-        SiteLoc = self.session.probe.SiteLoc
+        SiteLoc = self.sort.probe.SiteLoc
         for e in events.values():
             row = [str(e.id), e.maxchan, e.t] # leave err column empty for now
             self.list.Append(row)
@@ -830,9 +830,9 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def CreateTemplate(self):
         """Create, select, and return a new template"""
-        template = Template(self.session, self.session._templid, parent=None)
-        self.session._templid += 1 # inc for next unique Template
-        self.session.templates[template.id] = template # add template to session
+        template = Template(self.sort, self.sort._templid, parent=None)
+        self.sort._templid += 1 # inc for next unique Template
+        self.sort.templates[template.id] = template # add template to sort session
         self.AddTemplate2Tree(template)
         return template
 
@@ -846,26 +846,26 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def DeleteTemplate(self, template):
         """Move a template's events back to the event list, delete it
-        from the tree, and remove it from the session"""
+        from the tree, and remove it from the sort session"""
         for event in template.events.values():
             self.MoveEvent2List(event)
         self.tree.Delete(template.itemID)
-        del self.session.templates[template.id]
+        del self.sort.templates[template.id]
 
     def listRow2Event(self, row):
         """Return Event at list row"""
         eventi = int(self.list.GetItemText(row))
-        event = self.session.events[eventi]
+        event = self.sort.events[eventi]
         return event
 
     def MoveEvent2Template(self, event, row, template=None):
-        """Move a spike event from unsorted session.events to a template.
+        """Move a spike event from unsorted sort.events to a template.
         Also, move it from a list control row to a template in the tree.
         If template is None, create a new one
         """
         # make sure this event isn't already a member event of this template,
         # or of any other template
-        for templ in self.session.templates.values():
+        for templ in self.sort.templates.values():
             if event in templ.events.values():
                 print "Can't move: event %d is identical to a member event in template %d" % (event.id, templ.id)
                 return
@@ -875,7 +875,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if template == None:
             template = self.CreateTemplate()
             createdTemplate = True
-        del self.session.events[event.id] # remove event from unsorted session.events
+        del self.sort.events[event.id] # remove event from unsorted sort.events
         template.events[event.id] = event # add event to template
         template.update_wave() # update mean template waveform
         event.template = template # bind template to event
@@ -892,8 +892,8 @@ class SortFrame(wxglade_gui.SortFrame):
         """Move event from event list to trash"""
         self.list.DeleteItem(row) # remove it from the event list
         self.list.Select(row) # automatically select the new item at that position
-        del self.session.events[event.id] # remove event from unsorted session.events
-        self.session.trash[event.id] = event # add it to trash
+        del self.sort.events[event.id] # remove event from unsorted sort.events
+        self.sort.trash[event.id] = event # add it to trash
         print 'moved event %d to trash' % event.id
 
     def AddEvent2Tree(self, parent, event):
@@ -903,8 +903,8 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def MoveEvent2List(self, event):
         """Move a spike event from a template in the tree back to the list control"""
-        # make sure this event isn't already in session.events
-        if event in self.session.events.values():
+        # make sure this event isn't already in sort.events
+        if event in self.sort.events.values():
             # would be useful to print out the guilty event id in the event list, but that would require a more expensive search
             print "Can't move: event %d (maxchan=%d, t=%d) in template %d is identical to an unsorted event in the event list" \
                   % (event.id, event.maxchan, event.t, event.template.id)
@@ -912,7 +912,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.Delete(event.itemID)
         template = event.template
         del template.events[event.id] # del event from its template's event dict
-        self.session.events[event.id] = event # restore event to unsorted session.events
+        self.sort.events[event.id] = event # restore event to unsorted sort.events
         template.update_wave() # update mean template waveform
         event.template = None # unbind event's template from event
         event.itemID = None # no longer applicable

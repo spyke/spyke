@@ -1,4 +1,4 @@
-//Relevant Delphi records from Surf
+//Relevant Delphi records taken from Surf
 
 //from SurfPublicTypes.pas:
   SHRT   = SmallInt;{2 bytes} // signed short (from DTxPascal.pas)

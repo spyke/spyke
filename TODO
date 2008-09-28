@@ -1,6 +1,14 @@
 GENERAL:
 
 
+- for convenience in neuropy, copy all stimulus data from .srf to .sort file
+
+- does disabling a channel really prevent it from being searched on?
+
+- think there's an issue with the cursor width not updating when the window it represents (the one to the left) changes its zoom level
+
+- add CSD calculation and display
+
 - just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
 
 - get tooltips to work on main spyke frame widgets
@@ -34,6 +42,8 @@ GENERAL:
 
 ------------------------------------
 INTERPOLATION
+
+    - when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels. You don't need a kernel for the original raw data points. Those won't be shifted, so you can just interleave appropriately
 
     - take DIN channel into account, might need to shift all highpass chans by 1us, see line 2412 in SurfBawdMain.pas
 
@@ -211,9 +221,9 @@ OLDER:
 - spike (and lfp? hardly worth it?) data need to be corrected for sample and hold (S+H) delay offsets
     - do this during interpolation as in Surfbawd?
 
-- lfp data need to be corrected for offsets induced by low-pass filters
+- LFP data need to be corrected for offsets induced by low-pass filters
     - what are the spectral phase and amplitude characteristics of the filters?
-    - Tim mentioned Hilbert transforms are useful for this
+    - Hilbert transforms are useful for this?
     - want to do CSDs as well - I guess these don't need to be filter offset corrected, since you're just comparing between lfp chans, not between lfp and spike chans
 
 - can latest wxPy 2.8 reuse numpy data w/o copy?
@@ -349,7 +359,7 @@ DONE:
     - was due to a mistake in indexing into distance matrix in cython code
 - create a win32 package installer, or just do python setup.py install, don't really need to bother with the whole py2exe thing, just manually install python, numpy, scipy, wxpy, and mpl on clients
 - deal with case where you've got just a .sort file open, and you try adding an event with no wave.data to a template. Prevent user from doing this! Right now it removes the event from the event list and gets as far as trying to update the template mean, at which point it runs into an AssertionError. Need to handle this properly
-    - maybe you shouldn't even be able to select an event when its wave.data is unatainable...
+    - maybe you shouldn't even be able to select an event when its wave.data is unattainable...
 - be able to specify time range(s?) within a file to limit spike detection to - this could be useful for limiting detection and template generation to parts of the file during different levels of animal wakefulness, as indicated by the dominant frequencies in the LFP
 - specify chans that you want to search for events on. 2 benefits:
     - helps you increase n for a template that rarely fires
@@ -390,4 +400,7 @@ DONE:
 - make SPACE alone, without CTRL, toggle selection of currently focused item - DONE, but there's an annoying flicker due to the hack around a wx bug, probably can't be eliminated til the wx bug is fixed
 - Nick's suggestion: add ability to sort event list by match error, as an alternative to sorting spatially by maxchan. Ie, do a mini-match between the currently selected template or event in the tree (make sure only one item is selected) and all the unsorted events in the event list, and sort the event list by their err. Maybe add an err column to the event list that gets filled in when you ask for a mini-match, and then click the column header to sort by err. Note that many of the entries in the err column will be blank because many events won't have enough similarity in overlapping channels/maxchan distance away to merit even generating an err value.
 - try parsing by restoring from .parse files again for speed, especially when it comes to testing...
-
+- rename Session object to Sort object
+    - shorter
+    - corresponds better to .sort file
+    - corresponds better with Sort level (proposed renaming of Rip) in neuropy object hierarchy

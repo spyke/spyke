@@ -63,6 +63,6 @@ setup(name='spyke',
       cmdclass={'build_ext': build_ext},
       ext_modules=[detect_cy,
                    cython_test,
-		   cy_thread_test
+                   cy_thread_test
                    ],
       )
