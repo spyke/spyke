@@ -44,8 +44,6 @@ cdef struct Settings:
     int maxchanii
     int *chansp # pointer to array of channel ids
     int nchans
-    double *dmp # pointer to 2D array distance matrix
-    int ndmchans
     int tilock
     float *datap # pointer to 2D array of waveform data
     float *threshp # pointer to channel-specific thresholds
@@ -119,9 +117,6 @@ cpdef class Detector_Cy:
         s.lockp = <int *>lock.data # int pointer to .data field
 
         s.tilock = self.tilock # temporal index lockout, in num timepoints
-        cdef ndarray dm = self.dm # full Euclidean channel distance matrix for all possible chanis, floats in um, gc safe
-        s.dmp = <double *>dm.data # double pointer to .data field
-        s.ndmchans = len(self.dm) # number of all possible chans in dm
 
         cdef ndarray eventtimes = self._eventtimes # init'd in self.search(), already bound, gc safe
         s.eventtimesp = <long long *>eventtimes.data # long long pointer to .data field
@@ -280,10 +275,8 @@ cdef find_maxchanii(Settings *s, int maxchanii, int ti, float sign):
     cdef int chanjj, chanj, maxchani
     cdef int prevti = max(ti-1, 0) # previous timepoint, ensuring to go no earlier than first timepoint
     s.maxchanii = maxchanii # init
-    maxchani = s.chansp[maxchanii] # dereference to index into dmp
     for chanjj from 0 <= chanjj < s.nchans: # iterate over all chan indices
-        chanj = s.chansp[chanjj] # dereference to index into dmp
-        # if chanj has higher signal of correct sign than the biggest maxchan found so far,
+        # if chanjj has higher signal of correct sign than the biggest maxchan found so far,
         # and has the slope of the same sign wrt previous timepoint, and isn't locked out:
         if s.datap[chanjj*s.nt + ti]*sign > s.datap[s.maxchanii*s.nt + ti]*sign and \
            s.datap[chanjj*s.nt + ti]*sign > s.datap[chanjj*s.nt + prevti]*sign and \
