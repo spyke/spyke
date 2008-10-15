@@ -1,4 +1,6 @@
-//Relevant Delphi records taken from Surf
+//Relevant Delphi records copied over from Surf
+// (c) 1994-1999 Phil Hetherington
+// (c) 2000-2003 Tim Blanche
 
 //from SurfPublicTypes.pas:
   SHRT   = SmallInt;{2 bytes} // signed short (from DTxPascal.pas)

@@ -1,9 +1,5 @@
 """Event detection algorithms
 
-TODO: use median based noise estimation instead of std based
-      - estimate noise level dynamically with sliding window
-        and independently for each channel
-
 TODO: check if python's cygwincompiler.py module has been updated to deal with
       extra version fields in latest mingw
 """
@@ -24,8 +20,14 @@ import numpy as np
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd
 #from detect_weave import BipolarAmplitudeFixedThresh_Weave
-from detect_cy import BipolarAmplitude_Cy, DynamicMultiphasic_Cy
-
+try:
+    import detect_cy
+    from detect_cy import BipolarAmplitude_Cy, DynamicMultiphasic_Cy
+    cy_module = detect_cy
+except ImportError: # detect_cy isn't available
+    import simple_detect_cy
+    from simple_detect_cy import BipolarAmplitude_Cy
+    cy_module = simple_detect_cy
 
 class RandomWaveTranges(object):
     """Iterator that spits out time ranges of width bs with
@@ -53,7 +55,8 @@ class RandomWaveTranges(object):
 
 class Detector(object):
     """Event detector base class"""
-    DEFALGORITHM = 'DynamicMultiphasic'
+    DEFALGORITHM = 'BipolarAmplitude'
+    #DEFALGORITHM = 'DynamicMultiphasic'
     DEFTHRESHMETHOD = 'Dynamic'
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 3.5
@@ -292,9 +295,10 @@ class BipolarAmplitude(Detector, BipolarAmplitude_Cy):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'BipolarAmplitude'
 
-
+'''
 class DynamicMultiphasic(Detector, DynamicMultiphasic_Cy):
     """Dynamic multiphasic detector"""
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'DynamicMultiphasic'
+'''

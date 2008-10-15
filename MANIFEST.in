@@ -1,3 +1,4 @@
 include README TODO
 recursive-include demo *.py *.png *.pxi
-recursive-include spyke *.py *.pyx *.pxi *.wxg *.png
+recursive-include spyke *.py *.pxi *.wxg *.png
+include spyke/simple_detect_cy.pyx

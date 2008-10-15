@@ -1,3 +1,7 @@
+spyke is a Python package for visualization, navigation, and spike sorting of extracellular waveform data, and currently works with Swindale Lab .srf files. Some of its functionality is inherited from Tim Blanche's Delphi program "SurfBawd".
+
+Spyke is a multichannel spike viewer and sorter for Swindale Lab .srf files
+
 Dependency versions:
 
 Python 2.5.2
@@ -14,6 +18,7 @@ To install:
 
 To develop:
 
->>> python setup.py build_ext --compiler=mingw32 --inplace
+>>> python setup.py build_ext --inplace
+(you might need to add --compiler=mingw32 if you're in win32 and mingw isn't your default compiler in Python)
 
 Launch the program by running /spyke/gui/main.py

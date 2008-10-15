@@ -4,7 +4,8 @@ Everything is plotted in units of uV and us
 TODO: perhaps refactor, keep info about each channel together,
 make a Channel object with .id, .pos, .colour, .line, .enabled properties,
 and set_enable() method, and then stick them in a dict of chans indexed by id
-    - looks like I've more or less done this with the Plot object"""
+    - looks like I've more or less done this with the Plot object
+"""
 
 from __future__ import division
 
