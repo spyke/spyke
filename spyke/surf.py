@@ -158,6 +158,12 @@ class File(Record):
         #print 'Connecting probe layouts to waveform records'
         for record in self.highpassrecords:
             record.layout = self.layoutrecords[record.Probe]
+
+        try: # check if lowpass records are present in this .srf file
+            self.lowpassrecords
+        except AttributeError:
+            return
+
         for record in self.lowpassrecords:
             record.layout = self.layoutrecords[record.Probe]
 
@@ -166,10 +172,8 @@ class File(Record):
         #print 'Rearranging single lowpass records into multichannel lowpass records'
         # get array of lowpass record timestamps
         rts = np.asarray([record.TimeStamp for record in self.lowpassrecords])
-
         # find at which records the timestamps change
         rtsis, = np.diff(rts).nonzero()
-
         # convert to edge values appropriate for getting slices of records
         # with the same timestamp
         rtsis = np.concatenate([[0], rtsis+1, [len(rts)]])
@@ -192,19 +196,24 @@ class File(Record):
         lpmclayout = copy(self.lowpassrecords[0].layout) # start with the layout of a lp single chan record
         lowpassrecords_t0 = self.lowpassmultichanrecords[0].lowpassrecords # lowpass records at first timestamp
         lpmclayout.nchans = len(lowpassrecords_t0)
-        probe_descrips = [ lprec.layout.probe_descrip for lprec
-                           in self.lowpassmultichanrecords[0].lowpassrecords ] # len == nchans
-        chanlist = [] # chans that were tapped off of on the MCS patch board
+        chans = [] # probe chans that were tapped off of the MCS patch board
+                   # assume the mapping between AD chans and probe chans (if not 1 to 1) was done correctly before recording
+        ADchanlist = [] # corresponding A/D chans
         PROBEDESCRIPRE = re.compile(r'ch(?P<tappedchan>[0-9]+)') # find 'ch' followed by at least 1 digit
-        for probe_descrip in probe_descrips:
-            mo = PROBEDESCRIPRE.search(probe_descrip) # match object
+        for lowpassrecord in self.lowpassmultichanrecords[0].lowpassrecords: # should be one per LFP channel
+            layout = lowpassrecord.layout
+            mo = PROBEDESCRIPRE.search(layout.probe_descrip) # match object
             if mo != None:
                 chan = int(mo.groupdict()['tappedchan'])
-                chanlist.append(chan)
+                chans.append(chan)
+                assert len(layout.ADchanlist) == 1 # shouldn't have more than one ADchan per lowpassrecord
+                ADchan = layout.ADchanlist[0]
+                ADchanlist.append(ADchan)
             else:
-                raise ValueError, 'cannot parse LFP chan from probe description: %r' % probe_descrip
-        lpmclayout.chanlist = chanlist # replace single chan A/D chanlist with our new multichan highpass probe based one
-        lpmclayout.probe_descrip = "LFP chans: %r" % lpmclayout.chanlist
+                raise ValueError, 'cannot parse LFP chan from probe description: %r' % layout.probe_descrip
+        lpmclayout.chans = chans
+        lpmclayout.ADchanlist = ADchanlist # replace single chan A/D chanlist with our new multichan highpass probe based one
+        lpmclayout.probe_descrip = "LFP probe chans: %r\nA/D chans: %r" % (lpmclayout.chans, lpmclayout.ADchanlist)
         lpmclayout.electrode_name = hplayout.electrode_name
         lpmclayout.probewinlayout = hplayout.probewinlayout
         return lpmclayout
@@ -525,11 +534,11 @@ class LayoutRecord(Record):
         # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
         self.intgain, = self.unpack('h', f.read(2))
         # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad
-        # to 64 channels) v1.0 had chanlist to be an array of 32 ints.  Now it
+        # to 64 channels) v1.0 had ADchanlist to be an array of 32 ints.  Now it
         # is an array of 64, so delete 32*4=128 bytes from end
-        self.chanlist = self.unpack('h'*self.SURF_MAX_CHANNELS, f.read(2 * self.SURF_MAX_CHANNELS))
+        self.ADchanlist = self.unpack('h'*self.SURF_MAX_CHANNELS, f.read(2 * self.SURF_MAX_CHANNELS))
         # throw away the junk values, convert tuple to list
-        self.chanlist = list(self.chanlist[:self.nchans])
+        self.ADchanlist = list(self.ADchanlist[:self.nchans])
         # hack to skip next byte
         f.seek(1, 1)
         # ShortString (uMap54_2a, 65um spacing)
@@ -540,7 +549,7 @@ class LayoutRecord(Record):
         self.electrode_name = f.read(255).rstrip(NULL)
         # hack to skip next 2 bytes
         f.seek(2, 1)
-        # MOVE BELOW CHANLIST FOR CAT 9
+        # MOVE BELOW ADCHANLIST FOR CAT 9
         # v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
         self.probewinlayout = ProbeWinLayout(self.srff)
         self.probewinlayout.parse()
@@ -671,6 +680,8 @@ class LowPassMultiChanRecord(Record):
         self.TimeStamp = self.lowpassrecords[0].TimeStamp
         self.layout = self.lowpassrecords[0].layout
         self.NumSamples = self.lowpassrecords[0].NumSamples
+        # why is this commented out? I guess because the checks it does are somewhat redundant
+        # and slow things down a little...
         '''
         self.tres = self.lowpassrecords[0].layout.tres
         self.chanis = []
@@ -680,7 +691,7 @@ class LowPassMultiChanRecord(Record):
             assert record.TimeStamp == self.TimeStamp
             assert record.layout.tres == self.tres # ditto
             # make sure each lowpassrecord in this batch of them at this timestamp all have unique channels
-            newchanis = [ chani for chani in record.layout.chanlist if chani not in self.chanis ]
+            newchanis = [ chani for chani in record.layout.ADchanlist if chani not in self.chanis ]
             assert newchanis != []
             # assigning this to each and every record might be taking up a lot of space,
             # better to assign it higher up, say to the stream?

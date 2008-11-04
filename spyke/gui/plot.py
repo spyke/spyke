@@ -767,8 +767,9 @@ class LFPPanel(ChartPanel):
         ChartPanel.do_layout(self)
         # need to specifically get a list of keys, not an iterator,
         # since self.pos dict changes size during iteration
+        # don't remember why this was sometimes necessary to do:
         for chan in self.pos.keys():
-            if chan not in self.stream.layout.chanlist:
+            if chan not in self.stream.chans:
                 del self.pos[chan] # remove siteloc channels that don't exist in the lowpassmultichan record
                 try:
                     self.chans.remove(chan) # in place

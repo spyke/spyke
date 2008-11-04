@@ -1,7 +1,7 @@
 """Spatial layouts of various electrophys (generally silicon polytrode) probe designs.
 Spatial origin is at center top of each probe"""
 
-# TODO: add pt16a, pt16b, pt16c, and pt16x layouts (with 16 to 54 chan adapter)
+# TODO: add pt16c, and pt16x layouts (with 16 to HS-27 adapter)
 
 
 class Probe(object):

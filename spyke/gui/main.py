@@ -385,8 +385,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(os.path.basename(self.srffname)) # update the caption
 
         self.hpstream = core.Stream(self.srff.highpassrecords) # highpass record (spike) stream
-        self.lpstream = core.Stream(self.srff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
-        self.chans_enabled = copy(self.hpstream.layout.chanlist) # property
+        try: # check if lowpassmultichanrecords are present
+            self.lpstream = core.Stream(self.srff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+        except AttributeError:
+            pass
+        self.chans_enabled = copy(self.hpstream.chans) # property
         self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
 
         self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
@@ -459,7 +462,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def set_chans_enabled(self, chans, enable=True):
         """Updates enable flag of all chans in .chans_enabled dict"""
         if chans == None: # None means all chans
-            chans = copy(self.hpstream.layout.chanlist)
+            chans = copy(self.hpstream.chans)
         chans = toiter(chans) # need not be contiguous
         try:
             self._chans_enabled

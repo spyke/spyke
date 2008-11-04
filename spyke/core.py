@@ -51,16 +51,13 @@ class WaveForm(object):
                 return self # no need for a new WaveForm
             else:
                 return WaveForm(data=data, ts=ts, chans=self.chans)
-        else: # index into self by channel id, return that channel's data
-            if self.chans == None: # contiguous chans, simple and fast
-                return self.data[key] # TODO: should probably use .take here for speed
-            else: # non contiguous chans
-                try:
-                    self.chan2i # converts from chan id to data array row index
-                except AttributeError:
-                    nchans = len(self.chans)
-                    self.chan2i = dict(zip(self.chans, range(nchans)))
-                return self.data[self.chan2i[key]] # TODO: should probably use .take here for speed
+        else: # index into self by channel id, return that channel's data, assume non contiguous chans
+            try:
+                self.chan2i # converts from chan id to data array row index
+            except AttributeError:
+                nchans = len(self.chans)
+                self.chan2i = dict(zip(self.chans, range(nchans)))
+            return self.data[self.chan2i[key]] # TODO: should probably use .take here for speed
 
     def __len__(self):
         """Number of data points in time"""
@@ -81,7 +78,8 @@ class Stream(object):
     def __init__(self, ctsrecords=None, sampfreq=None, shcorrect=None, endinclusive=False):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
-        sampfreq arg is useful for interpolation"""
+        sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
+        to the same probe"""
         self.ctsrecords = ctsrecords
         self.layout = self.ctsrecords[0].layout # layout record for this stream
         #self.fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling?
@@ -89,21 +87,19 @@ class Stream(object):
         self.srffname = os.path.basename(fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us, for convenience
-        try: # is this a low pass stream?
+        self.nchans = len(self.layout.ADchanlist)
+        try: # are ctsrecords LowPassMultiChanRecords?
             self.ctsrecords[0].lowpassrecords # yes, it's a low pass stream
+            self.chans = self.layout.chans # probe chan values already parsed from LFP probe description
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
-        except AttributeError: # it's a high pass stream
+        except AttributeError: # ctsrecords are HighPassRecords
+            self.chans = range(self.nchans) # probe chans, as opposed to AD chans, don't know yet of any probe
+                                            # type whose chans aren't contiguous from 0 (see probes.py)
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
             self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
         self.endinclusive = endinclusive
-
-        self.nchans = len(self.layout.chanlist)
-        self.chans = self.layout.chanlist
-        if self.chans == range(self.nchans): # if it's contiguous
-            self.chans = None # use this as a signal to indicate so to the WaveForm
-        # array of ctsrecord timestamps
-        self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords])
+        self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords]) # array of ctsrecord timestamps
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
