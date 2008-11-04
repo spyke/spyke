@@ -249,7 +249,7 @@ class Stream(object):
         data and timepoints. See Blanche & Swindale, 2006
 
         TODO: should interpolation be multithreaded?
-        TODO: self.kernels should be deleted when selected chans change
+        TODO: self.kernels should be deleted when selected chans change, self.nchans should be updated
         """
         #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
@@ -258,12 +258,13 @@ class Stream(object):
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        chans = self.chans or range(len(rawdata)) # None indicates channel ids == data row indices
+        ADchans = self.layout.ADchanlist
+        assert self.nchans == len(self.chans) == len(ADchans) # pretty basic assumption which might change if chans are disabled
         # check if kernels have been generated already
         try:
             self.kernels
         except AttributeError:
-            self.kernels = self.get_kernels(chans, resamplex, N)
+            self.kernels = self.get_kernels(ADchans, resamplex, N)
 
         # convolve the data with each kernel
         nrawts = len(rawts)
@@ -276,34 +277,39 @@ class Stream(object):
         ts = np.arange(start=tstart, stop=tstart+tres*nt, step=tres) # generate interpolated timepoints
         #print 'len(ts) is %r' % len(ts)
         assert len(ts) == nt
-        data = np.empty((len(chans), nt), dtype=np.float32) # resampled data, float32 uses half the space
+        data = np.empty((self.nchans, nt), dtype=np.float32) # resampled data, float32 uses half the space
         #print 'data.shape = %r' % (data.shape,)
-        for chani, chan in enumerate(chans):
-            for point, kernel in enumerate(self.kernels[chani]):
-                """ np.convolve(a, v, mode)
+        for ADchani, ADchan in enumerate(ADchans):
+            for point, kernel in enumerate(self.kernels[ADchani]):
+                """np.convolve(a, v, mode)
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 where K = len(a)-1 and M = len(v) - 1 and K >= M
                 for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
-                row = np.convolve(rawdata[chani], kernel, mode='same')
-                #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
+                row = np.convolve(rawdata[ADchani], kernel, mode='same')
+                #print 'len(rawdata[ADchani]) = %r' % len(rawdata[ADchani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
                 # interleave by assigning from point to end in steps of resamplex
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
-                data[chani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
+                data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
         return data, ts
 
-    def get_kernels(self, chans, resamplex, N):
-        """Generate a different set of kernels for each chan to correct each channel's s+h delay.
+    def get_kernels(self, ADchans, resamplex, N):
+        """Generate a different set of kernels for each ADchan to correct each ADchan's s+h delay.
 
         TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
         You don't need a kernel for the original raw data points. Those won't be shifted,
         so you can just interleave appropriately.
 
-        TODO: take DIN channel into account, might need to shift all highpass chans
-        by 1us, see line 2412 in SurfBawdMain.pas"""
-        i = np.asarray(chans) % NCHANSPERBOARD # ordinal position of each chan in the hold queue
+        TODO: take DIN channel into account, might need to shift all highpass ADchans
+        by 1us, see line 2412 in SurfBawdMain.pas. I think the layout.sh_delay_offset field may tell you
+        if and by how much you should take this into account
+
+        WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans
+        0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
+        """
+        i = np.asarray(ADchans) % NCHANSPERBOARD # ordinal position of each chan in the hold queue
         if self.shcorrect:
             dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
         else:
@@ -311,9 +317,9 @@ class Stream(object):
         ds = dis / self.rawtres # normalized per channel delays
         wh = hamming # window function
         h = np.sinc # sin(pi*t) / pi*t
-        kernels = [] # list of list of kernels, indexed by [chan][resample point]
-        for chani, chan in enumerate(chans):
-            d = ds[chani] # delay for this chan
+        kernels = [] # list of list of kernels, indexed by [ADchani][resample point]
+        for ADchani in range(len(ADchans)):
+            d = ds[ADchani] # delay for this chan
             kernelrow = []
             for point in range(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1

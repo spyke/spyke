@@ -213,7 +213,7 @@ class File(Record):
                 raise ValueError, 'cannot parse LFP chan from probe description: %r' % layout.probe_descrip
         lpmclayout.chans = chans
         lpmclayout.ADchanlist = ADchanlist # replace single chan A/D chanlist with our new multichan highpass probe based one
-        lpmclayout.probe_descrip = "LFP probe chans: %r\nA/D chans: %r" % (lpmclayout.chans, lpmclayout.ADchanlist)
+        lpmclayout.probe_descrip = "LFP probe chans: %r; A/D chans: %r" % (lpmclayout.chans, lpmclayout.ADchanlist)
         lpmclayout.electrode_name = hplayout.electrode_name
         lpmclayout.probewinlayout = hplayout.probewinlayout
         return lpmclayout

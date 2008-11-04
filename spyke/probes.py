@@ -1,11 +1,12 @@
 """Spatial layouts of various electrophys (generally silicon polytrode) probe designs.
-Spatial origin is at center top of each probe"""
+Spatial origin is at center top of each probe. Right now, spyke assumes that all
+probe designs have contiguous channel indices starting from 0"""
 
 # TODO: add pt16c, and pt16x layouts (with 16 to HS-27 adapter)
 
 
 class Probe(object):
-    """self.SiteLoc maps chan id to (x, y) position of site in um"""
+    """self.SiteLoc maps probe chan id to (x, y) position of site in um"""
     pass
 
 
@@ -76,7 +77,7 @@ class uMap54_1a(Probe):
 
 
 class uMap54_1b(Probe):
-    """uMap54_1b, 50um horzontal/46um vertical spacing, 3 column collinear"""
+    """uMap54_1b, 50um horizontal/46um vertical spacing, 3 column collinear"""
     def __init__(self):
         self.layout = '1b'
         self.name = 'uMap54_1b'

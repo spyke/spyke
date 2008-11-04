@@ -1,5 +1,6 @@
 GENERAL:
 
+- WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
 
 - for convenience in neuropy, copy all stimulus data from .srf to .sort file
 
