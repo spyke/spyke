@@ -106,7 +106,7 @@ class Stream(object):
         self.probe = probetype() # instantiate it
 
         self.t0 = self.rts[0] # us, time that recording began
-        lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.tres)
+        lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.rawtres)
         self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
 
     def get_sampfreq(self):

@@ -630,8 +630,11 @@ class ContinuousRecord(Record):
 
     def parse(self):
         f = self.srff.f
+        # not really necessary, comment out to save memory
+        #self.offset = f.tell()
         # for speed and memory, read all 28 bytes at a time, skip reading
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
+        # TODO: instead of reading the junk values, skip them using seek?
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = self.unpack('qqhhii', f.read(28))
         self.dataoffset = f.tell()
         # skip the waveform data for now
