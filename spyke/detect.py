@@ -65,7 +65,6 @@ class Detector(object):
     DEFDYNAMICNOISEWIN = 10000 # 10ms
     DEFMAXNEVENTS = 15
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
-    RANDOMBLOCKSIZE = 100000 # us, block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
     DEFTLOCK = 300 # us
     DEFRANDOMSAMPLE = False
@@ -110,11 +109,7 @@ class Detector(object):
         self.thresh = self.get_thresh() # this could probably go in __init__ without problems
         print '.get_thresh() took %.3f sec' % (time.clock()-t0)
 
-        if self.randomsample:
-            # random sampling ignores Detector's blocksize and enforces its own specially sized one
-            bs = self.RANDOMBLOCKSIZE
-        else:
-            bs = self.blocksize
+        bs = self.blocksize
         bx = self.BLOCKEXCESS
         bs_sec = bs/1000000 # from us to sec
         maxneventsperchanperblock = bs_sec * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
@@ -254,13 +249,13 @@ class Detector(object):
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
             thresh = np.ones(self.nchans, dtype=np.float32) * self.fixedthresh
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh, calculate from start of stream
-            """randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.RANDOMBLOCKSIZE
+            """randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.blocksize
             NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
             will contribute more than once to the noise calculation
             This sometimes causes an 'unhandled exception' for BipolarAmplitude algorithm, don't know why
             """
-            nblocks = intround(self.DEFFIXEDNOISEWIN / self.RANDOMBLOCKSIZE)
-            wavetranges = RandomWaveTranges(self.trange, bs=self.RANDOMBLOCKSIZE, bx=0, maxntranges=nblocks)
+            nblocks = intround(self.DEFFIXEDNOISEWIN / self.blocksize)
+            wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
             data = []
             for wavetrange in wavetranges:
                 data.append(self.stream[wavetrange[0]:wavetrange[1]].data)
