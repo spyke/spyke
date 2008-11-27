@@ -39,7 +39,7 @@ class WaveForm(object):
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
         Return a WaveForm if slicing"""
-        if key.__class__ == slice: # slice self, return a WaveForm
+        if key.__class__ == slice: # slice self in time, return a WaveForm
             if self.ts == None:
                 data = None
                 ts = None
@@ -57,7 +57,11 @@ class WaveForm(object):
             except AttributeError:
                 nchans = len(self.chans)
                 self.chan2i = dict(zip(self.chans, range(nchans)))
-            return self.data[self.chan2i[key]] # TODO: should probably use .take here for speed
+            chans = [ self.chan2i[chan] for chan in toiter(key) ] # allow key to be list of chans
+            # TODO: should probably use .take here for speed
+            # eliminate any length 1 dimensions, ie if we're only returning one channel of data,
+            # ensure the array is only rank 1, not rank 2
+            return self.data[chans].squeeze()
 
     def __len__(self):
         """Number of data points in time"""

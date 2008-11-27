@@ -634,7 +634,14 @@ class ContinuousRecord(Record):
         #self.offset = f.tell()
         # for speed and memory, read all 28 bytes at a time, skip reading
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
-        # TODO: instead of reading the junk values, skip them using seek?
+        '''
+        instead of reading the junk values, skip them using seek, like this?:
+        f.seek(8, 1)
+        self.TimeStamp, self.Probe = self.unpack('qh', f.read(10))
+        f.seek(6, 1)
+        self.NumSamples, = self.unpack('i', f.read(4))
+        # no, that's about 25% slower when thrashing from uncached disk, below is better:
+        '''
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = self.unpack('qqhhii', f.read(28))
         self.dataoffset = f.tell()
         # skip the waveform data for now

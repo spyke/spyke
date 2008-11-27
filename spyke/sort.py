@@ -668,7 +668,7 @@ class SortFrame(wxglade_gui.SortFrame):
             #wx.CallAfter(self.OnTreeSelectChanged)
             self.OnTreeSelectChanged()
             # evt.Skip() seems to prevent toggling, or maybe it untoggles
-        elif key in [wx.WXK_DELETE, ord('D'), wx.WXK_RIGHT]:
+        elif key in [wx.WXK_DELETE, ord('D'),]:
             self.MoveCurrentObjects2List()
         elif key == ord('A'): # allow us to add from event list even if tree is in focus
             self.MoveCurrentEvents2Template(which='selected')

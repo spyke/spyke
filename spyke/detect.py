@@ -11,7 +11,7 @@ __authors__ = ['Martin Spacek, Reza Lotun']
 import itertools
 import sys
 import time
-import processing
+#import processing
 
 import wx
 
@@ -55,8 +55,8 @@ class RandomWaveTranges(object):
 
 class Detector(object):
     """Event detector base class"""
-    DEFALGORITHM = 'BipolarAmplitude'
-    #DEFALGORITHM = 'DynamicMultiphasic'
+    #DEFALGORITHM = 'BipolarAmplitude'
+    DEFALGORITHM = 'DynamicMultiphasic'
     DEFTHRESHMETHOD = 'Dynamic'
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 3.5
@@ -65,7 +65,7 @@ class Detector(object):
     DEFDYNAMICNOISEWIN = 10000 # 10ms
     DEFMAXNEVENTS = 15
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
-    RANDOMBLOCKSIZE = 10000 # us, block size to use if we're randomly sampling
+    RANDOMBLOCKSIZE = 100000 # us, block size to use if we're randomly sampling
     DEFSLOCK = 175 # um
     DEFTLOCK = 300 # us
     DEFRANDOMSAMPLE = False
@@ -130,17 +130,22 @@ class Detector(object):
         # should probably do a check here to see if it's worth using multiple processes
         # so, check if wavetrange is big enough, and/or if maxnevents is big enough
         # if random sampling, use only a single process?
-        pool = processing.Pool() # spawns as many worker processes as there are CPUs/cores on the machine
+        #pool = processing.Pool() # spawns as many worker processes as there are CPUs/cores on the machine
         self.events = [] # list of 2D event arrays returned by .searchblockprocess(), one array per block
         results = [] # stores ApplyResult objects returned by pool.applyAsync
         for wavetrange in wavetranges:
             args = (wavetrange, direction)
             # NOTE: might need to make a dummyDetector object with the right attribs to prevent mpl stuff and everything else from being copied over to each new spawned process???
-            result = pool.applyAsync(self.searchblockprocess, args=args, callback=self.handle_eventarr)
-            results.append(result) # not really necessary
-        print 'done queueing tasks, result objects are: %r' % results
-        pool.close() # prevent any more tasks from being added to pool
-        pool.join() # wait until all tasks are done
+            #result = pool.applyAsync(self.searchblockprocess, args=args, callback=self.handle_eventarr)
+            #results.append(result) # not really necessary
+            try:
+                eventarr = self.searchblockprocess(*args)
+                self.handle_eventarr(eventarr)
+            except ValueError: # we've found all the events we need
+                break # out of wavetranges loop
+        #print 'done queueing tasks, result objects are: %r' % results
+        #pool.close() # prevent any more tasks from being added to pool
+        #pool.join() # wait until all tasks are done
 
         try:
             events = np.concatenate(self.events, axis=1)
@@ -155,7 +160,7 @@ class Detector(object):
         """This is what a worker process executes"""
         print 'in searchblockprocess, self.nevents=%r, self.maxnevents=%r' % (self.nevents, self.maxnevents)
         if self.nevents >= self.maxnevents:
-            return # skip this iteration. TODO: this should really cancel all enqueued tasks
+            raise ValueError # skip this iteration. TODO: this should really cancel all enqueued tasks
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
@@ -295,10 +300,9 @@ class BipolarAmplitude(Detector, BipolarAmplitude_Cy):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'BipolarAmplitude'
 
-'''
+
 class DynamicMultiphasic(Detector, DynamicMultiphasic_Cy):
     """Dynamic multiphasic detector"""
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'DynamicMultiphasic'
-'''

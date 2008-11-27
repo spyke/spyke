@@ -27,7 +27,7 @@ elif sys.platform == 'linux2':
     include_dirs=['/usr/lib/python2.5/site-packages/numpy/core/include']
 else:
     raise RuntimeError
-
+'''
 simple_detect_cy = Extension('spyke.simple_detect_cy',
                              sources=['spyke/simple_detect_cy.pyx'],
                              include_dirs=include_dirs,
@@ -41,7 +41,7 @@ detect_cy = Extension('spyke.detect_cy',
                       #extra_compile_args=["-g"], # debug
                       #extra_link_args=["-g"],
                       )
-'''
+
 cython_test = Extension('demo.cython_test',
                         sources=['demo/cython_test.pyx'],
                         include_dirs=include_dirs,
@@ -69,8 +69,8 @@ setup(name='spyke',
       packages=['spyke', 'spyke.gui'], # have to explicitly include subfolders with code as additional packages
       package_data={'spyke' : spyke_files},
       cmdclass={'build_ext': build_ext},
-      ext_modules=[simple_detect_cy,
-                   #detect_cy,
+      ext_modules=[#simple_detect_cy,
+                   detect_cy,
                    cython_test,
                    cy_thread_test
                    ],
