@@ -55,6 +55,31 @@ INTERPOLATION
 ------------------------------------
 EVENT DETECTION:
 
+    - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
+        - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
+        - model parameters: overall sign (+ve sign would be say a normal initially downward going spike), overall width (up to 1.5ms say), and amplitude of each phase (phases will be forced to alternate in sign)
+        - once you've found your best fit model (which will necessarily be smooth), use it to decide if it qualifies as a spike (ie, use it to check amplitude of its second phase), and if so, to decide how long to lock out for
+        - this would be a kind of denoising, and would get around weird cases where the spike is distorted, which if you look at raw values, screws up your decision of where the peaks are and how long to lock out for
+            - this would probably get rid of the spike alignment problems when matching templates
+        - should the model be a Gaussian windowed polynomial of order nphases + 1?
+        - how best to go about actually fitting the model? what's the numpy/scipy algorithm for this?
+            - there's scipy.optimize, which has a .leastsq() f'n
+            - there's also matplotlib.mlab.polyfit
+        - then, if you've decided it qualifies as a spike, you can save the model for it, and use that for template building and matching
+    - Nick says: Levenberg-Marquadt algorithm (LMA) is least squares, and so is simplex? What differs is just the cost f'n?
+        - ah, scipy.leastsq is LMA
+        - Nick: instead of doing template matching after modelling the spike, you can just plot the model parameters in a multidimensional space and do normal cluster - skip the whole matching step!
+        - says best to just use sum of Gaussians, no need to multiply a N+1 order polynomial with N gaussians
+            - tried this doing some manual fitting, sum of Guassians looks great, and is very malleable to get you the spike shape you want
+        - also, in the same go, you can model the position of the spike in space - just add a 2D gaussian model for space (that's another 4 params: two means + two stdevs) - then, when you cluster, you're in a very intuitive space (even if its, say 6+4 = 10 dims) that involves the means, stdevs, and amplitudes of two spike phases, plus the position and spread in space.
+            - this brings us all the way back to what was Phil's original idea: use physical space as your clustering space
+    - I should probably try this all out in pure Python to start, including the intial threshold detection step (using dynamic thresholds)
+        - nothing in this whole modelling method precludes changing anything about the spatiotemporal lockout - that can stay as is. What changes is that the lockout becomes more accurate, since you're modelling the spike peaks in both space and time, which is less affected by spatiotemporal noise than the raw data values
+        - for initial spike detection, instead of just looking back one data point to see if signal is diverging from 0 (which itself is susceptible to noise), maybe look back two or more points, or average across the last two or more points to make that decision - this would make you less susceptible to suspect a spike due to a little mini up-down event on the down slope of the final phase of the previously detected spike
+            - or, if you see an up-down event, check if it exists on other chans at the same time - although, this assumes that the spike is multichannel, which it isn't necessarily
+        - might also be able to reduce num params by fixing all spike phase gaussian means and stdevs to be the same (assuming S+H correction is turned on, and there aren't any backpropagating spikes)
+
+
     - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
 
     - create a new thread or process for each searchblock() call - not sure if this will help much, cuz I think the slowest part is the loading of waveform data off the disk

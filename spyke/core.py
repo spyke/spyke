@@ -197,7 +197,7 @@ class Stream(object):
             tstart = record.TimeStamp
             nt = record.data.shape[1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
-            #del record.data # save memory by unloading waveform data from records that aren't needed anymore
+            del record.data # save memory by unloading waveform data from records that aren't needed anymore
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
@@ -542,19 +542,35 @@ def revcmp(x, y):
 
 class Gaussian(object):
     """Gaussian function, works with ndarray inputs"""
-    def __init__(self, mean, stdev):
-        self.mean = mean
-        self.stdev = stdev
+    def __init__(self, mu, sigma):
+        self.mu = mu
+        self.sigma = sigma
 
-    def f(self, x):
-        mu = self.mean
-        sigma = self.stdev
-        # don't bother normalizing by 1/(sigma*np.sqrt(2*np.pi)), don't care about normalizing the integral,
-        # just want to make sure that f(0) == 1
-        return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
+    def __call__(self, x):
+        """Called when self is called as a f'n.
+        Don't bother normalizing by 1/(sigma*np.sqrt(2*np.pi)),
+        don't care about normalizing the integral,
+        just want to make sure that f(0) == 1"""
+        return np.exp(- ((x-self.mu)**2 / (2*self.sigma**2)) )
 
     def __getitem__(self, x):
-        return self.f(x)
+        """Called when self is indexed into"""
+        return self(x)
+
+class Poo(object):
+    """Poo function, works with ndarray inputs"""
+    def __init__(self, a, b, c):
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def __call__(self, x):
+        """Called when self is called as a f'n"""
+        return (1+self.a*x) / (self.b+self.c*x**2)
+
+    def __getitem__(self, x):
+        """Called when self is indexed into"""
+        return self(x)
 
 def hamming(t, N):
     """Return y values of Hamming window at sample points t"""

@@ -153,7 +153,7 @@ class Detector(object):
 
     def searchblockprocess(self, wavetrange, direction):
         """This is what a worker process executes"""
-        print 'in searchblockprocess, self.nevents=%r, self.maxnevents=%r' % (self.nevents, self.maxnevents)
+        print 'searchblockprocess(): self.nevents=%r, self.maxnevents=%r, wavetrange=%r, direction=%r' % (self.nevents, self.maxnevents, wavetrange, direction)
         if self.nevents >= self.maxnevents:
             raise ValueError # skip this iteration. TODO: this should really cancel all enqueued tasks
         tlo, thi = wavetrange # tlo could be > thi

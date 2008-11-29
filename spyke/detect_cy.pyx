@@ -275,7 +275,7 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
                     continue # skip to next chan in chan loop
                 find_maxchanii(&s, s.maxchanii, eventti, sign) # update maxchan one last time for this putative event
                 eventti = find_peak(&s, eventti, s.tilock, sign) # update eventti for this maxchan
-                #print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, s.tsp[eventti], s.maxchanii)
+                print 'ti=%s, t=%s, chanii=%s, sign=%d, eventt=%s, maxchanii=%s' % (ti, s.tsp[ti], chanii, sign, s.tsp[eventti], s.maxchanii)
                 # search backward and forward one tlock on the maxchan for another peak
                 # of opposite phase that is 2*thresh greater than the event peak
                 sign = -sign
@@ -294,14 +294,14 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
                 elif prepeakti == -1 and postpeakti != -1:
                     peak2ti = postpeakti
                 else:
-                    #print 'couldnt find a pre or post event peak'
+                    print 'couldnt find a pre or post event peak'
                     continue # skip to next chan in chan loop
-                #print 'eventt=%s, peak2t=%s, sign=%s' % (s.tsp[eventti], s.tsp[peak2ti], sign)
+                print 'eventt=%s, peak2t=%s, sign=%s' % (s.tsp[eventti], s.tsp[peak2ti], sign)
                 if abs(s.datap[s.maxchanii*s.nt + eventti] - s.datap[s.maxchanii*s.nt + peak2ti]) < 2*s.threshp[s.maxchanii]:
-                    #print 'peak2 isnt big enough'
+                    print 'peak2 isnt big enough'
                     continue # skip to next chan in chan loop
                 # if we get this far, it's a valid event
-                #print 'FOUND A SPIKE!!!!!!!!!!!!!!!!!!'
+                print 'FOUND A SPIKE!!!!!!!!!!!!!!!!!!'
                 eventt = s.tsp[eventti] # event time
                 if s.cut0 <= eventt and eventt <= s.cut1: # event falls within cutrange, save it
                     eventi += 1
@@ -316,16 +316,18 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
                 # part of the same spike, yet large enough and far enough away in time to trigger an
                 # unwanted threshold crossing
                 lastpeakti = max(eventti, peak2ti)
-                #print 'lastpeakt=%s' % s.tsp[lastpeakti]
+                print 'lastpeakt=%s' % s.tsp[lastpeakti]
                 while True:
                     sign = -sign
                     peakti = find_peak(&s, lastpeakti, s.tilock, sign)
                     if peakti == -1 or abs(s.datap[s.maxchanii*s.nt + peakti]) < s.threshp[s.maxchanii]:
                         # no peak found, or found peak doesn't exceed thresh
                         break # out of while loop
-                    #print 'found new lockout peakt=%s, sign=%s' % (s.tsp[peakti], sign)
+                    print 'found new lockout peakt=%s, sign=%s' % (s.tsp[peakti], sign)
+                    print 'abs(s.datap[s.maxchanii*s.nt + peakti]) is %r' % abs(s.datap[s.maxchanii*s.nt + peakti])
+                    print 'voltage is %r' % s.datap[s.maxchanii*s.nt + peakti]
                     lastpeakti = peakti # update
-                #print 'lockout to lastpeakt=%s' % s.tsp[lastpeakti]
+                print 'lockout to lastpeakt=%s' % s.tsp[lastpeakti]
                 set_lockout(&s, lastpeakti) # lock out up to and including peak of last spike phase, and no further
         #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
         eventtimes = self._eventtimes[:nevents] # keep only the entries that were filled
