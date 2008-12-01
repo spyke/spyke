@@ -7,23 +7,111 @@ from pylab import figure, plot
 import time
 import spyke
 
+
 def gaussian(mu, sigma, x):
     return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
 
 g = gaussian
 
-def model(p, x):
-    """Sum of two Gaussians"""
-    return p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x)
 
-def cost(p, x, y):
-    """Distance to the target function"""
-    return model(p, x) - y
+class LeastSquares(object):
+    def __init__(self, p0, x, y):
+        self.p0 = p0
+        self.x = x
+        self.y = y
+        self.calc()
+        figure()
+        plot(x, y, 'k.-')
+        p = self.p
+        plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
 
-# Don't forget, need to enforce in the fitting somehow that the two
-# Gaussians must be of opposite sign. Would also like to be able to enforce
-# minimum amplitudes for both gaussians, and a range of differences in
-# their means
+    def calc(self):
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = scipy.optimize.leastsq(self.cost, self.p0,
+                                                                                        args=(self.x, self.y),
+                                                                                        full_output=True)
+    def model(self, p, x):
+        """Sum of two Gaussians, returns a vector of y values"""
+        return p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x)
+
+    def cost(self, p, x, y):
+        """Distance of each point to the target function"""
+        return y - self.model(p, x) # returns a vector of errors, one for each data point
+
+    def dmodel(self, p, x):
+        dfdp0 = g(p[1], p[2], x)
+        dfdp1 = p[0]*dgdmu =
+        dfdp2 = p[0]*dgdsigma =
+        dfdp3 = g(p[4], p[5], x)
+        dfdp4 = p[3]*dgdmu =
+        dfdp5 = p[3]*dgdsigma =
+
+"""
+Don't forget, need to enforce in the fitting somehow that the two
+Gaussians must be of opposite sign. Would also like to be able to enforce
+minimum amplitudes for both gaussians, and a range of differences in
+their means. Could also put constraints on sigma for each gaussian.
+Also, take the abs of sigma when done, since its sign doesn't mean anything
+
+OK, so if you want bounded minimization, you need to use a different algorithm - leastsq
+won't do it apparently. Here are some alternatives:
+
+scipy.optimize.fmin_cobyla - constrained optimization by linear approximation
+scipy.optimize.fmin_l_bfgs_b -
+scipy.optimize.fmin_slsqp - sequential least squares programming
+scipy.optimize.fmin_tnc
+
+Then, there's also scikits.openopt, which is associated with scipy somehow
+
+"""
+
+class Cobyla(object):
+    """This algorithm doesn't seem to work, although its constraints features
+    are promising. Also, it's about 6X slower than leastsq"""
+    def __init__(self, p0, x, y, min1=50, min2=50, dmurange=(100, 500)):
+        self.p0 = p0
+        self.x = x
+        self.y = y
+        self.min1 = min1
+        self.min2 = min2
+        self.dmurange = dmurange
+
+        #cons = (self.con1, self.con2, self.con3, self.con4)
+        self.cons = self.con0
+        self.calc()
+        figure()
+        plot(x, y, 'k.-')
+        p = self.p
+        plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
+
+    def calc(self):
+        self.p = scipy.optimize.fmin_cobyla(self.cost, self.p0, self.cons, args=(self.x, self.y), consargs=())
+
+    def model(self, p, x):
+        """Sum of two Gaussians, returns a vector of y values"""
+        return p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x)
+
+    def cost(self, p, x, y):
+        """Distance of each point to the target function"""
+        return y - self.model(p, x) # returns a vector of errors, one for each data point
+
+    def con0(self, p):
+        return 0
+
+    def con1(self, p):
+        return abs(p[0]) >= self.min1
+
+    def con2(self, p):
+        return abs(p[3]) >= self.min2
+
+    def con3(self, p):
+        """Amplitudes must be of opposite sign"""
+        return np.sign(p[0]) == np.sign(-1 * p[3])
+
+    def con4(self, p):
+        """Make sure Gaussians are reasonable spaced, in us"""
+        dmu = p[1] - p[4]
+        return self.dmurange[0] <= dmu <= self.dmurange[1]
+
 '''
 x = np.arange(87)
 y = np.array([  0.69486117,   8.16924953,  10.17962551,   6.11466599,
@@ -59,57 +147,34 @@ t = 368568680 #396729760 #396729820
 chani = 1 #2
 w = sf.hpstream[t:t+1500] # waveform object
 x = w.ts
+x = x - x[0]
 y = w[chani]
-# this initial guess doesn't work, seems the means are too far off
-p0 = [50, t+125, 60, -50, t+250, 60] # ms and uV
+
+# For LeastSquares, good or bad guesses all converge in the same amount of time:
+# this initial guess doesn't work, seems having incorrect amplitude signs messes it up
+p0 = [50, 125, 60, -50, 250, 60] # ms and uV
 # this one does work
-p0 = [50, t+200, 60, -50, t+400, 60] # ms and uV
+p0 = [-50, 125, 60, 50, 250, 60] # ms and uV
+# so does this one, with more accurate means
+p0 = [-50, 200, 60, 50, 400, 60] # ms and uV
+# so does this one, with wildly innacurate means
+p0 = [-50, 50, 200, 50, 600, 40] # ms and uV
 
-#t0 = time.clock()
-#for i in xrange(100):
-p, cov_p, infodict, mesg, ier = scipy.optimize.leastsq(cost, p0, args=(x, y), full_output=True)
-#t1 = time.clock()
-#print '%.3f sec' % (t1-t0)
+ls = LeastSquares(p0, x, y)
 
-figure()
-plot(x, y, 'k.-')
-plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
+t0 = time.clock()
+for i in xrange(100):
+    ls.calc()
 
-'''
-class Parameter(object):
-    def __init__(self, value):
-            self.value = value
+print '%.3f sec' % (time.clock() - t0) # ~2 sec
 
-    def set(self, value):
-            self.value = value
+c = Cobyla(p0, x, y)
 
-    def __call__(self):
-            return self.value
+t0 = time.clock()
+for i in xrange(100):
+    c.calc()
 
-
-def fit(function, parameters, y, x = None):
-    def f(params):
-        i = 0
-        for p in parameters:
-                p.set(params[i])
-                i += 1
-        return y - function(x)
-
-    if x == None:
-        x = np.arange(y.shape[0])
-    p = [param() for param in parameters]
-    optimize.leastsq(f, p)
+print '%.3f sec' % (time.clock() - t0) # ~12 sec
 
 
-# giving initial parameters
-mu = Parameter(7)
-sigma = Parameter(3)
-height = Parameter(5)
 
-# define your function:
-def f(x): return height() * exp(-((x-mu())/sigma())**2)
-
-# fit! (given that data is an array with the data to fit)
-
-fit(f, [mu, sigma, height], data)
-'''
