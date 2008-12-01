@@ -79,6 +79,8 @@ EVENT DETECTION:
             - or, if you see an up-down event, check if it exists on other chans at the same time - although, this assumes that the spike is multichannel, which it isn't necessarily
         - might also be able to reduce num params by fixing all spike phase gaussian means and stdevs to be the same (assuming S+H correction is turned on, and there aren't any backpropagating spikes)
 
+    - could speed things up by only interpolating say each 1ms of data following an initial threshold crossing, maybe interpolate to 100 kHz while we're at it, and leave everything else at 25 kHz without any S+H correction - you don't really need interpolation or S+H correction for the initial threshold detection, I think...
+
 
     - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
 

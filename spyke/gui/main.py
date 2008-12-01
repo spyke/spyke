@@ -384,9 +384,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srffname = self.srff.fname # update
         self.SetTitle(os.path.basename(self.srffname)) # update the caption
 
-        self.hpstream = core.Stream(self.srff.highpassrecords) # highpass record (spike) stream
+        self.hpstream = self.srff.hpstream # highpass record (spike) stream
         try: # check if lowpassmultichanrecords are present
-            self.lpstream = core.Stream(self.srff.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+            self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
         except AttributeError:
             pass
         self.chans_enabled = copy(self.hpstream.chans) # property

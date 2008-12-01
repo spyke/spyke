@@ -5,6 +5,7 @@ import numpy as np
 import scipy.optimize
 from pylab import figure, plot
 import time
+import spyke
 
 def gaussian(mu, sigma, x):
     return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
@@ -19,6 +20,11 @@ def cost(p, x, y):
     """Distance to the target function"""
     return model(p, x) - y
 
+# Don't forget, need to enforce in the fitting somehow that the two
+# Gaussians must be of opposite sign. Would also like to be able to enforce
+# minimum amplitudes for both gaussians, and a range of differences in
+# their means
+'''
 x = np.arange(87)
 y = np.array([  0.69486117,   8.16924953,  10.17962551,   6.11466599,
          1.31948435,  -0.14410365,   0.52754396,  -1.19760346,
@@ -42,16 +48,32 @@ y = np.array([  0.69486117,   8.16924953,  10.17962551,   6.11466599,
        -21.18888855, -17.96524811, -14.06570435, -11.56622982,
        -10.79750252, -10.52579212, -10.45510769, -10.73945427,
        -10.3060379 ,  -7.99611521,  -4.38621092], dtype=np.float32)
-p0 = [-10, 7, 2, 10, 20, 4] # initial parameter guess
-t0 = time.clock()
-for i in xrange(100):
-    p, success = scipy.optimize.leastsq(cost, p0, args=(x, y))
-t1 = time.clock()
-print '%.3f sec' % (t1-t0)
+'''
+#p0 = [-10, 7, 2, 10, 20, 4] # initial parameter guess
+#p0 = np.array([-39.75430588,  14.96675971,   3.68428717,  37.4680001 ,  34.34298134,   7.70360098])
+
+sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
+sf.parse()
+
+t = 368568680 #396729760 #396729820
+chani = 1 #2
+w = sf.hpstream[t:t+1500] # waveform object
+x = w.ts
+y = w[chani]
+# this initial guess doesn't work, seems the means are too far off
+p0 = [50, t+125, 60, -50, t+250, 60] # ms and uV
+# this one does work
+p0 = [50, t+200, 60, -50, t+400, 60] # ms and uV
+
+#t0 = time.clock()
+#for i in xrange(100):
+p, cov_p, infodict, mesg, ier = scipy.optimize.leastsq(cost, p0, args=(x, y), full_output=True)
+#t1 = time.clock()
+#print '%.3f sec' % (t1-t0)
 
 figure()
 plot(x, y, 'k.-')
-plot(p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
+plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
 
 '''
 class Parameter(object):

@@ -15,7 +15,7 @@ import time
 
 import wx
 
-from spyke.core import toiter, intround
+from spyke.core import Stream, toiter, intround
 
 NULL = '\x00'
 
@@ -114,6 +114,13 @@ class File(Record):
             print 'Done parsing %r' % self.fname
             self._verifyParsing()
             self._connectRecords()
+
+            self.hpstream = Stream(self.highpassrecords) # highpass record (spike) stream
+            try: # check if lowpassmultichanrecords are present
+                self.lpstream = Stream(self.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+            except AttributeError:
+                pass
+
             print 'parsing took %f sec' % (time.clock()-t0)
             if save:
                 tsave = time.clock()
