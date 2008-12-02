@@ -3,15 +3,23 @@ Adapted from http://www.scipy.org/Cookbook/FittingData"""
 
 import numpy as np
 import scipy.optimize
+from scipy.optimize import leastsq, fmin_cobyla
 from pylab import figure, plot
 import time
 import spyke
 
 
-def gaussian(mu, sigma, x):
+def g(mu, sigma, x):
+    """1-D Gaussian"""
     return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
 
-g = gaussian
+def dgdmu(mu, sigma, x):
+    """Partial of g wrt mu"""
+    return (x - mu) / sigma**2 * g(mu, sigma, x)
+
+def dgdsigma(mu, sigma, x):
+    """Partial of g wrt sigma"""
+    return (x**2 - 2*x*mu + mu**2) / sigma**3 * g(mu, sigma, x)
 
 
 class LeastSquares(object):
@@ -26,24 +34,27 @@ class LeastSquares(object):
         plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
 
     def calc(self):
-        self.p, self.cov_p, self.infodict, self.mesg, self.ier = scipy.optimize.leastsq(self.cost, self.p0,
-                                                                                        args=(self.x, self.y),
-                                                                                        full_output=True)
+        result = leastsq(self.cost, self.p0, args=(self.x, self.y), Dfun=self.dcost, full_output=True, col_deriv=True)
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+
     def model(self, p, x):
         """Sum of two Gaussians, returns a vector of y values"""
         return p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x)
 
     def cost(self, p, x, y):
         """Distance of each point to the target function"""
-        return y - self.model(p, x) # returns a vector of errors, one for each data point
+        return self.model(p, x) - y # returns a vector of errors, one for each data point
 
-    def dmodel(self, p, x):
+    def dcost(self, p, x, y):
+        """Derivative of cost function wrt each parameter, returns Jacobian matrix"""
+        # these all have the same length as x
         dfdp0 = g(p[1], p[2], x)
-        dfdp1 = p[0]*dgdmu =
-        dfdp2 = p[0]*dgdsigma =
+        dfdp1 = p[0]*dgdmu(p[1], p[2], x)
+        dfdp2 = p[0]*dgdsigma(p[1], p[2], x)
         dfdp3 = g(p[4], p[5], x)
-        dfdp4 = p[3]*dgdmu =
-        dfdp5 = p[3]*dgdsigma =
+        dfdp4 = p[3]*dgdmu(p[4], p[5], x)
+        dfdp5 = p[3]*dgdsigma(p[4], p[5], x)
+        return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
 
 """
 Don't forget, need to enforce in the fitting somehow that the two
@@ -66,7 +77,8 @@ Then, there's also scikits.openopt, which is associated with scipy somehow
 
 class Cobyla(object):
     """This algorithm doesn't seem to work, although its constraints features
-    are promising. Also, it's about 6X slower than leastsq"""
+    are promising. Also, it's about 6X slower than leastsq, but that might
+    be because it's converging incorrectly"""
     def __init__(self, p0, x, y, min1=50, min2=50, dmurange=(100, 500)):
         self.p0 = p0
         self.x = x
@@ -84,7 +96,7 @@ class Cobyla(object):
         plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
 
     def calc(self):
-        self.p = scipy.optimize.fmin_cobyla(self.cost, self.p0, self.cons, args=(self.x, self.y), consargs=())
+        self.p = fmin_cobyla(self.cost, self.p0, self.cons, args=(self.x, self.y), consargs=())
 
     def model(self, p, x):
         """Sum of two Gaussians, returns a vector of y values"""
@@ -92,7 +104,7 @@ class Cobyla(object):
 
     def cost(self, p, x, y):
         """Distance of each point to the target function"""
-        return y - self.model(p, x) # returns a vector of errors, one for each data point
+        return self.model(p, x) - y # returns a vector of errors, one for each data point
 
     def con0(self, p):
         return 0
