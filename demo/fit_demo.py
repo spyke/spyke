@@ -4,7 +4,7 @@ Adapted from http://www.scipy.org/Cookbook/FittingData"""
 import numpy as np
 import scipy.optimize
 from scipy.optimize import leastsq, fmin_cobyla
-from pylab import figure, plot
+from pylab import figure, plot, title
 import time
 import spyke
 
@@ -47,9 +47,8 @@ class LeastSquares(object):
                 plot(t, v[i], 'k.-')
                 p = self.p
                 plot(t,
-                     p[5]*g2(p[6], p[7], p[8], p[9], xval, yval) * (p[0]*g(p[1], p[2], t) + g(p[3], p[4], t)),
+                     g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
                      'r-')
-
 
     def calc(self):
         result = leastsq(self.cost, self.p0, args=(self.t, self.v), Dfun=self.dcost, full_output=True, col_deriv=True)
@@ -68,8 +67,8 @@ class LeastSquares(object):
         returns a vector of voltage values v of same length as t. x and y are
         vectors of x and y coordinates of each channel's spatial location. Output
         of this should be an (nchans, nt) matrix of modelled voltage values v"""
-        return np.outer(p[5]*g2(p[6], p[7], p[8], p[9], x, y),
-                        p[0]*g(p[1], p[2], t) + g(p[3], p[4], t))
+        return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
+                        p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
 
     def cost(self, p, t, v):
         """Distance of each point to the target function"""
@@ -78,7 +77,7 @@ class LeastSquares(object):
     def cost2(self, p, t, x, y, v):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the matrix has to be flattened into an array"""
+        Seems the resulting matrix has to be flattened into an array"""
         return np.ravel(self.model2(p, t, x, y) - v)
 
     def dcost(self, p, t, v):
@@ -262,12 +261,11 @@ v = w[chanis]
 x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
 y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
 
-p0 = [-10, 200, 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-           400, 120, # 2nd phase: mu (us), sigma (us)
-           10, # 2D amplitude (uV)
-           sf.hpstream.probe.SiteLoc[4][0], # x (um)
-           sf.hpstream.probe.SiteLoc[4][1], # y (um)
-           60, 60] # sigma_x and sigma_y (um)
+p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+       50, 400, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+       sf.hpstream.probe.SiteLoc[4][0], # x (um)
+       sf.hpstream.probe.SiteLoc[4][1], # y (um)
+       60] # sigma_x == sigma_y (um)
 
 # hm, maybe the 2d gauss shouldn't have ampl param, and i should restore ampl of 2nd phase as a param
 # also, maybe too many deg freedom - x coord and sigma being ignored (huge), try circularly symmetruc 2d gaussian
