@@ -21,39 +21,75 @@ def dgdsigma(mu, sigma, x):
     """Partial of g wrt sigma"""
     return (x**2 - 2*x*mu + mu**2) / sigma**3 * g(mu, sigma, x)
 
+def g2(x0, y0, sx, sy, x, y):
+    """2-D Gaussian. x0, y0 are means, sx, sy are sigmas"""
+    return np.exp(- ((x-x0)**2 / (2*sx**2) + (y-y0)**2 / (2*sy**2)  ) )
+
 
 class LeastSquares(object):
-    def __init__(self, p0, x, y):
+    def __init__(self, p0, t, v, x=None, y=None):
         self.p0 = p0
+        self.t = t
+        self.v = v
         self.x = x
         self.y = y
-        self.calc()
-        figure()
-        plot(x, y, 'k.-')
-        p = self.p
-        plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
+        if x == None:
+            self.calc()
+            figure()
+            plot(t, v, 'k.-')
+            p = self.p
+            plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'r-')
+        else:
+            self.calc2()
+            for i, (xval, yval) in enumerate(zip(x, y)):
+                figure()
+                title('x, y = %r' % ((xval, yval),))
+                plot(t, v[i], 'k.-')
+                p = self.p
+                plot(t,
+                     p[5]*g2(p[6], p[7], p[8], p[9], xval, yval) * (p[0]*g(p[1], p[2], t) + g(p[3], p[4], t)),
+                     'r-')
+
 
     def calc(self):
-        result = leastsq(self.cost, self.p0, args=(self.x, self.y), Dfun=self.dcost, full_output=True, col_deriv=True)
+        result = leastsq(self.cost, self.p0, args=(self.t, self.v), Dfun=self.dcost, full_output=True, col_deriv=True)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
 
-    def model(self, p, x):
-        """Sum of two Gaussians, returns a vector of y values"""
-        return p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x)
+    def calc2(self):
+        result = leastsq(self.cost2, self.p0, args=(self.t, self.x, self.y, self.v), Dfun=None, full_output=True, col_deriv=False)
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
 
-    def cost(self, p, x, y):
+    def model(self, p, t):
+        """Sum of two Gaussians in time, returns a vector of voltage values v"""
+        return p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)
+
+    def model2(self, p, t, x, y):
+        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
+        returns a vector of voltage values v of same length as t. x and y are
+        vectors of x and y coordinates of each channel's spatial location. Output
+        of this should be an (nchans, nt) matrix of modelled voltage values v"""
+        return np.outer(p[5]*g2(p[6], p[7], p[8], p[9], x, y),
+                        p[0]*g(p[1], p[2], t) + g(p[3], p[4], t))
+
+    def cost(self, p, t, v):
         """Distance of each point to the target function"""
-        return self.model(p, x) - y # returns a vector of errors, one for each data point
+        return self.model(p, t) - v # returns a vector of errors, one for each data point
 
-    def dcost(self, p, x, y):
+    def cost2(self, p, t, x, y, v):
+        """Distance of each point to the 2D target function
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the matrix has to be flattened into an array"""
+        return np.ravel(self.model2(p, t, x, y) - v)
+
+    def dcost(self, p, t, v):
         """Derivative of cost function wrt each parameter, returns Jacobian matrix"""
-        # these all have the same length as x
-        dfdp0 = g(p[1], p[2], x)
-        dfdp1 = p[0]*dgdmu(p[1], p[2], x)
-        dfdp2 = p[0]*dgdsigma(p[1], p[2], x)
-        dfdp3 = g(p[4], p[5], x)
-        dfdp4 = p[3]*dgdmu(p[4], p[5], x)
-        dfdp5 = p[3]*dgdsigma(p[4], p[5], x)
+        # these all have the same length as t
+        dfdp0 = g(p[1], p[2], t)
+        dfdp1 = p[0]*dgdmu(p[1], p[2], t)
+        dfdp2 = p[0]*dgdsigma(p[1], p[2], t)
+        dfdp3 = g(p[4], p[5], t)
+        dfdp4 = p[3]*dgdmu(p[4], p[5], t)
+        dfdp5 = p[3]*dgdsigma(p[4], p[5], t)
         return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
 
 """
@@ -79,10 +115,10 @@ class Cobyla(object):
     """This algorithm doesn't seem to work, although its constraints features
     are promising. Also, it's about 6X slower than leastsq, but that might
     be because it's converging incorrectly"""
-    def __init__(self, p0, x, y, min1=50, min2=50, dmurange=(100, 500)):
+    def __init__(self, p0, t, v, min1=50, min2=50, dmurange=(100, 500)):
         self.p0 = p0
-        self.x = x
-        self.y = y
+        self.t = t
+        self.v = v
         self.min1 = min1
         self.min2 = min2
         self.dmurange = dmurange
@@ -91,20 +127,20 @@ class Cobyla(object):
         self.cons = self.con0
         self.calc()
         figure()
-        plot(x, y, 'k.-')
+        plot(t, v, 'k.-')
         p = self.p
-        plot(x, p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x), 'r-')
+        plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'r-')
 
     def calc(self):
-        self.p = fmin_cobyla(self.cost, self.p0, self.cons, args=(self.x, self.y), consargs=())
+        self.p = fmin_cobyla(self.cost, self.p0, self.cons, args=(self.t, self.v), consargs=())
 
-    def model(self, p, x):
-        """Sum of two Gaussians, returns a vector of y values"""
-        return p[0]*g(p[1], p[2], x) + p[3]*g(p[4], p[5], x)
+    def model(self, p, t):
+        """Sum of two Gaussians, returns a vector of v values"""
+        return p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)
 
-    def cost(self, p, x, y):
+    def cost(self, p, t, v):
         """Distance of each point to the target function"""
-        return self.model(p, x) - y # returns a vector of errors, one for each data point
+        return self.model(p, t) - v # returns a vector of errors, one for each data point
 
     def con0(self, p):
         return 0
@@ -125,8 +161,8 @@ class Cobyla(object):
         return self.dmurange[0] <= dmu <= self.dmurange[1]
 
 '''
-x = np.arange(87)
-y = np.array([  0.69486117,   8.16924953,  10.17962551,   6.11466599,
+t = np.arange(87)
+v = np.array([  0.69486117,   8.16924953,  10.17962551,   6.11466599,
          1.31948435,  -0.14410365,   0.52754396,  -1.19760346,
         -6.5304656 , -12.67904949, -17.30953789, -21.16654778,
        -27.42707253, -35.58847809, -39.90871048, -36.30270767,
@@ -152,15 +188,16 @@ y = np.array([  0.69486117,   8.16924953,  10.17962551,   6.11466599,
 #p0 = [-10, 7, 2, 10, 20, 4] # initial parameter guess
 #p0 = np.array([-39.75430588,  14.96675971,   3.68428717,  37.4680001 ,  34.34298134,   7.70360098])
 
+###############################################################
 sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
 sf.parse()
 
 t = 368568680 #396729760 #396729820
 chani = 1 #2
 w = sf.hpstream[t:t+1500] # waveform object
-x = w.ts
-x = x - x[0]
-y = w[chani]
+t = w.ts
+t = t - t[0]
+v = w[chani]
 
 # For LeastSquares, good or bad guesses all converge in the same amount of time:
 # this initial guess doesn't work, seems having incorrect amplitude signs messes it up
@@ -172,7 +209,31 @@ p0 = [-50, 200, 60, 50, 400, 60] # ms and uV
 # so does this one, with wildly innacurate means
 p0 = [-50, 50, 200, 50, 600, 40] # ms and uV
 
-ls = LeastSquares(p0, x, y)
+###############################################################
+sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
+sf.parse()
+
+t = 255876840
+chani = 4
+w = sf.hpstream[t:t+1500] # waveform object
+t = w.ts
+t = t - t[0]
+v = w[chani]
+
+# works, even with incorrect amplitude signs
+p0 = [50, 125, 60, -50, 250, 60] # ms and uV
+# works
+p0 = [-50, 125, 60, 50, 250, 60] # ms and uV
+# works
+p0 = [-50, 200, 60, 50, 400, 60] # ms and uV
+# works
+p0 = [-50, 50, 200, 50, 600, 40] # ms and uV
+# works
+p0 = [-50, 0, 200, 50, 200, 40] # ms and uV
+# works
+p0 = [50, 0, 200, 50, 200, 40] # ms and uV
+
+ls = LeastSquares(p0, t, v)
 
 t0 = time.clock()
 for i in xrange(100):
@@ -180,7 +241,7 @@ for i in xrange(100):
 
 print '%.3f sec' % (time.clock() - t0) # ~2 sec
 
-c = Cobyla(p0, x, y)
+c = Cobyla(p0, t, v)
 
 t0 = time.clock()
 for i in xrange(100):
@@ -188,5 +249,33 @@ for i in xrange(100):
 
 print '%.3f sec' % (time.clock() - t0) # ~12 sec
 
+###############################################################
+sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
+sf.parse()
 
+t = 255876840
+chanis = [15, 4, 18, 1]
+w = sf.hpstream[t:t+1500] # waveform object
+t = w.ts
+t = t - t[0]
+v = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
 
+p0 = [-10, 200, 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+           400, 120, # 2nd phase: mu (us), sigma (us)
+           10, # 2D amplitude (uV)
+           sf.hpstream.probe.SiteLoc[4][0], # x (um)
+           sf.hpstream.probe.SiteLoc[4][1], # y (um)
+           60, 60] # sigma_x and sigma_y (um)
+
+# hm, maybe the 2d gauss shouldn't have ampl param, and i should restore ampl of 2nd phase as a param
+# also, maybe too many deg freedom - x coord and sigma being ignored (huge), try circularly symmetruc 2d gaussian
+
+ls = LeastSquares(p0, t, v, x, y)
+
+t0 = time.clock()
+for i in xrange(100):
+    ls.calc()
+
+print '%.3f sec' % (time.clock() - t0) # ~2 sec
