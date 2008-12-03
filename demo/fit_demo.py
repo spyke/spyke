@@ -4,7 +4,7 @@ Adapted from http://www.scipy.org/Cookbook/FittingData"""
 import numpy as np
 import scipy.optimize
 from scipy.optimize import leastsq, fmin_cobyla
-from pylab import figure, plot, title
+from pylab import *
 import time
 import spyke
 
@@ -36,6 +36,7 @@ class LeastSquares(object):
         if x == None:
             self.calc()
             figure()
+            gca().set_ylim(-100, 100)
             plot(t, v, 'k.-')
             p = self.p
             plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'r-')
@@ -43,12 +44,19 @@ class LeastSquares(object):
             self.calc2()
             for i, (xval, yval) in enumerate(zip(x, y)):
                 figure()
-                title('x, y = %r' % ((xval, yval),))
+                title('x, y = %r um' % ((xval, yval),))
                 plot(t, v[i], 'k.-')
                 p = self.p
                 plot(t,
-                     g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
+                     g2(p[6], p[7], p[8], p[8], xval, yval) * p[0]*g(p[1], p[2], t),
                      'r-')
+                plot(t,
+                     g2(p[6], p[7], p[8], p[8], xval, yval) * p[3]*g(p[4], p[5], t),
+                     'g-')
+                plot(t,
+                     g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
+                     'b-')
+                gca().set_ylim(-100, 100)
 
     def calc(self):
         result = leastsq(self.cost, self.p0, args=(self.t, self.v), Dfun=self.dcost, full_output=True, col_deriv=True)
@@ -267,9 +275,6 @@ p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
        sf.hpstream.probe.SiteLoc[4][1], # y (um)
        60] # sigma_x == sigma_y (um)
 
-# hm, maybe the 2d gauss shouldn't have ampl param, and i should restore ampl of 2nd phase as a param
-# also, maybe too many deg freedom - x coord and sigma being ignored (huge), try circularly symmetruc 2d gaussian
-
 ls = LeastSquares(p0, t, v, x, y)
 
 t0 = time.clock()
@@ -277,3 +282,49 @@ for i in xrange(100):
     ls.calc()
 
 print '%.3f sec' % (time.clock() - t0) # ~2 sec
+
+
+###############################################################
+sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
+sf.parse()
+
+t = 255899500
+chanis = [16, 3, 13, 6, 12, 7]
+w = sf.hpstream[t:t+1500] # waveform object
+t = w.ts
+t = t - t[0]
+v = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+
+p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+       50, 400, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+       sf.hpstream.probe.SiteLoc[13][0], # x (um)
+       sf.hpstream.probe.SiteLoc[13][1], # y (um)
+       60] # sigma_x == sigma_y (um)
+
+ls = LeastSquares(p0, t, v, x, y)
+
+# when it comes to finding max and min in either the raw data or the fit model, make sure max > 0 and min < 0 - that would catch case where say you get two +ve gaussians for whatever reason, and then min in that time range is something just above 0.
+
+
+###############################################################
+sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
+sf.parse()
+
+t = 255915140
+chanis = [15, 4, 18, 1]
+w = sf.hpstream[t:t+1500] # waveform object
+t = w.ts
+t = t - t[0]
+v = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+
+p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+       50, 600, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+       sf.hpstream.probe.SiteLoc[4][0], # x (um)
+       sf.hpstream.probe.SiteLoc[4][1], # y (um)
+       60] # sigma_x == sigma_y (um)
+
+ls = LeastSquares(p0, t, v, x, y)
