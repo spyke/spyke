@@ -29,6 +29,7 @@ except ImportError: # detect_cy isn't available
     from simple_detect_cy import BipolarAmplitude_Cy
     cy_module = simple_detect_cy
 
+
 class RandomWaveTranges(object):
     """Iterator that spits out time ranges of width bs with
     excess bx that begin randomly from within the given trange.

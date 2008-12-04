@@ -328,3 +328,48 @@ p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
        60] # sigma_x == sigma_y (um)
 
 ls = LeastSquares(p0, t, v, x, y)
+
+
+###############################################################
+sf = spyke.surf.File('/data/ptc15/87 - track 7c spontaneous craziness.srf')
+sf.parse()
+
+t = 50460
+chanis = [41, 11, 42, 10, 43, 9, 44, 8, 45]
+w = sf.hpstream[t:t+1500] # waveform object
+t = w.ts
+t = t - t[0]
+v = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+
+p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+       50, 600, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+       sf.hpstream.probe.SiteLoc[43][0], # x (um)
+       sf.hpstream.probe.SiteLoc[43][1], # y (um)
+       60] # sigma_x == sigma_y (um)
+
+ls = LeastSquares(p0, t, v, x, y)
+
+###############################################################
+sf = spyke.surf.File('/data/ptc15/87 - track 7c spontaneous craziness.srf')
+sf.parse()
+
+t = 142040 # 33560 first spike
+chanis = [38, 14, 39, 13, 40, 12]
+w = sf.hpstream[t:t+1500] # waveform object
+t = w.ts
+t = t - t[0]
+v = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+
+p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+       50, 300, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+       sf.hpstream.probe.SiteLoc[13][0], # x (um)
+       sf.hpstream.probe.SiteLoc[13][1], # y (um)
+       60] # sigma_x == sigma_y (um)
+
+ls = LeastSquares(p0, t, v, x, y)
+
+
