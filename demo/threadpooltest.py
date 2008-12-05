@@ -57,4 +57,4 @@ if __name__ == '__main__':
     pool.wait()
     print 'tasks took %.3f sec' % time.clock()
     print 'outputs: %r' % outputs
-    time.sleep(2) # pause so you can watch the parent process in taskman hang around after worker processes exit
+    time.sleep(2) # pause so you can watch the parent thread in taskman hang around after worker threads exit

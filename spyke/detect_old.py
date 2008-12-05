@@ -1,4 +1,7 @@
-"""Event detection algorithms
+"""Event detection algorithms, using original raw data points with Cython approach
+
+TODO: check if python's cygwincompiler.py module has been updated to deal with
+      extra version fields in latest mingw
 """
 
 from __future__ import division
@@ -8,8 +11,7 @@ __authors__ = ['Martin Spacek, Reza Lotun']
 import itertools
 import sys
 import time
-import processing
-import threadpool
+#import processing
 
 import wx
 
@@ -17,6 +19,15 @@ import numpy as np
 
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd
+#from detect_weave import BipolarAmplitudeFixedThresh_Weave
+try:
+    import detect_cy
+    from detect_cy import BipolarAmplitude_Cy, DynamicMultiphasic_Cy
+    cy_module = detect_cy
+except ImportError: # detect_cy isn't available
+    import simple_detect_cy
+    from simple_detect_cy import BipolarAmplitude_Cy
+    cy_module = simple_detect_cy
 
 
 class RandomWaveTranges(object):
@@ -41,38 +52,6 @@ class RandomWaveTranges(object):
 
     def __iter__(self):
         return self
-
-
-class LeastSquares(object):
-    """Least squares Levenburg-Marquodt fit of two voltage Gaussians
-    to spike phases, plus a 2D spatial gaussian to model decay across channels"""
-    def __init__(self):
-        # initial parameter guess
-        self.p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-                    50, 300, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-                    None, # x (um)
-                    None, # y (um)
-                    60] # sigma_x == sigma_y (um)
-
-    def calc(self, t, x, y, V):
-        result = np.leastsq(self.cost, self.p0, args=(t, x, y, V), Dfun=None, full_output=True, col_deriv=False)
-        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        return
-
-    def model(self, p, t, x, y):
-        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
-        returns a vector of voltage values v of same length as t. x and y are
-        vectors of x and y coordinates of each channel's spatial location. Output
-        of this should be an (nchans, nt) matrix of modelled voltage values v"""
-        return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
-                        p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
-
-    def cost(self, p, t, x, y, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        return np.ravel(self.model(p, t, x, y) - V)
-
 
 
 class Detector(object):
@@ -133,35 +112,36 @@ class Detector(object):
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
+        bs_sec = bs/1000000 # from us to sec
+        maxneventsperchanperblock = bs_sec * self.MAXAVGFIRINGRATE # num elements per chan to preallocate before searching a block
         # reset this at the start of every search
         self.nevents = 0 # total num events found across all chans so far by this Detector
+        # these hold temp eventtimes and maxchans for .searchblock, reused on every call
+        self._eventtimes = np.empty(self.nchans*maxneventsperchanperblock, dtype=np.int64)
+        self._maxchans = np.empty(self.nchans*maxneventsperchanperblock, dtype=int)
+        self.tilock = self.us2nt(self.tlock)
 
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
-        self.events = [] # list of 2D event arrays returned by .searchblockthread(), one array per block
-
-        ncpus = processing.cpuCount()
-        nthreads = ncpus + 1 # not too sure why, so you always have a worker thread waiting in the wings?
-        print 'ncpus: %d, nthreads: %d' % (ncpus, nthreads)
-        pool = threadpool.ThreadPool(nthreads) # create a threading pool
-
-        t0 = time.clock()
+        # should probably do a check here to see if it's worth using multiple processes
+        # so, check if wavetrange is big enough, and/or if maxnevents is big enough
+        # if random sampling, use only a single process?
+        #pool = processing.Pool() # spawns as many worker processes as there are CPUs/cores on the machine
+        self.events = [] # list of 2D event arrays returned by .searchblockprocess(), one array per block
+        results = [] # stores ApplyResult objects returned by pool.applyAsync
         for wavetrange in wavetranges:
             args = (wavetrange, direction)
-            request = threadpool.WorkRequest(self.searchblock, args=args, callback=handle_eventarr)
-            pool.putRequest(request)
-            '''
+            # NOTE: might need to make a dummyDetector object with the right attribs to prevent mpl stuff and everything else from being copied over to each new spawned process???
+            #result = pool.applyAsync(self.searchblockprocess, args=args, callback=self.handle_eventarr)
+            #results.append(result) # not really necessary
             try:
-                eventarr = self.searchblockthread(*args)
+                eventarr = self.searchblockprocess(*args)
                 self.handle_eventarr(eventarr)
             except ValueError: # we've found all the events we need
                 break # out of wavetranges loop
-            '''
-        print 'done queueing tasks'
-        pool.wait()
-        print 'tasks took %.3f sec' % time.clock()
-        print 'outputs: %r' % outputs
-        time.sleep(2) # pause so you can watch the parent thread in taskman hang around after worker thread exit
+        #print 'done queueing tasks, result objects are: %r' % results
+        #pool.close() # prevent any more tasks from being added to pool
+        #pool.join() # wait until all tasks are done
 
         try:
             events = np.concatenate(self.events, axis=1)
@@ -172,9 +152,9 @@ class Detector(object):
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return events
 
-    def searchblock(self, wavetrange, direction):
-        """This is what a worker thread executes"""
-        print 'searchblock(): self.nevents=%r, self.maxnevents=%r, wavetrange=%r, direction=%r' % (self.nevents, self.maxnevents, wavetrange, direction)
+    def searchblockprocess(self, wavetrange, direction):
+        """This is what a worker process executes"""
+        print 'searchblockprocess(): self.nevents=%r, self.maxnevents=%r, wavetrange=%r, direction=%r' % (self.nevents, self.maxnevents, wavetrange, direction)
         if self.nevents >= self.maxnevents:
             raise ValueError # skip this iteration. TODO: this should really cancel all enqueued tasks
         tlo, thi = wavetrange # tlo could be > thi
@@ -186,62 +166,11 @@ class Detector(object):
             maxnevents = 1 # how many more we're looking for in the next block
         else:
             maxnevents = self.maxnevents - self.nevents
+        eventarr = self.searchblock(wave, cutrange, maxnevents) # drop into C loop
+        return eventarr
 
-        thresh = 50 # uV
-        tw = 1500 # spike time window, us
-        twnt = intround(tw / self.stream.tres) # spike time window in number of timepoints
-        # this should hopefully release the GIL
-        edges = np.diff(np.int8(abs(wave.data) > thresh)) # get indices where abs(signal) has either crossed over or returned back below threshold
-        eventarr = np.transpose(np.where(edges == 1)) # get indices of +ve edges, ie where signal has crossed thresh in direction away from 0
-
-        lockout = np.zeros(self.stream.nchans) # holds time dfssdfsdindices until which each channel is locked out
-        # self.stream.probe.SiteLoc is dict of chan:tuple
-        # want a nchan*2 array of [chani, x/ycoord]
-        xycoords = [ self.stream.probe.SiteLoc[chan] for chan in self.stream.chans ]
-        xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
-        ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        siteloc = np.asarray([xcoords, ycoords]).T # [chani, x/ycoord]
-
-        ls = LeastSquares()
-        for chani, ti in eventarr:
-            if ti <= lockout[chani]:
-                continue # this event is locked out, skip to next event
-            #t0 = wave.ts[ti] # time at which threshold was crossed
-            # find max and min for short interval following threshold crossing
-            # might need to reduce ti a couple of points from thresh crossing for a nice gaussian fit
-            ti0 = ti # for now at least
-            tiend = ti+twnt
-            window = wave.data[chani, ti0:tiend]
-            minti = window.argmin() # relative to ti0
-            maxti = window.argmax() # relative to ti0
-            minV = window[minti]
-            maxV = window[maxti]
-            assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
-            assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
-
-            p0 = [minV, wave.ts[minti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-                  maxV, wave.ts[maxti], 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-                  self.stream.probe.SiteLoc[chan][0], # x (um)
-                  self.stream.probe.SiteLoc[chan][1], # y (um)
-                  60] # sigma_x == sigma_y (um)
-            ls.p0 = p0
-            # find all the chans within slock of chani
-            chanis =
-            x = siteloc[chanis, 0]
-            y = siteloc[chanis, 1]
-            V = wave.data[chanis, ]
-            p = ls.calc(wave.ts, x, y, V)
-            # check params to see if event qualifies as spike (several conditions on shape)
-            # if so, record it, and update spatiotemporal lockout
-            # maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
-
-        # trim results from wavetrange down to just cutrange
-        #eventarr = self.searchblock(wave, cutrange, maxnevents)
-        return spikes
-
-
-    def handle_eventarr(self, request, eventarr):
-        """Blocking callback, called every time a worker thread completes a task"""
+    def handle_eventarr(self, eventarr):
+        """Blocking callback, called every time a worker process completes a task"""
         print 'handle_eventarr got: %r' % eventarr
         if eventarr == None:
             return
@@ -351,6 +280,14 @@ class Detector(object):
         else:
             raise ValueError
 
+    def us2nt(self, us):
+        """Convert time in us to nearest number of eq'v timepoints in stream"""
+        nt = intround(us / self.stream.tres)
+        # prevent rounding nt down to 0. This way, even the smallest
+        # non-zero us will get you at least 1 timepoint
+        if nt == 0 and us != 0:
+            nt = 1
+        return nt
 
 
 class BipolarAmplitude(Detector, BipolarAmplitude_Cy):
