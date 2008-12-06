@@ -115,7 +115,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
-        self.noise_method_choice.SetSelection(detect.cy_module.STRNOISE2ID[detect.Detector.DEFNOISEMETHOD])
+        self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
         self.nevents_spin_ctrl.SetRange(0, sys.maxint)
         self.nevents_spin_ctrl.SetValue(detect.Detector.DEFMAXNEVENTS)
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))

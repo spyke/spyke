@@ -557,6 +557,14 @@ class Gaussian(object):
         """Called when self is indexed into"""
         return self(x)
 
+def g(mu, sigma, x):
+    """1-D Gaussian"""
+    return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
+
+def g2(x0, y0, sx, sy, x, y):
+    """2-D Gaussian. x0, y0 are means, sx, sy are sigmas"""
+    return np.exp(- ((x-x0)**2 / (2*sx**2) + (y-y0)**2 / (2*sy**2)) )
+
 class Poo(object):
     """Poo function, works with ndarray inputs"""
     def __init__(self, a, b, c):

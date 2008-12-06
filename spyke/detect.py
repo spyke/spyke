@@ -14,9 +14,10 @@ import threadpool
 import wx
 
 import numpy as np
+from scipy.optimize import leastsq
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, eucd
+from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2
 
 
 class RandomWaveTranges(object):
@@ -55,7 +56,7 @@ class LeastSquares(object):
                     60] # sigma_x == sigma_y (um)
 
     def calc(self, t, x, y, V):
-        result = np.leastsq(self.cost, self.p0, args=(t, x, y, V), Dfun=None, full_output=True, col_deriv=False)
+        result = leastsq(self.cost, self.p0, args=(t, x, y, V), Dfun=None, full_output=True, col_deriv=False)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         return
 
@@ -148,19 +149,19 @@ class Detector(object):
         t0 = time.clock()
         for wavetrange in wavetranges:
             args = (wavetrange, direction)
-            request = threadpool.WorkRequest(self.searchblock, args=args, callback=handle_eventarr)
+            # TODO: handle exceptions
+            request = threadpool.WorkRequest(self.searchblock, args=args, callback=self.handle_spikes)
             pool.putRequest(request)
             '''
             try:
-                eventarr = self.searchblockthread(*args)
-                self.handle_eventarr(eventarr)
+                spikes = self.searchblock(*args)
+                self.handle_spikes(spikes)
             except ValueError: # we've found all the events we need
                 break # out of wavetranges loop
             '''
         print 'done queueing tasks'
         pool.wait()
-        print 'tasks took %.3f sec' % time.clock()
-        print 'outputs: %r' % outputs
+        print 'tasks took %.3f sec' % (time.clock() - t0)
         time.sleep(2) # pause so you can watch the parent thread in taskman hang around after worker thread exit
 
         try:
@@ -182,19 +183,19 @@ class Detector(object):
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
         #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
         wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
+        # TODO: pull out just the enabled channels here: wave = wave[enabledchanis]
+        dmi = self.dm[wave.chans][:, wave.chans] # channel distance matrix indexed into by chani instead of chan
         if self.randomsample:
             maxnevents = 1 # how many more we're looking for in the next block
         else:
             maxnevents = self.maxnevents - self.nevents
 
-        thresh = 50 # uV
+        # this should all be done in __init__ ?
+        thresh = 50 # abs, in uV
+        thresh2 = 30 # abs, in uV
+        dmurange = (100, 500) # time difference between means of spike phase Gaussian, us
         tw = 1500 # spike time window, us
         twnt = intround(tw / self.stream.tres) # spike time window in number of timepoints
-        # this should hopefully release the GIL
-        edges = np.diff(np.int8(abs(wave.data) > thresh)) # get indices where abs(signal) has either crossed over or returned back below threshold
-        eventarr = np.transpose(np.where(edges == 1)) # get indices of +ve edges, ie where signal has crossed thresh in direction away from 0
-
-        lockout = np.zeros(self.stream.nchans) # holds time dfssdfsdindices until which each channel is locked out
         # self.stream.probe.SiteLoc is dict of chan:tuple
         # want a nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.stream.probe.SiteLoc[chan] for chan in self.stream.chans ]
@@ -202,15 +203,23 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         siteloc = np.asarray([xcoords, ycoords]).T # [chani, x/ycoord]
 
+        # this should hopefully release the GIL
+        edges = np.diff(np.int8(abs(wave.data) > thresh)) # indices where increasing or decreasing abs(signal) has crossed thresh
+        events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
+        events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
+
+        lockout = np.zeros(self.stream.nchans) # holds time indices until which each channel is locked out
+
+        spikes = []
         ls = LeastSquares()
-        for chani, ti in eventarr:
+        for ti, chani in events: # for all threshold crossing events
             if ti <= lockout[chani]:
                 continue # this event is locked out, skip to next event
             #t0 = wave.ts[ti] # time at which threshold was crossed
             # find max and min for short interval following threshold crossing
             # might need to reduce ti a couple of points from thresh crossing for a nice gaussian fit
             ti0 = ti # for now at least
-            tiend = ti+twnt
+            tiend = ti0+twnt
             window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # relative to ti0
             maxti = window.argmax() # relative to ti0
@@ -218,7 +227,6 @@ class Detector(object):
             maxV = window[maxti]
             assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
             assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
-
             p0 = [minV, wave.ts[minti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
                   maxV, wave.ts[maxti], 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
                   self.stream.probe.SiteLoc[chan][0], # x (um)
@@ -226,35 +234,53 @@ class Detector(object):
                   60] # sigma_x == sigma_y (um)
             ls.p0 = p0
             # find all the chans within slock of chani
-            chanis =
+            # TODO: this should probably exclude locked-out channels as well
+            chanis, = np.where(dmi[chani] <= self.slock)
+            t = wave.ts[ti0:tiend]
             x = siteloc[chanis, 0]
             y = siteloc[chanis, 1]
-            V = wave.data[chanis, ]
-            p = ls.calc(wave.ts, x, y, V)
-            # check params to see if event qualifies as spike (several conditions on shape)
-            # if so, record it, and update spatiotemporal lockout
-            # maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
+            V = wave.data[chanis, ti0:tiend]
+            p = ls.calc(t, x, y, V) # calculate least squares fit
+            # check params to see if event qualifies as spike
+            try:
+                assert abs(ls.p[0]) > thresh
+                assert abs(ls.p[3]) > thresh2
+                assert np.sign(ls.p[0]) == -np.sign(ls.p[3]) # phases must be of opposite sign
+                assert dmurange[0] <= ls.p[4] - ls.p[1] <= dmurange[1] # phases must be within reasonable time range of each other
+                # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
+            except AssertionError: # doesn't qualify as a spike
+                continue
+            # it's a spike, record it
+            spikes.append((ls.p[1], ls.p[6], ls.p[7]))  # list of (time, x, y) tuples
+            # update spatiotemporal lockout
+            # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
+            # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
+            # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
+            lockout[chanis] = ls.p[4] # lock out til peak of 2nd phase
 
+        spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
-        #eventarr = self.searchblock(wave, cutrange, maxnevents)
+        ts = spikes[:, 0] # spike times are in 0th column
+        # searchsorted would probably be faster here instead of checking each and every element
+        spikeis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array
+        spikes = spikes[spikeis]
         return spikes
 
-
-    def handle_eventarr(self, request, eventarr):
+    def handle_spikes(self, request, spikes):
         """Blocking callback, called every time a worker thread completes a task"""
-        print 'handle_eventarr got: %r' % eventarr
-        if eventarr == None:
+        print 'handle_spikes got: %r' % spikes
+        if spikes == None:
             return
-        nnewevents = eventarr.shape[1] # number of columns
+        nnewevents = spikes.shape[1] # number of columns
         #wx.Yield() # allow GUI to update
-        if self.randomsample and eventarr.tolist() in np.asarray(self.events).tolist():
-            # check if eventarr is a duplicate of any that are already in .events, if so,
-            # don't append this new eventarr, and don't inc self.nevents. Duplicates are possible
+        if self.randomsample and spikes.tolist() in np.asarray(self.events).tolist():
+            # check if spikes is a duplicate of any that are already in .events, if so,
+            # don't append this new spikes array, and don't inc self.nevents. Duplicates are possible
             # in random sampling cuz we might end up with blocks with overlapping tranges.
             # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
             sys.stdout.write('found duplicate random sampled event')
         elif nnewevents != 0:
-            self.events.append(eventarr)
+            self.events.append(spikes)
             self.nevents += nnewevents # update
             sys.stdout.write('.')
 
@@ -352,15 +378,14 @@ class Detector(object):
             raise ValueError
 
 
-
-class BipolarAmplitude(Detector, BipolarAmplitude_Cy):
+class BipolarAmplitude(Detector):
     """Bipolar amplitude detector"""
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
         self.algorithm = 'BipolarAmplitude'
 
 
-class DynamicMultiphasic(Detector, DynamicMultiphasic_Cy):
+class DynamicMultiphasic(Detector):
     """Dynamic multiphasic detector"""
     def __init__(self, *args, **kwargs):
         Detector.__init__(self, *args, **kwargs)
