@@ -255,7 +255,7 @@ class Detector(object):
             V = wave.data[chanis, ti0:tiend]
             p = ls.calc(t, x, y, V) # calculate least squares fit
             print 'p = %r' % ([ intround(val) for val in ls.p ],)
-            # TODO: I should report some kind of measure of fit error here
+            # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
             phase1i = np.argmin([ls.p[1], ls.p[4]]) # what was init'd as 1st phase may not have come out as such
             phase2i = np.argmax([ls.p[1], ls.p[4]])
             phase1t = [ls.p[1], ls.p[4]][phase1i]

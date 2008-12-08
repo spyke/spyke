@@ -641,7 +641,7 @@ class PlotPanel(FigureCanvasWxAgg):
                 v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
-                    tip = 'ch%d @ %r %s\n' % (line.chan, self.siteloc[line.chan], MU+'m') + \
+                    tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
                           't=%d %s\n' % (t, MU+'s') + \
                           'V=%.1f %s\n' % (v, MU+'V') + \
                           'width=%.3f ms' % (self.tw/1000)
@@ -981,7 +981,7 @@ class SortPanel(PlotPanel):
                 t = evt.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
                 v = (evt.ydata - ypos) / self.gain
                 t = intround(t / tres) * tres # round to nearest (possibly interpolated) sample
-                tip = 'ch%d @ %r %s\n' % (line.chan, self.siteloc[line.chan], MU+'m') + \
+                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
                       't=%d %s\n' % (t, MU+'s') + \
                       'V=%.1f %s\n' % (v, MU+'V') + \
                       'width=%.3f ms' % (self.tw/1000)
