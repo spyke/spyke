@@ -191,7 +191,7 @@ class Detector(object):
             maxnevents = self.maxnevents - self.nevents
 
         # this should all be done in __init__ ?
-        thresh = 50 # abs, in uV
+        thresh1 = 50 # abs, in uV
         thresh2 = 30 # abs, in uV
         dmurange = (100, 500) # time difference between means of spike phase Gaussian, us
         tw = 1500 # spike time window, us
@@ -204,18 +204,20 @@ class Detector(object):
         siteloc = np.asarray([xcoords, ycoords]).T # [chani, x/ycoord]
 
         # this should hopefully release the GIL
-        edges = np.diff(np.int8(abs(wave.data) > thresh)) # indices where increasing or decreasing abs(signal) has crossed thresh
-        events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
+        edges = np.diff(np.int8(abs(wave.data) > thresh1)) # indices where increasing or decreasing abs(signal) has crossed thresh1
+        events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh1
+        # TODO: filter events somehow in chan space using slock, so that you don't get more than one chan to test for a given event, even if it exceeds thresh on multiple chans - this will speed up the loop below by reducing unnecessary fitting runs
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
 
         lockout = np.zeros(self.stream.nchans) # holds time indices until which each channel is locked out
 
-        import pdb; pdb.set_trace()
-
         spikes = []
         ls = LeastSquares()
         for ti, chani in events: # for all threshold crossing events
+            print
+            print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], wave.chans[chani])
             if wave.ts[ti] <= lockout[chani]: # is this thresh crossing time locked out?
+                print 'thresh event is locked out'
                 continue # this event is locked out, skip to next event
             # find max and min for short interval following threshold crossing
             # might need to reduce ti a couple of points from thresh crossing for a nice gaussian fit
@@ -231,6 +233,10 @@ class Detector(object):
             phase2ti = max(minti, maxti)
             phase1V = window[phase1ti]
             phase2V = window[phase2ti]
+            # check if this (still roughly defined) event crosses thresh2, should help speed things up by rejecting obviously invalid events without having to run the model
+            if abs(phase2V) < thresh2:
+                print "event doesn't cross thresh2"
+                continue
             assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
             assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
             p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
@@ -239,6 +245,7 @@ class Detector(object):
                   self.stream.probe.SiteLoc[chan][1], # y (um)
                   60] # sigma_x == sigma_y (um)
             ls.p0 = p0
+            print 'p0 = %r' % ([ intround(val) for val in ls.p0 ],)
             # find all the chans within slock of chani
             # TODO: this should probably exclude locked-out channels as well
             chanis, = np.where(dmi[chani] <= self.slock)
@@ -247,18 +254,28 @@ class Detector(object):
             y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
             p = ls.calc(t, x, y, V) # calculate least squares fit
+            print 'p = %r' % ([ intround(val) for val in ls.p ],)
+            # TODO: I should report some kind of measure of fit error here
+            phase1i = np.argmin([ls.p[1], ls.p[4]]) # what was init'd as 1st phase may not have come out as such
+            phase2i = np.argmax([ls.p[1], ls.p[4]])
+            phase1t = [ls.p[1], ls.p[4]][phase1i]
+            phase2t = [ls.p[1], ls.p[4]][phase2i]
+            phase1V = [ls.p[0], ls.p[3]][phase1i]
+            phase2V = [ls.p[0], ls.p[3]][phase2i]
             # check params to see if event qualifies as spike
             try:
-                assert abs(ls.p[0]) > thresh
-                assert abs(ls.p[3]) > thresh2
-                assert np.sign(ls.p[0]) == -np.sign(ls.p[3]) # phases must be of opposite sign
-                assert dmurange[0] <= ls.p[4] - ls.p[1] <= dmurange[1] # phases must be within reasonable time range of each other
+                assert abs(phase1V) >= thresh1, 'thresh1 not crossed by model'
+                assert abs(phase2V) >= thresh2, 'thresh2 not crossed by model'
+                assert np.sign(phase1V) == -np.sign(phase2V), 'phases must be of opposite sign'
+                dphase = phase2t - phase1t
+                assert dmurange[0] <= dphase <= dmurange[1], 'phases separated by %f us' % dphase
                 # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
-            except AssertionError: # doesn't qualify as a spike
+            except AssertionError, message: # doesn't qualify as a spike
+                print message
                 continue
             # it's a spike, record it
-            spikes.append((min(ls.p[1], ls.p[4]), ls.p[6], ls.p[7]))  # list of (time, x, y) tuples
-            print 'found new spike: %r' % (spikes[-1],)
+            spikes.append((phase1t, ls.p[6], ls.p[7]))  # list of (time, x, y) tuples
+            print 'found new spike: %r' % ([ intround(val) for val in spikes[-1] ],)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
             # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
@@ -268,7 +285,7 @@ class Detector(object):
         spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
         ts = spikes[:, 0] # spike times are in 0th column
-        # searchsorted would probably be faster here instead of checking each and every element
+        # searchsorted might be faster here instead of checking each and every element
         spikeis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array
         spikes = spikes[spikeis]
         return spikes
