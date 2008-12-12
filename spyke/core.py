@@ -471,9 +471,9 @@ def get_sha1(fname, blocksize=2**20):
     return m.hexdigest()
 
 def intround(n):
-    """Round to the nearest integer, return an integer.
-    Saves on parentheses"""
-    return int(round(n))
+    """Round to the nearest integer, return an integer. Works on arrays,
+    saves on parentheses"""
+    return np.int64(np.round(n))
 
 def iterable(x):
     """Check if the input is iterable, stolen from numpy.iterable()"""

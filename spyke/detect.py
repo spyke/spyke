@@ -16,6 +16,8 @@ import wx
 import numpy as np
 from scipy.optimize import leastsq
 
+from pylab import *
+
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2
 
@@ -45,20 +47,54 @@ class RandomWaveTranges(object):
 
 
 class LeastSquares(object):
-    """Least squares Levenburg-Marquodt fit of two voltage Gaussians
+    """Least squares Levenberg-Marquardt fit of two voltage Gaussians
     to spike phases, plus a 2D spatial gaussian to model decay across channels"""
     def __init__(self):
         # initial parameter guess
+        '''
         self.p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
                     50, 300, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
                     None, # x (um)
                     None, # y (um)
                     60] # sigma_x == sigma_y (um)
+        '''
+        self.step = [0.1, 0.1, 1,
+                     0.1, 0.1, 1,
+                     0.2,
+                     0.2,
+                     0.1]
+
+    def plot(self):
+        for i, (xval, yval) in enumerate(zip(self.x, self.y)):
+            figure()
+            title('x, y = %r um' % ((xval, yval),))
+            plot(self.t, self.V[i], 'k.-')
+            t = self.t
+            p = self.p
+            plot(t,
+                 g2(p[6], p[7], p[8], p[8], xval, yval) * p[0]*g(p[1], p[2], t),
+                 'r-')
+            plot(t,
+                 g2(p[6], p[7], p[8], p[8], xval, yval) * p[3]*g(p[4], p[5], t),
+                 'g-')
+            plot(t,
+                 g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
+                 'b-')
+            gca().set_ylim(-100, 100)
+        figure()
+        title('x, y are centered on model origin in space')
+        plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'm-')
+        gca().set_ylim(-100, 100)
 
     def calc(self, t, x, y, V):
-        result = leastsq(self.cost, self.p0, args=(t, x, y, V), Dfun=None, full_output=True, col_deriv=False)
+        self.t = t
+        self.x = x
+        self.y = y
+        self.V = V
+        result = leastsq(self.cost, self.p0, args=(t, x, y, V),
+                         Dfun=None, full_output=True, col_deriv=False,
+                         diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        return self.p
 
     def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
@@ -88,7 +124,7 @@ class Detector(object):
     DEFDYNAMICNOISEWIN = 10000 # 10ms
     DEFMAXNEVENTS = 0
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
-    DEFSLOCK = 175 # um
+    DEFSLOCK = 100 # um
     DEFTLOCK = 300 # us
     DEFRANDOMSAMPLE = False
 
@@ -193,37 +229,37 @@ class Detector(object):
         # this should all be done in __init__ ?
         thresh1 = 50 # abs, in uV
         thresh2 = 30 # abs, in uV
-        dmurange = (100, 500) # time difference between means of spike phase Gaussian, us
-        tw = 1500 # spike time window, us
-        twnt = intround(tw / self.stream.tres) # spike time window in number of timepoints
+        dmurange = (0, 500) # time difference between means of spike phase Gaussians, us
+        tw = (-250, 750) # spike time window range, us, centered on threshold crossing, maybe this should be a dynamic param, customized for each thresh crossing event, maybe based on mean (or median?) signal around the event
+        twnt = intround(tw / self.stream.tres) # spike time window range in number of timepoints
         # self.stream.probe.SiteLoc is dict of chan:tuple
         # want a nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.stream.probe.SiteLoc[chan] for chan in self.stream.chans ]
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        siteloc = np.asarray([xcoords, ycoords]).T # [chani, x/ycoord]
+        SiteLoc = np.asarray([xcoords, ycoords]).T # [chani, x/ycoord]
 
         # this should hopefully release the GIL
-        edges = np.diff(np.int8(abs(wave.data) > thresh1)) # indices where increasing or decreasing abs(signal) has crossed thresh1
+        edges = np.diff(np.int8(abs(wave.data) >= thresh1)) # indices where increasing or decreasing abs(signal) has crossed thresh1
         events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh1
         # TODO: filter events somehow in chan space using slock, so that you don't get more than one chan to test for a given event, even if it exceeds thresh on multiple chans - this will speed up the loop below by reducing unnecessary fitting runs
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
 
-        lockout = np.zeros(self.stream.nchans) # holds time indices until which each channel is locked out
+        lockouti = np.zeros(self.stream.nchans, dtype=np.int64) # holds time indices until which each channel is locked out
 
-        spikes = []
+        spikes = [] # list of spikes detected
+        self.ls = [] # list of LeastSquares models used
         ls = LeastSquares()
         for ti, chani in events: # for all threshold crossing events
             print
             print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], wave.chans[chani])
-            if wave.ts[ti] <= lockout[chani]: # is this thresh crossing time locked out?
+            if ti <= lockouti[chani]: # is this thresh crossing time locked out?
                 print 'thresh event is locked out'
                 continue # this event is locked out, skip to next event
-            # find max and min for short interval following threshold crossing
-            # might need to reduce ti a couple of points from thresh crossing for a nice gaussian fit
             chan = wave.chans[chani]
-            ti0 = ti # for now at least
-            tiend = ti0+twnt
+            # find max and min for short interval within time window of threshold crossing
+            ti0 = max(ti+twnt[0], lockouti[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
+            tiend = ti+twnt[1]
             window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
@@ -233,6 +269,8 @@ class Detector(object):
             phase2ti = max(minti, maxti)
             phase1V = window[phase1ti]
             phase2V = window[phase2ti]
+            print 'window params: t0=%r, tend=%r, mint=%r, maxt=%r, phase1V=%r, phase2V=%r' % \
+                (wave.ts[ti0], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], phase1V, phase2V)
             # check if this (still roughly defined) event crosses thresh2, should help speed things up by rejecting obviously invalid events without having to run the model
             if abs(phase2V) < thresh2:
                 print "event doesn't cross thresh2"
@@ -245,17 +283,20 @@ class Detector(object):
                   self.stream.probe.SiteLoc[chan][1], # y (um)
                   60] # sigma_x == sigma_y (um)
             ls.p0 = p0
-            print 'p0 = %r' % ([ intround(val) for val in ls.p0 ],)
-            # find all the chans within slock of chani
-            # TODO: this should probably exclude locked-out channels as well
+            # find all the chans within slock of chani, exclude locked-out channels
             chanis, = np.where(dmi[chani] <= self.slock)
+            chanis = [ chani for chani in chanis if lockouti[chani] < ti0]
             t = wave.ts[ti0:tiend]
-            x = siteloc[chanis, 0]
-            y = siteloc[chanis, 1]
+            x = SiteLoc[chanis, 0]
+            y = SiteLoc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
-            p = ls.calc(t, x, y, V) # calculate least squares fit
-            print 'p = %r' % ([ intround(val) for val in ls.p ],)
+            ls.calc(t, x, y, V) # calculate least squares fit
+            print 'leastsq got chanis = %r' % (chanis,)
+            print 'p0 = %r' % (list(intround(ls.p0)),)
+            print 'p = %r' % (list(intround(ls.p)),)
+            self.ls.append(ls)
             # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
+            # TODO: the peak times of the modelled f'n may not correspond to the peak times of the two phases - their amplitudes certainly need not correspond. Maybe I should be reading values off of the sum of Gaussians modelled f'n instead of the constituent Gs that make it up
             phase1i = np.argmin([ls.p[1], ls.p[4]]) # what was init'd as 1st phase may not have come out as such
             phase2i = np.argmax([ls.p[1], ls.p[4]])
             phase1t = [ls.p[1], ls.p[4]][phase1i]
@@ -268,19 +309,19 @@ class Detector(object):
                 assert abs(phase2V) >= thresh2, 'thresh2 not crossed by model'
                 assert np.sign(phase1V) == -np.sign(phase2V), 'phases must be of opposite sign'
                 dphase = phase2t - phase1t
-                assert dmurange[0] <= dphase <= dmurange[1], 'phases separated by %f us' % dphase
+                assert dmurange[0] <= dphase <= dmurange[1], 'phases separated by %f us (outside of dmurange=%r' % (dphase, dmurange)
                 # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
             except AssertionError, message: # doesn't qualify as a spike
                 print message
                 continue
             # it's a spike, record it
             spikes.append((phase1t, ls.p[6], ls.p[7]))  # list of (time, x, y) tuples
-            print 'found new spike: %r' % ([ intround(val) for val in spikes[-1] ],)
+            print 'found new spike: %r' % (list(intround(spikes[-1])),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
             # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
             # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
-            lockout[chanis] = max(ls.p[1], ls.p[4]) # lock out til peak of last phase (1st or 2nd depending on what the model did)
+            lockouti[chanis] = intround(phase2t / self.stream.tres) # lock out til peak of 2nd phase
 
         spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange

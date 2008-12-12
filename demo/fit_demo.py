@@ -373,3 +373,68 @@ p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
 ls = LeastSquares(p0, t, v, x, y)
 
 
+###############################################################
+class LeastSquares(object):
+    """Least squares Levenberg-Marquardt fit of two voltage Gaussians
+    to spike phases, plus a 2D spatial gaussian to model decay across channels"""
+    def plot(self):
+        for i, (xval, yval) in enumerate(zip(self.x, self.y)):
+            figure()
+            title('x, y = %r um' % ((xval, yval),))
+            plot(self.t, self.V[i], 'k.-')
+            t = self.t
+            p = self.p
+            plot(t,
+                 g2(p[6], p[7], p[8], p[8], xval, yval) * p[0]*g(p[1], p[2], t),
+                 'r-')
+            plot(t,
+                 g2(p[6], p[7], p[8], p[8], xval, yval) * p[3]*g(p[4], p[5], t),
+                 'g-')
+            plot(t,
+                 g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
+                 'b-')
+            gca().set_ylim(-100, 100)
+        figure()
+        title('x, y are centered on model origin in space')
+        plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'm-')
+        gca().set_ylim(-100, 100)
+
+    def calc(self, t, x, y, V):
+        self.t = t
+        self.x = x
+        self.y = y
+        self.V = V
+        result = leastsq(self.cost, self.p0, args=(t, x, y, V), Dfun=None, full_output=True, col_deriv=False)
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+
+    def model(self, p, t, x, y):
+        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
+        returns a vector of voltage values v of same length as t. x and y are
+        vectors of x and y coordinates of each channel's spatial location. Output
+        of this should be an (nchans, nt) matrix of modelled voltage values v"""
+        return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
+                        p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
+
+    def cost(self, p, t, x, y, V):
+        """Distance of each point to the 2D target function
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        return np.ravel(self.model(p, t, x, y) - V)
+
+
+sf = spyke.surf.File('/data/ptc15/87 - track 7c spontaneous craziness.srf')
+sf.parse()
+
+t = 9360
+chanis = [49, 3, 50, 2, 53]
+w = sf.hpstream[t:t+500] # waveform object
+t = w.ts
+#t = t - t[0]
+V = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+ls = LeastSquares()
+ls.p0 = [-67, 9420, 60, 104, 9600, 120, 28, 1072, 60]
+ls.calc(t, x, y, V)
+
+
