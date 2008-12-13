@@ -93,14 +93,16 @@ class LeastSquares(object):
         self.V = V
         result = leastsq(self.cost, self.p0, args=(t, x, y, V),
                          Dfun=None, full_output=True, col_deriv=False,
+                         maxfev=0, xtol=0.01,
                          diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        print '%d iterations' % self.infodict['nfev']
 
     def model(self, p, t, x, y):
-        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
-        returns a vector of voltage values v of same length as t. x and y are
-        vectors of x and y coordinates of each channel's spatial location. Output
-        of this should be an (nchans, nt) matrix of modelled voltage values v"""
+        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
+        For each channel, returns a vector of voltage values v of same length as t.
+        x and y are vectors of coordinates of each channel's spatial location.
+        Output should be an (nchans, nt) matrix of modelled voltage values V"""
         return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
                         p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
 
@@ -109,8 +111,21 @@ class LeastSquares(object):
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
         return np.ravel(self.model(p, t, x, y) - V)
-
-
+    '''
+    def dcost(self, p, t, x, y, V):
+        """Derivative of cost function wrt each parameter, returns Jacobian matrix"""
+        # these all have the same length as t
+        dfdp0 = np.ravel(np.outer(g2(p[6], p[7], p[8], p[8], x, y), g(p[1], p[2], t)))
+        dfdp1 = p[0]*dgdmu(p[1], p[2], t)
+        dfdp2 = p[0]*dgdsigma(p[1], p[2], t)
+        dfdp3 = g(p[4], p[5], t)
+        dfdp4 = p[3]*dgdmu(p[4], p[5], t)
+        dfdp5 = p[3]*dgdsigma(p[4], p[5], t)
+        dfdp6
+        dfdp7
+        dfdp8
+        return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
+    '''
 
 class Detector(object):
     """Event detector base class"""
@@ -296,20 +311,40 @@ class Detector(object):
             print 'p = %r' % (list(intround(ls.p)),)
             self.ls.append(ls)
             # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
-            # TODO: the peak times of the modelled f'n may not correspond to the peak times of the two phases - their amplitudes certainly need not correspond. Maybe I should be reading values off of the sum of Gaussians modelled f'n instead of the constituent Gs that make it up
+            '''
             phase1i = np.argmin([ls.p[1], ls.p[4]]) # what was init'd as 1st phase may not have come out as such
             phase2i = np.argmax([ls.p[1], ls.p[4]])
             phase1t = [ls.p[1], ls.p[4]][phase1i]
             phase2t = [ls.p[1], ls.p[4]][phase2i]
             phase1V = [ls.p[0], ls.p[3]][phase1i]
             phase2V = [ls.p[0], ls.p[3]][phase2i]
+            '''
+            # the peak times of the modelled f'n may not correspond to the peak times of the two phases - their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled f'n instead of the constituent Gaussians that make it up
+            # get max and min modelled voltages at the modelled location
+            modelV = ls.model(ls.p, t, ls.p[6], ls.p[7]).ravel()
+            modelminti = np.argmin(modelV)
+            modelmaxti = np.argmax(modelV)
+            modelmint = t[modelminti]
+            modelmaxt = t[modelmaxti]
+            modelminV = modelV[modelminti]
+            modelmaxV = modelV[modelmaxti]
+            phase1i = np.argmin([modelminti, modelmaxti]) # 1st phase might be the min or the max
+            phase2i = np.argmax([modelminti, modelmaxti]) # 2nd phase might be the min or the max
+            phase1ti = [modelminti, modelmaxti][phase1i]
+            phase2ti = [modelminti, modelmaxti][phase2i]
+            phase1t = t[phase1ti]
+            phase2t = t[phase2ti]
+            phase1V = [modelminV, modelmaxV][phase1i]
+            phase2V = [modelminV, modelmaxV][phase2i]
+            bigphase = max(abs(modelminV), abs(modelmaxV))
+            smallphase = min(abs(modelminV), abs(modelmaxV))
             # check params to see if event qualifies as spike
             try:
-                assert abs(phase1V) >= thresh1, 'thresh1 not crossed by model'
-                assert abs(phase2V) >= thresh2, 'thresh2 not crossed by model'
+                assert bigphase >= thresh1, 'thresh1 not crossed by model (bigphase=%r)' % bigphase
+                assert smallphase >= thresh2, 'thresh2 not crossed by model (smallphase=%r)' % smallphase
                 assert np.sign(phase1V) == -np.sign(phase2V), 'phases must be of opposite sign'
                 dphase = phase2t - phase1t
-                assert dmurange[0] <= dphase <= dmurange[1], 'phases separated by %f us (outside of dmurange=%r' % (dphase, dmurange)
+                assert dmurange[0] <= dphase <= dmurange[1], 'phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
                 # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
             except AssertionError, message: # doesn't qualify as a spike
                 print message
