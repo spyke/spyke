@@ -97,7 +97,8 @@ class LeastSquares(object):
                          Dfun=None, full_output=True, col_deriv=False,
                          maxfev=50, xtol=0.0001,
                          diag=None)
-        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.p, self.infodict, self.mesg, self.ier = result
         print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
@@ -196,7 +197,7 @@ class Detector(object):
         self.events = [] # list of 2D event arrays returned by .searchblockthread(), one array per block
 
         ncpus = processing.cpuCount()
-        nthreads = ncpus + 1 # not too sure why, so you always have a worker thread waiting in the wings?
+        nthreads = ncpus # not too sure why, so you always have a worker thread waiting in the wings?
         print 'ncpus: %d, nthreads: %d' % (ncpus, nthreads)
         pool = threadpool.ThreadPool(nthreads) # create a threading pool
 
@@ -216,7 +217,7 @@ class Detector(object):
         print 'done queueing tasks'
         pool.wait()
         print 'tasks took %.3f sec' % (time.clock() - t0)
-        #time.sleep(2) # pause so you can watch the parent thread in taskman hang around after the worker threads exit
+        #time.sleep(2) # pause so you can watch the worker threads in taskman before they exit
 
         try:
             events = np.concatenate(self.events, axis=1)
@@ -284,16 +285,16 @@ class Detector(object):
             ti0 = max(ti+twnt[0], lockouti[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
             tiend = ti+twnt[1]
             window = wave.data[chani, ti0:tiend]
-            absmaxti = abs(window).argmax() # timepoint index of absolute maximum in window, relative to ti0
-            print 'original chan=%d has max %.1f' % (chan, window[absmaxti])
+            #absmaxti = abs(window).argmax() # timepoint index of absolute maximum in window, relative to ti0
+            #print 'original chan=%d has max %.1f' % (chan, window[absmaxti])
             # search for maxchan within slock at absmaxti
             chanis, = np.where(dmi[chani] <= self.slock)
             chanis = np.asarray([ chi for chi in chanis if lockouti[chani] < ti0 ]) # exclude any locked out channels from search
-            chani = chanis[ wave.data[chanis, absmaxti].argmax() ] # this is our new maxchan
-            chan = wave.chans[chani] # update
-            print 'new max chan=%d' % (chan)
+            #chani = chanis[ wave.data[chanis, absmaxti].argmax() ] # this is our new maxchan
+            #chan = wave.chans[chani] # update
+            #print 'new max chan=%d' % (chan)
             # find max and min within the time window, given (possibly new) maxchan
-            window = wave.data[chani, ti0:tiend]
+            #window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
             minV = window[minti]
@@ -375,7 +376,7 @@ class Detector(object):
             # it's a spike, record it
             spike = (phase1t, ls.p[6], ls.p[7]) # (time, x, y) tuples
             spikes.append(spike)
-            print 'found new spike: %r' % (list(intround(spikes)),)
+            print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
             # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
