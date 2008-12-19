@@ -7,97 +7,9 @@ from scipy.optimize import leastsq, fmin_cobyla
 from pylab import *
 import time
 import spyke
+from spyke.core import g, dgdmu, dgdsigma, g2
 
 
-def g(mu, sigma, x):
-    """1-D Gaussian"""
-    return np.exp(- ((x-mu)**2 / (2*sigma**2)) )
-
-def dgdmu(mu, sigma, x):
-    """Partial of g wrt mu"""
-    return (x - mu) / sigma**2 * g(mu, sigma, x)
-
-def dgdsigma(mu, sigma, x):
-    """Partial of g wrt sigma"""
-    return (x**2 - 2*x*mu + mu**2) / sigma**3 * g(mu, sigma, x)
-
-def g2(x0, y0, sx, sy, x, y):
-    """2-D Gaussian. x0, y0 are means, sx, sy are sigmas"""
-    return np.exp(- ((x-x0)**2 / (2*sx**2) + (y-y0)**2 / (2*sy**2)  ) )
-
-
-class LeastSquares(object):
-    def __init__(self, p0, t, v, x=None, y=None):
-        self.p0 = p0
-        self.t = t
-        self.v = v
-        self.x = x
-        self.y = y
-        if x == None:
-            self.calc()
-            figure()
-            gca().set_ylim(-100, 100)
-            plot(t, v, 'k.-')
-            p = self.p
-            plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'r-')
-        else:
-            self.calc2()
-            for i, (xval, yval) in enumerate(zip(x, y)):
-                figure()
-                title('x, y = %r um' % ((xval, yval),))
-                plot(t, v[i], 'k.-')
-                p = self.p
-                plot(t,
-                     g2(p[6], p[7], p[8], p[8], xval, yval) * p[0]*g(p[1], p[2], t),
-                     'r-')
-                plot(t,
-                     g2(p[6], p[7], p[8], p[8], xval, yval) * p[3]*g(p[4], p[5], t),
-                     'g-')
-                plot(t,
-                     g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
-                     'b-')
-                gca().set_ylim(-100, 100)
-
-    def calc(self):
-        result = leastsq(self.cost, self.p0, args=(self.t, self.v), Dfun=self.dcost, full_output=True, col_deriv=True)
-        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-
-    def calc2(self):
-        result = leastsq(self.cost2, self.p0, args=(self.t, self.x, self.y, self.v), Dfun=None, full_output=True, col_deriv=False)
-        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-
-    def model(self, p, t):
-        """Sum of two Gaussians in time, returns a vector of voltage values v"""
-        return p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)
-
-    def model2(self, p, t, x, y):
-        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
-        returns a vector of voltage values v of same length as t. x and y are
-        vectors of x and y coordinates of each channel's spatial location. Output
-        of this should be an (nchans, nt) matrix of modelled voltage values v"""
-        return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
-                        p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
-
-    def cost(self, p, t, v):
-        """Distance of each point to the target function"""
-        return self.model(p, t) - v # returns a vector of errors, one for each data point
-
-    def cost2(self, p, t, x, y, v):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        return np.ravel(self.model2(p, t, x, y) - v)
-
-    def dcost(self, p, t, v):
-        """Derivative of cost function wrt each parameter, returns Jacobian matrix"""
-        # these all have the same length as t
-        dfdp0 = g(p[1], p[2], t)
-        dfdp1 = p[0]*dgdmu(p[1], p[2], t)
-        dfdp2 = p[0]*dgdsigma(p[1], p[2], t)
-        dfdp3 = g(p[4], p[5], t)
-        dfdp4 = p[3]*dgdmu(p[4], p[5], t)
-        dfdp5 = p[3]*dgdsigma(p[4], p[5], t)
-        return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
 
 """
 Don't forget, need to enforce in the fitting somehow that the two
@@ -256,147 +168,33 @@ for i in xrange(100):
 
 print '%.3f sec' % (time.clock() - t0) # ~12 sec
 
-###############################################################
-sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
-sf.parse()
-
-t = 255876840
-chanis = [15, 4, 18, 1]
-w = sf.hpstream[t:t+1500] # waveform object
-t = w.ts
-t = t - t[0]
-v = w[chanis]
-x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
-y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
-
-p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-       50, 400, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-       sf.hpstream.probe.SiteLoc[4][0], # x (um)
-       sf.hpstream.probe.SiteLoc[4][1], # y (um)
-       60] # sigma_x == sigma_y (um)
-
-ls = LeastSquares(p0, t, v, x, y)
-
-t0 = time.clock()
-for i in xrange(100):
-    ls.calc()
-
-print '%.3f sec' % (time.clock() - t0) # ~2 sec
-
-
-###############################################################
-sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
-sf.parse()
-
-t = 255899500
-chanis = [16, 3, 13, 6, 12, 7]
-w = sf.hpstream[t:t+1500] # waveform object
-t = w.ts
-t = t - t[0]
-v = w[chanis]
-x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
-y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
-
-p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-       50, 400, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-       sf.hpstream.probe.SiteLoc[13][0], # x (um)
-       sf.hpstream.probe.SiteLoc[13][1], # y (um)
-       60] # sigma_x == sigma_y (um)
-
-ls = LeastSquares(p0, t, v, x, y)
-
-# when it comes to finding max and min in either the raw data or the fit model, make sure max > 0 and min < 0 - that would catch case where say you get two +ve gaussians for whatever reason, and then min in that time range is something just above 0.
-
-
-###############################################################
-sf = spyke.surf.File('/data/ptr11/05 - tr1 - mseq32_20ms.srf')
-sf.parse()
-
-t = 255915140
-chanis = [15, 4, 18, 1]
-w = sf.hpstream[t:t+1500] # waveform object
-t = w.ts
-t = t - t[0]
-v = w[chanis]
-x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
-y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
-
-p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-       50, 600, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-       sf.hpstream.probe.SiteLoc[4][0], # x (um)
-       sf.hpstream.probe.SiteLoc[4][1], # y (um)
-       60] # sigma_x == sigma_y (um)
-
-ls = LeastSquares(p0, t, v, x, y)
-
-
-###############################################################
-sf = spyke.surf.File('/data/ptc15/87 - track 7c spontaneous craziness.srf')
-sf.parse()
-
-t = 50460
-chanis = [41, 11, 42, 10, 43, 9, 44, 8, 45]
-w = sf.hpstream[t:t+1500] # waveform object
-t = w.ts
-t = t - t[0]
-v = w[chanis]
-x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
-y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
-
-p0 = [-50, 200,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-       50, 600, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-       sf.hpstream.probe.SiteLoc[43][0], # x (um)
-       sf.hpstream.probe.SiteLoc[43][1], # y (um)
-       60] # sigma_x == sigma_y (um)
-
-ls = LeastSquares(p0, t, v, x, y)
-
-###############################################################
-sf = spyke.surf.File('/data/ptc15/87 - track 7c spontaneous craziness.srf')
-sf.parse()
-
-t = 142040 # 33560 first spike
-chanis = [38, 14, 39, 13, 40, 12]
-w = sf.hpstream[t:t+1500] # waveform object
-t = w.ts
-t = t - t[0]
-v = w[chanis]
-x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
-y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
-
-p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-       50, 300, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-       sf.hpstream.probe.SiteLoc[13][0], # x (um)
-       sf.hpstream.probe.SiteLoc[13][1], # y (um)
-       60] # sigma_x == sigma_y (um)
-
-ls = LeastSquares(p0, t, v, x, y)
-
 
 ###############################################################
 class LeastSquares(object):
     """Least squares Levenberg-Marquardt fit of two voltage Gaussians
     to spike phases, plus a 2D spatial gaussian to model decay across channels"""
     def plot(self):
-        for i, (xval, yval) in enumerate(zip(self.x, self.y)):
+        t = self.t
+        p = self.p
+        for (V, x, y) in zip(self.V, self.x, self.y):
             figure()
-            title('x, y = %r um' % ((xval, yval),))
-            plot(self.t, self.V[i], 'k.-')
-            t = self.t
-            p = self.p
+            title('x, y = %r um' % ((x, y),))
+            plot(t, V, 'k.-')
             plot(t,
-                 g2(p[6], p[7], p[8], p[8], xval, yval) * p[0]*g(p[1], p[2], t),
+                 g2(p[6], p[7], p[8], p[8], x, y) * p[0]*g(p[1], p[2], t),
                  'r-')
             plot(t,
-                 g2(p[6], p[7], p[8], p[8], xval, yval) * p[3]*g(p[4], p[5], t),
+                 g2(p[6], p[7], p[8], p[8], x, y) * p[3]*g(p[4], p[5], t),
                  'g-')
             plot(t,
-                 g2(p[6], p[7], p[8], p[8], xval, yval) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
+                 g2(p[6], p[7], p[8], p[8], x, y) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
                  'b-')
+            gca().autoscale_view(tight=True, scalex=True, scaley=False) # tight fit to timepoints
             gca().set_ylim(-100, 100)
         figure()
-        title('x, y are centered on model origin in space')
+        title('x, y = %r (model origin in space)' % ((p[6], p[7]),))
         plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'm-')
+        gca().autoscale_view(tight=True, scalex=True, scaley=False) # tight fit to timepoints
         gca().set_ylim(-100, 100)
 
     def calc(self, t, x, y, V):
@@ -404,8 +202,13 @@ class LeastSquares(object):
         self.x = x
         self.y = y
         self.V = V
-        result = leastsq(self.cost, self.p0, args=(t, x, y, V), Dfun=None, full_output=True, col_deriv=False)
+        result = leastsq(self.cost, self.p0, args=(t, x, y, V),
+                         Dfun=None, full_output=True, col_deriv=False,
+                         maxfev=50, xtol=0.0001,
+                         diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        print '%d iterations' % self.infodict['nfev']
+        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
     def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian
@@ -429,7 +232,6 @@ t = 9360
 chanis = [49, 3, 50, 2, 53]
 w = sf.hpstream[t:t+500] # waveform object
 t = w.ts
-#t = t - t[0]
 V = w[chanis]
 x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
 y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
@@ -437,4 +239,25 @@ ls = LeastSquares()
 ls.p0 = [-67, 9420, 60, 104, 9600, 120, 28, 1072, 60]
 ls.calc(t, x, y, V)
 
+t = 44720
+chanis = [2, 3, 49, 50, 53]
+w = sf.hpstream[t:t+500] # waveform object
+t = w.ts
+V = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+ls = LeastSquares()
+ls.p0 = [-67, 44780, 60, 89, 44940, 120, 28, 1072, 60]
+ls.calc(t, x, y, V)
+
+t = 44800
+chanis = [24, 26, 27, 28, 29]
+w = sf.hpstream[t:t+500] # waveform object
+t = w.ts
+V = w[chanis]
+x = [ sf.hpstream.probe.SiteLoc[chani][0] for chani in chanis ]
+y = [ sf.hpstream.probe.SiteLoc[chani][1] for chani in chanis ]
+ls = LeastSquares()
+ls.p0 = [-55, 44840, 60, 46, 45080, 120, 28, 1657, 60]
+ls.calc(t, x, y, V)
 

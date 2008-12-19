@@ -81,6 +81,8 @@ EVENT DETECTION:
         - for initial spike detection, instead of just looking back one data point to see if signal is diverging from 0 (which itself is susceptible to noise), maybe look back two or more points, or average across the last two or more points to make that decision - this would make you less susceptible to suspect a spike due to a little mini up-down event on the down slope of the final phase of the previously detected spike
             - or, if you see an up-down event, check if it exists on other chans at the same time - although, this assumes that the spike is multichannel, which it isn't necessarily
         - might also be able to reduce num params by fixing all spike phase gaussian means and stdevs to be the same (assuming S+H correction is turned on, and there aren't any backpropagating spikes)
+    - spike at ptc15/87/t=23700, chan=3 could definitely use separate vertical and horizontal spatial sigmas - the vertical one would be greater
+
 
     - could speed things up by only interpolating say each 1ms of data following an initial threshold crossing, maybe interpolate to 100 kHz while we're at it, and leave everything else at 25 kHz without any S+H correction - you don't really need interpolation or S+H correction for the initial threshold detection, I think...
 
