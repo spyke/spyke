@@ -57,12 +57,28 @@ class LeastSquares(object):
                     None, # x (um)
                     None, # y (um)
                     60] # sigma_x == sigma_y (um)
-        '''
         self.step = [0.1, 0.1, 1,
                      0.1, 0.1, 1,
                      0.2,
                      0.2,
                      0.1]
+        '''
+        self.ftol = 1.49012e-8 # Relative error desired in the sum of squares
+        self.xtol = 1.49012e-8 # Relative error desired in the approximate solution
+        self.gtol = 0.0 # Orthogonality desired between the function vector and the columns of the Jacobian
+        self.maxfev = 50 # The maximum number of calls to the function
+
+        self.errors = {0:"Improper input parameters.",
+                       1:"Both actual and predicted relative reductions in the sum of squares\n  are at most %f" % self.ftol,
+                       2:"The relative error between two consecutive iterates is at most %f" % self.xtol,
+                       3:"Both actual and predicted relative reductions in the sum of squares\n  are at most %f and the relative error between two consecutive iterates is at \n  most %f" % (self.ftol, self.xtol),
+                       4:"The cosine of the angle between func(x) and any column of the\n  Jacobian is at most %f in absolute value" % self.gtol,
+                       5:"Number of calls to function has reached maxfev = %d." % self.maxfev,
+                       6:"ftol=%f is too small, no further reduction in the sum of squares\n  is possible." % self.ftol,
+                       7:"xtol=%f is too small, no further improvement in the approximate\n  solution is possible." % self.xtol,
+                       8:"gtol=%f is too small, func(x) is orthogonal to the columns of\n  the Jacobian to machine precision." % self.gtol,
+                       'unknown':"Unknown error."
+                       }
 
     def plot(self):
         t = self.t
@@ -94,12 +110,13 @@ class LeastSquares(object):
         self.y = y
         self.V = V
         result = leastsq(self.cost, self.p0, args=(t, x, y, V),
-                         Dfun=None, full_output=True, col_deriv=False,
-                         maxfev=50, xtol=0.0001,
+                         Dfun=None, full_output=False, col_deriv=False,
+                         ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
                          diag=None)
         #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.p, self.infodict, self.mesg, self.ier = result
-        print '%d iterations' % self.infodict['nfev']
+        self.p, self.ier = result
+        self.mesg = self.errors[self.ier]
+        #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
     def model(self, p, t, x, y):
@@ -143,7 +160,7 @@ class Detector(object):
     DEFDYNAMICNOISEWIN = 10000 # 10ms
     DEFMAXNEVENTS = 0
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
-    DEFSLOCK = 100 # um
+    DEFSLOCK = 150 # um
     DEFTLOCK = 300 # us
     DEFRANDOMSAMPLE = False
 
@@ -197,7 +214,7 @@ class Detector(object):
         self.events = [] # list of 2D event arrays returned by .searchblockthread(), one array per block
 
         ncpus = processing.cpuCount()
-        nthreads = ncpus # not too sure why, so you always have a worker thread waiting in the wings?
+        nthreads = 1 # was ncpus + 1, getting some race conditions on multicore I think
         print 'ncpus: %d, nthreads: %d' % (ncpus, nthreads)
         pool = threadpool.ThreadPool(nthreads) # create a threading pool
 
@@ -250,7 +267,7 @@ class Detector(object):
         ppthresh = thresh + 30 # peak-to-peak threshold, abs, in uV
         dmurange = (0, 500) # time difference between means of spike phase Gaussians, us
         tw = (-250, 750) # spike time window range, us, centered on threshold crossing, maybe this should be a dynamic param, customized for each thresh crossing event, maybe based on mean (or median?) signal around the event
-        twnt = intround(tw / self.stream.tres) # spike time window range in number of timepoints
+        trangei = intround(tw / self.stream.tres) # spike time window range in number of timepoints
         # self.stream.probe.SiteLoc is dict of chan:tuple
         # want a nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.stream.probe.SiteLoc[chan] for chan in self.stream.chans ]
@@ -272,24 +289,24 @@ class Detector(object):
         lockouti = np.zeros(self.stream.nchans, dtype=np.int64) # holds time indices until which each channel is locked out
 
         spikes = [] # list of spikes detected
-        self.ls = [] # list of LeastSquares models used
+        #self.ls = [] # list of LeastSquares models used
         ls = LeastSquares()
         for ti, chani in events: # for all threshold crossing events
             print
             print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], wave.chans[chani])
-            if ti <= lockouti[chani]: # is this thresh crossing time locked out?
+            if ti <= lockouti[chani]: # is this thresh crossing timepoint locked out?
                 print 'thresh event is locked out'
                 continue # this event is locked out, skip to next event
             chan = wave.chans[chani]
-            # find max short interval within time window of threshold crossing
-            ti0 = max(ti+twnt[0], lockouti[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
-            tiend = ti+twnt[1]
+            # compute short interval within time window of threshold crossing
+            ti0 = max(ti+trangei[0], lockouti[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
+            tiend = ti+trangei[1]
             window = wave.data[chani, ti0:tiend]
             #absmaxti = abs(window).argmax() # timepoint index of absolute maximum in window, relative to ti0
             #print 'original chan=%d has max %.1f' % (chan, window[absmaxti])
             # search for maxchan within slock at absmaxti
-            chanis, = np.where(dmi[chani] <= self.slock)
-            chanis = np.asarray([ chi for chi in chanis if lockouti[chani] < ti0 ]) # exclude any locked out channels from search
+            #chanis, = np.where(dmi[chani] <= self.slock)
+            #chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ]) # include only non-locked out channels in search
             #chani = chanis[ wave.data[chanis, absmaxti].argmax() ] # this is our new maxchan
             #chan = wave.chans[chani] # update
             #print 'new max chan=%d' % (chan)
@@ -316,7 +333,7 @@ class Detector(object):
                 print message
                 continue
             p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-                  phase2V, wave.ts[ti0+phase2ti], 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+                  phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: amplitude (uV), mu (us), sigma (us)
                   self.stream.probe.SiteLoc[chan][0], # x (um)
                   self.stream.probe.SiteLoc[chan][1], # y (um)
                   60] # sigma_x == sigma_y (um)
@@ -324,7 +341,7 @@ class Detector(object):
             # find all the chans within slock of chani, exclude locked-out channels
             # TODO: exclude grounded channels, or maybe those should just be deselected?
             chanis, = np.where(dmi[chani] <= self.slock)
-            chanis = [ chi for chi in chanis if lockouti[chani] < ti0 ]
+            chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ])
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
             y = SiteLoc[chanis, 1]
@@ -333,35 +350,24 @@ class Detector(object):
             print 'leastsq got chanis = %r' % (chanis,)
             print 'p0 = %r' % (list(intround(ls.p0)),)
             print 'p = %r' % (list(intround(ls.p)),)
-            self.ls.append(ls)
+            #self.ls.append(ls)
             # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
-            '''
-            phase1i = np.argmin([ls.p[1], ls.p[4]]) # what was init'd as 1st phase may not have come out as such
-            phase2i = np.argmax([ls.p[1], ls.p[4]])
-            phase1t = [ls.p[1], ls.p[4]][phase1i]
-            phase2t = [ls.p[1], ls.p[4]][phase2i]
-            phase1V = [ls.p[0], ls.p[3]][phase1i]
-            phase2V = [ls.p[0], ls.p[3]][phase2i]
-            '''
-            # the peak times of the modelled f'n may not correspond to the peak times of the two phases - their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled f'n instead of the constituent Gaussians that make it up
+            # the peak times of the modelled f'n may not correspond to the peak times of the two phases.
+            # Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
+            # f'n instead of the constituent Gaussians that make it up
             # get max and min modelled voltages at the modelled location
             modelV = ls.model(ls.p, t, ls.p[6], ls.p[7]).ravel()
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
-            modelmint = t[modelminti]
-            modelmaxt = t[modelmaxti]
-            modelminV = modelV[modelminti]
-            modelmaxV = modelV[modelmaxti]
-            phase1i = np.argmin([modelminti, modelmaxti]) # 1st phase might be the min or the max
-            phase2i = np.argmax([modelminti, modelmaxti]) # 2nd phase might be the min or the max
-            phase1ti = [modelminti, modelmaxti][phase1i]
-            phase2ti = [modelminti, modelmaxti][phase2i]
+            phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
+            phase2ti = max(modelminti, modelmaxti) # 2nd phase might be the min or the max
             phase1t = t[phase1ti]
             phase2t = t[phase2ti]
-            phase1V = [modelminV, modelmaxV][phase1i]
-            phase2V = [modelminV, modelmaxV][phase2i]
-            bigphase = max(abs(modelminV), abs(modelmaxV))
-            smallphase = min(abs(modelminV), abs(modelmaxV))
+            phase1V = modelV[phase1ti]
+            phase2V = modelV[phase2ti]
+            absphaseV = abs(np.array([phase1V, phase2V]))
+            bigphase = max(absphaseV)
+            smallphase = min(absphaseV)
             # check params to see if event qualifies as spike
             try:
                 assert bigphase >= thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
@@ -381,7 +387,7 @@ class Detector(object):
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
             # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
             # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
-            lockouti[chanis] = intround(phase2t / self.stream.tres) # lock out til peak of 2nd phase
+            lockouti[chanis] = ti0 + phase2ti # lock out til peak of 2nd phase
 
         spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
