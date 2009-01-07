@@ -8,6 +8,7 @@ __authors__ = ['Martin Spacek, Reza Lotun']
 import itertools
 import sys
 import time
+import string
 import processing
 import threadpool
 
@@ -19,7 +20,7 @@ from scipy.optimize import leastsq
 from pylab import *
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2
+from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2, V
 
 
 class RandomWaveTranges(object):
@@ -66,7 +67,7 @@ class LeastSquares(object):
         self.ftol = 1.49012e-8 # Relative error desired in the sum of squares
         self.xtol = 1.49012e-8 # Relative error desired in the approximate solution
         self.gtol = 0.0 # Orthogonality desired between the function vector and the columns of the Jacobian
-        self.maxfev = 50 # The maximum number of calls to the function
+        self.maxfev = 0 # The maximum number of calls to the function, 0 means unlimited
 
         self.errors = {0:"Improper input parameters.",
                        1:"Both actual and predicted relative reductions in the sum of squares\n  are at most %f" % self.ftol,
@@ -119,22 +120,30 @@ class LeastSquares(object):
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
-    def model(self, p, t, x, y):
+    def model(self, p, t, x, y, z=0):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, returns a vector of voltage values v of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
-                        p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
+        #return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
+        #                p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
+        # fixed phase amplitudes, although the true source amplitude could be greater in between channels,
+        # I guess I could make the coefficient of g2 a parameter that could be something other than 1
+        #return np.outer(p[6]*g2(p[4], p[5], p[7]*np.cos(p[8]), p[7]*np.sin(p[8]), x, y),
+        #                self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
+        return np.outer(V(p[4], p[5], p[6], p[7], p[8], p[9], x, y, z),
+                        self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
 
     def cost(self, p, t, x, y, V):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
-        return np.ravel(self.model(p, t, x, y) - V)
+        error = np.ravel(self.model(p, t, x, y) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
     '''
     def dcost(self, p, t, x, y, V):
-        """Derivative of cost function wrt each parameter, returns Jacobian matrix"""
+        """Derivative of cost function wrt each parameter, returns Jacobian"""
         # these all have the same length as t
         dfdp0 = np.ravel(np.outer(g2(p[6], p[7], p[8], p[8], x, y), g(p[1], p[2], t)))
         dfdp1 = p[0]*dgdmu(p[1], p[2], t)
@@ -332,11 +341,27 @@ class Detector(object):
             except AssertionError, message: # doesn't qualify as a spike
                 print message
                 continue
-            p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-                  phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-                  self.stream.probe.SiteLoc[chan][0], # x (um)
-                  self.stream.probe.SiteLoc[chan][1], # y (um)
-                  60] # sigma_x == sigma_y (um)
+            #p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
+            #      phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+            #      self.stream.probe.SiteLoc[chan][0], # x (um)
+            #      self.stream.probe.SiteLoc[chan][1], # y (um)
+            #      60] # sigma_x == sigma_y (um)
+            #p0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
+            #      wave.ts[ti0+phase2ti], 60, # 2nd phase: mu (us), sigma (us)
+            #      self.stream.probe.SiteLoc[chan][0], # x (um)
+            #      self.stream.probe.SiteLoc[chan][1], # y (um)
+            #      1, 60, np.pi/4] # amplitude, sigma_amplitude (um), sigma_theta (radians)
+            p0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
+                  wave.ts[ti0+phase2ti], 60, # 2nd phase: mu (us), sigma (us)
+                  3, # Im (nA?)
+                  self.stream.probe.SiteLoc[chan][0], # x0 (um)
+                  self.stream.probe.SiteLoc[chan][1], # y0 (um)
+                  50, # z0 (um)
+                  0.3, 0.3] # sigmax==sigmaz, sigmay (conductivity)
+
+
+            ls.phase1V = phase1V # fixed
+            ls.phase2V = phase2V # fixed
             ls.p0 = p0
             # find all the chans within slock of chani, exclude locked-out channels
             # TODO: exclude grounded channels, or maybe those should just be deselected?
@@ -348,15 +373,23 @@ class Detector(object):
             V = wave.data[chanis, ti0:tiend]
             ls.calc(t, x, y, V) # calculate least squares fit
             print 'leastsq got chanis = %r' % (chanis,)
-            print 'p0 = %r' % (list(intround(ls.p0)),)
-            print 'p = %r' % (list(intround(ls.p)),)
+            #p0strlist = [ '%.1f' % val for val in ls.p0 ] # list of formatted strings
+            #print 'p0 = [%s]' % string.join(p0strlist, ', ')
+            print 'p0 = [%d, %d, %d, %d, %.2f, %d, %d, %d, %.2f, %.2f]' % (p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p0[6], p0[7], p0[8], p0[9])
+            #print 'p0 = %r' % (list(np.round(ls.p0, decimals=1)),)
+            #pstrlist = [ '%.1f' % val for val in ls.p ] # list of formatted strings
+            #print 'p = [%s]' % string.join(pstrlist, ', ')
+            p = ls.p
+            print 'p = [%d, %d, %d, %d, %.2f, %d, %d, %d, %.2f, %.2f]' % (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
+            #print 'p = %r' % (list(np.round(ls.p, decimals=1)),)
             #self.ls.append(ls)
             # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
             # the peak times of the modelled f'n may not correspond to the peak times of the two phases.
             # Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
             # f'n instead of the constituent Gaussians that make it up
             # get max and min modelled voltages at the modelled location
-            modelV = ls.model(ls.p, t, ls.p[6], ls.p[7]).ravel()
+            #modelV = ls.model(ls.p, t, ls.p[6], ls.p[7]).ravel()
+            modelV = ls.model(ls.p, t, ls.p[5], ls.p[6]).ravel()
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
@@ -376,11 +409,18 @@ class Detector(object):
                 dphase = phase2t - phase1t
                 assert dmurange[0] <= dphase <= dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
                 # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
+                # add another here to ensure modelled spike doesn't violate any existing lockou
+                #for chi in chanis:
+                #    if ti+ <= lockouti[chi]: # is this chan locked out at the modelled spike timepoint?
+                #    print 'thresh event is locked out'
+                #    continue # this event is locked out, skip to next event
+
             except AssertionError, message: # doesn't qualify as a spike
                 print message
                 continue
             # it's a spike, record it
-            spike = (phase1t, ls.p[6], ls.p[7]) # (time, x, y) tuples
+            #spike = (phase1t, ls.p[6], ls.p[7]) # (time, x, y) tuples
+            spike = (phase1t, ls.p[5], ls.p[6], ls.p[7]) # (time, x, y, z) tuples
             spikes.append(spike)
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
@@ -388,6 +428,7 @@ class Detector(object):
             # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
             # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
             lockouti[chanis] = ti0 + phase2ti # lock out til peak of 2nd phase
+            print 'lockout for chanis = %r' % [ wave.ts[lockouti[chi]] for chi in chanis ]
 
         spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
