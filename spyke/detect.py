@@ -20,7 +20,7 @@ from scipy.optimize import leastsq
 from pylab import *
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2, V
+from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g3
 
 
 class RandomWaveTranges(object):
@@ -68,7 +68,8 @@ class LeastSquares(object):
         self.xtol = 1.49012e-8 # Relative error desired in the approximate solution
         self.gtol = 0.0 # Orthogonality desired between the function vector and the columns of the Jacobian
         self.maxfev = 0 # The maximum number of calls to the function, 0 means unlimited
-
+        # these are replicated here from the scipy.optimize.leastsq source code to get nice diagnostics while working around
+        # a bug in the scipy code which happens when extra details like these are asked for with full_output = True
         self.errors = {0:"Improper input parameters.",
                        1:"Both actual and predicted relative reductions in the sum of squares\n  are at most %f" % self.ftol,
                        2:"The relative error between two consecutive iterates is at most %f" % self.xtol,
@@ -80,6 +81,7 @@ class LeastSquares(object):
                        8:"gtol=%f is too small, func(x) is orthogonal to the columns of\n  the Jacobian to machine precision." % self.gtol,
                        'unknown':"Unknown error."
                        }
+        self.errs = []
 
     def plot(self):
         t = self.t
@@ -105,12 +107,26 @@ class LeastSquares(object):
         gca().autoscale_view(tight=True, scalex=True, scaley=False) # tight fit to timepoints
         gca().set_ylim(-100, 100)
 
-    def calc(self, t, x, y, V):
+    def calc(self, t, x, y, z, V):
         self.t = t
         self.x = x
         self.y = y
+        self.z = z
         self.V = V
-        result = leastsq(self.cost, self.p0, args=(t, x, y, V),
+        result = leastsq(self.cost, self.p0, args=(t, x, y, z, V),
+                         Dfun=None, full_output=False, col_deriv=False,
+                         ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
+                         diag=None)
+        #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.p, self.ier = result
+        self.mesg = self.errors[self.ier]
+        #print '%d iterations' % self.infodict['nfev']
+        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+    '''
+    def tcalc(self, t, V):
+        self.t = t
+        self.V = V
+        result = leastsq(self.tcost, self.tp0, args=(t, V),
                          Dfun=None, full_output=False, col_deriv=False,
                          ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
                          diag=None)
@@ -120,7 +136,22 @@ class LeastSquares(object):
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
-    def model(self, p, t, x, y, z=0):
+    def scalc(self, x, y, z, V):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.V = V
+        result = leastsq(self.scost, self.sp0, args=(x, y, z, V),
+                         Dfun=None, full_output=False, col_deriv=False,
+                         ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
+                         diag=None)
+        #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.p, self.ier = result
+        self.mesg = self.errors[self.ier]
+        #print '%d iterations' % self.infodict['nfev']
+        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+    '''
+    def model(self, p, t, x, y, z):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, returns a vector of voltage values v of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
@@ -131,17 +162,53 @@ class LeastSquares(object):
         # I guess I could make the coefficient of g2 a parameter that could be something other than 1
         #return np.outer(p[6]*g2(p[4], p[5], p[7]*np.cos(p[8]), p[7]*np.sin(p[8]), x, y),
         #                self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
-        return np.outer(V(p[4], p[5], p[6], p[7], p[8], p[9], x, y, z),
-                        self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
+        mu1, sigma1, mu2, sigma2 = p[0], p[1], p[2], p[3]
+        x0, y0, z0, sx, sy = p[4], p[5], p[6], p[7], p[8]
+        return np.outer(g3(x0, y0, z0, sx, sy, sx, x, y, z), # sz=sx
+                        self.phase1V*g(mu1, sigma1, t) + self.phase2V*g(mu2, sigma2, t))
+    '''
+    def tmodel(self, tp, t):
+        """Sum of two Gaussians in time.
+        Returns a matrix of voltage values v of same length as t.
+        Chans in rows, time in columns.
+        Output should be an (nchans, nt) matrix of modelled voltage values V"""
+        nchans = len(self.chanis)
+        phase1Vs = tp[0:nchans]
+        phase2Vs = tp[nchans:2*nchans]
+        i = 2*nchans
+        return np.outer( phase1Vs*g(tp[i], tp[i+1], t) + phase2Vs*g(tp[i+2], tp[i+3], t) )
 
-    def cost(self, p, t, x, y, V):
+    def smodel(self, sp, x, y, z):
+        """Spatially modulates the time series given in self.tmodelV.
+        x, y, and z should correspond to coordinates of chans in self.tmodelV.
+        Output should be an (nchans, nt) matrix of modelled voltage values V"""
+        return self.tmodelV * Vf(p[4], p[5], p[6], p[7], p[8], p[9], p[8], x, y, z),
+    '''
+    def cost(self, p, t, x, y, z, V):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        error = np.ravel(self.model(p, t, x, y, z) - V)
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        self.errs.append(np.abs(error).sum())
         return error
     '''
+    def tcost(self, tp, t, V):
+        """Distance of each point in temporal model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.tmodel(tp, t) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
+
+    def scost(self, sp, x, y, z, V):
+        """Distance of each point in spatial model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.smodel(sp, x, y, z) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
+
     def dcost(self, p, t, x, y, V):
         """Derivative of cost function wrt each parameter, returns Jacobian"""
         # these all have the same length as t
@@ -199,6 +266,8 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.tlock = tlock or self.DEFTLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
+
+        self.ls = {} # dict of LeastSquares model objects, indexed by their modelled spike time
 
     def search(self):
         """Search for events. Divides large searches into more manageable
@@ -298,8 +367,7 @@ class Detector(object):
         lockouti = np.zeros(self.stream.nchans, dtype=np.int64) # holds time indices until which each channel is locked out
 
         spikes = [] # list of spikes detected
-        #self.ls = [] # list of LeastSquares models used
-        ls = LeastSquares()
+        #ls = LeastSquares()
         for ti, chani in events: # for all threshold crossing events
             print
             print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], wave.chans[chani])
@@ -353,34 +421,50 @@ class Detector(object):
             #      1, 60, np.pi/4] # amplitude, sigma_amplitude (um), sigma_theta (radians)
             p0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
                   wave.ts[ti0+phase2ti], 60, # 2nd phase: mu (us), sigma (us)
-                  3, # Im (nA?)
+                  #1, # 3D Gaussian amplitude
                   self.stream.probe.SiteLoc[chan][0], # x0 (um)
                   self.stream.probe.SiteLoc[chan][1], # y0 (um)
                   50, # z0 (um)
-                  0.3, 0.3] # sigmax==sigmaz, sigmay (conductivity)
-
-
+                  60, 60] # sx==sz, sy (um)
+            ls = LeastSquares()
             ls.phase1V = phase1V # fixed
             ls.phase2V = phase2V # fixed
             ls.p0 = p0
+            '''
+            phase1Vs =
+            phase2Vs =
+            tp0 = [phase1Vs, phase2Vs,
+                   wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
+                   wave.ts[ti0+phase2ti], 60] # 2nd phase: mu (us), sigma (us)
+            sp0 = [3, # Im (nA?)
+                   self.stream.probe.SiteLoc[chan][0], # x0 (um)
+                   self.stream.probe.SiteLoc[chan][1], # y0 (um)
+                   50, # z0 (um)
+                   0.3, 0.3] # sx==sz, sy (conductivity)
+
+            ls.tp0 = tp0
+            ls.sp0 = sp0
+            '''
             # find all the chans within slock of chani, exclude locked-out channels
-            # TODO: exclude grounded channels, or maybe those should just be deselected?
+            # TODO: exclude grounded channels, or maybe those should just be deselected in the GUI?
             chanis, = np.where(dmi[chani] <= self.slock)
             chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ])
+            ls.chanis = chanis
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
             y = SiteLoc[chanis, 1]
+            z = 0
             V = wave.data[chanis, ti0:tiend]
-            ls.calc(t, x, y, V) # calculate least squares fit
+            ls.calc(t, x, y, z, V) # calculate least squares fit
             print 'leastsq got chanis = %r' % (chanis,)
             #p0strlist = [ '%.1f' % val for val in ls.p0 ] # list of formatted strings
             #print 'p0 = [%s]' % string.join(p0strlist, ', ')
-            print 'p0 = [%d, %d, %d, %d, %.2f, %d, %d, %d, %.2f, %.2f]' % (p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p0[6], p0[7], p0[8], p0[9])
+            print 'p0 = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p0[6], p0[7], p0[8])
             #print 'p0 = %r' % (list(np.round(ls.p0, decimals=1)),)
             #pstrlist = [ '%.1f' % val for val in ls.p ] # list of formatted strings
             #print 'p = [%s]' % string.join(pstrlist, ', ')
             p = ls.p
-            print 'p = [%d, %d, %d, %d, %.2f, %d, %d, %d, %.2f, %.2f]' % (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
+            print 'p = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8])
             #print 'p = %r' % (list(np.round(ls.p, decimals=1)),)
             #self.ls.append(ls)
             # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
@@ -388,8 +472,11 @@ class Detector(object):
             # Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
             # f'n instead of the constituent Gaussians that make it up
             # get max and min modelled voltages at the modelled location
-            #modelV = ls.model(ls.p, t, ls.p[6], ls.p[7]).ravel()
-            modelV = ls.model(ls.p, t, ls.p[5], ls.p[6]).ravel()
+            #x, y = ls.p[6], ls.p[7]
+            #modelV = ls.model(ls.p, t, x, y).ravel()
+            x, y, z = ls.p[4], ls.p[5], ls.p[6]
+            modelV = ls.model(ls.p, t, x, y, z).ravel()
+            #modelV = ls.model(ls.p, t, x, y, z-50).ravel() # can't eval at exactly x, y, z cuz of singularity in 1/r
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
@@ -401,6 +488,9 @@ class Detector(object):
             absphaseV = abs(np.array([phase1V, phase2V]))
             bigphase = max(absphaseV)
             smallphase = min(absphaseV)
+
+            self.ls[phase1t] = ls # save the LeastSquares object for later inspection
+
             # check params to see if event qualifies as spike
             try:
                 assert bigphase >= thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
@@ -409,18 +499,17 @@ class Detector(object):
                 dphase = phase2t - phase1t
                 assert dmurange[0] <= dphase <= dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
                 # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
-                # add another here to ensure modelled spike doesn't violate any existing lockou
+                # add another here to ensure modelled spike doesn't violate any existing lockout
                 #for chi in chanis:
                 #    if ti+ <= lockouti[chi]: # is this chan locked out at the modelled spike timepoint?
                 #    print 'thresh event is locked out'
                 #    continue # this event is locked out, skip to next event
-
             except AssertionError, message: # doesn't qualify as a spike
                 print message
                 continue
             # it's a spike, record it
-            #spike = (phase1t, ls.p[6], ls.p[7]) # (time, x, y) tuples
-            spike = (phase1t, ls.p[5], ls.p[6], ls.p[7]) # (time, x, y, z) tuples
+            #spike = (phase1t, x, y) # (time, x, y) tuples
+            spike = (phase1t, x, y, z) # (time, x, y, z) tuples
             spikes.append(spike)
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout

@@ -561,17 +561,20 @@ def g(mu, sigma, x):
     """1-D Gaussian"""
     return np.exp( -(x-mu)**2 / (2*sigma**2) )
 
-def g2(mux, muy, sigmax, sigmay, x, y):
+def g2(x0, y0, sx, sy, x, y):
     """2-D Gaussian"""
-    return np.exp( -(x-mux)**2 / (2*sigmax**2) - (y-muy)**2 / (2*sigmay**2) )
+    return np.exp( -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2) )
 
-def V(Im, x0, y0, z0, sigmax, sigmay, x, y, z):
+def g3(x0, y0, z0, sx, sy, sz, x, y, z):
+    """3-D Gaussian"""
+    return np.exp( -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2) - (z-z0)**2 / (2*sz**2) )
+
+def Vf(Im, x0, y0, z0, sx, sy, sz, x, y, z):
     """1/r voltage decay function in 2D space
     What to do with the singularity so that the leastsq gets a smooth differentiable f'n?"""
     #if np.any(x == x0) and np.any(y == y0) and np.any(z == z0):
     #    raise ValueError, 'V undefined at singularity'
-    #sigmaz = sigmax
-    return Im / (4*np.pi) / np.sqrt( sigmax**2 * (x-x0)**2 + sigmay**2 * (y-y0)**2 + sigmax**2 * (z-z0)**2)
+    return Im / (4*np.pi) / np.sqrt( sx**2 * (x-x0)**2 + sy**2 * (y-y0)**2 + sz**2 * (z-z0)**2)
 
 def dgdmu(mu, sigma, x):
     """Partial of g wrt mu"""
@@ -581,21 +584,21 @@ def dgdsigma(mu, sigma, x):
     """Partial of g wrt sigma"""
     return (x**2 - 2*x*mu + mu**2) / sigma**3 * g(mu, sigma, x)
 
-def dg2dmux(mux, muy, sigmax, sigmay, x, y):
-    """Partial of g2 wrt mux"""
-    return g(muy, sigmay, y) * dgdmu(mux, sigmax, x)
+def dg2dx0(x0, y0, sx, sy, x, y):
+    """Partial of g2 wrt x0"""
+    return g(y0, sy, y) * dgdmu(x0, sx, x)
 
-def dg2dmuy(mux, muy, sigmax, sigmay, x, y):
-    """Partial of g2 wrt muy"""
-    return g(mux, sigmax, x) * dgdmu(muy, sigmay, y)
+def dg2dy0(x0, y0, sx, sy, x, y):
+    """Partial of g2 wrt y0"""
+    return g(x0, sx, x) * dgdmu(y0, sy, y)
 
-def dg2dsigmax(mux, muy, sigmax, sigmay, x, y):
-    """Partial of g2 wrt sigmax"""
-    return g(muy, sigmay, y) * dgdsigma(mux, sigmax, x)
+def dg2dsx(x0, y0, sx, sy, x, y):
+    """Partial of g2 wrt sx"""
+    return g(y0, sy, y) * dgdsigma(x0, sx, x)
 
-def dg2dsigmay(mux, muy, sigmax, sigmay, x, y):
-    """Partial of g2 wrt sigmay"""
-    return g(mux, sigmax, x) * dgdsigma(muy, sigmay, y)
+def dg2dsy(x0, y0, sx, sy, x, y):
+    """Partial of g2 wrt sy"""
+    return g(x0, sx, x) * dgdsigma(y0, sy, y)
 
 
 class Poo(object):
