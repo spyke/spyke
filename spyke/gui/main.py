@@ -965,12 +965,13 @@ class SpykeAbout(wx.Dialog):
         <p><b>spyke</b> is a tool for neuronal waveform visualization and spike sorting.
         </p>
 
-        <p>Copyright &copy; 2008 Martin Spacek, Reza Lotun</p>
+        <p>Copyright &copy; 2008-2009 Martin Spacek, Reza Lotun<br>
+           University of British Columbia</p>
         </body>
         </html>'''
 
     def __init__(self, parent):
-        wx.Dialog.__init__(self, parent, -1, 'About spyke', size=(350, 250))
+        wx.Dialog.__init__(self, parent, -1, 'About spyke', size=(350, 260))
 
         html = wx.html.HtmlWindow(self)
         html.SetPage(self.text)

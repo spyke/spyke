@@ -84,28 +84,36 @@ class LeastSquares(object):
         self.errs = []
 
     def plot(self):
-        t = self.t
-        p = self.p
+        """Plot all channels modelled in self, vs the raw data each is modelling"""
+        t, p = self.t, self.p
+        z = 0
+        f = figure()
+        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
+        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        a.set_axis_off() # turn off the x and y axis
+        f.set_facecolor('black')
+        f.set_edgecolor('black')
+        uV2um = 100 / 100 # um/uV
+        us2um = 55 / 1000 # um/us
+        xmin, xmax = min(self.x), max(self.x)
+        ymin, ymax = min(self.y), max(self.y)
+        xrange = xmax - xmin
+        yrange = ymax - ymin
+        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
         for (V, x, y) in zip(self.V, self.x, self.y):
-            figure()
-            title('x, y = %r um' % ((x, y),))
-            plot(t, V, 'k.-')
-            plot(t,
-                 g2(p[6], p[7], p[8], p[8], x, y) * p[0]*g(p[1], p[2], t),
-                 'r-')
-            plot(t,
-                 g2(p[6], p[7], p[8], p[8], x, y) * p[3]*g(p[4], p[5], t),
-                 'g-')
-            plot(t,
-                 g2(p[6], p[7], p[8], p[8], x, y) * (p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t)),
-                 'b-')
-            gca().autoscale_view(tight=True, scalex=True, scaley=False) # tight fit to timepoints
-            gca().set_ylim(-100, 100)
-        figure()
-        title('x, y = %r (model origin in space)' % ((p[6], p[7]),))
-        plot(t, p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t), 'm-')
-        gca().autoscale_view(tight=True, scalex=True, scaley=False) # tight fit to timepoints
-        gca().set_ylim(-100, 100)
+            t_ = (t-t[0])*us2um + x # in um
+            V_ = V*uV2um + (ymax-y) # in um
+            modelV_ = self.model(p, t, x, y, z).ravel() * uV2um + (ymax-y) # switch to bottom origin
+            rawline = mpl.lines.Line2D(t_, V_, color='white', ls='-', linewidth=1) # switch to bottom origin
+            modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
+            a.add_line(rawline)
+            a.add_line(modelline)
+        x0, y0, z0 = p[4], p[5], p[6]
+        t_ = (t-t[0])*us2um + x0
+        modelsourceV_ = self.model(p, t, x0, y0, z0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
+        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lightgreen', ls='-', linewidth=1)
+        a.add_line(modelsourceline)
+        a.autoscale_view(tight=True)
 
     def calc(self, t, x, y, z, V):
         self.t = t
@@ -511,6 +519,7 @@ class Detector(object):
             #spike = (phase1t, x, y) # (time, x, y) tuples
             spike = (phase1t, x, y, z) # (time, x, y, z) tuples
             spikes.append(spike)
+            ls.spiket = phase1t
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
