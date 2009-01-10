@@ -114,7 +114,7 @@ class LeastSquares(object):
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lightgreen', ls='-', linewidth=1)
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True)
-
+    '''
     def calc(self, t, x, y, z, V):
         self.t = t
         self.x = x
@@ -132,6 +132,7 @@ class LeastSquares(object):
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
     '''
     def tcalc(self, t, V):
+        """Calculate least squares of temporal model"""
         self.t = t
         self.V = V
         result = leastsq(self.tcost, self.tp0, args=(t, V),
@@ -139,12 +140,13 @@ class LeastSquares(object):
                          ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
                          diag=None)
         #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.p, self.ier = result
+        self.tp, self.ier = result
         self.mesg = self.errors[self.ier]
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
     def scalc(self, x, y, z, V):
+        """Calculate least squares of spatial model"""
         self.x = x
         self.y = y
         self.z = z
@@ -154,7 +156,7 @@ class LeastSquares(object):
                          ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
                          diag=None)
         #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.p, self.ier = result
+        self.sp, self.ier = result
         self.mesg = self.errors[self.ier]
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
@@ -180,17 +182,30 @@ class LeastSquares(object):
         Returns a matrix of voltage values v of same length as t.
         Chans in rows, time in columns.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        nchans = len(self.chanis)
+        nchans = (len(tp) - 4) / 2 # could be just one chan
         phase1Vs = tp[0:nchans]
         phase2Vs = tp[nchans:2*nchans]
         i = 2*nchans
+        mu1, sigma1, mu2, sigma2 = self.tp[i], self.tp[i+1], self.tp[i+2], self.tp[i+3]
         return np.outer( phase1Vs*g(tp[i], tp[i+1], t) + phase2Vs*g(tp[i+2], tp[i+3], t) )
 
     def smodel(self, sp, x, y, z):
-        """Spatially modulates the time series given in self.tmodelV.
-        x, y, and z should correspond to coordinates of chans in self.tmodelV.
+        """Spatially modulates the time series described by the temporal parameters self.tp,
+        specifically given the temporal mus and sigmas in self.tp.
+        x, y, and z correspond to coordinates of chans to model.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        return self.tmodelV * Vf(p[4], p[5], p[6], p[7], p[8], p[9], p[8], x, y, z),
+        nchans = (len(tp) - 4) / 2
+        phase1Vs = self.tp[0:nchans]
+        phase2Vs = self.tp[nchans:2*nchans]
+        # use the amplitudes of the maxchan as the best initial guess for the amplitude of the spatial model (we're also using the 3D coordinates of the maxchan as the best initial spatial guess)
+        phase1V, phase2V = phase1Vs[self.maxchani], phase2Vs[self.maxchani]
+        i = 2*nchans
+        mu1, sigma1, mu2, sigma2 = self.tp[i], self.tp[i+1], self.tp[i+2], self.tp[i+3]
+        x0, y0, z0, sx, sy = sp[0], sp[1], sp[2], sp[3], sp[4]
+        # return element-wise multiplication of tmodelV and the 3D Gaussian model matrices
+        tp1chan = [phase1v, phase2V, mu1, sigma1, mu2, sigma2]
+        tmodelV = self.tmodel(tp1chan, self.t)
+        return tmodelV * g3(x0, y0, z0, sx, sy, sx, x, y, z) # sz=sx
     '''
     def cost(self, p, t, x, y, z, V):
         """Distance of each point to the 2D target function
@@ -216,7 +231,7 @@ class LeastSquares(object):
         error = np.ravel(self.smodel(sp, x, y, z) - V)
         sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
-
+    '''
     def dcost(self, p, t, x, y, V):
         """Derivative of cost function wrt each parameter, returns Jacobian"""
         # these all have the same length as t
@@ -427,6 +442,7 @@ class Detector(object):
             #      self.stream.probe.SiteLoc[chan][0], # x (um)
             #      self.stream.probe.SiteLoc[chan][1], # y (um)
             #      1, 60, np.pi/4] # amplitude, sigma_amplitude (um), sigma_theta (radians)
+            '''
             p0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
                   wave.ts[ti0+phase2ti], 60, # 2nd phase: mu (us), sigma (us)
                   #1, # 3D Gaussian amplitude
@@ -434,56 +450,59 @@ class Detector(object):
                   self.stream.probe.SiteLoc[chan][1], # y0 (um)
                   50, # z0 (um)
                   60, 60] # sx==sz, sy (um)
+            '''
+            '''
             ls = LeastSquares()
             ls.phase1V = phase1V # fixed
             ls.phase2V = phase2V # fixed
             ls.p0 = p0
             '''
-            phase1Vs =
-            phase2Vs =
-            tp0 = [phase1Vs, phase2Vs,
-                   wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
-                   wave.ts[ti0+phase2ti], 60] # 2nd phase: mu (us), sigma (us)
-            sp0 = [3, # Im (nA?)
-                   self.stream.probe.SiteLoc[chan][0], # x0 (um)
-                   self.stream.probe.SiteLoc[chan][1], # y0 (um)
-                   50, # z0 (um)
-                   0.3, 0.3] # sx==sz, sy (conductivity)
-
-            ls.tp0 = tp0
-            ls.sp0 = sp0
-            '''
             # find all the chans within slock of chani, exclude locked-out channels
             # TODO: exclude grounded channels, or maybe those should just be deselected in the GUI?
             chanis, = np.where(dmi[chani] <= self.slock)
             chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ])
+            ls.maxchani = chani
             ls.chanis = chanis
+            print 'leastsq got chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
             y = SiteLoc[chanis, 1]
             z = 0
             V = wave.data[chanis, ti0:tiend]
-            ls.calc(t, x, y, z, V) # calculate least squares fit
-            print 'leastsq got chanis = %r' % (chanis,)
-            #p0strlist = [ '%.1f' % val for val in ls.p0 ] # list of formatted strings
-            #print 'p0 = [%s]' % string.join(p0strlist, ', ')
-            print 'p0 = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p0[6], p0[7], p0[8])
-            #print 'p0 = %r' % (list(np.round(ls.p0, decimals=1)),)
-            #pstrlist = [ '%.1f' % val for val in ls.p ] # list of formatted strings
-            #print 'p = [%s]' % string.join(pstrlist, ', ')
-            p = ls.p
-            print 'p = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8])
+
+            phase1Vs = wave.data[chanis, ti0:tiend][phase1ti]
+            phase2Vs = wave.data[chanis, ti0:tiend][phase2ti]
+            tp0 = [phase1Vs, phase2Vs,
+                   wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
+                   wave.ts[ti0+phase2ti], 60] # 2nd phase: mu (us), sigma (us)
+            sp0 = [self.stream.probe.SiteLoc[chan][0], # x0 (um)
+                   self.stream.probe.SiteLoc[chan][1], # y0 (um)
+                   50, # z0 (um)
+                   0.3, 0.3] # sx==sz, sy (um)
+            ls.tp0 = tp0
+            ls.sp0 = sp0
+
+            ls.tcalc(t, V) # calculate least squares temporal parameters fit
+            print 'tp0 = %r' % intround(ls.tp0)
+            print 'tp = %r' % intround(ls.tp)
+            tmodelV = self.tmodel(ls.tp, t) # get the temporally modelled signals for the required chans
+            ls.scalc(x, y, z, tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
+            print 'sp0 = %r' % intround(ls.sp0)
+            print 'sp = %r' % intround(ls.sp)
+            #ls.calc(t, x, y, z, V) # calculate least squares fit
+            #print 'p0 = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p0[6], p0[7], p0[8])
+            #p = ls.p
+            #print 'p = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8])
             #print 'p = %r' % (list(np.round(ls.p, decimals=1)),)
             #self.ls.append(ls)
-            # TODO: I should report some kind of measure of fit error here, and if error is big, plot the model on top of the data
             # the peak times of the modelled f'n may not correspond to the peak times of the two phases.
             # Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
-            # f'n instead of the constituent Gaussians that make it up
+            # f'n instead of just the parameters of the constituent Gaussians that make it up
             # get max and min modelled voltages at the modelled location
-            #x, y = ls.p[6], ls.p[7]
             #modelV = ls.model(ls.p, t, x, y).ravel()
-            x, y, z = ls.p[4], ls.p[5], ls.p[6]
-            modelV = ls.model(ls.p, t, x, y, z).ravel()
+            x, y, z = ls.sp[0], ls.sp[1], ls.sp[2]
+            modelV = ls.smodel(ls.sp, x, y, z).ravel()
+            #modelV = ls.model(ls.p, t, x, y, z).ravel()
             #modelV = ls.model(ls.p, t, x, y, z-50).ravel() # can't eval at exactly x, y, z cuz of singularity in 1/r
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
