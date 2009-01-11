@@ -84,7 +84,7 @@ class LeastSquares(object):
         self.errs = []
 
     def plot(self):
-        """Plot all channels modelled in self, vs the raw data each is modelling"""
+        """Plot all channels modelled in self and the raw data each is modelling"""
         t, p = self.t, self.p
         z = 0
         f = figure()
@@ -114,6 +114,40 @@ class LeastSquares(object):
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lightgreen', ls='-', linewidth=1)
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True)
+
+    def plot2(self):
+        """Plot all spatially channels modelled in self, and all temporally modelled chans, and the raw data each is modelling"""
+        t, p = self.t, self.p
+        z = 0
+        f = figure()
+        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
+        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        a.set_axis_off() # turn off the x and y axis
+        f.set_facecolor('black')
+        f.set_edgecolor('black')
+        uV2um = 100 / 100 # um/uV
+        us2um = 55 / 1000 # um/us
+        xmin, xmax = min(self.x), max(self.x)
+        ymin, ymax = min(self.y), max(self.y)
+        xrange = xmax - xmin
+        yrange = ymax - ymin
+        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
+        for (V, x, y) in zip(self.V, self.x, self.y):
+            t_ = (t-t[0])*us2um + x # in um
+            V_ = V*uV2um + (ymax-y) # in um
+            modelV_ = self.model(p, t, x, y, z).ravel() * uV2um + (ymax-y) # switch to bottom origin
+            rawline = mpl.lines.Line2D(t_, V_, color='white', ls='-', linewidth=1) # switch to bottom origin
+            modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
+            a.add_line(rawline)
+            a.add_line(modelline)
+        x0, y0, z0 = p[4], p[5], p[6]
+        t_ = (t-t[0])*us2um + x0
+        modelsourceV_ = self.model(p, t, x0, y0, z0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
+        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lightgreen', ls='-', linewidth=1)
+        a.add_line(modelsourceline)
+        a.autoscale_view(tight=True)
+
+
     '''
     def calc(self, t, x, y, z, V):
         self.t = t
@@ -182,30 +216,32 @@ class LeastSquares(object):
         Returns a matrix of voltage values v of same length as t.
         Chans in rows, time in columns.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        nchans = (len(tp) - 4) / 2 # could be just one chan
+        nchans = int((len(tp) - 4) / 2) # 4 non phaseV temporal params, could be just one chan
         phase1Vs = tp[0:nchans]
         phase2Vs = tp[nchans:2*nchans]
         i = 2*nchans
-        mu1, sigma1, mu2, sigma2 = self.tp[i], self.tp[i+1], self.tp[i+2], self.tp[i+3]
-        return np.outer( phase1Vs*g(tp[i], tp[i+1], t) + phase2Vs*g(tp[i+2], tp[i+3], t) )
+        mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
+        return np.outer(phase1Vs, g(mu1, sigma1, t)) + np.outer(phase2Vs, g(mu2, sigma2, t))
 
     def smodel(self, sp, x, y, z):
         """Spatially modulates the time series described by the temporal parameters self.tp,
         specifically given the temporal mus and sigmas in self.tp.
         x, y, and z correspond to coordinates of chans to model.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        nchans = (len(tp) - 4) / 2
-        phase1Vs = self.tp[0:nchans]
-        phase2Vs = self.tp[nchans:2*nchans]
+        tp = self.tp
+        nchans = int((len(tp) - 4) / 2)
+        phase1Vs = tp[0:nchans]
+        phase2Vs = tp[nchans:2*nchans]
         # use the amplitudes of the maxchan as the best initial guess for the amplitude of the spatial model (we're also using the 3D coordinates of the maxchan as the best initial spatial guess)
-        phase1V, phase2V = phase1Vs[self.maxchani], phase2Vs[self.maxchani]
+        mi, = np.where(self.chanis == self.maxchani)
+        phase1V, phase2V = phase1Vs[mi], phase2Vs[mi]
         i = 2*nchans
-        mu1, sigma1, mu2, sigma2 = self.tp[i], self.tp[i+1], self.tp[i+2], self.tp[i+3]
+        mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
         x0, y0, z0, sx, sy = sp[0], sp[1], sp[2], sp[3], sp[4]
-        # return element-wise multiplication of tmodelV and the 3D Gaussian model matrices
-        tp1chan = [phase1v, phase2V, mu1, sigma1, mu2, sigma2]
+        # return outer product of tmodelV vector and the 3D Gaussian model vector
+        tp1chan = [phase1V, phase2V, mu1, sigma1, mu2, sigma2]
         tmodelV = self.tmodel(tp1chan, self.t)
-        return tmodelV * g3(x0, y0, z0, sx, sy, sx, x, y, z) # sz=sx
+        return np.outer(g3(x0, y0, z0, sx, sy, sx, x, y, z), tmodelV) # sz=sx
     '''
     def cost(self, p, t, x, y, z, V):
         """Distance of each point to the 2D target function
@@ -451,8 +487,8 @@ class Detector(object):
                   50, # z0 (um)
                   60, 60] # sx==sz, sy (um)
             '''
-            '''
             ls = LeastSquares()
+            '''
             ls.phase1V = phase1V # fixed
             ls.phase2V = phase2V # fixed
             ls.p0 = p0
@@ -463,29 +499,30 @@ class Detector(object):
             chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ])
             ls.maxchani = chani
             ls.chanis = chanis
+            ls.nchans = len(chanis)
             print 'leastsq got chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
             y = SiteLoc[chanis, 1]
-            z = 0
+            z = np.tile(0, ls.nchans)
             V = wave.data[chanis, ti0:tiend]
 
-            phase1Vs = wave.data[chanis, ti0:tiend][phase1ti]
-            phase2Vs = wave.data[chanis, ti0:tiend][phase2ti]
-            tp0 = [phase1Vs, phase2Vs,
-                   wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
+            phase1Vs = wave.data[chanis, ti0:tiend][:, phase1ti] # all the rows (chans), just one column
+            phase2Vs = wave.data[chanis, ti0:tiend][:, phase2ti]
+            tp0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
                    wave.ts[ti0+phase2ti], 60] # 2nd phase: mu (us), sigma (us)
+            tp0 = np.concatenate((phase1Vs, phase2Vs, tp0), axis=None) # all but last 4 are phaseVs
             sp0 = [self.stream.probe.SiteLoc[chan][0], # x0 (um)
                    self.stream.probe.SiteLoc[chan][1], # y0 (um)
                    50, # z0 (um)
-                   0.3, 0.3] # sx==sz, sy (um)
+                   60, 60] # sx==sz, sy (um)
             ls.tp0 = tp0
             ls.sp0 = sp0
 
             ls.tcalc(t, V) # calculate least squares temporal parameters fit
             print 'tp0 = %r' % intround(ls.tp0)
             print 'tp = %r' % intround(ls.tp)
-            tmodelV = self.tmodel(ls.tp, t) # get the temporally modelled signals for the required chans
+            tmodelV = ls.tmodel(ls.tp, t) # get the temporally modelled signals for the required chans
             ls.scalc(x, y, z, tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
             print 'sp0 = %r' % intround(ls.sp0)
             print 'sp = %r' % intround(ls.sp)
