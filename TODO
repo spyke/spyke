@@ -57,39 +57,45 @@ EVENT DETECTION:
 
     - LOCKOUT: do I propagate any spatiotemporal lockouts from the end of one searched block to the start of the next?  I'm taking slightly overlapping blocks of data to make sure I don't miss any spikes that fall on the borders, but I'm not sure if I'm propagating lockouts...
 
-    - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
-        - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
-        - model parameters: overall sign (+ve sign would be say a normal initially downward going spike), overall width (up to 1.5ms say), and amplitude of each phase (phases will be forced to alternate in sign)
-        - once you've found your best fit model (which will necessarily be smooth), use it to decide if it qualifies as a spike (ie, use it to check amplitude of its second phase), and if so, to decide how long to lock out for
-        - this would be a kind of denoising, and would get around weird cases where the spike is distorted, which if you look at raw values, screws up your decision of where the peaks are and how long to lock out for
-            - this would probably get rid of the spike alignment problems when matching templates
-        - should the model be a Gaussian windowed polynomial of order nphases + 1?
-        - how best to go about actually fitting the model? what's the numpy/scipy algorithm for this?
-            - there's scipy.optimize, which has a .leastsq() f'n
-            - there's also matplotlib.mlab.polyfit
-        - then, if you've decided it qualifies as a spike, you can save the model for it, and use that for template building and matching
-    - Nick says: Levenberg-Marquadt algorithm (LMA) is least squares, and so is simplex? What differs is just the cost f'n?
-        - ah, scipy.leastsq is LMA
-        - Nick: instead of doing template matching after modelling the spike, you can just plot the model parameters in a multidimensional space and do normal cluster - skip the whole matching step!
-        - says best to just use sum of Gaussians, no need to multiply a N+1 order polynomial with N gaussians
-            - tried this doing some manual fitting, sum of Guassians looks great, and is very malleable to get you the spike shape you want
-        - also, in the same go, you can model the position of the spike in space - just add a 2D gaussian model for space (that's another 4 params: two means + two stdevs) - then, when you cluster, you're in a very intuitive space (even if its, say 6+4 = 10 dims) that involves the means, stdevs, and amplitudes of two spike phases, plus the position and spread in space.
-            - this brings us all the way back to what was Phil's original idea: use physical space as your clustering space
-        - should actually have another param theta for angle of 2D gaussian
-    - I should probably try this all out in pure Python to start, including the intial threshold detection step (using dynamic thresholds)
-        - nothing in this whole modelling method precludes changing anything about the spatiotemporal lockout - that can stay as is. What changes is that the lockout becomes more accurate, since you're modelling the spike peaks in both space and time, which is less affected by spatiotemporal noise than the raw data values
-        - for initial spike detection, instead of just looking back one data point to see if signal is diverging from 0 (which itself is susceptible to noise), maybe look back two or more points, or average across the last two or more points to make that decision - this would make you less susceptible to suspect a spike due to a little mini up-down event on the down slope of the final phase of the previously detected spike
-            - or, if you see an up-down event, check if it exists on other chans at the same time - although, this assumes that the spike is multichannel, which it isn't necessarily
-        - might also be able to reduce num params by fixing all spike phase gaussian means and stdevs to be the same (assuming S+H correction is turned on, and there aren't any backpropagating spikes)
-    - spike at ptc15/87/t=23700, chan=3 could definitely use separate vertical and horizontal spatial sigmas - the vertical one would be greater
-        - same goes for spike at ptc15/87/t=21940, chan=10. Maybe sigma vector amplitude and angle would be better
-        - having two spatial sigmas probably makes the problem underconstrained for a 2 column probe, but it might work on a 3 column probe - I think Tim concluded this as well
-        - problem is that to compensate for something that obviously isn't circularly symmetric in space, it sets the source way off the probe to the left or the right. This then messes with the spatial lockout, which is centered on the modeled source location, so you end up getting double triggers.
+    SPIKE MODELLING:
 
-    - another strategy might be to give up on the spatial modelling, fix temporal gaussian means and sigmas across chans, but give each chan its own two amplitudes, then just triangulate to find spatial mean, or then run the model in a separate independent run, using the modelled output values in time from the previous run, to decide on the spatial means and sigmas and orientation. This will help prevent some of the parameters from confusing the others. In other words, maybe the first run should be concerned with finding the spike's point in time, and the second run with finding its point in space.
+        - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
+            - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
+            - model parameters: overall sign (+ve sign would be say a normal initially downward going spike), overall width (up to 1.5ms say), and amplitude of each phase (phases will be forced to alternate in sign)
+            - once you've found your best fit model (which will necessarily be smooth), use it to decide if it qualifies as a spike (ie, use it to check amplitude of its second phase), and if so, to decide how long to lock out for
+            - this would be a kind of denoising, and would get around weird cases where the spike is distorted, which if you look at raw values, screws up your decision of where the peaks are and how long to lock out for
+                - this would probably get rid of the spike alignment problems when matching templates
+            - should the model be a Gaussian windowed polynomial of order nphases + 1?
+            - how best to go about actually fitting the model? what's the numpy/scipy algorithm for this?
+                - there's scipy.optimize, which has a .leastsq() f'n
+                - there's also matplotlib.mlab.polyfit
+            - then, if you've decided it qualifies as a spike, you can save the model for it, and use that for template building and matching
+        - Nick says: Levenberg-Marquadt algorithm (LMA) is least squares, and so is simplex? What differs is just the cost f'n?
+            - ah, scipy.leastsq is LMA
+            - Nick: instead of doing template matching after modelling the spike, you can just plot the model parameters in a multidimensional space and do normal clustering - skip the whole matching step!
+            - says best to just use sum of Gaussians, no need to multiply a N+1 order polynomial with N gaussians
+                - tried this doing some manual fitting, sum of Guassians looks great, and is very malleable to get you the spike shape you want
+            - also, in the same go, you can model the position of the spike in space - just add a 2D gaussian model for space (that's another 4 params: two means + two stdevs) - then, when you cluster, you're in a very intuitive space (even if its, say 6+4 = 10 dims) that involves the means, stdevs, and amplitudes of two spike phases, plus the position and spread in space.
+                - this brings us all the way back to what was Phil's original idea: use physical space as your clustering space
+            - should actually have another param theta for angle of 2D gaussian
+        - I should probably try this all out in pure Python to start, including the intial threshold detection step (using dynamic thresholds)
+            - nothing in this whole modelling method precludes changing anything about the spatiotemporal lockout - that can stay as is. What changes is that the lockout becomes more accurate, since you're modelling the spike peaks in both space and time, which is less affected by spatiotemporal noise than the raw data values
+            - for initial spike detection, instead of just looking back one data point to see if signal is diverging from 0 (which itself is susceptible to noise), maybe look back two or more points, or average across the last two or more points to make that decision - this would make you less susceptible to suspect a spike due to a little mini up-down event on the down slope of the final phase of the previously detected spike
+                - or, if you see an up-down event, check if it exists on other chans at the same time - although, this assumes that the spike is multichannel, which it isn't necessarily
+            - might also be able to reduce num params by fixing all spike phase gaussian means and stdevs to be the same (assuming S+H correction is turned on, and there aren't any backpropagating spikes)
+        - spike at ptc15/87/t=23700, chan=3 could definitely use separate vertical and horizontal spatial sigmas - the vertical one would be greater
+            - same goes for spike at ptc15/87/t=21940, chan=10. Maybe sigma vector amplitude and angle would be better
+            - having two spatial sigmas probably makes the problem underconstrained for a 2 column probe, but it might work on a 3 column probe - I think Tim concluded this as well
+            - problem is that to compensate for something that obviously isn't circularly symmetric in space, it sets the source way off the probe to the left or the right. This then messes with the spatial lockout, which is centered on the modeled source location, so you end up getting double triggers.
 
-    - maybe I should do the full 3D modelling that Tim did, this would only require adding one extra parameter: z0. sigmaz would be the same as sigmax. Also, maybe theta should just be plugged into the model as a constant, determined by the user, and defaulting to 0
-        - might also try a 3D Guassian instead of the 3D 1/r. Gaussian is smoother and well defined around 0, leastsq might be more stable with it
+        - another strategy might be to give up on the spatial modelling, fix temporal gaussian means and sigmas across chans, but give each chan its own two amplitudes, then just triangulate to find spatial mean, or then run the model in a separate independent run, using the modelled output values in time from the previous run, to decide on the spatial means and sigmas and orientation. This will help prevent some of the parameters from confusing the others. In other words, maybe the first run should be concerned with finding the spike's point in time, and the second run with finding its point in space.
+
+        - maybe I should do the full 3D modelling that Tim did, this would only require adding one extra parameter: z0. sigmaz would be the same as sigmax. Also, maybe theta should just be plugged into the model as a constant, determined by the user, and defaulting to 0
+            - might also try a 3D Guassian instead of the 3D 1/r. Gaussian is smoother and well defined around 0, leastsq might be more stable with it
+
+        - could also try feeding just the peak or the peak and valley amplitudes of each channel to the spatial model, instead of all the points in the spike. The peak values might be more consistent with the spatial model, and therefore easier to fit and less likely to result in ridiculous spatial parameter outputs
+
+        - interpolating to 100 kHz would double the number of data points the model could work with - this might make it perform better?
 
     - could speed things up by only interpolating say each 1ms of data following an initial threshold crossing, maybe interpolate to 100 kHz while we're at it, and leave everything else at 25 kHz without any S+H correction - you don't really need interpolation or S+H correction for the initial threshold detection, I think...
 
