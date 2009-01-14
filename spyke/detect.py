@@ -135,7 +135,7 @@ class LeastSquares(object):
         for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
             t_ = (t-t[0])*us2um + x # in um
             V_ = V*uV2um + (ymax-y) # in um
-            tmodelV_ = self.tmodel(tp, t)[chanii] * uV2um + (ymax-y) # switch to bottom origin
+            tmodelV_ = self.tmodelV[chanii] * uV2um + (ymax-y) # use stored time series, switch to bottom origin
             smodelV_ = self.smodel(sp, x, y, z).ravel() * uV2um + (ymax-y) # switch to bottom origin
             rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1) # switch to bottom origin
             tmodelline = mpl.lines.Line2D(t_, tmodelV_, color='red', ls='-', linewidth=1)
@@ -252,32 +252,15 @@ class LeastSquares(object):
         return np.outer(phase1Vs, g(mu1, sigma1, t)) + np.outer(phase2Vs, g(mu2, sigma2, t))
 
     def smodel(self, sp, x, y, z):
-        """Spatially modulates the time series described by the temporal parameters self.tp,
-        specifically given the temporal mus and sigmas in self.tp.
+        """Spatially modulates the max chan in the time series in self.tmodelV.
         x, y, and z correspond to coordinates of chans to model.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        try:
-            self.tmodelV1chan # reuse any previously generated single chan tmodelV
-        except AttributeError: # generate a new tmodelV
-            tp = self.tp
-            nchans = int((len(tp) - 4) / 2)
-            phase1Vs = tp[0:nchans]
-            phase2Vs = tp[nchans:2*nchans]
-            # use the amplitudes of the maxchan as the best initial guess for the amplitude of the spatial model (we're also using the 3D coordinates of the maxchan as the best initial spatial guess)
-            mi, = np.where(self.chanis == self.maxchani)
-            phase1V, phase2V = phase1Vs[mi], phase2Vs[mi]
-            i = 2*nchans
-            mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
-            tp1chan = [phase1V, phase2V, mu1, sigma1, mu2, sigma2]
-            self.tmodelV1chan = self.tmodel(tp1chan, self.t)
+        tmodelVmaxchan = self.tmodelV[self.maxchanii]
         x0, y0, z0, sx, sy = sp[0], sp[1], sp[2], sp[3], sp[4]
-        s = g3(x0, y0, z0, sx, sy, sx, x, y, z)
-        try:
-            s.shape = (s.shape[0], 1) # make it a column vector by giving it a singleton column dimension
-        except IndexError: # it's a scalar
-            pass
-        # return product of tmodelV vector and the 3D Gaussian model vector
-        return s * self.tmodelV1chan # sz=sx
+        s = g3(x0, y0, z0, sx, sy, sx, x, y, z) # sz=sx
+        s = s.reshape((-1, 1)) # make it a column vector by giving it a singleton column dimension
+        # return product of the spatial Gaussian model vector and the max chan in tmodelV
+        return s * tmodelVmaxchan
     '''
     def dcost(self, p, t, x, y, V):
         """Derivative of cost function wrt each parameter, returns Jacobian"""
@@ -511,6 +494,7 @@ class Detector(object):
             ls.maxchani = chani
             ls.chanis = chanis
             ls.nchans = len(chanis)
+            ls.maxchanii, = np.where(ls.chanis == ls.maxchani)
             print 'leastsq got chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
@@ -537,22 +521,13 @@ class Detector(object):
             ls.scalc(x, y, z, ls.tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
             print 'sp0 = %r' % intround(ls.sp0)
             print 'sp = %r' % intround(ls.sp)
-            #ls.calc(t, x, y, z, V) # calculate least squares fit
-            #print 'p0 = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p0[6], p0[7], p0[8])
-            #p = ls.p
-            #print 'p = [%d, %d, %d, %d, %d, %d, %d, %.2f, %.2f]' % (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8])
-            #print 'p = %r' % (list(np.round(ls.p, decimals=1)),)
-            #self.ls.append(ls)
-            # the peak times of the modelled f'n may not correspond to the peak times of the two phases.
-            # Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
-            # f'n instead of just the parameters of the constituent Gaussians that make it up
-            # get max and min modelled voltages at the modelled location
-            #modelV = ls.model(ls.p, t, x, y).ravel()
+            """
+            The peak times of the modelled f'n may not correspond to the peak times of the two phases.
+            Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
+            f'n instead of just the parameters of the constituent Gaussians that make it up
+            """
             x, y, z = ls.sp[0], ls.sp[1], ls.sp[2] # single coord this time instead of a set of them
-            #del ls.tmodelV # remove previous multichannel tmodelV so a new single channel one is generated
             modelV = ls.smodel(ls.sp, x, y, z).ravel()
-            #modelV = ls.model(ls.p, t, x, y, z).ravel()
-            #modelV = ls.model(ls.p, t, x, y, z-50).ravel() # can't eval at exactly x, y, z cuz of singularity in 1/r
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
