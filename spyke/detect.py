@@ -198,6 +198,31 @@ class LeastSquares(object):
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
     '''
+    def cost(self, p, t, x, y, z, V):
+        """Distance of each point to the 2D target function
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.model(p, t, x, y, z) - V)
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        self.errs.append(np.abs(error).sum())
+        return error
+    '''
+    def tcost(self, tp, t, V):
+        """Distance of each point in temporal model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.tmodel(tp, t) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
+
+    def scost(self, sp, x, y, z, V):
+        """Distance of each point in spatial model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.smodel(sp, x, y, z) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
+    '''
     def model(self, p, t, x, y, z):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, returns a vector of voltage values v of same length as t.
@@ -232,7 +257,7 @@ class LeastSquares(object):
         x, y, and z correspond to coordinates of chans to model.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
         try:
-            self.tmodelV # reuse any previously generated tmodelV
+            self.tmodelV1chan # reuse any previously generated single chan tmodelV
         except AttributeError: # generate a new tmodelV
             tp = self.tp
             nchans = int((len(tp) - 4) / 2)
@@ -244,7 +269,7 @@ class LeastSquares(object):
             i = 2*nchans
             mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
             tp1chan = [phase1V, phase2V, mu1, sigma1, mu2, sigma2]
-            self.tmodelV = self.tmodel(tp1chan, self.t)
+            self.tmodelV1chan = self.tmodel(tp1chan, self.t)
         x0, y0, z0, sx, sy = sp[0], sp[1], sp[2], sp[3], sp[4]
         s = g3(x0, y0, z0, sx, sy, sx, x, y, z)
         try:
@@ -252,32 +277,7 @@ class LeastSquares(object):
         except IndexError: # it's a scalar
             pass
         # return product of tmodelV vector and the 3D Gaussian model vector
-        return s * self.tmodelV # sz=sx
-    '''
-    def cost(self, p, t, x, y, z, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y, z) - V)
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        self.errs.append(np.abs(error).sum())
-        return error
-    '''
-    def tcost(self, tp, t, V):
-        """Distance of each point in temporal model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.tmodel(tp, t) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
-
-    def scost(self, sp, x, y, z, V):
-        """Distance of each point in spatial model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.smodel(sp, x, y, z) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
+        return s * self.tmodelV1chan # sz=sx
     '''
     def dcost(self, p, t, x, y, V):
         """Derivative of cost function wrt each parameter, returns Jacobian"""
@@ -548,8 +548,8 @@ class Detector(object):
             # f'n instead of just the parameters of the constituent Gaussians that make it up
             # get max and min modelled voltages at the modelled location
             #modelV = ls.model(ls.p, t, x, y).ravel()
-            x, y, z = ls.sp[0], ls.sp[1], ls.sp[2]
-            del ls.tmodelV # remove previous multichannel tmodelV so a new single channel one is generated
+            x, y, z = ls.sp[0], ls.sp[1], ls.sp[2] # single coord this time instead of a set of them
+            #del ls.tmodelV # remove previous multichannel tmodelV so a new single channel one is generated
             modelV = ls.smodel(ls.sp, x, y, z).ravel()
             #modelV = ls.model(ls.p, t, x, y, z).ravel()
             #modelV = ls.model(ls.p, t, x, y, z-50).ravel() # can't eval at exactly x, y, z cuz of singularity in 1/r
