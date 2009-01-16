@@ -95,6 +95,8 @@ EVENT DETECTION:
 
         - could also try feeding just the peak or the peak and valley amplitudes of each channel to the spatial model, instead of all the points in the spike. The peak values might be more consistent with the spatial model, and therefore easier to fit and less likely to result in ridiculous spatial parameter outputs
 
+        - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list.
+
         - interpolating to 100 kHz would double the number of data points the model could work with - this might make it perform better?
 
     - could speed things up by only interpolating say each 1ms of data following an initial threshold crossing, maybe interpolate to 100 kHz while we're at it, and leave everything else at 25 kHz without any S+H correction - you don't really need interpolation or S+H correction for the initial threshold detection, I think...

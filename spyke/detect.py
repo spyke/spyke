@@ -15,12 +15,12 @@ import threadpool
 import wx
 
 import numpy as np
-from scipy.optimize import leastsq
+from scipy.optimize import leastsq, fmin_slsqp
 
 from pylab import *
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g3
+from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2
 
 
 class RandomWaveTranges(object):
@@ -47,7 +47,125 @@ class RandomWaveTranges(object):
         return self
 
 
-class LeastSquares(object):
+class SpikeModel(object):
+    """A model for fitting two voltage Gaussians to spike phases,
+    plus a 2D spatial gaussian to model decay across channels"""
+
+    def plot(self):
+        """Plot all all temporally modelled chans, all spatially modelled chans,
+        and the raw data each is modelling, plus the single spatially positioned source time series"""
+        t, tp, sp = self.t, self.tp, self.sp
+        f = figure()
+        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
+        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        a.set_axis_off() # turn off the x and y axis
+        f.set_facecolor('black')
+        f.set_edgecolor('black')
+        uV2um = 100 / 100 # um/uV
+        us2um = 55 / 1000 # um/us
+        xmin, xmax = min(self.x), max(self.x)
+        ymin, ymax = min(self.y), max(self.y)
+        xrange = xmax - xmin
+        yrange = ymax - ymin
+        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
+        for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
+            t_ = (t-t[0])*us2um + x # in um
+            V_ = V*uV2um + (ymax-y) # in um
+            tmodelV_ = self.tmodelV[chanii] * uV2um + (ymax-y) # use stored time series, switch to bottom origin
+            smodelV_ = self.smodel(sp, x, y).ravel() * uV2um + (ymax-y) # switch to bottom origin
+            rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1) # switch to bottom origin
+            tmodelline = mpl.lines.Line2D(t_, tmodelV_, color='red', ls='-', linewidth=1)
+            smodelline = mpl.lines.Line2D(t_, smodelV_, color='cyan', ls='--', linewidth=1)
+            a.add_line(rawline)
+            a.add_line(tmodelline)
+            a.add_line(smodelline)
+        x0, y0 = sp[0], sp[1]
+        t_ = (t-t[0])*us2um + x0
+        modelsourceV_ = self.smodel(sp, x0, y0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
+        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
+        a.add_line(modelsourceline)
+        a.autoscale_view(tight=True)
+    '''
+    def cost(self, p, t, x, y, z, V):
+        """Distance of each point to the 2D target function
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.model(p, t, x, y, z) - V)
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        self.errs.append(np.abs(error).sum())
+        return error
+    '''
+    def tcost(self, tp, t, V):
+        """Distance of each point in temporal model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.tmodel(tp, t) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
+
+    def scost(self, sp, x, y, V):
+        """Distance of each point in spatial model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.smodel(sp, x, y) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
+    '''
+    def model(self, p, t, x, y, z):
+        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
+        For each channel, returns a vector of voltage values v of same length as t.
+        x and y are vectors of coordinates of each channel's spatial location.
+        Output should be an (nchans, nt) matrix of modelled voltage values V"""
+        #return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
+        #                p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
+        # fixed phase amplitudes, although the true source amplitude could be greater in between channels,
+        # I guess I could make the coefficient of g2 a parameter that could be something other than 1
+        #return np.outer(p[6]*g2(p[4], p[5], p[7]*np.cos(p[8]), p[7]*np.sin(p[8]), x, y),
+        #                self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
+        mu1, sigma1, mu2, sigma2 = p[0], p[1], p[2], p[3]
+        x0, y0, z0, sx, sy = p[4], p[5], p[6], p[7], p[8]
+        return np.outer(g3(x0, y0, z0, sx, sy, sx, x, y, z), # sz=sx
+                        self.phase1V*g(mu1, sigma1, t) + self.phase2V*g(mu2, sigma2, t))
+    '''
+    def tmodel(self, tp, t):
+        """Sum of two Gaussians in time.
+        Returns a matrix of voltage values v of same length as t.
+        Chans in rows, time in columns.
+        Output should be an (nchans, nt) matrix of modelled voltage values V"""
+        nchans = int((len(tp) - 4) / 2) # 4 non phaseV temporal params, could be just one chan
+        phase1Vs = tp[0:nchans]
+        phase2Vs = tp[nchans:2*nchans]
+        i = 2*nchans
+        mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
+        return np.outer(phase1Vs, g(mu1, sigma1, t)) + np.outer(phase2Vs, g(mu2, sigma2, t))
+
+    def smodel(self, sp, x, y):
+        """Spatially modulates the max chan in the time series in self.tmodelV.
+        x and y correspond to coordinates of chans to model.
+        Output should be an (nchans, nt) matrix of modelled voltage values V"""
+        tmodelVmaxchan = self.tmodelV[self.maxchanii]
+        x0, y0, sx, sy = sp[0], sp[1], sp[2], sp[3]
+        s = g2(x0, y0, sx, sy, x, y)
+        s = s.reshape((-1, 1)) # make it a column vector by giving it a singleton column dimension
+        # return product of the spatial Gaussian model vector and the max chan in tmodelV
+        return s * tmodelVmaxchan
+    '''
+    def dcost(self, p, t, x, y, V):
+        """Derivative of cost function wrt each parameter, returns Jacobian"""
+        # these all have the same length as t
+        dfdp0 = np.ravel(np.outer(g2(p[6], p[7], p[8], p[8], x, y), g(p[1], p[2], t)))
+        dfdp1 = p[0]*dgdmu(p[1], p[2], t)
+        dfdp2 = p[0]*dgdsigma(p[1], p[2], t)
+        dfdp3 = g(p[4], p[5], t)
+        dfdp4 = p[3]*dgdmu(p[4], p[5], t)
+        dfdp5 = p[3]*dgdsigma(p[4], p[5], t)
+        dfdp6
+        dfdp7
+        dfdp8
+        return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
+    '''
+
+class LeastSquares(SpikeModel):
     """Least squares Levenberg-Marquardt fit of two voltage Gaussians
     to spike phases, plus a 2D spatial gaussian to model decay across channels"""
     def __init__(self):
@@ -82,75 +200,6 @@ class LeastSquares(object):
                        'unknown':"Unknown error."
                        }
         self.errs = []
-
-    def plot(self):
-        """Plot all channels modelled in self and the raw data each is modelling"""
-        t, p = self.t, self.p
-        z = 0
-        f = figure()
-        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
-        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
-        a.set_axis_off() # turn off the x and y axis
-        f.set_facecolor('black')
-        f.set_edgecolor('black')
-        uV2um = 100 / 100 # um/uV
-        us2um = 55 / 1000 # um/us
-        xmin, xmax = min(self.x), max(self.x)
-        ymin, ymax = min(self.y), max(self.y)
-        xrange = xmax - xmin
-        yrange = ymax - ymin
-        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
-        for (V, x, y) in zip(self.V, self.x, self.y):
-            t_ = (t-t[0])*us2um + x # in um
-            V_ = V*uV2um + (ymax-y) # in um
-            modelV_ = self.model(p, t, x, y, z).ravel() * uV2um + (ymax-y) # switch to bottom origin
-            rawline = mpl.lines.Line2D(t_, V_, color='white', ls='-', linewidth=1) # switch to bottom origin
-            modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
-            a.add_line(rawline)
-            a.add_line(modelline)
-        x0, y0, z0 = p[4], p[5], p[6]
-        t_ = (t-t[0])*us2um + x0
-        modelsourceV_ = self.model(p, t, x0, y0, z0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
-        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lightgreen', ls='-', linewidth=1)
-        a.add_line(modelsourceline)
-        a.autoscale_view(tight=True)
-
-    def plot2(self):
-        """Plot all spatially modelled chans in self, and all temporally modelled chans, and the raw data each is modelling"""
-        t, tp, sp = self.t, self.tp, self.sp
-        z = 0
-        f = figure()
-        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
-        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
-        a.set_axis_off() # turn off the x and y axis
-        f.set_facecolor('black')
-        f.set_edgecolor('black')
-        uV2um = 100 / 100 # um/uV
-        us2um = 55 / 1000 # um/us
-        xmin, xmax = min(self.x), max(self.x)
-        ymin, ymax = min(self.y), max(self.y)
-        xrange = xmax - xmin
-        yrange = ymax - ymin
-        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
-        for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
-            t_ = (t-t[0])*us2um + x # in um
-            V_ = V*uV2um + (ymax-y) # in um
-            tmodelV_ = self.tmodelV[chanii] * uV2um + (ymax-y) # use stored time series, switch to bottom origin
-            smodelV_ = self.smodel(sp, x, y, z).ravel() * uV2um + (ymax-y) # switch to bottom origin
-            rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1) # switch to bottom origin
-            tmodelline = mpl.lines.Line2D(t_, tmodelV_, color='red', ls='-', linewidth=1)
-            smodelline = mpl.lines.Line2D(t_, smodelV_, color='cyan', ls='--', linewidth=1)
-            a.add_line(rawline)
-            a.add_line(tmodelline)
-            a.add_line(smodelline)
-        x0, y0, z0 = sp[0], sp[1], sp[2]
-        t_ = (t-t[0])*us2um + x0
-        modelsourceV_ = self.smodel(sp, x0, y0, z0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
-        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
-        a.add_line(modelsourceline)
-        a.autoscale_view(tight=True)
-
-
     '''
     def calc(self, t, x, y, z, V):
         self.t = t
@@ -182,13 +231,12 @@ class LeastSquares(object):
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
-    def scalc(self, x, y, z, V):
+    def scalc(self, x, y, V):
         """Calculate least squares of spatial model"""
         self.x = x
         self.y = y
-        self.z = z
-        #self.V = V
-        result = leastsq(self.scost, self.sp0, args=(x, y, z, V),
+        #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
+        result = leastsq(self.scost, self.sp0, args=(x, y, V),
                          Dfun=None, full_output=False, col_deriv=False,
                          ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
                          diag=None)
@@ -197,85 +245,41 @@ class LeastSquares(object):
         self.mesg = self.errors[self.ier]
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-    '''
-    def cost(self, p, t, x, y, z, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y, z) - V)
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        self.errs.append(np.abs(error).sum())
-        return error
-    '''
-    def tcost(self, tp, t, V):
-        """Distance of each point in temporal model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.tmodel(tp, t) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
 
-    def scost(self, sp, x, y, z, V):
-        """Distance of each point in spatial model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.smodel(sp, x, y, z) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
-    '''
-    def model(self, p, t, x, y, z):
-        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
-        For each channel, returns a vector of voltage values v of same length as t.
-        x and y are vectors of coordinates of each channel's spatial location.
-        Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        #return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
-        #                p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
-        # fixed phase amplitudes, although the true source amplitude could be greater in between channels,
-        # I guess I could make the coefficient of g2 a parameter that could be something other than 1
-        #return np.outer(p[6]*g2(p[4], p[5], p[7]*np.cos(p[8]), p[7]*np.sin(p[8]), x, y),
-        #                self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
-        mu1, sigma1, mu2, sigma2 = p[0], p[1], p[2], p[3]
-        x0, y0, z0, sx, sy = p[4], p[5], p[6], p[7], p[8]
-        return np.outer(g3(x0, y0, z0, sx, sy, sx, x, y, z), # sz=sx
-                        self.phase1V*g(mu1, sigma1, t) + self.phase2V*g(mu2, sigma2, t))
-    '''
-    def tmodel(self, tp, t):
-        """Sum of two Gaussians in time.
-        Returns a matrix of voltage values v of same length as t.
-        Chans in rows, time in columns.
-        Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        nchans = int((len(tp) - 4) / 2) # 4 non phaseV temporal params, could be just one chan
-        phase1Vs = tp[0:nchans]
-        phase2Vs = tp[nchans:2*nchans]
-        i = 2*nchans
-        mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
-        return np.outer(phase1Vs, g(mu1, sigma1, t)) + np.outer(phase2Vs, g(mu2, sigma2, t))
 
-    def smodel(self, sp, x, y, z):
-        """Spatially modulates the max chan in the time series in self.tmodelV.
-        x, y, and z correspond to coordinates of chans to model.
-        Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        tmodelVmaxchan = self.tmodelV[self.maxchanii]
-        x0, y0, z0, sx, sy = sp[0], sp[1], sp[2], sp[3], sp[4]
-        s = g3(x0, y0, z0, sx, sy, sx, x, y, z) # sz=sx
-        s = s.reshape((-1, 1)) # make it a column vector by giving it a singleton column dimension
-        # return product of the spatial Gaussian model vector and the max chan in tmodelV
-        return s * tmodelVmaxchan
-    '''
-    def dcost(self, p, t, x, y, V):
-        """Derivative of cost function wrt each parameter, returns Jacobian"""
-        # these all have the same length as t
-        dfdp0 = np.ravel(np.outer(g2(p[6], p[7], p[8], p[8], x, y), g(p[1], p[2], t)))
-        dfdp1 = p[0]*dgdmu(p[1], p[2], t)
-        dfdp2 = p[0]*dgdsigma(p[1], p[2], t)
-        dfdp3 = g(p[4], p[5], t)
-        dfdp4 = p[3]*dgdmu(p[4], p[5], t)
-        dfdp5 = p[3]*dgdsigma(p[4], p[5], t)
-        dfdp6
-        dfdp7
-        dfdp8
-        return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
-    '''
+class SLSQP(SpikeModel):
+    """Sequential Least SQuares Programming with constraints"""
+
+    def tcalc(self, t, V):
+        """Calculate least squares of temporal model"""
+        self.t = t
+        self.V = V
+        i = 2*self.nchans
+        """self.dmurange[0] <= dmu <= self.dmurange[1]"""
+
+        ieqcon0 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[0] # constrain to be >= 0
+        ieqcon1 = lambda tp, t, V: self.dmurange[1] - abs(tp[i] - tp[i+2]) # constrain to be >= 0
+        result = fmin_slsqp(self.tcost, self.tp0, args=(t, V),
+                            bounds=[],
+                            eqcons=[],
+                            ieqcons=[ieqcon0, ieqcon1],
+                            )
+        self.tp, tmodelV, self.niters, self.ier, self.mesg = result
+        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+
+    def scalc(self, x, y, V):
+        """Calculate least squares of spatial model"""
+        self.x = x
+        self.y = y
+        #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
+        result = fmin_slsqp(self.scost, self.sp0, args=(x, y, V),
+                            bounds=[],
+                            eqcons=[],
+                            ieqcons=[],
+                            )
+        self.tp, smodelV, self.niters, self.ier, self.mesg = result
+        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+
 
 class Detector(object):
     """Event detector base class"""
@@ -320,7 +324,7 @@ class Detector(object):
         self.tlock = tlock or self.DEFTLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
-        self.ls = {} # dict of LeastSquares model objects, indexed by their modelled spike time
+        self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
 
     def search(self):
         """Search for events. Divides large searches into more manageable
@@ -420,7 +424,6 @@ class Detector(object):
         lockouti = np.zeros(self.stream.nchans, dtype=np.int64) # holds time indices until which each channel is locked out
 
         spikes = [] # list of spikes detected
-        #ls = LeastSquares()
         for ti, chani in events: # for all threshold crossing events
             print
             print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], wave.chans[chani])
@@ -481,25 +484,26 @@ class Detector(object):
                   50, # z0 (um)
                   60, 60] # sx==sz, sy (um)
             '''
-            ls = LeastSquares()
+            #sm = LeastSquares() # spike model
+            sm = SLSQP() # spike model
             '''
-            ls.phase1V = phase1V # fixed
-            ls.phase2V = phase2V # fixed
-            ls.p0 = p0
+            sm.phase1V = phase1V # fixed
+            sm.phase2V = phase2V # fixed
+            sm.p0 = p0
             '''
             # find all the chans within slock of chani, exclude locked-out channels
             # TODO: exclude grounded channels, or maybe those should just be deselected in the GUI?
             chanis, = np.where(dmi[chani] <= self.slock)
             chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ])
-            ls.maxchani = chani
-            ls.chanis = chanis
-            ls.nchans = len(chanis)
-            ls.maxchanii, = np.where(ls.chanis == ls.maxchani)
+            sm.maxchani = chani
+            sm.chanis = chanis
+            sm.nchans = len(chanis)
+            sm.maxchanii, = np.where(sm.chanis == sm.maxchani)
+            sm.dmurange = (0, 500)
             print 'leastsq got chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
             y = SiteLoc[chanis, 1]
-            z = np.tile(0, ls.nchans)
             V = wave.data[chanis, ti0:tiend]
 
             phase1Vs = wave.data[chanis, ti0:tiend][:, phase1ti] # all the rows (chans), just one column
@@ -509,25 +513,24 @@ class Detector(object):
             tp0 = np.concatenate((phase1Vs, phase2Vs, tp0), axis=None) # all but last 4 are phaseVs
             sp0 = [self.stream.probe.SiteLoc[chan][0], # x0 (um)
                    self.stream.probe.SiteLoc[chan][1], # y0 (um)
-                   50, # z0 (um)
-                   60, 60] # sx==sz, sy (um)
-            ls.tp0 = tp0
-            ls.sp0 = sp0
+                   60, 60] # sx, sy (um)
+            sm.tp0 = tp0
+            sm.sp0 = sp0
 
-            ls.tcalc(t, V) # calculate least squares temporal parameters fit
-            print 'tp0 = %r' % intround(ls.tp0)
-            print 'tp = %r' % intround(ls.tp)
-            ls.tmodelV = ls.tmodel(ls.tp, t) # get the temporally modelled signals for the required chans
-            ls.scalc(x, y, z, ls.tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
-            print 'sp0 = %r' % intround(ls.sp0)
-            print 'sp = %r' % intround(ls.sp)
+            sm.tcalc(t, V) # calculate least squares temporal parameters fit
+            print 'tp0 = %r' % intround(sm.tp0)
+            print 'tp = %r' % intround(sm.tp)
+            sm.tmodelV = sm.tmodel(sm.tp, t) # get the temporally modelled signals for the required chans
+            sm.scalc(x, y, sm.tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
+            print 'sp0 = %r' % intround(sm.sp0)
+            print 'sp = %r' % intround(sm.sp)
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
             f'n instead of just the parameters of the constituent Gaussians that make it up
             """
-            x, y, z = ls.sp[0], ls.sp[1], ls.sp[2] # single coord this time instead of a set of them
-            modelV = ls.smodel(ls.sp, x, y, z).ravel()
+            x, y = sm.sp[0], sm.sp[1] # single coord this time instead of a set of them
+            modelV = sm.smodel(sm.sp, x, y).ravel()
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
@@ -540,7 +543,7 @@ class Detector(object):
             bigphase = max(absphaseV)
             smallphase = min(absphaseV)
 
-            self.ls[phase1t] = ls # save the LeastSquares object for later inspection
+            self.sm[phase1t] = sm # save the LeastSquares object for later inspection
 
             # check params to see if event qualifies as spike
             try:
@@ -559,10 +562,9 @@ class Detector(object):
                 print message
                 continue
             # it's a spike, record it
-            #spike = (phase1t, x, y) # (time, x, y) tuples
-            spike = (phase1t, x, y, z) # (time, x, y, z) tuples
+            spike = (phase1t, x, y) # (time, x, y) tuples
             spikes.append(spike)
-            ls.spiket = phase1t
+            sm.spiket = phase1t
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
