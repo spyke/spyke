@@ -15,7 +15,9 @@ import threadpool
 import wx
 
 import numpy as np
-from scipy.optimize import leastsq, fmin_slsqp
+#from scipy.optimize import leastsq, fmin_slsqp
+#import openopt
+import nmpfit
 
 from pylab import *
 
@@ -248,7 +250,12 @@ class LeastSquares(SpikeModel):
 
 
 class SLSQP(SpikeModel):
-    """Sequential Least SQuares Programming with constraints"""
+    """Sequential Least SQuares Programming with constraints.
+    Oops, I'm dumb. SLSQP is a scalar nonlinear problem (NLP) solver.
+    I need a nonlinear systems problem (NLSP),
+    or a least squares nonlinear systems problem (LSNLSP) solver,
+    aka a least squares problem (LSP) solver.
+    """
 
     def tcalc(self, t, V):
         """Calculate least squares of temporal model"""
@@ -259,6 +266,7 @@ class SLSQP(SpikeModel):
 
         ieqcon0 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[0] # constrain to be >= 0
         ieqcon1 = lambda tp, t, V: self.dmurange[1] - abs(tp[i] - tp[i+2]) # constrain to be >= 0
+        # doesn't work, cuz self.tcost returns a vector, and slsqp expects a scalar:
         result = fmin_slsqp(self.tcost, self.tp0, args=(t, V),
                             bounds=[],
                             eqcons=[],
@@ -279,6 +287,59 @@ class SLSQP(SpikeModel):
                             )
         self.tp, smodelV, self.niters, self.ier, self.mesg = result
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+
+
+class NLLSP(SpikeModel):
+    """Nonlinear least squares problem solver from openopt. This one can handle constraints.
+    Code doesn't run if it isn't passed a Jacobian in p.df"""
+    def tcalc(self, t, V):
+        """Calculate least squares of temporal model"""
+        self.t = t
+        self.V = V
+        i = 2*self.nchans
+        """self.dmurange[0] <= dmu <= self.dmurange[1]"""
+        c0 = lambda tp, t, V: self.dmurange[0] - abs(tp[i] - tp[i+2]) # <= 0 constraint
+        c1 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[1] # <= 0 constraint
+        p = openopt.NLLSP(self.tcost, self.tp0, args=(t, V))
+        p.c = [c0, c1] # constraints
+        #p.df =
+        p.solve('nlp:ralg')
+
+    def scalc(self, x, y, V):
+        """Calculate least squares of spatial model"""
+        self.x = x
+        self.y = y
+        #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
+        result = fmin_slsqp(self.scost, self.sp0, args=(x, y, V),
+                            bounds=[],
+                            eqcons=[],
+                            ieqcons=[],
+                            )
+        self.tp, smodelV, self.niters, self.ier, self.mesg = result
+        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+
+
+class NMPFit(SpikeModel):
+    """Levenberg-Marquadt least-squares with nmpfit from NASA's STSCI Python pytools package.
+    This one can handle constraints."""
+    def tcalc(self, t, V):
+        """Calculate least squares of temporal model"""
+        self.t = t
+        self.V = V
+        i = 2*self.nchans
+        """self.dmurange[0] <= dmu <= self.dmurange[1]"""
+        p = nmpfit.mpfit(self.tcost, self.tp0, functkw={'t':t, 'V':V},
+                         parinfo=None, fastnorm=1)
+        self.tp = p.params
+
+    def tcost(self, tp, fjac=None, t=None, V=None):
+        """Distance of each point in temporal model to the target.
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.tmodel(tp, t) - V)
+        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        status = 0
+        return [status, error]
 
 
 class Detector(object):
@@ -485,7 +546,7 @@ class Detector(object):
                   60, 60] # sx==sz, sy (um)
             '''
             #sm = LeastSquares() # spike model
-            sm = SLSQP() # spike model
+            sm = NMPFit() # spike model
             '''
             sm.phase1V = phase1V # fixed
             sm.phase2V = phase2V # fixed
