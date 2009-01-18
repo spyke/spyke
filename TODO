@@ -101,9 +101,9 @@ EVENT DETECTION:
         - better way of dealing with backprop rather than just taking the peak amplitudes, is to leave it full waveform and add an AP velocity parameter (um/us)
             - could assume that propogation delay is up (or along the user-supplied theta), or could have two different delays, one in the x and one in the y direction (probably unnecessary). Either way, the current spike time at the x, y coords of the spatial model would be the 0-point time reference
 
-        - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list.
-
         - interpolating to 100 kHz would double the number of data points the model could work with - this might make it perform better?
+
+        - should probably initialize model (x0, y0) to weighted spatial mean of chans, instead of just the maxchan coords - this would also help to reduce singularity/differentiability problems with 1/r model
 
     - could speed things up by only interpolating say each 1ms of data following an initial threshold crossing, maybe interpolate to 100 kHz while we're at it, and leave everything else at 25 kHz without any S+H correction - you don't really need interpolation or S+H correction for the initial threshold detection, I think...
 
@@ -458,3 +458,6 @@ DONE:
     - shorter
     - corresponds better to .sort file
     - corresponds better with Sort level (proposed renaming of Rip) in neuropy object hierarchy
+
+SPIKE MODELLING:
+        - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints

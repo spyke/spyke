@@ -52,8 +52,42 @@ class RandomWaveTranges(object):
 class SpikeModel(object):
     """A model for fitting two voltage Gaussians to spike phases,
     plus a 2D spatial gaussian to model decay across channels"""
+    def __init__(self):
+        self.errs = []
 
     def plot(self):
+        """Plot modelled and raw data for all chans,
+        plus the single spatially positioned source time series"""
+        t, p = self.t, self.p
+        f = figure()
+        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
+        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        a.set_axis_off() # turn off the x and y axis
+        f.set_facecolor('black')
+        f.set_edgecolor('black')
+        uV2um = 100 / 100 # um/uV
+        us2um = 55 / 1000 # um/us
+        xmin, xmax = min(self.x), max(self.x)
+        ymin, ymax = min(self.y), max(self.y)
+        xrange = xmax - xmin
+        yrange = ymax - ymin
+        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
+        for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
+            t_ = (t-t[0])*us2um + x # in um
+            V_ = V*uV2um + (ymax-y) # in um, switch to bottom origin
+            modelV_ = self.model(p, t, x, y).ravel() * uV2um + (ymax-y) # switch to bottom origin
+            rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1)
+            modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
+            a.add_line(rawline)
+            a.add_line(modelline)
+        x0, y0 = p[6], p[7]
+        t_ = (t-t[0])*us2um + x0
+        modelsourceV_ = self.model(p, t, x0, y0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
+        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
+        a.add_line(modelsourceline)
+        a.autoscale_view(tight=True)
+    '''
+    def plot_indep_spatiotemporal(self):
         """Plot all all temporally modelled chans, all spatially modelled chans,
         and the raw data each is modelling, plus the single spatially positioned source time series"""
         t, tp, sp = self.t, self.tp, self.sp
@@ -88,13 +122,13 @@ class SpikeModel(object):
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True)
     '''
-    def cost(self, p, t, x, y, z, V):
+    def cost(self, p, t, x, y, V):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y, z) - V)
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        error = np.ravel(self.model(p, t, x, y) - V)
         self.errs.append(np.abs(error).sum())
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
     '''
     def tcost(self, tp, t, V):
@@ -113,7 +147,7 @@ class SpikeModel(object):
         #sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
     '''
-    def model(self, p, t, x, y, z):
+    def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, returns a vector of voltage values v of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
@@ -121,13 +155,11 @@ class SpikeModel(object):
         #return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
         #                p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
         # fixed phase amplitudes, although the true source amplitude could be greater in between channels,
-        # I guess I could make the coefficient of g2 a parameter that could be something other than 1
         #return np.outer(p[6]*g2(p[4], p[5], p[7]*np.cos(p[8]), p[7]*np.sin(p[8]), x, y),
         #                self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
-        mu1, sigma1, mu2, sigma2 = p[0], p[1], p[2], p[3]
-        x0, y0, z0, sx, sy = p[4], p[5], p[6], p[7], p[8]
-        return np.outer(g3(x0, y0, z0, sx, sy, sx, x, y, z), # sz=sx
-                        self.phase1V*g(mu1, sigma1, t) + self.phase2V*g(mu2, sigma2, t))
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy = p
+        return np.outer(g2(x0, y0, sx, sy, x, y),
+                        phase1V*g(mu1, s1, t) + phase2V*g(mu2, s2, t))
     '''
     def tmodel(self, tp, t):
         """Sum of two Gaussians in time.
@@ -138,8 +170,8 @@ class SpikeModel(object):
         phase1Vs = tp[0:nchans]
         phase2Vs = tp[nchans:2*nchans]
         i = 2*nchans
-        mu1, sigma1, mu2, sigma2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
-        return np.outer(phase1Vs, g(mu1, sigma1, t)) + np.outer(phase2Vs, g(mu2, sigma2, t))
+        mu1, s1, mu2, s2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
+        return np.outer(phase1Vs, g(mu1, s1, t)) + np.outer(phase2Vs, g(mu2, s2, t))
 
     def smodel(self, sp, x, y):
         """Spatially modulates the max chan in the time series in self.tmodelV.
@@ -151,16 +183,16 @@ class SpikeModel(object):
         s = s.reshape((-1, 1)) # make it a column vector by giving it a singleton column dimension
         # return product of the spatial Gaussian model vector and the max chan in tmodelV
         return s * tmodelVmaxchan
-    '''
+
     def dcost(self, p, t, x, y, V):
         """Derivative of cost function wrt each parameter, returns Jacobian"""
         # these all have the same length as t
         dfdp0 = np.ravel(np.outer(g2(p[6], p[7], p[8], p[8], x, y), g(p[1], p[2], t)))
         dfdp1 = p[0]*dgdmu(p[1], p[2], t)
-        dfdp2 = p[0]*dgdsigma(p[1], p[2], t)
+        dfdp2 = p[0]*dgds(p[1], p[2], t)
         dfdp3 = g(p[4], p[5], t)
         dfdp4 = p[3]*dgdmu(p[4], p[5], t)
-        dfdp5 = p[3]*dgdsigma(p[4], p[5], t)
+        dfdp5 = p[3]*dgds(p[4], p[5], t)
         dfdp6
         dfdp7
         dfdp8
@@ -173,11 +205,11 @@ class LeastSquares(SpikeModel):
     def __init__(self):
         # initial parameter guess
         """
-        self.p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-                    50, 300, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
+        self.p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu1 (us), s1 (us)
+                    50, 300, 120, # 2nd phase: amplitude (uV), mu2 (us), s2 (us)
                     None, # x (um)
                     None, # y (um)
-                    60] # sigma_x == sigma_y (um)
+                    60] # sx == sy (um)
         self.step = [0.1, 0.1, 1,
                      0.1, 0.1, 1,
                      0.2,
@@ -201,7 +233,6 @@ class LeastSquares(SpikeModel):
                        8:"gtol=%f is too small, func(x) is orthogonal to the columns of\n  the Jacobian to machine precision." % self.gtol,
                        'unknown':"Unknown error."
                        }
-        self.errs = []
     """
     def calc(self, t, x, y, z, V):
         self.t = t
@@ -292,6 +323,29 @@ class SLSQP(SpikeModel):
 class NLLSP(SpikeModel):
     """Nonlinear least squares problem solver from openopt, uses R-algorithm.
     This one can handle constraints"""
+    def calc(self, t, x, y, V):
+        self.t = t
+        self.x = x
+        self.y = y
+        self.V = V
+        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V))
+        pr.lb[6], pr.ub[6] = -50, 50 # x
+        pr.lb[8], pr.ub[8] = 20, 200 # sx
+        pr.lb[9], pr.ub[9] = 20, 200 # sy
+        # could also say that sx and sy need to be within some fraction of each other, ie constraints on their ratio
+        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
+        maybe this contraint should be on the peak separation in the sum of Gaussians,
+        instead of just on the mu params
+        can probably remove the lower bound on the peak separation, especially if it's left at 0.
+        For improved speed, might want to stop passing unnecessary args"""
+        c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[4] - p[1]) # <= 0, lower bound
+        c1 = lambda p, t, x, y, V: abs(p[4] - p[1]) - self.dmurange[1] # <= 0, upper bound
+        # could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
+        pr.c = [c0, c1] # constraints
+        pr.solve('nlp:ralg')
+        self.pr, self.p = pr, pr.xf
+        print '%d iterations' % pr.iter
+    '''
     def tcalc(self, t, V):
         """Calculate least squares of temporal model"""
         self.t = t
@@ -323,7 +377,7 @@ class NLLSP(SpikeModel):
         p1.solve('nlp:ralg')
         self.p1, self.sp = p1, p1.xf
         print '%d iterations' % p1.iter
-
+    '''
 '''
 class NMPFit(SpikeModel):
     """Levenberg-Marquadt least-squares with nmpfit from NASA's STSCI Python pytools package.
@@ -534,29 +588,10 @@ class Detector(object):
             except AssertionError, message: # doesn't qualify as a spike
                 print message
                 continue
-            #p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: amplitude (uV), mu (us), sigma (us)
-            #      phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: amplitude (uV), mu (us), sigma (us)
-            #      self.stream.probe.SiteLoc[chan][0], # x (um)
-            #      self.stream.probe.SiteLoc[chan][1], # y (um)
-            #      60] # sigma_x == sigma_y (um)
-            #p0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
-            #      wave.ts[ti0+phase2ti], 60, # 2nd phase: mu (us), sigma (us)
-            #      self.stream.probe.SiteLoc[chan][0], # x (um)
-            #      self.stream.probe.SiteLoc[chan][1], # y (um)
-            #      1, 60, np.pi/4] # amplitude, sigma_amplitude (um), sigma_theta (radians)
-            '''
-            p0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
-                  wave.ts[ti0+phase2ti], 60, # 2nd phase: mu (us), sigma (us)
-                  #1, # 3D Gaussian amplitude
-                  self.stream.probe.SiteLoc[chan][0], # x0 (um)
-                  self.stream.probe.SiteLoc[chan][1], # y0 (um)
-                  50, # z0 (um)
-                  60, 60] # sx==sz, sy (um)
-            '''
-            # create a spike model
+            # create a SpikeModel
             #sm = LeastSquares()
-            sm = NLLSP()
             #sm = NMPFit()
+            sm = NLLSP()
             '''
             sm.phase1V = phase1V # fixed
             sm.phase2V = phase2V # fixed
@@ -571,16 +606,23 @@ class Detector(object):
             sm.nchans = len(chanis)
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani)
             sm.dmurange = dmurange
-            print 'leastsq got chanis = %r' % (chanis,)
+            print 'chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
             y = SiteLoc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
 
+            p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: phase1V (uV), mu1 (us), s1 (us)
+                  phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: phase2V (uV), mu1 (us), s2 (us)
+                  self.stream.probe.SiteLoc[chan][0], # x0 (um)
+                  self.stream.probe.SiteLoc[chan][1], # y0 (um)
+                  60, 60] # sx, sy (um)
+            sm.p0 = p0
+            '''
             phase1Vs = wave.data[chanis, ti0:tiend][:, phase1ti] # all the rows (chans), just one column
             phase2Vs = wave.data[chanis, ti0:tiend][:, phase2ti]
-            tp0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu (us), sigma (us)
-                   wave.ts[ti0+phase2ti], 60] # 2nd phase: mu (us), sigma (us)
+            tp0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu1 (us), s1 (us)
+                   wave.ts[ti0+phase2ti], 60] # 2nd phase: mu2 (us), s2 (us)
             tp0 = np.concatenate((phase1Vs, phase2Vs, tp0), axis=None) # all but last 4 are phaseVs
             sp0 = [self.stream.probe.SiteLoc[chan][0], # x0 (um)
                    self.stream.probe.SiteLoc[chan][1], # y0 (um)
@@ -588,7 +630,12 @@ class Detector(object):
                    1] # amplitude
             sm.tp0 = tp0
             sm.sp0 = sp0
-
+            '''
+            sm.calc(t, x, y, V) # calculate spatiotemporal fit
+            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy'
+            print 'p0 = %r' % list(intround(sm.p0))
+            print 'p = %r' % list(intround(sm.p))
+            '''
             sm.tcalc(t, V) # calculate least squares temporal parameters fit
             print 'tp0 = %r' % list(intround(sm.tp0))
             print 'tp = %r' % list(intround(sm.tp))
@@ -596,13 +643,18 @@ class Detector(object):
             sm.scalc(x, y, sm.tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
             print 'sp0 = %r' % (list(intround(sm.sp0[0:-1])) + [sm.sp0[-1]])
             print 'sp = %r' % (list(intround(sm.sp[0:-1])) + [sm.sp[-1]])
+            '''
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
             f'n instead of just the parameters of the constituent Gaussians that make it up
             """
-            x, y = sm.sp[0], sm.sp[1] # single coord this time instead of a set of them
-            modelV = sm.smodel(sm.sp, x, y).ravel()
+            x0, y0 = sm.p[6], sm.p[7]
+            modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
+            '''
+            x0, y0 = sm.sp[0], sm.sp[1] # single coord this time instead of a set of them
+            modelV = sm.smodel(sm.sp, x0, y0).ravel()
+            '''
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
@@ -615,7 +667,7 @@ class Detector(object):
             bigphase = max(absphaseV)
             smallphase = min(absphaseV)
 
-            self.sm[phase1t] = sm # save the LeastSquares object for later inspection
+            self.sm[phase1t] = sm # save the SpikeModel object for later inspection
             sm.spiket = phase1t
 
             # check params to see if event qualifies as spike
@@ -635,7 +687,7 @@ class Detector(object):
                 print '%s, spiket=%d' % (message, phase1t)
                 continue
             # it's a spike, record it
-            spike = (phase1t, x, y) # (time, x, y) tuples
+            spike = (phase1t, x0, y0) # (time, x0, y0) tuples
             spikes.append(spike)
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
