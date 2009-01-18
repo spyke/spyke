@@ -146,8 +146,8 @@ class SpikeModel(object):
         x and y correspond to coordinates of chans to model.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
         tmodelVmaxchan = self.tmodelV[self.maxchanii]
-        x0, y0, sx, sy = sp[0], sp[1], sp[2], sp[3]
-        s = g2(x0, y0, sx, sy, x, y)
+        x0, y0, sx, sy, A = sp[0], sp[1], sp[2], sp[3], sp[4]
+        s = A * g2(x0, y0, sx, sy, x, y)
         s = s.reshape((-1, 1)) # make it a column vector by giving it a singleton column dimension
         # return product of the spatial Gaussian model vector and the max chan in tmodelV
         return s * tmodelVmaxchan
@@ -322,6 +322,7 @@ class NLLSP(SpikeModel):
         # another possible constraint would be that sx and sy need to be within some fraction of each other, ie constraints on their ratio
         p1.solve('nlp:ralg')
         self.p1, self.sp = p1, p1.xf
+        print '%d iterations' % p1.iter
 
 '''
 class NMPFit(SpikeModel):
@@ -583,17 +584,18 @@ class Detector(object):
             tp0 = np.concatenate((phase1Vs, phase2Vs, tp0), axis=None) # all but last 4 are phaseVs
             sp0 = [self.stream.probe.SiteLoc[chan][0], # x0 (um)
                    self.stream.probe.SiteLoc[chan][1], # y0 (um)
-                   60, 60] # sx, sy (um)
+                   60, 60, # sx, sy (um)
+                   1] # amplitude
             sm.tp0 = tp0
             sm.sp0 = sp0
 
             sm.tcalc(t, V) # calculate least squares temporal parameters fit
-            print 'tp0 = %r' % intround(sm.tp0)
-            print 'tp = %r' % intround(sm.tp)
+            print 'tp0 = %r' % list(intround(sm.tp0))
+            print 'tp = %r' % list(intround(sm.tp))
             sm.tmodelV = sm.tmodel(sm.tp, t) # get the temporally modelled signals for the required chans
             sm.scalc(x, y, sm.tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
-            print 'sp0 = %r' % intround(sm.sp0)
-            print 'sp = %r' % intround(sm.sp)
+            print 'sp0 = %r' % (list(intround(sm.sp0[0:-1])) + [sm.sp0[-1]])
+            print 'sp = %r' % (list(intround(sm.sp[0:-1])) + [sm.sp[-1]])
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
