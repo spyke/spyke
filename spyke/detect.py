@@ -16,8 +16,8 @@ import wx
 
 import numpy as np
 #from scipy.optimize import leastsq, fmin_slsqp
-#import openopt
-import nmpfit
+import openopt
+#import nmpfit
 
 from pylab import *
 
@@ -37,9 +37,9 @@ class RandomWaveTranges(object):
         self.ntranges = 0
 
     def next(self):
-        # random int within trange
         if self.maxntranges != None and self.ntranges >= self.maxntranges:
             raise StopIteration
+        # random int within trange
         t0 = np.random.randint(low=self.trange[0], high=self.trange[1])
         tend = t0 + self.bs
         self.ntranges += 1
@@ -102,7 +102,7 @@ class SpikeModel(object):
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
         error = np.ravel(self.tmodel(tp, t) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
 
     def scost(self, sp, x, y, V):
@@ -110,7 +110,7 @@ class SpikeModel(object):
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
         error = np.ravel(self.smodel(sp, x, y) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
     '''
     def model(self, p, t, x, y, z):
@@ -166,13 +166,13 @@ class SpikeModel(object):
         dfdp8
         return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
     '''
-
+'''
 class LeastSquares(SpikeModel):
     """Least squares Levenberg-Marquardt fit of two voltage Gaussians
     to spike phases, plus a 2D spatial gaussian to model decay across channels"""
     def __init__(self):
         # initial parameter guess
-        '''
+        """
         self.p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu (us), sigma (us)
                     50, 300, 120, # 2nd phase: amplitude (uV), mu (us), sigma (us)
                     None, # x (um)
@@ -183,7 +183,7 @@ class LeastSquares(SpikeModel):
                      0.2,
                      0.2,
                      0.1]
-        '''
+        """
         self.ftol = 1.49012e-8 # Relative error desired in the sum of squares
         self.xtol = 1.49012e-8 # Relative error desired in the approximate solution
         self.gtol = 0.0 # Orthogonality desired between the function vector and the columns of the Jacobian
@@ -202,7 +202,7 @@ class LeastSquares(SpikeModel):
                        'unknown':"Unknown error."
                        }
         self.errs = []
-    '''
+    """
     def calc(self, t, x, y, z, V):
         self.t = t
         self.x = x
@@ -218,7 +218,7 @@ class LeastSquares(SpikeModel):
         self.mesg = self.errors[self.ier]
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-    '''
+    """
     def tcalc(self, t, V):
         """Calculate least squares of temporal model"""
         self.t = t
@@ -285,40 +285,45 @@ class SLSQP(SpikeModel):
                             eqcons=[],
                             ieqcons=[],
                             )
-        self.tp, smodelV, self.niters, self.ier, self.mesg = result
+        self.sp, smodelV, self.niters, self.ier, self.mesg = result
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-
+'''
 
 class NLLSP(SpikeModel):
-    """Nonlinear least squares problem solver from openopt. This one can handle constraints.
-    Code doesn't run if it isn't passed a Jacobian in p.df"""
+    """Nonlinear least squares problem solver from openopt, uses R-algorithm.
+    This one can handle constraints"""
     def tcalc(self, t, V):
         """Calculate least squares of temporal model"""
         self.t = t
         self.V = V
         i = 2*self.nchans
-        """self.dmurange[0] <= dmu <= self.dmurange[1]"""
-        c0 = lambda tp, t, V: self.dmurange[0] - abs(tp[i] - tp[i+2]) # <= 0 constraint
-        c1 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[1] # <= 0 constraint
-        p = openopt.NLLSP(self.tcost, self.tp0, args=(t, V))
-        p.c = [c0, c1] # constraints
-        #p.df =
-        p.solve('nlp:ralg')
+        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
+        maybe this contraint should be on the peak separation in the sum of Gaussians,
+        instead of just on the mu params
+        can probably remove the lower bound on the peak separation, especially if it's left at 0"""
+        c0 = lambda tp, t, V: self.dmurange[0] - abs(tp[i] - tp[i+2]) # <= 0, lower bound
+        c1 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[1] # <= 0, upper bound
+        p0 = openopt.NLLSP(self.tcost, self.tp0, args=(t, V), iprint=10)
+        # could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
+        p0.c = [c0, c1] # constraints
+        p0.solve('nlp:ralg')
+        self.p0, self.tp = p0, p0.xf
+        print '%d iterations' % p0.iter
 
     def scalc(self, x, y, V):
         """Calculate least squares of spatial model"""
         self.x = x
         self.y = y
         #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
-        result = fmin_slsqp(self.scost, self.sp0, args=(x, y, V),
-                            bounds=[],
-                            eqcons=[],
-                            ieqcons=[],
-                            )
-        self.tp, smodelV, self.niters, self.ier, self.mesg = result
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+        p1 = openopt.NLLSP(self.scost, self.sp0, args=(x, y, V), iprint=10)
+        p1.lb[0], p1.ub[0] = -50, 50 # x
+        p1.lb[2], p1.ub[2] = 20, 200 # sx
+        p1.lb[3], p1.ub[3] = 20, 200 # sy
+        # another possible constraint would be that sx and sy need to be within some fraction of each other, ie constraints on their ratio
+        p1.solve('nlp:ralg')
+        self.p1, self.sp = p1, p1.xf
 
-
+'''
 class NMPFit(SpikeModel):
     """Levenberg-Marquadt least-squares with nmpfit from NASA's STSCI Python pytools package.
     This one can handle constraints."""
@@ -330,7 +335,9 @@ class NMPFit(SpikeModel):
         """self.dmurange[0] <= dmu <= self.dmurange[1]"""
         p = nmpfit.mpfit(self.tcost, self.tp0, functkw={'t':t, 'V':V},
                          parinfo=None, fastnorm=1)
+        print 'dont forget to try messing with fastnorm!'
         self.tp = p.params
+        print 'output params seem to be unchanged wrt input params'
 
     def tcost(self, tp, fjac=None, t=None, V=None):
         """Distance of each point in temporal model to the target.
@@ -340,7 +347,7 @@ class NMPFit(SpikeModel):
         sys.stdout.write('%.1f, ' % np.abs(error).sum())
         status = 0
         return [status, error]
-
+'''
 
 class Detector(object):
     """Event detector base class"""
@@ -545,8 +552,10 @@ class Detector(object):
                   50, # z0 (um)
                   60, 60] # sx==sz, sy (um)
             '''
-            #sm = LeastSquares() # spike model
-            sm = NMPFit() # spike model
+            # create a spike model
+            #sm = LeastSquares()
+            sm = NLLSP()
+            #sm = NMPFit()
             '''
             sm.phase1V = phase1V # fixed
             sm.phase2V = phase2V # fixed
@@ -560,7 +569,7 @@ class Detector(object):
             sm.chanis = chanis
             sm.nchans = len(chanis)
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani)
-            sm.dmurange = (0, 500)
+            sm.dmurange = dmurange
             print 'leastsq got chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = SiteLoc[chanis, 0]
@@ -605,6 +614,7 @@ class Detector(object):
             smallphase = min(absphaseV)
 
             self.sm[phase1t] = sm # save the LeastSquares object for later inspection
+            sm.spiket = phase1t
 
             # check params to see if event qualifies as spike
             try:
@@ -620,12 +630,11 @@ class Detector(object):
                 #    print 'thresh event is locked out'
                 #    continue # this event is locked out, skip to next event
             except AssertionError, message: # doesn't qualify as a spike
-                print message
+                print '%s, spiket=%d' % (message, phase1t)
                 continue
             # it's a spike, record it
             spike = (phase1t, x, y) # (time, x, y) tuples
             spikes.append(spike)
-            sm.spiket = phase1t
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away

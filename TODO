@@ -93,7 +93,13 @@ EVENT DETECTION:
         - maybe I should do the full 3D modelling that Tim did, this would only require adding one extra parameter: z0. sigmaz would be the same as sigmax. Also, maybe theta should just be plugged into the model as a constant, determined by the user, and defaulting to 0
             - might also try a 3D Guassian instead of the 3D 1/r. Gaussian is smoother and well defined around 0, leastsq might be more stable with it
 
-        - could also try feeding just the peak or the peak and valley amplitudes of each channel to the spatial model, instead of all the points in the spike. The peak values might be more consistent with the spatial model, and therefore easier to fit and less likely to result in ridiculous spatial parameter outputs
+        - could also try feeding just the main peak or the two peak amplitudes of each channel to the spatial model, instead of all the points in the spike. The peak values might be more consistent with the spatial model, and therefore easier to fit and less likely to result in ridiculous spatial parameter outputs
+            - benefit: treats normal and backprop APs equally - otherwise a backprop
+            - or maybe just fit the biggest abs(peak) instead of both peak and valley, since the two sometimes give conflicting info -- one chan might be max for the first peak, another will be max for the second - see ptc15.87.28880
+            - or maybe model both peaks, but in separate runs, and use the results of both runs for clustering
+
+        - better way of dealing with backprop rather than just taking the peak amplitudes, is to leave it full waveform and add an AP velocity parameter (um/us)
+            - could assume that propogation delay is up (or along the user-supplied theta), or could have two different delays, one in the x and one in the y direction (probably unnecessary). Either way, the current spike time at the x, y coords of the spatial model would be the 0-point time reference
 
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list.
 
