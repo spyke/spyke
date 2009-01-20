@@ -158,7 +158,7 @@ class Plot(object):
             else:
                 xdata = wave.ts - tref + xpos
                 # TODO: should be using wave.chans/wave.chan2i here?????????????????
-                ydata = wave[chan]*self.panel.gain + ypos
+                ydata = (wave[chan].data*self.panel.gain + ypos).squeeze() # remove any singleton dimensions
             line.set_data(xdata, ydata) # update the line's x and y data
 
     def set_alpha(self, alpha):

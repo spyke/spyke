@@ -436,9 +436,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CreateNewSortSession(self):
         """Create a new sort session and bind it to .self"""
         self.DeleteSortSession()
-        self.sort  = Sort(detector=self.get_detector(),
-                          probe=self.hpstream.probe,
-                          stream=self.hpstream)
+        self.sort = Sort(detector=self.get_detector(),
+                         probe=self.hpstream.probe,
+                         stream=self.hpstream)
         self.EnableSortWidgets(True)
 
     def DeleteSortSession(self):
@@ -695,7 +695,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def update_detector(self, det):
         """Update detector from detect pane widget values"""
-        det.chans = self.chans_enabled # property
+        det.chans = self.chans_enabled
         if self.globalfixedthresh_radio_btn.GetValue():
             threshmethod = 'GlobalFixed'
         elif self.chanfixedthresh_radio_btn.GetValue():

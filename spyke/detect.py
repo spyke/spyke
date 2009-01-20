@@ -49,6 +49,33 @@ class RandomWaveTranges(object):
         return self
 
 
+class DistanceMatrix(object):
+    """Channel distance matrix, with rows in .data corresponding to
+    .chans and .coords"""
+    def __init__(self, SiteLoc):
+        """SiteLoc is a dictionary of (x, y) tuples, with chans as the keys. See probes.py"""
+        chans_coords = SiteLoc.items() # list of (chan, coords) tuples
+        chans_coords.sort() # sort by chan
+        self.chans = [ chan_coord[0] for chan_coord in chans_coords ] # pull out the sorted chans
+        self.coords = [ chan_coord[1] for chan_coord in chans_coords ] # pull out the coords, now in chan order
+        self.data = eucd(self.coords)
+    '''
+    # unused, therefore best left commented out:
+    def __getitem__(self, key):
+        """Make distance matrix data directly indexable by chan or chan pairs
+        (instead of chani pairs). Return the distance between the chans in key.
+        The order of the two chans in key doesn't matter, since .data is a symmetric matrix"""
+        key = toiter(key)
+        i0 = np.where(np.asarray(self.chans) == key[0]) # row index into .data of chan in key[0]
+        if len(key) == 1:
+            return self.data[i0].squeeze() # return a whole row of distances
+        elif len(key) == 2:
+            i1 = np.where(np.asarray(self.chans) == key[1]) # column index into .data of chan in key[1]
+            return self.data[i0, i1] # return single distance value between the two specified chans
+        else:
+            raise ValueError, 'key must specify 1 or 2 chans'
+    '''
+
 class SpikeModel(object):
     """A model for fitting two voltage Gaussians to spike phases,
     plus a 2D spatial gaussian to model decay across channels"""
@@ -432,8 +459,8 @@ class Detector(object):
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.stream = stream
         self.chans = chans or range(self.stream.nchans) # None means search all channels
-        self.nchans = len(self.chans)
-        self.dm = self.get_full_chan_distance_matrix() # channel distance matrix, identical for all Detectors on the same probe
+        #self.nchans = len(self.chans) # rather not bind this to self, cuz len(chans) can change between search() calls
+        #self.fdm = DistanceMatrix(self.stream.probe.SiteLoc) # full channel distance matrix, ignores enabled self.chans, identical for all Detectors on the same probe
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
@@ -458,6 +485,11 @@ class Detector(object):
         since we can't say when an interrupted rising or falling edge would've reached peak
         """
         t0 = time.clock()
+
+        self.enabledSiteLoc = {}
+        for chan in self.chans: # for all enabled chans
+            self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
+        self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
 
         self.thresh = self.get_thresh() # this could probably go in __init__ without problems
         print '.get_thresh() took %.3f sec' % (time.clock()-t0)
@@ -513,8 +545,8 @@ class Detector(object):
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
         #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
         wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
-        # TODO: pull out just the enabled channels here: wave = wave[enabledchanis]
-        dmi = self.dm[wave.chans][:, wave.chans] # channel distance matrix indexed into by chani instead of chan
+        wave = wave[self.chans] # get a WaveForm with just the enabled chans
+        nchans = len(self.chans) # number of enabled chans
         if self.randomsample:
             maxnevents = 1 # how many more we're looking for in the next block
         else:
@@ -526,45 +558,47 @@ class Detector(object):
         dmurange = (0, 500) # time difference between means of spike phase Gaussians, us
         tw = (-250, 750) # spike time window range, us, centered on threshold crossing, maybe this should be a dynamic param, customized for each thresh crossing event, maybe based on mean (or median?) signal around the event
         trangei = intround(tw / self.stream.tres) # spike time window range in number of timepoints
-        # self.stream.probe.SiteLoc is dict of chan:tuple
         # want a nchan*2 array of [chani, x/ycoord]
-        xycoords = [ self.stream.probe.SiteLoc[chan] for chan in self.stream.chans ]
+        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        SiteLoc = np.asarray([xcoords, ycoords]).T # [chani, x/ycoord]
+        siteloc = np.asarray([xcoords, ycoords]).T # [chani, (x, y)]
 
-        # this should hopefully release the GIL
-        # would be nice to use some multichannel thresholding, instead of just single independent channel
-            # - e.g. obvious but small multichan spike at t=23340 on chan 41 in file ptc15/87
-            # - hyperellipsoidal?
-            # - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as an event
-            # - or slide some filter across the data that not only checks for thresh, but ppthresh as well
+        '''
+        TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
+            - e.g. obvious but small multichan spike at ptc15.87.23340
+            - hyperellipsoidal?
+            - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as an event
+            - or slide some filter across the data that not only checks for thresh, but ppthresh as well
+        '''
+        # this should hopefully release the GIL, although this step is ridiculously fast:
         edges = np.diff(np.int8(abs(wave.data) >= thresh)) # indices where increasing or decreasing abs(signal) has crossed thresh
         events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
         # TODO: filter events somehow in chan space using slock, so that you don't get more than one chan to test for a given event, even if it exceeds thresh on multiple chans - this will speed up the loop below by reducing unnecessary fitting runs
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
 
-        lockouti = np.zeros(self.stream.nchans, dtype=np.int64) # holds time indices until which each channel is locked out
+        lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
 
         spikes = [] # list of spikes detected
-        for ti, chani in events: # for all threshold crossing events
+        # threshold crossing event loop: events gives us indices into time and chans
+        for ti, chani in events:
             print
-            print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], wave.chans[chani])
-            if ti <= lockouti[chani]: # is this thresh crossing timepoint locked out?
+            print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani])
+            if ti <= lockout[chani]: # is this thresh crossing timepoint locked out?
                 print 'thresh event is locked out'
                 continue # this event is locked out, skip to next event
-            chan = wave.chans[chani]
+            chan = self.chans[chani]
             # compute short interval within time window of threshold crossing
-            ti0 = max(ti+trangei[0], lockouti[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
+            ti0 = max(ti+trangei[0], lockout[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
             tiend = ti+trangei[1]
             window = wave.data[chani, ti0:tiend]
             #absmaxti = abs(window).argmax() # timepoint index of absolute maximum in window, relative to ti0
             #print 'original chan=%d has max %.1f' % (chan, window[absmaxti])
             # search for maxchan within slock at absmaxti
             #chanis, = np.where(dmi[chani] <= self.slock)
-            #chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ]) # include only non-locked out channels in search
+            #chanis = np.asarray([ chi for chi in chanis if ti0 > lockout[chani] ]) # include only non-locked out channels in search
             #chani = chanis[ wave.data[chanis, absmaxti].argmax() ] # this is our new maxchan
-            #chan = wave.chans[chani] # update
+            #chan = self.chans[chani] # update
             #print 'new max chan=%d' % (chan)
             # find max and min within the time window, given (possibly new) maxchan
             #window = wave.data[chani, ti0:tiend]
@@ -597,25 +631,23 @@ class Detector(object):
             sm.phase2V = phase2V # fixed
             sm.p0 = p0
             '''
-            # find all the chans within slock of chani, exclude locked-out channels
-            # TODO: exclude grounded channels, or maybe those should just be deselected in the GUI?
-            chanis, = np.where(dmi[chani] <= self.slock)
-            chanis = np.asarray([ chi for chi in chanis if ti0 > lockouti[chani] ])
-            sm.maxchani = chani
-            sm.chanis = chanis
-            sm.nchans = len(chanis)
-            sm.maxchanii, = np.where(sm.chanis == sm.maxchani)
+            # find all the enabled chanis within slock of chani, exclude temporally locked-out chanis:
+            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what indices does the returned row exceed slock?
+            chanis = np.asarray([ chi for chi in chanis if ti0 > lockout[chani] ])
+            sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
+            sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
             sm.dmurange = dmurange
+            print 'chans = %r' % (np.asarray(self.chans)[chanis],)
             print 'chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
-            x = SiteLoc[chanis, 0]
-            y = SiteLoc[chanis, 1]
+            x = siteloc[chanis, 0]
+            y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
 
             p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: phase1V (uV), mu1 (us), s1 (us)
                   phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: phase2V (uV), mu1 (us), s2 (us)
-                  self.stream.probe.SiteLoc[chan][0], # x0 (um)
-                  self.stream.probe.SiteLoc[chan][1], # y0 (um)
+                  siteloc[chani, 0], # x0 (um)
+                  siteloc[chani, 1], # y0 (um)
                   60, 60] # sx, sy (um)
             sm.p0 = p0
             '''
@@ -624,8 +656,8 @@ class Detector(object):
             tp0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu1 (us), s1 (us)
                    wave.ts[ti0+phase2ti], 60] # 2nd phase: mu2 (us), s2 (us)
             tp0 = np.concatenate((phase1Vs, phase2Vs, tp0), axis=None) # all but last 4 are phaseVs
-            sp0 = [self.stream.probe.SiteLoc[chan][0], # x0 (um)
-                   self.stream.probe.SiteLoc[chan][1], # y0 (um)
+            sp0 = [siteloc[chani, 0], # x0 (um)
+                   siteloc[chani, 1], # y0 (um)
                    60, 60, # sx, sy (um)
                    1] # amplitude
             sm.tp0 = tp0
@@ -680,7 +712,7 @@ class Detector(object):
                 # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
                 # add another here to ensure modelled spike doesn't violate any existing lockout
                 #for chi in chanis:
-                #    if ti+ <= lockouti[chi]: # is this chan locked out at the modelled spike timepoint?
+                #    if ti+ <= lockout[chi]: # is this chan locked out at the modelled spike timepoint?
                 #    print 'thresh event is locked out'
                 #    continue # this event is locked out, skip to next event
             except AssertionError, message: # doesn't qualify as a spike
@@ -694,8 +726,8 @@ class Detector(object):
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
             # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
             # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
-            lockouti[chanis] = ti0 + phase2ti # lock out til peak of 2nd phase
-            print 'lockout for chanis = %r' % [ wave.ts[lockouti[chi]] for chi in chanis ]
+            lockout[chanis] = ti0 + phase2ti # lock out til peak of 2nd phase
+            print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
 
         spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
@@ -770,27 +802,16 @@ class Detector(object):
 
     stream = property(get_stream, set_stream)
 
-    def get_full_chan_distance_matrix(self):
-        """Get full channel distance matrix, in um"""
-        chans_coords = self.stream.probe.SiteLoc.items() # list of tuples
-        chans_coords.sort() # sort by chanid
-        # TODO: what if this probe is missing some channel ids, ie chans aren't consecutive in layout?
-        # That'll screw up indexing into the distance matrix, unless we insert dummy entries in the matrix
-        # for those chans missing from the layout
-        chans = [ chan_coord[0] for chan_coord in chans_coords ] # pull out the sorted chans and check them
-        assert chans == range(len(chans)), 'is probe layout channel list not consecutive starting from 0?'
-        coords = [ chan_coord[1] for chan_coord in chans_coords ] # pull out the coords, now in channel id order
-        return eucd(coords)
-
     def get_thresh(self):
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            thresh = np.ones(self.nchans, dtype=np.float32) * self.fixedthresh
+            thresh = np.ones(len(self.chans), dtype=np.float32) * self.fixedthresh
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh, calculate from start of stream
             """randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.blocksize
             NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
             will contribute more than once to the noise calculation
             This sometimes causes an 'unhandled exception' for BipolarAmplitude algorithm, don't know why
             """
+            print 'TODO: ChanFixed needs to respect enabled self.chans!'
             nblocks = intround(self.DEFFIXEDNOISEWIN / self.blocksize)
             wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
             data = []
@@ -800,7 +821,7 @@ class Detector(object):
             noise = self.get_noise(data)
             thresh = noise * self.noisemult
         elif self.threshmethod == 'Dynamic':
-            thresh = np.zeros(self.nchans, dtype=np.float32) # this will be calculated on the fly in the Cython loop
+            thresh = np.zeros(len(self.chans), dtype=np.float32) # this will be calculated on the fly in the Cython loop
         else:
             raise ValueError
         print 'thresh = %s' % thresh

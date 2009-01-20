@@ -38,30 +38,25 @@ class WaveForm(object):
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
-        Return a WaveForm if slicing"""
-        if key.__class__ == slice: # slice self in time, return a WaveForm
+        Return a new WaveForm"""
+        if key.__class__ == slice: # slice self in time
             if self.ts == None:
-                data = None
-                ts = None
+                return WaveForm() # empty WaveForm
             else:
                 lo, hi = self.ts.searchsorted([key.start, key.stop])
                 data = self.data[:, lo:hi]
                 ts = self.ts[lo:hi]
-            if np.asarray(data == self.data).all() and np.asarray(ts == self.ts).all():
-                return self # no need for a new WaveForm
-            else:
-                return WaveForm(data=data, ts=ts, chans=self.chans)
-        else: # index into self by channel id, return that channel's data, assume non contiguous chans
-            try:
-                self.chan2i # converts from chan id to data array row index
-            except AttributeError:
-                nchans = len(self.chans)
-                self.chan2i = dict(zip(self.chans, range(nchans)))
-            chans = [ self.chan2i[chan] for chan in toiter(key) ] # allow key to be list of chans
-            # TODO: should probably use .take here for speed
-            # eliminate any length 1 dimensions, ie if we're only returning one channel of data,
-            # ensure the array is only rank 1, not rank 2
-            return self.data[chans].squeeze()
+                #if np.asarray(data == self.data).all() and np.asarray(ts == self.ts).all():
+                #    return self # no need for a new WaveForm - but new WaveForms aren't expensive, only new data are
+                return WaveForm(data=data, ts=ts, chans=self.chans) # return a new WaveForm
+        else: # index into self by channel id(s)
+            key = toiter(key)
+            chans = np.asarray(self.chans)
+            i = [ int(np.where(chan == chans)[0]) for chan in key ] # list of appropriate indices into the rows of self.data
+            # TODO: should probably use .take here for speed:
+            data = self.data[i] # grab the appropriate rows of data
+            chans = key # list of channel ids corresponding to rows in data
+            return WaveForm(data=data, ts=self.ts, chans=chans) # return a new WaveForm
 
     def __len__(self):
         """Number of data points in time"""
@@ -197,7 +192,7 @@ class Stream(object):
             tstart = record.TimeStamp
             nt = record.data.shape[1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
-            del record.data # save memory by unloading waveform data from records that aren't needed anymore - note: this can cause a race condition if multithreading
+            del record.data # save memory by unloading waveform data from records that aren't needed anymore - TODO: this can cause a race condition if multithreading
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster

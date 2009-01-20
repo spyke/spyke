@@ -121,8 +121,8 @@ class Sort(object):
         for template in templates:
             template.err = [] # overwrite any existing .err attrib
             trange = template.trange
-            templatewave = template.wave[template.chans] # slice out template's enabled chans
-            #stdev = template.get_stdev()[template.chans] # slice out template's enabled chans
+            templatewave = template.wave[template.chans] # pull out template's enabled chans
+            #stdev = template.get_stdev()[template.chans] # pull out template's enabled chans
             #stdev[stdev == 0] = 1 # replace any 0s with 1s - TODO: what's the best way to avoid these singularities?
             weights = template.get_weights(weighting=weighting, sstdev=self.detector.slock/2,
                                            tstdev=self.detector.tlock/2) # Gaussian weighting in space and/or time
@@ -134,11 +134,11 @@ class Sort(object):
                     event.update_wave(trange) # this slows things down a lot, but is necessary
                 # slice template's enabled chans out of event, calculate sum of squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
-                #err = (templatewave - event.wave[template.chans]) / stdev * weights # low stdev means more sensitive to error
-                eventwave = event.wave[template.chans] # slice out template's enabled chans from event
+                #err = (templatewave.data - event.wave[template.chans].data) / stdev * weights # low stdev means more sensitive to error
+                eventwave = event.wave[template.chans] # pull out template's enabled chans from event
                 if weighting == 'signal':
-                    weights = np.abs(np.asarray([templatewave, eventwave])).max(axis=0) # take elementwise max of abs of template and event
-                err = (templatewave - eventwave) * weights # weighted error
+                    weights = np.abs(np.asarray([templatewave.data, eventwave.data])).max(axis=0) # take elementwise max of abs of template and event data
+                err = (templatewave.data - eventwave.data) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
                 template.err.append((event.id, intround(err)))
             template.err = np.asarray(template.err, dtype=np.int64)

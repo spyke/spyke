@@ -59,6 +59,15 @@ EVENT DETECTION:
 
     SPIKE MODELLING:
 
+        SHORT TERM:
+            - improve spatiotemporal lockout accuracy
+            - test if constraints are actually making any difference, or if ralg is just amazing
+            - try 1/r model again, with initial guess located at weighted spatial mean to avoid singularity at maxchani
+            - add AP velocity param(s)
+            - improve estimation of window limits
+            - search for maxchani within chanis, and recenter on it, generating new set of chanis
+            - run profiler
+
         - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
             - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
             - model parameters: overall sign (+ve sign would be say a normal initially downward going spike), overall width (up to 1.5ms say), and amplitude of each phase (phases will be forced to alternate in sign)
@@ -461,3 +470,5 @@ DONE:
 
 SPIKE MODELLING:
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
+
+            - disable grounded channels
