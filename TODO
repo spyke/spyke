@@ -60,13 +60,18 @@ EVENT DETECTION:
     SPIKE MODELLING:
 
         SHORT TERM:
+            - add AP velocity param(s) - make that inverse velocity to avoid singularity
+                - seems to be causing some x localization problems...
             - improve spatiotemporal lockout accuracy
+                - for every fit spike, check if the max fit val is a peak (ie has values on either side that are lower than it). Or, just check if the means of both phases fall within the window limits. If not, chances are good that this thresh event was triggered by a late channel that's only now crossed thresh, just outside of the spatial lockout of the actual spike, which had already been modelled. Therefore, the currently fit spike should be thrown out
+                    - maybe a better way to deal with this late channel situation is to do the AP velocity modelling - that way each modelled chan can be locked out to a different timepoint according to the modelled propogation delay
+            - improve estimation of window limits relative to threshold crossing
+            - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source, and regenerate your chanis list based on this best estimate. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking
             - test if constraints are actually making any difference, or if ralg is just amazing
-            - try 1/r model again, with initial guess located at weighted spatial mean to avoid singularity at maxchani
-            - add AP velocity param(s)
-            - improve estimation of window limits
-            - search for maxchani within chanis, and recenter on it, generating new set of chanis
+            - try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
+                - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
             - run profiler
+            - is x0 unfairly weighted according to how many chans each col has? eg, if left col has more chans, is x0 biased to the left?
 
         - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
             - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
@@ -110,6 +115,9 @@ EVENT DETECTION:
         - better way of dealing with backprop rather than just taking the peak amplitudes, is to leave it full waveform and add an AP velocity parameter (um/us)
             - could assume that propogation delay is up (or along the user-supplied theta), or could have two different delays, one in the x and one in the y direction (probably unnecessary). Either way, the current spike time at the x, y coords of the spatial model would be the 0-point time reference
 
+        - rotate probe xy axes slightly (say by 10 deg in some direction), but leave the origin at the center top of the probe - this change of coords would give each chan a unique value for both x' and y', and all chans would contribute equally to both x' and y' related parameter tuning - currently, the chans in the same col all have the same x values, and among themselves they tell you nothing about x related params (position, sigma, or velocity)
+            - Nick doesn't think this would help - besides this is redundant with providing a spatial theta for each spatial Gaussian envelope to be rotated by
+
         - interpolating to 100 kHz would double the number of data points the model could work with - this might make it perform better?
 
         - should probably initialize model (x0, y0) to weighted spatial mean of chans, instead of just the maxchan coords - this would also help to reduce singularity/differentiability problems with 1/r model
@@ -125,13 +133,13 @@ EVENT DETECTION:
 
     - doubleclick detection_list row brings up textctrl in a (modeless?) dialog with entire 2D events array for that item
 
-    - change event array returned by detector.search() to be many rows, two columns, instead of 2 cols, many rows. Would be more natural that way:
+    - change event array returned by detector.search() to be many rows, 2 cols, instead of 2 rows, many cols. Would be more natural that way:
         - printouts, no matter how long, would always have maxchan and timepoint right next to each other
         - length checking (of number of events) would only need len, which works on rows
 
     - maybe consider looking for some kind of multichannel threshold crossing instead of testing each channel separately at the start of the inner loop: if say sum or sumsquared of all chans exceeds some (potentially dynamic) threshold (say 3.5*median for each chan * number of chans), then maybe you've stumbled across some event that's hard to see on a single chan basis, but is more obvious if you squint your eyes and look across a few chans at once (see ptc15/87 @ t=102000520, chans=[30,22,31], most easily visible in chart window)
         - or maybe for each timepoint, grab triplets (or quads or something) of neighbouring channels and look at their sum, instead of the sum for all chans, but then for each timepoint you'd have to do this for all possible neighbouring triplets, which might start getting slow
-
+        - this will help find small spikes that might otherwise be missed, but fixing false negatives is less important than reducing false positives
 
 ------------------------------------
 TEMPLATES:

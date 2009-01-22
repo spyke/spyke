@@ -488,6 +488,17 @@ def toiter(x):
     else:
         return [x]
 
+def cvec(x):
+    """Return x as a column vector. x must be a scalar or a vector"""
+    x = np.asarray(x)
+    assert x.squeeze().ndim in [0, 1]
+    try:
+        nrows = len(x)
+    except TypeError: # x is scalar?
+        nrows = 1
+    x.shape = (nrows, 1)
+    return x
+
 def cut(ts, trange):
     """Returns timestamps, where tstart <= timestamps <= tend
     Copied and modified from neuropy rev 149"""
@@ -552,9 +563,9 @@ class Gaussian(object):
         """Called when self is indexed into"""
         return self(x)
 
-def g(mu, sigma, x):
+def g(x0, sx, x):
     """1-D Gaussian"""
-    return np.exp( -(x-mu)**2 / (2*sigma**2) )
+    return np.exp( -(x-x0)**2 / (2*sx**2) )
 
 def g2(x0, y0, sx, sy, x, y):
     """2-D Gaussian"""

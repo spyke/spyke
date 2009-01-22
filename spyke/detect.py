@@ -22,7 +22,7 @@ import openopt
 from pylab import *
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2
+from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2
 
 
 class RandomWaveTranges(object):
@@ -176,17 +176,28 @@ class SpikeModel(object):
     '''
     def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
-        For each channel, returns a vector of voltage values v of same length as t.
+        For each channel, return a vector of voltage values V of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        #return np.outer(g2(p[6], p[7], p[8], p[8], x, y),
-        #                p[0]*g(p[1], p[2], t) + p[3]*g(p[4], p[5], t))
-        # fixed phase amplitudes, although the true source amplitude could be greater in between channels,
-        #return np.outer(p[6]*g2(p[4], p[5], p[7]*np.cos(p[8]), p[7]*np.sin(p[8]), x, y),
-        #                self.phase1V*g(p[0], p[1], t) + self.phase2V*g(p[2], p[3], t))
-        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy = p
-        return np.outer(g2(x0, y0, sx, sy, x, y),
-                        phase1V*g(mu1, s1, t) + phase2V*g(mu2, s2, t))
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vinv1, vinv2 = p
+        # TODO: vx and vy should be in the rotated spatial coordinate space
+        #dtx = (x - x0) / vx # +ve delay rightwards
+        #dty = (y - y0) / vy # +ve delay downwards
+        #dt = dtx + dty # probably not correct technically, but conserves the sign
+        #dt = np.sqrt(dtx**2 + dty**2) # squaring would lose the sign, ie direction of delay, unfortunately
+        #np.arctan(dty / dtx)
+        d = np.sqrt((x - x0)**2 + (y - y0)**2)
+        dt1 = d * vinv1
+        dt2 = d * vinv2
+        # tile t vertically to make a 2D matrix of height nchans, so it can be broadcast across the mu+dt vectors in g()
+        try:
+            nchans = len(x)
+        except TypeError: # x is scalar?
+            nchans = 1
+        t = np.tile(t, (nchans, 1))
+        tprofile = phase1V*g(cvec(mu1+dt1), s1, t) + phase2V*g(cvec(mu2+dt2), s2, t) # 2D matrix temporal profiles, one row per chan
+        sprofile = cvec(g2(x0, y0, sx, sy, x, y)) # spatial profile column vector
+        return sprofile * tprofile
     '''
     def tmodel(self, tp, t):
         """Sum of two Gaussians in time.
@@ -474,8 +485,6 @@ class Detector(object):
         self.tlock = tlock or self.DEFTLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
-        self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
-
     def search(self):
         """Search for events. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
@@ -501,6 +510,7 @@ class Detector(object):
 
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
+        self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
         self.events = [] # list of 2D event arrays returned by .searchblockthread(), one array per block
 
         ncpus = processing.cpuCount()
@@ -648,7 +658,8 @@ class Detector(object):
                   phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: phase2V (uV), mu1 (us), s2 (us)
                   siteloc[chani, 0], # x0 (um)
                   siteloc[chani, 1], # y0 (um)
-                  60, 60] # sx, sy (um)
+                  60, 60, # sx, sy (um)
+                  0, 0] # vinv1, vinv2 (us/um, ie s/m)
             sm.p0 = p0
             '''
             phase1Vs = wave.data[chanis, ti0:tiend][:, phase1ti] # all the rows (chans), just one column
@@ -664,7 +675,7 @@ class Detector(object):
             sm.sp0 = sp0
             '''
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
-            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy'
+            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, v1, v2'
             print 'p0 = %r' % list(intround(sm.p0))
             print 'p = %r' % list(intround(sm.p))
             '''
