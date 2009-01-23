@@ -915,9 +915,9 @@ class PyShellFrame(wx.MiniFrame,
         """TODO: get my startup script to actually run on startup"""
         self.config = wx.FileConfig(localFilename=PYSHELLCFGFNAME) # get config fom file
         self.config.SetRecordDefaults(True)
-        self.startupScript = '/home/mspacek/scripts/minimal_startup.py'
+        startupScript = 'pyshell_startup'
         title = 'spyke PyShell'
-        kwargs["style"] = self.STYLE
+        kwargs['style'] = self.STYLE
         kwargs['title'] = title
 
         wx.MiniFrame.__init__(self, *args, **kwargs)
@@ -926,8 +926,8 @@ class PyShellFrame(wx.MiniFrame,
         del kwargs['title']
         self.shell = wx.py.shell.Shell(parent=self, id=-1, introText='',
                                        locals=None, InterpClass=None,
-                                       startupScript=self.startupScript,
-                                       execStartupScript=True,
+                                       #startupScript=startupScript, # doesn't seem to work
+                                       #execStartupScript=True,
                                        *args, **kwargs)
         # Override the shell so that status messages go to the status bar.
         self.shell.setStatusText = self.SetStatusText
@@ -947,7 +947,9 @@ class PyShellFrame(wx.MiniFrame,
         self.Bind(wx.EVT_ICONIZE, self.OnIconize) # maybe this should be commented out?
 
         self.shell.run('from __future__ import division')
-        self.shell.run('import numpy as np')
+        #self.shell.run('import numpy as np')
+        #self.shell.runfile(startupScript)
+        self.shell.run('from '+startupScript+' import *')
         self.shell.run('self = app.spykeframe')
         self.shell.run("sf = self.frames['sort']") # convenience
         self.shell.run('s = self.sort') # convenience

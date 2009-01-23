@@ -179,23 +179,26 @@ class SpikeModel(object):
         For each channel, return a vector of voltage values V of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vinv1, vinv2 = p
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vxinv, vyinv = p
         # TODO: vx and vy should be in the rotated spatial coordinate space
         #dtx = (x - x0) / vx # +ve delay rightwards
         #dty = (y - y0) / vy # +ve delay downwards
         #dt = dtx + dty # probably not correct technically, but conserves the sign
         #dt = np.sqrt(dtx**2 + dty**2) # squaring would lose the sign, ie direction of delay, unfortunately
         #np.arctan(dty / dtx)
-        d = np.sqrt((x - x0)**2 + (y - y0)**2)
-        dt1 = d * vinv1
-        dt2 = d * vinv2
+        #d = np.sqrt((x - x0)**2 + (y - y0)**2)
+        dtx = np.abs(x - x0) * vxinv
+        dty = np.abs(y - y0) * vyinv
+        dt = dtx + dty
+        #dt1 = d * vinv1
+        #dt2 = d * vinv2
         # tile t vertically to make a 2D matrix of height nchans, so it can be broadcast across the mu+dt vectors in g()
         try:
             nchans = len(x)
         except TypeError: # x is scalar?
             nchans = 1
         t = np.tile(t, (nchans, 1))
-        tprofile = phase1V*g(cvec(mu1+dt1), s1, t) + phase2V*g(cvec(mu2+dt2), s2, t) # 2D matrix temporal profiles, one row per chan
+        tprofile = phase1V*g(cvec(mu1+dt), s1, t) + phase2V*g(cvec(mu2+dt), s2, t) # 2D matrix temporal profiles, one row per chan
         sprofile = cvec(g2(x0, y0, sx, sy, x, y)) # spatial profile column vector
         return sprofile * tprofile
     '''
@@ -359,7 +362,7 @@ class SLSQP(SpikeModel):
 '''
 
 class NLLSP(SpikeModel):
-    """Nonlinear least squares problem solver from openopt, uses R-algorithm.
+    """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
     This one can handle constraints"""
     def calc(self, t, x, y, V):
         self.t = t
@@ -367,10 +370,12 @@ class NLLSP(SpikeModel):
         self.y = y
         self.V = V
         pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V))
-        pr.lb[6], pr.ub[6] = -50, 50 # x
+        pr.lb[6], pr.ub[6] = -50, 50 # x0
         pr.lb[8], pr.ub[8] = 20, 200 # sx
         pr.lb[9], pr.ub[9] = 20, 200 # sy
-        # could also say that sx and sy need to be within some fraction of each other, ie constraints on their ratio
+        pr.lb[10], pr.ub[10] = -2, 2 # vxinv
+        pr.lb[11], pr.ub[11] = -2, 2 # vyinv
+        # TODO: could also say that sx and sy need to be within some fraction of each other, ie constraints on their ratio
         """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
         maybe this contraint should be on the peak separation in the sum of Gaussians,
         instead of just on the mu params
@@ -378,7 +383,7 @@ class NLLSP(SpikeModel):
         For improved speed, might want to stop passing unnecessary args"""
         c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[4] - p[1]) # <= 0, lower bound
         c1 = lambda p, t, x, y, V: abs(p[4] - p[1]) - self.dmurange[1] # <= 0, upper bound
-        # could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
+        # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
         pr.c = [c0, c1] # constraints
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
@@ -659,7 +664,7 @@ class Detector(object):
                   siteloc[chani, 0], # x0 (um)
                   siteloc[chani, 1], # y0 (um)
                   60, 60, # sx, sy (um)
-                  0, 0] # vinv1, vinv2 (us/um, ie s/m)
+                  0, 0] # vxinv, vyinv (us/um, ie s/m)
             sm.p0 = p0
             '''
             phase1Vs = wave.data[chanis, ti0:tiend][:, phase1ti] # all the rows (chans), just one column
@@ -675,7 +680,7 @@ class Detector(object):
             sm.sp0 = sp0
             '''
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
-            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, v1, v2'
+            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, vxinv, vyinv'
             print 'p0 = %r' % list(intround(sm.p0))
             print 'p = %r' % list(intround(sm.p))
             '''
@@ -692,7 +697,7 @@ class Detector(object):
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
             f'n instead of just the parameters of the constituent Gaussians that make it up
             """
-            x0, y0 = sm.p[6], sm.p[7]
+            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vxinv, vyinv = p
             modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
             '''
             x0, y0 = sm.sp[0], sm.sp[1] # single coord this time instead of a set of them
@@ -713,19 +718,16 @@ class Detector(object):
             self.sm[phase1t] = sm # save the SpikeModel object for later inspection
             sm.spiket = phase1t
 
-            # check params to see if event qualifies as spike
+            # check to see if modelled spike qualifies as an actual spike
             try:
                 assert bigphase >= thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
                 assert abs(phase2V - phase1V) >= ppthresh, "model doesn't cross ppthresh"
                 assert np.sign(phase1V) == -np.sign(phase2V), 'model phases must be of opposite sign'
                 dphase = phase2t - phase1t
                 assert dmurange[0] <= dphase <= dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
-                # should probably add another here to ensure that (x, y) are reasonably close to within probe boundaries
-                # add another here to ensure modelled spike doesn't violate any existing lockout
-                #for chi in chanis:
-                #    if ti+ <= lockout[chi]: # is this chan locked out at the modelled spike timepoint?
-                #    print 'thresh event is locked out'
-                #    continue # this event is locked out, skip to next event
+                assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
+                # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
+                assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
             except AssertionError, message: # doesn't qualify as a spike
                 print '%s, spiket=%d' % (message, phase1t)
                 continue
@@ -735,9 +737,9 @@ class Detector(object):
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
-            # are locked out for a shorter time, where slock is the circularly symmetric spatial sigma
+            # are locked out for a shorter time. Use slock as the circularly symmetric spatial sigma
             # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
-            lockout[chanis] = ti0 + phase2ti # lock out til peak of 2nd phase
+            lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres) # lock out til one stdev after peak of 2nd phase, in case there's a noisy mini spike that might cause a trigger on the way down
             print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
 
         spikes = np.asarray(spikes)

@@ -55,7 +55,6 @@ class File(Record):
     def __init__(self, fname):
         Record.__init__(self)
         # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
-
         self.fname = fname
         self.fileSize = os.stat(fname)[6]
         self.f = open(fname, 'rb')

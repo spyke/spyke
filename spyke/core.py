@@ -16,6 +16,13 @@ import wx
 import numpy as np
 import scipy.signal
 
+# set some numpy options - will these hold for all modules in spyke?
+np.set_printoptions(precision=3)
+np.set_printoptions(threshold=1000)
+np.set_printoptions(edgeitems=5)
+np.set_printoptions(linewidth=150)
+np.set_printoptions(suppress=True)
+
 from spyke import probes
 
 MU = '\xb5' # greek mu symbol
