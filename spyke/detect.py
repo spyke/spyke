@@ -697,7 +697,7 @@ class Detector(object):
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
             f'n instead of just the parameters of the constituent Gaussians that make it up
             """
-            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vxinv, vyinv = p
+            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vxinv, vyinv = sm.p
             modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
             '''
             x0, y0 = sm.sp[0], sm.sp[1] # single coord this time instead of a set of them
