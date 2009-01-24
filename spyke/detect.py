@@ -89,6 +89,7 @@ class SpikeModel(object):
         f = figure()
         f.canvas.Parent.SetTitle('t=%d' % self.spiket)
         a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        self.f, self.a = f, a
         a.set_axis_off() # turn off the x and y axis
         f.set_facecolor('black')
         f.set_edgecolor('black')
@@ -113,49 +114,17 @@ class SpikeModel(object):
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True)
-        # plot vertical lines in all probe columns at self's spike time
+        # plot vertical lines in all probe columns at self's modelled 1st and 2nd spike phase times
         colxs = list(set(self.x)) # x coords of probe columns
         ylims = a.get_ylim() # y coords of vertical line
-        for colx in colxs:
-            t_ = (self.spiket-t[0])*us2um + colx # in um
-            vline = mpl.lines.Line2D([t_, t_], ylims, color='#222222', ls='-')
-            a.add_line(vline)
-    '''
-    def plot_indep_spatiotemporal(self):
-        """Plot all all temporally modelled chans, all spatially modelled chans,
-        and the raw data each is modelling, plus the single spatially positioned source time series"""
-        t, tp, sp = self.t, self.tp, self.sp
-        f = figure()
-        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
-        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
-        a.set_axis_off() # turn off the x and y axis
-        f.set_facecolor('black')
-        f.set_edgecolor('black')
-        uV2um = 100 / 100 # um/uV
-        us2um = 55 / 1000 # um/us
-        xmin, xmax = min(self.x), max(self.x)
-        ymin, ymax = min(self.y), max(self.y)
-        xrange = xmax - xmin
-        yrange = ymax - ymin
-        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
-        for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
-            t_ = (t-t[0])*us2um + x # in um
-            V_ = V*uV2um + (ymax-y) # in um
-            tmodelV_ = self.tmodelV[chanii] * uV2um + (ymax-y) # use stored time series, switch to bottom origin
-            smodelV_ = self.smodel(sp, x, y).ravel() * uV2um + (ymax-y) # switch to bottom origin
-            rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1) # switch to bottom origin
-            tmodelline = mpl.lines.Line2D(t_, tmodelV_, color='red', ls='-', linewidth=1)
-            smodelline = mpl.lines.Line2D(t_, smodelV_, color='cyan', ls='--', linewidth=1)
-            a.add_line(rawline)
-            a.add_line(tmodelline)
-            a.add_line(smodelline)
-        x0, y0 = sp[0], sp[1]
-        t_ = (t-t[0])*us2um + x0
-        modelsourceV_ = self.smodel(sp, x0, y0).ravel() * uV2um + (ymax-y0) # switch to bottom origin
-        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
-        a.add_line(modelsourceline)
-        a.autoscale_view(tight=True)
-    '''
+        for colx in colxs: # plot one vertical line per spike phase per probe column
+            t1_ = (self.phase1t-t[0])*us2um + colx # in um
+            t2_ = (self.phase2t-t[0])*us2um + colx # in um
+            vline1 = mpl.lines.Line2D([t1_, t1_], ylims, color='#004444', ls=':')
+            vline2 = mpl.lines.Line2D([t2_, t2_], ylims, color='#444400', ls=':')
+            a.add_line(vline1)
+            a.add_line(vline2)
+
     def cost(self, p, t, x, y, V):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
@@ -164,106 +133,66 @@ class SpikeModel(object):
         self.errs.append(np.abs(error).sum())
         #sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
-    '''
-    def tcost(self, tp, t, V):
-        """Distance of each point in temporal model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.tmodel(tp, t) - V)
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
 
-    def scost(self, sp, x, y, V):
-        """Distance of each point in spatial model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.smodel(sp, x, y) - V)
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
-    '''
     def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, return a vector of voltage values V of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vxinv, vyinv = p
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vinv = p
         # TODO: vx and vy should be in the rotated spatial coordinate space
-        #dtx = (x - x0) / vx # +ve delay rightwards
-        #dty = (y - y0) / vy # +ve delay downwards
-        #dt = dtx + dty # probably not correct technically, but conserves the sign
-        #dt = np.sqrt(dtx**2 + dty**2) # squaring would lose the sign, ie direction of delay, unfortunately
-        #np.arctan(dty / dtx)
-        #d = np.sqrt((x - x0)**2 + (y - y0)**2)
+        """
         dtx = np.abs(x - x0) * vxinv
         dty = np.abs(y - y0) * vyinv
         dt = dtx + dty
-        #dt1 = d * vinv1
-        #dt2 = d * vinv2
+        """
+        # TODO: if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.r87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow vinv1 and vin2 to be of opposite sign to successfully model this
+        d = np.sqrt((x - x0)**2 + (y - y0)**2)
+        dt = d * vinv
         # tile t vertically to make a 2D matrix of height nchans, so it can be broadcast across the mu+dt vectors in g()
         try:
             nchans = len(x)
         except TypeError: # x is scalar?
             nchans = 1
         t = np.tile(t, (nchans, 1))
-        tprofile = phase1V*g(cvec(mu1+dt), s1, t) + phase2V*g(cvec(mu2+dt), s2, t) # 2D matrix temporal profiles, one row per chan
+        tprofile = phase1V*g(cvec(mu1+dt), s1, t) + phase2V*g(cvec(mu2+dt), s2, t) # 2D temporal profile matrix, one row per chan
         sprofile = cvec(g2(x0, y0, sx, sy, x, y)) # spatial profile column vector
         return sprofile * tprofile
-    '''
-    def tmodel(self, tp, t):
-        """Sum of two Gaussians in time.
-        Returns a matrix of voltage values v of same length as t.
-        Chans in rows, time in columns.
-        Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        nchans = int((len(tp) - 4) / 2) # 4 non phaseV temporal params, could be just one chan
-        phase1Vs = tp[0:nchans]
-        phase2Vs = tp[nchans:2*nchans]
-        i = 2*nchans
-        mu1, s1, mu2, s2 = tp[i], tp[i+1], tp[i+2], tp[i+3]
-        return np.outer(phase1Vs, g(mu1, s1, t)) + np.outer(phase2Vs, g(mu2, s2, t))
 
-    def smodel(self, sp, x, y):
-        """Spatially modulates the max chan in the time series in self.tmodelV.
-        x and y correspond to coordinates of chans to model.
-        Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        tmodelVmaxchan = self.tmodelV[self.maxchanii]
-        x0, y0, sx, sy, A = sp[0], sp[1], sp[2], sp[3], sp[4]
-        s = A * g2(x0, y0, sx, sy, x, y)
-        s = s.reshape((-1, 1)) # make it a column vector by giving it a singleton column dimension
-        # return product of the spatial Gaussian model vector and the max chan in tmodelV
-        return s * tmodelVmaxchan
 
-    def dcost(self, p, t, x, y, V):
-        """Derivative of cost function wrt each parameter, returns Jacobian"""
-        # these all have the same length as t
-        dfdp0 = np.ravel(np.outer(g2(p[6], p[7], p[8], p[8], x, y), g(p[1], p[2], t)))
-        dfdp1 = p[0]*dgdmu(p[1], p[2], t)
-        dfdp2 = p[0]*dgds(p[1], p[2], t)
-        dfdp3 = g(p[4], p[5], t)
-        dfdp4 = p[3]*dgdmu(p[4], p[5], t)
-        dfdp5 = p[3]*dgds(p[4], p[5], t)
-        dfdp6
-        dfdp7
-        dfdp8
-        return np.asarray([dfdp0, dfdp1, dfdp2, dfdp3, dfdp4, dfdp5])
-    '''
+class NLLSP(SpikeModel):
+    """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
+    This one can handle constraints"""
+    def calc(self, t, x, y, V):
+        self.t = t
+        self.x = x
+        self.y = y
+        self.V = V
+        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V))
+        pr.lb[6], pr.ub[6] = -50, 50 # x0
+        pr.lb[8], pr.ub[8] = 20, 200 # sx
+        pr.lb[9], pr.ub[9] = 20, 200 # sy
+        pr.lb[10], pr.ub[10] = -2, 2 # vinv
+        #pr.lb[11], pr.ub[11] = -2, 2 # vyinv
+        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
+        maybe this contraint should be on the peak separation in the sum of Gaussians,
+        instead of just on the mu params
+        can probably remove the lower bound on the peak separation, especially if it's left at 0.
+        For improved speed, might want to stop passing unnecessary args"""
+        c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[4] - p[1]) # <= 0, lower bound
+        c1 = lambda p, t, x, y, V: abs(p[4] - p[1]) - self.dmurange[1] # <= 0, upper bound
+        # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
+        # TODO: could also say that sx and sy need to be within some fraction (50% ?) of each other, ie constrain their ratio
+        pr.c = [c0, c1] # constraints
+        pr.solve('nlp:ralg')
+        self.pr, self.p = pr, pr.xf
+        print '%d iterations' % pr.iter
+
 '''
 class LeastSquares(SpikeModel):
     """Least squares Levenberg-Marquardt fit of two voltage Gaussians
     to spike phases, plus a 2D spatial gaussian to model decay across channels"""
     def __init__(self):
-        # initial parameter guess
-        """
-        self.p0 = [-50, 150,  60, # 1st phase: amplitude (uV), mu1 (us), s1 (us)
-                    50, 300, 120, # 2nd phase: amplitude (uV), mu2 (us), s2 (us)
-                    None, # x (um)
-                    None, # y (um)
-                    60] # sx == sy (um)
-        self.step = [0.1, 0.1, 1,
-                     0.1, 0.1, 1,
-                     0.2,
-                     0.2,
-                     0.1]
-        """
         self.ftol = 1.49012e-8 # Relative error desired in the sum of squares
         self.xtol = 1.49012e-8 # Relative error desired in the approximate solution
         self.gtol = 0.0 # Orthogonality desired between the function vector and the columns of the Jacobian
@@ -281,7 +210,7 @@ class LeastSquares(SpikeModel):
                        8:"gtol=%f is too small, func(x) is orthogonal to the columns of\n  the Jacobian to machine precision." % self.gtol,
                        'unknown':"Unknown error."
                        }
-    """
+
     def calc(self, t, x, y, z, V):
         self.t = t
         self.x = x
@@ -297,35 +226,6 @@ class LeastSquares(SpikeModel):
         self.mesg = self.errors[self.ier]
         #print '%d iterations' % self.infodict['nfev']
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-    """
-    def tcalc(self, t, V):
-        """Calculate least squares of temporal model"""
-        self.t = t
-        self.V = V
-        result = leastsq(self.tcost, self.tp0, args=(t, V),
-                         Dfun=None, full_output=False, col_deriv=False,
-                         ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
-                         diag=None)
-        #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.tp, self.ier = result
-        self.mesg = self.errors[self.ier]
-        #print '%d iterations' % self.infodict['nfev']
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-
-    def scalc(self, x, y, V):
-        """Calculate least squares of spatial model"""
-        self.x = x
-        self.y = y
-        #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
-        result = leastsq(self.scost, self.sp0, args=(x, y, V),
-                         Dfun=None, full_output=False, col_deriv=False,
-                         ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
-                         diag=None)
-        #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.sp, self.ier = result
-        self.mesg = self.errors[self.ier]
-        #print '%d iterations' % self.infodict['nfev']
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
 
 
 class SLSQP(SpikeModel):
@@ -335,7 +235,6 @@ class SLSQP(SpikeModel):
     or a least squares nonlinear systems problem (LSNLSP) solver,
     aka a least squares problem (LSP) solver.
     """
-
     def tcalc(self, t, V):
         """Calculate least squares of temporal model"""
         self.t = t
@@ -366,69 +265,8 @@ class SLSQP(SpikeModel):
                             )
         self.sp, smodelV, self.niters, self.ier, self.mesg = result
         print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-'''
 
-class NLLSP(SpikeModel):
-    """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
-    This one can handle constraints"""
-    def calc(self, t, x, y, V):
-        self.t = t
-        self.x = x
-        self.y = y
-        self.V = V
-        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V))
-        pr.lb[6], pr.ub[6] = -50, 50 # x0
-        pr.lb[8], pr.ub[8] = 20, 200 # sx
-        pr.lb[9], pr.ub[9] = 20, 200 # sy
-        pr.lb[10], pr.ub[10] = -2, 2 # vxinv
-        pr.lb[11], pr.ub[11] = -2, 2 # vyinv
-        # TODO: could also say that sx and sy need to be within some fraction of each other, ie constraints on their ratio
-        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
-        maybe this contraint should be on the peak separation in the sum of Gaussians,
-        instead of just on the mu params
-        can probably remove the lower bound on the peak separation, especially if it's left at 0.
-        For improved speed, might want to stop passing unnecessary args"""
-        c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[4] - p[1]) # <= 0, lower bound
-        c1 = lambda p, t, x, y, V: abs(p[4] - p[1]) - self.dmurange[1] # <= 0, upper bound
-        # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
-        pr.c = [c0, c1] # constraints
-        pr.solve('nlp:ralg')
-        self.pr, self.p = pr, pr.xf
-        print '%d iterations' % pr.iter
-    '''
-    def tcalc(self, t, V):
-        """Calculate least squares of temporal model"""
-        self.t = t
-        self.V = V
-        i = 2*self.nchans
-        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
-        maybe this contraint should be on the peak separation in the sum of Gaussians,
-        instead of just on the mu params
-        can probably remove the lower bound on the peak separation, especially if it's left at 0"""
-        c0 = lambda tp, t, V: self.dmurange[0] - abs(tp[i] - tp[i+2]) # <= 0, lower bound
-        c1 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[1] # <= 0, upper bound
-        p0 = openopt.NLLSP(self.tcost, self.tp0, args=(t, V), iprint=10)
-        # could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
-        p0.c = [c0, c1] # constraints
-        p0.solve('nlp:ralg')
-        self.p0, self.tp = p0, p0.xf
-        print '%d iterations' % p0.iter
 
-    def scalc(self, x, y, V):
-        """Calculate least squares of spatial model"""
-        self.x = x
-        self.y = y
-        #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
-        p1 = openopt.NLLSP(self.scost, self.sp0, args=(x, y, V), iprint=10)
-        p1.lb[0], p1.ub[0] = -50, 50 # x
-        p1.lb[2], p1.ub[2] = 20, 200 # sx
-        p1.lb[3], p1.ub[3] = 20, 200 # sy
-        # another possible constraint would be that sx and sy need to be within some fraction of each other, ie constraints on their ratio
-        p1.solve('nlp:ralg')
-        self.p1, self.sp = p1, p1.xf
-        print '%d iterations' % p1.iter
-    '''
-'''
 class NMPFit(SpikeModel):
     """Levenberg-Marquadt least-squares with nmpfit from NASA's STSCI Python pytools package.
     This one can handle constraints."""
@@ -501,7 +339,6 @@ class Detector(object):
         """Search for events. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results
-
         TODO: remove any events that happen right at the first or last timepoint in the file,
         since we can't say when an interrupted rising or falling edge would've reached peak
         """
@@ -517,11 +354,9 @@ class Detector(object):
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
-        # reset this at the start of every search
-        self.nevents = 0 # total num events found across all chans so far by this Detector
-
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
+        self.nevents = 0 # total num events found across all chans so far by this Detector, reset at start of every search
         self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
         self.events = [] # list of 2D event arrays returned by .searchblockthread(), one array per block
 
@@ -574,18 +409,19 @@ class Detector(object):
         else:
             maxnevents = self.maxnevents - self.nevents
 
-        # this should all be done in __init__ ?
+        # this should all be done in __init__ or at least in .search()?
         thresh = 50 # abs, in uV
         ppthresh = thresh + 30 # peak-to-peak threshold, abs, in uV
-        dmurange = (0, 500) # time difference between means of spike phase Gaussians, us
-        tw = (-250, 750) # spike time window range, us, centered on threshold crossing, maybe this should be a dynamic param, customized for each thresh crossing event, maybe based on mean (or median?) signal around the event
-        trangei = intround(tw / self.stream.tres) # spike time window range in number of timepoints
-        # want a nchan*2 array of [chani, x/ycoord]
+        dmurange = (0, 500) # allowed time difference between peaks of modelled spike
+        twthresh = (-250, 750) # spike time window range, us, centered on threshold crossing
+        tw = (-250, 750) # spike time window range, us, centered on 1st phase of spike
+        trangeithresh = intround(twthresh / self.stream.tres) # spike time window range wrt thresh xing in number of timepoints
+        trangei = intround(tw / self.stream.tres) # spike time window range wrt 1st phase in number of timepoints
+        # want an nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         siteloc = np.asarray([xcoords, ycoords]).T # [chani, (x, y)]
-
         '''
         TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
@@ -593,14 +429,11 @@ class Detector(object):
             - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as an event
             - or slide some filter across the data that not only checks for thresh, but ppthresh as well
         '''
-        # this should hopefully release the GIL, although this step is ridiculously fast:
         edges = np.diff(np.int8(abs(wave.data) >= thresh)) # indices where increasing or decreasing abs(signal) has crossed thresh
         events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
-        # TODO: filter events somehow in chan space using slock, so that you don't get more than one chan to test for a given event, even if it exceeds thresh on multiple chans - this will speed up the loop below by reducing unnecessary fitting runs
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
 
         lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
-
         spikes = [] # list of spikes detected
         # threshold crossing event loop: events gives us indices into time and chans
         for ti, chani in events:
@@ -609,31 +442,43 @@ class Detector(object):
             if ti <= lockout[chani]: # is this thresh crossing timepoint locked out?
                 print 'thresh event is locked out'
                 continue # this event is locked out, skip to next event
-            chan = self.chans[chani]
-            # compute short interval within time window of threshold crossing
-            ti0 = max(ti+trangei[0], lockout[chani]+1) # make sure any timepoints you're including prior to ti aren't locked out
-            tiend = ti+trangei[1]
+            # get data window wrt threshold crossing
+            ti0 = max(ti+trangeithresh[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tiend = min(ti+trangeithresh[1], len(wave.ts)) # don't go further than last wave timepoint
             window = wave.data[chani, ti0:tiend]
-            #absmaxti = abs(window).argmax() # timepoint index of absolute maximum in window, relative to ti0
-            #print 'original chan=%d has max %.1f' % (chan, window[absmaxti])
-            # search for maxchan within slock at absmaxti
-            #chanis, = np.where(dmi[chani] <= self.slock)
-            #chanis = np.asarray([ chi for chi in chanis if ti0 > lockout[chani] ]) # include only non-locked out channels in search
-            #chani = chanis[ wave.data[chanis, absmaxti].argmax() ] # this is our new maxchan
-            #chan = self.chans[chani] # update
-            #print 'new max chan=%d' % (chan)
-            # find max and min within the time window, given (possibly new) maxchan
-            #window = wave.data[chani, ti0:tiend]
+            minti = window.argmin() # time of minimum in window, relative to ti0
+            maxti = window.argmax() # time of maximum in window, relative to ti0
+            phase1ti = min(minti, maxti) # wrt ti0
+            phase1ti = ti0 + phase1ti # wrt 0th time index
+
+            # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at phase1ti:
+            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
+            chanis = np.asarray([ chi for chi in chanis if lockout[chi] < phase1ti ])
+
+            # find maxchan within chanis at phase1ti, redo all of the above calculations
+            chanii = np.abs(wave.data[chanis, phase1ti]).argmax() # index into chanis of new maxchan
+            chani = chanis[chanii] # new max chani
+            chan = self.chans[chani] # new max chan
+            print 'new max chan=%d' % chan
+            # get new data window wrt phase1ti this time, instead of wrt the original thresh xing
+            ti0 = max(phase1ti+trangei[0], lockout[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
+            tiend = min(phase1ti+trangei[1], len(wave.ts)) # don't go further than last wave timepoint
+            window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
             minV = window[minti]
             maxV = window[maxti]
-            phase1ti = min(minti, maxti)
+            phase1ti = min(minti, maxti) # now it's back to wrt ti0 again
             phase2ti = max(minti, maxti)
             phase1V = window[phase1ti]
             phase2V = window[phase2ti]
-            print 'window params: t0=%r, tend=%r, mint=%r, maxt=%r, phase1V=%r, phase2V=%r' % \
-                (wave.ts[ti0], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], phase1V, phase2V)
+
+            # again, find all the enabled chanis within slock of new chani, exclude chanis temporally locked-out at phase1ti:
+            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
+            chanis = np.asarray([ chi for chi in chanis if lockout[chi] < ti0 ])
+
+            print 'window params: t0=%r, phase1t=%r, tend=%r, mint=%r, maxt=%r, phase1V=%r, phase2V=%r' % \
+                (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], phase1V, phase2V)
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
@@ -644,18 +489,9 @@ class Detector(object):
             except AssertionError, message: # doesn't qualify as a spike
                 print message
                 continue
+
             # create a SpikeModel
-            #sm = LeastSquares()
-            #sm = NMPFit()
             sm = NLLSP()
-            '''
-            sm.phase1V = phase1V # fixed
-            sm.phase2V = phase2V # fixed
-            sm.p0 = p0
-            '''
-            # find all the enabled chanis within slock of chani, exclude temporally locked-out chanis:
-            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what indices does the returned row exceed slock?
-            chanis = np.asarray([ chi for chi in chanis if ti0 > lockout[chani] ])
             sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
             sm.dmurange = dmurange
@@ -665,51 +501,29 @@ class Detector(object):
             x = siteloc[chanis, 0]
             y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
-
+            # TODO: take weighted spatial mean of chanis at phase1ti to better estimate (x0, y0)
             p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: phase1V (uV), mu1 (us), s1 (us)
                   phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: phase2V (uV), mu1 (us), s2 (us)
                   siteloc[chani, 0], # x0 (um)
                   siteloc[chani, 1], # y0 (um)
                   60, 60, # sx, sy (um)
-                  0, 0] # vxinv, vyinv (us/um, ie s/m)
+                  0] # vinv (us/um, ie s/m)
+            '''
+            if wave.ts[ti] == 26880:
+                p0[6], p0[7], p0[10] = 0, 780, -0.5 # chan 7
+            '''
             sm.p0 = p0
-            '''
-            phase1Vs = wave.data[chanis, ti0:tiend][:, phase1ti] # all the rows (chans), just one column
-            phase2Vs = wave.data[chanis, ti0:tiend][:, phase2ti]
-            tp0 = [wave.ts[ti0+phase1ti], 60, # 1st phase: mu1 (us), s1 (us)
-                   wave.ts[ti0+phase2ti], 60] # 2nd phase: mu2 (us), s2 (us)
-            tp0 = np.concatenate((phase1Vs, phase2Vs, tp0), axis=None) # all but last 4 are phaseVs
-            sp0 = [siteloc[chani, 0], # x0 (um)
-                   siteloc[chani, 1], # y0 (um)
-                   60, 60, # sx, sy (um)
-                   1] # amplitude
-            sm.tp0 = tp0
-            sm.sp0 = sp0
-            '''
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
-            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, vxinv, vyinv'
+            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, vinv'
             print 'p0 = %r' % list(intround(sm.p0))
             print 'p = %r' % list(intround(sm.p))
-            '''
-            sm.tcalc(t, V) # calculate least squares temporal parameters fit
-            print 'tp0 = %r' % list(intround(sm.tp0))
-            print 'tp = %r' % list(intround(sm.tp))
-            sm.tmodelV = sm.tmodel(sm.tp, t) # get the temporally modelled signals for the required chans
-            sm.scalc(x, y, sm.tmodelV) # calculate least squares spatial parameters fit for these chans given the temporally modelled voltages
-            print 'sp0 = %r' % (list(intround(sm.sp0[0:-1])) + [sm.sp0[-1]])
-            print 'sp = %r' % (list(intround(sm.sp[0:-1])) + [sm.sp[-1]])
-            '''
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
-            Their amplitudes certainly need not correspond. So, here I'm reading values off of the sum of Gaussians modelled
-            f'n instead of just the parameters of the constituent Gaussians that make it up
+            Their amplitudes certainly need not correspond. So, here I'm reading values off of the modelled
+            waveform instead of just the parameters of the constituent Gaussians that make it up
             """
-            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vxinv, vyinv = sm.p
+            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, vinv = sm.p
             modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
-            '''
-            x0, y0 = sm.sp[0], sm.sp[1] # single coord this time instead of a set of them
-            modelV = sm.smodel(sm.sp, x0, y0).ravel()
-            '''
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
@@ -724,17 +538,19 @@ class Detector(object):
 
             self.sm[phase1t] = sm # save the SpikeModel object for later inspection
             sm.spiket = phase1t
+            sm.phase1t = phase1t # synonym for spike time
+            sm.phase2t = phase2t
 
             # check to see if modelled spike qualifies as an actual spike
             try:
-                assert bigphase >= thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
-                assert abs(phase2V - phase1V) >= ppthresh, "model doesn't cross ppthresh"
-                assert np.sign(phase1V) == -np.sign(phase2V), 'model phases must be of opposite sign'
-                dphase = phase2t - phase1t
-                assert dmurange[0] <= dphase <= dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
-                assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
                 # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
                 assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
+                assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
+                assert bigphase >= thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
+                assert abs(phase2V - phase1V) >= ppthresh, "model doesn't cross ppthresh"
+                dphase = phase2t - phase1t
+                assert dmurange[0] <= dphase <= dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
+                assert np.sign(phase1V) == -np.sign(phase2V), 'model phases must be of opposite sign'
             except AssertionError, message: # doesn't qualify as a spike
                 print '%s, spiket=%d' % (message, phase1t)
                 continue
@@ -744,8 +560,9 @@ class Detector(object):
             print 'found new spike: %r' % (list(intround(spike)),)
             # update spatiotemporal lockout
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
-            # are locked out for a shorter time. Use slock as the circularly symmetric spatial sigma
-            # TODO: center lockout on model x, y fit params, instead of chani that crossed thresh first
+            # are locked out for a shorter time. Use slock as a circularly symmetric spatial sigma
+            # TODO: center lockout on model (x0, y0) coords, instead of max chani - this could be dangerous - if model got it wrong, could get a whole lotta false +ve spike detections due to spatial lockout being way off
+            # TODO: lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
             lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres) # lock out til one stdev after peak of 2nd phase, in case there's a noisy mini spike that might cause a trigger on the way down
             print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
 
