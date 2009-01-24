@@ -113,6 +113,13 @@ class SpikeModel(object):
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True)
+        # plot vertical lines in all probe columns at self's spike time
+        colxs = list(set(self.x)) # x coords of probe columns
+        ylims = a.get_ylim() # y coords of vertical line
+        for colx in colxs:
+            t_ = (self.spiket-t[0])*us2um + colx # in um
+            vline = mpl.lines.Line2D([t_, t_], ylims, color='#222222', ls='-')
+            a.add_line(vline)
     '''
     def plot_indep_spatiotemporal(self):
         """Plot all all temporally modelled chans, all spatially modelled chans,
