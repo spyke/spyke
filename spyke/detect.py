@@ -187,6 +187,18 @@ class NLLSP(SpikeModel):
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
         print '%d iterations' % pr.iter
+        self.calc_phasetis()
+
+    def calc_phasetis(self):
+        """Calculates phase1ti and phase2ti for each modelled chan"""
+        phase2tis = []
+        modelVs = self.model(self.p, self.t, self.x, self.y)
+        modelmintis = np.argmin(modelVs, axis=1) # find each row's (chani's) argmin across its columns
+        modelmaxtis = np.argmax(modelVs, axis=1)
+        minmaxtis = np.asarray([modelmintis, modelmaxtis]).T # (nchans, 2) array of mintis and maxtis
+        # these are indexed into by chani
+        self.phase1tis = np.min(minmaxtis, axis=1) # find 1st phase for each chan, might be the min or the max
+        self.phase2tis = np.max(minmaxtis, axis=1) # find 2nd phase for each chan, might be the min or the max
 
 '''
 class LeastSquares(SpikeModel):
@@ -563,7 +575,7 @@ class Detector(object):
             # are locked out for a shorter time. Use slock as a circularly symmetric spatial sigma
             # TODO: center lockout on model (x0, y0) coords, instead of max chani - this could be dangerous - if model got it wrong, could get a whole lotta false +ve spike detections due to spatial lockout being way off
             # TODO: lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
-            lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres) # lock out til one stdev after peak of 2nd phase, in case there's a noisy mini spike that might cause a trigger on the way down
+            lockout[chanis] = ti0 + sm.phase2tis + intround(s2 / self.stream.tres) # lock out til one stdev after peak of 2nd phase, in case there's a noisy mini spike that might cause a trigger on the way down
             print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
 
         spikes = np.asarray(spikes)
