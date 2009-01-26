@@ -146,7 +146,7 @@ class SpikeModel(object):
         dty = np.abs(y - y0) * vyinv
         dt = dtx + dty
         """
-        # TODO: if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.r87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow vinv1 and vin2 to be of opposite sign to successfully model this
+        # TODO: if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.r87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow vinv1 and vinv2 to be of opposite sign to successfully model this
         d = np.sqrt((x - x0)**2 + (y - y0)**2)
         dt = d * vinv
         # tile t vertically to make a 2D matrix of height nchans, so it can be broadcast across the mu+dt vectors in g()
@@ -510,10 +510,19 @@ class Detector(object):
             print 'chans = %r' % (np.asarray(self.chans)[chanis],)
             print 'chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
-            x = siteloc[chanis, 0]
+            x = siteloc[chanis, 0] # 1D array (row)
             y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
-            # TODO: take weighted spatial mean of chanis at phase1ti to better estimate (x0, y0)
+            # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
+            multichanwindow = wave.data[chanis, ti0:tiend]
+            chanweights = multichanwindow[:, phase1ti] # unnormalized, some of these may be -ve
+            chanweights = chanweights / chanweights.sum() # normalized
+            chanweights = np.where(chanweights >= 0, chanweights, 0) # replace -ve weights with 0
+            chanweights = chanweights / chanweights.sum() # renormalized
+            x0 = (chanweights * x).sum()
+            y0 = (chanweights * y).sum()
+            print 'maxchan @ (%d, %d), (x0, y0)=(%.1f, %.1f)' % (siteloc[chani, 0], siteloc[chani, 1], x0, y0)
+            # initial params
             p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: phase1V (uV), mu1 (us), s1 (us)
                   phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: phase2V (uV), mu1 (us), s2 (us)
                   siteloc[chani, 0], # x0 (um)
@@ -574,7 +583,6 @@ class Detector(object):
             # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
             # are locked out for a shorter time. Use slock as a circularly symmetric spatial sigma
             # TODO: center lockout on model (x0, y0) coords, instead of max chani - this could be dangerous - if model got it wrong, could get a whole lotta false +ve spike detections due to spatial lockout being way off
-            # TODO: lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
             lockout[chanis] = ti0 + sm.phase2tis + intround(s2 / self.stream.tres) # lock out til one stdev after peak of 2nd phase, in case there's a noisy mini spike that might cause a trigger on the way down
             print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
 

@@ -480,3 +480,5 @@ SPIKE MODELLING:
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
 
             - disable grounded channels
+        - lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
+        - take weighted spatial mean of chanis at phase1ti to better estimate (x0, y0)
