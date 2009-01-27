@@ -514,7 +514,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.quickRemovePlot.draw()
         self.blit(self.ax.bbox)
         #self.gui_repaint()
-        #self.draw(True)
+        #self.draw()
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
     def _zoomx(self, x):
@@ -603,7 +603,7 @@ class PlotPanel(FigureCanvasWxAgg):
         """Enable/disable a specific set of channels in this frame"""
         for chan in chans:
             self.quickRemovePlot.lines[chan].set_visible(enable)
-        self.draw(True)
+        self.draw()
     '''
     def OnPick(self, evt):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""
@@ -749,7 +749,7 @@ class ChartPanel(PlotPanel):
     def _update_caret_width(self):
         """Set optimal paint method"""
         PlotPanel._update_caret_width(self)
-        #self.draw(True) # can be quite slow
+        #self.draw() # can be quite slow
         self.Refresh() # can be faster, but adds flicker
 
 
@@ -794,7 +794,7 @@ class LFPPanel(ChartPanel):
     def _update_caret_width(self):
         """Set optimal paint method"""
         PlotPanel._update_caret_width(self)
-        self.draw(True)
+        self.draw()
         #self.Refresh() # possibly faster, but adds a lot of flicker
 
 
