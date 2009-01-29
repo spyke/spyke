@@ -613,6 +613,10 @@ def dg2dsy(x0, y0, sx, sy, x, y):
     """Partial of g2 wrt sy"""
     return g(x0, sx, x) * dgdsigma(y0, sy, y)
 
+def RM(theta):
+    """Return 2D rotation matrix, with theta counterclockwise rotation in radians"""
+    return np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+
 
 class Poo(object):
     """Poo function, works with ndarray inputs"""

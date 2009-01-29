@@ -22,7 +22,7 @@ import openopt
 from pylab import *
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2
+from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
 
 
 class RandomWaveTranges(object):
@@ -86,7 +86,7 @@ class SpikeModel(object):
         """Plot modelled and raw data for all chans,
         plus the single spatially positioned source time series"""
         t, p = self.t, self.p
-        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, v1inv, v2inv = p
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = p
         f = figure()
         f.canvas.Parent.SetTitle('t=%d' % self.spiket)
         a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
@@ -94,15 +94,24 @@ class SpikeModel(object):
         a.set_axis_off() # turn off the x and y axis
         f.set_facecolor('black')
         f.set_edgecolor('black')
-        uV2um = 100 / 100 # um/uV
-        us2um = 55 / 1000 # um/us
+        uV2um = 45 / 100 # um/uV
+        us2um = 75 / 1000 # um/us
         xmin, xmax = min(self.x), max(self.x)
         ymin, ymax = min(self.y), max(self.y)
         xrange = xmax - xmin
         yrange = ymax - ymin
-        f.canvas.Parent.SetSize((xrange*us2um*90, yrange*uV2um*2.5))
-        e = mpl.patches.Ellipse((x0, ymax-y0), sx, sy, angle=0.0, ec='#007700', fill=False) # bottom origin
+        f.canvas.Parent.SetSize((xrange*us2um*100, yrange*uV2um*8))
+        tw = t[-1] - t[0]
+        thetadeg = theta*180/np.pi
+        # plot stdev ellipse centered on middle timepoint, with bottom origin
+        ellorig = tw/2*us2um+x0, ymax-y0
+        e = mpl.patches.Ellipse(ellorig, 2*sx, 2*sy, angle=thetadeg,
+                                ec='#007700', fill=False, ls='dotted')
         a.add_patch(e)
+        # plot a radial arrow on the ellipse to make its vertical axis obvious. theta=0 should plot a vertical radial line
+        arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], sy*np.sin(theta), sy*np.cos(theta),
+                                  ec='#007700', fc='#007700', ls='solid')
+        a.add_patch(arrow)
         for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
             t_ = (t-t[0])*us2um + x # in um
             V_ = V*uV2um + (ymax-y) # in um, switch to bottom origin
@@ -115,7 +124,8 @@ class SpikeModel(object):
         modelsourceV_ = self.model(p, t, x0, y0).ravel() * uV2um + (ymax-y0) # in um, switch to bottom origin
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
         a.add_line(modelsourceline)
-        a.autoscale_view(tight=True)
+        a.autoscale_view(tight=True) # fit to enclosing figure
+        #a.set_aspect('equal') # this makes circles look like circles, and ellipses to tilt at the right apparent angle
         # plot vertical lines in all probe columns at self's modelled 1st and 2nd spike phase times
         colxs = list(set(self.x)) # x coords of probe columns
         ylims = a.get_ylim() # y coords of vertical line
@@ -141,21 +151,25 @@ class SpikeModel(object):
         For each channel, return a vector of voltage values V of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, v1inv, v2inv = p
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = p
         # TODO: vx and vy should be in the rotated spatial coordinate space
         """
         dtx = np.abs(x - x0) * vxinv
         dty = np.abs(y - y0) * vyinv
         dt = dtx + dty
         """
-        # TODO: if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.r87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow v1inv and v2inv to be of opposite sign to successfully model this
+        x, y = (x - x0), (y - y0) # make site coordinates relative to spatial mean (x0, y0), ie make spatial mean the origin
+        # convert centered x and y site coordinates into values corresponding to points on rotated ellipse
+        x, y = np.inner(RM(theta), np.asarray([x, y]).T)
         #d = np.sqrt((x - x0)**2 + (y - y0)**2)
         # maybe scale x and y components of distance according to ellipsoidal eccentricity of spatial gaussian...
-        dx = (x - x0) * sx / sy # spatial dilation/contraction
-        dy = (y - y0) * sy / sx
+        """
+        dx = x * sx / sy # spatial dilation/contraction
+        dy = y * sy / sx
         d = np.sqrt(dx**2 + dy**2)
-        dt1 = d * v1inv
-        dt2 = d * v2inv
+        dt1 = d * v1inv # propogation delay (lead/lag) of 1st spike phase
+        dt2 = d * v2inv # propogation delay (lead/lag) of 2nd spike phase
+        """
         # TODO: constrain vxinv and vyinv ratio to be the same as the sx and sy ratio - that way you get two extra params for free
         """
         dt1x = np.abs(x - x0) * sx / sy * v1inv
@@ -171,8 +185,8 @@ class SpikeModel(object):
         except TypeError: # x is scalar?
             nchans = 1
         t = np.tile(t, (nchans, 1))
-        tprofile = phase1V*g(cvec(mu1+dt1), s1, t) + phase2V*g(cvec(mu2+dt2), s2, t) # 2D temporal profile matrix, one row per chan
-        sprofile = cvec(g2(x0, y0, sx, sy, x, y)) # spatial profile column vector
+        tprofile = phase1V*g(cvec(mu1), s1, t) + phase2V*g(cvec(mu2), s2, t) # 2D temporal profile matrix, one row per chan
+        sprofile = cvec(g2(0, 0, sx, sy, x, y)) # spatial profile column vector, relative to origin
         return sprofile * tprofile
 
 
@@ -188,8 +202,9 @@ class NLLSP(SpikeModel):
         pr.lb[6], pr.ub[6] = -50, 50 # x0
         pr.lb[8], pr.ub[8] = 20, 200 # sx
         pr.lb[9], pr.ub[9] = 20, 200 # sy
-        pr.lb[10], pr.ub[10] = -2, 2 # v1inv
-        pr.lb[11], pr.ub[11] = -2, 2 # v2inv
+        pr.lb[10], pr.ub[10] = -np.pi/2, np.pi/2 # theta (radians)
+        #pr.lb[10], pr.ub[10] = -2, 2 # v1inv
+        #pr.lb[11], pr.ub[11] = -2, 2 # v2inv
         """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
         maybe this contraint should be on the peak separation in the sum of Gaussians,
         instead of just on the mu params
@@ -538,12 +553,15 @@ class Detector(object):
             x0 = (chanweights * x).sum()
             y0 = (chanweights * y).sum()
             print 'maxchan @ (%d, %d), (x0, y0)=(%.1f, %.1f)' % (siteloc[chani, 0], siteloc[chani, 1], x0, y0)
+            """
+            TODO: more intelligent estimate of sx and sy by taking signal differences between maxchan and two nearest chans. Get all chans with x vals different from max, and make a similar list for y vals. Out of each of those lists, get the nearest (in 2D) chan(s) to maxchan (pick one), find the signal value ratio between it and the maxchan at phase1ti, plug maxchan's (x or y) coord into g(), set it equal to the ratio, and solve for sigma (sx or sy).
+            """
             # initial params
             p0 = [phase1V, wave.ts[ti0+phase1ti], 60, # 1st phase: phase1V (uV), mu1 (us), s1 (us)
                   phase2V, wave.ts[ti0+phase2ti], 60, # 2nd phase: phase2V (uV), mu1 (us), s2 (us)
                   x0, y0, # x0, y0 (um)
-                  60, 60, # sx, sy (um)
-                  0, 0] # v1inv, v2inv (us/um, ie s/m)
+                  60, 60, 0] # sx, sy (um), theta (radians)
+                  #0, 0] # v1inv, v2inv (us/um, ie s/m)
             '''
             if wave.ts[ti] == 26880:
                 p0[6], p0[7], p0[10] = 0, 780, -0.5 # chan 7
@@ -558,7 +576,7 @@ class Detector(object):
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the modelled
             waveform instead of just the parameters of the constituent Gaussians that make it up
             """
-            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, v1inv, v2inv = sm.p
+            phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = sm.p
             modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
