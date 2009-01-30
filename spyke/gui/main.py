@@ -267,7 +267,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.menubar.Enable(wx.ID_SAMPLING, False)
             # turn this off for testing spike modelling:
             #sf = self.OpenFrame('sort') # ensure it's open
-            sf = self.OpenFrame('pyshell') # for testing
+            self.OpenFrame('pyshell') # for testing
             t0 = time.clock()
             sf.Append2EventList(uniqueevents)
             print 'sf.Append2EventList(uniqueevents) took %.3f sec' % (time.clock()-t0)

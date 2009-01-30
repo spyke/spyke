@@ -83,10 +83,13 @@ class SpikeModel(object):
         self.errs = []
 
     def plot(self):
-        """Plot modelled and raw data for all chans,
-        plus the single spatially positioned source time series"""
+        """Plot modelled and raw data for all chans, plus the single spatially
+        positioned source time series, along with its 1 sigma ellipse"""
         t, p = self.t, self.p
         phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = p
+        uV2um = 45 / 100 # um/uV
+        us2um = 75 / 1000 # um/us
+        tw = t[-1] - t[0]
         f = figure()
         f.canvas.Parent.SetTitle('t=%d' % self.spiket)
         a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
@@ -94,33 +97,35 @@ class SpikeModel(object):
         a.set_axis_off() # turn off the x and y axis
         f.set_facecolor('black')
         f.set_edgecolor('black')
-        uV2um = 45 / 100 # um/uV
-        us2um = 75 / 1000 # um/us
         xmin, xmax = min(self.x), max(self.x)
         ymin, ymax = min(self.y), max(self.y)
         xrange = xmax - xmin
         yrange = ymax - ymin
-        f.canvas.Parent.SetSize((xrange*us2um*100, yrange*uV2um*8))
-        tw = t[-1] - t[0]
+        # this is set with an aspect ratio to mimic the effects of a.set_aspect('equal') without enforcing it
+        f.canvas.Parent.SetSize((xrange*us2um*99.5, yrange*uV2um*8))
         thetadeg = theta*180/np.pi
         # plot stdev ellipse centered on middle timepoint, with bottom origin
-        ellorig = tw/2*us2um+x0, ymax-y0
+        ellorig = x0, ymax-y0
         e = mpl.patches.Ellipse(ellorig, 2*sx, 2*sy, angle=thetadeg,
                                 ec='#007700', fill=False, ls='dotted')
+        c = mpl.patches.Circle((0, yrange-15), radius=15, # for calibrating aspect ratio of display
+                                ec='#ffffff', fill=False, ls='dotted')
         a.add_patch(e)
+        a.add_patch(c)
+
         # plot a radial arrow on the ellipse to make its vertical axis obvious. theta=0 should plot a vertical radial line
-        arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], sy*np.sin(theta), sy*np.cos(theta),
+        arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], -sy*np.sin(theta), sy*np.cos(theta),
                                   ec='#007700', fc='#007700', ls='solid')
         a.add_patch(arrow)
         for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
-            t_ = (t-t[0])*us2um + x # in um
+            t_ = (t-t[0]-tw/2)*us2um + x # in um, centered on the trace
             V_ = V*uV2um + (ymax-y) # in um, switch to bottom origin
-            modelV_ = self.model(p, t, x, y).ravel() * uV2um + (ymax-y) # switch to bottom origin
+            modelV_ = self.model(p, t, x, y).ravel() * uV2um + (ymax-y) # in um, switch to bottom origin
             rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1)
             modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
             a.add_line(rawline)
             a.add_line(modelline)
-        t_ = (t-t[0])*us2um + x0 # in um
+        t_ = (t-t[0]-tw/2)*us2um + x0 # in um
         modelsourceV_ = self.model(p, t, x0, y0).ravel() * uV2um + (ymax-y0) # in um, switch to bottom origin
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
         a.add_line(modelsourceline)
@@ -130,8 +135,8 @@ class SpikeModel(object):
         colxs = list(set(self.x)) # x coords of probe columns
         ylims = a.get_ylim() # y coords of vertical line
         for colx in colxs: # plot one vertical line per spike phase per probe column
-            t1_ = (self.phase1t-t[0])*us2um + colx # in um
-            t2_ = (self.phase2t-t[0])*us2um + colx # in um
+            t1_ = (self.phase1t-t[0]-tw/2)*us2um + colx # in um
+            t2_ = (self.phase2t-t[0]-tw/2)*us2um + colx # in um
             vline1 = mpl.lines.Line2D([t1_, t1_], ylims, color='#004444', ls=':')
             vline2 = mpl.lines.Line2D([t2_, t2_], ylims, color='#444400', ls=':')
             a.add_line(vline1)
