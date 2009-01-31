@@ -82,6 +82,7 @@ class SpikeModel(object):
     def __init__(self):
         self.errs = []
         self.valid = False # modelled event is assumed not a spike until proven spike-worthy
+        self.sxsyfactor = 3 # sx and sy need to be within this factor of each other
 
     def plot(self):
         """Plot modelled and raw data for all chans, plus the single spatially
@@ -205,7 +206,7 @@ class SpikeModel(object):
                 theta = theta - np.pi/2
             else: # theta <= 0
                 theta = theta + np.pi/2
-        self.p = phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta
+            self.p = phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta
 
     def get_paramstr(self, p=None):
         """Get formatted string of model parameter values"""
@@ -413,6 +414,10 @@ class Detector(object):
         self.tlock = tlock or self.DEFTLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
+        self.dmurange = (0, 500) # allowed time difference between peaks of modelled spike
+        self.twthresh = (-250, 750) # spike time window range, us, centered on threshold crossing
+        self.tw = (-250, 750) # spike time window range, us, centered on 1st phase of spike
+
     def search(self):
         """Search for events. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
@@ -427,8 +432,10 @@ class Detector(object):
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
 
-        self.thresh = self.get_thresh() # this could probably go in __init__ without problems
-        print '.get_thresh() took %.3f sec' % (time.clock()-t0)
+        self.thresh = 50 # abs, in uV
+        self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
+        #self.thresh = self.get_thresh() # this could probably go in __init__ without problems
+        #print '.get_thresh() took %.3f sec' % (time.clock()-t0)
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -487,15 +494,8 @@ class Detector(object):
         else:
             maxnevents = self.maxnevents - self.nevents
 
-        # this should all be done in __init__ or at least in .search()?
-        thresh = 50 # abs, in uV
-        ppthresh = thresh + 30 # peak-to-peak threshold, abs, in uV
-        dmurange = (0, 500) # allowed time difference between peaks of modelled spike
-        sxsyfactor = 3 # sx and sy need to be within this factor of each other
-        twthresh = (-250, 750) # spike time window range, us, centered on threshold crossing
-        tw = (-250, 750) # spike time window range, us, centered on 1st phase of spike
-        trangeithresh = intround(twthresh / self.stream.tres) # spike time window range wrt thresh xing in number of timepoints
-        trangei = intround(tw / self.stream.tres) # spike time window range wrt 1st phase in number of timepoints
+        trangeithresh = intround(self.twthresh / self.stream.tres) # spike time window range wrt thresh xing in number of timepoints
+        trangei = intround(self.tw / self.stream.tres) # spike time window range wrt 1st phase in number of timepoints
         # want an nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
@@ -508,7 +508,7 @@ class Detector(object):
             - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as an event
             - or slide some filter across the data that not only checks for thresh, but ppthresh as well
         '''
-        edges = np.diff(np.int8(abs(wave.data) >= thresh)) # indices where increasing or decreasing abs(signal) has crossed thresh
+        edges = np.diff(np.int8(abs(wave.data) >= self.thresh)) # indices where changing abs(signal) has crossed thresh
         events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
 
@@ -561,7 +561,7 @@ class Detector(object):
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
-                assert abs(phase2V - phase1V) >= ppthresh, "event doesn't cross ppthresh"
+                assert abs(phase2V - phase1V) >= self.ppthresh, "event doesn't cross ppthresh"
                 assert np.sign(phase1V) == -np.sign(phase2V), 'phases must be of opposite sign'
                 assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
                 assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
@@ -573,8 +573,7 @@ class Detector(object):
             sm = NLLSP()
             sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
-            sm.dmurange = dmurange
-            sm.sxsyfactor = sxsyfactor
+            sm.dmurange = self.dmurange
             print 'chans = %r' % (np.asarray(self.chans)[chanis],)
             print 'chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
@@ -638,10 +637,10 @@ class Detector(object):
                 # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
                 assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
                 assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
-                assert bigphase >= thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
-                assert abs(phase2V - phase1V) >= ppthresh, "model doesn't cross ppthresh"
+                assert bigphase >= self.thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
+                assert abs(phase2V - phase1V) >= self.ppthresh, "model doesn't cross ppthresh"
                 dphase = phase2t - phase1t
-                assert dmurange[0] <= dphase <= dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, dmurange)
+                assert self.dmurange[0] <= dphase <= self.dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, self.dmurange)
                 assert np.sign(phase1V) == -np.sign(phase2V), 'model phases must be of opposite sign'
             except AssertionError, message: # doesn't qualify as a spike
                 print '%s, spiket=%d' % (message, phase1t)
