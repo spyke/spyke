@@ -56,22 +56,18 @@ INTERPOLATION
 EVENT DETECTION:
 
     - LOCKOUT: do I propagate any spatiotemporal lockouts from the end of one searched block to the start of the next?  I'm taking slightly overlapping blocks of data to make sure I don't miss any spikes that fall on the borders, but I'm not sure if I'm propagating lockouts...
+        - pretty sure the answer is no right now
 
     SPIKE MODELLING:
 
         SHORT TERM:
-            - add AP velocity param(s) - make that inverse velocity to avoid singularity
-                - seems to be causing some x localization problems...
-            - improve spatiotemporal lockout accuracy
-                - for every fit spike, check if the max fit val is a peak (ie has values on either side that are lower than it). Or, just check if the means of both phases fall within the window limits. If not, chances are good that this thresh event was triggered by a late channel that's only now crossed thresh, just outside of the spatial lockout of the actual spike, which had already been modelled. Therefore, the currently fit spike should be thrown out
-                    - maybe a better way to deal with this late channel situation is to do the AP velocity modelling - that way each modelled chan can be locked out to a different timepoint according to the modelled propogation delay
-            - improve estimation of window limits relative to threshold crossing
-            - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source, and regenerate your chanis list based on this best estimate. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking
-            - test if constraints are actually making any difference, or if ralg is just amazing
+            - regenerate chanis list based on this spatial mean based best estimate
+                - don't think this will make any significant difference to model results
             - try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
                 - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
             - run profiler
             - is x0 unfairly weighted according to how many chans each col has? eg, if left col has more chans, is x0 biased to the left?
+
 
         - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
             - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
@@ -483,3 +479,12 @@ SPIKE MODELLING:
         - lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
         - take weighted spatial mean of chanis at phase1ti to better estimate (x0, y0)
         - if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.r87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow v1inv and v2inv to be of opposite sign to successfully model this
+        - constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
+        - improve estimation of window limits relative to threshold crossing
+        - add AP velocity param(s) - make that inverse velocity to avoid singularity
+            - seems to be causing some x localization problems...
+        - improve spatiotemporal lockout accuracy
+            - for every fit spike, check if the max fit val is a peak (ie has values on either side that are lower than it). Or, just check if the means of both phases fall within the window limits. If not, chances are good that this thresh event was triggered by a late channel that's only now crossed thresh, just outside of the spatial lockout of the actual spike, which had already been modelled. Therefore, the currently fit spike should be thrown out
+                - maybe a better way to deal with this late channel situation is to do the AP velocity modelling - that way each modelled chan can be locked out to a different timepoint according to the modelled propogation delay
+        - test if constraints are actually making any difference, or if ralg is just amazing
+        - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking

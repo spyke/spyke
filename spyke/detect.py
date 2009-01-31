@@ -81,6 +81,7 @@ class SpikeModel(object):
     plus a 2D spatial gaussian to model decay across channels"""
     def __init__(self):
         self.errs = []
+        self.valid = False # modelled event is assumed not a spike until proven spike-worthy
 
     def plot(self):
         """Plot modelled and raw data for all chans, plus the single spatially
@@ -102,17 +103,18 @@ class SpikeModel(object):
         xrange = xmax - xmin
         yrange = ymax - ymin
         # this is set with an aspect ratio to mimic the effects of a.set_aspect('equal') without enforcing it
-        f.canvas.Parent.SetSize((xrange*us2um*99.5, yrange*uV2um*8))
+        f.canvas.Parent.SetSize((xrange*us2um*100, yrange*uV2um*8))
         thetadeg = theta*180/np.pi
         # plot stdev ellipse centered on middle timepoint, with bottom origin
         ellorig = x0, ymax-y0
         e = mpl.patches.Ellipse(ellorig, 2*sx, 2*sy, angle=thetadeg,
                                 ec='#007700', fill=False, ls='dotted')
+        a.add_patch(e)
+        '''
         c = mpl.patches.Circle((0, yrange-15), radius=15, # for calibrating aspect ratio of display
                                 ec='#ffffff', fill=False, ls='dotted')
-        a.add_patch(e)
         a.add_patch(c)
-
+        '''
         # plot a radial arrow on the ellipse to make its vertical axis obvious. theta=0 should plot a vertical radial line
         arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], -sy*np.sin(theta), sy*np.cos(theta),
                                   ec='#007700', fc='#007700', ls='solid')
@@ -130,7 +132,7 @@ class SpikeModel(object):
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True) # fit to enclosing figure
-        #a.set_aspect('equal') # this makes circles look like circles, and ellipses to tilt at the right apparent angle
+        a.set_aspect('equal') # this makes circles look like circles, and ellipses to tilt at the right apparent angle
         # plot vertical lines in all probe columns at self's modelled 1st and 2nd spike phase times
         colxs = list(set(self.x)) # x coords of probe columns
         ylims = a.get_ylim() # y coords of vertical line
@@ -194,6 +196,34 @@ class SpikeModel(object):
         sprofile = cvec(g2(0, 0, sx, sy, x, y)) # spatial profile column vector, relative to origin
         return sprofile * tprofile
 
+    def check_theta(self):
+        """Ensure theta points along long axis of spatial model ellipse"""
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = self.p
+        if sx > sy:
+            sx, sy = sy, sx # swap them so sy is the bigger of the two
+            if theta > 0: # keep theta in [-pi/2, pi/2]
+                theta = theta - np.pi/2
+            else: # theta <= 0
+                theta = theta + np.pi/2
+        self.p = phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta
+
+    def get_paramstr(self, p=None):
+        """Get formatted string of model parameter values"""
+        p = p or self.p
+        phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = p
+        s = ''
+        s += 'phase1V, phase2V = %d, %d uV\n' % (phase1V, phase2V)
+        s += 'mu1, mu2 = %d, %d us\n' % (mu1, mu2)
+        s += 's1, s2 = %d, %d us\n' % (s1, s2)
+        s += 'x0, y0 = %d, %d um\n' % (x0, y0)
+        s += 'sx, sy = %d, %d um\n' % (sx, sy)
+        s += 'theta = %d deg' % (theta*180/np.pi)
+        return s
+
+    def print_paramstr(self, p=None):
+        """Print formatted string of model parameter values"""
+        print self.get_paramstr(p)
+
 
 class NLLSP(SpikeModel):
     """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
@@ -218,8 +248,9 @@ class NLLSP(SpikeModel):
         c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[4] - p[1]) # <= 0, lower bound
         c1 = lambda p, t, x, y, V: abs(p[4] - p[1]) - self.dmurange[1] # <= 0, upper bound
         # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
-        # TODO: could also say that sx and sy need to be within some fraction (50% ?) of each other, ie constrain their ratio
-        pr.c = [c0, c1] # constraints
+        # constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
+        c2 = lambda p, t, x, y, V: max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
+        pr.c = [c0, c1, c2] # constraints
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
         print '%d iterations' % pr.iter
@@ -227,7 +258,6 @@ class NLLSP(SpikeModel):
 
     def calc_phasetis(self):
         """Calculates phase1ti and phase2ti for each modelled chan"""
-        phase2tis = []
         modelVs = self.model(self.p, self.t, self.x, self.y)
         modelmintis = np.argmin(modelVs, axis=1) # find each row's (chani's) argmin across its columns
         modelmaxtis = np.argmax(modelVs, axis=1)
@@ -461,6 +491,7 @@ class Detector(object):
         thresh = 50 # abs, in uV
         ppthresh = thresh + 30 # peak-to-peak threshold, abs, in uV
         dmurange = (0, 500) # allowed time difference between peaks of modelled spike
+        sxsyfactor = 3 # sx and sy need to be within this factor of each other
         twthresh = (-250, 750) # spike time window range, us, centered on threshold crossing
         tw = (-250, 750) # spike time window range, us, centered on 1st phase of spike
         trangeithresh = intround(twthresh / self.stream.tres) # spike time window range wrt thresh xing in number of timepoints
@@ -543,6 +574,7 @@ class Detector(object):
             sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
             sm.dmurange = dmurange
+            sm.sxsyfactor = sxsyfactor
             print 'chans = %r' % (np.asarray(self.chans)[chanis],)
             print 'chanis = %r' % (chanis,)
             t = wave.ts[ti0:tiend]
@@ -573,7 +605,8 @@ class Detector(object):
             '''
             sm.p0 = p0
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
-            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, v1inv, v2inv'
+            sm.check_theta()
+            print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, theta'
             print 'p0 = %r' % list(intround(sm.p0))
             print 'p = %r' % list(intround(sm.p))
             """
@@ -614,6 +647,7 @@ class Detector(object):
                 print '%s, spiket=%d' % (message, phase1t)
                 continue
             # it's a spike, record it
+            sm.valid = True
             spike = (phase1t, x0, y0) # (time, x0, y0) tuples
             spikes.append(spike)
             print 'found new spike: %r' % (list(intround(spike)),)
@@ -676,6 +710,22 @@ class Detector(object):
             # last wavetrange surpasses self.trange[1] by some unknown amount, fix that here:
             wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
         return wavetranges, (bs, bx, direction)
+
+    def get_sorted_sm(self, onlyvalid=False):
+        """Return (only valid) SpikeModels in a sorted list of key:val tuples"""
+        l = self.sm.items()
+        l.sort() # according to key (spike time)
+        if onlyvalid:
+            l = [ (st, sm) for (st, sm) in l if sm.valid ]
+        return l
+
+    def plot_sm(self, reversed=True, onlyvalid=True):
+        """Plot all spike models in self in (reversed) sorted order"""
+        sortedsm = self.get_sorted_sm(onlyvalid)
+        if reversed:
+            sortedsm.reverse()
+        for st, sm in sortedsm:
+            sm.plot()
 
     # leave the stream be, let it be pickled
     '''
