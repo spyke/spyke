@@ -579,7 +579,6 @@ class ProbeWinLayout(Record):
         f = self.srff.f
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
-
         self.left, = self.unpack('i', f.read(4))
         self.top, = self.unpack('i', f.read(4))
         self.width, = self.unpack('i', f.read(4))

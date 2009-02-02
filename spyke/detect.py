@@ -198,7 +198,8 @@ class SpikeModel(object):
         return sprofile * tprofile
 
     def check_theta(self):
-        """Ensure theta points along long axis of spatial model ellipse"""
+        """Ensure theta points along long axis of spatial model ellipse.
+        Since theta always points along the sy axis, ensure sy is the long axis"""
         phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta = self.p
         if sx > sy:
             sx, sy = sy, sx # swap them so sy is the bigger of the two
@@ -254,7 +255,7 @@ class NLLSP(SpikeModel):
         pr.c = [c0, c1, c2] # constraints
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
-        print '%d iterations' % pr.iter
+        print "%d NLLSP iterations, cost f'n eval'd %d times" % (pr.iter, len(self.errs))
         self.calc_phasetis()
 
     def calc_phasetis(self):
@@ -510,10 +511,11 @@ class Detector(object):
         '''
         edges = np.diff(np.int8(abs(wave.data) >= self.thresh)) # indices where changing abs(signal) has crossed thresh
         events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
-        events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani, rows are sorted increasing in time
+        events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
 
         lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
         spikes = [] # list of spikes detected
+
         # threshold crossing event loop: events gives us indices into time and chans
         for ti, chani in events:
             print
@@ -521,6 +523,7 @@ class Detector(object):
             if ti <= lockout[chani]: # is this thresh crossing timepoint locked out?
                 print 'thresh event is locked out'
                 continue # this event is locked out, skip to next event
+
             # get data window wrt threshold crossing
             ti0 = max(ti+trangeithresh[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
             tiend = min(ti+trangeithresh[1], len(wave.ts)) # don't go further than last wave timepoint
@@ -534,25 +537,24 @@ class Detector(object):
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockout[chi] < phase1ti ])
 
-            # find maxchan within chanis at phase1ti, redo all of the above calculations
+            # find maxchan within chanis at phase1ti
             chanii = np.abs(wave.data[chanis, phase1ti]).argmax() # index into chanis of new maxchan
             chani = chanis[chanii] # new max chani
             chan = self.chans[chani] # new max chan
             print 'new max chan=%d' % chan
-            # get new data window wrt phase1ti this time, instead of wrt the original thresh xing
+
+            # get new data window using new maxchan and wrt phase1ti this time, instead of wrt the original thresh xing
             ti0 = max(phase1ti+trangei[0], lockout[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
             tiend = min(phase1ti+trangei[1], len(wave.ts)) # don't go further than last wave timepoint
             window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
-            minV = window[minti]
-            maxV = window[maxti]
+            minV, maxV = window[minti], window[maxti]
             phase1ti = min(minti, maxti) # now it's back to wrt ti0 again
             phase2ti = max(minti, maxti)
-            phase1V = window[phase1ti]
-            phase2V = window[phase2ti]
+            phase1V, phase2V = window[phase1ti], window[phase2ti]
 
-            # again, find all the enabled chanis within slock of new chani, exclude chanis temporally locked-out at phase1ti:
+            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at phase1ti:
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockout[chi] < ti0 ])
 
@@ -562,6 +564,7 @@ class Detector(object):
             # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
                 assert abs(phase2V - phase1V) >= self.ppthresh, "event doesn't cross ppthresh"
+                assert ti0 < ti0+phase1ti < tiend, 'phase1t is at window endpoints, probably a mistrigger'
                 assert np.sign(phase1V) == -np.sign(phase2V), 'phases must be of opposite sign'
                 assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
                 assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
