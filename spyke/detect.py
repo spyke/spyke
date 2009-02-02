@@ -207,7 +207,7 @@ class SpikeModel(object):
                 theta = theta - np.pi/2
             else: # theta <= 0
                 theta = theta + np.pi/2
-            self.p = phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta
+            self.p = np.array([phase1V, mu1, s1, phase2V, mu2, s2, x0, y0, sx, sy, theta])
 
     def get_paramstr(self, p=None):
         """Get formatted string of model parameter values"""
@@ -230,12 +230,17 @@ class SpikeModel(object):
 class NLLSP(SpikeModel):
     """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
     This one can handle constraints"""
+    FTOL = 1e-1 # function tolerance, openopt default is 1e-6
+    XTOL = 1e-6 # variable tolerance
+    GTOL = 1e-6 # gradient tolerance
+
     def calc(self, t, x, y, V):
         self.t = t
         self.x = x
         self.y = y
         self.V = V
-        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V))
+        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V),
+                           ftol=self.FTOL, xtol=self.XTOL, gtol=self.GTOL)
         pr.lb[6], pr.ub[6] = -50, 50 # x0
         pr.lb[8], pr.ub[8] = 20, 200 # sx
         pr.lb[9], pr.ub[9] = 20, 200 # sy
@@ -605,12 +610,12 @@ class Detector(object):
             if wave.ts[ti] == 26880:
                 p0[6], p0[7], p0[10] = 0, 780, -0.5 # chan 7
             '''
-            sm.p0 = p0
+            sm.p0 = np.asarray(p0)
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
             sm.check_theta()
             print '      V1,  mu1, s1,  V2,  mu2, s2,  x0,   y0, sx, sy, theta'
-            print 'p0 = %r' % list(intround(sm.p0))
-            print 'p = %r' % list(intround(sm.p))
+            print 'p0 = %r' % sm.p0 #% list(intround(sm.p0))
+            print 'p = %r' % sm.p #% list(intround(sm.p))
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the modelled
