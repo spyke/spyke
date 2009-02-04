@@ -1,4 +1,6 @@
-"""Handles parsing of Surf-generated .srf files"""
+"""Handles parsing of Surf-generated .srf files.
+Some field names and comments are copied from Tim Blanche's Delphi program "SurfBawd".
+"""
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 

@@ -614,7 +614,7 @@ def dg2dsy(x0, y0, sx, sy, x, y):
     return g(x0, sx, x) * dgdsigma(y0, sy, y)
 
 def RM(theta):
-    """Return 2D rotation matrix, with theta counterclockwise rotation in radians"""
+    """Return 2D (2x2) rotation matrix, with theta counterclockwise rotation in radians"""
     return np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
 
 

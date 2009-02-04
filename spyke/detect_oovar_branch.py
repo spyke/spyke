@@ -17,12 +17,13 @@ import wx
 import numpy as np
 #from scipy.optimize import leastsq, fmin_slsqp
 import openopt
+from openopt import oovar, oofun
 #import nmpfit
 
 from pylab import *
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
+from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2, RM
 
 
 class RandomWaveTranges(object):
@@ -89,7 +90,7 @@ class SpikeModel(object):
         positioned source time series, along with its 1 sigma ellipse"""
         # TODO: also plot the initial estimate of the model, according to p0, to see how the algoritm has changed wrt it
         t, p = self.t, self.p
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
+        V1, mu1, s1, V2, mu2, s2, x0, y0, sx, sy, theta = p
         uV2um = 45 / 100 # um/uV
         us2um = 75 / 1000 # um/us
         tw = t[-1] - t[0]
@@ -146,42 +147,73 @@ class SpikeModel(object):
             a.add_line(vline1)
             a.add_line(vline2)
 
-    def cost(self, p, t, x, y, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y) - V)
-        self.errs.append(np.abs(error).sum())
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
+    def get_tmodel(self, V1, V2, mu1, mu2, s1, s2, t):
+        phase1 = oofun(g, input=[mu1, s1], args=t)
+        phase2 = oofun(g, input=[mu2, s2], args=t)
+        tmodel = oofun(lambda V1, V2, phase1, phase2: V1*phase1 + V2*phase2,
+                       input=[V1, V2, phase1, phase2])
+        return tmodel
 
-    def model(self, p, t, x, y):
+    def get_smodel(self, x0, y0, sx, sy, theta, x, y):
+        centerxy = oofun(lambda x0, y0, x, y: [(x-x0), (y-y0)],
+                         input=[x0, y0], args=(x, y))
+        ooRM = oofun(lambda theta: RM(theta),
+                     input=theta) # oofun version of RM rotation matrix f'n
+        # TODO: why the hell does ooRM come in with shape 2x2x1? Where does the singleton dim come from? It's from the fact that all param values are now single entry np.arrays
+        rotatexy = oofun(lambda ooRM, centerxy: np.inner(ooRM.squeeze(), np.asarray(centerxy).T),
+                         input=[ooRM, centerxy])
+        smodel = oofun(lambda sx, sy, (x, y): g2(0, 0, sx, sy, x, y),
+                       input=[sx, sy, rotatexy]) # relative to origin
+        return smodel
+
+    def get_model(self, t, x, y):
+        s = self
+        tmodel = self.get_tmodel(s.V1, s.V2, s.mu1, s.mu2, s.s1, s.s2, t)
+        smodel = self.get_smodel(s.x0, s.y0, s.sx, s.sy, s.theta, x, y)
+        model = oofun(lambda tmodel, smodel: np.outer(smodel, tmodel),
+                      input=[tmodel, smodel])
+        return model
+
+    def model(self, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, return a vector of voltage values V of same length as t.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
-        x, y = np.inner(RM(theta), np.asarray([x-x0, y-y0]).T) # make x, y distance to origin at x0, y0, and rotate by theta
-        tmodel = V1*g(mu1, s1, t) + V2*g(mu2, s2, t)
-        smodel = g2(0, 0, sx, sy, x, y)
+        # TODO: v1inv and v2inv should be in the rotated spatial coordinate space
+        # tile t vertically to make a 2D matrix of height nchans, so it can be broadcast across the mu+dt vectors in g()
+        p = self.p
+        phase1 = g(p['mu1'], p['s1'], t)
+        phase2 = g(p['mu2'], p['s2'], t)
+        tmodel = p['V1']*phase1 + p['V2']*phase2,
+        x, y = x-p['x0'], y-p['y0']
+        x, y = np.inner(RM(p['theta'][0]), np.asarray([x, y]).T)
+        smodel = g2(0, 0, p['sx'], p['sy'], x, y)
         return np.outer(smodel, tmodel)
+
+    def cost(self, model):
+        """Distance of each point to the 2D target function.
+        Return a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(model - self.V)
+        self.errs.append(np.abs(error).sum())
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
 
     def check_theta(self):
         """Ensure theta points along long axis of spatial model ellipse.
         Since theta always points along the sy axis, ensure sy is the long axis"""
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = self.p
-        if sx > sy:
-            sx, sy = sy, sx # swap them so sy is the bigger of the two
-            if theta > 0: # keep theta in [-pi/2, pi/2]
-                theta = theta - np.pi/2
+        p = self.p
+        if p['sx'] > p['sy']:
+            p['sx'], p['sy'] = p['sy'], p['sx'] # swap them so sy is the bigger of the two
+            if p['theta'] > 0: # keep theta in [-pi/2, pi/2]
+                p['theta'] = p['theta'] - np.pi/2
             else: # theta <= 0
-                theta = theta + np.pi/2
-            self.p = np.array([V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta])
+                p['theta'] = p['theta'] + np.pi/2
 
     def get_paramstr(self, p=None):
         """Get formatted string of model parameter values"""
         p = p or self.p
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
+        V1, mu1, s1, V2, mu2, s2, x0, y0, sx, sy, theta = p
         s = ''
         s += 'V1, V2 = %d, %d uV\n' % (V1, V2)
         s += 'mu1, mu2 = %d, %d us\n' % (mu1, mu2)
@@ -204,31 +236,43 @@ class NLLSP(SpikeModel):
     GTOL = 1e-6 # gradient tolerance
 
     def calc(self, t, x, y, V):
-        self.t = t
-        self.x = x
-        self.y = y
-        self.V = V
-        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V),
+        s = self
+        s.t = t
+        s.x = x
+        s.y = y
+        s.V = V
+        phase1 = oofun(g, input=[s.mu1, s.s1], args=t)
+        phase2 = oofun(g, input=[s.mu2, s.s2], args=t)
+        tmodel = oofun(lambda V1, V2, phase1, phase2: V1*phase1 + V2*phase2,
+                       input=[s.V1, s.V2, phase1, phase2])
+        centerxy = oofun(lambda x0, y0, x, y: [(x-x0), (y-y0)],
+                         input=[s.x0, s.y0], args=(x, y))
+        ooRM = oofun(lambda theta: RM(theta),
+                     input=s.theta) # oofun version of RM rotation matrix f'n
+        # TODO: why the hell does ooRM come in with shape 2x2x1? Where does the singleton dim come from?
+        rotatexy = oofun(lambda ooRM, centerxy: np.inner(ooRM.squeeze(), np.asarray(centerxy).T),
+                         input=[ooRM, centerxy])
+        smodel = oofun(lambda sx, sy, (x, y): g2(0, 0, sx, sy, x, y),
+                       input=[s.sx, s.sy, rotatexy]) # relative to origin
+        model = oofun(lambda tmodel, smodel: np.outer(smodel, tmodel),
+                      input=[tmodel, smodel])
+        cost = oofun(self.cost, input=model)
+        pr = openopt.NLLSP(cost, c=self.c,
                            ftol=self.FTOL, xtol=self.XTOL, gtol=self.GTOL)
-        pr.lb[6], pr.ub[6] = -50, 50 # x0
-        pr.lb[8], pr.ub[8] = 20, 200 # sx
-        pr.lb[9], pr.ub[9] = 20, 200 # sy
-        pr.lb[10], pr.ub[10] = -np.pi/2, np.pi/2 # theta (radians)
-        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
-        maybe this contraint should be on the peak separation in the sum of Gaussians,
-        instead of just on the mu params
-        can probably remove the lower bound on the peak separation, especially if it's left at 0.
-        For improved speed, might want to stop passing unnecessary args"""
-        c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[3] - p[2]) # <= 0, lower bound
-        c1 = lambda p, t, x, y, V: abs(p[3] - p[2]) - self.dmurange[1] # <= 0, upper bound
-        # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
-        # constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
-        c2 = lambda p, t, x, y, V: max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
-        pr.c = [c0, c1, c2] # constraints
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
         print "%d NLLSP iterations, cost f'n eval'd %d times" % (pr.iter, len(self.errs))
-        self.check_theta()
+        self.calc_phasetis()
+
+    def calc_phasetis(self):
+        """Calculates phase1ti and phase2ti for each modelled chan"""
+        modelVs = self.model(self.t, self.x, self.y)
+        modelmintis = np.argmin(modelVs, axis=1) # find each row's (chani's) argmin across its columns
+        modelmaxtis = np.argmax(modelVs, axis=1)
+        minmaxtis = np.asarray([modelmintis, modelmaxtis]).T # (nchans, 2) array of mintis and maxtis
+        # these are indexed into by chani
+        self.phase1tis = np.min(minmaxtis, axis=1) # find 1st phase for each chan, might be the min or the max
+        self.phase2tis = np.max(minmaxtis, axis=1) # find 2nd phase for each chan, might be the min or the max
 
 '''
 class LeastSquares(SpikeModel):
@@ -558,23 +602,41 @@ class Detector(object):
             TODO: more intelligent estimate of sx and sy by taking signal differences between maxchan and two nearest chans. Get all chans with x vals different from max, and make a similar list for y vals. Out of each of those lists, get the nearest (in 2D) chan(s) to maxchan (pick one), find the signal value ratio between it and the maxchan at phase1ti, plug maxchan's (x or y) coord into g(), set it equal to the ratio, and solve for sigma (sx or sy).
             """
             # initial params
-            p0 = [V1, V2, # Gaussian amplitudes (uV)
-                  wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti], # temporal means mu1, mu2 (us)
-                  60, 60, # temporal sigmas s1, s2 (us)
-                  x0, y0, # spatial origin, (um)
-                  60, 60, 0] # sx, sy (um), theta (radians)
-            sm.p0 = np.asarray(p0)
+            sm.V1 = oovar('V1', V1) # uV
+            sm.V2 = oovar('V2', V2) # uV
+            sm.mu1 = oovar('mu1', wave.ts[ti0+phase1ti]) # us
+            sm.mu2 = oovar('mu2', wave.ts[ti0+phase2ti]) # us
+            sm.s1 = oovar('s1', 60) # us
+            sm.s2 = oovar('s2', 60) # us
+            sm.x0 = oovar('x0', x0, lb=-50, ub=50) # um
+            sm.y0 = oovar('y0', y0) # um
+            sm.sx = oovar('sx', 60, lb=20, ub=200) # um
+            sm.sy = oovar('sy', 60, lb=20, ub=200) # um
+            sm.theta = oovar('theta', 0, lb=-np.pi/2, ub=np.pi/2) # radians
+            #sm.v1inv = oovar('v1inv', 0, lb=-2, ub=2) # us/um
+            #sm.v2inv = oovar('v2inv', 0, lb=-2, ub=2) # us/um
+            """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
+            maybe this contraint should be on the peak separation in the sum of Gaussians,
+            instead of just on the mu params. Can probably remove the lower bound on the peak separation,
+            especially if it's left at 0"""
+            c0 = oofun(lambda mu1, mu2: sm.dmurange[0] - abs(mu2 - mu1), input=[sm.mu1, sm.mu2]) # <= 0, lower bound
+            c1 = oofun(lambda mu1, mu2: abs(mu2 - mu1) - sm.dmurange[1], input=[sm.mu1, sm.mu2]) # <= 0, upper bound
+            # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
+            # constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
+            c2 = oofun(lambda sx, sy: max(sx, sy) - sm.sxsyfactor*min(sx, sy), input=[sm.sx, sm.sy]) # <= 0
+            sm.c = [c0, c1, c2] # oofun constraints
+
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
-            print '      V1, V2,  mu1,  mu2,  s1,  s2,  x0,   y0,  sx,  sy, theta'
-            print 'p0 = %r' % sm.p0 #% list(intround(sm.p0))
-            print 'p = %r' % sm.p #% list(intround(sm.p))
+            sm.check_theta()
+            #print 'p0:\n%r' % sm.p0
+            print 'p:\n%r' % sm.p
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the modelled
             waveform instead of just the parameters of the constituent Gaussians that make it up
             """
-            V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = sm.p
-            modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
+            x0, y0 = sm.p['x0'], sm.p['y0']
+            modelV = sm.model(t, x0, y0).ravel()
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
@@ -610,18 +672,11 @@ class Detector(object):
             spike = (phase1t, x0, y0) # (time, x0, y0) tuples
             spikes.append(spike)
             print 'found new spike: %r' % (list(intround(spike)),)
-            """
-            update spatiotemporal lockout
-
-            TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
-            are locked out for a shorter time. Use slock as a circularly symmetric spatial sigma
-            TODO: center lockout on model (x0, y0) coords, instead of max chani - this could be dangerous - if model
-            got it wrong, could get a whole lotta false +ve spike detections due to spatial lockout being way off
-
-            lock out til one (TODO: maybe it should be two?) stdev after peak of 2nd phase,
-            in case there's a noisy mini spike that might cause a trigger on the way down
-            """
-            lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres)
+            # update spatiotemporal lockout
+            # TODO: maybe apply the same 2D gaussian spatial filter to the lockout in time, so chans further away
+            # are locked out for a shorter time. Use slock as a circularly symmetric spatial sigma
+            # TODO: center lockout on model (x0, y0) coords, instead of max chani - this could be dangerous - if model got it wrong, could get a whole lotta false +ve spike detections due to spatial lockout being way off
+            lockout[chanis] = ti0 + sm.phase2tis + intround(sm.p['s2'] / self.stream.tres) # lock out til one stdev after peak of 2nd phase, in case there's a noisy mini spike that might cause a trigger on the way down
             print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
 
         spikes = np.asarray(spikes)

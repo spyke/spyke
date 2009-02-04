@@ -67,7 +67,7 @@ EVENT DETECTION:
                 - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
             - run profiler
             - is x0 unfairly weighted according to how many chans each col has? eg, if left col has more chans, is x0 biased to the left?
-
+            - store param names in a list of param strings sorted the same way as values in sm.p, override SpikeModel.__getattr__, check if attr is in the param string list, use its index to return the value in sm.p. That way you can go sm.mu1 without having to worry about param order changing in the future
 
         - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
             - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
