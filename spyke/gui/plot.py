@@ -29,8 +29,8 @@ from matplotlib.patches import Rectangle
 
 from spyke.core import MU, intround
 
-EVENTLINEWIDTH = 1 # in points
-EVENTLINESTYLE = '-'
+SPIKELINEWIDTH = 1 # in points
+SPIKELINESTYLE = '-'
 TEMPLATELINEWIDTH = 1.5
 TEMPLATELINESTYLE = '-'
 TREFLINEWIDTH = 0.5
@@ -68,7 +68,7 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 
 SPIKESORTTW = 1000 # spike sort panel temporal window width (us)
 CHARTSORTTW = 1000 # chart sort panel temporal window width (us)
-EVENTTW = max(SPIKESORTTW, CHARTSORTTW) # default event time width, determines event.wave width
+SPIKETW = max(SPIKESORTTW, CHARTSORTTW) # default spike time width, determines spike.wave width
 DEFNPLOTS = 10 # default number of plots to init in SortPanel
 
 CARETZORDER = 0 # layering
@@ -103,8 +103,8 @@ class Plot(object):
         for chan in self.chans:
             line = Line2D([],
                           [], # TODO: will lack of data before first .draw() cause problems for blitting?
-                          linewidth=EVENTLINEWIDTH,
-                          linestyle=EVENTLINESTYLE,
+                          linewidth=SPIKELINEWIDTH,
+                          linestyle=SPIKELINESTYLE,
                           color=self.panel.vcolours[chan],
                           zorder=PLOTZORDER,
                           antialiased=True,
@@ -116,8 +116,8 @@ class Plot(object):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
-        self.obj = None # Event or Template associated with this plot
-        self.id = None # string id that indexes into SortPanel.used_plots, starts with 'e' or 't' for event or template
+        self.obj = None # Spike or Template associated with this plot
+        self.id = None # string id that indexes into SortPanel.used_plots, starts with 's' or 't' for spike or template
 
     def show(self, enable=True):
         """Show/hide all chans in self"""
@@ -206,7 +206,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.spykeframe = self.GetTopLevelParent().Parent
 
         self.available_plots = [] # pool of available Plots
-        self.used_plots = {} # Plots holding currently displayed event/template, indexed by eid/tid with e or t prepended
+        self.used_plots = {} # Plots holding currently displayed spike/template, indexed by sid/tid with s or t prepended
         self.quickRemovePlot = None # current quickly removable Plot with associated .background
 
         if stream != None:
@@ -454,7 +454,7 @@ class PlotPanel(FigureCanvasWxAgg):
         for uniquex in uniquexs:
             x == uniquexs
     '''
-    def get_closestchans(self, event, n=1):
+    def get_closestchans(self, evt, n=1):
         """Return n channels in column closest to mouse event coords,
         sorted by vertical distance from mouse event"""
 
@@ -464,8 +464,8 @@ class PlotPanel(FigureCanvasWxAgg):
 
         # what column is this event closest to? pick that column,
         # and then the n vertically closest chans within it
-        xdata = self.us2um(event.xdata) # convert mouse event to um
-        ydata = self.uv2um(event.ydata)
+        xdata = self.us2um(evt.xdata) # convert mouse event to um
+        ydata = self.uv2um(evt.ydata)
         x, y = self.xy_um
         # find nearest column
         dx = np.abs(xdata - self.colxs) # array of x distances
@@ -480,20 +480,20 @@ class PlotPanel(FigureCanvasWxAgg):
             chans = chans[0] # pull it out, return a single value
         return chans
 
-    def get_closestline(self, event):
+    def get_closestline(self, evt):
         """Return line that's closest to mouse event coords"""
         d2s = [] # sum squared distances
         hitlines = []
-        closestchans = self.get_closestchans(event, n=NCLOSESTCHANSTOSEARCH)
+        closestchans = self.get_closestchans(evt, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
             line = self.quickRemovePlot.lines[chan]
             if line.get_visible(): # only consider lines that are visible
-                hit, tisdict = line.contains(event)
+                hit, tisdict = line.contains(evt)
                 if hit:
                     tis = tisdict['ind'] # pull them out of the dict
                     xs = line.get_xdata()[tis]
                     ys = line.get_ydata()[tis]
-                    d2 = (xs-event.xdata)**2 + (ys-event.ydata)**2
+                    d2 = (xs-evt.xdata)**2 + (ys-evt.ydata)**2
                     d2 = d2.min() # point on line closest to mouse
                     hitlines.append(line)
                     d2s.append(d2)
@@ -799,7 +799,7 @@ class LFPPanel(ChartPanel):
 
 
 class SortPanel(PlotPanel):
-    """A plot panel specialized for overplotting spike events and templates"""
+    """A plot panel specialized for overplotting spikes and templates"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         #self.spykeframe = self.GetTopLevelParent().Parent
@@ -824,7 +824,7 @@ class SortPanel(PlotPanel):
         self.background = None
 
     def addObjects(self, objects):
-        """Add events/templates to self"""
+        """Add spikes/templates to self"""
         if objects == []:
             return # do nothing
         if len(objects) == 1:
@@ -841,22 +841,22 @@ class SortPanel(PlotPanel):
 
     def addObject(self, obj):
         """Put object in an available Plot, return the Plot"""
-        if len(self.available_plots) == 0: # if we've run out of plots for additional events
+        if len(self.available_plots) == 0: # if we've run out of plots for additional objects
             self.init_plots() # init another batch of plots
         plot = self.available_plots.pop() # pop a Plot to assign this object to
         try:
-            obj.events # it's a template
+            obj.spikes # it's a template
             plot.id = 't' + str(obj.id)
             colours = [COLOURDICT[obj.id]]
             alpha = 1
             style = TEMPLATELINESTYLE
             width = TEMPLATELINEWIDTH
-        except AttributeError: # it's an event
-            plot.id = 'e' + str(obj.id)
-            style = EVENTLINESTYLE
-            width = EVENTLINEWIDTH
+        except AttributeError: # it's a spike
+            plot.id = 's' + str(obj.id)
+            style = SPIKELINESTYLE
+            width = SPIKELINEWIDTH
             try:
-                obj.template # it's a member event of a template. colour it the same as its template
+                obj.template # it's a member spike of a template. colour it the same as its template
                 alpha = 0.5
                 colours = [COLOURDICT[obj.template.id]]
             except AttributeError: # it's an unsorted spike, colour each chan separately
@@ -918,7 +918,7 @@ class SortPanel(PlotPanel):
 
     def updateObjects(self, objects):
         """Re-plot objects, potentially because their WaveForms have changed.
-        Typical use case: event is added to a template, template's mean waveform has changed"""
+        Typical use case: spike is added to a template, template's mean waveform has changed"""
         if objects == []: # do nothing
             return
         if len(objects) == 1 and objects[0].plot != None and objects[0].plot == self.quickRemovePlot and self.background != None:
@@ -934,7 +934,7 @@ class SortPanel(PlotPanel):
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateObject(self, obj):
-        """Update and draw an event's/template's plot"""
+        """Update and draw a spike's/template's plot"""
         wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
         obj.plot.update(wave, obj.t)
         obj.plot.draw()

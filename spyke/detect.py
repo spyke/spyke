@@ -9,8 +9,6 @@ import itertools
 import sys
 import time
 import string
-import processing
-import threadpool
 
 import wx
 
@@ -24,6 +22,9 @@ from pylab import *
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
 
+
+class FoundEnoughSpikesError(ValueError):
+    pass
 
 class RandomWaveTranges(object):
     """Iterator that spits out time ranges of width bs with
@@ -146,15 +147,6 @@ class SpikeModel(object):
             a.add_line(vline1)
             a.add_line(vline2)
 
-    def cost(self, p, t, x, y, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y) - V)
-        self.errs.append(np.abs(error).sum())
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
-
     def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
         For each channel, return a vector of voltage values V of same length as t.
@@ -165,6 +157,15 @@ class SpikeModel(object):
         tmodel = V1*g(mu1, s1, t) + V2*g(mu2, s2, t)
         smodel = g2(0, 0, sx, sy, x, y)
         return np.outer(smodel, tmodel)
+
+    def cost(self, p, t, x, y, V):
+        """Distance of each point to the 2D target function
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        error = np.ravel(self.model(p, t, x, y) - V)
+        self.errs.append(np.abs(error).sum())
+        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
+        return error
 
     def check_theta(self):
         """Ensure theta points along long axis of spatial model ellipse.
@@ -230,124 +231,18 @@ class NLLSP(SpikeModel):
         print "%d NLLSP iterations, cost f'n eval'd %d times" % (pr.iter, len(self.errs))
         self.check_theta()
 
-'''
-class LeastSquares(SpikeModel):
-    """Least squares Levenberg-Marquardt fit of two voltage Gaussians
-    to spike phases, plus a 2D spatial gaussian to model decay across channels"""
-    def __init__(self):
-        self.ftol = 1.49012e-8 # Relative error desired in the sum of squares
-        self.xtol = 1.49012e-8 # Relative error desired in the approximate solution
-        self.gtol = 0.0 # Orthogonality desired between the function vector and the columns of the Jacobian
-        self.maxfev = 0 # The maximum number of calls to the function, 0 means unlimited
-        # these are replicated here from the scipy.optimize.leastsq source code to get nice diagnostics while working around
-        # a bug in the scipy code which happens when extra details like these are asked for with full_output = True
-        self.errors = {0:"Improper input parameters.",
-                       1:"Both actual and predicted relative reductions in the sum of squares\n  are at most %f" % self.ftol,
-                       2:"The relative error between two consecutive iterates is at most %f" % self.xtol,
-                       3:"Both actual and predicted relative reductions in the sum of squares\n  are at most %f and the relative error between two consecutive iterates is at \n  most %f" % (self.ftol, self.xtol),
-                       4:"The cosine of the angle between func(x) and any column of the\n  Jacobian is at most %f in absolute value" % self.gtol,
-                       5:"Number of calls to function has reached maxfev = %d." % self.maxfev,
-                       6:"ftol=%f is too small, no further reduction in the sum of squares\n  is possible." % self.ftol,
-                       7:"xtol=%f is too small, no further improvement in the approximate\n  solution is possible." % self.xtol,
-                       8:"gtol=%f is too small, func(x) is orthogonal to the columns of\n  the Jacobian to machine precision." % self.gtol,
-                       'unknown':"Unknown error."
-                       }
-
-    def calc(self, t, x, y, z, V):
-        self.t = t
-        self.x = x
-        self.y = y
-        self.z = z
-        self.V = V
-        result = leastsq(self.cost, self.p0, args=(t, x, y, z, V),
-                         Dfun=None, full_output=False, col_deriv=False,
-                         ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, maxfev=self.maxfev,
-                         diag=None)
-        #self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.p, self.ier = result
-        self.mesg = self.errors[self.ier]
-        #print '%d iterations' % self.infodict['nfev']
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-
-
-class SLSQP(SpikeModel):
-    """Sequential Least SQuares Programming with constraints.
-    Oops, I'm dumb. SLSQP is a scalar nonlinear problem (NLP) solver.
-    I need a nonlinear systems problem (NLSP),
-    or a least squares nonlinear systems problem (LSNLSP) solver,
-    aka a least squares problem (LSP) solver.
-    """
-    def tcalc(self, t, V):
-        """Calculate least squares of temporal model"""
-        self.t = t
-        self.V = V
-        i = 2*self.nchans
-        """self.dmurange[0] <= dmu <= self.dmurange[1]"""
-
-        ieqcon0 = lambda tp, t, V: abs(tp[i] - tp[i+2]) - self.dmurange[0] # constrain to be >= 0
-        ieqcon1 = lambda tp, t, V: self.dmurange[1] - abs(tp[i] - tp[i+2]) # constrain to be >= 0
-        # doesn't work, cuz self.tcost returns a vector, and slsqp expects a scalar:
-        result = fmin_slsqp(self.tcost, self.tp0, args=(t, V),
-                            bounds=[],
-                            eqcons=[],
-                            ieqcons=[ieqcon0, ieqcon1],
-                            )
-        self.tp, tmodelV, self.niters, self.ier, self.mesg = result
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-
-    def scalc(self, x, y, V):
-        """Calculate least squares of spatial model"""
-        self.x = x
-        self.y = y
-        #self.V = V # don't overwrite, leave self.V as raw voltages, not tmodelled ones
-        result = fmin_slsqp(self.scost, self.sp0, args=(x, y, V),
-                            bounds=[],
-                            eqcons=[],
-                            ieqcons=[],
-                            )
-        self.sp, smodelV, self.niters, self.ier, self.mesg = result
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
-
-
-class NMPFit(SpikeModel):
-    """Levenberg-Marquadt least-squares with nmpfit from NASA's STSCI Python pytools package.
-    This one can handle constraints."""
-    def tcalc(self, t, V):
-        """Calculate least squares of temporal model"""
-        self.t = t
-        self.V = V
-        i = 2*self.nchans
-        """self.dmurange[0] <= dmu <= self.dmurange[1]"""
-        p = nmpfit.mpfit(self.tcost, self.tp0, functkw={'t':t, 'V':V},
-                         parinfo=None, fastnorm=1)
-        print 'dont forget to try messing with fastnorm!'
-        self.tp = p.params
-        print 'output params seem to be unchanged wrt input params'
-
-    def tcost(self, tp, fjac=None, t=None, V=None):
-        """Distance of each point in temporal model to the target.
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.tmodel(tp, t) - V)
-        sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        status = 0
-        return [status, error]
-'''
 
 class Detector(object):
     """Event detector base class"""
-    #DEFALGORITHM = 'BipolarAmplitude'
-    DEFALGORITHM = 'DynamicMultiphasic'
     DEFTHRESHMETHOD = 'Dynamic'
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 3.5
     DEFFIXEDTHRESH = 40 # uV
     DEFFIXEDNOISEWIN = 1000000 # 1s
     DEFDYNAMICNOISEWIN = 10000 # 10ms
-    DEFMAXNEVENTS = 0
+    DEFMAXNSPIKES = 0
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
     DEFSLOCK = 150 # um
-    DEFTLOCK = 300 # us
     DEFRANDOMSAMPLE = False
 
     MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
@@ -356,8 +251,8 @@ class Detector(object):
     def __init__(self, stream, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
                  fixednoisewin=None, dynamicnoisewin=None,
-                 trange=None, maxnevents=None, blocksize=None,
-                 slock=None, tlock=None, randomsample=None):
+                 trange=None, maxnspikes=None, blocksize=None,
+                 slock=None, randomsample=None):
         """Takes a data stream and sets various parameters"""
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.stream = stream
@@ -371,10 +266,9 @@ class Detector(object):
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
         self.trange = trange or (stream.t0, stream.tend)
-        self.maxnevents = maxnevents or self.DEFMAXNEVENTS # return at most this many events, applies across chans
+        self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many events, applies across chans
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
-        self.tlock = tlock or self.DEFTLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
         self.dmurange = (0, 500) # allowed time difference between peaks of modelled spike
@@ -404,47 +298,32 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
-        self.nevents = 0 # total num events found across all chans so far by this Detector, reset at start of every search
+        self.nspikes = 0 # total num events found across all chans so far by this Detector, reset at start of every search
         self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
-        self.events = [] # list of 2D event arrays returned by .searchblockthread(), one array per block
-
-        ncpus = processing.cpuCount()
-        nthreads = 1 # was ncpus + 1, getting some race conditions on multicore I think
-        print 'ncpus: %d, nthreads: %d' % (ncpus, nthreads)
-        pool = threadpool.ThreadPool(nthreads) # create a threading pool
+        self.spikes = [] # list of spikes returned by .searchblock(), one array per block
 
         t0 = time.clock()
         for wavetrange in wavetranges:
-            args = (wavetrange, direction)
-            # TODO: handle exceptions
-            request = threadpool.WorkRequest(self.searchblock, args=args, callback=self.handle_spikes)
-            pool.putRequest(request)
-            '''
             try:
-                spikes = self.searchblock(*args)
-                self.handle_spikes(spikes)
-            except ValueError: # we've found all the events we need
-                break # out of wavetranges loop
-            '''
-        print 'done queueing tasks'
-        pool.wait()
-        print 'tasks took %.3f sec' % (time.clock() - t0)
-        #time.sleep(2) # pause so you can watch the worker threads in taskman before they exit
-
+                spikes = self.searchblock(wavetrange, direction)
+                self.spikes.append(spikes)
+            except FoundEnoughSpikesError:
+                break
         try:
-            events = np.concatenate(self.events, axis=1)
+            spikes = np.concatenate(self.spikes, axis=1)
         except ValueError: # self.events is an empty list
-            events = np.asarray(self.events)
-            events.shape = (2, 0)
-        print '\nfound %d events in total' % events.shape[1]
+            spikes = np.asarray(self.spikes)
+            spikes.shape = (2, 0)
+        print '\nfound %d spikes in total' % spikes.shape[1]
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
-        return events
+        return spikes
 
     def searchblock(self, wavetrange, direction):
-        """This is what a worker thread executes"""
-        print 'searchblock(): self.nevents=%r, self.maxnevents=%r, wavetrange=%r, direction=%r' % (self.nevents, self.maxnevents, wavetrange, direction)
-        if self.nevents >= self.maxnevents:
-            raise ValueError # skip this iteration. TODO: this should really cancel all enqueued tasks
+        """Search a block of data"""
+        print 'searchblock(): self.nspikes=%r, self.maxnspikes=%r, wavetrange=%r, direction=%r' % \
+              (self.nspikes, self.maxnspikes, wavetrange, direction)
+        if self.nspikes >= self.maxnspikes:
+            raise FoundEnoughSpikesError # skip this iteration
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
@@ -453,9 +332,9 @@ class Detector(object):
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
         nchans = len(self.chans) # number of enabled chans
         if self.randomsample:
-            maxnevents = 1 # how many more we're looking for in the next block
+            maxnspikes = 1 # how many more we're looking for in the next block
         else:
-            maxnevents = self.maxnevents - self.nevents
+            maxnspikes = self.maxnspikes - self.nspikes
 
         trangeithresh = intround(self.twthresh / self.stream.tres) # spike time window range wrt thresh xing in number of timepoints
         trangei = intround(self.tw / self.stream.tres) # spike time window range wrt 1st phase in number of timepoints
@@ -632,22 +511,22 @@ class Detector(object):
         spikes = spikes[spikeis]
         return spikes
 
-    def handle_spikes(self, request, spikes):
-        """Blocking callback, called every time a worker thread completes a task"""
-        print 'handle_spikes got: %r' % spikes
+    def check_spikes(self, spikes):
+        """Checks for duplicate spikes between results from latest .searchblock() call,
+        and previously saved spikes in this .search()"""
         if spikes == None:
             return
         nnewevents = spikes.shape[1] # number of columns
         #wx.Yield() # allow GUI to update
-        if self.randomsample and spikes.tolist() in np.asarray(self.events).tolist():
+        if self.randomsample and spikes.tolist() in np.asarray(self.spikes).tolist():
             # check if spikes is a duplicate of any that are already in .events, if so,
-            # don't append this new spikes array, and don't inc self.nevents. Duplicates are possible
+            # don't append this new spikes array, and don't inc self.nspikes. Duplicates are possible
             # in random sampling cuz we might end up with blocks with overlapping tranges.
             # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
-            sys.stdout.write('found duplicate random sampled event')
+            sys.stdout.write('found duplicate spike')
         elif nnewevents != 0:
-            self.events.append(spikes)
-            self.nevents += nnewevents # update
+            self.spikes.append(spikes)
+            self.nspikes += nnewevents # update
             sys.stdout.write('.')
 
     def get_blockranges(self, bs, bx):
@@ -747,17 +626,3 @@ class Detector(object):
             return np.stdev(data, axis=-1)
         else:
             raise ValueError
-
-
-class BipolarAmplitude(Detector):
-    """Bipolar amplitude detector"""
-    def __init__(self, *args, **kwargs):
-        Detector.__init__(self, *args, **kwargs)
-        self.algorithm = 'BipolarAmplitude'
-
-
-class DynamicMultiphasic(Detector):
-    """Dynamic multiphasic detector"""
-    def __init__(self, *args, **kwargs):
-        Detector.__init__(self, *args, **kwargs)
-        self.algorithm = 'DynamicMultiphasic'

@@ -14,13 +14,13 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import EVENTTW
+from spyke.gui.plot import SPIKETW
 
-EVENTTRANGE = (-EVENTTW/2, EVENTTW/2)
+SPIKETRANGE = (-SPIKETW/2, SPIKETW/2)
 MAXCHANTOLERANCE = 100 # um
 
-# save all Event waveforms, even for those that have never been plotted or added to a template
-SAVEALLEVENTWAVES = False
+# save all Spike waveforms, even for those that have never been plotted or added to a template
+SAVEALLSPIKEWAVES = False
 
 SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
@@ -30,8 +30,8 @@ SORTFRAMEHEIGHT = 950
 
 class Sort(object):
     """A spike sorting session, in which you can do multiple Detection runs,
-    build Templates up from events in those Detection runs, and then use Templates
-    to sort spike Events.
+    build Templates up from spikes in those Detection runs, and then use Templates
+    to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single Sort object, pickled and gzipped"""
     def __init__(self, detector=None, probe=None, stream=None):
@@ -39,14 +39,14 @@ class Sort(object):
         self.probe = probe # only one probe design per sort allowed
         self.detections = {} # history of detection runs
         self.stream = stream
-        # all unsorted events detected in this sort session across all Detection runs, indexed by unique ID
-        # sorted events go in their respective template's .events dict
-        self.events = {}
+        # all unsorted spikes detected in this sort session across all Detection runs, indexed by unique ID
+        # sorted spikes go in their respective template's .spikes dict
+        self.spikes = {}
         self.templates = {} # first hierarchy of templates
-        self.trash = {} # discarded events
+        self.trash = {} # discarded spikes
 
         self._detid = 0 # used to count off unqiue Detection run IDs
-        self._eventid = 0 # used to count off unique Event IDs
+        self._spikeid = 0 # used to count off unique Spike IDs
         self._templid = 0 # used to count off unique Template IDs
 
     def get_stream(self):
@@ -76,22 +76,22 @@ class Sort(object):
         del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
         return d
 
-    def append_events(self, events):
-        """Append events to self.
-        Don't add a new event from a new detection if the identical event
-        (same maxchan and t) is already in self.events"""
-        newevents = set(events.values()).difference(self.events.values())
-        duplicates = set(events.values()).difference(newevents)
+    def append_spikes(self, spikes):
+        """Append spikes to self.
+        Don't add a new spike from a new detection if the identical spike
+        (same maxchan and t) is already in self.spikes"""
+        newspikes = set(spikes.values()).difference(self.spikes.values())
+        duplicates = set(spikes.values()).difference(newspikes)
         if duplicates:
-            print 'not adding duplicate events %r' % [ event.id for event in duplicates ]
-        uniqueevents = {}
-        for newevent in newevents:
-            uniqueevents[newevent.id] = newevent
-        self.events.update(uniqueevents)
-        return uniqueevents
+            print 'not adding duplicate spikes %r' % [ spike.id for spike in duplicates ]
+        uniquespikes = {}
+        for newspike in newspikes:
+            uniquespikes[newspike.id] = newspike
+        self.spikes.update(uniquespikes)
+        return uniquespikes
 
     def match(self, templates=None, weighting='signal', sort=True):
-        """Match templates to all .events with nearby maxchans,
+        """Match templates to all .spikes with nearby maxchans,
         save error values to respective templates.
 
         Note: slowest step by far is loading in the wave data from disk.
@@ -100,7 +100,7 @@ class Sort(object):
         Right now, once waves are loaded, performance is roughly 20000 matches/sec
 
         TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean template, and an stdev
-        template, and weight the error between each matched event and the mean on each chan at each timepoint by
+        template, and weight the error between each matched spike and the mean on each chan at each timepoint by
         the corresponding stdev value (divide the error by the stdev, so that timepoints with low stdev are more
         sensitive to error)
 
@@ -116,7 +116,7 @@ class Sort(object):
         templates = templates or self.templates.values() # None defaults to matching all templates
         sys.stdout.write('matching')
         t0 = time.clock()
-        nevents = len(self.events)
+        nspikes = len(self.spikes)
         dm = self.detector.dm
         for template in templates:
             template.err = [] # overwrite any existing .err attrib
@@ -126,21 +126,21 @@ class Sort(object):
             #stdev[stdev == 0] = 1 # replace any 0s with 1s - TODO: what's the best way to avoid these singularities?
             weights = template.get_weights(weighting=weighting, sstdev=self.detector.slock/2,
                                            tstdev=self.detector.tlock/2) # Gaussian weighting in space and/or time
-            for event in self.events.values():
-                # check if event.maxchan is outside some minimum distance from template.maxchan
-                if dm[template.maxchan, event.maxchan] > MAXCHANTOLERANCE: # um
+            for spike in self.spikes.values():
+                # check if spike.maxchan is outside some minimum distance from template.maxchan
+                if dm[template.maxchan, spike.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
-                if event.wave.data == None or template.trange != EVENTTRANGE: # make sure their data line up
-                    event.update_wave(trange) # this slows things down a lot, but is necessary
-                # slice template's enabled chans out of event, calculate sum of squared weighted error
+                if spike.wave.data == None or template.trange != SPIKETRANGE: # make sure their data line up
+                    spike.update_wave(trange) # this slows things down a lot, but is necessary
+                # slice template's enabled chans out of spike, calculate sum of squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
-                #err = (templatewave.data - event.wave[template.chans].data) / stdev * weights # low stdev means more sensitive to error
-                eventwave = event.wave[template.chans] # pull out template's enabled chans from event
+                #err = (templatewave.data - spike.wave[template.chans].data) / stdev * weights # low stdev means more sensitive to error
+                spikewave = spike.wave[template.chans] # pull out template's enabled chans from spike
                 if weighting == 'signal':
-                    weights = np.abs(np.asarray([templatewave.data, eventwave.data])).max(axis=0) # take elementwise max of abs of template and event data
-                err = (templatewave.data - eventwave.data) * weights # weighted error
+                    weights = np.abs(np.asarray([templatewave.data, spikewave.data])).max(axis=0) # take elementwise max of abs of template and spike data
+                err = (templatewave.data - spikewave.data) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
-                template.err.append((event.id, intround(err)))
+                template.err.append((spike.id, intround(err)))
             template.err = np.asarray(template.err, dtype=np.int64)
             if sort and len(template.err) != 0:
                 i = template.err[:, 1].argsort() # row indices that sort by error
@@ -153,22 +153,21 @@ class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
-    def __init__(self, sort, detector, id=None, datetime=None, events_array=None):
+    def __init__(self, sort, detector, id=None, datetime=None, spikes_array=None):
         self.sort = sort # parent sort session
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        self.events_array = events_array # 2D array output of Detector.search
+        self.spikes_array = spikes_array # 2D array output of Detector.search
         self._slock_chans = {}
-        #self.spikes = {} # a dict of Event objects? a place to note which events in this detection have been chosen as either member spikes of a template or sorted spikes. Need this here so we know which Spike objects to delete from this sort session when we delete a Detection
 
-    def set_events(self):
-        """Convert .events_array to dict of Event objects, inc sort's _eventid counter"""
-        self.events = {}
-        for t, chan in self.events_array.T: # same as iterate over cols of non-transposed events array
-            e = Event(self.sort._eventid, chan, t, self)
-            self.sort._eventid += 1 # inc for next unique Event
-            self.events[e.id] = e
+    def set_spikes(self):
+        """Convert .spikes_array to dict of Spike objects, inc sort's _spikeid counter"""
+        self.spikes = {}
+        for t, chan in self.spikes_array.T: # same as iterate over cols of non-transposed spikes array
+            s = Spike(self.sort._spikeid, chan, t, self)
+            self.sort._spikeid += 1 # inc for next unique Spike
+            self.spikes[s.id] = s
 
     def get_slock_chans(self, maxchan):
         """Get or generate list of chans within spatial lockout of maxchan, use
@@ -189,10 +188,10 @@ class Detection(object):
             return chans
 
     def __eq__(self, other):
-        """Compare detection runs by their .events_array"""
-        # TODO: see if there's any overlap between self.events and other.events, ie duplicate events,
+        """Compare detection runs by their .spikes_array"""
+        # TODO: see if there's any overlap between self.spikes and other.spikes, ie duplicate spikes,
         # and raise a warning in a dialog box or something
-        return np.all(self.events_array == other.events_array)
+        return np.all(self.spikes_array == other.spikes_array)
 
 
 class Template(object):
@@ -207,58 +206,58 @@ class Template(object):
         self.wave = WaveForm() # init to empty waveform
         self.maxchan = None
         self.chans = None # chans enabled for plotting/matching/ripping
-        self.events = {} # member spike events that make up this template
-        self.trange = EVENTTRANGE
-        self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Event.t
+        self.spikes = {} # member spikes that make up this template
+        self.trange = SPIKETRANGE
+        self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Spike.t
         self.plot = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
     def update_wave(self):
-        """Update mean waveform, should call this every time .events or .trange
+        """Update mean waveform, should call this every time .spikes or .trange
         are modified.
         Setting .trange as a property to do so automatically works.
-        Setting .events as a property to do so automatically doesn't work, because
-        properties only catch name binding events, not modification of an object
+        Setting .spikes as a property to do so automatically doesn't work, because
+        properties only catch name binding of spikes, not modification of an object
         that's already been bound"""
-        if self.events == {}: # no member spikes
+        if self.spikes == {}: # no member spikes
             self.wave = WaveForm() # empty waveform
             return
-        event = self.events.values()[0] # get a random member event
-        if event.wave.data == None: # make sure its WaveForm isn't empty
-            event.update_wave(trange=self.trange)
-        #self.maxchan = self.maxchan or event.maxchan # set maxchan if it hasn't been already
-        self.chans = self.chans or event.chans # set enabled chans if they haven't been already
+        spike = self.spikes.values()[0] # get a random member spike
+        if spike.wave.data == None: # make sure its WaveForm isn't empty
+            spike.update_wave(trange=self.trange)
+        #self.maxchan = self.maxchan or spike.maxchan # set maxchan if it hasn't been already
+        self.chans = self.chans or spike.chans # set enabled chans if they haven't been already
         ts = self.wave.ts # see if they've already been set
         if ts == None:
-            ts = event.wave.ts - event.t # timestamps relative to self.t=0
+            ts = spike.wave.ts - spike.t # timestamps relative to self.t=0
         lo, hi = ts.searchsorted(self.trange)
         ts = ts[lo:hi] # slice them according to trange
 
-        wavechans = self.wave.chans or event.wave.chans # chan ids that correspond to rows in wave.data
+        wavechans = self.wave.chans or spike.wave.chans # chan ids that correspond to rows in wave.data
         data = []
-        for event in self.events.values():
-            # check each event for timepoints that don't match up, update the event so that they do
-            # note: event is no longer just some random member event as it was above
-            if event.wave.ts == None or ((event.wave.ts - event.t) != ts).all():
-                event.update_wave(trange=self.trange)
-            assert event.wave.chans == wavechans # being really thorough here...
-            data.append(event.wave.data) # collect event's data
+        for spike in self.spikes.values():
+            # check each spike for timepoints that don't match up, update the spike so that they do
+            # note: spike is no longer just some random member spike as it was above
+            if spike.wave.ts == None or ((spike.wave.ts - spike.t) != ts).all():
+                spike.update_wave(trange=self.trange)
+            assert spike.wave.chans == wavechans # being really thorough here...
+            data.append(spike.wave.data) # collect spike's data
         data = np.asarray(data).mean(axis=0)
         self.wave.data = data
         self.wave.ts = ts
         #print 'template[%d].wave.ts = %r' % (self.id, ts)
         self.wave.chans = wavechans # could be None, to indicate to WaveForm that data is contiguous and complete
         self.maxchan = self.get_maxchan()
-        #self.chans = event.detection.get_slock_chans(self.maxchan) # from random event's detection
+        #self.chans = spike.detection.get_slock_chans(self.maxchan) # from random spike's detection
         return self.wave
 
     def get_stdev(self):
-        """Return 2D array of stddev of each timepoint of each chan of member events.
+        """Return 2D array of stddev of each timepoint of each chan of member spikes.
         Assumes self.update_wave has already been called"""
         data = []
-        for event in self.events.values():
-            data.append(event.wave.data) # collect event's data
+        for spike in self.spikes.values():
+            data.append(spike.wave.data) # collect spike's data
         stdev = np.asarray(data).std(axis=0)
         return stdev
 
@@ -298,8 +297,8 @@ class Template(object):
         """Reset self's time range relative to t=0 spike time,
         update slice of member spikes, and update mean waveform"""
         self._trange = trange
-        for event in self.events.values():
-            event.update_wave(trange=trange)
+        for spike in self.spikes.values():
+            spike.update_wave(trange=trange)
         self.update_wave()
 
     trange = property(get_trange, set_trange)
@@ -359,8 +358,8 @@ class Template(object):
         return d
 
 
-class Event(object):
-    """Either an unsorted event, or a member spike in a Template,
+class Spike(object):
+    """Either an unsorted spike, or a member spike in a Template,
     or a sorted spike in a Detection (or should that be sort session?)"""
     def __init__(self, id, maxchan, t, detection):
         self.id = id # some integer for easy user identification
@@ -368,7 +367,7 @@ class Event(object):
         self.t = t # absolute timestamp, generally falls within span of waveform
         self.detection = detection # Detection run self was detected on
         self.chans = self.detection.get_slock_chans(maxchan) # chans enabled for plotting/matching/matchripping
-        self.template = None # template object it belongs to, None means self is an unsorted event
+        self.template = None # template object it belongs to, None means self is an unsorted spike
         self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.plot = None # Plot currently holding self
@@ -376,23 +375,23 @@ class Event(object):
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()
 
-    def update_wave(self, trange=EVENTTRANGE):
-        """Load/update self's waveform, defaults to default event time window centered on self.t"""
+    def update_wave(self, trange=SPIKETRANGE):
+        """Load/update self's waveform, defaults to default spike time window centered on self.t"""
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
 
     def __eq__(self, other):
-        """Events are considered identical if they have the
+        """Spikes are considered identical if they have the
         same timepoint and the same maxchan"""
         return self.t == other.t and self.maxchan == other.maxchan
 
     def __hash__(self):
         """Unique hash value for self, based on .t and .maxchan.
-        Required for effectively using Events in a Set"""
+        Required for effectively using spikes in a Set"""
         return hash((self.t, self.maxchan)) # hash of their tuple, should guarantee uniqueness
 
     def __getitem__(self, key):
-        """Return WaveForm for this event given slice key"""
+        """Return WaveForm for this spike given slice key"""
         assert key.__class__ == slice
         stream = self.detection.detector.stream
         if stream != None: # stream is available
@@ -405,7 +404,7 @@ class Event(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        if SAVEALLEVENTWAVES and self.wave.data == None:
+        if SAVEALLSPIKEWAVES and self.wave.data == None:
             # make sure .wave is loaded before pickling to file
             self.update_wave()
         d = self.__dict__.copy()
@@ -416,9 +415,9 @@ class Event(object):
 
 class Match(object):
     """Holds all the settings of a match run. A match run is when you compare each
-    template to all of the detected but unsorted spikes in Sort.events, plot an
+    template to all of the detected but unsorted spikes in Sort.spikes, plot an
     error histogram for each template, and set the error threshold for each to
-    decide which events match the template. Fast, simple, no noise events to worry
+    decide which spikes match the template. Fast, simple, no noise spikes to worry
     about, but is susceptible to spike misalignment. Compare with a Rip"""
 
     def match(self):
@@ -429,7 +428,7 @@ class Rip(object):
     """Holds all the Rip settings. A rip is when you take each template and
     slide it across the entire file. A spike is detected and
     sorted at timepoints where the error between template and file falls below
-    some threshold. Slow, and requires distinguishing a whole lotta noise events"""
+    some threshold. Slow, and requires distinguishing a whole lotta noise spikes"""
 
     def rip(self):
         pass
@@ -439,7 +438,7 @@ class MatchRip(Match, Rip):
     """A hybrid of the two. Rip each template across all of the unsorted spikes
     instead of across the entire file. Compared to a Match, a MatchRip can better
     handle unsorted unspikes that are misaligned, with the downside that you now
-    have a lot of noise events to distinguish as well, but not as many as in a normal Rip"""
+    have a lot of noise spikes to distinguish as well, but not as many as in a normal Rip"""
 
     def matchrip(self):
         pass
@@ -459,10 +458,10 @@ class SortFrame(wxglade_gui.SortFrame):
 
         self.listTimer = wx.Timer(owner=self.list)
 
-        self.lastSelectedListEvents = []
+        self.lastSelectedListSpikes = []
         self.lastSelectedTreeObjects = []
 
-        columnlabels = ['eID', 'chan', 'time', 'err'] # event list column labels
+        columnlabels = ['sID', 'chan', 'time', 'err'] # spike list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -520,12 +519,12 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnListTimer(self, evt):
         """Run when started timer runs out and triggers a TimerEvent"""
         selectedRows = self.list.GetSelections()
-        selectedListEvents = [ self.listRow2Event(row) for row in selectedRows ]
-        removeEvents = [ event for event in self.lastSelectedListEvents if event not in selectedListEvents ]
-        addEvents = [ event for event in selectedListEvents if event not in self.lastSelectedListEvents ]
-        self.RemoveObjectsFromPlot(removeEvents)
-        self.AddObjects2Plot(addEvents)
-        self.lastSelectedListEvents = selectedListEvents # save for next time
+        selectedListSpikes = [ self.listRow2Spike(row) for row in selectedRows ]
+        removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
+        addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
+        self.RemoveObjectsFromPlot(removeSpikes)
+        self.AddObjects2Plot(addSpikes)
+        self.lastSelectedListSpikes = selectedListSpikes # save for next time
 
     def OnListRightDown(self, evt):
         """Toggle selection of the clicked list item, without changing selection
@@ -534,21 +533,21 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'in OnListRightDown'
         pt = evt.GetPosition()
         itemID, flags = self.list.HitTest(pt)
-        event = self.listRow2Event(itemID)
-        print 'eventID is %r' % event.id
+        spike = self.listRow2Spike(itemID)
+        print 'spikeID is %r' % spike.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
         #selected = not self.list.IsSelected(itemID)
         #self.list.Select(itemID, on=int(not selected))
         # here is a yucky workaround:
         try:
-            self.spikesortpanel.used_plots['e'+str(event.id)] # is it plotted?
+            self.spikesortpanel.used_plots['s'+str(spike.id)] # is it plotted?
             selected = True # if so, item must be selected
-            print 'event %d in used_plots' % event.id
+            print 'spike %d in used_plots' % spike.id
         except KeyError:
             selected = False # item is not selected
-            print 'event %d not in used_plots' % event.id
-        self.list.Select(itemID, on=not selected) # toggle selection, this fires sel event, which updates the plot
+            print 'spike %d not in used_plots' % spike.id
+        self.list.Select(itemID, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):
         coli = evt.GetColumn()
@@ -564,7 +563,7 @@ class SortFrame(wxglade_gui.SortFrame):
             raise ValueError, 'weird column id %d' % coli
 
     def OnListKeyDown(self, evt):
-        """Event list key down evt"""
+        """Spike list key down evt"""
         key = evt.GetKeyCode()
         if key == wx.WXK_TAB:
             self.tree.SetFocus() # change focus to tree
@@ -572,11 +571,11 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.ToggleFocusedItem()
             return # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [ord('A'), wx.WXK_LEFT]:
-            self.MoveCurrentEvents2Template(which='selected')
+            self.MoveCurrentSpikes2Template(which='selected')
         elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
-            self.MoveCurrentEvents2Template(which='new')
+            self.MoveCurrentSpikes2Template(which='new')
         elif key in [wx.WXK_DELETE, ord('D')]:
-            self.MoveCurrentEvents2Trash()
+            self.MoveCurrentSpikes2Trash()
         elif evt.ControlDown() and key == ord('S'):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         evt.Skip()
@@ -596,7 +595,7 @@ class SortFrame(wxglade_gui.SortFrame):
             return # don't allow the selection event to actually happen?????????????
         self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         print [ self.tree.GetItemText(item) for item in self.tree._selectedItems ]
-        selectedTreeObjects = [] # objects could be a mix of Events and Templates
+        selectedTreeObjects = [] # objects could be a mix of Spikes and Templates
         for itemID in self.tree._selectedItems:
             item = self.tree.GetItemPyData(itemID)
             selectedTreeObjects.append(item)
@@ -629,7 +628,7 @@ class SortFrame(wxglade_gui.SortFrame):
         itemID, flags = self.tree.HitTest(pt)
         if not itemID.IsOk(): # if we haven't clicked on an item
             return
-        obj = self.tree.GetItemPyData(itemID) # either an Event or a Template
+        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Template
         # first, restore all prior selections in the tree (except our item) that were cleared by the right click selection event
         for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
             self.tree.SelectItem(itemID)
@@ -648,7 +647,7 @@ class SortFrame(wxglade_gui.SortFrame):
         and aren't reselected until the SPACE keyup event"""
         print 'in OnTreeSpaceUp'
         itemID = self.tree.GetFocusedItem()
-        obj = self.tree.GetItemPyData(itemID) # either an Event or a Template
+        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Template
         # first, restore all prior selections in the tree (except our item) that were cleared by the space selection event
         for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
             self.tree.SelectItem(itemID)
@@ -670,10 +669,10 @@ class SortFrame(wxglade_gui.SortFrame):
             # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [wx.WXK_DELETE, ord('D'),]:
             self.MoveCurrentObjects2List()
-        elif key == ord('A'): # allow us to add from event list even if tree is in focus
-            self.MoveCurrentEvents2Template(which='selected')
+        elif key == ord('A'): # allow us to add from spike list even if tree is in focus
+            self.MoveCurrentSpikes2Template(which='selected')
         elif key in [ord('C'), ord('N'), ord('T')]: # ditto for creating a new template
-            self.MoveCurrentEvents2Template(which='new')
+            self.MoveCurrentSpikes2Template(which='new')
         elif evt.ControlDown() and key == ord('S'):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
@@ -705,18 +704,18 @@ class SortFrame(wxglade_gui.SortFrame):
             self.RelabelTemplates(root)
 
     def OnMatchTemplate(self, evt):
-        """Match events in event list against first selected template, populate err column"""
+        """Match spikes in spike list against first selected template, populate err column"""
         errcol = 3 # err is in 3rd column (0-based)
         template = self.GetFirstSelectedTemplate()
         if not template: # no templates selected
             return
         self.sort.match(templates=[template])
-        eid2err = dict(template.err) # maps event ID to its error for this template
+        sid2err = dict(template.err) # maps spike ID to its error for this template
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi))
+            sid = int(self.list.GetItemText(rowi))
             try:
-                err = str(eid2err[eid])
-            except KeyError: # no err for this eid because the event and template don't overlap enough
+                err = str(sid2err[sid])
+            except KeyError: # no err for this sid because the spike and template don't overlap enough
                 err = ''
             erritem = self.list.GetItem(rowi, errcol)
             erritem.SetText(err)
@@ -734,38 +733,37 @@ class SortFrame(wxglade_gui.SortFrame):
         self.sort._templid = templatei + 1 # reset unique Template ID counter to make next added template consecutive
 
     def SortListByID(self):
-        """Sort event list by event ID"""
+        """Sort spike list by spike ID"""
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi))
-            self.list.SetItemData(rowi, eid)
+            sid = int(self.list.GetItemText(rowi))
+            self.list.SetItemData(rowi, sid)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByChan(self):
-        """Sort event list by ycoord of event maxchans,
-        from top to bottom of probe"""
+        """Sort spike list by ycoord of spike maxchans, from top to bottom of probe"""
         # first set the itemdata for each row
         SiteLoc = self.sort.probe.SiteLoc
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi)) # 0th column
-            e = self.sort.events[eid]
-            xcoord = SiteLoc[e.maxchan][0]
-            ycoord = SiteLoc[e.maxchan][1]
+            sid = int(self.list.GetItemText(rowi)) # 0th column
+            s = self.sort.spikes[sid]
+            xcoord = SiteLoc[s.maxchan][0]
+            ycoord = SiteLoc[s.maxchan][1]
             # hack to make items sort by ycoord, or xcoord if ycoords are identical
             data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
             self.list.SetItemData(rowi, data)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByTime(self):
-        """Sort event list by event timepoint"""
+        """Sort spike list by spike timepoint"""
         for rowi in range(self.list.GetItemCount()):
-            eid = int(self.list.GetItemText(rowi)) # 0th column
-            t = self.sort.events[eid].t
+            sid = int(self.list.GetItemText(rowi)) # 0th column
+            t = self.sort.spikes[sid].t
             # this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
             self.list.SetItemData(rowi, t)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByErr(self):
-        """Sort event list by match error.
+        """Sort spike list by match error.
         Hack to get around stupid SetItemData being limited to int32s"""
         errcol = 3 # err is in 3rd column (0-based)
         errs = []
@@ -786,20 +784,20 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.draw_refs()
         #self.chartsortpanel.draw_refs()
 
-    def Append2EventList(self, events):
-        """Append events to self's event list control"""
+    def Append2SpikeList(self, spikes):
+        """Append spikes to self's spike list control"""
         SiteLoc = self.sort.probe.SiteLoc
-        for e in events.values():
-            row = [str(e.id), e.maxchan, e.t] # leave err column empty for now
+        for s in spikes.values():
+            row = [str(s.id), s.maxchan, s.t] # leave err column empty for now
             self.list.Append(row)
             # using this instead of .Append(row) is just as slow:
-            #rowi = self.list.InsertStringItem(sys.maxint, str(e.id))
-            #self.list.SetStringItem(rowi, 1, str(e.maxchan))
-            #self.list.SetStringItem(rowi, 2, str(e.t))
+            #rowi = self.list.InsertStringItem(sys.maxint, str(s.id))
+            #self.list.SetStringItem(rowi, 1, str(s.maxchan))
+            #self.list.SetStringItem(rowi, 2, str(s.t))
             # should probably use a virtual listctrl to speed up listctrl creation
             # and subsequent addition and especially removal of items
-            xcoord = SiteLoc[e.maxchan][0]
-            ycoord = SiteLoc[e.maxchan][1]
+            xcoord = SiteLoc[s.maxchan][0]
+            ycoord = SiteLoc[s.maxchan][1]
             # hack to make items sort by ycoord, or xcoord if ycoords are identical
             data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
             # use item count instead of counting from 0 cuz you want to handle there
@@ -808,7 +806,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
         #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
         # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:80, 3:60}.items(): # (eID, chan, time, err)
+        for coli, width in {0:40, 1:40, 2:80, 3:60}.items(): # (sid, chan, time, err)
             self.list.SetColumnWidth(coli, width)
 
     def AddObjects2Plot(self, objects):
@@ -845,41 +843,41 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
 
     def DeleteTemplate(self, template):
-        """Move a template's events back to the event list, delete it
+        """Move a template's spikes back to the spike list, delete it
         from the tree, and remove it from the sort session"""
-        for event in template.events.values():
-            self.MoveEvent2List(event)
+        for spike in template.spikes.values():
+            self.MoveSpike2List(spike)
         self.tree.Delete(template.itemID)
         del self.sort.templates[template.id]
 
-    def listRow2Event(self, row):
-        """Return Event at list row"""
-        eventi = int(self.list.GetItemText(row))
-        event = self.sort.events[eventi]
-        return event
+    def listRow2Spike(self, row):
+        """Return Spike at list row"""
+        spikei = int(self.list.GetItemText(row))
+        spike = self.sort.spikes[spikei]
+        return spike
 
-    def MoveEvent2Template(self, event, row, template=None):
-        """Move a spike event from unsorted sort.events to a template.
+    def MoveSpike2Template(self, spike, row, template=None):
+        """Move a spike spike from unsorted sort.spikes to a template.
         Also, move it from a list control row to a template in the tree.
         If template is None, create a new one
         """
-        # make sure this event isn't already a member event of this template,
+        # make sure this spike isn't already a member of this template,
         # or of any other template
         for templ in self.sort.templates.values():
-            if event in templ.events.values():
-                print "Can't move: event %d is identical to a member event in template %d" % (event.id, templ.id)
+            if spike in templ.spikes.values():
+                print "Can't move: spike %d is identical to a member spike in template %d" % (spike.id, templ.id)
                 return
-        self.list.DeleteItem(row) # remove it from the event list
+        self.list.DeleteItem(row) # remove it from the spike list
         self.list.Select(row) # automatically select the new item at that position
         createdTemplate = False
         if template == None:
             template = self.CreateTemplate()
             createdTemplate = True
-        del self.sort.events[event.id] # remove event from unsorted sort.events
-        template.events[event.id] = event # add event to template
+        del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+        template.spikes[spike.id] = spike # add spike to template
         template.update_wave() # update mean template waveform
-        event.template = template # bind template to event
-        self.AddEvent2Tree(template.itemID, event)
+        spike.template = template # bind template to spike
+        self.AddSpike2Tree(template.itemID, spike)
         if createdTemplate:
             #self.tree.Expand(root) # make sure root is expanded
             self.tree.Expand(template.itemID) # expand template
@@ -888,39 +886,39 @@ class SortFrame(wxglade_gui.SortFrame):
             self.OnTreeSelectChanged() # now plot accordingly
         return template
 
-    def MoveEvent2Trash(self, event, row):
-        """Move event from event list to trash"""
-        self.list.DeleteItem(row) # remove it from the event list
+    def MoveSpike2Trash(self, spike, row):
+        """Move spike from spike list to trash"""
+        self.list.DeleteItem(row) # remove it from the spike list
         self.list.Select(row) # automatically select the new item at that position
-        del self.sort.events[event.id] # remove event from unsorted sort.events
-        self.sort.trash[event.id] = event # add it to trash
-        print 'moved event %d to trash' % event.id
+        del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+        self.sort.trash[spike.id] = spike # add it to trash
+        print 'moved spike %d to trash' % spike.id
 
-    def AddEvent2Tree(self, parent, event):
-        """Add an event to the tree, where parent is a tree itemID"""
-        event.itemID = self.tree.AppendItem(parent, 'e'+str(event.id)) # add event to tree, save its itemID
-        self.tree.SetItemPyData(event.itemID, event) # associate event tree item with event
+    def AddSpike2Tree(self, parent, spike):
+        """Add a spike to the tree, where parent is a tree itemID"""
+        spike.itemID = self.tree.AppendItem(parent, 's'+str(spike.id)) # add spike to tree, save its itemID
+        self.tree.SetItemPyData(spike.itemID, spike) # associate spike tree item with spike
 
-    def MoveEvent2List(self, event):
-        """Move a spike event from a template in the tree back to the list control"""
-        # make sure this event isn't already in sort.events
-        if event in self.sort.events.values():
-            # would be useful to print out the guilty event id in the event list, but that would require a more expensive search
-            print "Can't move: event %d (maxchan=%d, t=%d) in template %d is identical to an unsorted event in the event list" \
-                  % (event.id, event.maxchan, event.t, event.template.id)
+    def MoveSpike2List(self, spike):
+        """Move a spike spike from a template in the tree back to the list control"""
+        # make sure this spike isn't already in sort.spikes
+        if spike in self.sort.spikes.values():
+            # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
+            print "Can't move: spike %d (maxchan=%d, t=%d) in template %d is identical to an unsorted spike in the spike list" \
+                  % (spike.id, spike.maxchan, spike.t, spike.template.id)
             return
-        self.tree.Delete(event.itemID)
-        template = event.template
-        del template.events[event.id] # del event from its template's event dict
-        self.sort.events[event.id] = event # restore event to unsorted sort.events
+        self.tree.Delete(spike.itemID)
+        template = spike.template
+        del template.spikes[spike.id] # del spike from its template's spike dict
+        self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
         template.update_wave() # update mean template waveform
-        event.template = None # unbind event's template from event
-        event.itemID = None # no longer applicable
-        data = [event.id, event.maxchan, event.t]
+        spike.template = None # unbind spike's template from spike
+        spike.itemID = None # no longer applicable
+        data = [spike.id, spike.maxchan, spike.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
         # TODO: maybe re-sort the list
 
-    def MoveCurrentEvents2Template(self, which='selected'):
+    def MoveCurrentSpikes2Template(self, which='selected'):
         if which == 'selected':
             template = self.GetFirstSelectedTemplate()
         elif which == 'new':
@@ -929,39 +927,39 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
-            event = self.listRow2Event(row)
-            if event.wave.data != None: # only move it to template if it's got wave data
-                template = self.MoveEvent2Template(event, row, template) # if template was None, it isn't any more
+            spike = self.listRow2Spike(row)
+            if spike.wave.data != None: # only move it to template if it's got wave data
+                template = self.MoveSpike2Template(spike, row, template) # if template was None, it isn't any more
             else:
-                print "can't add event %d to template because its data isn't accessible" % event.id
+                print "can't add spike %d to template because its data isn't accessible" % spike.id
         if template != None and template.plot != None: # if it exists and it's plotted
             self.UpdateObjectsInPlot([template]) # update its plot
 
     def MoveCurrentObjects2List(self):
         for itemID in self.tree.GetSelections():
-            if itemID: # check if event's tree parent (template) has already been deleted
+            if itemID: # check if spike's tree parent (template) has already been deleted
                 obj = self.tree.GetItemPyData(itemID)
-                if obj.__class__ == Event:
-                    self.MoveEvent2List(obj)
+                if obj.__class__ == Spike:
+                    self.MoveSpike2List(obj)
                 elif obj.__class__ == Template:
                     self.DeleteTemplate(obj)
         self.OnTreeSelectChanged() # update plot
 
-    def MoveCurrentEvents2Trash(self):
-        """Move currently selected events in event list to trash"""
+    def MoveCurrentSpikes2Trash(self):
+        """Move currently selected spikes in spike list to trash"""
         selected_rows = self.list.GetSelections()
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
-            event = self.listRow2Event(row)
-            self.MoveEvent2Trash(event, row)
+            spike = self.listRow2Spike(row)
+            self.MoveSpike2Trash(spike, row)
 
     def GetFirstSelectedTemplate(self):
         for itemID in self.tree.GetSelections():
             obj = self.tree.GetItemPyData(itemID)
             if obj.__class__ == Template:
                 return obj
-            # no template selected, check to see if an event is selected in the tree, grab its template
-            elif obj.__class__ == Event:
+            # no template selected, check to see if an spike is selected in the tree, grab its template
+            elif obj.__class__ == Spike:
                 return obj.template
         return None
