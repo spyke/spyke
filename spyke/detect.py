@@ -1,5 +1,4 @@
-"""Event detection algorithms
-"""
+"""Spike detection algorithms"""
 
 from __future__ import division
 
@@ -21,7 +20,7 @@ from pylab import *
 
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
-
+from text import SimpleTable
 
 class FoundEnoughSpikesError(ValueError):
     pass
@@ -82,7 +81,7 @@ class SpikeModel(object):
     plus a 2D spatial gaussian to model decay across channels"""
     def __init__(self):
         self.errs = []
-        self.valid = False # modelled event is assumed not a spike until proven spike-worthy
+        self.valid = False # modelled event is assumed not to be a spike until proven spike-worthy
         self.sxsyfactor = 3 # sx and sy need to be within this factor of each other
 
     def plot(self):
@@ -211,20 +210,27 @@ class NLLSP(SpikeModel):
         self.V = V
         pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V),
                            ftol=self.FTOL, xtol=self.XTOL, gtol=self.GTOL)
+        # constrain mu1 and mu2 to within min(t) and max(t) - sometimes they fall outside,
+        # esp if there was a poor lockout and you're triggering off a previous spike
+        pr.lb[2], pr.ub[2] = min(t), max(t) # mu1
+        pr.lb[3], pr.ub[3] = min(t), max(t) # mu2
+        pr.lb[4], pr.ub[4] = 40, 250 # s1
+        pr.lb[5], pr.ub[5] = 40, 250 # s2
+        # constrain x0 to within reasonable distance of vertical midline of probe
         pr.lb[6], pr.ub[6] = -50, 50 # x0
         pr.lb[8], pr.ub[8] = 20, 200 # sx
         pr.lb[9], pr.ub[9] = 20, 200 # sy
         pr.lb[10], pr.ub[10] = -np.pi/2, np.pi/2 # theta (radians)
         """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
-        maybe this contraint should be on the peak separation in the sum of Gaussians,
+        TODO: maybe this contraint should be on the peak separation in the sum of Gaussians,
         instead of just on the mu params
         can probably remove the lower bound on the peak separation, especially if it's left at 0.
         For improved speed, might want to stop passing unnecessary args"""
         c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[3] - p[2]) # <= 0, lower bound
         c1 = lambda p, t, x, y, V: abs(p[3] - p[2]) - self.dmurange[1] # <= 0, upper bound
-        # TODO: could constrain mu1 and mu2 to fall within min(t) and max(t) - sometimes they fall outside, esp if there was a poor lockout and you're triggering off a previous spike
         # constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
         c2 = lambda p, t, x, y, V: max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
+        # TODO: constrain V1 and V2 to have opposite sign, see ptc15.87.6920
         pr.c = [c0, c1, c2] # constraints
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
@@ -233,7 +239,7 @@ class NLLSP(SpikeModel):
 
 
 class Detector(object):
-    """Event detector base class"""
+    """Spike detector base class"""
     DEFTHRESHMETHOD = 'Dynamic'
     DEFNOISEMETHOD = 'median'
     DEFNOISEMULT = 3.5
@@ -245,8 +251,7 @@ class Detector(object):
     DEFSLOCK = 150 # um
     DEFRANDOMSAMPLE = False
 
-    MAXAVGFIRINGRATE = 1000 # Hz, assume no chan will trigger more than this rate of events on average within a block
-    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for events. Only useful for ensuring event times within the actual block time range are accurate. Events detected in the excess are discarded
+    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
     def __init__(self, stream, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
@@ -266,7 +271,7 @@ class Detector(object):
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
         self.trange = trange or (stream.t0, stream.tend)
-        self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many events, applies across chans
+        self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes, applies across chans
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
@@ -276,10 +281,10 @@ class Detector(object):
         self.tw = (-250, 750) # spike time window range, us, centered on 1st phase of spike
 
     def search(self):
-        """Search for events. Divides large searches into more manageable
+        """Search for spikes. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results
-        TODO: remove any events that happen right at the first or last timepoint in the file,
+        TODO: remove any spikes that happen right at the first or last timepoint in the file,
         since we can't say when an interrupted rising or falling edge would've reached peak
         """
         t0 = time.clock()
@@ -298,7 +303,7 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
-        self.nspikes = 0 # total num events found across all chans so far by this Detector, reset at start of every search
+        self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
         self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
         self.spikes = [] # list of spikes returned by .searchblock(), one array per block
 
@@ -311,7 +316,7 @@ class Detector(object):
                 break
         try:
             spikes = np.concatenate(self.spikes, axis=1)
-        except ValueError: # self.events is an empty list
+        except ValueError: # self.spikes is an empty list
             spikes = np.asarray(self.spikes)
             spikes.shape = (2, 0)
         print '\nfound %d spikes in total' % spikes.shape[1]
@@ -320,14 +325,14 @@ class Detector(object):
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data"""
-        print 'searchblock(): self.nspikes=%r, self.maxnspikes=%r, wavetrange=%r, direction=%r' % \
+        print 'searchblock(): self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' % \
               (self.nspikes, self.maxnspikes, wavetrange, direction)
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
-        cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of events to actually keep
-        #print 'wavetrange: %r, cutrange: %r' % (wavetrange, cutrange)
+        cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
+        #print 'wavetrange: %s, cutrange: %s' % (wavetrange, cutrange)
         wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
         nchans = len(self.chans) # number of enabled chans
@@ -347,7 +352,7 @@ class Detector(object):
         TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
             - hyperellipsoidal?
-            - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as an event
+            - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as a threshold event
             - or slide some filter across the data that not only checks for thresh, but ppthresh as well
         '''
         edges = np.diff(np.int8(abs(wave.data) >= self.thresh)) # indices where changing abs(signal) has crossed thresh
@@ -367,40 +372,44 @@ class Detector(object):
 
             # get data window wrt threshold crossing
             ti0 = max(ti+trangeithresh[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+trangeithresh[1], len(wave.ts)) # don't go further than last wave timepoint
+            tiend = min(ti+trangeithresh[1], len(wave.ts)-1) # don't go further than last wave timepoint
             window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
             phase1ti = min(minti, maxti) # wrt ti0
-            phase1ti = ti0 + phase1ti # wrt 0th time index
+            phase2ti = max(minti, maxti)
+            ti = ti0 + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
+            V1, V2 = window[phase1ti], window[phase2ti]
+            print 'window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d' % \
+                  (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2)
 
-            # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at phase1ti:
+            # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
-            chanis = np.asarray([ chi for chi in chanis if lockout[chi] < phase1ti ])
+            chanis = np.asarray([ chi for chi in chanis if lockout[chi] < ti ])
 
-            # find maxchan within chanis at phase1ti
-            chanii = np.abs(wave.data[chanis, phase1ti]).argmax() # index into chanis of new maxchan
+            # find maxchan within chanis at 1st phase
+            chanii = np.abs(wave.data[chanis, ti]).argmax() # index into chanis of new maxchan
             chani = chanis[chanii] # new max chani
             chan = self.chans[chani] # new max chan
             print 'new max chan=%d' % chan
 
-            # get new data window using new maxchan and wrt phase1ti this time, instead of wrt the original thresh xing
-            ti0 = max(phase1ti+trangei[0], lockout[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
-            tiend = min(phase1ti+trangei[1], len(wave.ts)) # don't go further than last wave timepoint
+            # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
+            ti0 = max(ti+trangei[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tiend = min(ti+trangei[1], len(wave.ts)-1) # don't go further than last wave timepoint
             window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
             minV, maxV = window[minti], window[maxti]
-            phase1ti = min(minti, maxti) # now it's back to wrt ti0 again
+            phase1ti = min(minti, maxti) # wrt ti0
             phase2ti = max(minti, maxti)
             V1, V2 = window[phase1ti], window[phase2ti]
 
-            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at phase1ti:
+            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti0:
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockout[chi] < ti0 ])
 
-            print 'window params: t0=%r, phase1t=%r, tend=%r, mint=%r, maxt=%r, V1=%r, V2=%r' % \
-                (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2)
+            print 'window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d' % \
+                  (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2)
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
@@ -418,8 +427,8 @@ class Detector(object):
             sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
             sm.dmurange = self.dmurange
-            print 'chans = %r' % (np.asarray(self.chans)[chanis],)
-            print 'chanis = %r' % (chanis,)
+            print 'chans  = %s' % (np.asarray(self.chans)[chanis],)
+            print 'chanis = %s' % (chanis,)
             t = wave.ts[ti0:tiend]
             x = siteloc[chanis, 0] # 1D array (row)
             y = siteloc[chanis, 1]
@@ -444,9 +453,16 @@ class Detector(object):
                   60, 60, 0] # sx, sy (um), theta (radians)
             sm.p0 = np.asarray(p0)
             sm.calc(t, x, y, V) # calculate spatiotemporal fit
-            print '      V1, V2,  mu1,  mu2,  s1,  s2,  x0,   y0,  sx,  sy, theta'
-            print 'p0 = %r' % sm.p0 #% list(intround(sm.p0))
-            print 'p = %r' % sm.p #% list(intround(sm.p))
+
+            table = SimpleTable(np.asarray([sm.p0, sm.p]),
+                                headers=('V1', 'V2', 'mu1', 'mu2', 's1', 's2', 'x0', 'y0', 'sx', 'sy', 'theta'),
+                                stubs=('p0', 'p'),
+                                fmt={'data_fmt': ['%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%.3f'],
+                                     'data_aligns':      'r',
+                                     'table_dec_above':  '-',
+                                     'table_dec_below':  '-',
+                                     'header_dec_below': ''})
+            print table
             """
             The peak times of the modelled f'n may not correspond to the peak times of the two phases.
             Their amplitudes certainly need not correspond. So, here I'm reading values off of the modelled
@@ -476,10 +492,10 @@ class Detector(object):
                 # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
                 assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
                 assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
-                assert bigphase >= self.thresh, "model doesn't cross thresh (bigphase=%r)" % bigphase
+                assert bigphase >= self.thresh, "model doesn't cross thresh (bigphase=%s)" % bigphase
                 assert abs(V2 - V1) >= self.ppthresh, "model doesn't cross ppthresh"
                 dphase = phase2t - phase1t
-                assert self.dmurange[0] <= dphase <= self.dmurange[1], 'model phases separated by %f us (outside of dmurange=%r)' % (dphase, self.dmurange)
+                assert self.dmurange[0] <= dphase <= self.dmurange[1], 'model phases separated by %f us (outside of dmurange=%s)' % (dphase, self.dmurange)
                 assert np.sign(V1) == -np.sign(V2), 'model phases must be of opposite sign'
             except AssertionError, message: # doesn't qualify as a spike
                 print '%s, spiket=%d' % (message, phase1t)
@@ -488,7 +504,7 @@ class Detector(object):
             sm.valid = True
             spike = (phase1t, x0, y0) # (time, x0, y0) tuples
             spikes.append(spike)
-            print 'found new spike: %r' % (list(intround(spike)),)
+            print 'found new spike: %s' % (list(intround(spike)),)
             """
             update spatiotemporal lockout
 
@@ -501,7 +517,7 @@ class Detector(object):
             in case there's a noisy mini spike that might cause a trigger on the way down
             """
             lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres)
-            print 'lockout for chanis = %r' % wave.ts[lockout[chanis]]
+            print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
 
         spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
@@ -516,17 +532,17 @@ class Detector(object):
         and previously saved spikes in this .search()"""
         if spikes == None:
             return
-        nnewevents = spikes.shape[1] # number of columns
+        nnewspikes = spikes.shape[1] # number of columns
         #wx.Yield() # allow GUI to update
         if self.randomsample and spikes.tolist() in np.asarray(self.spikes).tolist():
-            # check if spikes is a duplicate of any that are already in .events, if so,
+            # check if spikes is a duplicate of any that are already in .spikes, if so,
             # don't append this new spikes array, and don't inc self.nspikes. Duplicates are possible
             # in random sampling cuz we might end up with blocks with overlapping tranges.
             # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
             sys.stdout.write('found duplicate spike')
-        elif nnewevents != 0:
+        elif nnewspikes != 0:
             self.spikes.append(spikes)
-            self.nspikes += nnewevents # update
+            self.nspikes += nnewspikes # update
             sys.stdout.write('.')
 
     def get_blockranges(self, bs, bx):
