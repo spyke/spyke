@@ -153,22 +153,29 @@ class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
-    def __init__(self, sort, detector, id=None, datetime=None, spikes_array=None):
+    def __init__(self, sort, detector, id=None, datetime=None, sms=None):
         self.sort = sort # parent sort session
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        self.spikes_array = spikes_array # 2D array output of Detector.search
-        self._slock_chans = {}
+        self.sms = sms # list of valid SpikeModels collected from Detector.search
 
-    def set_spikes(self):
-        """Convert .spikes_array to dict of Spike objects, inc sort's _spikeid counter"""
+    def set_spikeids(self):
+        """Give each SpikeModel an ID, inc sort's _spikeid counter after each one.
+        Stick a references to all SpikeModels into a .spikes dict, using spike IDs as the keys"""
         self.spikes = {}
+        for sm in self.sms:
+            sm.id = self.sort._spikeid
+            self.sort._spikeid += 1 # inc for next unique SpikeModel
+            self.spikes[sm.id] = sm
+        '''
         for t, chan in self.spikes_array.T: # same as iterate over cols of non-transposed spikes array
             s = Spike(self.sort._spikeid, chan, t, self)
             self.sort._spikeid += 1 # inc for next unique Spike
             self.spikes[s.id] = s
-
+        '''
+    '''
+    deprecated: use sm.chans instead:
     def get_slock_chans(self, maxchan):
         """Get or generate list of chans within spatial lockout of maxchan, use
         spatial lockout of self.detector
@@ -186,12 +193,13 @@ class Detection(object):
             chans = list(chans)
             self._slock_chans[maxchan] = chans # save for quick retrieval next time
             return chans
-
+    '''
     def __eq__(self, other):
-        """Compare detection runs by their .spikes_array"""
-        # TODO: see if there's any overlap between self.spikes and other.spikes, ie duplicate spikes,
-        # and raise a warning in a dialog box or something
-        return np.all(self.spikes_array == other.spikes_array)
+        """Compare detection runs by their .sms lists
+        TODO: see if there's any overlap between self.sms and other.sms, ie duplicate spikes,
+        and raise a warning in a dialog box or something
+        """
+        return np.all(self.sms == other.sms)
 
 
 class Template(object):
@@ -357,7 +365,7 @@ class Template(object):
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
-
+'''
 class Spike(object):
     """Either an unsorted spike, or a member spike in a Template,
     or a sorted spike in a Detection (or should that be sort session?)"""
@@ -411,7 +419,7 @@ class Spike(object):
         d['plot'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
-
+'''
 
 class Match(object):
     """Holds all the settings of a match run. A match run is when you compare each

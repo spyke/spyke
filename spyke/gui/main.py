@@ -248,15 +248,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSearch(self, evt):
         """Detect pane Search button click"""
-        self.sort.detector = self.get_detector() # update sort session's current detector
-        spikes_array = self.sort.detector.search()
-        detection = Detection(self.sort, self.sort.detector,
+        self.sort.detector = self.get_detector() # update sort session's current detector with a new one from widget values
+        sms = self.sort.detector.search() # list of SpikeModels
+        detection = Detection(self.sort, self.sort.detector, # create a new Detection run
                               id=self.sort._detid,
                               datetime=datetime.datetime.now(),
-                              spikes_array=spikes_array) # generate a new Detection run
-        if detection not in self.sort.detections.values(): # suppress Detections with an identical set of .spikes (see __eq__)
+                              sms=sms)
+        # compare this detection to all previous ones, ignore it if it has a set of SpikeModels
+        # identical to any other (see Detection.__eq__ and SpikeModel.__eq__)
+        if detection not in self.sort.detections.values():
             self.sort._detid += 1 # inc for next unique Detection run
-            detection.set_spikes() # now that we know this detection isn't redundant, let's actually generate the Spike objects
+            detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to SpikeModels
             self.sort.detections[detection.id] = detection
             self.append_detection_list(detection)
             uniquespikes = self.sort.append_spikes(detection.spikes)

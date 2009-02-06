@@ -84,6 +84,15 @@ class SpikeModel(object):
         self.valid = False # modelled event is assumed not to be a spike until proven spike-worthy
         self.sxsyfactor = 3 # sx and sy need to be within this factor of each other
 
+    def __eq__(self, other):
+        """Compare SpikeModels by their parameter arrays"""
+        np.all(self.p == other.p)
+
+    def __hash__(self):
+        """Unique hash value for self, based on modelled spike time and location.
+        Required for effectively using SpikeModels in a Set"""
+        return hash((self.spiket, self.x0, self.y0)) # hash of their tuple, should guarantee uniqueness
+
     def plot(self):
         """Plot modelled and raw data for all chans, plus the single spatially
         positioned source time series, along with its 1 sigma ellipse"""
@@ -304,27 +313,24 @@ class Detector(object):
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
-        self.sm = {} # dict of LeastSquares model objects, indexed by their modelled spike time
-        self.spikes = [] # list of spikes returned by .searchblock(), one array per block
+        self.sms = {} # dict of SpikeModels, saved for later inspection
+        sms = [] # list of SpikeModels collected from .searchblock() call(s)
 
         t0 = time.clock()
         for wavetrange in wavetranges:
             try:
-                spikes = self.searchblock(wavetrange, direction)
-                self.spikes.append(spikes)
+                sms.extend(self.searchblock(wavetrange, direction))
             except FoundEnoughSpikesError:
                 break
-        try:
-            spikes = np.concatenate(self.spikes, axis=1)
-        except ValueError: # self.spikes is an empty list
-            spikes = np.asarray(self.spikes)
-            spikes.shape = (2, 0)
-        print '\nfound %d spikes in total' % spikes.shape[1]
+        spikets = [ sm.spiket for sm in sms ]
+        smis = np.argsort(spikets, kind='mergesort') # indices into sms, ordered by spike time
+        sms = [ sms[smi] for smi in smis ] # now guaranteed to be in temporal order
+        print '\nfound %d spikes in total' % len(sms)
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
-        return spikes
+        return sms
 
     def searchblock(self, wavetrange, direction):
-        """Search a block of data"""
+        """Search a block of data, return a list of valid SpikeModels"""
         print 'searchblock(): self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' % \
               (self.nspikes, self.maxnspikes, wavetrange, direction)
         if self.nspikes >= self.maxnspikes:
@@ -360,7 +366,7 @@ class Detector(object):
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
 
         lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
-        spikes = [] # list of spikes detected
+        sms = [] # list of valid SpikeModels
 
         # threshold crossing event loop: events gives us indices into time and chans
         for ti, chani in events:
@@ -476,25 +482,30 @@ class Detector(object):
             phase2ti = max(modelminti, modelmaxti) # 2nd phase might be the min or the max
             phase1t = t[phase1ti]
             phase2t = t[phase2ti]
-            V1 = modelV[phase1ti]
+            dphase = phase2t - phase1t
+            V1 = modelV[phase1ti] # now refers to waveform's actual modelled peak, instead of Gaussian amplitude
             V2 = modelV[phase2ti]
+            Vpp = abs(V2 - V1)
             absV1V2 = abs(np.array([V1, V2]))
             bigphase = max(absV1V2)
             smallphase = min(absV1V2)
 
-            self.sm[phase1t] = sm # save the SpikeModel object for later inspection
-            sm.spiket = phase1t
-            sm.phase1t = phase1t # synonym for spike time
-            sm.phase2t = phase2t
+            # save calculated params back to SpikeModel, save the SpikeModel in a dict
+            sm.spiket = phase1t # phase1t is synonym for spike time
+            sm.phase1t, sm.phase2t, sm.dphase = phase1t, phase2t, dphase
+            sm.V1, sm.V2, sm.Vpp, sm.x0, sm.y0 = V1, V2, Vpp, x0, y0
+            key = phase1t
+            while key in self.sms: # if model timepoint doesn't make for a uniqe dict key (rarely the case)
+                key += 0.1 # inc it slightly until it becomes unique
+            self.sms[key] = sm # save the SpikeModel object for later inspection
 
             # check to see if modelled spike qualifies as an actual spike
             try:
                 # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
                 assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
                 assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
-                assert bigphase >= self.thresh, "model doesn't cross thresh (bigphase=%s)" % bigphase
-                assert abs(V2 - V1) >= self.ppthresh, "model doesn't cross ppthresh"
-                dphase = phase2t - phase1t
+                assert bigphase >= self.thresh, "model doesn't cross thresh (bigphase=%.1f)" % bigphase
+                assert Vpp >= self.ppthresh, "model doesn't cross ppthresh (Vpp=%.1f)" % Vpp
                 assert self.dmurange[0] <= dphase <= self.dmurange[1], 'model phases separated by %f us (outside of dmurange=%s)' % (dphase, self.dmurange)
                 assert np.sign(V1) == -np.sign(V2), 'model phases must be of opposite sign'
             except AssertionError, message: # doesn't qualify as a spike
@@ -502,9 +513,8 @@ class Detector(object):
                 continue
             # it's a spike, record it
             sm.valid = True
-            spike = (phase1t, x0, y0) # (time, x0, y0) tuples
-            spikes.append(spike)
-            print 'found new spike: %s' % (list(intround(spike)),)
+            sms.append(sm) # add to list of valid SpikeModels to return
+            print 'found new spike: %d @ (%d, %d)' % (phase1t, intround(x0), intround(y0))
             """
             update spatiotemporal lockout
 
@@ -519,13 +529,12 @@ class Detector(object):
             lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres)
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
 
-        spikes = np.asarray(spikes)
         # trim results from wavetrange down to just cutrange
-        ts = spikes[:, 0] # spike times are in 0th column
+        ts = np.asarray([ sm.spiket for sm in sms ]) # get all spike times
         # searchsorted might be faster here instead of checking each and every element
-        spikeis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array
-        spikes = spikes[spikeis]
-        return spikes
+        smis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array of indices into sms
+        sms = list(np.asarray(sms)[smis])
+        return sms
 
     def check_spikes(self, spikes):
         """Checks for duplicate spikes between results from latest .searchblock() call,
@@ -574,10 +583,10 @@ class Detector(object):
 
     def get_sorted_sm(self, onlyvalid=False):
         """Return (only valid) SpikeModels in a sorted list of key:val tuples"""
-        l = self.sm.items()
+        l = self.sms.items()
         l.sort() # according to key (spike time)
         if onlyvalid:
-            l = [ (st, sm) for (st, sm) in l if sm.valid ]
+            l = [ (key, sm) for (key, sm) in l if sm.valid ]
         return l
 
     def plot_sm(self, reversed=True, onlyvalid=True):
