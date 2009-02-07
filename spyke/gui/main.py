@@ -265,8 +265,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # disable sampling menu, don't want to allow sampfreq or shcorrect changes
             # now that we've had at least one detection run
             self.menubar.Enable(wx.ID_SAMPLING, False)
-            # turn this off for testing spike modelling:
-            #sf = self.OpenFrame('sort') # ensure it's open
+            sf = self.OpenFrame('sort') # ensure it's open
             self.OpenFrame('pyshell') # for testing
             t0 = time.clock()
             sf.Append2SpikeList(uniquespikes)

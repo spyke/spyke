@@ -91,19 +91,19 @@ class SpikeModel(object):
     def __hash__(self):
         """Unique hash value for self, based on modelled spike time and location.
         Required for effectively using SpikeModels in a Set"""
-        return hash((self.spiket, self.x0, self.y0)) # hash of their tuple, should guarantee uniqueness
+        return hash((self.t, self.x0, self.y0)) # hash of their tuple, should guarantee uniqueness
 
     def plot(self):
         """Plot modelled and raw data for all chans, plus the single spatially
         positioned source time series, along with its 1 sigma ellipse"""
         # TODO: also plot the initial estimate of the model, according to p0, to see how the algoritm has changed wrt it
-        t, p = self.t, self.p
+        ts, p = self.ts, self.p
         V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
         uV2um = 45 / 100 # um/uV
         us2um = 75 / 1000 # um/us
-        tw = t[-1] - t[0]
+        tw = ts[-1] - ts[0]
         f = figure()
-        f.canvas.Parent.SetTitle('t=%d' % self.spiket)
+        f.canvas.Parent.SetTitle('t=%d' % self.t)
         a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
         self.f, self.a = f, a
         a.set_axis_off() # turn off the x and y axis
@@ -131,15 +131,15 @@ class SpikeModel(object):
                                   ec='#007700', fc='#007700', ls='solid')
         a.add_patch(arrow)
         for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
-            t_ = (t-t[0]-tw/2)*us2um + x # in um, centered on the trace
+            t_ = (ts-ts[0]-tw/2)*us2um + x # in um, centered on the trace
             V_ = V*uV2um + (ymax-y) # in um, switch to bottom origin
-            modelV_ = self.model(p, t, x, y).ravel() * uV2um + (ymax-y) # in um, switch to bottom origin
+            modelV_ = self.model(p, ts, x, y).ravel() * uV2um + (ymax-y) # in um, switch to bottom origin
             rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1)
             modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
             a.add_line(rawline)
             a.add_line(modelline)
-        t_ = (t-t[0]-tw/2)*us2um + x0 # in um
-        modelsourceV_ = self.model(p, t, x0, y0).ravel() * uV2um + (ymax-y0) # in um, switch to bottom origin
+        t_ = (ts-ts[0]-tw/2)*us2um + x0 # in um
+        modelsourceV_ = self.model(p, ts, x0, y0).ravel() * uV2um + (ymax-y0) # in um, switch to bottom origin
         modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
         a.add_line(modelsourceline)
         a.autoscale_view(tight=True) # fit to enclosing figure
@@ -148,29 +148,29 @@ class SpikeModel(object):
         colxs = list(set(self.x)) # x coords of probe columns
         ylims = a.get_ylim() # y coords of vertical line
         for colx in colxs: # plot one vertical line per spike phase per probe column
-            t1_ = (self.phase1t-t[0]-tw/2)*us2um + colx # in um
-            t2_ = (self.phase2t-t[0]-tw/2)*us2um + colx # in um
+            t1_ = (self.phase1t-ts[0]-tw/2)*us2um + colx # in um
+            t2_ = (self.phase2t-ts[0]-tw/2)*us2um + colx # in um
             vline1 = mpl.lines.Line2D([t1_, t1_], ylims, color='#004444', ls=':')
             vline2 = mpl.lines.Line2D([t2_, t2_], ylims, color='#444400', ls=':')
             a.add_line(vline1)
             a.add_line(vline2)
 
-    def model(self, p, t, x, y):
+    def model(self, p, ts, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
-        For each channel, return a vector of voltage values V of same length as t.
+        For each channel, return a vector of voltage values V of same length as ts.
         x and y are vectors of coordinates of each channel's spatial location.
         Output should be an (nchans, nt) matrix of modelled voltage values V"""
         V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
         x, y = np.inner(RM(theta), np.asarray([x-x0, y-y0]).T) # make x, y distance to origin at x0, y0, and rotate by theta
-        tmodel = V1*g(mu1, s1, t) + V2*g(mu2, s2, t)
+        tmodel = V1*g(mu1, s1, ts) + V2*g(mu2, s2, ts)
         smodel = g2(0, 0, sx, sy, x, y)
         return np.outer(smodel, tmodel)
 
-    def cost(self, p, t, x, y, V):
+    def cost(self, p, ts, x, y, V):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, t, x, y) - V)
+        error = np.ravel(self.model(p, ts, x, y) - V)
         self.errs.append(np.abs(error).sum())
         #sys.stdout.write('%.1f, ' % np.abs(error).sum())
         return error
@@ -212,17 +212,17 @@ class NLLSP(SpikeModel):
     XTOL = 1e-6 # variable tolerance
     GTOL = 1e-6 # gradient tolerance
 
-    def calc(self, t, x, y, V):
-        self.t = t
+    def calc(self, ts, x, y, V):
+        self.ts = ts
         self.x = x
         self.y = y
         self.V = V
-        pr = openopt.NLLSP(self.cost, self.p0, args=(t, x, y, V),
+        pr = openopt.NLLSP(self.cost, self.p0, args=(ts, x, y, V),
                            ftol=self.FTOL, xtol=self.XTOL, gtol=self.GTOL)
-        # constrain mu1 and mu2 to within min(t) and max(t) - sometimes they fall outside,
+        # constrain mu1 and mu2 to within min(ts) and max(ts) - sometimes they fall outside,
         # esp if there was a poor lockout and you're triggering off a previous spike
-        pr.lb[2], pr.ub[2] = min(t), max(t) # mu1
-        pr.lb[3], pr.ub[3] = min(t), max(t) # mu2
+        pr.lb[2], pr.ub[2] = min(ts), max(ts) # mu1
+        pr.lb[3], pr.ub[3] = min(ts), max(ts) # mu2
         pr.lb[4], pr.ub[4] = 40, 250 # s1
         pr.lb[5], pr.ub[5] = 40, 250 # s2
         # constrain x0 to within reasonable distance of vertical midline of probe
@@ -235,10 +235,10 @@ class NLLSP(SpikeModel):
         instead of just on the mu params
         can probably remove the lower bound on the peak separation, especially if it's left at 0.
         For improved speed, might want to stop passing unnecessary args"""
-        c0 = lambda p, t, x, y, V: self.dmurange[0] - abs(p[3] - p[2]) # <= 0, lower bound
-        c1 = lambda p, t, x, y, V: abs(p[3] - p[2]) - self.dmurange[1] # <= 0, upper bound
+        c0 = lambda p, ts, x, y, V: self.dmurange[0] - abs(p[3] - p[2]) # <= 0, lower bound
+        c1 = lambda p, ts, x, y, V: abs(p[3] - p[2]) - self.dmurange[1] # <= 0, upper bound
         # constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
-        c2 = lambda p, t, x, y, V: max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
+        c2 = lambda p, ts, x, y, V: max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
         # TODO: constrain V1 and V2 to have opposite sign, see ptc15.87.6920
         pr.c = [c0, c1, c2] # constraints
         pr.solve('nlp:ralg')
@@ -322,7 +322,7 @@ class Detector(object):
                 sms.extend(self.searchblock(wavetrange, direction))
             except FoundEnoughSpikesError:
                 break
-        spikets = [ sm.spiket for sm in sms ]
+        spikets = [ sm.t for sm in sms ]
         smis = np.argsort(spikets, kind='mergesort') # indices into sms, ordered by spike time
         sms = [ sms[smi] for smi in smis ] # now guaranteed to be in temporal order
         print '\nfound %d spikes in total' % len(sms)
@@ -435,7 +435,7 @@ class Detector(object):
             sm.dmurange = self.dmurange
             print 'chans  = %s' % (np.asarray(self.chans)[chanis],)
             print 'chanis = %s' % (chanis,)
-            t = wave.ts[ti0:tiend]
+            ts = wave.ts[ti0:tiend]
             x = siteloc[chanis, 0] # 1D array (row)
             y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
@@ -458,7 +458,7 @@ class Detector(object):
                   x0, y0, # spatial origin, (um)
                   60, 60, 0] # sx, sy (um), theta (radians)
             sm.p0 = np.asarray(p0)
-            sm.calc(t, x, y, V) # calculate spatiotemporal fit
+            sm.calc(ts, x, y, V) # calculate spatiotemporal fit
 
             table = SimpleTable(np.asarray([sm.p0, sm.p]),
                                 headers=('V1', 'V2', 'mu1', 'mu2', 's1', 's2', 'x0', 'y0', 'sx', 'sy', 'theta'),
@@ -475,13 +475,13 @@ class Detector(object):
             waveform instead of just the parameters of the constituent Gaussians that make it up
             """
             V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = sm.p
-            modelV = sm.model(sm.p, sm.t, x0, y0).ravel()
+            modelV = sm.model(sm.p, sm.ts, x0, y0).ravel()
             modelminti = np.argmin(modelV)
             modelmaxti = np.argmax(modelV)
             phase1ti = min(modelminti, modelmaxti) # 1st phase might be the min or the max
             phase2ti = max(modelminti, modelmaxti) # 2nd phase might be the min or the max
-            phase1t = t[phase1ti]
-            phase2t = t[phase2ti]
+            phase1t = ts[phase1ti]
+            phase2t = ts[phase2ti]
             dphase = phase2t - phase1t
             V1 = modelV[phase1ti] # now refers to waveform's actual modelled peak, instead of Gaussian amplitude
             V2 = modelV[phase2ti]
@@ -491,7 +491,7 @@ class Detector(object):
             smallphase = min(absV1V2)
 
             # save calculated params back to SpikeModel, save the SpikeModel in a dict
-            sm.spiket = phase1t # phase1t is synonym for spike time
+            sm.t = phase1t # phase1t is synonym for spike time
             sm.phase1t, sm.phase2t, sm.dphase = phase1t, phase2t, dphase
             sm.V1, sm.V2, sm.Vpp, sm.x0, sm.y0 = V1, V2, Vpp, x0, y0
             key = phase1t
@@ -530,7 +530,7 @@ class Detector(object):
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
 
         # trim results from wavetrange down to just cutrange
-        ts = np.asarray([ sm.spiket for sm in sms ]) # get all spike times
+        ts = np.asarray([ sm.t for sm in sms ]) # get all spike times
         # searchsorted might be faster here instead of checking each and every element
         smis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array of indices into sms
         sms = list(np.asarray(sms)[smis])
