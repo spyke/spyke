@@ -14,9 +14,8 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import SPIKETW
+from spyke.detect import TW
 
-SPIKETRANGE = (-SPIKETW/2, SPIKETW/2)
 MAXCHANTOLERANCE = 100 # um
 
 # save all Spike waveforms, even for those that have never been plotted or added to a template
@@ -79,7 +78,7 @@ class Sort(object):
     def append_spikes(self, spikes):
         """Append spikes to self.
         Don't add a new spike from a new detection if the identical spike
-        (same maxchan and t) is already in self.spikes"""
+        is already in self.spikes"""
         newspikes = set(spikes.values()).difference(self.spikes.values())
         duplicates = set(spikes.values()).difference(newspikes)
         if duplicates:
@@ -130,7 +129,7 @@ class Sort(object):
                 # check if spike.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, spike.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
-                if spike.wave.data == None or template.trange != SPIKETRANGE: # make sure their data line up
+                if spike.wave.data == None or template.trange != TW: # make sure their data line up
                     spike.update_wave(trange) # this slows things down a lot, but is necessary
                 # slice template's enabled chans out of spike, calculate sum of squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
@@ -167,7 +166,12 @@ class Detection(object):
         for sm in self.sms:
             sm.id = self.sort._spikeid
             self.sort._spikeid += 1 # inc for next unique SpikeModel
+            sm.detection = self
+            sm.wave = WaveForm() # init to empty waveform
+            sm.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
+            sm.plt = None # Plot currently holding self
             self.spikes[sm.id] = sm
+
         '''
         for t, chan in self.spikes_array.T: # same as iterate over cols of non-transposed spikes array
             s = Spike(self.sort._spikeid, chan, t, self)
@@ -215,9 +219,9 @@ class Template(object):
         self.maxchan = None
         self.chans = None # chans enabled for plotting/matching/ripping
         self.spikes = {} # member spikes that make up this template
-        self.trange = SPIKETRANGE
+        self.trange = TW
         self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Spike.t
-        self.plot = None # Plot currently holding self
+        self.plt = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow templates to have spikes from different files?
 
@@ -361,7 +365,7 @@ class Template(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        d['plot'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
@@ -378,12 +382,12 @@ class Spike(object):
         self.template = None # template object it belongs to, None means self is an unsorted spike
         self.wave = WaveForm() # init to empty waveform
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-        self.plot = None # Plot currently holding self
+        self.plt = None # Plot currently holding self
         # try loading it right away on init, instead of waiting until plot, see if it's fast enough
         # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
         #self.update_wave()
 
-    def update_wave(self, trange=SPIKETRANGE):
+    def update_wave(self, trange=TW):
         """Load/update self's waveform, defaults to default spike time window centered on self.t"""
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
@@ -416,7 +420,7 @@ class Spike(object):
             # make sure .wave is loaded before pickling to file
             self.update_wave()
         d = self.__dict__.copy()
-        d['plot'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 '''
@@ -469,7 +473,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.lastSelectedListSpikes = []
         self.lastSelectedTreeObjects = []
 
-        columnlabels = ['sID', 'chan', 'time', 'err'] # spike list column labels
+        columnlabels = ['sID', 'x0', 'y0', 'time', 'err'] # spike list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -796,7 +800,7 @@ class SortFrame(wxglade_gui.SortFrame):
         """Append spikes to self's spike list control"""
         SiteLoc = self.sort.probe.SiteLoc
         for s in spikes.values():
-            row = [str(s.id), s.maxchan, s.t] # leave err column empty for now
+            row = [str(s.id), intround(s.x0), intround(s.y0), s.t] # leave err column empty for now
             self.list.Append(row)
             # using this instead of .Append(row) is just as slow:
             #rowi = self.list.InsertStringItem(sys.maxint, str(s.id))
@@ -804,17 +808,15 @@ class SortFrame(wxglade_gui.SortFrame):
             #self.list.SetStringItem(rowi, 2, str(s.t))
             # should probably use a virtual listctrl to speed up listctrl creation
             # and subsequent addition and especially removal of items
-            xcoord = SiteLoc[s.maxchan][0]
-            ycoord = SiteLoc[s.maxchan][1]
-            # hack to make items sort by ycoord, or xcoord if ycoords are identical
-            data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
+            # hack to make items sort by y0, or x0 if y0 vals are identical
+            data = intround((s.y0 + s.x0/1000)*1000) # needs to be an int unfortunately
             # use item count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
             self.list.SetItemData(self.list.GetItemCount()-1, data)
         self.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
         #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
         # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:80, 3:60}.items(): # (sid, chan, time, err)
+        for coli, width in {0:40, 1:40, 2:40, 3:80, 4:60}.items(): # (sid, x0, y0, time, err)
             self.list.SetColumnWidth(coli, width)
 
     def AddObjects2Plot(self, objects):
@@ -940,7 +942,7 @@ class SortFrame(wxglade_gui.SortFrame):
                 template = self.MoveSpike2Template(spike, row, template) # if template was None, it isn't any more
             else:
                 print "can't add spike %d to template because its data isn't accessible" % spike.id
-        if template != None and template.plot != None: # if it exists and it's plotted
+        if template != None and template.plt != None: # if it exists and it's plotted
             self.UpdateObjectsInPlot([template]) # update its plot
 
     def MoveCurrentObjects2List(self):

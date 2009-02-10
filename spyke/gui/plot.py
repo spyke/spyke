@@ -139,11 +139,12 @@ class Plot(object):
 
     def get_shown_chans(self):
         """Get list of currently shown chans"""
-        chans = []
-        for line in self.lines.values():
-            if line.get_visible():
-                chans.append(line.chan)
-        return chans
+        #chans = []
+        #for line in self.lines.values():
+        #    if line.get_visible():
+        #        chans.append(line.chan)
+        #return chans
+        return [ line.chan for line in self.lines.values() if line.get_visible() ]
 
     def update(self, wave, tref):
         """Update lines data
@@ -156,9 +157,11 @@ class Plot(object):
                 xdata = []
                 ydata = []
             else:
-                xdata = wave.ts - tref + xpos
-                # TODO: should be using wave.chans/wave.chan2i here?????????????????
                 ydata = (wave[chan].data*self.panel.gain + ypos).squeeze() # remove any singleton dimensions
+                if ydata.size == 0: # if ydata is empty
+                    xdata = [] # make xdata empty too to prevent matplotlib RunTimeError
+                else:
+                    xdata = wave.ts - tref + xpos
             line.set_data(xdata, ydata) # update the line's x and y data
 
     def set_alpha(self, alpha):
@@ -207,7 +210,7 @@ class PlotPanel(FigureCanvasWxAgg):
 
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed spike/template, indexed by sid/tid with s or t prepended
-        self.quickRemovePlot = None # current quickly removable Plot with associated .background
+        self.qrplt = None # current quickly removable Plot with associated .background
 
         if stream != None:
             self.stream = stream # only bind for those frames that actually use a stream (ie DataFrames)
@@ -286,9 +289,9 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def init_plots(self):
         """Create Plots for this panel"""
-        self.quickRemovePlot = Plot(chans=self.chans, panel=self) # just one for this base class
-        self.quickRemovePlot.show()
-        self.used_plots[0] = self.quickRemovePlot
+        self.qrplt = Plot(chans=self.chans, panel=self) # just one for this base class
+        self.qrplt.show()
+        self.used_plots[0] = self.qrplt
 
     def add_ref(self, ref):
         """Helper method for external use"""
@@ -314,16 +317,16 @@ class PlotPanel(FigureCanvasWxAgg):
     def draw_refs(self):
         """Redraws all enabled reflines, resaves reflines_background"""
         showns = {}
-        for plotid, plot in self.used_plots.items():
-            shown = plot.get_shown_chans()
-            showns[plotid] = shown
-            plot.hide_chans(shown)
+        for pltid, plt in self.used_plots.items():
+            shown = plt.get_shown_chans()
+            showns[pltid] = shown
+            plt.hide_chans(shown)
         self.draw() # draw all the enabled refs
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
-        for plotid, plot in self.used_plots.items():
-            shown = showns[plotid]
-            plot.show_chans(shown) # re-show just the chans that were shown previously
-            plot.draw()
+        for pltid, plt in self.used_plots.items():
+            shown = showns[pltid]
+            plt.show_chans(shown) # re-show just the chans that were shown previously
+            plt.draw()
         self.blit(self.ax.bbox)
 
     def _add_tref(self):
@@ -486,7 +489,7 @@ class PlotPanel(FigureCanvasWxAgg):
         hitlines = []
         closestchans = self.get_closestchans(evt, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
-            line = self.quickRemovePlot.lines[chan]
+            line = self.qrplt.lines[chan]
             if line.get_visible(): # only consider lines that are visible
                 hit, tisdict = line.contains(evt)
                 if hit:
@@ -510,8 +513,8 @@ class PlotPanel(FigureCanvasWxAgg):
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
         self.restore_region(self.reflines_background)
         # update plots with new x and y vals
-        self.quickRemovePlot.update(wave, tref)
-        self.quickRemovePlot.draw()
+        self.qrplt.update(wave, tref)
+        self.qrplt.draw()
         self.blit(self.ax.bbox)
         #self.gui_repaint()
         #self.draw()
@@ -565,7 +568,7 @@ class PlotPanel(FigureCanvasWxAgg):
             direction = 1
         else: # backward
             direction = -1
-        self.spykeframe.seek(self.quickRemovePlot.tref + direction*self.stream.tres)
+        self.spykeframe.seek(self.qrplt.tref + direction*self.stream.tres)
         evt.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
     '''
     def OnButtonPress(self, evt):
@@ -580,12 +583,12 @@ class PlotPanel(FigureCanvasWxAgg):
             # seek to timepoint
             chan = self.get_closestchans(evt, n=1)
             xpos = self.pos[chan][0]
-            t = evt.xdata - xpos + self.quickRemovePlot.tref # undo position correction and convert from relative to absolute time
+            t = evt.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
             self.spykeframe.seek(t) # call main spyke frame's seek method
         elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift: # or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
             # enable/disable closest line
             chan = self.get_closestchans(evt, n=1)
-            line = self.quickRemovePlot.lines[chan]
+            line = self.qrplt.lines[chan]
             if line.chan not in self.spykeframe.chans_enabled:
                 enable = True
             else:
@@ -602,7 +605,7 @@ class PlotPanel(FigureCanvasWxAgg):
     def enable_chans(self, chans, enable=True):
         """Enable/disable a specific set of channels in this frame"""
         for chan in chans:
-            self.quickRemovePlot.lines[chan].set_visible(enable)
+            self.qrplt.lines[chan].set_visible(enable)
         self.draw()
     '''
     def OnPick(self, evt):
@@ -612,7 +615,7 @@ class PlotPanel(FigureCanvasWxAgg):
             line = evt.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
             chan = line.chan
             xpos, ypos = self.pos[chan]
-            t = evt.mouseevent.xdata - xpos + self.quickRemovePlot.tref # undo position correction and convert from relative to absolute time
+            t = evt.mouseevent.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
             v = (evt.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                 t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
@@ -637,7 +640,7 @@ class PlotPanel(FigureCanvasWxAgg):
             line = self.get_closestline(evt)
             if line and line.get_visible():
                 xpos, ypos = self.pos[line.chan]
-                t = evt.xdata - xpos + self.quickRemovePlot.tref
+                t = evt.xdata - xpos + self.qrplt.tref
                 v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
@@ -807,9 +810,9 @@ class SortPanel(PlotPanel):
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
         totalnplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
-        for ploti in range(totalnplots, totalnplots+nplots):
-            plot = Plot(chans=self.chans, panel=self)
-            self.available_plots.append(plot)
+        for plti in range(totalnplots, totalnplots+nplots):
+            plt = Plot(chans=self.chans, panel=self)
+            self.available_plots.append(plt)
 
     def _add_vref(self):
         """Increase pick radius for vrefs from default zero, since we're
@@ -820,7 +823,7 @@ class SortPanel(PlotPanel):
 
     def show_ref(self, ref, enable=True):
         PlotPanel.show_ref(self, ref, enable)
-        self.quickRemovePlot = None
+        self.qrplt = None
         self.background = None
 
     def addObjects(self, objects):
@@ -831,8 +834,8 @@ class SortPanel(PlotPanel):
             # before blitting this single object to screen, grab current buffer,
             # save as new background for quick restore if the next action is removal of this very same object
             self.background = self.copy_from_bbox(self.ax.bbox)
-            self.quickRemovePlot = self.addObject(objects[0]) # add the single object, save reference to its plot
-            #print 'saved quick remove plot %r' % self.quickRemovePlot
+            self.qrplt = self.addObject(objects[0]) # add the single object, save reference to its plot
+            #print 'saved quick remove plot %r' % self.qrplt
         else:
             self.background = None
             for obj in objects: # add all objects
@@ -843,16 +846,16 @@ class SortPanel(PlotPanel):
         """Put object in an available Plot, return the Plot"""
         if len(self.available_plots) == 0: # if we've run out of plots for additional objects
             self.init_plots() # init another batch of plots
-        plot = self.available_plots.pop() # pop a Plot to assign this object to
+        plt = self.available_plots.pop() # pop a Plot to assign this object to
         try:
             obj.spikes # it's a template
-            plot.id = 't' + str(obj.id)
+            plt.id = 't' + str(obj.id)
             colours = [COLOURDICT[obj.id]]
             alpha = 1
             style = TEMPLATELINESTYLE
             width = TEMPLATELINEWIDTH
         except AttributeError: # it's a spike
-            plot.id = 's' + str(obj.id)
+            plt.id = 's' + str(obj.id)
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             try:
@@ -861,20 +864,20 @@ class SortPanel(PlotPanel):
                 colours = [COLOURDICT[obj.template.id]]
             except AttributeError: # it's an unsorted spike, colour each chan separately
                 alpha = 1
-                colours = [ self.vcolours[chan] for chan in plot.chans ] # remap to cycle vertically in space
-        plot.set_colours(colours)
-        plot.set_alpha(alpha)
-        plot.set_stylewidth(style, width)
-        plot.obj = obj # bind object to plot
-        obj.plot = plot  # bind plot to object
+                colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
+        plt.set_colours(colours)
+        plt.set_alpha(alpha)
+        plt.set_stylewidth(style, width)
+        plt.obj = obj # bind object to plot
+        obj.plt = plt # bind plot to object
         if obj.wave.data == None: # if it hasn't already been loaded
             obj.update_wave()
-        self.used_plots[plot.id] = plot # push it to the used plot stack
-        wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
-        plot.update(wave, obj.t)
-        plot.show_chans(obj.chans) # unhide object's enabled chans
-        plot.draw()
-        return plot
+        self.used_plots[plt.id] = plt # push it to the used plot stack
+        wave = obj.wave[obj.ts[0] : obj.ts[0]+self.tw] # slice wave according to the width of this panel
+        plt.update(obj.wave, obj.t)
+        plt.show_chans(obj.chans) # unhide object's enabled chans
+        plt.draw()
+        return plt
 
     def removeObjects(self, objects):
         """Remove objects from plots"""
@@ -883,46 +886,46 @@ class SortPanel(PlotPanel):
         for obj in objects:
             # remove specified objects from .used_plots, use contents of
             # .used_plots to decide how to do the actual plot removal
-            plot = self.removeObject(obj)
+            plt = self.removeObject(obj)
         # remove all objects
         if self.used_plots == {}:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
         # remove the last added plot if a saved bg is available
-        elif len(objects) == 1 and plot == self.quickRemovePlot and self.background != None:
-            #print 'quick removing plot %r' % self.quickRemovePlot
+        elif len(objects) == 1 and plt == self.qrplt and self.background != None:
+            #print 'quick removing plot %r' % self.qrplt
             self.restore_region(self.background) # restore saved bg
         # remove more than one, but not all objects
         else:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-            for plot in self.used_plots.values():
-                plot.draw() # redraw the remaining plots in .used_plots
+            for plt in self.used_plots.values():
+                plt.draw() # redraw the remaining plots in .used_plots
         self.background = None # what was background is no longer useful for quick restoration on any other object removal
-        self.quickRemovePlot = None # quickRemovePlot set in addObjects is no longer quickly removable
+        self.qrplt = None # qrplt set in addObjects is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
     def removeAllObjects(self):
         """Shortcut for removing all object from plots"""
-        objects = [ plot.obj for plot in self.used_plots.values() ]
+        objects = [ plt.obj for plt in self.used_plots.values() ]
         self.removeObjects(objects)
 
     def removeObject(self, obj):
         """Restore object's Plot from used to available plot pool, return the Plot"""
-        plot = self.used_plots.pop(obj.plot.id)
+        plt = self.used_plots.pop(obj.plt.id)
         # TODO: reset plot colour and line style here, or just set them each time in addObject?
-        plot.id = None # clear its index into .used_plots
-        plot.obj = None # unbind object from plot
-        obj.plot = None # unbind plot from object
-        plot.hide() # hide all chan lines
-        self.available_plots.append(plot)
-        return plot
+        plt.id = None # clear its index into .used_plots
+        plt.obj = None # unbind object from plot
+        obj.plt = None # unbind plot from object
+        plt.hide() # hide all chan lines
+        self.available_plots.append(plt)
+        return plt
 
     def updateObjects(self, objects):
         """Re-plot objects, potentially because their WaveForms have changed.
         Typical use case: spike is added to a template, template's mean waveform has changed"""
         if objects == []: # do nothing
             return
-        if len(objects) == 1 and objects[0].plot != None and objects[0].plot == self.quickRemovePlot and self.background != None:
-            print 'quick removing and replotting plot %r' % self.quickRemovePlot
+        if len(objects) == 1 and objects[0].plt != None and objects[0].plt == self.qrplt and self.background != None:
+            print 'quick removing and replotting plot %r' % self.qrplt
             self.restore_region(self.background) # restore saved bg
             self.updateObject(objects[0])
         else: # update and redraw all objects
@@ -930,14 +933,14 @@ class SortPanel(PlotPanel):
             for obj in objects:
                 self.updateObject(obj)
             self.background = None # what was background is no longer useful for quick restoration on any other object removal
-            self.quickRemovePlot = None # quickRemovePlot set in addObjects is no longer quickly removable
+            self.qrplt = None # qrplt set in addObjects is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateObject(self, obj):
         """Update and draw a spike's/template's plot"""
         wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
-        obj.plot.update(wave, obj.t)
-        obj.plot.draw()
+        obj.plt.update(wave, obj.t)
+        obj.plt.draw()
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords

@@ -59,11 +59,11 @@ class WaveForm(object):
         else: # index into self by channel id(s)
             key = toiter(key)
             chans = np.asarray(self.chans)
+            key = list(set(chans).intersection(key)) # ignore keys outside of chans
             i = [ int(np.where(chan == chans)[0]) for chan in key ] # list of appropriate indices into the rows of self.data
             # TODO: should probably use .take here for speed:
             data = self.data[i] # grab the appropriate rows of data
-            chans = key # list of channel ids corresponding to rows in data
-            return WaveForm(data=data, ts=self.ts, chans=chans) # return a new WaveForm
+            return WaveForm(data=data, ts=self.ts, chans=key) # return a new WaveForm
 
     def __len__(self):
         """Number of data points in time"""

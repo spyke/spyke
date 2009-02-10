@@ -22,8 +22,15 @@ import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
 from text import SimpleTable
 
+
+DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
+TWTHRESH = (-250, 750) # spike time window range, us, centered on threshold crossing
+TW = (-250, 750) # spike time window range, us, centered on 1st phase of spike
+
+
 class FoundEnoughSpikesError(ValueError):
     pass
+
 
 class RandomWaveTranges(object):
     """Iterator that spits out time ranges of width bs with
@@ -93,6 +100,38 @@ class SpikeModel(object):
         Required for effectively using SpikeModels in a Set"""
         return hash((self.t, self.x0, self.y0)) # hash of their tuple, should guarantee uniqueness
 
+    def __getitem__(self, key):
+        """Return WaveForm for this spike given slice key"""
+        assert key.__class__ == slice
+        #stream = self.detection.detector.stream
+        #if stream != None: # stream is available
+        #    self.wave = stream[key] # let stream handle the slicing, save result
+        #    return self.wave
+        #elif self.wave != None: # stream unavailable, .wave from before last pickling is available
+        if self.wave != None:
+            return self.wave[key] # slice existing .wave
+        else: # existing .wave unavailable
+            return WaveForm() # return empty waveform
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        #if SAVEALLSPIKEWAVES and self.wave.data == None:
+        #    # make sure .wave is loaded before pickling to file
+        #    self.update_wave()
+        d = self.__dict__.copy()
+        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+        return d
+
+    def update_wave(self, trange=TW):
+        """Load/update self's waveform, based on already present data.
+        Defaults to default spike time window centered on self.t"""
+        if self.wave.data == None: # empty WaveForm
+            chans = np.asarray(self.chans)[self.chanis]
+            self.wave = WaveForm(data=self.V, ts=self.ts, chans=chans)
+        self.wave = self[self.t+trange[0] : self.t+trange[1]]
+        return self.wave
+
     def plot(self):
         """Plot modelled and raw data for all chans, plus the single spatially
         positioned source time series, along with its 1 sigma ellipse"""
@@ -130,7 +169,7 @@ class SpikeModel(object):
         arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], -sy*np.sin(theta), sy*np.cos(theta),
                                   ec='#007700', fc='#007700', ls='solid')
         a.add_patch(arrow)
-        for chanii, (V, x, y) in enumerate(zip(self.V, self.x, self.y)):
+        for (V, x, y) in zip(self.V, self.x, self.y):
             t_ = (ts-ts[0]-tw/2)*us2um + x # in um, centered on the trace
             V_ = V*uV2um + (ymax-y) # in um, switch to bottom origin
             modelV_ = self.model(p, ts, x, y).ravel() * uV2um + (ymax-y) # in um, switch to bottom origin
@@ -205,7 +244,7 @@ class SpikeModel(object):
         print self.get_paramstr(p)
 
 
-class NLLSP(SpikeModel):
+class NLLSPSpikeModel(SpikeModel):
     """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
     This one can handle constraints"""
     FTOL = 1e-1 # function tolerance, openopt default is 1e-6
@@ -285,9 +324,9 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
-        self.dmurange = (0, 500) # allowed time difference between peaks of modelled spike
-        self.twthresh = (-250, 750) # spike time window range, us, centered on threshold crossing
-        self.tw = (-250, 750) # spike time window range, us, centered on 1st phase of spike
+        self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
+        self.twthresh = TWTHRESH # spike time window range, us, centered on threshold crossing
+        self.tw = TW # spike time window range, us, centered on 1st phase of spike
 
     def search(self):
         """Search for spikes. Divides large searches into more manageable
@@ -429,7 +468,7 @@ class Detector(object):
                 continue
 
             # create a SpikeModel
-            sm = NLLSP()
+            sm = NLLSPSpikeModel()
             sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
             sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
             sm.dmurange = self.dmurange
