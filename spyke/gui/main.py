@@ -23,9 +23,9 @@ from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 from spyke.sort import SortFrame
 import wxglade_gui
 
-DEFSPIKETW = 1000 # spike frame temporal window width (us)
-DEFCHARTTW = 50000 # chart frame temporal window width (us)
-DEFLFPTW = 1000000 # lfp frame temporal window width (us)
+DEFSPIKETW = (-500, 500) # spike frame temporal window (us)
+DEFCHARTTW = (-25000, 25000) # chart frame temporal window (us)
+DEFLFPTW = (-500000, 500000) # lfp frame temporal window (us)
 
 SPIKEFRAMEWIDTHPERCOLUMN = 80
 SPIKEFRAMEHEIGHT = 700
@@ -62,8 +62,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srffname = '' # used for setting title caption
         self.sortfname = '' # used for setting title caption
         self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
-        self.spiketw = DEFSPIKETW # spike frame temporal window width (us)
-        self.charttw = DEFCHARTTW # chart frame temporal window width (us)
+        self.spiketw = DEFSPIKETW # spike frame temporal window (us)
+        self.charttw = DEFCHARTTW # chart frame temporal window (us)
         self.lfptw = DEFLFPTW # lfp frame temporal window width (us)
         self.t = None # current time position in recording (us)
 
@@ -290,18 +290,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             elif key == wx.WXK_RIGHT and not in_widget or key == wx.WXK_UP and in_file_pos_combo_box:
                     self.seek(self.t + self.hpstream.tres)
             elif key == wx.WXK_PRIOR: # PGUP
-                self.seek(self.t - self.spiketw)
+                self.seek(self.t - (self.spiketw[1]-self.spiketw[0])) # go back 1 spike frame temporal window width
             elif key == wx.WXK_NEXT: # PGDN
-                self.seek(self.t + self.spiketw)
+                self.seek(self.t + (self.spiketw[1]-self.spiketw[0])) # go forward 1 spike frame temporal window width
             elif key == wx.WXK_F2: # search for previous spike
                 self.findspike(which='previous')
             elif key == wx.WXK_F3: # search for next spike
                 self.findspike(which='next')
         else: # CTRL is down
             if key == wx.WXK_PRIOR: # PGUP
-                self.seek(self.t - self.charttw)
+                self.seek(self.t - (self.charttw[1]-self.charttw[0])) # go back 1 chart frame temporal window width
             elif key == wx.WXK_NEXT: # PGDN
-                self.seek(self.t + self.charttw)
+                self.seek(self.t + (self.charttw[1]-self.charttw[0])) # go forward 1 chart frame temporal window width
         # when key event comes from file_pos_combo_box, reserve down/up for seeking through file
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
@@ -395,7 +395,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError:
             pass
         self.chans_enabled = copy(self.hpstream.chans) # property
-        self.t = intround(self.hpstream.t0 + self.spiketw/2) # set current time position in recording (us)
+        tww = self.spiketw[1]-self.spiketw[0] # window width
+        self.t = intround(self.hpstream.t0 + tww/2) # set current time position in recording (us)
 
         self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         self.OpenFrame('spike')
@@ -422,7 +423,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetRange(self.range[0], self.range[1])
         self.slider.SetValue(self.t)
         self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
-        self.slider.SetPageSize(self.spiketw) # us
+        self.slider.SetPageSize(self.spiketw[1]-self.spiketw[0]) # us
 
         self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
@@ -800,7 +801,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def plot(self, frametypes=None):
         """Update the contents of all the data frames, or just specific ones.
-        Center each data frame on self.t, don't left justify"""
+        Center each data frame on self.t"""
         if frametypes == None: # update all visible frames
             frametypes = self.frames.keys()
         else: # update only specific frames, if visible
@@ -810,11 +811,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype, frame in zip(frametypes, frames):
             if frame.IsShown(): # for performance, only update if frame is shown
                 if frametype == 'spike':
-                    wave = self.hpstream[self.t-self.spiketw/2 : self.t+self.spiketw/2]
+                    wave = self.hpstream[self.t+self.spiketw[0] : self.t+self.spiketw[1]]
                 elif frametype == 'chart':
-                    wave = self.hpstream[self.t-self.charttw/2 : self.t+self.charttw/2]
+                    wave = self.hpstream[self.t+self.charttw[0] : self.t+self.charttw[1]]
                 elif frametype == 'lfp':
-                    wave = self.lpstream[self.t-self.lfptw/2 : self.t+self.lfptw/2]
+                    wave = self.lpstream[self.t+self.lfptw[0] : self.t+self.lfptw[1]]
                 frame.panel.plot(wave, tref=self.t) # plot it
 
 

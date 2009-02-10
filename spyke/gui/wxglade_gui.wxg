@@ -865,7 +865,7 @@
         </object>
     </object>
     <object class="SortFrame" name="sortframe" base="EditFrame">
-        <extracode>wx.ID_SORT_TREE = wx.NewId()\nwx.ID_MATCH_TEMPLATE = wx.NewId()\nfrom plot import SpikeSortPanel\nfrom plot import ChartSortPanel</extracode>
+        <extracode>wx.ID_SORT_TREE = wx.NewId()\nwx.ID_MATCH_TEMPLATE = wx.NewId()\nfrom plot import SpikeSortPanel\n#from plot import ChartSortPanel # unimplemented</extracode>
         <style>wxCAPTION|wxCLOSE_BOX|wxMAXIMIZE_BOX|wxSYSTEM_MENU|wxRESIZE_BORDER|wxFRAME_TOOL_WINDOW|wxFRAME_NO_TASKBAR|wxCLIP_CHILDREN</style>
         <title>sort window</title>
         <toolbar>1</toolbar>

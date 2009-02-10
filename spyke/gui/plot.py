@@ -28,6 +28,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from spyke.core import MU, intround
+from spyke.detect import TW # default time window relative to spike time
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -66,9 +67,6 @@ NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
-SPIKESORTTW = 1000 # spike sort panel temporal window width (us)
-CHARTSORTTW = 1000 # chart sort panel temporal window width (us)
-SPIKETW = max(SPIKESORTTW, CHARTSORTTW) # default spike time width, determines spike.wave width
 DEFNPLOTS = 10 # default number of plots to init in SortPanel
 
 CARETZORDER = 0 # layering
@@ -203,7 +201,7 @@ class PlotPanel(FigureCanvasWxAgg):
     # not necessarily constants
     uVperum = DEFUVPERUM
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
-                         # 17 gives roughly no horizontal overlap for self.tw == 1000 us
+                         # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self.spykeframe = self.GetTopLevelParent().Parent
@@ -214,8 +212,8 @@ class PlotPanel(FigureCanvasWxAgg):
 
         if stream != None:
             self.stream = stream # only bind for those frames that actually use a stream (ie DataFrames)
-        self.tw = tw # temporal width of each channel, in plot units (us ostensibly)
-        self.cw = cw # time width of caret, in plot units
+        self.tw = tw # temporal window of each channel, in plot units (us ostensibly)
+        self.cw = cw # temporal window of caret, in plot units
 
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
@@ -350,7 +348,7 @@ class PlotPanel(FigureCanvasWxAgg):
         """Add horizontal voltage reference lines"""
         self.hlines = []
         for chan, (xpos, ypos) in self.pos.items():
-            hline = Line2D([xpos-self.tw/2, xpos+self.tw/2],
+            hline = Line2D([xpos+self.tw[0], xpos+self.tw[1]],
                            [ypos, ypos],
                            linewidth=VREFLINEWIDTH,
                            color=VREFCOLOUR,
@@ -365,8 +363,8 @@ class PlotPanel(FigureCanvasWxAgg):
     def _add_caret(self):
         """Add a shaded rectangle to represent the time window shown in the spike frame"""
         ylim = self.ax.get_ylim()
-        xy = (-self.cw/2, ylim[0]) # bottom left coord of rectangle
-        width = self.cw
+        xy = (self.cw[0], ylim[0]) # bottom left coord of rectangle
+        width = self.cw[1]-self.cw[0]
         height = ylim[1] - ylim[0]
         self.caret = Rectangle(xy, width, height,
                                facecolor=CARETCOLOUR,
@@ -386,13 +384,12 @@ class PlotPanel(FigureCanvasWxAgg):
     def _update_vref(self):
         """Update position and size of horizontal voltage reference lines"""
         for (xpos, ypos), hline in zip(self.pos.itervalues(), self.hlines):
-            hline.set_data([xpos-self.tw/2, xpos+self.tw/2], [ypos, ypos])
+            hline.set_data([xpos+self.tw[0], xpos+self.tw[0]], [ypos, ypos])
 
     def _update_caret_width(self):
         """Update caret width"""
-        # bottom left coord of rectangle
-        self.caret.set_x(-self.cw/2)
-        self.caret.set_width(self.cw)
+        self.caret.set_x(self.cw[0]) # bottom left coord of rectangle
+        self.caret.set_width(self.cw[1]-self.cw[0])
 
     def _show_tref(self, enable=True):
         try:
@@ -522,7 +519,7 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
-        self.tw /= x
+        self.tw = self.tw[0]/x, self.tw[1]/x # scale time window endpoints
         self.usperum /= x
         self.do_layout() # resets axes lims and recalcs self.pos
         self._update_tref()
@@ -622,7 +619,7 @@ class PlotPanel(FigureCanvasWxAgg):
                 tip = 'ch%d\n' % chan + \
                       't=%d %s\n' % (t, MU+'s') + \
                       'V=%.1f %s\n' % (v, MU+'V') + \
-                      'width=%.3f ms' % (self.tw/1000)
+                      'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
             else: # out of bounds
@@ -647,7 +644,7 @@ class PlotPanel(FigureCanvasWxAgg):
                     tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
                           't=%d %s\n' % (t, MU+'s') + \
                           'V=%.1f %s\n' % (v, MU+'V') + \
-                          'width=%.3f ms' % (self.tw/1000)
+                          'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                     tooltip.SetTip(tip)
                     tooltip.Enable(True)
                     return
@@ -674,8 +671,8 @@ class SpikePanel(PlotPanel):
         self.hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
         self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
         #print 'horizontal ordered chans in Spikepanel:\n%r' % self.hchans
-        self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) - self.tw/2,
-                         self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw/2) # x origin at center
+        self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) + self.tw[0],
+                         self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1]) # x origin at center
         self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
                          self.um2uv(self.siteloc[self.vchans[-1]][1]) + CHANVBORDER)
         colourgen = itertools.cycle(iter(COLOURS))
@@ -690,7 +687,7 @@ class SpikePanel(PlotPanel):
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
         self.spykeframe.spiketw = self.tw
-        self.spykeframe.frames['chart'].panel.cw = self.tw
+        self.spykeframe.frames['chart'].panel.cw = self.tw # update caret width
         self.spykeframe.frames['chart'].panel._update_caret_width()
         self.spykeframe.plot(frametypes='spike') # replot
 
@@ -717,7 +714,7 @@ class ChartPanel(PlotPanel):
     def do_layout(self):
         """Sets axes limits and calculates self.pos"""
         self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
-        self.ax.set_xlim(0 - self.tw/2, 0 + self.tw/2) # x origin at center
+        self.ax.set_xlim(0 + self.tw[0], 0 + self.tw[1]) # x origin at center
         miny = self.um2uv(self.siteloc[self.vchans[0]][1])
         maxy = self.um2uv(self.siteloc[self.vchans[-1]][1])
         vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
@@ -733,7 +730,7 @@ class ChartPanel(PlotPanel):
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
         self.spykeframe.charttw = self.tw
-        self.spykeframe.frames['lfp'].panel.cw = self.tw
+        self.spykeframe.frames['lfp'].panel.cw = self.tw # update caret width
         self.spykeframe.frames['lfp'].panel._update_caret_width()
         self.spykeframe.plot(frametypes='chart') # replot
 
@@ -873,7 +870,7 @@ class SortPanel(PlotPanel):
         if obj.wave.data == None: # if it hasn't already been loaded
             obj.update_wave()
         self.used_plots[plt.id] = plt # push it to the used plot stack
-        wave = obj.wave[obj.ts[0] : obj.ts[0]+self.tw] # slice wave according to the width of this panel
+        wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(obj.wave, obj.t)
         plt.show_chans(obj.chans) # unhide object's enabled chans
         plt.draw()
@@ -938,7 +935,7 @@ class SortPanel(PlotPanel):
 
     def updateObject(self, obj):
         """Update and draw a spike's/template's plot"""
-        wave = obj.wave[obj.t-self.tw/2 : obj.t+self.tw/2] # slice wave according to the width of this panel
+        wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         obj.plt.update(wave, obj.t)
         obj.plt.draw()
 
@@ -987,7 +984,7 @@ class SortPanel(PlotPanel):
                 tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
                       't=%d %s\n' % (t, MU+'s') + \
                       'V=%.1f %s\n' % (v, MU+'V') + \
-                      'width=%.3f ms' % (self.tw/1000)
+                      'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
                 return
@@ -996,18 +993,19 @@ class SortPanel(PlotPanel):
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):
-        kwargs['tw'] = SPIKESORTTW
+        kwargs['tw'] = TW
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
 
-
+''' nice idea, unimplemented
 class ChartSortPanel(SortPanel, ChartPanel):
     def __init__(self, *args, **kwargs):
-        kwargs['tw'] = CHARTSORTTW
-        kwargs['cw'] = SPIKESORTTW
+        kwargs['tw'] = TW
+        kwargs['cw'] = TW # caret width
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
 
     def _add_vref(self):
         """Override ChartPanel, use vrefs for tooltips"""
         SortPanel._add_vref(self)
+'''
