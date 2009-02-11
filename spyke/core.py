@@ -70,8 +70,25 @@ class WaveForm(object):
         nt = len(self.ts)
         assert nt == self.data.shape[1] # obsessive
         return nt
-
-
+    '''
+    def get_padded_data(self, chans):
+        """Return self.data corresponding to self.chans,
+        padded with zeros for chans that don't exist in self"""
+        common = set(self.chans).intersection(chans) # overlapping chans
+        dtype = self.data.dtype # self.data corresponds to self.chans
+        padded_data = np.zeros((len(chans), len(self.ts)), dtype=dtype) # padded_data corresponds to chans
+        chanis = [] # indices into self.chans corresponding to overlapping chans
+        commonis = [] # indices into chans corresponding to overlapping chans
+        for chan in common:
+            chani, = np.where(chan == np.asarray(self.chans))
+            commoni, = np.where(chan == np.asarray(chans))
+            chanis.append(chani)
+            commonis.append(commoni)
+        chanis = np.concatenate(chanis)
+        commonis = np.concatenate(commonis)
+        padded_data[commonis] = self.data[chanis] # for overlapping chans, overwrite the zeros with data
+        return padded_data
+    '''
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
@@ -368,7 +385,7 @@ class SpykeListCtrl(wx.ListCtrl):
         """Delete first item whose first column matches data"""
         row = self.FindItem(0, str(data)) # start search from row 0
         assert row != -1, "couldn't find data %r in SpykeListCtrl" % str(data)
-        success = self.DeleteItem(row) # remove from event listctrl
+        success = self.DeleteItem(row) # remove from spike listctrl
         assert success, "couldn't delete data %r from SpykeListCtrl" % str(data)
 
     def ToggleFocusedItem(self):
@@ -387,27 +404,35 @@ class SpykeTreeCtrl(wx.TreeCtrl):
     """TreeCtrl with overridden OnCompareItems().
     Also has a couple of helper functions"""
     def OnCompareItems(self, item1, item2):
-        """Compare templates in tree according to the vertical
-        position of the maxchan in space, for sorting purposes.
+        """Compare neurons in tree according to the average
+        y0 value of their member spikes, for sorting purposes.
         Called by self.SortChildren
 
-        TODO: sort member events by event times
+        TODO: sort member spikes by spike times
         """
+        obj1 = self.GetItemPyData(item1)
+        obj2 = self.GetItemPyData(item2)
+        '''
         try:
             self.SiteLoc
         except AttributeError:
             sortframe = self.GetTopLevelParent()
             self.SiteLoc = sortframe.sort.probe.SiteLoc # do this here and not in __init__ due to binding order
-        obj1 = self.GetItemPyData(item1)
-        obj2 = self.GetItemPyData(item2)
-        try: # make sure they're both templates by checking for .events attrib
-            obj1.events
-            obj2.events
-            ycoord1 = self.SiteLoc[obj1.maxchan][1] # what about if the template's maxchan is still None?
+        '''
+        try: # make sure they're both neurons by checking for .spikes attrib
+            obj1.spikes
+            obj2.spikes
+            y01 = np.asarray([ spike.y0 for spike in obj1.spikes.values() ]).mean()
+            y02 = np.asarray([ spike.y0 for spike in obj2.spikes.values() ]).mean()
+            '''
+            # if we want to use maxchan instead of y0, need to work on neuron's mean waveform
+            ycoord1 = self.SiteLoc[obj1.maxchan][1]
             ycoord2 = self.SiteLoc[obj2.maxchan][1]
             return cmp(ycoord1, ycoord2)
+            '''
+            return cmp(y01, y02)
         except AttributeError:
-            raise RuntimeError, "can't yet deal with sorting events in tree"
+            raise RuntimeError, "can't yet deal with sorting spikes in tree"
 
     def GetTreeChildrenPyData(self, itemID):
         """Returns PyData of all children of item in
@@ -432,12 +457,12 @@ class SpykeTreeCtrl(wx.TreeCtrl):
 
     def GetFocusedItem(self):
         """This relies on _focusedItem being set externally by handling
-        tree events appropriately"""
+        tree spikes appropriately"""
         return self._focusedItem
     '''
     def GetSelectedItems(self):
         """This relies on _selectedItems being set externally by handling
-        tree events appropriately. I think this differs from .GetSelections()
+        tree spikes appropriately. I think this differs from .GetSelections()
         in that the currently focused item isn't incorrectly assumed to
         also be a selected item"""
         return self._selectedItems
@@ -453,7 +478,7 @@ class SpykeTreeCtrl(wx.TreeCtrl):
         #print 'SpykeTreeCtrl.ToggleFocusedItem() not implemented yet, use Ctrl+Space instead'
 
 '''
-class HybridList(set):
+class SetList(set):
     """A set with an append() method like a list"""
     def append(self, item):
         self.add(item)

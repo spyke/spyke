@@ -2,7 +2,7 @@
 
 from __future__ import division
 
-__authors__ = 'Martin Spacek, Reza Lotun'
+__authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import wx
 import wx.html
@@ -331,10 +331,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         selectedRows = self.detection_list.GetSelections()
         selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
         for det in selectedDetections:
-            for spike in det.spikes.values(): # first check all detection's spikes to ensure they aren't template members
-                if spike.template != None:
-                    wx.MessageBox("can't remove detection %d: spike %d is a member of template %d" \
-                                  % (det.id, spike.id, spike.template.id),
+            for spike in det.spikes.values(): # first check all detection's spikes to ensure they aren't neuron members
+                if spike.neuron != None:
+                    wx.MessageBox("can't remove detection %d: spike %d is a member of neuron %d" \
+                                  % (det.id, spike.id, spike.neuron.id),
                                   "Error", wx.OK|wx.ICON_EXCLAMATION)
                     raise RuntimeError
             for spikei in det.spikes.keys(): # now do the actual removal
@@ -536,10 +536,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.append_detection_list(detection)
         sf = self.OpenFrame('sort') # ensure it's open
         sf.Append2SpikeList(self.sort.spikes) # restore unsorted spikes to spike list
-        for template in self.sort.templates.values(): # restore templates and their sorted spikes to tree
-            sf.AddTemplate2Tree(template)
-            for spike in template.spikes.values():
-                sf.AddSpike2Tree(template.itemID, spike)
+        for neuron in self.sort.neurons.values(): # restore neurons and their sorted spikes to tree
+            sf.AddNeuron2Tree(neuron)
+            for spike in neuron.spikes.values():
+                sf.AddSpike2Tree(neuron.itemID, spike)
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.sort.detector)

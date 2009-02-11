@@ -1,8 +1,8 @@
-"""Spike detection algorithms"""
+"""Spike detection and modelling"""
 
 from __future__ import division
 
-__authors__ = ['Martin Spacek, Reza Lotun']
+__authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import itertools
 import sys
@@ -10,13 +10,13 @@ import time
 import string
 
 import wx
+import pylab
+import matplotlib as mpl
 
 import numpy as np
 #from scipy.optimize import leastsq, fmin_slsqp
 import openopt
 #import nmpfit
-
-from pylab import *
 
 import spyke.surf
 from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
@@ -93,7 +93,9 @@ class SpikeModel(object):
 
     def __eq__(self, other):
         """Compare SpikeModels by their parameter arrays"""
-        np.all(self.p == other.p)
+        if self.__class__ != other.__class__: # might be comparing a Spike with a Neuron
+            return False
+        return np.all(self.p == other.p)
 
     def __hash__(self):
         """Unique hash value for self, based on modelled spike time and location.
@@ -127,8 +129,7 @@ class SpikeModel(object):
         """Load/update self's waveform, based on already present data.
         Defaults to default spike time window centered on self.t"""
         if self.wave.data == None: # empty WaveForm
-            chans = np.asarray(self.chans)[self.chanis]
-            self.wave = WaveForm(data=self.V, ts=self.ts, chans=chans)
+            self.wave = WaveForm(data=self.V, ts=self.ts, chans=self.chans)
         self.wave = self[self.t+trange[0] : self.t+trange[1]]
         return self.wave
 
@@ -141,7 +142,7 @@ class SpikeModel(object):
         uV2um = 45 / 100 # um/uV
         us2um = 75 / 1000 # um/us
         tw = ts[-1] - ts[0]
-        f = figure()
+        f = pylab.figure()
         f.canvas.Parent.SetTitle('t=%d' % self.t)
         a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
         self.f, self.a = f, a
@@ -189,8 +190,8 @@ class SpikeModel(object):
         for colx in colxs: # plot one vertical line per spike phase per probe column
             t1_ = (self.phase1t-ts[0]-tw/2)*us2um + colx # in um
             t2_ = (self.phase2t-ts[0]-tw/2)*us2um + colx # in um
-            vline1 = mpl.lines.Line2D([t1_, t1_], ylims, color='#004444', ls=':')
-            vline2 = mpl.lines.Line2D([t2_, t2_], ylims, color='#444400', ls=':')
+            vline1 = mpl.lines.Line2D([t1_, t1_], ylims, color='#004444', ls='dotted')
+            vline2 = mpl.lines.Line2D([t2_, t2_], ylims, color='#440044', ls='dotted')
             a.add_line(vline1)
             a.add_line(vline2)
 
@@ -284,6 +285,12 @@ class NLLSPSpikeModel(SpikeModel):
         self.pr, self.p = pr, pr.xf
         print "%d NLLSP iterations, cost f'n eval'd %d times" % (pr.iter, len(self.errs))
         self.check_theta()
+
+
+class Spike(NLLSPSpikeModel):
+    """A Spike is just a subclass of a subclass of SpikeModel.
+    Change inheritance to suit desired type of SpikeModel"""
+    pass
 
 
 class Detector(object):
@@ -468,11 +475,12 @@ class Detector(object):
                 continue
 
             # create a SpikeModel
-            sm = NLLSPSpikeModel()
-            sm.chans, sm.maxchani, sm.chanis, sm.nchans = self.chans, chani, chanis, nchans
-            sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
+            sm = Spike()
+            chans = np.asarray(self.chans)[chanis] # dereference
+            sm.chans, sm.maxchani, sm.nchans = chans, chani, nchans
+            #sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
             sm.dmurange = self.dmurange
-            print 'chans  = %s' % (np.asarray(self.chans)[chanis],)
+            print 'chans  = %s' % (chans,)
             print 'chanis = %s' % (chanis,)
             ts = wave.ts[ti0:tiend]
             x = siteloc[chanis, 0] # 1D array (row)

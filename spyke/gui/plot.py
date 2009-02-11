@@ -9,7 +9,7 @@ and set_enable() method, and then stick them in a dict of chans indexed by id
 
 from __future__ import division
 
-__authors__ = 'Martin Spacek, Reza Lotun'
+__authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import itertools
 from copy import copy
@@ -32,8 +32,8 @@ from spyke.detect import TW # default time window relative to spike time
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
-TEMPLATELINEWIDTH = 1.5
-TEMPLATELINESTYLE = '-'
+NEURONLINEWIDTH = 1.5
+NEURONLINESTYLE = '-'
 TREFLINEWIDTH = 0.5
 VREFLINEWIDTH = 0.5
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
@@ -76,7 +76,7 @@ PLOTZORDER = 2
 
 class ColourDict(dict):
     """Just an easy way to cycle through COLOURS given some index,
-    like say a chan id or a template id. Better than using a generator,
+    like say a chan id or a neuron id. Better than using a generator,
     cuz you don't need to keep calling .next(). This is like a dict
     of inifite length"""
     def __getitem__(self, key):
@@ -114,8 +114,8 @@ class Plot(object):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
-        self.obj = None # Spike or Template associated with this plot
-        self.id = None # string id that indexes into SortPanel.used_plots, starts with 's' or 't' for spike or template
+        self.obj = None # Spike or Neuron associated with this plot
+        self.id = None # string id that indexes into SortPanel.used_plots, starts with 's' or 'n' for spike or neuron
 
     def show(self, enable=True):
         """Show/hide all chans in self"""
@@ -207,7 +207,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.spykeframe = self.GetTopLevelParent().Parent
 
         self.available_plots = [] # pool of available Plots
-        self.used_plots = {} # Plots holding currently displayed spike/template, indexed by sid/tid with s or t prepended
+        self.used_plots = {} # Plots holding currently displayed spike/neuron, indexed by sid/nid with s or n prepended
         self.qrplt = None # current quickly removable Plot with associated .background
 
         if stream != None:
@@ -799,7 +799,7 @@ class LFPPanel(ChartPanel):
 
 
 class SortPanel(PlotPanel):
-    """A plot panel specialized for overplotting spikes and templates"""
+    """A plot panel specialized for overplotting spikes and neurons"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         #self.spykeframe = self.GetTopLevelParent().Parent
@@ -824,7 +824,7 @@ class SortPanel(PlotPanel):
         self.background = None
 
     def addObjects(self, objects):
-        """Add spikes/templates to self"""
+        """Add spikes/neurons to self"""
         if objects == []:
             return # do nothing
         if len(objects) == 1:
@@ -845,20 +845,20 @@ class SortPanel(PlotPanel):
             self.init_plots() # init another batch of plots
         plt = self.available_plots.pop() # pop a Plot to assign this object to
         try:
-            obj.spikes # it's a template
-            plt.id = 't' + str(obj.id)
+            obj.spikes # it's a neuron
+            plt.id = 'n' + str(obj.id)
             colours = [COLOURDICT[obj.id]]
             alpha = 1
-            style = TEMPLATELINESTYLE
-            width = TEMPLATELINEWIDTH
+            style = NEURONLINESTYLE
+            width = NEURONLINEWIDTH
         except AttributeError: # it's a spike
             plt.id = 's' + str(obj.id)
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             try:
-                obj.template # it's a member spike of a template. colour it the same as its template
+                obj.neuron # it's a member spike of a neuron. colour it the same as its neuron
                 alpha = 0.5
-                colours = [COLOURDICT[obj.template.id]]
+                colours = [COLOURDICT[obj.neuron.id]]
             except AttributeError: # it's an unsorted spike, colour each chan separately
                 alpha = 1
                 colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
@@ -871,7 +871,7 @@ class SortPanel(PlotPanel):
             obj.update_wave()
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
-        plt.update(obj.wave, obj.t)
+        plt.update(wave, obj.t)
         plt.show_chans(obj.chans) # unhide object's enabled chans
         plt.draw()
         return plt
@@ -918,7 +918,7 @@ class SortPanel(PlotPanel):
 
     def updateObjects(self, objects):
         """Re-plot objects, potentially because their WaveForms have changed.
-        Typical use case: spike is added to a template, template's mean waveform has changed"""
+        Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""
         if objects == []: # do nothing
             return
         if len(objects) == 1 and objects[0].plt != None and objects[0].plt == self.qrplt and self.background != None:
@@ -934,7 +934,7 @@ class SortPanel(PlotPanel):
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateObject(self, obj):
-        """Update and draw a spike's/template's plot"""
+        """Update and draw a spike's/neuron's plot"""
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         obj.plt.update(wave, obj.t)
         obj.plt.draw()

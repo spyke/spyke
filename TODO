@@ -61,13 +61,12 @@ EVENT DETECTION:
     SPIKE MODELLING:
 
         SHORT TERM:
-            - regenerate chanis list based on this spatial mean based best estimate
-                - don't think this will make any significant difference to model results
             - try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
                 - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
             - run profiler
             - is x0 unfairly weighted according to how many chans each col has? eg, if left col has more chans, is x0 biased to the left?
             - store param names in a list of param strings sorted the same way as values in sm.p, override SpikeModel.__getattr__, check if attr is in the param string list, use its index to return the value in sm.p. That way you can go sm.mu1 without having to worry about param order changing in the future
+            - log detection and modelling printouts to a file, search through that instead of having to search through lousy winxp terminal
 
         - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
             - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
@@ -488,3 +487,5 @@ SPIKE MODELLING:
                 - maybe a better way to deal with this late channel situation is to do the AP velocity modelling - that way each modelled chan can be locked out to a different timepoint according to the modelled propogation delay
         - test if constraints are actually making any difference, or if ralg is just amazing
         - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking
+        - nah: regenerate chanis list based on this spatial mean based best estimate
+            - don't think this will make any significant difference to model results

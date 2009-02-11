@@ -2,7 +2,7 @@
 
 from __future__ import division
 
-__authors__ = 'Martin Spacek, Reza Lotun'
+__authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import os
 import sys
@@ -14,12 +14,12 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.detect import TW
+from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
 
-# save all Spike waveforms, even for those that have never been plotted or added to a template
-SAVEALLSPIKEWAVES = False
+# save all Spike waveforms, even for those that have never been plotted or added to a neuron
+#SAVEALLSPIKEWAVES = False
 
 SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
@@ -29,7 +29,7 @@ SORTFRAMEHEIGHT = 950
 
 class Sort(object):
     """A spike sorting session, in which you can do multiple Detection runs,
-    build Templates up from spikes in those Detection runs, and then use Templates
+    build Neurons up from spikes in those Detection runs, and then use Neurons
     to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single Sort object, pickled and gzipped"""
@@ -39,14 +39,14 @@ class Sort(object):
         self.detections = {} # history of detection runs
         self.stream = stream
         # all unsorted spikes detected in this sort session across all Detection runs, indexed by unique ID
-        # sorted spikes go in their respective template's .spikes dict
+        # sorted spikes go in their respective Neuron's .spikes dict
         self.spikes = {}
-        self.templates = {} # first hierarchy of templates
+        self.neurons = {} # first hierarchy of neurons
         self.trash = {} # discarded spikes
 
         self._detid = 0 # used to count off unqiue Detection run IDs
-        self._spikeid = 0 # used to count off unique Spike IDs
-        self._templid = 0 # used to count off unique Template IDs
+        self._sid = 0 # used to count off unique spike IDs
+        self._nid = 0 # used to count off unique neuron IDs
 
     def get_stream(self):
         return self._stream
@@ -88,7 +88,7 @@ class Sort(object):
             uniquespikes[newspike.id] = newspike
         self.spikes.update(uniquespikes)
         return uniquespikes
-
+    '''
     def match(self, templates=None, weighting='signal', sort=True):
         """Match templates to all .spikes with nearby maxchans,
         save error values to respective templates.
@@ -146,7 +146,7 @@ class Sort(object):
                 template.err = template.err[i]
             sys.stdout.write('.')
         print '\nmatch took %.3f sec' % (time.clock()-t0)
-
+    '''
 
 class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
@@ -159,25 +159,26 @@ class Detection(object):
         self.datetime = datetime
         self.sms = sms # list of valid SpikeModels collected from Detector.search
 
+    def __eq__(self, other):
+        """Compare detection runs by their .sms lists
+        TODO: see if there's any overlap between self.sms and other.sms, ie duplicate spikes,
+        and raise a warning in a dialog box or something
+        """
+        return np.all(self.sms == other.sms)
+
     def set_spikeids(self):
-        """Give each SpikeModel an ID, inc sort's _spikeid counter after each one.
+        """Give each SpikeModel an ID, inc sort's _sid spike ID counter after each one.
         Stick a references to all SpikeModels into a .spikes dict, using spike IDs as the keys"""
         self.spikes = {}
         for sm in self.sms:
-            sm.id = self.sort._spikeid
-            self.sort._spikeid += 1 # inc for next unique SpikeModel
+            sm.id = self.sort._sid
+            self.sort._sid += 1 # inc for next unique SpikeModel
             sm.detection = self
             sm.wave = WaveForm() # init to empty waveform
             sm.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
             sm.plt = None # Plot currently holding self
+            sm.neuron = None # neuron currently associated with
             self.spikes[sm.id] = sm
-
-        '''
-        for t, chan in self.spikes_array.T: # same as iterate over cols of non-transposed spikes array
-            s = Spike(self.sort._spikeid, chan, t, self)
-            self.sort._spikeid += 1 # inc for next unique Spike
-            self.spikes[s.id] = s
-        '''
     '''
     deprecated: use sm.chans instead:
     def get_slock_chans(self, maxchan):
@@ -198,69 +199,77 @@ class Detection(object):
             self._slock_chans[maxchan] = chans # save for quick retrieval next time
             return chans
     '''
-    def __eq__(self, other):
-        """Compare detection runs by their .sms lists
-        TODO: see if there's any overlap between self.sms and other.sms, ie duplicate spikes,
-        and raise a warning in a dialog box or something
-        """
-        return np.all(self.sms == other.sms)
 
-
-class Template(object):
+class Neuron(object):
     """A collection of spikes that have been deemed somehow, whether manually
-    or automatically, to have come from the same cell. A Template's waveform
+    or automatically, to have come from the same cell. A Neuron's waveform
     is the mean of its member spikes"""
     def __init__(self, sort, id=None, parent=None):
         self.sort = sort # parent sort session
-        self.id = id # template id
-        self.parent = parent # parent template, if self is a subtemplate
-        self.subtemplates = None
+        self.id = id # neuron id
+        #self.parent = parent # parent neuron, if self is a subneuron
+        #self.subneurons = None
         self.wave = WaveForm() # init to empty waveform
         self.maxchan = None
         self.chans = None # chans enabled for plotting/matching/ripping
-        self.spikes = {} # member spikes that make up this template
+        self.spikes = {} # member spikes that make up this neuron
         self.trange = TW
-        self.t = 0 # relative reference timestamp, a bit redundant, here for symmetry with Spike.t
+        self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-        #self.surffname # not here, let's allow templates to have spikes from different files?
+        #self.surffname # not here, let's allow neurons to have spikes from different files?
 
     def update_wave(self):
         """Update mean waveform, should call this every time .spikes or .trange
-        are modified.
-        Setting .trange as a property to do so automatically works.
+        are modified. Setting .trange as a property to do so automatically works.
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
         that's already been bound"""
         if self.spikes == {}: # no member spikes
             self.wave = WaveForm() # empty waveform
-            return
-        spike = self.spikes.values()[0] # get a random member spike
-        if spike.wave.data == None: # make sure its WaveForm isn't empty
-            spike.update_wave(trange=self.trange)
+            return self.wave
+        # Check all member spikes and make self.chans encompass the chans of every member
+        chans = set() # build up union of chans of all member spikes
+        for spike in self.spikes.values():
+            chans = chans.union(spike.chans)
+        self.chans = list(chans)
+        self.chans.sort() # Neuron's chans are sorted union of chans of all its member spikes
+        #if spike.wave.data == None: # make sure its WaveForm isn't empty
+        #    spike.update_wave(trange=self.trange)
         #self.maxchan = self.maxchan or spike.maxchan # set maxchan if it hasn't been already
-        self.chans = self.chans or spike.chans # set enabled chans if they haven't been already
-        ts = self.wave.ts # see if they've already been set
+        ts = self.wave.ts # see if wave timestamps have already been set
         if ts == None:
-            ts = spike.wave.ts - spike.t # timestamps relative to self.t=0
+            spike = self.spikes.values()[0] # get a random member spike
+            ts = spike.wave.ts - spike.t # timestamps relative to spike.t
         lo, hi = ts.searchsorted(self.trange)
         ts = ts[lo:hi] # slice them according to trange
 
-        wavechans = self.wave.chans or spike.wave.chans # chan ids that correspond to rows in wave.data
-        data = []
+        # take mean of chans of data from spikes with potentially different chans
+        data = np.zeros((len(self.chans), len(ts))) # collect data that corresponds to self.chans
+        nspikes = np.zeros(len(self.chans), dtype=int).reshape(-1, 1)
         for spike in self.spikes.values():
             # check each spike for timepoints that don't match up, update the spike so that they do
             # note: spike is no longer just some random member spike as it was above
-            if spike.wave.ts == None or ((spike.wave.ts - spike.t) != ts).all():
-                spike.update_wave(trange=self.trange)
-            assert spike.wave.chans == wavechans # being really thorough here...
-            data.append(spike.wave.data) # collect spike's data
-        data = np.asarray(data).mean(axis=0)
+            try:
+                if spike.wave.ts == None or ((spike.wave.ts - spike.t) != ts).all():
+                    spike.update_wave(trange=self.trange)
+            except AttributeError:
+                import pdb; pdb.set_trace()
+            wave = spike.wave[self.chans] # has intersection of spike.wave.chans and self.chans
+            # get chan indices into self.chans corresponding to wave.chans
+            chanis = [ np.where(chan == self.chans)[0][0] for chan in wave.chans ] # [0][0] is dumb, but necessary
+            data[chanis] += wave.data # accumulate appropriate channels
+            nspikes[chanis] += 1
+            #padded_data = spike.wave.get_padded_data(self.chans)
+            #assert (spike.wave.chans == wavechans).all() # being really thorough here...
+            #data.append(padded_data) # collect spike's data
+        data /= nspikes # normalize each channel appropriately
+        #data = np.asarray(data).mean(axis=0)
         self.wave.data = data
         self.wave.ts = ts
-        #print 'template[%d].wave.ts = %r' % (self.id, ts)
-        self.wave.chans = wavechans # could be None, to indicate to WaveForm that data is contiguous and complete
-        self.maxchan = self.get_maxchan()
+        #print 'neuron[%d].wave.ts = %r' % (self.id, ts)
+        self.wave.chans = self.chans # could be None, to indicate to WaveForm that data is contiguous and complete
+        #self.maxchan = self.get_maxchan()
         #self.chans = spike.detection.get_slock_chans(self.maxchan) # from random spike's detection
         return self.wave
 
@@ -280,10 +289,10 @@ class Template(object):
         """Update maxchan on replacement of enabled chans.
         User chan selection should trigger search for maxchan"""
         self._chans = chans
-        self.maxchan = self.get_maxchan()
+        #self.maxchan = self.get_maxchan()
 
     chans = property(get_chans, set_chans)
-
+    '''
     def get_maxchan(self):
         """Find maxchan at t=0 in mean waveform, constrained to enabled chans
 
@@ -301,7 +310,7 @@ class Template(object):
         #maxchani = abs(data).max(axis=1).argmax() # ignore sign, find max across columns, find row with greatest max
         maxchan = self.chans[maxchani] # dereference
         return maxchan
-
+    '''
     def get_trange(self):
         return self._trange
 
@@ -336,6 +345,14 @@ class Template(object):
         #print '\nweights:\n%r' % weights
         return weights
 
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy()
+        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+        return d
+
+    '''
     def get_gaussian_spatial_weights(self, stdev):
         """Return a vector that weights self.chans according to a 2D gaussian
         centered on self.maxchan with standard deviation stdev in um"""
@@ -353,7 +370,6 @@ class Template(object):
         weights = g[ts] # horizontal vector with 1 row, nt timepoints
         return weights
 
-    '''
     def __del__(self):
         """Is this run on 'del template'?"""
         for spike in self.spikes:
@@ -362,69 +378,8 @@ class Template(object):
     def pop(self, spikeid):
         return self.spikes.pop(spikeid)
     '''
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = self.__dict__.copy()
-        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
-        return d
 
 '''
-class Spike(object):
-    """Either an unsorted spike, or a member spike in a Template,
-    or a sorted spike in a Detection (or should that be sort session?)"""
-    def __init__(self, id, maxchan, t, detection):
-        self.id = id # some integer for easy user identification
-        self.maxchan = maxchan
-        self.t = t # absolute timestamp, generally falls within span of waveform
-        self.detection = detection # Detection run self was detected on
-        self.chans = self.detection.get_slock_chans(maxchan) # chans enabled for plotting/matching/matchripping
-        self.template = None # template object it belongs to, None means self is an unsorted spike
-        self.wave = WaveForm() # init to empty waveform
-        self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-        self.plt = None # Plot currently holding self
-        # try loading it right away on init, instead of waiting until plot, see if it's fast enough
-        # nah, too slow after doing an OnSearch, don't load til plot or til Save (ie pickling)
-        #self.update_wave()
-
-    def update_wave(self, trange=TW):
-        """Load/update self's waveform, defaults to default spike time window centered on self.t"""
-        self.wave = self[self.t+trange[0] : self.t+trange[1]]
-        return self.wave
-
-    def __eq__(self, other):
-        """Spikes are considered identical if they have the
-        same timepoint and the same maxchan"""
-        return self.t == other.t and self.maxchan == other.maxchan
-
-    def __hash__(self):
-        """Unique hash value for self, based on .t and .maxchan.
-        Required for effectively using spikes in a Set"""
-        return hash((self.t, self.maxchan)) # hash of their tuple, should guarantee uniqueness
-
-    def __getitem__(self, key):
-        """Return WaveForm for this spike given slice key"""
-        assert key.__class__ == slice
-        stream = self.detection.detector.stream
-        if stream != None: # stream is available
-            self.wave = stream[key] # let stream handle the slicing, save result
-            return self.wave
-        elif self.wave != None: # stream unavailable, .wave from before last pickling is available
-            return self.wave[key] # slice existing .wave
-        else: # neither stream nor existing .wave available
-            return WaveForm() # return empty waveform
-
-    def __getstate__(self):
-        """Get object state for pickling"""
-        if SAVEALLSPIKEWAVES and self.wave.data == None:
-            # make sure .wave is loaded before pickling to file
-            self.update_wave()
-        d = self.__dict__.copy()
-        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
-        return d
-'''
-
 class Match(object):
     """Holds all the settings of a match run. A match run is when you compare each
     template to all of the detected but unsorted spikes in Sort.spikes, plot an
@@ -454,7 +409,7 @@ class MatchRip(Match, Rip):
 
     def matchrip(self):
         pass
-
+'''
 
 class SortFrame(wxglade_gui.SortFrame):
     """Sort frame"""
@@ -583,9 +538,9 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.ToggleFocusedItem()
             return # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [ord('A'), wx.WXK_LEFT]:
-            self.MoveCurrentSpikes2Template(which='selected')
-        elif key in [ord('C'), ord('N'), ord('T')]: # wx.WXK_SPACE doesn't seem to work
-            self.MoveCurrentSpikes2Template(which='new')
+            self.MoveCurrentSpikes2Neuron(which='selected')
+        elif key in [ord('C'), ord('N')]: # wx.WXK_SPACE doesn't seem to work
+            self.MoveCurrentSpikes2Neuron(which='new')
         elif key in [wx.WXK_DELETE, ord('D')]:
             self.MoveCurrentSpikes2Trash()
         elif evt.ControlDown() and key == ord('S'):
@@ -607,7 +562,7 @@ class SortFrame(wxglade_gui.SortFrame):
             return # don't allow the selection event to actually happen?????????????
         self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         print [ self.tree.GetItemText(item) for item in self.tree._selectedItems ]
-        selectedTreeObjects = [] # objects could be a mix of Spikes and Templates
+        selectedTreeObjects = [] # objects could be a mix of Spikes and Neurons
         for itemID in self.tree._selectedItems:
             item = self.tree.GetItemPyData(itemID)
             selectedTreeObjects.append(item)
@@ -640,7 +595,7 @@ class SortFrame(wxglade_gui.SortFrame):
         itemID, flags = self.tree.HitTest(pt)
         if not itemID.IsOk(): # if we haven't clicked on an item
             return
-        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Template
+        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Neuron
         # first, restore all prior selections in the tree (except our item) that were cleared by the right click selection event
         for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
             self.tree.SelectItem(itemID)
@@ -659,7 +614,7 @@ class SortFrame(wxglade_gui.SortFrame):
         and aren't reselected until the SPACE keyup event"""
         print 'in OnTreeSpaceUp'
         itemID = self.tree.GetFocusedItem()
-        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Template
+        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Neuron
         # first, restore all prior selections in the tree (except our item) that were cleared by the space selection event
         for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
             self.tree.SelectItem(itemID)
@@ -682,9 +637,9 @@ class SortFrame(wxglade_gui.SortFrame):
         elif key in [wx.WXK_DELETE, ord('D'),]:
             self.MoveCurrentObjects2List()
         elif key == ord('A'): # allow us to add from spike list even if tree is in focus
-            self.MoveCurrentSpikes2Template(which='selected')
-        elif key in [ord('C'), ord('N'), ord('T')]: # ditto for creating a new template
-            self.MoveCurrentSpikes2Template(which='new')
+            self.MoveCurrentSpikes2Neuron(which='selected')
+        elif key in [ord('C'), ord('N')]: # ditto for creating a new neuron
+            self.MoveCurrentSpikes2Neuron(which='new')
         elif evt.ControlDown() and key == ord('S'):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
@@ -713,36 +668,36 @@ class SortFrame(wxglade_gui.SortFrame):
         root = self.tree.GetRootItem()
         if root: # tree isn't empty
             self.tree.SortChildren(root)
-            self.RelabelTemplates(root)
+            self.RelabelNeurons(root)
 
-    def OnMatchTemplate(self, evt):
-        """Match spikes in spike list against first selected template, populate err column"""
+    def OnMatchNeuron(self, evt):
+        """Match spikes in spike list against first selected neuron, populate err column"""
         errcol = 3 # err is in 3rd column (0-based)
-        template = self.GetFirstSelectedTemplate()
-        if not template: # no templates selected
+        neuron = self.GetFirstSelectedNeuron()
+        if not neuron: # no neurons selected
             return
-        self.sort.match(templates=[template])
-        sid2err = dict(template.err) # maps spike ID to its error for this template
+        self.sort.match(neurons=[neuron])
+        sid2err = dict(neuron.err) # maps spike ID to its error for this neuron
         for rowi in range(self.list.GetItemCount()):
             sid = int(self.list.GetItemText(rowi))
             try:
                 err = str(sid2err[sid])
-            except KeyError: # no err for this sid because the spike and template don't overlap enough
+            except KeyError: # no err for this sid because the spike and neuron don't overlap enough
                 err = ''
             erritem = self.list.GetItem(rowi, errcol)
             erritem.SetText(err)
             self.list.SetItem(erritem)
 
-    def RelabelTemplates(self, root):
-        """Consecutively relabel templates according to their vertical order in the TreeCtrl.
-        Relabeling happens both in the TreeCtrl and in the in .sort.templates dict"""
-        templates = self.tree.GetTreeChildrenPyData(root) # get all children in order from top to bottom
-        self.sort.templates = {} # clear the dict, gc won't kick in cuz we still have a ref
-        for templatei, template in enumerate(templates):
-            template.id = templatei # update its id
-            self.sort.templates[template.id] = template # add it to its key in template dict
-            self.tree.SetItemText(template.itemID, 't'+str(template.id)) # update its entry in the tree
-        self.sort._templid = templatei + 1 # reset unique Template ID counter to make next added template consecutive
+    def RelabelNeurons(self, root):
+        """Consecutively relabel neurons according to their vertical order in the TreeCtrl.
+        Relabeling happens both in the TreeCtrl and in the in .sort.neurons dict"""
+        neurons = self.tree.GetTreeChildrenPyData(root) # get all children in order from top to bottom
+        self.sort.neurons = {} # clear the dict, gc won't kick in cuz we still have a ref
+        for neuroni, neuron in enumerate(neurons):
+            neuron.id = neuroni # update its id
+            self.sort.neurons[neuron.id] = neuron # add it to its key in neuron dict
+            self.tree.SetItemText(neuron.itemID, 'n'+str(neuron.id)) # update its entry in the tree
+        self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
 
     def SortListByID(self):
         """Sort spike list by spike ID"""
@@ -770,7 +725,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for rowi in range(self.list.GetItemCount()):
             sid = int(self.list.GetItemText(rowi)) # 0th column
             t = self.sort.spikes[sid].t
-            # this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
+            # TODO: this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
             self.list.SetItemData(rowi, t)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
@@ -834,31 +789,31 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.updateObjects(objects)
         #self.chartsortpanel.updateObjects(objects)
 
-    #TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
+    # TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
 
-    def CreateTemplate(self):
-        """Create, select, and return a new template"""
-        template = Template(self.sort, self.sort._templid, parent=None)
-        self.sort._templid += 1 # inc for next unique Template
-        self.sort.templates[template.id] = template # add template to sort session
-        self.AddTemplate2Tree(template)
-        return template
+    def CreateNeuron(self):
+        """Create, select, and return a new neuron"""
+        neuron = Neuron(self.sort, self.sort._nid, parent=None)
+        self.sort._nid += 1 # inc for next unique neuron
+        self.sort.neurons[neuron.id] = neuron # add neuron to sort session
+        self.AddNeuron2Tree(neuron)
+        return neuron
 
-    def AddTemplate2Tree(self, template):
-        """Add a template to the tree control"""
+    def AddNeuron2Tree(self, neuron):
+        """Add a neuron to the tree control"""
         root = self.tree.GetRootItem()
         if not root.IsOk(): # if tree doesn't have a valid root item
-            root = self.tree.AddRoot('Templates')
-        template.itemID = self.tree.AppendItem(root, 't'+str(template.id)) # add template to tree
-        self.tree.SetItemPyData(template.itemID, template) # associate template tree item with template
+            root = self.tree.AddRoot('Neurons')
+        neuron.itemID = self.tree.AppendItem(root, 'n'+str(neuron.id)) # add neuron to tree
+        self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
 
-    def DeleteTemplate(self, template):
-        """Move a template's spikes back to the spike list, delete it
+    def DeleteNeuron(self, neuron):
+        """Move a neuron's spikes back to the spike list, delete it
         from the tree, and remove it from the sort session"""
-        for spike in template.spikes.values():
+        for spike in neuron.spikes.values():
             self.MoveSpike2List(spike)
-        self.tree.Delete(template.itemID)
-        del self.sort.templates[template.id]
+        self.tree.Delete(neuron.itemID)
+        del self.sort.neurons[neuron.id]
 
     def listRow2Spike(self, row):
         """Return Spike at list row"""
@@ -866,35 +821,35 @@ class SortFrame(wxglade_gui.SortFrame):
         spike = self.sort.spikes[spikei]
         return spike
 
-    def MoveSpike2Template(self, spike, row, template=None):
-        """Move a spike spike from unsorted sort.spikes to a template.
-        Also, move it from a list control row to a template in the tree.
-        If template is None, create a new one
+    def MoveSpike2Neuron(self, spike, row, neuron=None):
+        """Move a spike spike from unsorted sort.spikes to a neuron.
+        Also, move it from a list control row to a neuron in the tree.
+        If neuron is None, create a new one
         """
-        # make sure this spike isn't already a member of this template,
-        # or of any other template
-        for templ in self.sort.templates.values():
-            if spike in templ.spikes.values():
-                print "Can't move: spike %d is identical to a member spike in template %d" % (spike.id, templ.id)
+        # make sure this spike isn't already a member of this neuron,
+        # or of any other neuron
+        for n in self.sort.neurons.values():
+            if spike in n.spikes.values():
+                print "Can't move: spike %d is identical to a member spike in neuron %d" % (spike.id, n.id)
                 return
         self.list.DeleteItem(row) # remove it from the spike list
         self.list.Select(row) # automatically select the new item at that position
-        createdTemplate = False
-        if template == None:
-            template = self.CreateTemplate()
-            createdTemplate = True
+        createdNeuron = False
+        if neuron == None:
+            neuron = self.CreateNeuron()
+            createdNeuron = True
         del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
-        template.spikes[spike.id] = spike # add spike to template
-        template.update_wave() # update mean template waveform
-        spike.template = template # bind template to spike
-        self.AddSpike2Tree(template.itemID, spike)
-        if createdTemplate:
+        neuron.spikes[spike.id] = spike # add spike to neuron
+        neuron.update_wave() # update mean neuron waveform
+        spike.neuron = neuron # bind neuron to spike
+        self.AddSpike2Tree(neuron.itemID, spike)
+        if createdNeuron:
             #self.tree.Expand(root) # make sure root is expanded
-            self.tree.Expand(template.itemID) # expand template
+            self.tree.Expand(neuron.itemID) # expand neuron
             self.tree.UnselectAll() # unselect all items in tree
-            self.tree.SelectItem(template.itemID) # select the newly created template
+            self.tree.SelectItem(neuron.itemID) # select the newly created neuron
             self.OnTreeSelectChanged() # now plot accordingly
-        return template
+        return neuron
 
     def MoveSpike2Trash(self, spike, row):
         """Move spike from spike list to trash"""
@@ -910,49 +865,49 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.SetItemPyData(spike.itemID, spike) # associate spike tree item with spike
 
     def MoveSpike2List(self, spike):
-        """Move a spike spike from a template in the tree back to the list control"""
+        """Move a spike spike from a neuron in the tree back to the list control"""
         # make sure this spike isn't already in sort.spikes
         if spike in self.sort.spikes.values():
             # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
-            print "Can't move: spike %d (maxchan=%d, t=%d) in template %d is identical to an unsorted spike in the spike list" \
-                  % (spike.id, spike.maxchan, spike.t, spike.template.id)
+            print "Can't move: spike %d (maxchan=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
+                  % (spike.id, spike.maxchan, spike.t, spike.neuron.id)
             return
         self.tree.Delete(spike.itemID)
-        template = spike.template
-        del template.spikes[spike.id] # del spike from its template's spike dict
+        neuron = spike.neuron
+        del neuron.spikes[spike.id] # del spike from its neuron's spike dict
         self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
-        template.update_wave() # update mean template waveform
-        spike.template = None # unbind spike's template from spike
+        neuron.update_wave() # update mean neuron waveform
+        spike.neuron = None # unbind spike's neuron from itself
         spike.itemID = None # no longer applicable
         data = [spike.id, spike.maxchan, spike.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
         # TODO: maybe re-sort the list
 
-    def MoveCurrentSpikes2Template(self, which='selected'):
+    def MoveCurrentSpikes2Neuron(self, which='selected'):
         if which == 'selected':
-            template = self.GetFirstSelectedTemplate()
+            neuron = self.GetFirstSelectedNeuron()
         elif which == 'new':
-            template = None # indicates we want a new template
+            neuron = None # indicates we want a new neuron
         selected_rows = self.list.GetSelections()
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
             spike = self.listRow2Spike(row)
-            if spike.wave.data != None: # only move it to template if it's got wave data
-                template = self.MoveSpike2Template(spike, row, template) # if template was None, it isn't any more
+            if spike.wave.data != None: # only move it to neuron if it's got wave data
+                neuron = self.MoveSpike2Neuron(spike, row, neuron) # if neuron was None, it isn't any more
             else:
-                print "can't add spike %d to template because its data isn't accessible" % spike.id
-        if template != None and template.plt != None: # if it exists and it's plotted
-            self.UpdateObjectsInPlot([template]) # update its plot
+                print "can't add spike %d to neuron because its data isn't accessible" % spike.id
+        if neuron != None and neuron.plt != None: # if it exists and it's plotted
+            self.UpdateObjectsInPlot([neuron]) # update its plot
 
     def MoveCurrentObjects2List(self):
         for itemID in self.tree.GetSelections():
-            if itemID: # check if spike's tree parent (template) has already been deleted
+            if itemID: # check if spike's tree parent (neuron) has already been deleted
                 obj = self.tree.GetItemPyData(itemID)
                 if obj.__class__ == Spike:
                     self.MoveSpike2List(obj)
-                elif obj.__class__ == Template:
-                    self.DeleteTemplate(obj)
+                elif obj.__class__ == Neuron:
+                    self.DeleteNeuron(obj)
         self.OnTreeSelectChanged() # update plot
 
     def MoveCurrentSpikes2Trash(self):
@@ -964,12 +919,12 @@ class SortFrame(wxglade_gui.SortFrame):
             spike = self.listRow2Spike(row)
             self.MoveSpike2Trash(spike, row)
 
-    def GetFirstSelectedTemplate(self):
+    def GetFirstSelectedNeuron(self):
         for itemID in self.tree.GetSelections():
             obj = self.tree.GetItemPyData(itemID)
-            if obj.__class__ == Template:
+            if obj.__class__ == Neuron:
                 return obj
-            # no template selected, check to see if an spike is selected in the tree, grab its template
+            # no neuron selected, check to see if an spike is selected in the tree, grab its neuron
             elif obj.__class__ == Spike:
-                return obj.template
+                return obj.neuron
         return None
