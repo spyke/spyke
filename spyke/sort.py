@@ -119,7 +119,7 @@ class Sort(object):
         dm = self.detector.dm
         for template in templates:
             template.err = [] # overwrite any existing .err attrib
-            trange = template.trange
+            tw = template.tw
             templatewave = template.wave[template.chans] # pull out template's enabled chans
             #stdev = template.get_stdev()[template.chans] # pull out template's enabled chans
             #stdev[stdev == 0] = 1 # replace any 0s with 1s - TODO: what's the best way to avoid these singularities?
@@ -129,8 +129,8 @@ class Sort(object):
                 # check if spike.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, spike.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
-                if spike.wave.data == None or template.trange != TW: # make sure their data line up
-                    spike.update_wave(trange) # this slows things down a lot, but is necessary
+                if spike.wave.data == None or template.tw != TW: # make sure their data line up
+                    spike.update_wave(tw) # this slows things down a lot, but is necessary
                 # slice template's enabled chans out of spike, calculate sum of squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
                 #err = (templatewave.data - spike.wave[template.chans].data) / stdev * weights # low stdev means more sensitive to error
@@ -210,67 +210,68 @@ class Neuron(object):
         #self.parent = parent # parent neuron, if self is a subneuron
         #self.subneurons = None
         self.wave = WaveForm() # init to empty waveform
-        self.maxchan = None
-        self.chans = None # chans enabled for plotting/matching/ripping
         self.spikes = {} # member spikes that make up this neuron
-        self.trange = TW
         self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
+        #self.tw = TW # temporal window wrt reference timestamp self.t
+        '''
+        # fixed set of timepoints for this Neuron wrt t=0, member spikes can have fewer or more, but all align at t=0
+        tres = self.sort.stream.tres
+        self.ts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt spike time
+        self.ts += self.ts[0] % tres # get rid of mod, so timepoints go through zero
+        '''
         self.plt = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow neurons to have spikes from different files?
 
     def update_wave(self):
-        """Update mean waveform, should call this every time .spikes or .trange
-        are modified. Setting .trange as a property to do so automatically works.
+        """Update mean waveform, should call this every time .spikes are modified.
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
         that's already been bound"""
-        if self.spikes == {}: # no member spikes
-            self.wave = WaveForm() # empty waveform
-            return self.wave
-        # Check all member spikes and make self.chans encompass the chans of every member
-        chans = set() # build up union of chans of all member spikes
+        if self.spikes == {}: # no member spikes, perhaps I should be deleted?
+            raise RuntimeError, "neuron %d has no spikes and its waveform can't be updated" % self.id
+            #self.wave = WaveForm() # empty waveform
+            #return self.wave
+        chans, ts = set(), set() # build up union of chans and relative timepoints of all member spikes
         for spike in self.spikes.values():
             chans = chans.union(spike.chans)
-        self.chans = list(chans)
-        self.chans.sort() # Neuron's chans are sorted union of chans of all its member spikes
-        #if spike.wave.data == None: # make sure its WaveForm isn't empty
-        #    spike.update_wave(trange=self.trange)
-        #self.maxchan = self.maxchan or spike.maxchan # set maxchan if it hasn't been already
-        ts = self.wave.ts # see if wave timestamps have already been set
-        if ts == None:
-            spike = self.spikes.values()[0] # get a random member spike
-            ts = spike.wave.ts - spike.t # timestamps relative to spike.t
-        lo, hi = ts.searchsorted(self.trange)
-        ts = ts[lo:hi] # slice them according to trange
+            ts = ts.union(spike.ts - spike.t) # timepoints wrt spike time, not absolute
+        chans = np.asarray(list(chans))
+        ts = np.asarray(list(ts))
+        chans.sort() # Neuron's chans are a sorted union of chans of all its member spikes
+        ts.sort() # ditto for timepoints
 
-        # take mean of chans of data from spikes with potentially different chans
-        data = np.zeros((len(self.chans), len(ts))) # collect data that corresponds to self.chans
-        nspikes = np.zeros(len(self.chans), dtype=int).reshape(-1, 1)
+        # take mean of chans of data from spikes with potentially different chans and time windows wrt their spike
+        shape = len(chans), len(ts)
+        data = np.zeros(shape, dtype=np.float32) # collect data that corresponds to chans and ts
+        nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
         for spike in self.spikes.values():
-            # check each spike for timepoints that don't match up, update the spike so that they do
-            # note: spike is no longer just some random member spike as it was above
-            try:
-                if spike.wave.ts == None or ((spike.wave.ts - spike.t) != ts).all():
-                    spike.update_wave(trange=self.trange)
-            except AttributeError:
-                import pdb; pdb.set_trace()
-            wave = spike.wave[self.chans] # has intersection of spike.wave.chans and self.chans
-            # get chan indices into self.chans corresponding to wave.chans
-            chanis = [ np.where(chan == self.chans)[0][0] for chan in wave.chans ] # [0][0] is dumb, but necessary
-            data[chanis] += wave.data # accumulate appropriate channels
-            nspikes[chanis] += 1
-            #padded_data = spike.wave.get_padded_data(self.chans)
-            #assert (spike.wave.chans == wavechans).all() # being really thorough here...
-            #data.append(padded_data) # collect spike's data
-        data /= nspikes # normalize each channel appropriately
-        #data = np.asarray(data).mean(axis=0)
+            if spike.wave.data == None: # empty WaveForm
+                spike.update_wave()
+            wave = spike.wave[chans] # has intersection of spike.wave.chans and chans
+            # get chan indices into chans corresponding to wave.chans, chans is a superset of wave.chans
+            chanis = chans.searchsorted(wave.chans)
+            # get timepoint indices into ts corresponding to wave.ts timepoints relative to their spike time
+            tis = ts.searchsorted(wave.ts - spike.t)
+            # there must be an easier way of doing the following:
+            rowis = np.tile(False, len(chans))
+            rowis[chanis] = True
+            colis = np.tile(False, len(ts))
+            colis[tis] = True
+            i = np.outer(rowis, colis) # 2D boolean array for indexing into data
+            ''' this method doesn't work, destination indices are assigned to in the wrong order:
+            rowis = np.tile(chanis, len(tis))
+            colis = np.tile(tis, len(chanis))
+            i = rowis, colis
+            '''
+            data[i] += wave.data.ravel() # accumulate appropriate data points
+            nspikes[i] += 1 # increment spike counts at appropriate data points
+        data /= nspikes # normalize each data point appropriately
         self.wave.data = data
+        self.wave.chans = chans
         self.wave.ts = ts
-        #print 'neuron[%d].wave.ts = %r' % (self.id, ts)
-        self.wave.chans = self.chans # could be None, to indicate to WaveForm that data is contiguous and complete
-        #self.maxchan = self.get_maxchan()
-        #self.chans = spike.detection.get_slock_chans(self.maxchan) # from random spike's detection
+        print 'neuron[%d].wave.chans = %r' % (self.id, chans)
+        print 'neuron[%d].wave.ts = %r' % (self.id, ts)
         return self.wave
 
     def get_stdev(self):
@@ -283,15 +284,9 @@ class Neuron(object):
         return stdev
 
     def get_chans(self):
-        return self._chans
+        return self.wave.chans # self.chans just refers to self.wave.chans
 
-    def set_chans(self, chans):
-        """Update maxchan on replacement of enabled chans.
-        User chan selection should trigger search for maxchan"""
-        self._chans = chans
-        #self.maxchan = self.get_maxchan()
-
-    chans = property(get_chans, set_chans)
+    chans = property(get_chans)
     '''
     def get_maxchan(self):
         """Find maxchan at t=0 in mean waveform, constrained to enabled chans
@@ -311,25 +306,26 @@ class Neuron(object):
         maxchan = self.chans[maxchani] # dereference
         return maxchan
     '''
-    def get_trange(self):
-        return self._trange
+    '''
+    def get_tw(self):
+        return self._tw
 
-    def set_trange(self, trange):
+    def set_tw(self, tw):
         """Reset self's time range relative to t=0 spike time,
         update slice of member spikes, and update mean waveform"""
-        self._trange = trange
+        self._tw = tw
         for spike in self.spikes.values():
-            spike.update_wave(trange=trange)
+            spike.update_wave(tw=tw)
         self.update_wave()
 
-    trange = property(get_trange, set_trange)
-
+    tw = property(get_tw, set_tw)
+    '''
     def get_weights(self, weighting=None, sstdev=None, tstdev=None):
         """Returns unity, spatial, temporal, or spatiotemporal Gaussian weights
         for self's enabled chans in self.wave.data, given spatial and temporal
         stdevs"""
-        nchans = len(self.chans)
-        nt = len(self.wave.data[self.chans[0]]) # assume all chans have the same number of timepoints
+        nchans = len(self.wave.chans)
+        nt = len(self.wave.data[0]) # assume all chans have the same number of timepoints
         if weighting == None:
             weights = 1
         elif weighting == 'spatial':
@@ -520,11 +516,13 @@ class SortFrame(wxglade_gui.SortFrame):
         coli = evt.GetColumn()
         if coli == 0:
             self.SortListByID()
-        elif coli == 1:
-            self.SortListByChan()
-        elif coli == 2:
+        elif coli == 1: # x0 column
+            return
+        elif coli == 2: # y0 column
+            self.SortListByY()
+        elif coli == 3: # time column
             self.SortListByTime()
-        elif coli == 3:
+        elif coli == 4: # err column
             self.SortListByErr()
         else:
             raise ValueError, 'weird column id %d' % coli
@@ -690,8 +688,8 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def RelabelNeurons(self, root):
         """Consecutively relabel neurons according to their vertical order in the TreeCtrl.
-        Relabeling happens both in the TreeCtrl and in the in .sort.neurons dict"""
-        neurons = self.tree.GetTreeChildrenPyData(root) # get all children in order from top to bottom
+        Relabeling happens both in the TreeCtrl and in the .sort.neurons dict"""
+        neurons = self.tree.GetTreeChildrenPyData(root) # get all children of root in order from top to bottom
         self.sort.neurons = {} # clear the dict, gc won't kick in cuz we still have a ref
         for neuroni, neuron in enumerate(neurons):
             neuron.id = neuroni # update its id
@@ -706,17 +704,14 @@ class SortFrame(wxglade_gui.SortFrame):
             self.list.SetItemData(rowi, sid)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
-    def SortListByChan(self):
-        """Sort spike list by ycoord of spike maxchans, from top to bottom of probe"""
+    def SortListByY(self):
+        """Sort spike list by its y0 coord, from top to bottom of probe"""
         # first set the itemdata for each row
         SiteLoc = self.sort.probe.SiteLoc
         for rowi in range(self.list.GetItemCount()):
             sid = int(self.list.GetItemText(rowi)) # 0th column
             s = self.sort.spikes[sid]
-            xcoord = SiteLoc[s.maxchan][0]
-            ycoord = SiteLoc[s.maxchan][1]
-            # hack to make items sort by ycoord, or xcoord if ycoords are identical
-            data = intround((ycoord + xcoord/1000)*1000) # needs to be an int unfortunately
+            data = intround(y0) # needs to be an int unfortunately
             self.list.SetItemData(rowi, data)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
@@ -755,7 +750,8 @@ class SortFrame(wxglade_gui.SortFrame):
         """Append spikes to self's spike list control"""
         SiteLoc = self.sort.probe.SiteLoc
         for s in spikes.values():
-            row = [str(s.id), intround(s.x0), intround(s.y0), s.t] # leave err column empty for now
+            # TODO: does first entry in each row have to be a string???????????
+            row = [s.id, intround(s.x0), intround(s.y0), s.t] # leave err column empty for now
             self.list.Append(row)
             # using this instead of .Append(row) is just as slow:
             #rowi = self.list.InsertStringItem(sys.maxint, str(s.id))
@@ -869,17 +865,21 @@ class SortFrame(wxglade_gui.SortFrame):
         # make sure this spike isn't already in sort.spikes
         if spike in self.sort.spikes.values():
             # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
-            print "Can't move: spike %d (maxchan=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
-                  % (spike.id, spike.maxchan, spike.t, spike.neuron.id)
+            print "Can't move: spike %d (x0=%d, y0=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
+                  % (spike.id, intround(spike.x0), intround(spike.y0), spike.t, spike.neuron.id)
             return
-        self.tree.Delete(spike.itemID)
         neuron = spike.neuron
         del neuron.spikes[spike.id] # del spike from its neuron's spike dict
         self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
-        neuron.update_wave() # update mean neuron waveform
         spike.neuron = None # unbind spike's neuron from itself
+        # GUI operations:
+        self.tree.Delete(spike.itemID)
         spike.itemID = None # no longer applicable
-        data = [spike.id, spike.maxchan, spike.t]
+        if len(neuron.spikes) == 0:
+            self.DeleteNeuron(neuron) # get rid of empty Neuron
+        else:
+            neuron.update_wave() # update mean neuron waveform
+        data = [spike.id, intround(spike.x0), intround(spike.y0), spike.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
         # TODO: maybe re-sort the list
 

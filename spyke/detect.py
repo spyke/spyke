@@ -24,8 +24,7 @@ from text import SimpleTable
 
 
 DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
-TWTHRESH = (-250, 750) # spike time window range, us, centered on threshold crossing
-TW = (-250, 750) # spike time window range, us, centered on 1st phase of spike
+TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
 
 
 class FoundEnoughSpikesError(ValueError):
@@ -125,12 +124,12 @@ class SpikeModel(object):
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
-    def update_wave(self, trange=TW):
+    def update_wave(self, tw=None):
         """Load/update self's waveform, based on already present data.
-        Defaults to default spike time window centered on self.t"""
-        if self.wave.data == None: # empty WaveForm
-            self.wave = WaveForm(data=self.V, ts=self.ts, chans=self.chans)
-        self.wave = self[self.t+trange[0] : self.t+trange[1]]
+        Optionally slice it according to tw around self's spike time"""
+        self.wave = WaveForm(data=self.V, ts=self.ts, chans=self.chans)
+        if tw != None:
+            self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
 
     def plot(self):
@@ -332,7 +331,6 @@ class Detector(object):
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
         self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
-        self.twthresh = TWTHRESH # spike time window range, us, centered on threshold crossing
         self.tw = TW # spike time window range, us, centered on 1st phase of spike
 
     def search(self):
@@ -393,8 +391,12 @@ class Detector(object):
         else:
             maxnspikes = self.maxnspikes - self.nspikes
 
-        trangeithresh = intround(self.twthresh / self.stream.tres) # spike time window range wrt thresh xing in number of timepoints
-        trangei = intround(self.tw / self.stream.tres) # spike time window range wrt 1st phase in number of timepoints
+        tres = self.stream.tres
+        twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
+        twts += twts[0] % tres # get rid of mod, so twts go through zero
+        twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
+        print 'twi = %s' % (twi,)
+
         # want an nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
@@ -423,9 +425,9 @@ class Detector(object):
                 continue # this event is locked out, skip to next event
 
             # get data window wrt threshold crossing
-            ti0 = max(ti+trangeithresh[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+trangeithresh[1], len(wave.ts)-1) # don't go further than last wave timepoint
-            window = wave.data[chani, ti0:tiend]
+            ti0 = max(ti+twi[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            window = wave.data[chani, ti0:tiend] # window of data
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
             phase1ti = min(minti, maxti) # wrt ti0
@@ -446,8 +448,8 @@ class Detector(object):
             print 'new max chan=%d' % chan
 
             # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
-            ti0 = max(ti+trangei[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+trangei[1], len(wave.ts)-1) # don't go further than last wave timepoint
+            ti0 = max(ti+twi[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
             window = wave.data[chani, ti0:tiend]
             minti = window.argmin() # time of minimum in window, relative to ti0
             maxti = window.argmax() # time of maximum in window, relative to ti0
