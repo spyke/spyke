@@ -760,7 +760,7 @@ class SortFrame(wxglade_gui.SortFrame):
             # should probably use a virtual listctrl to speed up listctrl creation
             # and subsequent addition and especially removal of items
             # hack to make items sort by y0, or x0 if y0 vals are identical
-            data = intround((s.y0 + s.x0/1000)*1000) # needs to be an int unfortunately
+            data = intround(s.y0) # needs to be an int unfortunately
             # use item count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
             self.list.SetItemData(self.list.GetItemCount()-1, data)
@@ -804,10 +804,13 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
 
     def DeleteNeuron(self, neuron):
-        """Move a neuron's spikes back to the spike list, delete it
-        from the tree, and remove it from the sort session"""
+        """Move all of a neuron's spikes back to the spike list.
+        This indirectly removes the neuron as well"""
         for spike in neuron.spikes.values():
-            self.MoveSpike2List(spike)
+            self.MoveSpike2List(spike) # removing last spike calls RemoveNeuron()
+
+    def RemoveNeuron(self, neuron):
+        """Remove neuron from the tree and the sort session"""
         self.tree.Delete(neuron.itemID)
         del self.sort.neurons[neuron.id]
 
@@ -870,13 +873,13 @@ class SortFrame(wxglade_gui.SortFrame):
             return
         neuron = spike.neuron
         del neuron.spikes[spike.id] # del spike from its neuron's spike dict
-        self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
         spike.neuron = None # unbind spike's neuron from itself
+        self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
         # GUI operations:
         self.tree.Delete(spike.itemID)
         spike.itemID = None # no longer applicable
         if len(neuron.spikes) == 0:
-            self.DeleteNeuron(neuron) # get rid of empty Neuron
+            self.RemoveNeuron(neuron) # remove empty Neuron
         else:
             neuron.update_wave() # update mean neuron waveform
         data = [spike.id, intround(spike.x0), intround(spike.y0), spike.t]
@@ -907,7 +910,7 @@ class SortFrame(wxglade_gui.SortFrame):
                 if obj.__class__ == Spike:
                     self.MoveSpike2List(obj)
                 elif obj.__class__ == Neuron:
-                    self.DeleteNeuron(obj)
+                    self.DeleteNeuron(obj) # delete == remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
 
     def MoveCurrentSpikes2Trash(self):
