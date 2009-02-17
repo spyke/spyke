@@ -519,7 +519,7 @@ def toiter(x):
         return x
     else:
         return [x]
-
+''' use np.vstack instead
 def cvec(x):
     """Return x as a column vector. x must be a scalar or a vector"""
     x = np.asarray(x)
@@ -530,7 +530,7 @@ def cvec(x):
         nrows = 1
     x.shape = (nrows, 1)
     return x
-
+'''
 def cut(ts, trange):
     """Returns timestamps, where tstart <= timestamps <= tend
     Copied and modified from neuropy rev 149"""

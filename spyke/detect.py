@@ -297,10 +297,10 @@ class Detector(object):
     DEFTHRESHMETHOD = 'GlobalFixed' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
     DEFNOISEMULT = 3.5
-    DEFFIXEDTHRESH = 50 # uV
+    DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
-    DEFFIXEDNOISEWIN = 1000000 # 1s
-    DEFDYNAMICNOISEWIN = 10000 # 10ms
+    DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
+    DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
@@ -681,18 +681,19 @@ class Detector(object):
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
             thresh = np.tile(self.fixedthresh, len(self.chans))
             thresh = np.float32(thresh)
-        elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh, calculate from start of stream
-            """randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.blocksize
+        elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
+            """randomly sample self.fixednoisewin's worth of data from self.trange in blocks of self.blocksize
             NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
             will contribute more than once to the noise calculation
-            This sometimes causes an 'unhandled exception' for BipolarAmplitude algorithm, don't know why
             """
-            print 'TODO: ChanFixed needs to respect enabled self.chans!'
-            nblocks = intround(self.DEFFIXEDNOISEWIN / self.blocksize)
+            print 'loading data to calculate noise'
+            nblocks = intround(self.fixednoisewin / self.blocksize)
             wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
             data = []
             for wavetrange in wavetranges:
-                data.append(self.stream[wavetrange[0]:wavetrange[1]].data)
+                wave = self.stream[wavetrange[0]:wavetrange[1]]
+                wave = wave[self.chans] # keep just the enabled chans
+                data.append(wave.data)
             data = np.concatenate(data, axis=1)
             noise = self.get_noise(data)
             thresh = noise * self.noisemult
@@ -701,11 +702,13 @@ class Detector(object):
             thresh = np.zeros(len(self.chans), dtype=np.float32)
         else:
             raise ValueError
+        assert len(thresh) == len(self.chans)
         assert thresh.dtype == np.float32
         return thresh
 
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
+        print 'calculating noise'
         if self.noisemethod == 'median':
             return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':
