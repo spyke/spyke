@@ -19,7 +19,7 @@ import openopt
 #import nmpfit
 
 import spyke.surf
-from spyke.core import WaveForm, toiter, argcut, intround, cvec, eucd, g, g2, RM
+from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2, RM
 from text import SimpleTable
 
 
@@ -294,21 +294,22 @@ class Spike(NLLSPSpikeModel):
 
 class Detector(object):
     """Spike detector base class"""
-    DEFTHRESHMETHOD = 'Dynamic'
-    DEFNOISEMETHOD = 'median'
+    DEFTHRESHMETHOD = 'GlobalFixed' # GlobalFixed, ChanFixed, or Dynamic
+    DEFNOISEMETHOD = 'median' # median or stdev
     DEFNOISEMULT = 3.5
-    DEFFIXEDTHRESH = 40 # uV
+    DEFFIXEDTHRESH = 50 # uV
+    DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
     DEFFIXEDNOISEWIN = 1000000 # 1s
     DEFDYNAMICNOISEWIN = 10000 # 10ms
     DEFMAXNSPIKES = 0
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
-    DEFSLOCK = 150 # um
+    DEFSLOCK = 150 # spatial lockout radius, um
     DEFRANDOMSAMPLE = False
 
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
     def __init__(self, stream, chans=None,
-                 threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
+                 threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None, ppthreshmult=None,
                  fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
                  slock=None, randomsample=None):
@@ -316,12 +317,11 @@ class Detector(object):
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.stream = stream
         self.chans = chans or range(self.stream.nchans) # None means search all channels
-        #self.nchans = len(self.chans) # rather not bind this to self, cuz len(chans) can change between search() calls
-        #self.fdm = DistanceMatrix(self.stream.probe.SiteLoc) # full channel distance matrix, ignores enabled self.chans, identical for all Detectors on the same probe
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
         self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
+        self.ppthreshmult = ppthreshmult or self.DEFPPTHRESHMULT
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
         self.trange = trange or (stream.t0, stream.tend)
@@ -340,17 +340,21 @@ class Detector(object):
         TODO: remove any spikes that happen right at the first or last timepoint in the file,
         since we can't say when an interrupted rising or falling edge would've reached peak
         """
-        t0 = time.clock()
 
         self.enabledSiteLoc = {}
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
 
-        self.thresh = 50 # abs, in uV
-        self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
-        #self.thresh = self.get_thresh() # this could probably go in __init__ without problems
-        #print '.get_thresh() took %.3f sec' % (time.clock()-t0)
+        t0 = time.clock()
+        self.thresh = self.get_thresh() # abs, in uV, one per chan in self.chans
+        self.ppthresh = self.thresh * self.ppthreshmult # peak-to-peak threshold, abs, in uV
+        print 'thresh calcs took %.3f sec' % (time.clock()-t0)
+        print 'thresh   = %s' % intround(self.thresh)
+        print 'ppthresh = %s' % intround(self.ppthresh)
+
+        #self.thresh = 50 # abs, in uV
+        #self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -375,7 +379,8 @@ class Detector(object):
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
-        print 'searchblock(): self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' % \
+        print 'searchblock():'
+        print 'self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' % \
               (self.nspikes, self.maxnspikes, wavetrange, direction)
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
@@ -409,8 +414,8 @@ class Detector(object):
             - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as a threshold event
             - or slide some filter across the data that not only checks for thresh, but ppthresh as well
         '''
-        edges = np.diff(np.int8(abs(wave.data) >= self.thresh)) # indices where changing abs(signal) has crossed thresh
-        events = np.where(np.transpose(edges == 1)) # indices of +ve edges, where increasing abs(signal) has crossed thresh
+        edges = np.diff(np.int8(abs(wave.data) >= np.vstack(self.thresh))) # indices where changing abs(signal) has crossed thresh
+        events = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
         events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
 
         lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
@@ -467,7 +472,8 @@ class Detector(object):
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
-                assert abs(V2 - V1) >= self.ppthresh, "event doesn't cross ppthresh"
+                assert abs(V2 - V1) >= self.ppthresh[chani], \
+                    "event doesn't cross ppthresh[chani=%d]=%.1f" % (chani, self.ppthresh[chani])
                 assert ti0 < ti0+phase1ti < tiend, 'phase1t is at window endpoints, probably a mistrigger'
                 assert np.sign(V1) == -np.sign(V2), 'phases must be of opposite sign'
                 assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
@@ -476,7 +482,7 @@ class Detector(object):
                 print message
                 continue
 
-            # create a SpikeModel
+            # create a Spike model
             sm = Spike()
             chans = np.asarray(self.chans)[chanis] # dereference
             sm.chans, sm.maxchani, sm.nchans = chans, chani, nchans
@@ -553,9 +559,12 @@ class Detector(object):
                 # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
                 assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
                 assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
-                assert bigphase >= self.thresh, "model doesn't cross thresh (bigphase=%.1f)" % bigphase
-                assert Vpp >= self.ppthresh, "model doesn't cross ppthresh (Vpp=%.1f)" % Vpp
-                assert self.dmurange[0] <= dphase <= self.dmurange[1], 'model phases separated by %f us (outside of dmurange=%s)' % (dphase, self.dmurange)
+                assert bigphase >= self.thresh[chani], \
+                    "model (bigphase=%.1f) doesn't cross thresh[chani=%d]=%.1f " % (bigphase, chani, self.thresh[chani])
+                assert Vpp >= self.ppthresh[chani], \
+                    "model (Vpp=%.1f) doesn't cross ppthresh[chani=%d]=%.1f " % (Vpp, chani, self.ppthresh[chani])
+                assert self.dmurange[0] <= dphase <= self.dmurange[1], \
+                    'model phases separated by %f us (outside of dmurange=%s)' % (dphase, self.dmurange)
                 assert np.sign(V1) == -np.sign(V2), 'model phases must be of opposite sign'
             except AssertionError, message: # doesn't qualify as a spike
                 print '%s, spiket=%d' % (message, phase1t)
@@ -667,8 +676,11 @@ class Detector(object):
     stream = property(get_stream, set_stream)
 
     def get_thresh(self):
+        """Return array of thresholds, one per chan in self.chans,
+        depending on threshmethod and noisemethod"""
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            thresh = np.ones(len(self.chans), dtype=np.float32) * self.fixedthresh
+            thresh = np.tile(self.fixedthresh, len(self.chans))
+            thresh = np.float32(thresh)
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh, calculate from start of stream
             """randomly sample DEFFIXEDNOISEWIN's worth of data from the entire file in blocks of self.blocksize
             NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
@@ -685,10 +697,10 @@ class Detector(object):
             noise = self.get_noise(data)
             thresh = noise * self.noisemult
         elif self.threshmethod == 'Dynamic':
-            thresh = np.zeros(len(self.chans), dtype=np.float32) # this will be calculated on the fly in the Cython loop
+            # dynamic threshes are calculated on the fly during the search, so leave as zero for now
+            thresh = np.zeros(len(self.chans), dtype=np.float32)
         else:
             raise ValueError
-        print 'thresh = %s' % thresh
         assert thresh.dtype == np.float32
         return thresh
 
