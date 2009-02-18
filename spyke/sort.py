@@ -207,18 +207,9 @@ class Neuron(object):
     def __init__(self, sort, id=None, parent=None):
         self.sort = sort # parent sort session
         self.id = id # neuron id
-        #self.parent = parent # parent neuron, if self is a subneuron
-        #self.subneurons = None
         self.wave = WaveForm() # init to empty waveform
         self.spikes = {} # member spikes that make up this neuron
         self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
-        #self.tw = TW # temporal window wrt reference timestamp self.t
-        '''
-        # fixed set of timepoints for this Neuron wrt t=0, member spikes can have fewer or more, but all align at t=0
-        tres = self.sort.stream.tres
-        self.ts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt spike time
-        self.ts += self.ts[0] % tres # get rid of mod, so timepoints go through zero
-        '''
         self.plt = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         #self.surffname # not here, let's allow neurons to have spikes from different files?
@@ -251,6 +242,7 @@ class Neuron(object):
             wave = spike.wave[chans] # has intersection of spike.wave.chans and chans
             # get chan indices into chans corresponding to wave.chans, chans is a superset of wave.chans
             chanis = chans.searchsorted(wave.chans)
+            #chanis = [ np.where(chans==chan)[0][0] for chan in wave.chans ]
             # get timepoint indices into ts corresponding to wave.ts timepoints relative to their spike time
             tis = ts.searchsorted(wave.ts - spike.t)
             # there must be an easier way of doing the following:
@@ -517,7 +509,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if coli == 0:
             self.SortListByID()
         elif coli == 1: # x0 column
-            return
+            raise NotImplementedError
         elif coli == 2: # y0 column
             self.SortListByY()
         elif coli == 3: # time column
@@ -711,17 +703,17 @@ class SortFrame(wxglade_gui.SortFrame):
         for rowi in range(self.list.GetItemCount()):
             sid = int(self.list.GetItemText(rowi)) # 0th column
             s = self.sort.spikes[sid]
-            data = intround(y0) # needs to be an int unfortunately
-            self.list.SetItemData(rowi, data)
+            y0 = intround(s.y0) # needs to be an int unfortunately
+            self.list.SetItemData(rowi, y0)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByTime(self):
         """Sort spike list by spike timepoint"""
         for rowi in range(self.list.GetItemCount()):
             sid = int(self.list.GetItemText(rowi)) # 0th column
-            t = self.sort.spikes[sid].t
+            s = self.sort.spikes[sid]
             # TODO: this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
-            self.list.SetItemData(rowi, t)
+            self.list.SetItemData(rowi, s.t)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
     def SortListByErr(self):

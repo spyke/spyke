@@ -57,13 +57,15 @@ class WaveForm(object):
                 #    return self # no need for a new WaveForm - but new WaveForms aren't expensive, only new data are
                 return WaveForm(data=data, ts=ts, chans=self.chans) # return a new WaveForm
         else: # index into self by channel id(s)
-            key = toiter(key)
+            keys = toiter(key)
             chans = np.asarray(self.chans)
-            key = list(set(chans).intersection(key)) # ignore keys outside of chans
-            i = [ int(np.where(chan == chans)[0]) for chan in key ] # list of appropriate indices into the rows of self.data
+            keys = [ key for key in keys if key in chans ] # ignore keys outside of chans while preserving order in keys
+            # using a set changes the order within keys
+            #keys = list(set(chans).intersection(keys)) # ignore keys outside of chans
+            i = [ int(np.where(chan == chans)[0]) for chan in keys ] # list of appropriate indices into the rows of self.data
             # TODO: should probably use .take here for speed:
             data = self.data[i] # grab the appropriate rows of data
-            return WaveForm(data=data, ts=self.ts, chans=key) # return a new WaveForm
+            return WaveForm(data=data, ts=self.ts, chans=keys) # return a new WaveForm
 
     def __len__(self):
         """Number of data points in time"""
