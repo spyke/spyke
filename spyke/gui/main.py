@@ -7,7 +7,8 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import wx
 import wx.html
 import wx.py
-import cPickle
+#import pickle
+import cPickle as pickle
 import os
 import sys
 import time
@@ -518,7 +519,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Open a sort session from a .sort file"""
         self.DeleteSortSession() # delete any existing sort Session
         pf = gzip.open(fname, 'rb')
-        self.sort = cPickle.load(pf)
+        self.sort = pickle.load(pf)
         pf.close()
         sortProbe = self.sort.probe.__class__
         if self.hpstream != None:
@@ -551,7 +552,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
-        p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
+        p = pickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
         p.dump(self.sort)
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved

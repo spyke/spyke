@@ -251,6 +251,29 @@ class NLLSPSpikeModel(SpikeModel):
     XTOL = 1e-6 # variable tolerance
     GTOL = 1e-6 # gradient tolerance
 
+    """Here come the constraints. For improved speed, might want to stop passing unnecessary args"""
+
+    """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
+    TODO: maybe this contraint should be on the peak separation in the sum of Gaussians,
+    instead of just on the mu params. Can probably remove the lower bound on the peak separation,
+    especially if it's left at 0"""
+    def c0(self, p, ts, x, y, V):
+        """dmu lower bound constraint"""
+        dmu = abs(p[3] - p[2])
+        return self.dmurange[0] - dmu # <= 0, lower bound
+
+    def c1(self, p, ts, x, y, V):
+        """dmu upper bound constraint"""
+        dmu = abs(p[3] - p[2])
+        return dmu - self.dmurange[1] # <= 0, upper bound
+
+    def c2(self, p, ts, x, y, V):
+        """Constrain that sx and sy need to be within some factor of each other,
+        ie constrain their ratio"""
+        return max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
+
+    # TODO: constrain V1 and V2 to have opposite sign, see ptc15.87.6920
+
     def calc(self, ts, x, y, V):
         self.ts = ts
         self.x = x
@@ -258,32 +281,30 @@ class NLLSPSpikeModel(SpikeModel):
         self.V = V
         pr = openopt.NLLSP(self.cost, self.p0, args=(ts, x, y, V),
                            ftol=self.FTOL, xtol=self.XTOL, gtol=self.GTOL)
-        # constrain mu1 and mu2 to within min(ts) and max(ts) - sometimes they fall outside,
+        # set lower and upper bounds on parameters:
+        # limit mu1 and mu2 to within min(ts) and max(ts) - sometimes they fall outside,
         # esp if there was a poor lockout and you're triggering off a previous spike
         pr.lb[2], pr.ub[2] = min(ts), max(ts) # mu1
         pr.lb[3], pr.ub[3] = min(ts), max(ts) # mu2
         pr.lb[4], pr.ub[4] = 40, 250 # s1
         pr.lb[5], pr.ub[5] = 40, 250 # s2
-        # constrain x0 to within reasonable distance of vertical midline of probe
+        # limit x0 to within reasonable distance of vertical midline of probe
         pr.lb[6], pr.ub[6] = -50, 50 # x0
         pr.lb[8], pr.ub[8] = 20, 200 # sx
         pr.lb[9], pr.ub[9] = 20, 200 # sy
         pr.lb[10], pr.ub[10] = -np.pi/2, np.pi/2 # theta (radians)
-        """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
-        TODO: maybe this contraint should be on the peak separation in the sum of Gaussians,
-        instead of just on the mu params
-        can probably remove the lower bound on the peak separation, especially if it's left at 0.
-        For improved speed, might want to stop passing unnecessary args"""
-        c0 = lambda p, ts, x, y, V: self.dmurange[0] - abs(p[3] - p[2]) # <= 0, lower bound
-        c1 = lambda p, ts, x, y, V: abs(p[3] - p[2]) - self.dmurange[1] # <= 0, upper bound
-        # constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
-        c2 = lambda p, ts, x, y, V: max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
-        # TODO: constrain V1 and V2 to have opposite sign, see ptc15.87.6920
-        pr.c = [c0, c1, c2] # constraints
+        pr.c = [self.c0, self.c1, self.c2] # constraints
         pr.solve('nlp:ralg')
         self.pr, self.p = pr, pr.xf
         print "%d NLLSP iterations, cost f'n eval'd %d times" % (pr.iter, len(self.errs))
         self.check_theta()
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = SpikeModel.__getstate__(self)
+        # TODO: would be really nice to be able to keep the .pr attrib, for later inspection after unpickling of, say, bounds
+        d['pr'] = None # don't pickle the openopt.NLLSP problem object, cuz it has lambdas which aren't picklable apparently
+        return d
 
 
 class Spike(NLLSPSpikeModel):
