@@ -7,8 +7,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import wx
 import wx.html
 import wx.py
-#import pickle
-import cPickle as pickle
+import cPickle
 import os
 import sys
 import time
@@ -36,7 +35,7 @@ PYSHELLSIZE = (CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2)
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
 
-PYSHELLCFGFNAME = '/home/mspacek/Application Data/minimal_config'
+PYSHELLCFGFNAME = 'pyshell_cfg'
 
 
 class SpykeFrame(wxglade_gui.SpykeFrame):
@@ -519,7 +518,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Open a sort session from a .sort file"""
         self.DeleteSortSession() # delete any existing sort Session
         pf = gzip.open(fname, 'rb')
-        self.sort = pickle.load(pf)
+        self.sort = cPickle.load(pf)
         pf.close()
         sortProbe = self.sort.probe.__class__
         if self.hpstream != None:
@@ -552,7 +551,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
-        p = pickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
+        p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
         p.dump(self.sort)
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved
@@ -911,7 +910,7 @@ class PyShellFrame(wx.MiniFrame,
         """TODO: get my startup script to actually run on startup"""
         self.config = wx.FileConfig(localFilename=PYSHELLCFGFNAME) # get config fom file
         self.config.SetRecordDefaults(True)
-        startupScript = 'pyshell_startup'
+        startupScript = 'pyshell_startup.py'
         title = 'spyke PyShell'
         kwargs['style'] = self.STYLE
         kwargs['title'] = title
@@ -922,8 +921,8 @@ class PyShellFrame(wx.MiniFrame,
         del kwargs['title']
         self.shell = wx.py.shell.Shell(parent=self, id=-1, introText='',
                                        locals=None, InterpClass=None,
-                                       #startupScript=startupScript, # doesn't seem to work
-                                       #execStartupScript=True,
+                                       startupScript=startupScript, # doesn't seem to work
+                                       execStartupScript=True,
                                        *args, **kwargs)
         # Override the shell so that status messages go to the status bar.
         self.shell.setStatusText = self.SetStatusText
@@ -942,10 +941,10 @@ class PyShellFrame(wx.MiniFrame,
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.Bind(wx.EVT_ICONIZE, self.OnIconize) # maybe this should be commented out?
 
-        self.shell.run('from __future__ import division')
+        #self.shell.run('from __future__ import division')
         #self.shell.run('import numpy as np')
         #self.shell.runfile(startupScript)
-        self.shell.run('from '+startupScript+' import *')
+        #self.shell.run('from '+startupScript+' import *')
         self.shell.run('self = app.spykeframe')
         self.shell.run("sf = self.frames['sort']") # convenience
         self.shell.run('s = self.sort') # convenience

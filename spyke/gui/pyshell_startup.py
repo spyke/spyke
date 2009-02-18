@@ -133,26 +133,15 @@ def cf():
     pl.close('all')
     print 'all figures closed'
 
-def pickle(obj, fname='C:/home/mspacek/Desktop/Work/Netstates/testing.pickle'):
+def pickle(obj, fname):
     import cPickle
     pf = file(fname, 'wb')
     p = cPickle.Pickler(pf, protocol=-1)
     obj = copy(obj) # work on a copy, don't modify the original
-    attribs = ['r', # Recording
-               'neurons',
-               'cs', # Codes object
-               'f', # figure
-               'a' # axes
-              ]
-    for attrib in attribs:
-        try: # delete some attribs that might cause pickling errors, or take up too much space
-            obj.__delattr__(attrib)
-        except AttributeError:
-            pass
     p.dump(obj)
     pf.close()
 
-def unpickle(fname='C:/home/mspacek/Desktop/Work/Netstates/testing.pickle'):
+def unpickle(fname):
     import cPickle
     pf = file(fname, 'rb')
     u = cPickle.Unpickler(pf)
