@@ -11,6 +11,7 @@ import time
 import wx
 
 import numpy as np
+from scipy.cluster.hierarchy import fclusterdata
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
@@ -88,6 +89,31 @@ class Sort(object):
             uniquespikes[newspike.id] = newspike
         self.spikes.update(uniquespikes)
         return uniquespikes
+
+    def cluster(self, t=1.0):
+        """Hierarchically cluster unsorted spikes in self"""
+        nspikes = len(self.spikes)
+        #nparams = len(self.spikes.values()[0].p) - 1 # one less than random spikes params
+        nparams = 6
+        X = np.zeros((nspikes, nparams))
+        spikes = self.spikes.values()
+        for i, s in enumerate(spikes):
+            V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
+            # better to use attributes of resulting waveform instead of the raw model params, such as:
+            #s.dphase, s.phase1t, s.phase2t
+            #s.V1, s.V2, s.Vpp
+            X[i] = np.array([s.Vpp, s.dphase, x0, y0, sy/sx, theta])
+            #X[i] = np.array([x0, y0])
+        T = fclusterdata(X, t=t)
+        cids = T - T.min() # cluster IDs in T seem to be 1-based, make them 0-based
+        nclusters = len(set(cids))
+        nids = {} # spike ID to neuron ID mapping
+        sids = dict(zip(set(cids), [ [] for i in range(nclusters) ])) # neuron ID to spike IDs (plural) mapping
+        for spike, nid in zip(spikes, cids):
+            nids[spike.id] = nid
+            sids[nid].append(spike.id)
+        return nids, sids
+
     '''
     def match(self, templates=None, weighting='signal', sort=True):
         """Match templates to all .spikes with nearby maxchans,
@@ -416,7 +442,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.lastSelectedListSpikes = []
         self.lastSelectedTreeObjects = []
 
-        columnlabels = ['sID', 'x0', 'y0', 'time', 'err'] # spike list column labels
+        columnlabels = ['sID', 'x0', 'y0', 'time'] # spike list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -514,8 +540,8 @@ class SortFrame(wxglade_gui.SortFrame):
             self.SortListByY()
         elif coli == 3: # time column
             self.SortListByTime()
-        elif coli == 4: # err column
-            self.SortListByErr()
+        #elif coli == 4: # err column
+        #    self.SortListByErr()
         else:
             raise ValueError, 'weird column id %d' % coli
 
@@ -659,10 +685,10 @@ class SortFrame(wxglade_gui.SortFrame):
         if root: # tree isn't empty
             self.tree.SortChildren(root)
             self.RelabelNeurons(root)
-
+    '''
     def OnMatchNeuron(self, evt):
         """Match spikes in spike list against first selected neuron, populate err column"""
-        errcol = 3 # err is in 3rd column (0-based)
+        errcol = 4 # err is in 4th column (0-based)
         neuron = self.GetFirstSelectedNeuron()
         if not neuron: # no neurons selected
             return
@@ -677,7 +703,7 @@ class SortFrame(wxglade_gui.SortFrame):
             erritem = self.list.GetItem(rowi, errcol)
             erritem.SetText(err)
             self.list.SetItem(erritem)
-
+    '''
     def RelabelNeurons(self, root):
         """Consecutively relabel neurons according to their vertical order in the TreeCtrl.
         Relabeling happens both in the TreeCtrl and in the .sort.neurons dict"""
@@ -715,11 +741,11 @@ class SortFrame(wxglade_gui.SortFrame):
             # TODO: this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
             self.list.SetItemData(rowi, s.t)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
-
+    '''
     def SortListByErr(self):
         """Sort spike list by match error.
         Hack to get around stupid SetItemData being limited to int32s"""
-        errcol = 3 # err is in 3rd column (0-based)
+        errcol = 4 # err is in 4th column (0-based)
         errs = []
         for rowi in range(self.list.GetItemCount()):
             err = self.list.GetItem(rowi, errcol).GetText()
@@ -732,7 +758,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for rowi, erri in enumerate(erris):
             self.list.SetItemData(erri, rowi) # the erri'th row is set the rowi'th rank value
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
-
+    '''
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
         self.spikesortpanel.draw_refs()
