@@ -104,6 +104,20 @@ class Sort(object):
             #s.V1, s.V2, s.Vpp
             X[i] = np.array([s.Vpp, s.dphase, x0, y0, sy/sx, theta])
             #X[i] = np.array([x0, y0])
+        # normalize each column in X (ie each param) from [0, 1]
+        X -= X.min(axis=0)
+        X /= X.max(axis=0)
+        # now weight some parameters more than others
+        # maybe the ideal parameter weights can come from openopt...
+        X[:, 0] *= 2 # Vpp
+        X[:, 2] *= 5 # x0
+        X[:, 3] *= 10 # y0
+        # TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
+        # Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
+        # then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will only be
+        # considered after the best ones already have, and therefore that you start off with pretty
+        # good clusters that are then only slightly refined using the lousy params
+        print X
         T = fclusterdata(X, t=t)
         cids = T - T.min() # cluster IDs in T seem to be 1-based, make them 0-based
         nclusters = len(set(cids))
