@@ -129,7 +129,10 @@ class Plot(object):
     def show_chans(self, chans, enable=True):
         """Show/hide specific chans in self"""
         for chan in chans:
-            self.lines[chan].set_visible(enable)
+            try:
+                self.lines[chan].set_visible(enable)
+            except KeyError: # chan doesn't exist in this plot
+                pass
 
     def hide_chans(self, chans):
         """Hide specific chans in self"""
@@ -288,7 +291,8 @@ class PlotPanel(FigureCanvasWxAgg):
     def init_plots(self):
         """Create Plots for this panel"""
         self.qrplt = Plot(chans=self.chans, panel=self) # just one for this base class
-        self.qrplt.show()
+        chans = self.spykeframe.chans_enabled
+        self.qrplt.show_chans(chans) # show just the chans that spykeframe says are enabled
         self.used_plots[0] = self.qrplt
 
     def add_ref(self, ref):
@@ -583,7 +587,7 @@ class PlotPanel(FigureCanvasWxAgg):
             t = evt.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
             self.spykeframe.seek(t) # call main spyke frame's seek method
         elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift: # or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
-            # enable/disable closest line
+            # enable/disable closest chan
             chan = self.get_closestchans(evt, n=1)
             line = self.qrplt.lines[chan]
             if line.chan not in self.spykeframe.chans_enabled:
@@ -600,9 +604,8 @@ class PlotPanel(FigureCanvasWxAgg):
             self.spykeframe.set_chans_enabled(None, enable) # None means all chans
 
     def enable_chans(self, chans, enable=True):
-        """Enable/disable a specific set of channels in this frame"""
-        for chan in chans:
-            self.qrplt.lines[chan].set_visible(enable)
+        """Enable/disable a specific set of channels in this plot panel"""
+        self.qrplt.show_chans(chans, enable=enable)
         self.draw()
     '''
     def OnPick(self, evt):

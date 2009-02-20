@@ -394,7 +394,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
         except AttributeError:
             pass
-        self.chans_enabled = copy(self.hpstream.chans) # property
+        self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width
         self.t = intround(self.hpstream.t0 + tww/2) # set current time position in recording (us)
 
@@ -463,24 +463,59 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.total_nspikes_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
-        return [ chan for chan, enable in self._chans_enabled.items() if enable ]
+        return [ chan for (chan, enable) in self._chans_enabled.items() if enable ]
 
-    def set_chans_enabled(self, chans, enable=True):
-        """Updates enable flag of all chans in .chans_enabled dict"""
+    def set_chans_enabled(self, chans, enable=None):
+        """Updates which chans are enabled in ._chans_enabled dict and in the plot panels.
+        If enable is set, chans specifies which chans should have their enable
+        flag overwritten. Otherwise, chans specifies all the chans we want enabled.
+        The code for the 2nd case is quite elaborate, such that the visibility
+        state of any given plot in all plotpanels isn't needlessly toggled,
+        which slows things down and causes flicker, I think"""
+
+        # inits and checks
+        try:
+            allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
+        except AttributeError: # no hpstream yet
+            allchans = []
         if chans == None: # None means all chans
-            chans = copy(self.hpstream.chans)
+            chans = allchans
         chans = toiter(chans) # need not be contiguous
         try:
             self._chans_enabled
         except AttributeError:
-            self._chans_enabled = {}
-        for chan in chans:
-            self._chans_enabled[chan] = enable
-        try:
-            self.frames['spike'].panel.enable_chans(chans, enable)
-            self.frames['chart'].panel.enable_chans(chans, enable)
-        except KeyError:
-            pass
+            self._chans_enabled = {} #dict(zip(allchans, [ True for chan in allchans ]))
+
+        # overwrite enable flag of chans...
+        if enable != None:
+            for chan in chans:
+                self._chans_enabled[chan] = enable
+            for frametype in FRAMEUPDATEORDER:
+                try:
+                    self.frames[frametype].panel.enable_chans(chans, enable=enable)
+                except KeyError: # frametype hasn't been opened yet
+                    pass
+            return
+
+        # ...or, leave only chans enabled
+        enabledchans = [ chan for (chan, enabled) in self._chans_enabled.items() if enabled==True ]
+        disabledchans = [ chan for (chan, enabled) in self._chans_enabled.items() if enabled==False ]
+        notchans = set(allchans).difference(chans) # chans we don't want enabled
+        # find the difference between currently enabled chans and the chans we want enabled
+        chans2disable = set(enabledchans).difference(chans)
+        # find the difference between currently disabled chans and the chans we want disabled
+        chans2enable = set(disabledchans).difference(notchans)
+        for chan in chans2enable:
+            self._chans_enabled[chan] = True
+        for chan in chans2disable:
+            self._chans_enabled[chan] = False
+        # now change the actual plots in the plotpanels
+        for frametype in FRAMEUPDATEORDER:
+            try:
+                self.frames[frametype].panel.enable_chans(chans2enable, enable=True)
+                self.frames[frametype].panel.enable_chans(chans2disable, enable=False)
+            except KeyError: # frametype hasn't been opened yet
+                pass
 
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
