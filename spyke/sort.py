@@ -7,6 +7,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import os
 import sys
 import time
+import datetime
 
 import wx
 
@@ -90,44 +91,126 @@ class Sort(object):
         self.spikes.update(uniquespikes)
         return uniquespikes
 
-    def cluster(self, t=1.0):
-        """Hierarchically cluster unsorted spikes in self"""
+    def get_sorted_spikes(self):
+        """Return list of spikes, sorted by their IDs"""
+        spikeids = self.spikes.keys()
+        spikeids.sort()
+        spikes = [ self.spikes[spikeid] for spikeid in spikeids ] # sorted list of spikes
+        return spikes
+
+    def get_param_matrix(self):
+        """Organize parameters from all spikes into a data matrix for clustering.
+        This includes manually weighting them"""
         nspikes = len(self.spikes)
-        #nparams = len(self.spikes.values()[0].p) - 1 # one less than random spikes params
-        nparams = 6
+        nparams = 7
         X = np.zeros((nspikes, nparams))
-        spikes = self.spikes.values()
+        spikes = self.get_sorted_spikes()
         for i, s in enumerate(spikes):
             V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
-            # better to use attributes of resulting waveform instead of the raw model params, such as:
-            #s.dphase, s.phase1t, s.phase2t
-            #s.V1, s.V2, s.Vpp
-            X[i] = np.array([s.Vpp, s.dphase, x0, y0, sy/sx, theta])
-            #X[i] = np.array([x0, y0])
+            # better to use attributes of resulting modelled waveform instead of the raw model params
+            X[i] = np.array([s.Vpp, s.dphase, x0, y0, sx, sy, theta])
         # normalize each column in X (ie each param) from [0, 1]
         X -= X.min(axis=0) # have them all start from 0
         X /= X.max(axis=0) # normalize
         # now weight some parameters more than others. This affects the euclidean distance
-        # between clusters, which affects their agglomeration.
+        # between clusters, which affects their agglomeration/density.
         # maybe the ideal parameter weights can come from openopt...
-        X[:, 0] *= 2 # Vpp
-        X[:, 2] *= 5 # x0
-        X[:, 3] *= 10 # y0
-        # TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
-        # Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
-        # then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will only be
-        # considered after the best ones already have, and therefore that you start off with pretty
-        # good clusters that are then only slightly refined using the lousy params
+        #X[:, 0] *= 2 # Vpp
+        #X[:, 2] *= 5 # x0
+        #X[:, 3] *= 10 # y0
+        return spikes, X
+
+    def get_cluster_data(self, weighting='ica'):
+        """Convert spike param matrix into pca/ica data for clustering"""
+        spikes, X = self.get_param_matrix()
+        if weighting.lower() == 'ica':
+            pass # TODO: ICA
+        elif weighting.lower() == 'pca':
+            pass # TODO: PCA
+        return spikes, X
+
+    def hcluster(self, t=1.0):
+        """Hierarchically cluster unsorted spikes in self
+
+        TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
+        Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
+        then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will only be
+        considered after the best ones already have, and therefore that you start off with pretty
+        good clusters that are then only slightly refined using the lousy params
+        """
+        spikes, X = self.get_param_matrix()
         print X
-        T = fclusterdata(X, t=t, method='ward', metric='mahalanobis')
-        cids = T - T.min() # cluster IDs in T seem to be 1-based, make them 0-based
-        nclusters = len(set(cids))
+        cids = fclusterdata(X, t=t, method='ward', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
+        return self.get_nids_sids(cids, spikes)
+
+    def get_nids_sids(self, cids, spikes):
+        """Convert a list of cluster ids into 2 dicts: nids maps spike IDs to
+        neuron IDs; sids maps neuron IDs to spike IDs"""
+        cids = np.asarray(cids)
+        cids = cids - cids.min() # make sure cluster IDs are 0-based
+        uniquecids = set(cids)
+        nclusters = len(uniquecids)
         nids = {} # spike ID to neuron ID mapping
-        sids = dict(zip(set(cids), [ [] for i in range(nclusters) ])) # neuron ID to spike IDs (plural) mapping
+        sids = dict(zip(uniquecids, [ [] for i in range(nclusters) ])) # neuron ID to spike IDs (plural) mapping
         for spike, nid in zip(spikes, cids):
             nids[spike.id] = nid
             sids[nid].append(spike.id)
         return nids, sids
+
+    def write_spc_input(self):
+        """Generate input data file to spc"""
+        spikes, X = self.get_param_matrix()
+        # write to space-delimited .dat file. Each row is a spike, each column a param
+        spykedir = os.path.dirname(__file__)
+        dt = str(datetime.datetime.now())
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        self.spcdatfname = os.path.join(spykedir, 'spc', dt+'.dat')
+        self.spclabfname = os.path.join(spykedir, 'spc', dt+'.dg_01.lab') # not sure why spc adds the dg_01 part
+        f = open(self.spcdatfname, 'w')
+        for spikei, params in enumerate(X): # write text data to file, one row at a time
+            params.tofile(f, sep='  ', format='%.6f')
+            f.write('\n')
+        f.close()
+
+    def parse_spc_lab_file(self, fname=None):
+        """Parse output .lab file from SPC. Each row is the cluster assignment of each spin (datapoint)
+        to a cluster, one row per temperature datapoint. First column is temperature run number (0-based).
+        2nd column is the temperature. All remaining columns correspond to the datapoints in the order
+        presented in the input .dat file"""
+        spikes = self.get_sorted_spikes()
+        if fname == None:
+            fname = self.spclabfname
+        f = open(fname, 'r')
+        nids = {} # nids at different temperatures
+        sids = {} # sids at different temperatures
+        for row in f:
+            row = np.fromstring(row, sep=' ') # array of floats
+            T = row[1] # row[0] is run #
+            cids = np.int32(row[2:])
+            nids[T], sids[T] = self.get_nids_sids(cids, spikes)
+        f.close()
+        return nids, sids
+
+    def write_spc_app_input(self):
+        """Generate input data file to spc_app"""
+        spikes, X = self.get_param_matrix()
+        # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
+        # first row has labels "AFFX", "NAME", and then spike ids
+        # first col has lables "AFFX", and then param names
+        f = open(r'C:\home\mspacek\Desktop\Work\SPC\Weizmann\spc_app\spc_app_input.txt', 'w')
+        f.write('AFFX\tNAME\t')
+        for spike in spikes:
+            f.write('s%d\t' % spike.id)
+        f.write('\n')
+        for parami, param in enumerate(['Vpp', 'dphase', 'x0', 'y0', 'sx', 'sy', 'theta']):
+            f.write(param+'\t'+param+'\t')
+            for val in X[:, parami]:
+                f.write('%f\t' % val)
+            f.write('\n')
+        f.close()
+
+
 
     '''
     def match(self, templates=None, weighting='signal', sort=True):

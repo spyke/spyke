@@ -58,6 +58,10 @@ EVENT DETECTION:
     - LOCKOUT: do I propagate any spatiotemporal lockouts from the end of one searched block to the start of the next?  I'm taking slightly overlapping blocks of data to make sure I don't miss any spikes that fall on the borders, but I'm not sure if I'm propagating lockouts...
         - pretty sure the answer is no right now
 
+    - maybe instead of locking out, I should subtract the modelled waveform from the raw data, and allow the event loop to test all its detected events
+        - this might help in dealing with overlapping spikes
+        - maybe I should retest for new events in the subtracted data that might come out
+
     SPIKE MODELLING:
 
         SHORT TERM:
