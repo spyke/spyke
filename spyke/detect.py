@@ -26,6 +26,10 @@ from text import SimpleTable
 DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
 TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
 
+# save all Spike waveforms, even for those that have never been plotted or added to a neuron
+#SAVEALLSPIKEWAVES = False
+DONTSAVESPIKEWAVES = True
+
 
 class FoundEnoughSpikesError(ValueError):
     pass
@@ -119,7 +123,11 @@ class SpikeModel(object):
         #if SAVEALLSPIKEWAVES and self.wave.data == None:
         #    # make sure .wave is loaded before pickling to file
         #    self.update_wave()
-        d = self.__dict__.copy()
+        d = self.__dict__.copy() # this doesn't seem to be a slow step
+        if DONTSAVESPIKEWAVES:
+            d['wave'] = None # clear wave data to save space and time
+            d['V'] = None
+        d['errs'] = None
         d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d

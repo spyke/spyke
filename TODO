@@ -61,16 +61,17 @@ EVENT DETECTION:
     - maybe instead of locking out, I should subtract the modelled waveform from the raw data, and allow the event loop to test all its detected events
         - this might help in dealing with overlapping spikes
         - maybe I should retest for new events in the subtracted data that might come out
+        - somehow make sure that when subtracting off the model from the raw data, that you're always bringing the raw data values closer to zero, no matter what. Have to do some abs()-ing somewhere, I suspect, or at least some checking of values > 0 or < 0
 
     SPIKE MODELLING:
 
         SHORT TERM:
-            - try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
-                - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
-            - run profiler
+            - check to make sure that if model gives you a single phase spike (one of the phases is pretty much 0 amplitude), that you don't dismiss it as a false event, just because the two phases (negligibly) have the same sign in their amplitudes - ie, don't mistake what might be essentially single phase spikes for double phase spikes with the same sign (up up, or down down)
+            - check modelled y0 - if outside the y coords of given chans, throw the spike out - this is probably better than putting constraints on the modelled y0
             - is x0 unfairly weighted according to how many chans each col has? eg, if left col has more chans, is x0 biased to the left?
             - store param names in a list of param strings sorted the same way as values in sm.p, override SpikeModel.__getattr__, check if attr is in the param string list, use its index to return the value in sm.p. That way you can go sm.mu1 without having to worry about param order changing in the future
             - log detection and modelling printouts to a file, search through that instead of having to search through lousy winxp terminal
+
 
         - except for the initial threshold test, instead of directly checking raw voltage values to see if they exceed certain values and when that occurs (like a window discriminator), how about this:
             - when you find a spot that exceeds the initial threshold, fit a spike model to the signal on that channel and each of the surrounding channels within slock. The spike model will be biphasic (or maybe triphasic). Now, of your modelled channels, find the one with the maxchan at the peak of the initial phase, model any further channels that might fall within the slock of that new maxchan, and search one last time for the maxchan within slock
@@ -102,9 +103,11 @@ EVENT DETECTION:
             - problem is that to compensate for something that obviously isn't circularly symmetric in space, it sets the source way off the probe to the left or the right. This then messes with the spatial lockout, which is centered on the modeled source location, so you end up getting double triggers.
 
         - another strategy might be to give up on the spatial modelling, fix temporal gaussian means and sigmas across chans, but give each chan its own two amplitudes, then just triangulate to find spatial mean, or then run the model in a separate independent run, using the modelled output values in time from the previous run, to decide on the spatial means and sigmas and orientation. This will help prevent some of the parameters from confusing the others. In other words, maybe the first run should be concerned with finding the spike's point in time, and the second run with finding its point in space.
+            - tried this, didn't help under LM. Not sure if I tried it again under R-alg. Anyway, it was complicated and confusing, and really, you should try to fit everything at once
 
         - maybe I should do the full 3D modelling that Tim did, this would only require adding one extra parameter: z0. sigmaz would be the same as sigmax. Also, maybe theta should just be plugged into the model as a constant, determined by the user, and defaulting to 0
             - might also try a 3D Guassian instead of the 3D 1/r. Gaussian is smoother and well defined around 0, leastsq might be more stable with it
+            - thought I tried this, and model wasn't converging well. Maybe this was for the Levenburg-Marquadt, before I tried the R-alg.
 
         - could also try feeding just the main peak or the two peak amplitudes of each channel to the spatial model, instead of all the points in the spike. The peak values might be more consistent with the spatial model, and therefore easier to fit and less likely to result in ridiculous spatial parameter outputs
             - benefit: treats normal and backprop APs equally - otherwise a backprop
@@ -118,15 +121,11 @@ EVENT DETECTION:
             - Nick doesn't think this would help - besides this is redundant with providing a spatial theta for each spatial Gaussian envelope to be rotated by
 
         - interpolating to 100 kHz would double the number of data points the model could work with - this might make it perform better?
-
-        - should probably initialize model (x0, y0) to weighted spatial mean of chans, instead of just the maxchan coords - this would also help to reduce singularity/differentiability problems with 1/r model
+            - interpolation is very fast compared to the R-algorithm, so this might be worth trying
 
     - could speed things up by only interpolating say each 1ms of data following an initial threshold crossing, maybe interpolate to 100 kHz while we're at it, and leave everything else at 25 kHz without any S+H correction - you don't really need interpolation or S+H correction for the initial threshold detection, I think...
 
-
-    - for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
-
-    - create a new thread or process for each searchblock() call - not sure if this will help much, cuz I think the slowest part is the loading of waveform data off the disk
+    - create a new thread or process for each searchblock() call
 
     - dynamic spatiotemporal lockout: some spikes span greater space and time than others, yet they're all given the same lockout. I guess on thresh xing and again on finding a spike, you could search locally in time and space and within the fixed slock and tlock, and see if signal drops below thresh in something less than slock and tlock, and adjust the lockout accordingly for that thresh xing or found spike
 
@@ -139,6 +138,23 @@ EVENT DETECTION:
     - maybe consider looking for some kind of multichannel threshold crossing instead of testing each channel separately at the start of the inner loop: if say sum or sumsquared of all chans exceeds some (potentially dynamic) threshold (say 3.5*median for each chan * number of chans), then maybe you've stumbled across some event that's hard to see on a single chan basis, but is more obvious if you squint your eyes and look across a few chans at once (see ptc15.87.102000520, chans=[30,22,31], most easily visible in chart window)
         - or maybe for each timepoint, grab triplets (or quads or something) of neighbouring channels and look at their sum, instead of the sum for all chans, but then for each timepoint you'd have to do this for all possible neighbouring triplets, which might start getting slow
         - this will help find small spikes that might otherwise be missed, but fixing false negatives is less important than reducing false positives
+
+------------------------------------
+CLUSTERING:
+
+    - should probably stop normalizing x0 and y0, even if you then reweight them somehow yourself, because normalizing destroys the physical distance metric between spikes
+
+    - I want clustering to first consider x0 and y0 position exclusively, and only after the fact, use all the other spike model params to further divy up the spatial clusters. Throwing all the params into a big multidimensional dataset and clustering it all in one go won't accomplish this, because there's nothing sequential about the consideration of the parameters. Some can have more influence than others according to how you weight them, but you can't specify sequential treatment of params. The result is that often you get clusters that don't correspond particularly well to their x0 y0 values, even after manual reweighting. Instead, they correspond to the other param values
+        - the idea is that the secondary params should only be there to refine the x0 y0 clusters
+        - I think the only solution is to do multiple cluster runs, with different param sets in each. First, cluster using only x0 and y0. This could result in undersplit clusters, but shouldn't have any obvious errors such that a spike from the top of the probe is clustered with one from the bottom, for example. Next, cluster all the spikes again, but use only the other params. You now have two sets of clusters. The second set will probably have fewer significant clusters in them, and could be useful for stuff other than spike sorting - ie, looking at all cells that have similar spatial sigmas, or similar thetas, or something. Now, take the intersection of the two sets of clusters somehow. Some set() method should be able to do this. This way, you potentially break down a cluster defined by x0 y0 into subclusters defined by all the other params. There could also be more than just two sets of clusters
+        - to get intersection of two cluster sets, take first cluster in first set, find intersection of it with each cluster in the second set. Each non-empty intersection becomes a new cluster (or subcluster if you like). Repeat for all clusters in the first set.
+
+    - PCA and ICA should be tried at some point during clustering - these wouldn't automatically solve my sequential clustering desires, would they? Maybe for the second set of clustering, I should just throw all the remaining params into a single multidimensional dataset, run PCA/ICA on it, pick the few most significant components, and work on those
+
+    - perhaps SPC doesn't work very well with a small example dataset of only a few dozen (82) spikes because it uses neighbourhood density to cluster, and in this case, density is quite low everywhere...
+        - lowering Knearestneighbours (!=q) seems to increase the number of non-unitary clusters it's willing to produce
+
+    - Nick: work on way more spikes, few thousand, and evaluate using similarity matrix, forget about checking each and every spike manually. Also suggests to try PCA/ICA first to help you throw out the not so useful params
 
 ------------------------------------
 TEMPLATES:
@@ -198,7 +214,7 @@ MINI MATCH/RIP:
     - just as for a normal rip, you'll first need to set an error thresh for the template
     - as you progress in your template building, you can occasionally do a mini rip and look at the error histogram, to see how well that template separates spikes out from the subset. Should be able to adjust the error thresh such that you get exactly the spikes that are already members
 
-
+'''
 ------------------------------------
 MATCHING/RIPPING:
 
@@ -209,7 +225,7 @@ MATCHING/RIPPING:
     - to reduce spike variability due to correlated noise, for any given comparison between template and data (be it against any timepoint in data, or against a detected event), take the channels that aren't selected in the template (purportedly because they have no significant signal on them), and at every timepoint, take their mean, and subtract that from _all_ channels. This should make spikes in the raw data (or in the detected events) look more like one of the templates
         - mean might not be ideal - maybe take their covariance and subtract it or something (see hyperellipsoidal method ref'd in 200x Blanche)
         - this should be done during any comparison between template and data, including during min rips (see below)
-
+'''
 
 ------------------------------------
 VERIFICATION:
@@ -283,11 +299,6 @@ OLDER:
         f.highpassstream[135e6:135.1e6].plot(chanis=None)
     - would have to add more stuff as attribs to WaveForm class, such as .records and .rts
 
-- low priority: automated template generation
-    - need to look into just how complex and slow the (automated) sorting will be
-        - can it all be done in pure Python?
-    - stick to manual template generation for now
-
 - spike (and lfp? hardly worth it?) data need to be corrected for sample and hold (S+H) delay offsets
     - do this during interpolation as in Surfbawd?
 
@@ -295,9 +306,6 @@ OLDER:
     - what are the spectral phase and amplitude characteristics of the filters?
     - Hilbert transforms are useful for this?
     - want to do CSDs as well - I guess these don't need to be filter offset corrected, since you're just comparing between lfp chans, not between lfp and spike chans
-
-- can latest wxPy 2.8 reuse numpy data w/o copy?
-    - yes, I think so. certainly matplotlib no longer has to do any copying to get data into wxpy, since the interface between them is now pure python, yet still fast
 
 - could eventually add monopole and dipole modelling for 3d localization and to distinguish between pyramidal and stellate cells
 
@@ -311,78 +319,16 @@ OLDER:
     - for each template, use mouse controlled bounding box/clicking to pick out significant channels
     - if there's another template nearby in channel space, it's good to also select a few surrounding flat channels to help distinguish the fits of the two templates during the rip
 
+- hard to do?: would be good to have undo/redo for all the template membership manipulations
 
+- what kind of window should we have around the spike time? Does the spike time represent the time of absolute value of peak voltage on the channel with the biggest signal? Then the temporal window around that is -0.25 ms and +0.75 ms for a total of 1 ms window? I think that's roughly the standard in surfbawd. Temporal window parameters (-ve and +ve offset from spike time) should be a global setting that everything uses, but one that you can change at will (at least when spyke isn't currently doing a rip) to accomodate the display of the occasional long slow spike
 
-much of this might be outdated, since a Collection class instance now includes all spikes and all templates:
-
-- event collection: a class that represents a specific collection of event times - or maybe be more specific and just call it a spike collection?
-    - the event collection class could be results from a spike detection run, members of templates, results from a rip, or any sort of collection of spikes you might generate. Could even be a collection of random times in the recording (noise times) that have nothing to do with spikes
-    - event collections should have methods such that you can easily reveal times that two (or more?) collections have or don't have in common (venn diagrams)
-        - implement this in GUI using drag and drop? right mouse button drag one collection window onto another, up pops a menu with options like:
-            - merge collections
-            - copy event times to collection
-            - move event times to collection
-            - generate new collection of event times in source but not destination
-            - generate new collection of event times in destination but not in source
-            - generate new collection of overlapping event times (common to both source and destination)
-            - plot venn diagram
-        - the Python Sets module would be good for this
-    - should be able to name event collections, should automatically be named with incrementing numbers
-    - the collections themselves would technically only consist of event times in us
-        - copies of waveforms wouldn't be stored in spike collections, displaying the waveforms in a collection would require going back to the waveform data, armed with the spike time
-    - is spike time in us good enough for uniquely identifying a spike? should we also associate a channel list with it? what exactly is the output of the spike detection algorithm? just spike times, or a list of significant channels as well? Perhaps channel designation should only be allowed in templates. An event/spike is a 54 channel waveform.
-    - A template is an event collection plus:
-        - channel designation
-        - error threshold designation
-    - so a template is a subclass of an event collection
-    - should ultimately be able to do collections and templates on any of the layouts in the file, not just the main polytrode layout. This means potentially LFP data (lowpassrecords and lowpassmultichanrecords)...
-
-    - maybe "File:New event collection" and "File:New template" items in the main menu, and maybe corresponding main toolbar buttons
-
-    - event collection window GUI:
-        - After a round of spike detection, an event collection window pops up. An event collection window has a full channel layout display. It has a combo box that lets you choose an event, labelled by its timepoint and a colour. Choosing it displays the event. To the right of the waveform display, there's a button corresponding to the event, with its timestamp and color in it. The button has a right click context menu that lets you:
-            - delete the event
-            - remove the event and make a new collection from it
-            - remove it and make a new template from it
-            - move it to the current template (see below)
-        - Or, you can just drag and drop the button to another template or event/collection window to move it to that template/collection
-        - dragging the event button off into space removes the event and pops open a new event collection window
-        - Clicking the event button toggles its display. Also, there's a spin edit box next to the combo box that allows you to control how many events to display at once. If n > 1, the current event chosen in the combo box is used as the first event, and the n-1 subsequent events are also displayed, and also get their own button next to the waveform display. Each event is given a different colour. Make the color of the first (or only) event always the same, say red.
-        - the GUI also has another combo box to the left of the waveform display for selecting the current template to overplot on top of the event(s) in the waveform display. As for events, there's a spin edit box, and buttons representing templates, so you can overplot multiple templates on top of the events, though you normally wouldn't do that much
-            - dragging the template buttons off into space would pop open a new template window...
-
-    - template window GUI:
-        - pretty much the same as the event collection window, except now events in the combo box on the right are members of the currently selected template. If more than one template is selected, the event combo box and event buttons gray out or disappear completely, and you're in a mode where you're just overplotting and comparing templates.
-        - some way of merging currently selected templates
-        - some widget for controlling rip error threshold for current template
-        - to designate which channels to include in the current template when it comes time to use it for ripping, just click each channel in the waveform display to toggle that channel
-- closing a collection or template window just closes its GUI, doesn't delete it. Can bring it back by selecting it from the main window's view menu, or something.
-
-- transparency would be good for overplots
-
-- hard to do?: would be good to have undo/redo for all the collection/template membership manipulations
-
-- what kind of window should we have around the spike time? Does the spike time represent the time of absolute value of peak voltage on the channel with the biggest signal? Then the temporal window around that is -0.25 ms and + 0.75 ms for a total of 1 ms window? I think that's roughly the standard in surfbawd. Temporal window parameters (-ve and +ve offset from spike time) should be a global setting that everything uses, but one that you can change at will (at least when spyke isn't currently doing a rip) to accomodate the display of the occasional long slow spike
-
-- neuron ids should be incrementing integers. When you delete a template, the following templates' ids and colours should remain unchanged, until you hit a toolbar button (or something) to indicate that you want to renumber (and recolour) the whole lot, which will effectively only renumber and recolour those templates following the one that was deleted
-
-- template files
-    - contain python syntax that can be eval'd, or config file format, to get you everything you might ever want to know about the template:
-        - file (files?) it was generated from
-        - member spike times (and their associated files?)
-        - date time it was last modified
-        - ...
-    - store all templates in one file ala surfbawd? or one file per template?
-    - store it all in a single SQL database file?
-    - or, pickle the whole Collection class instance to file, but also make it possible to export to separate binary spike files (plus the binary .din file)
-
-- do we want to allow templates to be generated from spikes from multiple recordings? this could add annoying complexity, but might be handly for getting enough spikes from those rarely firing neurons - some neurons might fire only during one stimulus type and not the other. Neurons might have opposing preferences, such that you never see them all fire within the same recording
+- do we want to allow templates to be generated from spikes from multiple recordings? this could add annoying complexity, but might be handy for getting enough spikes from those rarely firing neurons - some neurons might fire only during one stimulus type and not the other. Neurons might have opposing preferences, such that you never see them all fire within the same recording
 
 - low probability: in case of electrode drift within a recording, allow user to make executive decision that two templates that are significantly different in voltage+channel space due to drift, yet sufficiently similar to the eye, that they should be assigned the same neuron id (keep their template ids separate?)
     - should there be a distinction between template and neuron ids just in case we want to do something like the above? Maybe the template id should become alphanumeric, with a number followed by a letter, say 12a, 12b, etc.
 
-
-
+- OLD Cython event detection: for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
 
 
 ----------------------------------------------------
@@ -474,13 +420,23 @@ DONE:
     - shorter
     - corresponds better to .sort file
     - corresponds better with Sort level (proposed renaming of Rip) in neuropy object hierarchy
+- transparency would be good for overplots
+- neuron ids should be incrementing integers. When you delete a template, the following templates' ids and colours should remain unchanged, until you hit a toolbar button (or something) to indicate that you want to renumber (and recolour) the whole lot, which will effectively only renumber and recolour those templates following the one that was deleted
+- template files
+    - contain python syntax that can be eval'd, or config file format, to get you everything you might ever want to know about the template:
+        - file (files?) it was generated from
+        - member spike times (and their associated files?)
+        - date time it was last modified
+        - ...
+    - store all templates in one file ala surfbawd? or one file per template?
+    - store it all in a single SQL database file?
+    - THIS ONE: or, pickle the whole Sort class instance to file, but also make it possible to export to separate binary spike files (plus the binary .din file)
 
 SPIKE MODELLING:
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
-
-            - disable grounded channels
+        - disable grounded channels
         - lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
-        - take weighted spatial mean of chanis at phase1ti to better estimate (x0, y0)
+        - take weighted spatial mean of chanis at phase1ti to better estimate initial (x0, y0)
         - if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow v1inv and v2inv to be of opposite sign to successfully model this
         - constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
         - improve estimation of window limits relative to threshold crossing
@@ -493,3 +449,8 @@ SPIKE MODELLING:
         - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking
         - nah: regenerate chanis list based on this spatial mean based best estimate
             - don't think this will make any significant difference to model results
+        - NAH: try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
+            - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
+        - run profiler - R algorithm is just plain slow - solution is to try another one
+        - should probably initialize model (x0, y0) to weighted spatial mean of chans, instead of just the maxchan coords - this would also help to reduce singularity/differentiability problems with 1/r model
+

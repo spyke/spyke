@@ -13,15 +13,14 @@ import wx
 
 import numpy as np
 from scipy.cluster.hierarchy import fclusterdata
+import pylab
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
+from spyke.gui.plot import COLOURDICT
 from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
-
-# save all Spike waveforms, even for those that have never been plotted or added to a neuron
-#SAVEALLSPIKEWAVES = False
 
 SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
@@ -70,7 +69,7 @@ class Sort(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step
         if self.stream != None:
             d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
             d['shcorrect'] = self.stream.shcorrect
@@ -91,7 +90,7 @@ class Sort(object):
         self.spikes.update(uniquespikes)
         return uniquespikes
 
-    def get_sorted_spikes(self):
+    def get_sortedID_spikes(self):
         """Return list of spikes, sorted by their IDs"""
         spikeids = self.spikes.keys()
         spikeids.sort()
@@ -104,20 +103,21 @@ class Sort(object):
         nspikes = len(self.spikes)
         nparams = 7
         X = np.zeros((nspikes, nparams))
-        spikes = self.get_sorted_spikes()
+        spikes = self.get_sortedID_spikes()
         for i, s in enumerate(spikes):
             V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
             # better to use attributes of resulting modelled waveform instead of the raw model params
             X[i] = np.array([s.Vpp, s.dphase, x0, y0, sx, sy, theta])
+            #X[i] = np.array([x0, y0])
         # normalize each column in X (ie each param) from [0, 1]
         X -= X.min(axis=0) # have them all start from 0
         X /= X.max(axis=0) # normalize
         # now weight some parameters more than others. This affects the euclidean distance
         # between clusters, which affects their agglomeration/density.
         # maybe the ideal parameter weights can come from openopt...
-        #X[:, 0] *= 2 # Vpp
-        #X[:, 2] *= 5 # x0
-        #X[:, 3] *= 10 # y0
+        X[:, 0] *= 2 # Vpp
+        X[:, 2] *= 5 # x0
+        X[:, 3] *= 10 # y0
         return spikes, X
 
     def get_cluster_data(self, weighting='ica'):
@@ -127,39 +127,28 @@ class Sort(object):
             pass # TODO: ICA
         elif weighting.lower() == 'pca':
             pass # TODO: PCA
+        else:
+            raise ValueError, 'unknown weighting %r' % weighting
         return spikes, X
 
-    def hcluster(self, t=1.0):
-        """Hierarchically cluster unsorted spikes in self
-
-        TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
-        Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
-        then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will only be
-        considered after the best ones already have, and therefore that you start off with pretty
-        good clusters that are then only slightly refined using the lousy params
-        """
-        spikes, X = self.get_param_matrix()
-        print X
-        cids = fclusterdata(X, t=t, method='ward', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
-        return self.get_nids_sids(cids, spikes)
-
-    def get_nids_sids(self, cids, spikes):
-        """Convert a list of cluster ids into 2 dicts: nids maps spike IDs to
-        neuron IDs; sids maps neuron IDs to spike IDs"""
+    def get_ids(self, cids, spikes):
+        """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to
+        spike IDs; s2nids maps spike IDs to neuron IDs"""
         cids = np.asarray(cids)
         cids = cids - cids.min() # make sure cluster IDs are 0-based
         uniquecids = set(cids)
         nclusters = len(uniquecids)
-        nids = {} # spike ID to neuron ID mapping
-        sids = dict(zip(uniquecids, [ [] for i in range(nclusters) ])) # neuron ID to spike IDs (plural) mapping
+        # neuron ID to spike IDs (plural) mapping
+        n2sids = dict(zip(uniquecids, [ [] for i in range(nclusters) ]))
+        s2nids = {} # spike ID to neuron ID mapping
         for spike, nid in zip(spikes, cids):
-            nids[spike.id] = nid
-            sids[nid].append(spike.id)
-        return nids, sids
+            s2nids[spike.id] = nid
+            n2sids[nid].append(spike.id)
+        return n2sids, s2nids
 
     def write_spc_input(self):
         """Generate input data file to spc"""
-        spikes, X = self.get_param_matrix()
+        spikes, X = self.get_cluster_data()
         # write to space-delimited .dat file. Each row is a spike, each column a param
         spykedir = os.path.dirname(__file__)
         dt = str(datetime.datetime.now())
@@ -168,33 +157,58 @@ class Sort(object):
         self.spcdatfname = os.path.join(spykedir, 'spc', dt+'.dat')
         self.spclabfname = os.path.join(spykedir, 'spc', dt+'.dg_01.lab') # not sure why spc adds the dg_01 part
         f = open(self.spcdatfname, 'w')
-        for spikei, params in enumerate(X): # write text data to file, one row at a time
+        for params in X: # write text data to file, one row at a time
             params.tofile(f, sep='  ', format='%.6f')
             f.write('\n')
         f.close()
 
     def parse_spc_lab_file(self, fname=None):
-        """Parse output .lab file from SPC. Each row is the cluster assignment of each spin (datapoint)
-        to a cluster, one row per temperature datapoint. First column is temperature run number (0-based).
-        2nd column is the temperature. All remaining columns correspond to the datapoints in the order
-        presented in the input .dat file"""
-        spikes = self.get_sorted_spikes()
+        """Parse output .lab file from SPC. Each row is the cluster assignment of each spin
+        (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
+        run number (0-based). 2nd column is the temperature. All remaining columns correspond
+        to the datapoints in the order presented in the input .dat file"""
+        spikes = self.get_sortedID_spikes()
         if fname == None:
             fname = self.spclabfname
         f = open(fname, 'r')
-        nids = {} # nids at different temperatures
-        sids = {} # sids at different temperatures
+        n2sidsT = {} # at different temperatures
+        s2nidsT = {} # at different temperatures
         for row in f:
             row = np.fromstring(row, sep=' ') # array of floats
             T = row[1] # row[0] is run #
             cids = np.int32(row[2:])
-            nids[T], sids[T] = self.get_nids_sids(cids, spikes)
+            n2sidsT[T], s2nidsT[T] = self.get_ids(cids, spikes)
         f.close()
-        return nids, sids
+        #return n2sidsT, s2nidsT
+        return n2sidsT
+
+    def plot(self, n2sids=None, dims=[2, 3], weighting='ica'):
+        """Plot 2D projection of clustered data. n2sids should be a dict
+        mapping neuron ids to spike ids. Make sure to pass the weighting
+        used for clustering the data"""
+        import pdb; pdb.set_trace()
+        assert len(dims) == 2
+        if n2sids == None:
+            n2sids = self.parse_spc_lab_file()[0.075]
+        spikes, X = self.get_cluster_data(weighting=weighting)
+        nids = n2sids.keys()
+        nids.sort() # go through colours in neuron id order
+        f = pylab.figure()
+        self.f = f
+        f.canvas.Parent.SetTitle('cluster plot')
+        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        #a.set_axis_off() # turn off the x and y axis
+        f.set_facecolor('black')
+        f.set_edgecolor('black')
+        for nid in nids:
+            sids = n2sids[nid]
+            c = COLOURDICT[nid]
+            x = X[sids]
+            a.plot(x[:, dims[0]], x[:, dims[1]], '.', markersize=1, color=c)
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
-        spikes, X = self.get_param_matrix()
+        spikes, X = self.get_cluster_data()
         # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
         # first row has labels "AFFX", "NAME", and then spike ids
         # first col has lables "AFFX", and then param names
@@ -210,6 +224,20 @@ class Sort(object):
             f.write('\n')
         f.close()
 
+    def hcluster(self, t=1.0):
+        """Hierarchically cluster unsorted spikes in self
+
+        TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
+        Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
+        then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will only be
+        considered after the best ones already have, and therefore that you start off with pretty
+        good clusters that are then only slightly refined using the lousy params
+        """
+        spikes, X = self.get_cluster_data()
+        print X
+        cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
+        n2sids, s2nids = self.get_ids(cids, spikes)
+        return n2sids
 
 
     '''

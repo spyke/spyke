@@ -80,7 +80,6 @@ class ColourDict(dict):
     cuz you don't need to keep calling .next(). This is like a dict
     of inifite length"""
     def __getitem__(self, key):
-        assert key.__class__ == int
         i = key % len(COLOURS)
         return COLOURS[i]
 
