@@ -13,7 +13,10 @@ import wx
 
 import numpy as np
 from scipy.cluster.hierarchy import fclusterdata
-import pylab
+from enthought.mayavi import mlab
+from matplotlib.colors import hex2color
+#import pylab
+import mdp
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
@@ -90,7 +93,7 @@ class Sort(object):
         self.spikes.update(uniquespikes)
         return uniquespikes
 
-    def get_sortedID_spikes(self):
+    def spikes_sortedbyID(self):
         """Return list of spikes, sorted by their IDs"""
         spikeids = self.spikes.keys()
         spikeids.sort()
@@ -101,15 +104,16 @@ class Sort(object):
         """Organize parameters from all spikes into a data matrix for clustering.
         This includes manually weighting them"""
         nspikes = len(self.spikes)
-        nparams = 7
+        nparams = 9
         X = np.zeros((nspikes, nparams))
-        spikes = self.get_sortedID_spikes()
+        spikes = self.spikes_sortedbyID()
         for i, s in enumerate(spikes):
             V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
-            # better to use attributes of resulting modelled waveform instead of the raw model params
-            X[i] = np.array([s.Vpp, s.dphase, x0, y0, sx, sy, theta])
+            # for clustering, substitute V1/V2 with Vpp, and mu1/mu2 with dphase
+            X[i] = np.array([s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta])
             #X[i] = np.array([x0, y0])
         # normalize each column in X (ie each param) from [0, 1]
+        '''
         X -= X.min(axis=0) # have them all start from 0
         X /= X.max(axis=0) # normalize
         # now weight some parameters more than others. This affects the euclidean distance
@@ -118,18 +122,26 @@ class Sort(object):
         X[:, 0] *= 2 # Vpp
         X[:, 2] *= 5 # x0
         X[:, 3] *= 10 # y0
-        return spikes, X
+        '''
+        return X
 
-    def get_cluster_data(self, weighting='ica'):
+    def get_cluster_data(self, weighting='pca'):
         """Convert spike param matrix into pca/ica data for clustering"""
-        spikes, X = self.get_param_matrix()
+        spikes = self.spikes_sortedbyID()
+        X = self.get_param_matrix()
         if weighting.lower() == 'ica':
-            pass # TODO: ICA
+            icanode = mdp.nodes.FastICANode()
+            icanode.train(X)
+            features = icanode.execute(X) # returns all available components
+            self.node = icanode
         elif weighting.lower() == 'pca':
-            pass # TODO: PCA
+            pcanode = mdp.nodes.PCANode(output_dim=0.98)
+            pcanode.train(X)
+            features = pcanode.execute(X) # returns components needed for variance
+            self.node = pcanode
         else:
             raise ValueError, 'unknown weighting %r' % weighting
-        return spikes, X
+        return features
 
     def get_ids(self, cids, spikes):
         """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to
@@ -147,11 +159,12 @@ class Sort(object):
         return n2sids, s2nids
 
     def write_spc_input(self):
-        """Generate input data file to spc"""
-        spikes, X = self.get_cluster_data()
+        """Generate input data file to SPC"""
+        X = self.get_cluster_data()
         # write to space-delimited .dat file. Each row is a spike, each column a param
         spykedir = os.path.dirname(__file__)
         dt = str(datetime.datetime.now())
+        dt = dt.split('.')[0] # ditch the us
         dt = dt.replace(' ', '_')
         dt = dt.replace(':', '.')
         self.spcdatfname = os.path.join(spykedir, 'spc', dt+'.dat')
@@ -166,8 +179,10 @@ class Sort(object):
         """Parse output .lab file from SPC. Each row is the cluster assignment of each spin
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
-        to the datapoints in the order presented in the input .dat file"""
-        spikes = self.get_sortedID_spikes()
+        to the datapoints in the order presented in the input .dat file
+
+        Returns n2sidsT dict"""
+        spikes = self.spikes_sortedbyID()
         if fname == None:
             fname = self.spclabfname
         f = open(fname, 'r')
@@ -182,33 +197,35 @@ class Sort(object):
         #return n2sidsT, s2nidsT
         return n2sidsT
 
-    def plot(self, n2sids=None, dims=[2, 3], weighting='ica'):
-        """Plot 2D projection of clustered data. n2sids should be a dict
+    def plot(self, n2sids=None, dims=[0, 1, 2], weighting='pca'):
+        """Plot 3D projection of clustered data. n2sids should be a dict
         mapping neuron ids to spike ids. Make sure to pass the weighting
-        used for clustering the data"""
-        import pdb; pdb.set_trace()
-        assert len(dims) == 2
-        if n2sids == None:
-            n2sids = self.parse_spc_lab_file()[0.075]
-        spikes, X = self.get_cluster_data(weighting=weighting)
+        that was used when clustering the data"""
+        assert len(dims) == 3
+        X = self.get_cluster_data(weighting=weighting)
         nids = n2sids.keys()
         nids.sort() # go through colours in neuron id order
-        f = pylab.figure()
+        #f = pylab.figure()
+        f = mlab.figure(name='weighting=%r, dims=%r' % (weighting, dims),
+                        bgcolor=(0.1, 0.1, 0.1))
         self.f = f
-        f.canvas.Parent.SetTitle('cluster plot')
-        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
+        #f.canvas.Parent.SetTitle('weighting=%r, dims=%r' % (weighting, dims))
+        #a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
         #a.set_axis_off() # turn off the x and y axis
-        f.set_facecolor('black')
-        f.set_edgecolor('black')
-        for nid in nids:
-            sids = n2sids[nid]
+        #f.set_facecolor('#111111')
+        #f.set_edgecolor('#111111')
+        for nid in nids: # for all neuron IDs
+            sids = n2sids[nid] # spike IDs
             c = COLOURDICT[nid]
-            x = X[sids]
-            a.plot(x[:, dims[0]], x[:, dims[1]], '.', markersize=1, color=c)
+            c = hex2color(c) # converts hex string to RGB tuple
+            x = X[sids] # rows of X corresponding to spike IDs
+            #a.plot(x[:, dims[0]], x[:, dims[1]], '.', markersize=2, color=c)
+            mlab.points3d(x[:, dims[0]], x[:, dims[1]], x[:, dims[2]], color=c, mode='point')
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
-        spikes, X = self.get_cluster_data()
+        spikes = self.spikes_sortedbyID()
+        X = self.get_cluster_data()
         # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
         # first row has labels "AFFX", "NAME", and then spike ids
         # first col has lables "AFFX", and then param names
@@ -225,7 +242,7 @@ class Sort(object):
         f.close()
 
     def hcluster(self, t=1.0):
-        """Hierarchically cluster unsorted spikes in self
+        """Hierarchically cluster self.spikes
 
         TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
         Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
@@ -233,7 +250,8 @@ class Sort(object):
         considered after the best ones already have, and therefore that you start off with pretty
         good clusters that are then only slightly refined using the lousy params
         """
-        spikes, X = self.get_cluster_data()
+        spikes = self.spikes_sortedbyID()
+        X = self.get_cluster_data()
         print X
         cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
         n2sids, s2nids = self.get_ids(cids, spikes)

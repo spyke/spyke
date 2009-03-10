@@ -139,6 +139,8 @@ EVENT DETECTION:
         - or maybe for each timepoint, grab triplets (or quads or something) of neighbouring channels and look at their sum, instead of the sum for all chans, but then for each timepoint you'd have to do this for all possible neighbouring triplets, which might start getting slow
         - this will help find small spikes that might otherwise be missed, but fixing false negatives is less important than reducing false positives
 
+    - Nick: find fit errors between each modelled spike and its raw data, apply some threshold for fit error (normalized by number of chans? or by mean voltage across all chans), reject modelled spikes as invalid if their fit error exceeds your threshold - threshold might be same as or based on noise threshold used for initial event detection?
+
 ------------------------------------
 CLUSTERING:
 
@@ -150,11 +152,18 @@ CLUSTERING:
         - to get intersection of two cluster sets, take first cluster in first set, find intersection of it with each cluster in the second set. Each non-empty intersection becomes a new cluster (or subcluster if you like). Repeat for all clusters in the first set.
 
     - PCA and ICA should be tried at some point during clustering - these wouldn't automatically solve my sequential clustering desires, would they? Maybe for the second set of clustering, I should just throw all the remaining params into a single multidimensional dataset, run PCA/ICA on it, pick the few most significant components, and work on those
+        - use mdp package for PCA and ICA
+        - note there's also a py_ica module that does infomax ICA
 
     - perhaps SPC doesn't work very well with a small example dataset of only a few dozen (82) spikes because it uses neighbourhood density to cluster, and in this case, density is quite low everywhere...
         - lowering Knearestneighbours (!=q) seems to increase the number of non-unitary clusters it's willing to produce
 
     - Nick: work on way more spikes, few thousand, and evaluate using similarity matrix, forget about checking each and every spike manually. Also suggests to try PCA/ICA first to help you throw out the not so useful params
+        - similarity matrix between all spikes would probably be of modelled spikes in voltage space (single trace per spike) - would hope that the error between modelled voltage traces within a cluster is much less than that between clusters
+            - actually, I'm not so sure about doing this in voltage space, since that can be somewhat variable - modelling it with params abstracts out that variability, that's the point - should probably do similarity matrix in parameter space instead, or something
+
+    - read through Fee 1996 paper a bit, got idea that, if I do hierarchical clustering, I should try a really low T threshold, and then increasingly bigger ones, and at each resulting hierarchy flattening, check to see which of the clusters at the previous level have agglomerated, and for those that have, check if any of the agglomerated clusters violate single-unit stats (see Fee 1996). If so, should probably go no further than the previous T level
+        - Fee 1996 also says to reject clusters that are multiunit, according to R2/10 = 8.8/0.8 * F(2)/F(10) - some kind of ratio of ISI distribs
 
 ------------------------------------
 TEMPLATES:
