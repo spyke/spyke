@@ -20,7 +20,7 @@ import mdp
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import COLOURDICT
+from spyke.gui.plot import COLOURS
 from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
@@ -127,7 +127,6 @@ class Sort(object):
 
     def get_cluster_data(self, weighting='pca'):
         """Convert spike param matrix into pca/ica data for clustering"""
-        spikes = self.spikes_sortedbyID()
         X = self.get_param_matrix()
         if weighting.lower() == 'ica':
             icanode = mdp.nodes.FastICANode()
@@ -135,9 +134,9 @@ class Sort(object):
             features = icanode.execute(X) # returns all available components
             self.node = icanode
         elif weighting.lower() == 'pca':
-            pcanode = mdp.nodes.PCANode(output_dim=0.98)
+            pcanode = mdp.nodes.PCANode()
             pcanode.train(X)
-            features = pcanode.execute(X) # returns components needed for variance
+            features = pcanode.execute(X) # returns all available components
             self.node = pcanode
         else:
             raise ValueError, 'unknown weighting %r' % weighting
@@ -181,46 +180,68 @@ class Sort(object):
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
         to the datapoints in the order presented in the input .dat file
 
-        Returns n2sidsT dict"""
+        Returns cidsT dict"""
         spikes = self.spikes_sortedbyID()
         if fname == None:
             fname = self.spclabfname
         f = open(fname, 'r')
-        n2sidsT = {} # at different temperatures
-        s2nidsT = {} # at different temperatures
+        #n2sidsT = {} # at different temperatures
+        #s2nidsT = {} # at different temperatures
+        cidsT = {} # at different temperatures
         for row in f:
             row = np.fromstring(row, sep=' ') # array of floats
             T = row[1] # row[0] is run #
             cids = np.int32(row[2:])
-            n2sidsT[T], s2nidsT[T] = self.get_ids(cids, spikes)
+            cidsT[T] = cids
+            #n2sidsT[T], s2nidsT[T] = self.get_ids(cids, spikes)
         f.close()
         #return n2sidsT, s2nidsT
-        return n2sidsT
+        #return n2sidsT
+        return cidsT
 
-    def plot(self, n2sids=None, dims=[0, 1, 2], weighting='pca'):
-        """Plot 3D projection of clustered data. n2sids should be a dict
-        mapping neuron ids to spike ids. Make sure to pass the weighting
-        that was used when clustering the data"""
+    def plot(self, nids=None, dims=[0, 1, 2], weighting='pca', minspikes=2):
+        """Plot 3D projection of clustered data. nids should be a list
+        of neuron ids corresponding to sorted sequence of spike ids. Make
+        sure to pass the weighting that was used when clustering the data"""
         assert len(dims) == 3
-        X = self.get_cluster_data(weighting=weighting)
-        nids = n2sids.keys()
-        nids.sort() # go through colours in neuron id order
-        #f = pylab.figure()
+        X = self.get_cluster_data(weighting=weighting) # in sid order, nids should be as well
+        maxnid = max(nids)
+        hist, bins = np.histogram(nids, bins=range(maxnid+1), new=True)
+        #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
+        goodnids = bins[np.where(hist >= minspikes)[0]] # find all non-junk nids
+        ncolours = len(COLOURS)
+        # get indices in goodnid order that pull out just the goodnids - this looks nasty:
+        nidis = [ np.where(nids == goodnid)[0][0] for goodnid in goodnids ]
+        nidis.sort() # nidis should pull nid values out of nids in order
+        nids = nids[nidis]
+        X = X[nidis]
+        # s are indices into colourmap
+        s = nids % ncolours
+        #s = nids % (ncolours - 1) # save last colour for junk singleton clusters
+        #s[junk_nids] = ncolours # assign last colour to junk singleton clusters
+
         f = mlab.figure(name='weighting=%r, dims=%r' % (weighting, dims),
-                        bgcolor=(0.1, 0.1, 0.1))
-        self.f = f
-        #f.canvas.Parent.SetTitle('weighting=%r, dims=%r' % (weighting, dims))
-        #a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
-        #a.set_axis_off() # turn off the x and y axis
-        #f.set_facecolor('#111111')
-        #f.set_edgecolor('#111111')
-        for nid in nids: # for all neuron IDs
-            sids = n2sids[nid] # spike IDs
-            c = COLOURDICT[nid]
-            c = hex2color(c) # converts hex string to RGB tuple
-            x = X[sids] # rows of X corresponding to spike IDs
-            #a.plot(x[:, dims[0]], x[:, dims[1]], '.', markersize=2, color=c)
-            mlab.points3d(x[:, dims[0]], x[:, dims[1]], x[:, dims[2]], color=c, mode='point')
+                        bgcolor=(0, 0, 0))
+        try:
+            self.f
+        except AttributeError:
+            self.f = []
+        self.f.append(f)
+
+        # convert COLOURS list into a colourmap (RGBA list)
+        cmap = []
+        for c in COLOURS:
+            c = hex2color(c) # convert hex string to RGB tuple
+            c = list(c)
+            c.append(1.0) # add alpha as 4th channel
+            cmap.append(c)
+
+        # plot it
+        x = X[:, dims[0]]
+        y = X[:, dims[1]]
+        z = X[:, dims[2]]
+        glyph = mlab.points3d(x, y, z, s, mode='point', figure=f)
+        glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
