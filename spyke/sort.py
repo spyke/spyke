@@ -199,7 +199,7 @@ class Sort(object):
         #return n2sidsT
         return cidsT
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting='pca', minspikes=2):
+    def plot(self, nids=None, dims=[0, 1, 2], weighting='pca', minspikes=2, mode='sphere', scale_factor=1, scale_mode='scalar'):
         """Plot 3D projection of clustered data. nids should be a list
         of neuron ids corresponding to sorted sequence of spike ids. Make
         sure to pass the weighting that was used when clustering the data"""
@@ -208,20 +208,22 @@ class Sort(object):
         maxnid = max(nids)
         hist, bins = np.histogram(nids, bins=range(maxnid+1), new=True)
         #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
-        goodnids = bins[np.where(hist >= minspikes)[0]] # find all non-junk nids
-        ncolours = len(COLOURS)
+        goodnids = bins[hist >= minspikes] # find all non-junk nids
         # get indices in goodnid order that pull out just the goodnids - this looks nasty:
-        nidis = [ np.where(nids == goodnid)[0][0] for goodnid in goodnids ]
-        nidis.sort() # nidis should pull nid values out of nids in order
+        nidis = np.array([], dtype=int) # otherwise concatenating gives a float array
+        for goodnid in goodnids:
+            newnidis = np.where(nids == goodnid)[0]
+            nidis = np.concatenate((nidis, newnidis))
         nids = nids[nidis]
         X = X[nidis]
         # s are indices into colourmap
+        ncolours = len(COLOURS)
         s = nids % ncolours
         #s = nids % (ncolours - 1) # save last colour for junk singleton clusters
         #s[junk_nids] = ncolours # assign last colour to junk singleton clusters
 
-        f = mlab.figure(name='weighting=%r, dims=%r' % (weighting, dims),
-                        bgcolor=(0, 0, 0))
+        name = 'weighting=%r, dims=%r, minspikes=%r' % (weighting, dims, minspikes)
+        f = mlab.figure(name=name, bgcolor=(0, 0, 0))
         try:
             self.f
         except AttributeError:
@@ -240,7 +242,8 @@ class Sort(object):
         x = X[:, dims[0]]
         y = X[:, dims[1]]
         z = X[:, dims[2]]
-        glyph = mlab.points3d(x, y, z, s, mode='point', figure=f)
+        # 3D glyphs like 'sphere' come out looking almost black for some reason, use 'point' instead
+        glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
         glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
 
     def write_spc_app_input(self):
@@ -267,9 +270,9 @@ class Sort(object):
 
         TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
         Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
-        then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will only be
-        considered after the best ones already have, and therefore that you start off with pretty
-        good clusters that are then only slightly refined using the lousy params
+        then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will
+        only be considered after the best ones already have, and therefore that you start off
+        with pretty good clusters that are then only slightly refined using the lousy params
         """
         spikes = self.spikes_sortedbyID()
         X = self.get_cluster_data()
