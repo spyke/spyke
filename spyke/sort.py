@@ -445,7 +445,8 @@ class Neuron(object):
             colis = np.tile(False, len(ts))
             colis[tis] = True
             i = np.outer(rowis, colis) # 2D boolean array for indexing into data
-            ''' this method doesn't work, destination indices are assigned to in the wrong order:
+            # this method doesn't work, destination indices are assigned to in the wrong order:
+            '''
             rowis = np.tile(chanis, len(tis))
             colis = np.tile(tis, len(chanis))
             i = rowis, colis
@@ -473,6 +474,14 @@ class Neuron(object):
         return self.wave.chans # self.chans just refers to self.wave.chans
 
     chans = property(get_chans)
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy()
+        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+        return d
+
     '''
     def get_maxchan(self):
         """Find maxchan at t=0 in mean waveform, constrained to enabled chans
@@ -505,7 +514,7 @@ class Neuron(object):
         self.update_wave()
 
     tw = property(get_tw, set_tw)
-    '''
+
     def get_weights(self, weighting=None, sstdev=None, tstdev=None):
         """Returns unity, spatial, temporal, or spatiotemporal Gaussian weights
         for self's enabled chans in self.wave.data, given spatial and temporal
@@ -527,14 +536,6 @@ class Neuron(object):
         #print '\nweights:\n%r' % weights
         return weights
 
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = self.__dict__.copy()
-        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
-        return d
-
-    '''
     def get_gaussian_spatial_weights(self, stdev):
         """Return a vector that weights self.chans according to a 2D gaussian
         centered on self.maxchan with standard deviation stdev in um"""
