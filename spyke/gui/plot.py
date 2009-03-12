@@ -60,8 +60,10 @@ MAGENTA = '#FF00FF'
 GREY = '#888888'
 WHITE = '#FFFFFF'
 BROWN = '#AF5050'
+#DARKGREY = '#222222' # reserve as garbage colour (cluster)
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
+#CLUSTERCOLOURS = COLOURS + [DARKGREY]
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
@@ -79,6 +81,9 @@ class ColourDict(dict):
     like say a chan id or a neuron id. Better than using a generator,
     cuz you don't need to keep calling .next(). This is like a dict
     of inifite length"""
+    def __init__(self, colours=COLOURS):
+        self.colours = colours
+
     def __getitem__(self, key):
         i = key % len(COLOURS)
         return COLOURS[i]
@@ -87,7 +92,7 @@ class ColourDict(dict):
         raise RuntimeError, 'ColourDict is unsettable'
 
 
-COLOURDICT = ColourDict()
+COLOURDICT = ColourDict(colours=COLOURS)
 
 
 class Plot(object):
@@ -869,8 +874,8 @@ class SortPanel(PlotPanel):
         plt.set_stylewidth(style, width)
         plt.obj = obj # bind object to plot
         obj.plt = plt # bind plot to object
-        if obj.wave.data == None: # if it hasn't already been loaded
-            obj.update_wave()
+        if obj.wave == None or obj.wave.data == None: # if it hasn't already been loaded
+            obj.update_wave(stream=self.spykeframe.hpstream) # update from stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, obj.t)

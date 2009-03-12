@@ -132,10 +132,18 @@ class SpikeModel(object):
         d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
-    def update_wave(self, tw=None):
-        """Load/update self's waveform, based on already present data.
-        Optionally slice it according to tw around self's spike time"""
-        self.wave = WaveForm(data=self.V, ts=self.ts, chans=self.chans)
+    def update_wave(self, stream=None, tw=None):
+        """Load/update self's waveform, based either on data already present in
+        self.V, or taken from the given stream. Optionally slice it according to
+        tw around self's spike time"""
+        if stream == None:
+            assert self.V != None
+            data = self.V
+        else:
+            wave = stream[self.ts[0] : self.ts[-1]+stream.tres] # end inclusive
+            data = wave.data
+            assert data.shape[1] == len(self.ts) # make sure I know what I'm doing
+        self.wave = WaveForm(data=data, ts=self.ts, chans=self.chans)
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
