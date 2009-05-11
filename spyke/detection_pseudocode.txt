@@ -1,0 +1,20 @@
+- look for simple +ve thresh (typically 50 uV) crossings (xings) 1 chunk of abs(data) at a time (say 1sec)
+- for now, assume chan each thresh xing was initially detected on is its maxchan
+- for each single channel thresh xing:
+    - grab window of data -0.25 to +0.75 msec around the xing timepoint on that chan
+    - find the times of the most positive and most negative signal within that window
+    - of these, label them phase1t and phase2t according to what order they occur in
+        - so, phase1t might be the max -ve (typically), and phase2t would be the max +ve, or vice versa. Whatever we currently think is the 1st phase of our spike is generally the best indicator of its spike time
+    - find all the enabled chans within spatial lockout (usu 150um) of chani at t=phase1t
+    - find maxchan within those chans at t=phase1t
+    - get new data window from signal from new maxchan, centered around phase1t (again, -0.25 to +0.75 wrt phase1t)
+    - now, we can assume we have a fairly good estimate of when the candidate spike occurred and where it's centere
+    - find all enabled chans one more time within spatial lockout (150um) of maxchan. These channels within this time window will be the data we feed to the model
+    - check a bunch of simple criteria to reject thresh xings which obviously aren't spikes:
+        - ensure ppthresh (peak-to-peak threshold, typically 1.5*thresh, so ~75 uV) for the maxchan is exceeded within the window
+        - ensure phase1t doesn't fall at either the startpoint or endpoint of the window, which would indicate a mistrigger
+        - ensure phases are of opposite sign
+        - ensure min phase < 0 uV
+        - ensure max phase > 0 uV
+    - if the simple checks pass, run the model on the windowed multichannel data
+    - if successfully modelled (param values pass certain criteria), you've successfully found a valid spike. Update spatiotemporal lockout by updating locked out time for each channel (based on distance wrt modelled spatial origin of the space), and proceed to next threshold xing event
