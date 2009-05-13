@@ -375,9 +375,8 @@ class Detector(object):
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results
         TODO: remove any spikes that happen right at the first or last timepoint in the file,
-        since we can't say when an interrupted rising or falling edge would've reached peak
+        since we can't say when an interrupted falling or rising edge would've reached peak
         """
-
         self.enabledSiteLoc = {}
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate

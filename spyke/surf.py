@@ -130,15 +130,16 @@ class File(Record):
 
     def _parserecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
-        FLAG2RECTYPE = {'L'  : LayoutRecord,
-                        'M'  : MessageRecord,
-                        'MS' : MessageRecord,
-                        'PS' : HighPassRecord,
-                        'PC' : LowPassRecord,
-                        'PE' : EpochRecord,
-                        'D'  : DisplayRecord,
-                        'VD' : DigitalSValRecord,
-                        'VA' : AnalogSingleValRecord}
+        # dict of (record type, listname to store it in) tuples
+        FLAG2REC = {'L'  : (LayoutRecord, 'layoutrecords'),
+                    'MS' : (SurfMessageRecord, 'messagerecords'),
+                    'MU' : (UserMessageRecord, 'messagerecords'),
+                    'PS' : (HighPassRecord, 'highpassrecords'),
+                    'PC' : (LowPassRecord, 'lowpassrecords'),
+                    'PE' : (EpochRecord, 'epochrecords'),
+                    'D'  : (DisplayRecord, 'displayrecords'),
+                    'VD' : (DigitalSValRecord, 'digitalsvalrecords'),
+                    'VA' : (AnalogSValRecord, 'analogsvalrecords')}
         f = self.f
         while True:
             # returns an empty string when EOF is reached
@@ -147,19 +148,21 @@ class File(Record):
                 break
             # put file pointer back to start of flag
             f.seek(-2, 1)
-            if flag in FLAG2RECTYPE:
-                rectype = FLAG2RECTYPE[flag]
+            if flag in FLAG2REC:
+                rectype, reclistname = FLAG2REC[flag]
                 rec = rectype(self)
                 rec.parse()
                 wx.Yield() # allow wx GUI event processing during parsing
-                # collect records in lists - this kind of metacode is prolly a bad idea
-                listname = rectype.__name__.lower() + 's' # eg. HighPassRecord becomes 'highpassrecords'
-                if listname not in self.__dict__: # if not already an attrib
-                    self.__dict__[listname] = [] # init it
-                self.__dict__[listname].append(rec) # append this record to its list
+                self._appendRecord(rec, reclistname)
             else:
                 raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
             self.percentParsed = f.tell() / self.fileSize * 100
+
+    def _appendRecord(self, rec, reclistname):
+        """Append record to reclistname"""
+        if reclistname not in self.__dict__: # if not already an attrib
+            self.__dict__[reclistname] = [] # init it
+        self.__dict__[reclistname].append(rec) # append this record to its list
 
     def _connectRecords(self):
         """Connect the appropriate probe layout to each high and lowpass record"""
@@ -592,7 +595,7 @@ class EpochRecord(Record):
         raise NotImplementedError('Spike epoch (non-continous) recordings currently unsupported')
 
 
-class AnalogSingleValRecord(Record):
+class AnalogSValRecord(Record):
     def __init__(self):
         raise NotImplementedError('Analog single value recordings currently unsupported')
 
@@ -624,6 +627,14 @@ class MessageRecord(Record):
         self.MsgLength, = self.unpack('i', f.read(4))
         # any length message {shortstring - for cat9!!!}
         self.Msg = f.read(self.MsgLength)
+
+
+class SurfMessageRecord(MessageRecord):
+    """Surf generated message record"""
+
+
+class UserMessageRecord(MessageRecord):
+    """User generated message record"""
 
 
 class ContinuousRecord(Record):

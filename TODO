@@ -2,9 +2,11 @@ GENERAL:
 
 - WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
 
-- are there really two different record flags (M and MS) that both indicate a MessageRecord (see surf.py)? What .srf files do either (or both) occur in? Which one is more common? The MS one?
+- abstract out spike detection and obvious rejection from spike modelling, do all detection first in its own loop, followed by all modelling later in its own loop
 
 - add NVS's one pixel row per channel display window, with greyscale of colour hue indicating voltage - see more recognizable patterns, can see spikes over the span of just a few pixels (look like gabors over space and time), yet can also look across a wide swath of time to find similar looking gabors elsewhere - interesting
+
+- Nick's suggestion: consider leaving voltages in AD units, as signed 16 bit integers (centered around 0 instead of 2048 as in the .srf files) instead of float32's. This would use half the memory, and might also speed up computation: integer math should be faster than float math. Whenever you actually need uV, just convert on the fly
 
 - for convenience in neuropy, copy all stimulus data from .srf to .sort file
 
@@ -444,6 +446,9 @@ DONE:
     - store all templates in one file ala surfbawd? or one file per template?
     - store it all in a single SQL database file?
     - THIS ONE: or, pickle the whole Sort class instance to file, but also make it possible to export to separate binary spike files (plus the binary .din file)
+- are there really two different record flags (M and MS) that both indicate a MessageRecord (see surf.py)? What .srf files do either (or both) occur in? Which one is more common? The MS one?
+    - no, they're MS and MU, for Surf and User generated messages. At least, there shouldn't be any .srf files out there that have only M as the record flag
+
 
 SPIKE MODELLING:
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
