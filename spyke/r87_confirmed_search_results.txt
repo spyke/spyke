@@ -1,0 +1,83 @@
+rev with niters=50 and no maxchan search, thresh=50, ppthresh=80, slock=300um
+------------------------------------------
+
+trying thresh event at t=1400 chan=51
+window params: t0=1160, tend=2160, mint=1240, maxt=1480, phase1V=-43.04871, phase2V=85.668022
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([ 0,  1,  2, 19, 33, 50, 51, 52, 53])
+p0 = [-43, 1240, 60, 86, 1480, 60, 28, 1202, 60]
+p = [-53, 1322, 97, 86, 1478, 88, 33, 1195, 55]
+found new spike: [1280, 33, 1195]
+
+trying thresh event at t=2040 chan=20
+window params: t0=1800, tend=2800, mint=2060, maxt=2260, phase1V=-50.048828, phase2V=20.507813
+event doesn't cross ppthresh
+
+trying thresh event at t=5580 chan=1
+window params: t0=5340, tend=6340, mint=6040, maxt=5620, phase1V=62.24794, phase2V=-40.73233
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([ 0,  1,  2,  3, 19, 50, 51, 52, 53])
+p0 = [62, 5620, 60, -41, 6040, 60, -28, 1170, 60]
+p = [69, 5659, 59, -31, 6019, 96, 7, 1167, 70]
+found new spike: [5660, 7, 1167]
+
+trying thresh event at t=5580 chan=51
+thresh event is locked out
+
+trying thresh event at t=6880 chan=47
+window params: t0=6640, tend=7640, mint=6900, maxt=7120, phase1V=-53.89587, phase2V=27.020704
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([ 4,  5,  6,  7, 45, 46, 47, 48, 49])
+p0 = [-54, 6900, 60, 27, 7120, 60, 28, 877, 60]
+p = [-57, 6910, 41, 16, 7144, -19, 13, 873, 39]
+model doesn't cross ppthresh
+
+trying thresh event at t=9360 chan=50
+window params: t0=9120, tend=10120, mint=9420, maxt=9600, phase1V=-66.952774, phase2V=103.50135
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([ 1,  2,  3,  4, 48, 49, 50, 51, 53])
+p0 = [-67, 9420, 60, 104, 9600, 60, 28, 1072, 60]
+p = [-119, 9418, 51, 172, 9598, 60, 17, 1052, 23]
+found new spike: [9420, 17, 1052]
+
+trying thresh event at t=9520 chan=50
+thresh event is locked out
+
+trying thresh event at t=14020 chan=31
+window params: t0=13780, tend=14780, mint=14040, maxt=14660, phase1V=-51.523315, phase2V=27.743385
+event doesn't cross ppthresh
+
+trying thresh event at t=14880 chan=26
+window params: t0=14640, tend=15640, mint=14720, maxt=14980, phase1V=-48.490318, phase2V=84.38166
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([22, 23, 24, 25, 26, 27, 28, 29, 30])
+p0 = [-48, 14720, 60, 84, 14980, 60, -28, 1625, 60]
+p = [-86, 14754, 67, 108, 14980, 119, -5, 1630, 27]
+found new spike: [14740, -5, 1630]
+
+trying thresh event at t=15120 chan=20
+window params: t0=14880, tend=15880, mint=14980, maxt=15160, phase1V=-38.574219, phase2V=53.177696
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([ 0, 19, 20, 21, 22, 31, 32, 33, 52])
+p0 = [-39, 14980, 60, 53, 15160, 60, -28, 1365, 60]
+p = [-39, 15018, 66, 54, 15194, 70, -14, 1332, 57]
+found new spike: [15020, -14, 1332]
+
+trying thresh event at t=21900 chan=10
+window params: t0=21660, tend=22660, mint=22200, maxt=21940, phase1V=52.748272, phase2V=-29.856474
+Warning: Number of calls to function has reached maxfev = 50.
+mesg='Number of calls to function has reached maxfev = 50.', ier=5
+leastsq got chanis = array([ 8,  9, 10, 11, 12, 41, 42, 43, 44])
+p0 = [53, 21940, 60, -30, 22200, 60, -28, 585, 60]
+p = [113, 21940, 77, -74, 22222, 60, -126, 626, 70]
+found new spike: [21940, -126, 626]
+
+trying thresh event at t=23560 chan=12
+window params: t0=23320, tend=24320, mint=23360, maxt=23600, phase1V=-27.085484, phase2V=52.061836
+event doesn't cross ppthresh

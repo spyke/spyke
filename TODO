@@ -7,6 +7,7 @@ GENERAL:
 - add NVS's one pixel row per channel display window, with greyscale of colour hue indicating voltage - see more recognizable patterns, can see spikes over the span of just a few pixels (look like gabors over space and time), yet can also look across a wide swath of time to find similar looking gabors elsewhere - interesting
 
 - Nick's suggestion: consider leaving voltages in AD units, as signed 16 bit integers (centered around 0 instead of 2048 as in the .srf files) instead of float32's. This would use half the memory, and might also speed up computation: integer math should be faster than float math. Whenever you actually need uV, just convert on the fly
+    - I think I decided to stick to float32's because during Nyquist interpolation, I have to switch to them anyways, and I'm always doing interpolation
 
 - for convenience in neuropy, copy all stimulus data from .srf to .sort file
 

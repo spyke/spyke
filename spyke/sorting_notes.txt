@@ -1,0 +1,16 @@
+inspired by Segev 2004, slight difference is that they don't have to deal with varying distance between plane of electrode and cell, and also most cells will be circularly distributed across electrodes
+
+- detect all events
+- extract estimates of event features:
+    - V1, V2, dphase, maybe some sigmas
+        - take spatial mean across chans at phase1t to get center of 2D gaussian
+        - some are easy to estimate, some not. To get some of them, maybe model certain features indep of each other, like spatial decay or distance from polytrode. Try to keep it fast and reliable
+            - this gives me the idea that I should continue trying my current method of modelling and clustering, but reduce the number of params by assuming some of my initial param estimates, such as phase times and amplitudes, to be quite reliable, and for the remaining, perhaps model them sequentially instead of simultaneously. This might make it much faster and more reliable. Still, I like the idea of being able to deal with overlapping spikes (ptc17.tr2b looks like overlapping hell). Maybe that would be a 2nd pass once the modelling is fast and reliable. I could use the modelled clustered cells as templates and do what Segev 2004 do
+- throwaway obvious non-spikes, either due to wacky feature values, or due to simple fits not converging. this gives list of all spike-like events
+- cluster events based on estimated features. generate templates from these
+- for each spike-like event, do mini-rip of all templates, plus a flat template, against it
+    - template that fits best over some range of overlap is one that fired during event. subtract it from event
+    - template that fits best after subtraction also fired during event. subtract it.
+    - continue until flat template is one that fits best?
+
+- try modelling decay as exponential instead of gaussian, one exponential for x, one for y, plus a theta to rotate the whole thing

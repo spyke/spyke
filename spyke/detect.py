@@ -413,6 +413,10 @@ class Detector(object):
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return sms
 
+    def threshwave(self, wave):
+        """Threshold wave data and discard events that are obviously not spikes"""
+        pass
+
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
         print 'searchblock():'

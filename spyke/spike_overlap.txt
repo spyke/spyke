@@ -1,0 +1,14 @@
+2009-05-14
+
+for ptc15.87:
+
+chans: 20, 21, 22, 30, 31, 32
+template is at: 24780: 24280 to 25260
+tempalte overlapped with something is at 41280: 40800 to 41760
+
+# plot the difference:
+wave1 = self.hpstream[24780+self.spiketw[0] : 24780+self.spiketw[1]]
+wave2 = self.hpstream[41280+self.spiketw[0] : 41280+self.spiketw[1]]
+self.frames['spike'].panel.plot(wave2-wave1, 41280)
+
+# difference doesn't look like any other spike in the file, that I can see. Tried a bunch of different offsets, didn't help

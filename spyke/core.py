@@ -72,6 +72,27 @@ class WaveForm(object):
         nt = len(self.ts)
         assert nt == self.data.shape[1] # obsessive
         return nt
+
+    def _check_add_sub(self, other):
+        """Check a few things before adding or subtracting waveforms"""
+        if self.data.shape != other.data.shape:
+            raise ValueError("Waveform shapes %r and %r don't match" %
+                             (self.data.shape, other.data.shape))
+        if self.chans != other.chans:
+            raise ValueError("Waveform channel ids %r and %r don't match" %
+                             (self.chans, other.chans))
+
+    def __add__(self, other):
+        """Return new waveform which is self+other. Keep self's timestamps"""
+        self._check_add_sub(other)
+        return WaveForm(data=self.data+other.data,
+                        ts=self.ts, chans=self.chans)
+
+    def __sub__(self, other):
+        """Return new waveform which is self-other. Keep self's timestamps"""
+        self._check_add_sub(other)
+        return WaveForm(data=self.data-other.data,
+                        ts=self.ts, chans=self.chans)
     '''
     def get_padded_data(self, chans):
         """Return self.data corresponding to self.chans,
