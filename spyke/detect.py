@@ -98,12 +98,13 @@ class SpikeModel(object):
         """Compare SpikeModels by their parameter arrays"""
         if self.__class__ != other.__class__: # might be comparing a Spike with a Neuron
             return False
-        return np.all(self.p == other.p)
+        #return np.all(self.p == other.p) # disable for now while not modelling
+        return hash(self) == hash(other) # good enough for just simple detection
 
     def __hash__(self):
         """Unique hash value for self, based on modelled spike time and location.
         Required for effectively using SpikeModels in a Set"""
-        return hash((self.t, self.x0, self.y0)) # hash of their tuple, should guarantee uniqueness
+        return hash((self.t, self.maxchani)) # hash of their tuple, should guarantee uniqueness
 
     def __getitem__(self, key):
         """Return WaveForm for this spike given slice key"""
@@ -381,16 +382,16 @@ class Detector(object):
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
+        # TODO: instead of calling up the distance matrix and then checking for which chans are within slock over and over, since the slock is constant over an entire search, calculate each channel's neighbours once, and then call up that list of neighbours. Should be faster
 
         t0 = time.clock()
         self.thresh = self.get_thresh() # abs, in uV, one per chan in self.chans
         self.ppthresh = self.thresh * self.ppthreshmult # peak-to-peak threshold, abs, in uV
+        #self.thresh = 50 # abs, in uV
+        #self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
         print 'thresh calcs took %.3f sec' % (time.clock()-t0)
         print 'thresh   = %s' % intround(self.thresh)
         print 'ppthresh = %s' % intround(self.ppthresh)
-
-        #self.thresh = 50 # abs, in uV
-        #self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -413,9 +414,6 @@ class Detector(object):
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
         return sms
 
-    def threshwave(self, wave):
-        """Threshold wave data and discard events that are obviously not spikes"""
-        pass
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
@@ -447,27 +445,38 @@ class Detector(object):
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         siteloc = np.asarray([xcoords, ycoords]).T # [chani, (x, y)]
-        '''
+
+        lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
+
+        spikes = self.threshwave(wave, lockout, twi)
+        #sms = self.modelspikes(sms)
+
+        # trim results from wavetrange down to just cutrange
+        ts = np.asarray([ s.t for s in spikes ]) # get all spike times
+        # searchsorted might be faster here instead of checking each and every element
+        sis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array of indices into spikes
+        spikes = list(np.asarray(spikes)[sis])
+        return spikes
+
+    def threshwave(self, wave, lockout, twi):
+        """Threshold wave data and return only events that roughly look like spikes
         TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
             - hyperellipsoidal?
             - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as a threshold event
             - or slide some filter across the data that not only checks for thresh, but ppthresh as well
-        '''
+        """
         edges = np.diff(np.int8(abs(wave.data) >= np.vstack(self.thresh))) # indices where changing abs(signal) has crossed thresh
-        events = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
-        events = np.transpose(events) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
+        edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
+        edgeis = np.transpose(edgeis) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
 
-        lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
-        sms = [] # list of valid SpikeModels
-
-        # threshold crossing event loop: events gives us indices into time and chans
-        for ti, chani in events:
-            print
+        spikes = []
+        # check each edge for validity
+        for ti, chani in edgeis:
             print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani])
             if ti <= lockout[chani]: # is this thresh crossing timepoint locked out?
                 print 'thresh event is locked out'
-                continue # this event is locked out, skip to next event
+                continue # skip to next event
 
             # get data window wrt threshold crossing
             ti0 = max(ti+twi[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
@@ -520,8 +529,43 @@ class Detector(object):
                 assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
             except AssertionError, message: # doesn't qualify as a spike
                 print message
-                continue
+                continue # skip to next event
 
+            # consider it a spike, save some attribs
+            s = Spike()
+            s.t0 = wave.ts[ti0]
+            s.t = wave.ts[ti0+phase1ti]
+            s.tend = wave.ts[tiend]
+            s.V1, s.V2 = V1, V2
+            chans = np.asarray(self.chans)[chanis] # dereference
+            s.chans, s.maxchani = chans, chani
+            s.x0, s.y0 = self.get_spike_spatial_mean()
+            s.valid = True
+            spikes.append(s) # add to list of valid Spikes to return
+
+        return spikes
+
+    def get_spike_spatial_mean(spike, wave, spiketi):
+        """Return weighted spatial mean of chans in spike at designated spike
+        time, to use as rough spatial origin of spike"""
+
+        # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
+        x = siteloc[chanis, 0] # 1D array (row)
+        y = siteloc[chanis, 1]
+        multichanwindow = wave.data[chanis, ti0:tiend]
+        chanweights = multichanwindow[:, phase1ti] # unnormalized, some of these may be -ve
+        chanweights = chanweights / chanweights.sum() # normalized
+        chanweights = np.where(chanweights >= 0, chanweights, 0) # replace -ve weights with 0
+        chanweights = chanweights / chanweights.sum() # renormalized
+        x0 = (chanweights * x).sum()
+        y0 = (chanweights * y).sum()
+        return x0, y0
+
+    def modelspikes(self, events):
+        """Model spike events that roughly look like spikes"""
+        for ti, chani in events:
+            print('trying to model thresh event at t=%d chan=%d'
+                  % (wave.ts[ti], self.chans[chani]))
             # create a Spike model
             sm = Spike()
             chans = np.asarray(self.chans)[chanis] # dereference
@@ -534,6 +578,9 @@ class Detector(object):
             x = siteloc[chanis, 0] # 1D array (row)
             y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
+
+            x0, y0 = self.get_spike_spatial_mean()
+
             # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
             multichanwindow = wave.data[chanis, ti0:tiend]
             chanweights = multichanwindow[:, phase1ti] # unnormalized, some of these may be -ve
@@ -542,6 +589,8 @@ class Detector(object):
             chanweights = chanweights / chanweights.sum() # renormalized
             x0 = (chanweights * x).sum()
             y0 = (chanweights * y).sum()
+
+
             print 'maxchan @ (%d, %d), (x0, y0)=(%.1f, %.1f)' % (siteloc[chani, 0], siteloc[chani, 1], x0, y0)
             """
             TODO: more intelligent estimate of sx and sy by taking signal differences between maxchan and two nearest chans. Get all chans with x vals different from max, and make a similar list for y vals. Out of each of those lists, get the nearest (in 2D) chan(s) to maxchan (pick one), find the signal value ratio between it and the maxchan at phase1ti, plug maxchan's (x or y) coord into g(), set it equal to the ratio, and solve for sigma (sx or sy).
@@ -626,13 +675,6 @@ class Detector(object):
             """
             lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres)
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
-
-        # trim results from wavetrange down to just cutrange
-        ts = np.asarray([ sm.t for sm in sms ]) # get all spike times
-        # searchsorted might be faster here instead of checking each and every element
-        smis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array of indices into sms
-        sms = list(np.asarray(sms)[smis])
-        return sms
 
     def check_spikes(self, spikes):
         """Checks for duplicate spikes between results from latest .searchblock() call,
@@ -722,9 +764,10 @@ class Detector(object):
             thresh = np.tile(self.fixedthresh, len(self.chans))
             thresh = np.float32(thresh)
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
-            """randomly sample self.fixednoisewin's worth of data from self.trange in blocks of self.blocksize
-            NOTE: this samples with replacement, so it's possible, though unlikely, that some parts of the data
-            will contribute more than once to the noise calculation
+            """randomly sample self.fixednoisewin's worth of data from self.trange in
+            blocks of self.blocksize. NOTE: this samples with replacement, so it's
+            possible, though unlikely, that some parts of the data will contribute
+            more than once to the noise calculation
             """
             print 'loading data to calculate noise'
             nblocks = intround(self.fixednoisewin / self.blocksize)

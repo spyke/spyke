@@ -1,4 +1,4 @@
-- look for simple +ve thresh (typically 50 uV) crossings (xings) 1 chunk of abs(data) at a time (say 1sec)
+- look for simple thresh (typically 50 uV) crossings (xings) 1 chunk of abs(data) at a time (say 1sec)
 - for now, assume chan each thresh xing was initially detected on is its maxchan
 - for each single channel thresh xing:
     - grab window of data -0.25 to +0.75 msec around the xing timepoint on that chan

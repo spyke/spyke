@@ -14,3 +14,5 @@ inspired by Segev 2004, slight difference is that they don't have to deal with v
     - continue until flat template is one that fits best?
 
 - try modelling decay as exponential instead of gaussian, one exponential for x, one for y, plus a theta to rotate the whole thing
+
+- should reread 1994 Lewicki, it's Bayesian apparently
