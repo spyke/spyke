@@ -397,23 +397,23 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
+        nchans = len(self.chans) # number of enabled chans
+        self.lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
-        self.sms = {} # dict of SpikeModels, saved for later inspection
-        sms = [] # list of SpikeModels collected from .searchblock() call(s)
+        spikes = [] # list of SpikeModels collected from .searchblock() call(s)
 
         t0 = time.clock()
         for wavetrange in wavetranges:
             try:
-                sms.extend(self.searchblock(wavetrange, direction))
+                spikes.extend(self.searchblock(wavetrange, direction))
             except FoundEnoughSpikesError:
                 break
-        spikets = [ sm.t for sm in sms ]
-        smis = np.argsort(spikets, kind='mergesort') # indices into sms, ordered by spike time
-        sms = [ sms[smi] for smi in smis ] # now guaranteed to be in temporal order
-        print '\nfound %d spikes in total' % len(sms)
+        spikets = [ s.t for s in spikes ]
+        spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
+        spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
+        print '\nfound %d spikes in total' % len(spikes)
         print 'inside .search() took %.3f sec' % (time.clock()-t0)
-        return sms
-
+        return spikes
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
@@ -428,7 +428,6 @@ class Detector(object):
         #print 'wavetrange: %s, cutrange: %s' % (wavetrange, cutrange)
         wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
-        nchans = len(self.chans) # number of enabled chans
         if self.randomsample:
             maxnspikes = 1 # how many more we're looking for in the next block
         else:
@@ -444,12 +443,10 @@ class Detector(object):
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        siteloc = np.asarray([xcoords, ycoords]).T # [chani, (x, y)]
+        self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-        lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
-
-        spikes = self.threshwave(wave, lockout, twi)
-        #sms = self.modelspikes(sms)
+        spikes = self.threshwave(wave, twi)
+        #spikes = self.modelspikes(spikes)
 
         # trim results from wavetrange down to just cutrange
         ts = np.asarray([ s.t for s in spikes ]) # get all spike times
@@ -458,7 +455,7 @@ class Detector(object):
         spikes = list(np.asarray(spikes)[sis])
         return spikes
 
-    def threshwave(self, wave, lockout, twi):
+    def threshwave(self, wave, twi):
         """Threshold wave data and return only events that roughly look like spikes
         TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
@@ -470,6 +467,7 @@ class Detector(object):
         edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
         edgeis = np.transpose(edgeis) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
 
+        lockout = self.lockout
         spikes = []
         # check each edge for validity
         for ti, chani in edgeis:
@@ -533,30 +531,36 @@ class Detector(object):
 
             # consider it a spike, save some attribs
             s = Spike()
-            s.t0 = wave.ts[ti0]
-            s.t = wave.ts[ti0+phase1ti]
-            s.tend = wave.ts[tiend]
+            s.ti0, s.t0 = ti0, wave.ts[ti0]
+            s.ti = ti0+phase1ti
+            s.t = wave.ts[s.ti]
+            s.ts = wave.ts[ti0:tiend]
+            s.tiend, s.tend = tiend, wave.ts[tiend]
             s.V1, s.V2 = V1, V2
             chans = np.asarray(self.chans)[chanis] # dereference
-            s.chans, s.maxchani = chans, chani
-            s.x0, s.y0 = self.get_spike_spatial_mean()
+            s.maxchani, s.chanis, s.chans = chani, chanis, chans
+            s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
 
+            # update lockout
+            lockout[chanis] = ti0 + phase2ti
+            print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
+
         return spikes
 
-    def get_spike_spatial_mean(spike, wave, spiketi):
+    def get_spike_spatial_mean(self, spike, wave):
         """Return weighted spatial mean of chans in spike at designated spike
         time, to use as rough spatial origin of spike"""
 
         # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
-        x = siteloc[chanis, 0] # 1D array (row)
-        y = siteloc[chanis, 1]
-        multichanwindow = wave.data[chanis, ti0:tiend]
-        chanweights = multichanwindow[:, phase1ti] # unnormalized, some of these may be -ve
-        chanweights = chanweights / chanweights.sum() # normalized
-        chanweights = np.where(chanweights >= 0, chanweights, 0) # replace -ve weights with 0
-        chanweights = chanweights / chanweights.sum() # renormalized
+        x = self.siteloc[spike.chanis, 0] # 1D array (row)
+        y = self.siteloc[spike.chanis, 1]
+        chanweights = wave.data[spike.chanis, spike.ti] # unnormalized, some of these may be -ve
+        # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
+        #chanweights = np.where(chanweights >= 0, chanweights, 0) # replace -ve weights with 0
+        chanweights = abs(chanweights)
+        chanweights /= chanweights.sum() # normalized
         x0 = (chanweights * x).sum()
         y0 = (chanweights * y).sum()
         return x0, y0
@@ -579,7 +583,7 @@ class Detector(object):
             y = siteloc[chanis, 1]
             V = wave.data[chanis, ti0:tiend]
 
-            x0, y0 = self.get_spike_spatial_mean()
+            x0, y0 = self.get_spike_spatial_mean(sm, wave)
 
             # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
             multichanwindow = wave.data[chanis, ti0:tiend]

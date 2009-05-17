@@ -346,35 +346,35 @@ class Detection(object):
     """A spike detection run, which happens every time Search is pressed.
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
-    def __init__(self, sort, detector, id=None, datetime=None, sms=None):
+    def __init__(self, sort, detector, id=None, datetime=None, spikes=None):
         self.sort = sort # parent sort session
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        self.sms = sms # list of valid SpikeModels collected from Detector.search
+        self._spikes = spikes # list of spikes collected from Detector.search
 
     def __eq__(self, other):
-        """Compare detection runs by their .sms lists
-        TODO: see if there's any overlap between self.sms and other.sms, ie duplicate spikes,
+        """Compare detection runs by their ._spikes lists
+        TODO: see if there's any overlap between self.spikes and other.spikes, ie duplicate spikes,
         and raise a warning in a dialog box or something
         """
-        return np.all(self.sms == other.sms)
+        return np.all(self._spikes == other._spikes)
 
     def set_spikeids(self):
-        """Give each SpikeModel an ID, inc sort's _sid spike ID counter after each one.
-        Stick a references to all SpikeModels into a .spikes dict, using spike IDs as the keys"""
+        """Give each spike an ID, inc sort's _sid spike ID counter after each one.
+        Stick a references to all spikes into a .spikes dict, using spike IDs as the keys"""
         self.spikes = {}
-        for sm in self.sms:
-            sm.id = self.sort._sid
+        for s in self._spikes:
+            s.id = self.sort._sid
             self.sort._sid += 1 # inc for next unique SpikeModel
-            sm.detection = self
-            sm.wave = WaveForm() # init to empty waveform
-            sm.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-            sm.plt = None # Plot currently holding self
-            sm.neuron = None # neuron currently associated with
-            self.spikes[sm.id] = sm
+            s.detection = self
+            s.wave = WaveForm() # init to empty waveform
+            s.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
+            s.plt = None # Plot currently holding self
+            s.neuron = None # neuron currently associated with
+            self.spikes[s.id] = s
     '''
-    deprecated: use sm.chans instead:
+    deprecated: use spike.chans instead:
     def get_slock_chans(self, maxchan):
         """Get or generate list of chans within spatial lockout of maxchan, use
         spatial lockout of self.detector
