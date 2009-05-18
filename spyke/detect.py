@@ -106,6 +106,9 @@ class SpikeModel(object):
         Required for effectively using SpikeModels in a Set"""
         return hash((self.t, self.maxchani)) # hash of their tuple, should guarantee uniqueness
 
+    def __repr__(self):
+        return str((self.t, self.maxchani))
+
     def __getitem__(self, key):
         """Return WaveForm for this spike given slice key"""
         assert key.__class__ == slice
@@ -400,7 +403,7 @@ class Detector(object):
         nchans = len(self.chans) # number of enabled chans
         self.lockout = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
-        spikes = [] # list of SpikeModels collected from .searchblock() call(s)
+        spikes = [] # list of spikes collected from .searchblock() call(s)
 
         t0 = time.clock()
         for wavetrange in wavetranges:
@@ -436,8 +439,8 @@ class Detector(object):
         tres = self.stream.tres
         twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
         twts += twts[0] % tres # get rid of mod, so twts go through zero
-        twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
-        print 'twi = %s' % (twi,)
+        self.twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
+        print 'twi = %s' % (self.twi,)
 
         # want an nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
@@ -445,7 +448,7 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-        spikes = self.threshwave(wave, twi)
+        spikes = self.threshwave(wave)
         #spikes = self.modelspikes(spikes)
 
         # trim results from wavetrange down to just cutrange
@@ -455,7 +458,7 @@ class Detector(object):
         spikes = list(np.asarray(spikes)[sis])
         return spikes
 
-    def threshwave(self, wave, twi):
+    def threshwave(self, wave):
         """Threshold wave data and return only events that roughly look like spikes
         TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
@@ -468,10 +471,11 @@ class Detector(object):
         edgeis = np.transpose(edgeis) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
 
         lockout = self.lockout
+        twi = self.twi
         spikes = []
         # check each edge for validity
         for ti, chani in edgeis:
-            print 'trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani])
+            print '*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani])
             if ti <= lockout[chani]: # is this thresh crossing timepoint locked out?
                 print 'thresh event is locked out'
                 continue # skip to next event
@@ -497,7 +501,7 @@ class Detector(object):
             chanii = np.abs(wave.data[chanis, ti]).argmax() # index into chanis of new maxchan
             chani = chanis[chanii] # new max chani
             chan = self.chans[chani] # new max chan
-            print 'new max chan=%d' % chan
+            print('new maxchan @ (%d, %d)' % (self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
             ti0 = max(ti+twi[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
@@ -542,9 +546,12 @@ class Detector(object):
             s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
+            print '*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0))
 
             # update lockout
             lockout[chanis] = ti0 + phase2ti
+            print 'chans  = %s' % (chans,)
+            print 'chanis = %s' % (chanis,)
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
 
         return spikes
@@ -552,8 +559,6 @@ class Detector(object):
     def get_spike_spatial_mean(self, spike, wave):
         """Return weighted spatial mean of chans in spike at designated spike
         time, to use as rough spatial origin of spike"""
-
-        # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
         x = self.siteloc[spike.chanis, 0] # 1D array (row)
         y = self.siteloc[spike.chanis, 1]
         chanweights = wave.data[spike.chanis, spike.ti] # unnormalized, some of these may be -ve
@@ -566,7 +571,10 @@ class Detector(object):
         return x0, y0
 
     def modelspikes(self, events):
-        """Model spike events that roughly look like spikes"""
+        """Model spike events that roughly look like spikes
+        TODO: needs updating to make use of given set of spikes.
+        Really just need to run each Spike's .calc() method, and then
+        check the output modelled params"""
         for ti, chani in events:
             print('trying to model thresh event at t=%d chan=%d'
                   % (wave.ts[ti], self.chans[chani]))

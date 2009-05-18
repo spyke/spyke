@@ -354,10 +354,7 @@ class Detection(object):
         self._spikes = spikes # list of spikes collected from Detector.search
 
     def __eq__(self, other):
-        """Compare detection runs by their ._spikes lists
-        TODO: see if there's any overlap between self.spikes and other.spikes, ie duplicate spikes,
-        and raise a warning in a dialog box or something
-        """
+        """Compare detection runs by their ._spikes lists"""
         return np.all(self._spikes == other._spikes)
 
     def set_spikeids(self):

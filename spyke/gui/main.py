@@ -255,22 +255,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               datetime=datetime.datetime.now(),
                               spikes=spikes)
         # compare this detection to all previous ones, ignore it if it has a set of spikes
-        # identical to any other (see Detection.__eq__ and Spike.__eq__)
-        if detection not in self.sort.detections.values():
-            self.sort._detid += 1 # inc for next unique Detection run
-            detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to spikes
-            self.sort.detections[detection.id] = detection
-            self.append_detection_list(detection)
-            uniquespikes = self.sort.append_spikes(detection.spikes)
-            # disable sampling menu, don't want to allow sampfreq or shcorrect changes
-            # now that we've had at least one detection run
-            self.menubar.Enable(wx.ID_SAMPLING, False)
-            sf = self.OpenFrame('sort') # ensure it's open
-            #self.OpenFrame('pyshell') # for testing
-            t0 = time.clock()
-            sf.Append2SpikeList(uniquespikes)
-            print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
-            print '%r' % detection.spikes
+        # overlapping with any other (see Detection.__eq__ and Spike.__eq__)
+        for det in self.sort.detections.values():
+            if detection == det:
+                raise ValueError("Identical detection ignored")
+            else:
+                intersect = set(detection._spikes).intersection(det._spikes)
+                if intersect:
+                    raise ValueError("New detection ignored for sharing the following"
+                                     "spikes with existing detection %d: %r" %
+                                     (det.id, intersect))
+        self.sort._detid += 1 # inc for next unique Detection run
+        detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to spikes
+        self.sort.detections[detection.id] = detection
+        self.append_detection_list(detection)
+        uniquespikes = self.sort.append_spikes(detection.spikes)
+        # disable sampling menu, don't want to allow sampfreq or shcorrect changes
+        # now that we've had at least one detection run
+        self.menubar.Enable(wx.ID_SAMPLING, False)
+        sf = self.OpenFrame('sort') # ensure it's open
+        #self.OpenFrame('pyshell') # for testing
+        t0 = time.clock()
+        sf.Append2SpikeList(uniquespikes)
+        print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
+        print '%r' % detection.spikes
 
     def OnMatch(self, evt):
         """Sort pane Match button click"""
