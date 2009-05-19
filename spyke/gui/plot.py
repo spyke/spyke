@@ -944,6 +944,7 @@ class SortPanel(PlotPanel):
         """Update and draw a spike's/neuron's plot"""
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         obj.plt.update(wave, obj.t)
+        obj.plt.show_chans(obj.chans) # ensure all of obj's chans are visible
         obj.plt.draw()
 
     def get_closestline(self, evt):
