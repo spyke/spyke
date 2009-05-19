@@ -111,7 +111,7 @@ class SpikeModel(object):
 
     def __getitem__(self, key):
         """Return WaveForm for this spike given slice key"""
-        assert key.__class__ == slice
+        assert type(key) == slice
         #stream = self.detection.detector.stream
         #if stream != None: # stream is available
         #    self.wave = stream[key] # let stream handle the slicing, save result
@@ -145,8 +145,8 @@ class SpikeModel(object):
             data = self.V
         else:
             wave = stream[self.ts[0] : self.ts[-1]+stream.tres] # end inclusive
-            data = wave.data
-            assert data.shape[1] == len(self.ts) # make sure I know what I'm doing
+            data = wave.data[self.chanis]
+            #assert data.shape[1] == len(self.ts) # make sure I know what I'm doing
         self.wave = WaveForm(data=data, ts=self.ts, chans=self.chans)
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
@@ -501,7 +501,7 @@ class Detector(object):
             chanii = np.abs(wave.data[chanis, ti]).argmax() # index into chanis of new maxchan
             chani = chanis[chanii] # new max chani
             chan = self.chans[chani] # new max chan
-            print('new maxchan @ (%d, %d)' % (self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            print('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
             ti0 = max(ti+twi[0], lockout[chani]+1) # make sure any timepoints included prior to ti aren't locked out
@@ -548,11 +548,12 @@ class Detector(object):
             spikes.append(s) # add to list of valid Spikes to return
             print '*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0))
 
-            # update lockout
-            lockout[chanis] = ti0 + phase2ti
-            print 'chans  = %s' % (chans,)
-            print 'chanis = %s' % (chanis,)
-            print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
+            # update lockout, one phase difference after the 2nd phase
+            dphaseti = phase2ti - phase1ti
+            lockout[chanis] = ti0 + phase2ti + dphaseti
+            print 'chans   = %s' % (chans,)
+            print 'chanis  = %s' % (chanis,)
+            print 'lockout = %s' % wave.ts[lockout[chanis]]
 
         return spikes
 

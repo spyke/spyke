@@ -46,7 +46,7 @@ class WaveForm(object):
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id.
         Return a new WaveForm"""
-        if key.__class__ == slice: # slice self in time
+        if type(key) == slice: # slice self in time
             if self.ts == None:
                 return WaveForm() # empty WaveForm
             else:
@@ -194,7 +194,7 @@ class Stream(object):
         #tslice = time.clock()
 
         # for now, accept only slice objects as keys
-        assert key.__class__ == slice
+        assert type(key) == slice
         # key.step == -1 indicates we want the returned Waveform reversed in time
         # key.step == None behaves the same as key.step == 1
         assert key.step in [None, 1, -1]
