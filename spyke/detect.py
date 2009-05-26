@@ -8,6 +8,7 @@ import itertools
 import sys
 import time
 import string
+import logging
 
 import wx
 import pylab
@@ -29,6 +30,21 @@ TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st p
 # save all Spike waveforms, even for those that have never been plotted or added to a neuron
 #SAVEALLSPIKEWAVES = False
 DONTSAVESPIKEWAVES = True
+
+# print detection info and debug msgs to file, and info msgs to screen
+logger = logging.Logger('detection')
+logf = open('../detection.log', 'w')
+fhandler = logging.StreamHandler(strm=logf) # prints to file
+shandler = logging.StreamHandler(strm=sys.stdout) # prints to screen
+formatter = logging.Formatter('%(message)s')
+fhandler.setFormatter(formatter)
+shandler.setFormatter(formatter)
+fhandler.setLevel(logging.DEBUG) # log as low as debug level to file
+shandler.setLevel(logging.INFO) # log no lower than info level to screen
+logger.addHandler(fhandler)
+logger.addHandler(shandler)
+info = logger.info
+debug = logger.debug
 
 
 class FoundEnoughSpikesError(ValueError):
@@ -395,9 +411,9 @@ class Detector(object):
         self.ppthresh = self.thresh * self.ppthreshmult # peak-to-peak threshold, abs, in uV
         #self.thresh = 50 # abs, in uV
         #self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
-        print 'thresh calcs took %.3f sec' % (time.clock()-t0)
-        print 'thresh   = %s' % intround(self.thresh)
-        print 'ppthresh = %s' % intround(self.ppthresh)
+        info('thresh calcs took %.3f sec' % (time.clock()-t0))
+        info('thresh   = %s' % intround(self.thresh))
+        info('ppthresh = %s' % intround(self.ppthresh))
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -417,21 +433,21 @@ class Detector(object):
         spikets = [ s.t for s in spikes ]
         spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
         spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
-        print '\nfound %d spikes in total' % len(spikes)
-        print 'inside .search() took %.3f sec' % (time.clock()-t0)
+        info('\nfound %d spikes in total' % len(spikes))
+        info('inside .search() took %.3f sec' % (time.clock()-t0))
         return spikes
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
-        print 'searchblock():'
-        print 'self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' % \
-              (self.nspikes, self.maxnspikes, wavetrange, direction)
+        info('searchblock():')
+        info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
+             (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
-        #print 'wavetrange: %s, cutrange: %s' % (wavetrange, cutrange)
+        #info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
         wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
         if self.randomsample:
@@ -443,7 +459,7 @@ class Detector(object):
         twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
-        print 'twi = %s' % (self.twi,)
+        info('twi = %s' % (self.twi,))
 
         # want an nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
@@ -478,9 +494,9 @@ class Detector(object):
         spikes = []
         # check each edge for validity
         for ti, chani in edgeis:
-            print '*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani])
+            debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
             if ti <= lockouts[chani]: # is this thresh crossing timepoint locked out?
-                print 'thresh event is locked out'
+                debug('thresh event is locked out')
                 continue # skip to next event
 
             # get data window wrt threshold crossing
@@ -493,7 +509,7 @@ class Detector(object):
             phase2ti = max(minti, maxti)
             ti = ti0 + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
             V1, V2 = window[phase1ti], window[phase2ti]
-            print('window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d'
+            debug('window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d'
                   % (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend],
                      wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2))
 
@@ -505,7 +521,7 @@ class Detector(object):
             chanii = np.abs(wave.data[chanis, ti]).argmax() # index into chanis of new maxchan
             chani = chanis[chanii] # new max chani
             chan = self.chans[chani] # new max chan
-            print('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            debug('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
             ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
@@ -522,8 +538,9 @@ class Detector(object):
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti0 ])
 
-            print 'window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d' % \
-                  (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend], wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2)
+            debug('window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d' %
+                  (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend],
+                   wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2))
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
@@ -535,7 +552,7 @@ class Detector(object):
                 assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
                 assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
             except AssertionError, message: # doesn't qualify as a spike
-                print message
+                debug(message)
                 continue # skip to next event
 
             # consider it a spike, save some attribs
@@ -551,7 +568,7 @@ class Detector(object):
             s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
-            print '*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0))
+            debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
 
             # update lockouts, two phase differences after the 2nd phase
             dphaseti = phase2ti - phase1ti
@@ -559,7 +576,7 @@ class Detector(object):
             lockouts[chanis] = lockout # same for all chans in this spike
             lockoutt = wave.ts[0] + lockout*self.stream.tres
             #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
-            print 'lockout = %d for chans = %s' % (lockoutt, chans)
+            debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
         return spikes
 

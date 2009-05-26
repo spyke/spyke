@@ -14,5 +14,10 @@ inspired by Segev 2004, slight difference is that they don't have to deal with v
     - continue until flat template is one that fits best?
 
 - try modelling decay as exponential instead of gaussian, one exponential for x, one for y, plus a theta to rotate the whole thing
+    - talked with Nick about modelling spikes:
+        - to decide which type of function is best for modelling spikes (in space and/or time), try different models and test chi^2: use noise estimate as sigma, get prob values that model is the right one. Or, could fit model to averaged template, use actual sigma from multiple samples within that template. That would be a better measure of sigma, and would give you more confidence in the probability value you get out of chi^2
+
 
 - should reread 1994 Lewicki, it's Bayesian apparently
+
+- check if, when checking lockout, when one chan fails, that the spike fails on all chans, don't just leave out the failed chan? or maybe not, cuz it's still a useful spike, as long as the maxchan isn't locked out, and as long as at least some minimum number of chans around it aren't locked out
