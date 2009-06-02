@@ -662,7 +662,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
         self.ShowFrame(frametype)
-        return frame
+        return self.frames[frametype] # 'frame' isn't necessarily in local namespace
 
     def ShowFrame(self, frametype, enable=True):
         """Show/hide a frame, force menu and toolbar states to correspond"""

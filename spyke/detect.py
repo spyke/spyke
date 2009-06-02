@@ -16,7 +16,7 @@ import matplotlib as mpl
 
 import numpy as np
 #from scipy.optimize import leastsq, fmin_slsqp
-import openopt
+#import openopt
 #import nmpfit
 
 import spyke.surf

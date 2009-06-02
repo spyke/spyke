@@ -37,7 +37,6 @@ NEURONLINESTYLE = '-'
 RASTERLINEWIDTH = 0.5
 RASTERLINESTYLE = '-'
 #RASTERLINECOLOUR = WHITE
-RASTERHEIGHT = 75 # uV. TODO: calculate this instead
 TREFLINEWIDTH = 0.5
 TREFCOLOUR = '#303030' # dark grey
 VREFLINEWIDTH = 0.5
@@ -236,10 +235,13 @@ class Raster(Plot):
         """Update lines data from spike.t and spike.chans"""
         self.spike = spike
         for chan in spike.chans:
-            line = self.lines[chan]
+            try:
+                line = self.lines[chan]
+            except KeyError:
+                continue # chan doesn't exist for this panel
             xpos, ypos = self.panel.pos[chan]
             x = spike.t - tref + xpos
-            chanheight = RASTERHEIGHT # uV, TODO: calculate this somehow
+            chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
             ylims = ypos - chanheight/2, ypos + chanheight/2
             line.set_data([x, x], ylims) # update the line's x and y data
             line.set_color(self.panel.vcolours[spike.chan]) # colour according to max chan
@@ -258,7 +260,10 @@ class Raster(Plot):
             else:
                 return # don't do anything
         for chan in chans:
-            line = self.lines[chan]
+            try:
+                line = self.lines[chan]
+            except KeyError:
+                continue # chan doesn't exist for this panel
             line.set_visible(enable)
 
     def hide(self):
@@ -280,6 +285,7 @@ class PlotPanel(FigureCanvasWxAgg):
     uVperum = DEFUVPERUM
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
                          # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
+
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self.spykeframe = self.GetTopLevelParent().Parent
@@ -803,6 +809,7 @@ class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
     layed out according to self.siteloc"""
     DEFNRASTERS = 20 # default number of rasters to init
+    RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
@@ -849,6 +856,7 @@ class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
     to the vertical order of their site coords in .siteloc"""
     DEFNRASTERS = 40 # default number of rasters to init
+    RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
@@ -899,6 +907,7 @@ class ChartPanel(PlotPanel):
 class LFPPanel(ChartPanel):
     """LFP Panel"""
     DEFNRASTERS = 20 # default number of rasters to init
+    RASTERHEIGHT = 250 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
         ChartPanel.__init__(self, *args, **kwargs)

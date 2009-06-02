@@ -12,11 +12,11 @@ import datetime
 import wx
 
 import numpy as np
-from scipy.cluster.hierarchy import fclusterdata
-from enthought.mayavi import mlab
+#from scipy.cluster.hierarchy import fclusterdata
+#from enthought.mayavi import mlab
 from matplotlib.colors import hex2color
 #import pylab
-import mdp
+#import mdp
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
