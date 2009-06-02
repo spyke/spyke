@@ -34,17 +34,21 @@ SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
 NEURONLINEWIDTH = 1.5
 NEURONLINESTYLE = '-'
+RASTERLINEWIDTH = 0.5
+RASTERLINESTYLE = '-'
+#RASTERLINECOLOUR = WHITE
+RASTERHEIGHT = 75 # uV. TODO: calculate this instead
 TREFLINEWIDTH = 0.5
+TREFCOLOUR = '#303030' # dark grey
 VREFLINEWIDTH = 0.5
+VREFCOLOUR = '#303030' # dark grey
+CARETCOLOUR = '#202020' # light black
 CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
 
 DEFUVPERUM = 2
 DEFUSPERUM = 17
 
-DEFAULTCHANCOLOUR = '#00FF00' # garish green
-TREFCOLOUR = '#303030' # dark grey
-VREFCOLOUR = '#303030' # dark grey
-CARETCOLOUR = '#202020' # light black
+#DEFAULTCHANCOLOUR = '#00FF00' # garish green
 BACKGROUNDCOLOUR = 'black'
 WXBACKGROUNDCOLOUR = wx.BLACK
 
@@ -72,8 +76,10 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 DEFNPLOTS = 10 # default number of plots to init in SortPanel
 
 CARETZORDER = 0 # layering
-REFLINEZORDER = 1
-PLOTZORDER = 2
+VREFLINEZORDER = 1
+TREFLINEZORDER = 2
+RASTERZORDER = 3
+PLOTZORDER = 4
 
 
 class ColourDict(dict):
@@ -93,6 +99,7 @@ class ColourDict(dict):
 
 
 COLOURDICT = ColourDict(colours=COLOURS)
+
 
 
 class Plot(object):
@@ -156,7 +163,7 @@ class Plot(object):
         TODO: most of the time, updating the xdata won't be necessary,
         but I think updating takes no time at all relative to drawing time"""
         self.tref = tref
-        for chan, line in self.lines.items():
+        for chan, line in self.lines.iteritems():
             xpos, ypos = self.panel.pos[chan]
             if wave.ts == None:
                 xdata = []
@@ -201,6 +208,70 @@ class Plot(object):
             self.panel.ax.draw_artist(line)
 
 
+class Raster(Plot):
+    """Raster plot slot, holds a set of vertical lines
+    for a single spike, one line per chan of that spike"""
+    def __init__(self, chans, panel):
+        self.lines = {} # chan to line mapping
+        self.panel = panel # panel that self belongs to
+        self.chans = set(chans) # all channels available in this Raster, lines can be enabled/disabled, but .chans shouldn't change. This is a superset of the lines required for a single spike
+        for chan in self.chans:
+            line = Line2D([],
+                          [], # TODO: will lack of data before first .draw() cause problems for blitting?
+                          linewidth=RASTERLINEWIDTH,
+                          linestyle=RASTERLINESTYLE,
+                          #color=RASTERLINECOLOUR,
+                          zorder=RASTERZORDER,
+                          antialiased=True,
+                          animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call,
+                                          # but also unfortunately keeps it from being repainted upon occlusion
+                          visible=False) # keep invisible until needed
+            line.chan = chan
+            line.set_pickradius(PICKRADIUS)
+            #line.set_picker(PICKTHRESH)
+            self.lines[chan] = line
+            self.panel.ax.add_line(line) # add to panel's axes' pool of lines
+
+    def update(self, spike, tref):
+        """Update lines data from spike.t and spike.chans"""
+        self.spike = spike
+        for chan in spike.chans:
+            line = self.lines[chan]
+            xpos, ypos = self.panel.pos[chan]
+            x = spike.t - tref + xpos
+            chanheight = RASTERHEIGHT # uV, TODO: calculate this somehow
+            ylims = ypos - chanheight/2, ypos + chanheight/2
+            line.set_data([x, x], ylims) # update the line's x and y data
+            line.set_color(self.panel.vcolours[spike.chan]) # colour according to max chan
+            line.set_visible(True) # enable this chan for this spike
+        notchans = self.chans.difference(spike.chans)
+        for notchan in notchans: # disable all chans not in this spike
+            self.lines[notchan].set_visible(False)
+
+    def show(self, enable=True):
+        """Show/hide lines on all of spike's chans"""
+        try:
+            chans = self.spike.chans
+        except AttributeError: # no spike
+            if enable == False:
+                chans = self.lines.keys() # disable all lines
+            else:
+                return # don't do anything
+        for chan in chans:
+            line = self.lines[chan]
+            line.set_visible(enable)
+
+    def hide(self):
+        """Hide lines on all of spike's chans"""
+        self.show(False)
+
+    def draw(self):
+        """Draw all the lines to axes buffer (or whatever),
+        avoiding unnecessary draws of all other artists in axes"""
+        for line in self.lines.values():
+            self.panel.ax.draw_artist(line)
+
+
 class PlotPanel(FigureCanvasWxAgg):
     """A wx.Panel with an embedded mpl figure.
     Base class for specific types of plot panels"""
@@ -214,8 +285,10 @@ class PlotPanel(FigureCanvasWxAgg):
         self.spykeframe = self.GetTopLevelParent().Parent
 
         self.available_plots = [] # pool of available Plots
-        self.used_plots = {} # Plots holding currently displayed spike/neuron, indexed by sid/nid with s or n prepended
+        self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
         self.qrplt = None # current quickly removable Plot with associated .background
+
+        self.rasters = [] # pool of available Rasters
 
         if stream != None:
             self.stream = stream # only bind for those frames that actually use a stream (ie DataFrames)
@@ -255,7 +328,7 @@ class PlotPanel(FigureCanvasWxAgg):
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
         ys = [ y for x, y in siteloc.values() ]
         maxy = max(ys)
-        for key, (x, y) in siteloc.items():
+        for key, (x, y) in siteloc.iteritems():
             y = maxy - y
             siteloc[key] = (x, y) # update
         self.siteloc = siteloc # center bottom origin
@@ -275,15 +348,16 @@ class PlotPanel(FigureCanvasWxAgg):
         self.black_background = self.copy_from_bbox(self.ax.bbox) # init
 
         # add reference lines and caret in layered order
-        self._show_caret(True) # call the _ methods directly, to prevent unnecessary draws
-        self._show_tref(True)
+        self._show_tref(True) # call the _ methods directly, to prevent unnecessary draws
         self._show_vref(True)
-        for ref in ['caret', 'tref', 'vref']:
-            self.spykeframe.menubar.Check(self.spykeframe.REFTYPE2ID[ref], True) # enforce menu item toggle state
-
+        self._show_caret(True)
+        for ref in ['tref', 'vref', 'caret']:
+            # enforce menu item toggle state
+            self.spykeframe.menubar.Check(self.spykeframe.REFTYPE2ID[ref], True)
         self.draw() # do a full draw of the ref lines
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
         self.init_plots()
+        self.init_rasters()
 
     def init_axes(self):
         """Init the axes and ref lines"""
@@ -299,6 +373,13 @@ class PlotPanel(FigureCanvasWxAgg):
         self.qrplt.show_chans(chans) # show just the chans that spykeframe says are enabled
         self.used_plots[0] = self.qrplt
 
+    def init_rasters(self, nnewrasters=None):
+        """Add Rasters to the pool of existing ones"""
+        nnewrasters = nnewrasters or self.DEFNRASTERS
+        for rsti in range(nnewrasters):
+            rst = Raster(chans=self.chans, panel=self)
+            self.rasters.append(rst)
+
     def add_ref(self, ref):
         """Helper method for external use"""
         if ref == 'tref':
@@ -307,6 +388,8 @@ class PlotPanel(FigureCanvasWxAgg):
             self._add_vref()
         elif ref == 'caret':
             self._add_caret()
+        else:
+            raise ValueError, 'invalid ref: %r' % ref
 
     def show_ref(self, ref, enable=True):
         """Helper method for external use"""
@@ -322,17 +405,19 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def draw_refs(self):
         """Redraws all enabled reflines, resaves reflines_background"""
-        showns = {}
-        for pltid, plt in self.used_plots.items():
+        shownplots = {} # mapping of currently shown plots to their chans shown
+        for pltid, plt in self.used_plots.iteritems():
             shown = plt.get_shown_chans()
-            showns[pltid] = shown
+            shownplots[pltid] = shown
             plt.hide_chans(shown)
-        self.draw() # draw all the enabled refs
+        self.show_rasters(False)
+        self.draw() # draw all the enabled refs - defined in FigureCanvasWxAgg
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
-        for pltid, plt in self.used_plots.items():
-            shown = showns[pltid]
+        for pltid, plt in self.used_plots.iteritems():
+            shown = shownplots[pltid]
             plt.show_chans(shown) # re-show just the chans that were shown previously
             plt.draw()
+        self.show_rasters(True)
         self.blit(self.ax.bbox)
 
     def _add_tref(self):
@@ -340,39 +425,39 @@ class PlotPanel(FigureCanvasWxAgg):
         # get column x positions
         cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
         ylims = self.ax.get_ylim()
-        self.vlines = []
+        self.tlines = []
         for col in cols:
-            vline = Line2D([col, col],
+            tline = Line2D([col, col],
                            ylims,
                            linewidth=TREFLINEWIDTH,
                            color=TREFCOLOUR,
-                           zorder=REFLINEZORDER,
+                           zorder=TREFLINEZORDER,
                            antialiased=True,
                            visible=False)
-            self.vlines.append(vline)
-            self.ax.add_line(vline)
+            self.tlines.append(tline)
+            self.ax.add_line(tline)
 
     def _add_vref(self):
         """Add horizontal voltage reference lines"""
-        self.hlines = []
-        for chan, (xpos, ypos) in self.pos.items():
-            hline = Line2D([xpos+self.tw[0], xpos+self.tw[1]],
+        self.vlines = []
+        for chan, (xpos, ypos) in self.pos.iteritems():
+            vline = Line2D([xpos+self.tw[0], xpos+self.tw[1]],
                            [ypos, ypos],
                            linewidth=VREFLINEWIDTH,
                            color=VREFCOLOUR,
-                           zorder=REFLINEZORDER,
+                           zorder=VREFLINEZORDER,
                            antialiased=True,
                            visible=False)
-            hline.chan = chan
-            hline.set_pickradius(0) # don't normally want these to be pickable
-            self.hlines.append(hline)
-            self.ax.add_line(hline)
+            vline.chan = chan
+            vline.set_pickradius(0) # don't normally want these to be pickable
+            self.vlines.append(vline)
+            self.ax.add_line(vline)
 
     def _add_caret(self):
         """Add a shaded rectangle to represent the time window shown in the spike frame"""
         ylim = self.ax.get_ylim()
         xy = (self.cw[0], ylim[0]) # bottom left coord of rectangle
-        width = self.cw[1]-self.cw[0]
+        width = self.cw[1] - self.cw[0]
         height = ylim[1] - ylim[0]
         self.caret = Rectangle(xy, width, height,
                                facecolor=CARETCOLOUR,
@@ -386,13 +471,13 @@ class PlotPanel(FigureCanvasWxAgg):
         """Update position and size of vertical time reference line(s)"""
         cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
         ylims = self.ax.get_ylim()
-        for col, vline in zip(cols, self.vlines):
-            vline.set_data([col, col], ylims)
+        for col, tline in zip(cols, self.tlines):
+            tline.set_data([col, col], ylims)
 
     def _update_vref(self):
         """Update position and size of horizontal voltage reference lines"""
-        for (xpos, ypos), hline in zip(self.pos.itervalues(), self.hlines):
-            hline.set_data([xpos+self.tw[0], xpos+self.tw[0]], [ypos, ypos])
+        for (xpos, ypos), vline in zip(self.pos.itervalues(), self.vlines):
+            vline.set_data([xpos+self.tw[0], xpos+self.tw[0]], [ypos, ypos])
 
     def _update_caret_width(self):
         """Update caret width"""
@@ -401,19 +486,19 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def _show_tref(self, enable=True):
         try:
-            self.vlines
+            self.tlines
         except AttributeError:
             self._add_tref()
-        for vline in self.vlines:
-            vline.set_visible(enable)
+        for tline in self.tlines:
+            tline.set_visible(enable)
 
     def _show_vref(self, enable=True):
         try:
-            self.hlines
+            self.vlines
         except AttributeError:
             self._add_vref()
-        for hline in self.hlines:
-            hline.set_visible(enable)
+        for vline in self.vlines:
+            vline.set_visible(enable)
 
     def _show_caret(self, enable=True):
         try:
@@ -429,14 +514,14 @@ class PlotPanel(FigureCanvasWxAgg):
         TODO: fix code duplication"""
         if order == 'vertical':
             # first, sort x coords, then y: (secondary, then primary)
-            xychans = [ (x, y, chan) for chan, (x, y) in self.siteloc.items() ] # list of (x, y, chan) 3-tuples
+            xychans = [ (x, y, chan) for chan, (x, y) in self.siteloc.iteritems() ] # list of (x, y, chan) 3-tuples
             xychans.sort() # stable sort in-place according to x values (first in tuple)
             yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
             yxchans.sort() # stable sort in-place according to y values (first in tuple)
             chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
         elif order == 'horizontal':
             # first, sort y coords, then x: (secondary, then primary)
-            yxchans = [ (y, x, chan) for chan, (x, y) in self.siteloc.items() ] # list of (y, x, chan) 3-tuples
+            yxchans = [ (y, x, chan) for chan, (x, y) in self.siteloc.iteritems() ] # list of (y, x, chan) 3-tuples
             yxchans.sort() # stable sort in-place according to y values (first in tuple)
             xychans = [ (x, y, chan) for (y, x, chan) in yxchans ] # list of (x, y, chan) 3-tuples
             xychans.sort() # stable sort in-place according to x values (first in tuple)
@@ -513,17 +598,64 @@ class PlotPanel(FigureCanvasWxAgg):
             return None
 
     def plot(self, wave, tref=None):
-        """Plot waveforms wrt a reference time point"""
+        """Plot waveforms and optionally rasters wrt a reference time point"""
+        '''
+        if wave == None:
+            wave = self.wave
+        else:
+            self.wave = wave'''
         if tref == None:
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
+            #tref = self.tref
+        #else:
+        #    self.tref = tref
         self.restore_region(self.reflines_background)
-        # update plots with new x and y vals
+        # update plots and rasters
         self.qrplt.update(wave, tref)
         self.qrplt.draw()
+        if self.spykeframe.menubar.IsChecked(wx.ID_RASTERS):
+            self.update_rasters(tref)
+            self.draw_rasters()
         self.blit(self.ax.bbox)
         #self.gui_repaint()
         #self.draw()
         #self.Refresh() # possibly faster, but adds a lot of flicker
+
+    def update_rasters(self, tref):
+        """Update spike raster positions and visibility wrt tref"""
+        # find out which spikes are within time window
+        try:
+            sort = self.spykeframe.sort
+        except AttributeError:
+            print('\nno sort in update_rasters\n')
+            return
+        spikes = sort.spikes.values()
+        # TODO: really shouldn't have to do this each and every time, st should be cached and only cleared when sort.spikes dict is modified
+        st = np.asarray([ spike.t for spike in spikes ])
+        # sti = st.argsort() assume spikes are already sorted in time
+        # st = st[sti]
+        lo, hi = st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
+        spikes = spikes[lo:hi] # spikes within range of current time window
+        while len(spikes) > len(self.rasters):
+            self.init_rasters() # append another batch to self.rasters
+        rasteriter = iter(self.rasters) # iterator over rasters
+        for spike in spikes:
+            raster = rasteriter.next()
+            raster.update(spike, tref)
+        for raster in rasteriter: # hide all the rest
+            raster.hide()
+
+    def draw_rasters(self):
+        for raster in self.rasters:
+            raster.draw()
+
+    def show_rasters(self, enable=True):
+        """Show/hide all rasters in this panel"""
+        for raster in self.rasters:
+            raster.show(enable)
+
+    def hide_rasters(self):
+        self.show_rasters(False)
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -670,6 +802,8 @@ class PlotPanel(FigureCanvasWxAgg):
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
     layed out according to self.siteloc"""
+    DEFNRASTERS = 20 # default number of rasters to init
+
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
@@ -714,6 +848,8 @@ class SpikePanel(PlotPanel):
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
     to the vertical order of their site coords in .siteloc"""
+    DEFNRASTERS = 40 # default number of rasters to init
+
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1
@@ -762,6 +898,8 @@ class ChartPanel(PlotPanel):
 
 class LFPPanel(ChartPanel):
     """LFP Panel"""
+    DEFNRASTERS = 20 # default number of rasters to init
+
     def __init__(self, *args, **kwargs):
         ChartPanel.__init__(self, *args, **kwargs)
         self.gain = 1
@@ -818,12 +956,20 @@ class SortPanel(PlotPanel):
             plt = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plt)
 
+    def init_rasters(self, nnewrasters=None):
+        """Disable for SortPanel"""
+        pass
+
+    def update_rasters(self, tref):
+        """Disable for SortPanel"""
+        passs
+
     def _add_vref(self):
         """Increase pick radius for vrefs from default zero, since we're
         relying on them for tooltips"""
         PlotPanel._add_vref(self)
-        for hline in self.hlines:
-            hline.set_pickradius(PICKRADIUS)
+        for vline in self.vlines:
+            vline.set_pickradius(PICKRADIUS)
 
     def show_ref(self, ref, enable=True):
         PlotPanel.show_ref(self, ref, enable)
@@ -954,7 +1100,7 @@ class SortPanel(PlotPanel):
         hitlines = []
         closestchans = self.get_closestchans(evt, n=NCLOSESTCHANSTOSEARCH)
         for chan in closestchans:
-            line = self.hlines[chan] # consider all hlines, even if invisible
+            line = self.vlines[chan] # consider all voltage ref lines, even if invisible
             hit, tisdict = line.contains(evt)
             if hit:
                 tis = tisdict['ind'] # pull them out of the dict
@@ -979,7 +1125,7 @@ class SortPanel(PlotPanel):
             # or, maybe better to just post a pick event, and let the pointed to chan
             # (instead of clicked chan) stand up for itself
             #chan = self.get_closestchans(evt, n=1)
-            line = self.get_closestline(evt) # get closest hline only
+            line = self.get_closestline(evt) # get closest voltage ref line only
             if line:
                 xpos, ypos = self.pos[line.chan]
                 try:

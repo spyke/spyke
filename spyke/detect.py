@@ -39,8 +39,8 @@ shandler = logging.StreamHandler(strm=sys.stdout) # prints to screen
 formatter = logging.Formatter('%(message)s')
 fhandler.setFormatter(formatter)
 shandler.setFormatter(formatter)
-fhandler.setLevel(logging.DEBUG) # log as low as debug level to file
-shandler.setLevel(logging.INFO) # log no lower than info level to screen
+fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
+shandler.setLevel(logging.INFO) # log info level and higher to screen
 logger.addHandler(fhandler)
 logger.addHandler(shandler)
 info = logger.info
@@ -120,10 +120,10 @@ class SpikeModel(object):
     def __hash__(self):
         """Unique hash value for self, based on modelled spike time and location.
         Required for effectively using SpikeModels in a Set"""
-        return hash((self.t, self.maxchani)) # hash of their tuple, should guarantee uniqueness
+        return hash((self.t, self.chan)) # hash of their tuple, should guarantee uniqueness
 
     def __repr__(self):
-        return str((self.t, self.maxchani))
+        return str((self.t, self.chan))
 
     def __getitem__(self, key):
         """Return WaveForm for this spike given slice key"""
@@ -494,7 +494,8 @@ class Detector(object):
         spikes = []
         # check each edge for validity
         for ti, chani in edgeis:
-            debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
+            chan = self.chans[chani]
+            debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
             if ti <= lockouts[chani]: # is this thresh crossing timepoint locked out?
                 debug('thresh event is locked out')
                 continue # skip to next event
@@ -564,7 +565,7 @@ class Detector(object):
             s.tiend, s.tend = tiend, wave.ts[tiend]
             s.V1, s.V2 = V1, V2
             chans = np.asarray(self.chans)[chanis] # dereference
-            s.maxchani, s.chanis, s.chans = chani, chanis, chans
+            s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
             s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
@@ -605,8 +606,8 @@ class Detector(object):
             # create a Spike model
             sm = Spike()
             chans = np.asarray(self.chans)[chanis] # dereference
-            sm.chans, sm.maxchani, sm.nchans = chans, chani, nchans
-            #sm.maxchanii, = np.where(sm.chanis == sm.maxchani) # index into chanis that returns maxchani
+            sm.chani, sm.chanis, sm.chan, sm.chans, sm.nchans = chani, chanis, chan, chans, nchans
+            #sm.chanii, = np.where(sm.chanis == sm.chani) # index into chanis that returns max chani
             sm.dmurange = self.dmurange
             print 'chans  = %s' % (chans,)
             print 'chanis = %s' % (chanis,)

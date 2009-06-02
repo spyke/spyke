@@ -190,6 +190,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """PyShell window toggle menu/button event"""
         self.ToggleFrame('pyshell')
 
+    def OnWaveforms(self, evt):
+        """Spike waveforms toggle menu event"""
+        self.ToggleWaveforms()
+
+    def OnRasters(self, evt):
+        """Spike rasters toggle menu event"""
+        self.ToggleRasters()
+
     def OnTref(self, evt):
         """Time reference toggle menu event"""
         self.ToggleRef('tref')
@@ -216,7 +224,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnMove(self, evt):
         """Move frame, and all dataframes as well, like docked windows"""
-        for frametype, frame in self.frames.items():
+        for frametype, frame in self.frames.iteritems():
             frame.Move(self.GetPosition() + self.dpos[frametype])
         #evt.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
@@ -273,6 +281,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
         # now that we've had at least one detection run
         self.menubar.Enable(wx.ID_SAMPLING, False)
+        self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
+        self.ShowRasters() # show spike rasters for open windows other than sort
         sf = self.OpenFrame('sort') # ensure it's open
         #self.OpenFrame('pyshell') # for testing
         t0 = time.clock()
@@ -341,7 +351,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for det in selectedDetections:
             for spike in det.spikes.values(): # first check all detection's spikes to ensure they aren't neuron members
                 if spike.neuron != None:
-                    wx.MessageBox("can't remove detection %d: spike %d is a member of neuron %d" \
+                    wx.MessageBox("can't remove detection %d: spike %d is a"
+                                  "member of neuron %d"
                                   % (det.id, spike.id, spike.neuron.id),
                                   "Error", wx.OK|wx.ICON_EXCLAMATION)
                     raise RuntimeError
@@ -412,6 +423,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.OpenFrame('lfp')
         #self.OpenFrame('sort')
         #self.OpenFrame('pyshell')
+        # these happen in callAfterFrameInit:
         #self.ShowRef('tref')
         #self.ShowRef('vref')
         #self.ShowRef('caret')
@@ -437,6 +449,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
         self.CreateNewSortSession() # create a new sort session
+        self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
 
         self.EnableSurfWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
@@ -452,13 +465,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def DeleteSortSession(self):
         """Delete any existing sort session"""
         try:
-            # TODO: if Save button is enabled, check if sort session is saved, if not, prompt to save
+            # TODO: if Save button is enabled, check if sort session is saved,
+            # if not, prompt to save
             print 'deleting existing sort session and entries in list controls'
             del self.sort
         except AttributeError:
             pass
         self.detection_list.DeleteAllItems()
-        if 'sort' in self.frames.keys():
+        if 'sort' in self.frames:
             sf = self.frames['sort']
             sf.list.DeleteAllItems()
             sf.tree.DeleteAllItems()
@@ -471,7 +485,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.total_nspikes_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
-        return [ chan for (chan, enable) in self._chans_enabled.items() if enable ]
+        return [ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ]
 
     def set_chans_enabled(self, chans, enable=None):
         """Updates which chans are enabled in ._chans_enabled dict and in the plot panels.
@@ -506,8 +520,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             return
 
         # ...or, leave only chans enabled
-        enabledchans = [ chan for (chan, enabled) in self._chans_enabled.items() if enabled==True ]
-        disabledchans = [ chan for (chan, enabled) in self._chans_enabled.items() if enabled==False ]
+        enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
+        disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==False ]
         notchans = set(allchans).difference(chans) # chans we don't want enabled
         # find the difference between currently enabled chans and the chans we want enabled
         chans2disable = set(enabledchans).difference(chans)
@@ -648,7 +662,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.frames[frametype] = frame
             self.dpos[frametype] = frame.GetPosition() - self.GetPosition()
         self.ShowFrame(frametype)
-        return self.frames[frametype]
+        return frame
 
     def ShowFrame(self, frametype, enable=True):
         """Show/hide a frame, force menu and toolbar states to correspond"""
@@ -676,19 +690,36 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         frame = self.frames.pop(frametype)
         frame.Destroy()
 
+    def ToggleWaveforms(self):
+        pass
+
+    def ToggleRasters(self):
+        """Toggle visibility of rasters"""
+        enable = self.menubar.IsChecked(wx.ID_RASTERS) # maybe not safe, but seems to work
+        self.ShowRasters(enable)
+
+    def ShowRasters(self, enable=True):
+        """Show/hide rasters for all applicable frames. Force menu states to correspond"""
+        self.menubar.Check(wx.ID_RASTERS, enable)
+        for frametype, frame in self.frames.iteritems():
+            if frametype in ['spike', 'chart', 'lfp']:
+                frame.panel.show_rasters(enable=enable)
+                self.plot(frametype)
+
+    def ToggleRef(self, ref):
+        """Toggle visibility of tref, vref, or the caret"""
+        enable = self.menubar.IsChecked(self.REFTYPE2ID[ref]) # maybe not safe, but seems to work
+        self.ShowRef(ref, enable)
+
     def ShowRef(self, ref, enable=True):
         """Show/hide a tref, vref, or the caret. Force menu states to correspond"""
         self.menubar.Check(self.REFTYPE2ID[ref], enable)
-        for frametype, frame in self.frames.items():
+        for frametype, frame in self.frames.iteritems():
             if frametype in ['spike', 'chart', 'lfp']:
                 frame.panel.show_ref(ref, enable=enable)
             elif frametype == 'sort':
                 frame.spikesortpanel.show_ref(ref, enable=enable)
-                frame.chartsortpanel.show_ref(ref, enable=enable)
-
-    def ToggleRef(self, ref):
-        """Toggle visibility of a tref, vref, or the caret"""
-        self.ShowRef(ref, self.menubar.IsChecked(self.REFTYPE2ID[ref])) # maybe not safe, but seems to work
+                #frame.chartsortpanel.show_ref(ref, enable=enable)
 
     def SetSampfreq(self, sampfreq):
         """Set highpass stream sampling frequency, update widgets"""
@@ -732,6 +763,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_SORTWIN, enable)
         self.menubar.Enable(wx.ID_SAVE, enable)
         self.toolbar.EnableTool(wx.ID_SAVE, enable)
+        self.menubar.Enable(wx.ID_RASTERS, enable)
         self.sort_pane.Enable()
 
     def get_detector(self):
