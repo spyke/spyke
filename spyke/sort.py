@@ -80,7 +80,7 @@ class Sort(object):
         return d
 
     def append_spikes(self, spikes):
-        """Append spikes to self.
+        """Append spikes to self, update self.st.
         Don't add a new spike from a new detection if the identical spike
         is already in self.spikes"""
         newspikes = set(spikes.values()).difference(self.spikes.values())
@@ -91,7 +91,18 @@ class Sort(object):
         for newspike in newspikes:
             uniquespikes[newspike.id] = newspike
         self.spikes.update(uniquespikes)
+        self.update_st()
         return uniquespikes
+
+    def update_st(self):
+        """Update self.st sorted array of spike times and self.sorted_spikes array
+        of spike objects"""
+        spikes_array = np.asarray([ spike for spike in self.spikes.itervalues() ])
+        st = np.asarray([ spike.t for spike in spikes_array ])
+        # can't assume spikes come out of dict sorted in time
+        sti = st.argsort()
+        self.st = st[sti] # temporally sorted array of current spike times
+        self.sorted_spikes = spikes_array[sti] # temporally sorted array of current spikes
 
     def spikes_sortedbyID(self):
         """Return list of spikes, sorted by their IDs"""
@@ -199,7 +210,8 @@ class Sort(object):
         #return n2sidsT
         return cidsT
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting='pca', minspikes=2, mode='sphere', scale_factor=1, scale_mode='scalar'):
+    def plot(self, nids=None, dims=[0, 1, 2], weighting='pca', minspikes=2,
+             mode='point', scale_factor=1, scale_mode='scalar'):
         """Plot 3D projection of clustered data. nids should be a list
         of neuron ids corresponding to sorted sequence of spike ids. Make
         sure to pass the weighting that was used when clustering the data"""
@@ -242,7 +254,8 @@ class Sort(object):
         x = X[:, dims[0]]
         y = X[:, dims[1]]
         z = X[:, dims[2]]
-        # 3D glyphs like 'sphere' come out looking almost black for some reason, use 'point' instead
+        # 3D glyphs like 'sphere' come out looking almost black for some reason,
+        # use 'point' instead
         glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
         glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
 

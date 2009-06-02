@@ -276,8 +276,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sort._detid += 1 # inc for next unique Detection run
         detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to spikes
         self.sort.detections[detection.id] = detection
-        self.append_detection_list(detection)
         uniquespikes = self.sort.append_spikes(detection.spikes)
+        self.append_detection_list(detection)
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
         # now that we've had at least one detection run
         self.menubar.Enable(wx.ID_SAMPLING, False)
@@ -342,7 +342,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.detection_list.Append(row)
         for coli in range(len(row)):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        self.total_nspikes_label.SetLabel(str(self.get_total_nspikes()))
+        self.total_nspikes_label.SetLabel(str(len(self.sort.st)))
 
     def delete_selected_detections(self):
         """Delete selected rows in detection list"""
@@ -368,24 +368,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         print "can't find spike %d in sort.spikes or in sort.trash, it may have been a duplicate" % spikei
             del self.sort.detections[det.id] # remove from sort's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
+        self.sort.update_st()
         if len(self.sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
-        self.total_nspikes_label.SetLabel(str(self.get_total_nspikes())) # update
+        self.total_nspikes_label.SetLabel(str(len(self.sort.st))) # update
 
     def listRow2Detection(self, row):
         """Return Detection at detection list row"""
         detectioni = int(self.detection_list.GetItemText(row))
         detection = self.sort.detections[detectioni]
         return detection
-
-    def get_total_nspikes(self):
-        """Get total nspikes across all detection runs
-        TODO: or should this just count nspikes in .sort,
-        which would make it number of unique spikes?"""
-        nspikes = 0
-        for det in self.sort.detections.values():
-            nspikes += len(det.spikes)
-        return nspikes
 
     def OpenFile(self, fname):
         """Open either .srf or .sort file"""

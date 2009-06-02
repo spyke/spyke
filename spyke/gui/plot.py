@@ -630,18 +630,9 @@ class PlotPanel(FigureCanvasWxAgg):
     def update_rasters(self, tref):
         """Update spike raster positions and visibility wrt tref"""
         # find out which spikes are within time window
-        try:
-            sort = self.spykeframe.sort
-        except AttributeError:
-            print('\nno sort in update_rasters\n')
-            return
-        spikes = sort.spikes.values()
-        # TODO: really shouldn't have to do this each and every time, st should be cached and only cleared when sort.spikes dict is modified
-        st = np.asarray([ spike.t for spike in spikes ])
-        # sti = st.argsort() assume spikes are already sorted in time
-        # st = st[sti]
-        lo, hi = st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
-        spikes = spikes[lo:hi] # spikes within range of current time window
+        sort = self.spykeframe.sort
+        lo, hi = sort.st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
+        spikes = sort.sorted_spikes[lo:hi] # spikes within range of current time window
         while len(spikes) > len(self.rasters):
             self.init_rasters() # append another batch to self.rasters
         rasteriter = iter(self.rasters) # iterator over rasters
