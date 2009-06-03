@@ -404,13 +404,11 @@ class Detector(object):
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
-        # TODO: instead of calling up the distance matrix and then checking for which chans are within slock over and over, since the slock is constant over an entire search, calculate each channel's neighbours once, and then call up that list of neighbours. Should be faster
+        # TODO: instead of calling up the distance matrix and then checking for which chans are within slock over and over, if the slock is constant over an entire search, calculate each channel's neighbours once, and then call up that list of neighbours. Should be faster
 
         t0 = time.clock()
         self.thresh = self.get_thresh() # abs, in uV, one per chan in self.chans
         self.ppthresh = self.thresh * self.ppthreshmult # peak-to-peak threshold, abs, in uV
-        #self.thresh = 50 # abs, in uV
-        #self.ppthresh = self.thresh + 30 # peak-to-peak threshold, abs, in uV
         info('thresh calcs took %.3f sec' % (time.clock()-t0))
         info('thresh   = %s' % intround(self.thresh))
         info('ppthresh = %s' % intround(self.ppthresh))
@@ -420,7 +418,8 @@ class Detector(object):
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
         nchans = len(self.chans) # number of enabled chans
-        self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out
+        self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
+        self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
         spikes = [] # list of spikes collected from .searchblock() call(s)
 
@@ -447,15 +446,19 @@ class Detector(object):
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
-        #info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
-        wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed
+        info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
+        wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
+        tres = self.stream.tres
+        self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
+        info('at start of searchblock:\n new wave.ts[0, end] = %s\n new lockouts = %s' %
+             ((wave.ts[0], wave.ts[-1]), self.lockouts))
+
         if self.randomsample:
             maxnspikes = 1 # how many more we're looking for in the next block
         else:
             maxnspikes = self.maxnspikes - self.nspikes
 
-        tres = self.stream.tres
         twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
@@ -467,27 +470,31 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-        spikes = self.threshwave(wave)
+        spikes = self.threshwave(wave, cutrange)
         #spikes = self.modelspikes(spikes)
 
-        # trim results from wavetrange down to just cutrange
-        ts = np.asarray([ s.t for s in spikes ]) # get all spike times
-        # searchsorted might be faster here instead of checking each and every element
-        sis = (cutrange[0] < ts) * (ts < cutrange[1]) # boolean array of indices into spikes
-        spikes = list(np.asarray(spikes)[sis])
+        self.nspikes += len(spikes) # update for next call
+        self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
+        info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
+             (self.lockouts, self.lockouts_us))
         return spikes
 
-    def threshwave(self, wave):
-        """Threshold wave data and return only events that roughly look like spikes
-        TODO: would be nice to use some multichannel thresholding, instead of just single independent channel
+    def threshwave(self, wave, cutrange):
+        """Threshold wave data and return only events that fall within
+        cutrange and roughly look like spikes
+        TODO: would be nice to use some multichannel thresholding, instead
+        of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
             - hyperellipsoidal?
-            - take mean of sets of chans (say one set per chan, slock of chans around it), check when they exceed thresh, find max chan within that set at that time and report it as a threshold event
-            - or slide some filter across the data that not only checks for thresh, but ppthresh as well
+            - take mean of sets of chans (say one set per chan, slock of chans
+            around it), check when they exceed thresh, find max chan within
+            that set at that time and report it as a threshold event
+            - or slide some filter across the data that not only checks for
+            thresh, but ppthresh as well
         """
         edges = np.diff(np.int8(abs(wave.data) >= np.vstack(self.thresh))) # indices where changing abs(signal) has crossed thresh
         edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
-        edgeis = np.transpose(edgeis) # shape == (nti, 2), col0: ti, col1: chani. Rows are sorted increasing in time
+        edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
 
         lockouts = self.lockouts
         twi = self.twi
@@ -515,6 +522,7 @@ class Detector(object):
                      wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2))
 
             # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
+            # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
 
@@ -536,6 +544,7 @@ class Detector(object):
             V1, V2 = window[phase1ti], window[phase2ti]
 
             # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti0:
+            # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti0 ])
 
@@ -543,10 +552,9 @@ class Detector(object):
                   (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend],
                    wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2))
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
-            # should help speed things up by rejecting obviously invalid events without having to run the model
             try:
                 assert abs(V2 - V1) >= self.ppthresh[chani], \
-                    "event doesn't cross ppthresh[chani=%d]=%.1f" % (chani, self.ppthresh[chani])
+                    "event doesn't cross ppthresh[chani=%d] = %.1f" % (chani, self.ppthresh[chani])
                 assert phase1ti-0 > 2, 'phase1t is very near window startpoint, probably a mistrigger'
                 assert len(window)-phase2ti > 2, 'phase2t is very near window endpoint, probably a mistrigger'
                 assert np.sign(V1) == -np.sign(V2), 'phases must be of opposite sign'
@@ -556,11 +564,16 @@ class Detector(object):
                 debug(message)
                 continue # skip to next event
 
-            # consider it a spike, save some attribs
+            # looks like a spike, calc and save some attribs
             s = Spike()
             s.ti0, s.t0 = ti0, wave.ts[ti0]
             s.ti = ti0+phase1ti
             s.t = wave.ts[s.ti]
+            try:
+                assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
+            except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
+                debug(message)
+                continue # skip to next event
             s.ts = wave.ts[ti0:tiend]
             s.tiend, s.tend = tiend, wave.ts[tiend]
             s.V1, s.V2 = V1, V2
@@ -712,7 +725,7 @@ class Detector(object):
             """
             lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres)
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
-
+    '''
     def check_spikes(self, spikes):
         """Checks for duplicate spikes between results from latest .searchblock() call,
         and previously saved spikes in this .search()"""
@@ -730,7 +743,7 @@ class Detector(object):
             self.spikes.append(spikes)
             self.nspikes += nnewspikes # update
             sys.stdout.write('.')
-
+    '''
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
         given blocksize and blockexcess"""

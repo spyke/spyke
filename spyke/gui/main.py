@@ -288,7 +288,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         t0 = time.clock()
         sf.Append2SpikeList(uniquespikes)
         print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
-        print '%r' % detection.spikes
+        #print '%r' % detection.spikes
 
     def OnMatch(self, evt):
         """Sort pane Match button click"""
