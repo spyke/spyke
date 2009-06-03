@@ -451,6 +451,7 @@ class Detector(object):
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
         tres = self.stream.tres
         self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
+        self.lockouts[self.lockouts < 0] = 0 # don't allow -ve lockout indices
         info('at start of searchblock:\n new wave.ts[0, end] = %s\n new lockouts = %s' %
              ((wave.ts[0], wave.ts[-1]), self.lockouts))
 
@@ -489,13 +490,10 @@ class Detector(object):
             - take mean of sets of chans (say one set per chan, slock of chans
             around it), check when they exceed thresh, find max chan within
             that set at that time and report it as a threshold event
-            - or slide some filter across the data that not only checks for
-            thresh, but ppthresh as well
+            - or slide some filter across the data in space and time that not
+            only checks for thresh, but ppthresh as well
         """
-        edges = np.diff(np.int8(abs(wave.data) >= np.vstack(self.thresh))) # indices where changing abs(signal) has crossed thresh
-        edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
-        edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
-
+        edgeis = self.get_edgeis(wave)
         lockouts = self.lockouts
         twi = self.twi
         spikes = []
@@ -593,6 +591,12 @@ class Detector(object):
             debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
         return spikes
+
+    def get_edgeis(self, wave):
+        edges = np.diff(np.int8(abs(wave.data) >= np.vstack(self.thresh))) # indices where changing abs(signal) has crossed thresh
+        edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
+        edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
+        return edgeis
 
     def get_spike_spatial_mean(self, spike, wave):
         """Return weighted spatial mean of chans in spike at designated spike

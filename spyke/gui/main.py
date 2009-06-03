@@ -369,6 +369,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             del self.sort.detections[det.id] # remove from sort's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
         self.sort.update_st()
+        self.plot() # update rasters
         if len(self.sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
         self.total_nspikes_label.SetLabel(str(len(self.sort.st))) # update
