@@ -30,6 +30,13 @@ SORTSPLITTERSASH = 117
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
 
+"""
+TODO: before extracting features from events, first align all chans wrt maxchan.
+Keep tabs on how far and in what direction each chan had to be realigned. Maybe
+take sum(abs(phase1V*realignments)) over all chans in the event, (weighted by
+amount of signal at phase1 on that chan) and call that another feature.
+Events with lots of realignment are more likely BPAPs, or are certainly a different
+mode of spike than those with very little realignment.
 
 class Sort(object):
     """A spike sorting session, in which you can do multiple Detection runs,

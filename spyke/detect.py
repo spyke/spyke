@@ -508,7 +508,7 @@ class Detector(object):
         info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
              (self.lockouts, self.lockouts_us))
         return spikes
-
+    '''
     def threshwave(self, wave, cutrange):
         """Threshold wave data and return only events that fall within
         cutrange and roughly look like spikes. Searches blindly within window for
@@ -611,7 +611,7 @@ class Detector(object):
             debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
         return spikes
-
+    '''
     def threshwave2(self, wave, cutrange):
         """Threshold wave data and return only events that fall within
         cutrange and roughly look like spikes. Search in window
@@ -643,6 +643,7 @@ class Detector(object):
         smaller fry. ex. ptc15.87.125820. Also, see error choosing the wrong maxchan due
         to sequential time-space-time-space search at ptc15.87.68420 (should detect grey
         maxchan 7, not slightly earlier magenta maxchan 46)
+            - maybe partition the data into 2D tiles with some overlap
         """
         edgeis = self.get_edgeis(wave)
         lockouts = self.lockouts
@@ -743,9 +744,9 @@ class Detector(object):
             spikes.append(s) # add to list of valid Spikes to return
             debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
 
-            # update lockouts, 1/2 phase difference after the 2nd phase
-            dphaseti = phase2ti - phase1ti
-            lockout = ti0 + phase2ti + dphaseti / 2
+            # update lockouts to 2nd phase of this spike
+            #dphaseti = phase2ti - phase1ti
+            lockout = ti0 + phase2ti #+ dphaseti / 2
             lockouts[chanis] = lockout # same for all chans in this spike
             lockoutt = wave.ts[0] + lockout*self.stream.tres
             #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
@@ -819,7 +820,7 @@ class Detector(object):
         assert type(dti) == int
         n_ext = len(exti)
         code = ("""
-        // index into signal to get values
+        // index into signal to get voltages
         double peak1 = signal[peak1i];
         double abs_peak2 = 0.0;
         int peak2i = -1; // indicates suitable 2nd peak not yet found
