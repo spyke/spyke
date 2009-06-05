@@ -453,6 +453,10 @@ DONE:
 - are there really two different record flags (M and MS) that both indicate a MessageRecord (see surf.py)? What .srf files do either (or both) occur in? Which one is more common? The MS one?
     - no, they're MS and MU, for Surf and User generated messages. At least, there shouldn't be any .srf files out there that have only M as the record flag
 
+- instead of simply searching for max and min V within window, search in window forward from thresh for a peak, then in either from that peak for up to another 200us for another one of opposite sign. If you don't find a 2nd one, it ain't a spike. How to find peaks? Look for change in diff? Nah, use inline C.
+
+
+
 
 SPIKE MODELLING:
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints

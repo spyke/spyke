@@ -15,6 +15,7 @@ import pylab
 import matplotlib as mpl
 
 import numpy as np
+from scipy.weave import inline
 #from scipy.optimize import leastsq, fmin_slsqp
 #import openopt
 #import nmpfit
@@ -47,7 +48,31 @@ info = logger.info
 debug = logger.debug
 
 
+def arglext(signal):
+    """Return indices of all local extrema in 1D signal"""
+    nt = len(signal)
+    exti = np.zeros(nt, dtype=int)
+    code = ("""
+    int n_ext = 0;
+    double last, last2;
+    for (int i=2; i<nt; i++) {
+        last = signal[i-1];
+        last2 = signal[i-2];
+        //if ((last-last2) * (signal[i]-last) < 0.0) {
+        if ((last2 < last && last > signal[i]) || (last2 > last && last < signal[i])) {
+            exti[n_ext] = i-1;
+            n_ext++;
+        }
+    }
+    return_val = n_ext;""")
+    n_ext = inline(code, ['signal', 'nt', 'exti'], compiler='gcc')
+    return exti[:n_ext]
+
+
 class FoundEnoughSpikesError(ValueError):
+    pass
+
+class NoPeakError(ValueError):
     pass
 
 
@@ -364,6 +389,7 @@ class Detector(object):
     DEFMAXNSPIKES = 0
     DEFBLOCKSIZE = 1000000 # us, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
+    DEFDT = 300 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
 
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
@@ -372,7 +398,7 @@ class Detector(object):
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None, ppthreshmult=None,
                  fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
-                 slock=None, randomsample=None):
+                 slock=None, dt=None, randomsample=None):
         """Takes a data stream and sets various parameters"""
         self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
         self.stream = stream
@@ -388,6 +414,8 @@ class Detector(object):
         self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes, applies across chans
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
+        self.dt = dt or self.DEFDT
+        self.dti = int(self.dt // self.stream.tres)
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
         self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
@@ -471,7 +499,8 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-        spikes = self.threshwave(wave, cutrange)
+        #spikes = self.threshwave(wave, cutrange)
+        spikes = self.threshwave2(wave, cutrange)
         #spikes = self.modelspikes(spikes)
 
         self.nspikes += len(spikes) # update for next call
@@ -482,17 +511,8 @@ class Detector(object):
 
     def threshwave(self, wave, cutrange):
         """Threshold wave data and return only events that fall within
-        cutrange and roughly look like spikes
-        TODO: would be nice to use some multichannel thresholding, instead
-        of just single independent channel
-            - e.g. obvious but small multichan spike at ptc15.87.23340
-            - hyperellipsoidal?
-            - take mean of sets of chans (say one set per chan, slock of chans
-            around it), check when they exceed thresh, find max chan within
-            that set at that time and report it as a threshold event
-            - or slide some filter across the data in space and time that not
-            only checks for thresh, but ppthresh as well
-        """
+        cutrange and roughly look like spikes. Searches blindly within window for
+        max and min V"""
         edgeis = self.get_edgeis(wave)
         lockouts = self.lockouts
         twi = self.twi
@@ -582,9 +602,150 @@ class Detector(object):
             spikes.append(s) # add to list of valid Spikes to return
             debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
 
-            # update lockouts, two phase differences after the 2nd phase
+            # update lockouts, one phase difference after the 2nd phase
             dphaseti = phase2ti - phase1ti
-            lockout = ti0 + phase2ti + 2*dphaseti
+            lockout = ti0 + phase2ti + dphaseti
+            lockouts[chanis] = lockout # same for all chans in this spike
+            lockoutt = wave.ts[0] + lockout*self.stream.tres
+            #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
+            debug('lockout = %d for chans = %s' % (lockoutt, chans))
+
+        return spikes
+
+    def threshwave2(self, wave, cutrange):
+        """Threshold wave data and return only events that fall within
+        cutrange and roughly look like spikes. Search in window
+        forward from thresh for a peak, then in appropriate direction from
+        that peak (based on sign of signal) for up to self.dt for another
+        one of opposite sign. If you don't find a 2nd one that meets these
+        criteria, it ain't a spike.
+
+        TODO: would be nice to use some multichannel thresholding, instead
+        of just single independent channel
+            - e.g. obvious but small multichan spike at ptc15.87.23340
+            - hyperellipsoidal?
+            - take mean of sets of chans (say one set per chan, slock of chans
+            around it), check when they exceed thresh, find max chan within
+            that set at that time and report it as a threshold event
+            - or slide some filter across the data in space and time that not
+            only checks for thresh, but ppthresh as well
+
+        TODO: make lockout in space and time proportional to the size (and slope?) of signal
+        on each chan at the 2nd phase on the maxchan
+            - on the maxchan, lockout for some determined time after 2nd phase (say one dphase),
+            on others lock out a proportionally less amount in time (say V2/V2maxchan*dphase)
+            - should help with nearly overlapping spikes, such as at ptc15.87.89740
+        - or more crudely?: for chans within slock radius, lockout only those that
+        exceeded thresh within the window
+
+        TODO: search local window in space and time *simultaneously* for biggest signal,
+        deal with that first, then go back after applying lockout and deal with the
+        smaller fry. ex. ptc15.87.125820. Also, see error choosing the wrong maxchan due
+        to sequential time-space-time-space search at ptc15.87.68420 (should detect grey
+        maxchan 7, not slightly earlier magenta maxchan 46)
+        """
+        edgeis = self.get_edgeis(wave)
+        lockouts = self.lockouts
+        twi = self.twi
+        spikes = []
+        # check each edge for validity
+        for ti, chani in edgeis: # ti begins life as the threshold xing time index
+            chan = self.chans[chani]
+            debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
+            if ti <= lockouts[chani]: # is this thresh crossing timepoint locked out?
+                debug('thresh event is locked out')
+                continue # skip to next event
+
+            # get data window wrt threshold crossing
+            ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            window = wave.data[chani, ti0:tiend] # window of data
+
+            # find spike phases
+            tiw = ti - ti0 # time index where ti falls wrt the window
+            try:
+                phase1ti, phase2ti = self.find_spike_phases(window, tiw, reftype='trigger')
+            except NoPeakError, message: # doesn't qualify as a spike
+                debug(message)
+                continue # skip to next event
+            ti = ti0 + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
+            V1, V2 = window[phase1ti], window[phase2ti]
+            debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
+                  % (wave.ts[ti0], wave.ts[tiend],
+                     wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
+                     V1, V2))
+
+            # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
+            # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
+            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
+            chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
+
+            # find maxchan within chanis at 1st phase
+            chanii = np.abs(wave.data[chanis, ti]).argmax() # index into chanis of new maxchan
+            chani = chanis[chanii] # new max chani
+            chan = self.chans[chani] # new max chan
+            debug('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
+
+            # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
+            ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            window = wave.data[chani, ti0:tiend]
+
+            # find spike phases again, on new maxchan in refined window, starting from new ti
+            tiw = ti - ti0 # time index where ti falls wrt the window
+            try:
+                phase1ti, phase2ti = self.find_spike_phases(window, tiw, reftype='phase')
+            except NoPeakError, message: # doesn't qualify as a spike
+                debug(message)
+                continue # skip to next event
+            ti = ti0 + phase1ti # overwrite ti, make it the new phase1ti wrt 0th time index
+            V1, V2 = window[phase1ti], window[phase2ti]
+            debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
+                  % (wave.ts[ti0], wave.ts[tiend],
+                     wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
+                     V1, V2))
+
+            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti:
+            # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
+            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
+            chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
+
+            # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
+            try:
+                assert abs(V2 - V1) >= self.ppthresh[chani], \
+                    "event doesn't cross ppthresh[chani=%d] = %.1f" % (chani, self.ppthresh[chani])
+                assert phase1ti-0 > 2, 'phase1t is very near window startpoint, probably a mistrigger'
+                assert len(window)-phase2ti > 2, 'phase2t is very near window endpoint, probably a mistrigger'
+                assert np.sign(V1) == -np.sign(V2), 'phases must be of opposite sign'
+                #assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
+                #assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
+            except AssertionError, message: # doesn't qualify as a spike
+                debug(message)
+                continue # skip to next event
+
+            # looks like a spike, calc and save some attribs
+            s = Spike()
+            s.ti0, s.t0 = ti0, wave.ts[ti0]
+            s.ti = ti0+phase1ti
+            s.t = wave.ts[s.ti]
+            try:
+                assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
+            except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
+                debug(message)
+                continue # skip to next event
+            s.ts = wave.ts[ti0:tiend]
+            s.tiend, s.tend = tiend, wave.ts[tiend]
+            s.V1, s.V2 = V1, V2
+            chans = np.asarray(self.chans)[chanis] # dereference
+            s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
+            s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
+            s.valid = True
+            spikes.append(s) # add to list of valid Spikes to return
+            debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
+
+            # update lockouts, 1/2 phase difference after the 2nd phase
+            dphaseti = phase2ti - phase1ti
+            lockout = ti0 + phase2ti + dphaseti / 2
             lockouts[chanis] = lockout # same for all chans in this spike
             lockoutt = wave.ts[0] + lockout*self.stream.tres
             #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
@@ -593,10 +754,92 @@ class Detector(object):
         return spikes
 
     def get_edgeis(self, wave):
-        edges = np.diff(np.int8(abs(wave.data) >= np.vstack(self.thresh))) # indices where changing abs(signal) has crossed thresh
+        edges = np.diff(np.int8( abs(wave.data) >= np.vstack(self.thresh) )) # indices where changing abs(signal) has crossed thresh
         edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
         edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
         return edgeis
+
+    def find_spike_phases(self, window, tiw, reftype='trigger'):
+        """Find spike phases within window of data: search from tiw in direction
+        (which might be, say, a threshold xing point) for 1st peak,
+        then within self.dti of that for a 2nd peak of opposite phase.
+        Decide which peak comes first, return window indices of 1st and 2nd spike phases.
+        reftype describes what tiw represents: a 'trigger' point or previously found spike 'phase'
+        """
+        exti = arglext(window) # indices of local extrema, wrt window
+        if len(exti) == 0:
+            raise NoPeakError("can't find any extrema within window")
+        if reftype == 'trigger':
+            dir1 = 'right'
+        elif reftype == 'phase':
+            dir1 = 'nearest'
+        else:
+            raise ValueError('unknown reftype %r' % reftype)
+        '''
+        if dir1 == 'left':
+            try:
+                peak1i = exti[(exti <= tiw)][-1] # index of first extremum left of tiw, wrt window
+            except IndexError:
+                raise NoPeakError("can't find 1st peak within window")'''
+        if dir1 == 'right':
+            try:
+                peak1i = exti[(exti >= tiw)][0] # index of first extremum right of tiw, wrt window
+            except IndexError:
+                raise NoPeakError("can't find 1st peak within window")
+        else: # dir1 == 'nearest'
+            peak1i = exti[abs(exti - tiw).argmin()]
+        peak1i = int(peak1i)
+        if window[peak1i] < 0.0: # peak1i is -ve, look right for corresponding +ve peak
+            dir2 = 'right'
+        else: # peak1i is +ve, look left for corresponding -ve peak
+            dir2 = 'left'
+        peak2i = self.arg2ndpeak(window, exti, peak1i, dir2) # find biggest 2nd extremum of opposite sign in dir2 within self.dti
+        # check which comes first
+        if dir2 == 'right':
+            assert peak1i < peak2i
+            return peak1i, peak2i
+        else: # dir2 == 'left'
+            assert peak2i < peak1i
+            return peak2i, peak1i
+
+    def arg2ndpeak(self, signal, exti, peak1i, dir2):
+        """Return signal's biggest local extremum of opposite sign,
+        in dir2, and within self.dti of peak1i"""
+        #dti = intround(dti) # this returns a np.int64 dtype, which is bad
+        if dir2 == 'left':
+            exti = exti[exti < peak1i] # keep only left half of exti
+        elif dir2 == 'right':
+            exti = exti[exti > peak1i] # keep only right half of exti
+        elif dir2 == 'both':
+            pass # keep all of exti
+        else:
+            raise ValueError('unknown dir2 %r' % dir2)
+        assert type(peak1i) == int
+        dti = self.dti
+        assert type(dti) == int
+        n_ext = len(exti)
+        code = ("""
+        // index into signal to get values
+        double peak1 = signal[peak1i];
+        double abs_peak2 = 0.0;
+        int peak2i = -1; // indicates suitable 2nd peak not yet found
+        int ei;
+        // test all extrema in exti
+        for (int i=0; i<n_ext; i++) {
+            ei = exti[i]; // i'th extremum's index into signal
+            if ((abs(ei-peak1i) <= dti) && // if extremum is within dti of peak1i
+                (signal[ei] * peak1 < 0.0) && // and is of opposite sign
+                (fabs(signal[ei]) > abs_peak2)) { // and is bigger than last one found
+                    peak2i = ei; // save it
+                    abs_peak2 = fabs(signal[peak2i]);
+            }
+        }
+        return_val = peak2i;""")
+        peak2i = inline(code, ['signal', 'exti', 'n_ext', 'peak1i', 'dir2', 'dti'],
+                        compiler='gcc')
+        if peak2i == -1:
+            raise NoPeakError("can't find suitable 2nd peak")
+        return peak2i
 
     def get_spike_spatial_mean(self, spike, wave):
         """Return weighted spatial mean of chans in spike at designated spike
