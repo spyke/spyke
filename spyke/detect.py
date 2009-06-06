@@ -47,6 +47,7 @@ logger.addHandler(shandler)
 info = logger.info
 debug = logger.debug
 
+DEBUG = True # print detection debug messages to log file? slows down detection
 
 def arglext(signal):
     """Return indices of all local extrema in 1D signal"""
@@ -501,6 +502,8 @@ class Detector(object):
 
         #spikes = self.threshwave(wave, cutrange)
         spikes = self.threshwave2(wave, cutrange)
+        #import cProfile
+        #cProfile.runctx('spikes = self.threshwave2(wave, cutrange)', globals(), locals())
         #spikes = self.modelspikes(spikes)
 
         self.nspikes += len(spikes) # update for next call
@@ -630,6 +633,17 @@ class Detector(object):
             - or slide some filter across the data in space and time that not
             only checks for thresh, but ppthresh as well
 
+        TODO: when searching for maxchan, new one should exceed current in Vpp, not just in Vp
+        at phase1t. See ptc15.87.35040. Best to use Vpp instead of just size of a single phase
+        when deciding on maxchan
+
+        TODO: Another problem at ptc15.87.35040
+        is that it did actually detect the original teal chan 5 as a spike, but
+        then when it went to look for phase2 on the new purple maxchan 6 and couldn't find it,
+        it gave up completely instead of reverting back to the previous maxchan. Maybe I should
+        save things that are definitely spike-like before looking for new maxchan, and revert to those
+        if a PeakError is raised... Maybe I should be doing recursive calls?
+
         TODO: make lockout in space and time proportional to the size (and slope?) of signal
         on each chan at the 2nd phase on the maxchan
             - on the maxchan, lockout for some determined time after 2nd phase (say one dphase),
@@ -639,7 +653,8 @@ class Detector(object):
         exceeded thresh within the window
 
         TODO: search local window in space and time *simultaneously* for biggest signal,
-        deal with that first, then go back after applying lockout and deal with the
+        deal with that first, maybe try to associate it with the nearest preceding thresh xing,
+        then go back after applying lockout and deal with the
         smaller fry. ex. ptc15.87.125820. Also, see error choosing the wrong maxchan due
         to sequential time-space-time-space search at ptc15.87.68420 (should detect grey
         maxchan 7, not slightly earlier magenta maxchan 46)
@@ -652,9 +667,9 @@ class Detector(object):
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
             chan = self.chans[chani]
-            debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
+            if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
             if ti <= lockouts[chani]: # is this thresh crossing timepoint locked out?
-                debug('thresh event is locked out')
+                if DEBUG: debug('thresh event is locked out')
                 continue # skip to next event
 
             # get data window wrt threshold crossing
@@ -667,25 +682,26 @@ class Detector(object):
             try:
                 phase1ti, phase2ti = self.find_spike_phases(window, tiw, reftype='trigger')
             except NoPeakError, message: # doesn't qualify as a spike
-                debug(message)
+                if DEBUG: debug(message)
                 continue # skip to next event
             ti = ti0 + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
             V1, V2 = window[phase1ti], window[phase2ti]
-            debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
-                  % (wave.ts[ti0], wave.ts[tiend],
-                     wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
-                     V1, V2))
+            if DEBUG: debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
+                            % (wave.ts[ti0], wave.ts[tiend],
+                            wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
+                            V1, V2))
 
             # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
             # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
             chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
 
-            # find maxchan within chanis at 1st phase
-            chanii = np.abs(wave.data[chanis, ti]).argmax() # index into chanis of new maxchan
+            # find maxchan within chanis based on Vpp, preserve sign so nearby inverted chans are ignored
+            Vpps = wave.data[chanis, ti0+phase2ti] - wave.data[chanis, ti] # phase2 - phase1 on all chans, should be +ve
+            chanii = Vpps.argmax() # max chanii within chanis neighbourhood
             chani = chanis[chanii] # new max chani
             chan = self.chans[chani] # new max chan
-            debug('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            if DEBUG: debug('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
             ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
@@ -697,14 +713,14 @@ class Detector(object):
             try:
                 phase1ti, phase2ti = self.find_spike_phases(window, tiw, reftype='phase')
             except NoPeakError, message: # doesn't qualify as a spike
-                debug(message)
+                if DEBUG: debug(message)
                 continue # skip to next event
             ti = ti0 + phase1ti # overwrite ti, make it the new phase1ti wrt 0th time index
             V1, V2 = window[phase1ti], window[phase2ti]
-            debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
-                  % (wave.ts[ti0], wave.ts[tiend],
-                     wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
-                     V1, V2))
+            if DEBUG: debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
+                            % (wave.ts[ti0], wave.ts[tiend],
+                            wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
+                            V1, V2))
 
             # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti:
             # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
@@ -721,7 +737,7 @@ class Detector(object):
                 #assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
                 #assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
             except AssertionError, message: # doesn't qualify as a spike
-                debug(message)
+                if DEBUG: debug(message)
                 continue # skip to next event
 
             # looks like a spike, calc and save some attribs
@@ -732,7 +748,7 @@ class Detector(object):
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
-                debug(message)
+                if DEBUG: debug(message)
                 continue # skip to next event
             s.ts = wave.ts[ti0:tiend]
             s.tiend, s.tend = tiend, wave.ts[tiend]
@@ -742,7 +758,7 @@ class Detector(object):
             s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
-            debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
+            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
 
             # update lockouts to 2nd phase of this spike
             #dphaseti = phase2ti - phase1ti
@@ -750,7 +766,7 @@ class Detector(object):
             lockouts[chanis] = lockout # same for all chans in this spike
             lockoutt = wave.ts[0] + lockout*self.stream.tres
             #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
-            debug('lockout = %d for chans = %s' % (lockoutt, chans))
+            if DEBUG: debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
         return spikes
 
@@ -1059,17 +1075,20 @@ class Detector(object):
         """Return array of thresholds, one per chan in self.chans,
         depending on threshmethod and noisemethod"""
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            thresh = np.tile(self.fixedthresh, len(self.chans))
-            thresh = np.float32(thresh)
+            fixedthresh = np.float32(self.fixedthresh)
+            thresh = np.tile(fixedthresh, len(self.chans))
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
             """randomly sample self.fixednoisewin's worth of data from self.trange in
             blocks of self.blocksize. NOTE: this samples with replacement, so it's
             possible, though unlikely, that some parts of the data will contribute
             more than once to the noise calculation
             """
-            print 'loading data to calculate noise'
-            nblocks = intround(self.fixednoisewin / self.blocksize)
-            wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
+            print('loading data to calculate noise')
+            if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
+                wavetranges = [self.trange] # use a single block of data, as defined by trange
+            else:
+                nblocks = intround(self.fixednoisewin / self.blocksize)
+                wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
             data = []
             for wavetrange in wavetranges:
                 wave = self.stream[wavetrange[0]:wavetrange[1]]
@@ -1080,7 +1099,9 @@ class Detector(object):
             thresh = noise * self.noisemult
         elif self.threshmethod == 'Dynamic':
             # dynamic threshes are calculated on the fly during the search, so leave as zero for now
-            thresh = np.zeros(len(self.chans), dtype=np.float32)
+            # or at least they were, in the Cython code
+            #thresh = np.zeros(len(self.chans), dtype=np.float32)
+            raise NotImplementedError
         else:
             raise ValueError
         assert len(thresh) == len(self.chans)
@@ -1089,7 +1110,7 @@ class Detector(object):
 
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
-        print 'calculating noise'
+        print('calculating noise')
         if self.noisemethod == 'median':
             return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':

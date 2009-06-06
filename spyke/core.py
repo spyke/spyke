@@ -35,6 +35,7 @@ NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
 MAXLONGLONG = 2**63-1
 
+
 class WaveForm(object):
     """Just a container for data, timestamps, and channels.
     Sliceable in time, and indexable in channel space"""
