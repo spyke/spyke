@@ -769,6 +769,7 @@ class Detector(object):
             s = Spike()
             s.t0i, s.t0 = t0i, wave.ts[t0i]
             s.phase1ti, s.phase2ti = ti, t0i + phase2ti # these ones bound to self are wrt wave.ts[0]
+            s.dphase = wave.ts[s.phase2ti] - wave.ts[s.phase1ti]
             s.ti, s.t = ti, wave.ts[ti]
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
@@ -778,6 +779,7 @@ class Detector(object):
             s.ts = wave.ts[t0i:tendi] # TODO: is this necessary? might be a waste of memory
             s.tendi, s.tend = tendi, wave.ts[tendi]
             s.V1, s.V2 = V1, V2
+            s.Vpp = V2 - V1 # maintain polarity
             chans = np.asarray(self.chans)[chanis] # dereference
             s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
             s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)

@@ -550,6 +550,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.spiketw = DEFSPIKETW # reset
         self.charttw = DEFCHARTTW
         self.lfptw = DEFLFPTW
+        self.ShowRasters(False) # reset
         self.SetTitle('spyke') # update caption
         self.EnableSurfWidgets(False)
         try:
@@ -741,6 +742,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_VREF, enable)
         self.menubar.Enable(wx.ID_CARET, enable)
         self.menubar.Enable(wx.ID_SAMPLING, enable)
+        self.menubar.Enable(wx.ID_WAVEFORMS, enable)
         self.toolbar.EnableTool(wx.ID_NEW, enable)
         self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
         self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)

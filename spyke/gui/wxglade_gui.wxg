@@ -561,7 +561,7 @@
                                                         <option>0</option>
                                                         <object class="wxStaticText" name="Vp_label" base="EditStaticText">
                                                             <attribute>1</attribute>
-                                                            <label>* Vp</label>
+                                                            <label>* thresh</label>
                                                         </object>
                                                     </object>
                                                 </object>

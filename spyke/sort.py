@@ -13,7 +13,7 @@ import wx
 
 import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
-#from enthought.mayavi import mlab
+from enthought.mayavi import mlab
 from matplotlib.colors import hex2color
 #import pylab
 #import mdp
@@ -123,6 +123,12 @@ class Sort(object):
         """Organize parameters from all spikes into a data matrix for clustering.
         This includes manually weighting them"""
         nspikes = len(self.spikes)
+        nparams = 4
+        X = np.zeros((nspikes, nparams))
+        spikes = self.spikes_sortedbyID()
+        for i, s in enumerate(spikes):
+            X[i] = np.asarray([s.x0, s.y0, s.Vpp, s.dphase])
+        '''
         nparams = 9
         X = np.zeros((nspikes, nparams))
         spikes = self.spikes_sortedbyID()
@@ -132,6 +138,7 @@ class Sort(object):
             X[i] = np.array([s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta])
             #X[i] = np.array([x0, y0])
         # normalize each column in X (ie each param) from [0, 1]
+        '''
         '''
         X -= X.min(axis=0) # have them all start from 0
         X /= X.max(axis=0) # normalize
@@ -218,29 +225,41 @@ class Sort(object):
         #return n2sidsT
         return cidsT
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting='pca', minspikes=2,
+    def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1], minspikes=2,
              mode='point', scale_factor=1, scale_mode='scalar'):
         """Plot 3D projection of clustered data. nids should be a list
         of neuron ids corresponding to sorted sequence of spike ids. Make
         sure to pass the weighting that was used when clustering the data"""
         assert len(dims) == 3
-        X = self.get_cluster_data(weighting=weighting) # in sid order, nids should be as well
-        maxnid = max(nids)
-        hist, bins = np.histogram(nids, bins=range(maxnid+1), new=True)
-        #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
-        goodnids = bins[hist >= minspikes] # find all non-junk nids
-        # get indices in goodnid order that pull out just the goodnids - this looks nasty:
-        nidis = np.array([], dtype=int) # otherwise concatenating gives a float array
-        for goodnid in goodnids:
-            newnidis = np.where(nids == goodnid)[0]
-            nidis = np.concatenate((nidis, newnidis))
-        nids = nids[nidis]
-        X = X[nidis]
-        # s are indices into colourmap
-        ncolours = len(COLOURS)
-        s = nids % ncolours
-        #s = nids % (ncolours - 1) # save last colour for junk singleton clusters
-        #s[junk_nids] = ncolours # assign last colour to junk singleton clusters
+        if weighting in ['pca', 'ica']:
+            X = self.get_cluster_data(weighting=weighting) # in sid order, nids should be as well
+        else:
+            X = self.get_param_matrix()
+            X *= np.asarray(weighting)
+        if nids:
+            maxnid = max(nids)
+            hist, bins = np.histogram(nids, bins=range(maxnid+1), new=True)
+            #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
+            goodnids = bins[hist >= minspikes] # find all non-junk nids
+            # get indices in goodnid order that pull out just the goodnids - this looks nasty:
+            nidis = np.array([], dtype=int) # otherwise concatenating gives a float array
+            for goodnid in goodnids:
+                newnidis = np.where(nids == goodnid)[0]
+                nidis = np.concatenate((nidis, newnidis))
+            nids = nids[nidis]
+            X = X[nidis]
+            # s are indices into colourmap
+            ncolours = len(COLOURS)
+            s = nids % ncolours
+            #s = nids % (ncolours - 1) # save last colour for junk singleton clusters
+            #s[junk_nids] = ncolours # assign last colour to junk singleton clusters
+            # convert COLOURS list into a colourmap (RGBA list)
+            cmap = []
+            for c in COLOURS:
+                c = hex2color(c) # convert hex string to RGB tuple
+                c = list(c)
+                c.append(1.0) # add alpha as 4th channel
+                cmap.append(c)
 
         name = 'weighting=%r, dims=%r, minspikes=%r' % (weighting, dims, minspikes)
         f = mlab.figure(name=name, bgcolor=(0, 0, 0))
@@ -250,22 +269,17 @@ class Sort(object):
             self.f = []
         self.f.append(f)
 
-        # convert COLOURS list into a colourmap (RGBA list)
-        cmap = []
-        for c in COLOURS:
-            c = hex2color(c) # convert hex string to RGB tuple
-            c = list(c)
-            c.append(1.0) # add alpha as 4th channel
-            cmap.append(c)
-
         # plot it
         x = X[:, dims[0]]
         y = X[:, dims[1]]
         z = X[:, dims[2]]
         # 3D glyphs like 'sphere' come out looking almost black for some reason,
         # use 'point' instead
-        glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
-        glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
+        if nids:
+            glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
+            glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
+        else:
+            glyph = mlab.points3d(x, y, z, figure=f, mode='point')
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
