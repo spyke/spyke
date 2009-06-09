@@ -114,12 +114,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
         self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
+        self.ppthreshmult_text_ctrl.SetValue(str(detect.Detector.DEFPPTHRESHMULT))
         self.nspikes_spin_ctrl.SetRange(0, sys.maxint)
         self.nspikes_spin_ctrl.SetValue(detect.Detector.DEFMAXNSPIKES)
 
         # temporary, for faster testing
         #self.range_start_combo_box.SetValue('0')
-        self.range_end_combo_box.SetValue('3e4')
+        self.range_end_combo_box.SetValue('1e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetRange(0, sys.maxint)
@@ -781,6 +782,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.noisemult = float(self.noisemult_text_ctrl.GetValue())
         det.noisemethod = self.noise_method_choice.GetStringSelection()
         #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
+        det.ppthreshmult = float(self.ppthreshmult_text_ctrl.GetValue())
         det.trange = self.get_detectortrange()
         det.maxnspikes = self.nspikes_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
         det.blocksize = int(self.blocksize_combo_box.GetValue())

@@ -47,7 +47,7 @@ logger.addHandler(shandler)
 info = logger.info
 debug = logger.debug
 
-DEBUG = True # print detection debug messages to log file? slows down detection
+DEBUG = False # print detection debug messages to log file? slows down detection
 
 def arglext(signal):
     """Return indices of all local extrema in 1D signal"""
@@ -467,7 +467,7 @@ class Detector(object):
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
-        info('searchblock():')
+        #info('searchblock():')
         info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
              (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
@@ -481,8 +481,8 @@ class Detector(object):
         tres = self.stream.tres
         self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
         self.lockouts[self.lockouts < 0] = 0 # don't allow -ve lockout indices
-        info('at start of searchblock:\n new wave.ts[0, end] = %s\n new lockouts = %s' %
-             ((wave.ts[0], wave.ts[-1]), self.lockouts))
+        #info('at start of searchblock:\n new wave.ts[0, end] = %s\n new lockouts = %s' %
+        #     ((wave.ts[0], wave.ts[-1]), self.lockouts))
 
         if self.randomsample:
             maxnspikes = 1 # how many more we're looking for in the next block
@@ -492,7 +492,7 @@ class Detector(object):
         twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
-        info('twi = %s' % (self.twi,))
+        #info('twi = %s' % (self.twi,))
 
         # want an nchan*2 array of [chani, x/ycoord]
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
@@ -508,8 +508,8 @@ class Detector(object):
 
         self.nspikes += len(spikes) # update for next call
         self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
-        info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
-             (self.lockouts, self.lockouts_us))
+        #info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
+        #     (self.lockouts, self.lockouts_us))
         return spikes
     '''
     def threshwave(self, wave, cutrange):
@@ -529,18 +529,18 @@ class Detector(object):
                 continue # skip to next event
 
             # get data window wrt threshold crossing
-            ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-            window = wave.data[chani, ti0:tiend] # window of data
-            minti = window.argmin() # time of minimum in window, relative to ti0
-            maxti = window.argmax() # time of maximum in window, relative to ti0
-            phase1ti = min(minti, maxti) # wrt ti0
+            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            window = wave.data[chani, t0i:tendi] # window of data
+            minti = window.argmin() # time of minimum in window, relative to t0i
+            maxti = window.argmax() # time of maximum in window, relative to t0i
+            phase1ti = min(minti, maxti) # wrt t0i
             phase2ti = max(minti, maxti)
-            ti = ti0 + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
+            ti = t0i + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
             V1, V2 = window[phase1ti], window[phase2ti]
             debug('window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d'
-                  % (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend],
-                     wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2))
+                  % (wave.ts[t0i], wave.ts[t0i+phase1ti], wave.ts[tendi],
+                     wave.ts[t0i+minti], wave.ts[t0i+maxti], V1, V2))
 
             # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
             # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
@@ -554,24 +554,24 @@ class Detector(object):
             debug('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
-            ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-            window = wave.data[chani, ti0:tiend]
-            minti = window.argmin() # time of minimum in window, relative to ti0
-            maxti = window.argmax() # time of maximum in window, relative to ti0
+            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            window = wave.data[chani, t0i:tendi]
+            minti = window.argmin() # time of minimum in window, relative to t0i
+            maxti = window.argmax() # time of maximum in window, relative to t0i
             minV, maxV = window[minti], window[maxti]
-            phase1ti = min(minti, maxti) # wrt ti0
+            phase1ti = min(minti, maxti) # wrt t0i
             phase2ti = max(minti, maxti)
             V1, V2 = window[phase1ti], window[phase2ti]
 
-            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti0:
+            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at t0i:
             # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
             chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
-            chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti0 ])
+            chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < t0i ])
 
             debug('window params: t0=%d, phase1t=%d, tend=%d, mint=%d, maxt=%d, V1=%d, V2=%d' %
-                  (wave.ts[ti0], wave.ts[ti0+phase1ti], wave.ts[tiend],
-                   wave.ts[ti0+minti], wave.ts[ti0+maxti], V1, V2))
+                  (wave.ts[t0i], wave.ts[t0i+phase1ti], wave.ts[tendi],
+                   wave.ts[t0i+minti], wave.ts[t0i+maxti], V1, V2))
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             try:
                 assert abs(V2 - V1) >= self.ppthresh[chani], \
@@ -579,24 +579,24 @@ class Detector(object):
                 assert phase1ti-0 > 2, 'phase1t is very near window startpoint, probably a mistrigger'
                 assert len(window)-phase2ti > 2, 'phase2t is very near window endpoint, probably a mistrigger'
                 assert np.sign(V1) == -np.sign(V2), 'phases must be of opposite sign'
-                assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
-                assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
+                assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[t0i+minti])
+                assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[t0i+maxti])
             except AssertionError, message: # doesn't qualify as a spike
                 debug(message)
                 continue # skip to next event
 
             # looks like a spike, calc and save some attribs
             s = Spike()
-            s.ti0, s.t0 = ti0, wave.ts[ti0]
-            s.ti = ti0+phase1ti
+            s.t0i, s.t0 = t0i, wave.ts[t0i]
+            s.ti = t0i+phase1ti
             s.t = wave.ts[s.ti]
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 debug(message)
                 continue # skip to next event
-            s.ts = wave.ts[ti0:tiend]
-            s.tiend, s.tend = tiend, wave.ts[tiend]
+            s.ts = wave.ts[t0i:tendi]
+            s.tendi, s.tend = tendi, wave.ts[tendi]
             s.V1, s.V2 = V1, V2
             chans = np.asarray(self.chans)[chanis] # dereference
             s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
@@ -607,7 +607,7 @@ class Detector(object):
 
             # update lockouts, one phase difference after the 2nd phase
             dphaseti = phase2ti - phase1ti
-            lockout = ti0 + phase2ti + dphaseti
+            lockout = t0i + phase2ti + dphaseti
             lockouts[chanis] = lockout # same for all chans in this spike
             lockoutt = wave.ts[0] + lockout*self.stream.tres
             #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
@@ -673,22 +673,23 @@ class Detector(object):
                 continue # skip to next event
 
             # get data window wrt threshold crossing
-            ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-            window = wave.data[chani, ti0:tiend] # window of data
+            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            window = wave.data[chani, t0i:tendi] # window of data
 
             # find spike phases
-            tiw = ti - ti0 # time index where ti falls wrt the window
+            tiw = ti - t0i # time index where ti falls wrt the window
             try:
-                phase1ti, phase2ti = self.find_spike_phases(window, tiw, reftype='trigger')
+                phase1ti, phase2ti = self.find_spike_phases(window, tiw, self.ppthresh[chani],
+                                                            reftype='trigger')
             except NoPeakError, message: # doesn't qualify as a spike
                 if DEBUG: debug(message)
                 continue # skip to next event
-            ti = ti0 + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
+            ti = t0i + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
             V1, V2 = window[phase1ti], window[phase2ti]
             if DEBUG: debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
-                            % (wave.ts[ti0], wave.ts[tiend],
-                            wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
+                            % (wave.ts[t0i], wave.ts[tendi],
+                            wave.ts[ti], wave.ts[t0i+phase2ti],
                             V1, V2))
 
             # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
@@ -697,61 +698,85 @@ class Detector(object):
             chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
 
             # find maxchan within chanis based on Vpp, preserve sign so nearby inverted chans are ignored
-            Vpps = wave.data[chanis, ti0+phase2ti] - wave.data[chanis, ti] # phase2 - phase1 on all chans, should be +ve
+            Vpps = wave.data[chanis, t0i+phase2ti] - wave.data[chanis, ti] # phase2 - phase1 on all chans, should be +ve
             chanii = Vpps.argmax() # max chanii within chanis neighbourhood
-            chani = chanis[chanii] # new max chani
-            chan = self.chans[chani] # new max chan
-            if DEBUG: debug('new maxchan %d @ (%d, %d)' % (chan, self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            usenewchan = False
+            newchani = chanis[chanii] # new max chani
+            if newchani != chani: # new max chani is different from old one
+                newchan = self.chans[newchani] # new max chan
+                if DEBUG: debug('new maxchan %d @ (%d, %d)'
+                                % (newchan, self.siteloc[newchani, 0], self.siteloc[newchani, 1]))
 
-            # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
-            ti0 = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tiend = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-            window = wave.data[chani, ti0:tiend]
+                # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
+                newt0i = max(ti+twi[0], lockouts[newchani]+1) # make sure any timepoints included prior to ti aren't locked out
+                newtendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+                newwindow = wave.data[newchani, newt0i:newtendi]
+                if DEBUG: debug('new window params: t0=%d, tend=%d'
+                                % (wave.ts[newt0i], wave.ts[newtendi]))
 
-            # find spike phases again, on new maxchan in refined window, starting from new ti
-            tiw = ti - ti0 # time index where ti falls wrt the window
-            try:
-                phase1ti, phase2ti = self.find_spike_phases(window, tiw, reftype='phase')
-            except NoPeakError, message: # doesn't qualify as a spike
-                if DEBUG: debug(message)
-                continue # skip to next event
-            ti = ti0 + phase1ti # overwrite ti, make it the new phase1ti wrt 0th time index
-            V1, V2 = window[phase1ti], window[phase2ti]
-            if DEBUG: debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
-                            % (wave.ts[ti0], wave.ts[tiend],
-                            wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti],
-                            V1, V2))
+                # find spike phases again, on new maxchan in refined window, starting from new ti
+                newtiw = ti - newt0i # time index where ti (current phase1ti wrt 0th time index) falls wrt the window
+                try:
+                    phase1ti, phase2ti = self.find_spike_phases(newwindow, newtiw, self.ppthresh[newchani],
+                                                                reftype='phase')
+                    usenewchan = True
+                except NoPeakError, message: # doesn't qualify as a spike
+                    if DEBUG:
+                        debug(message)
+                        debug('resorting to original maxchan %d with its successful spike' % chan)
 
-            # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti:
-            # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
-            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
-            chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
-
+            if usenewchan: # update vars to reflect new maxchan
+                chani, chan = newchani, newchan # update
+                t0i, tendi, window, tiw = newt0i, newtendi, newwindow, newtiw
+                ti = t0i + phase1ti # overwrite ti, make it the new phase1ti wrt 0th time index
+                V1, V2 = window[phase1ti], window[phase2ti]
+                if DEBUG: debug('window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
+                                % (wave.ts[t0i], wave.ts[tendi],
+                                wave.ts[ti], wave.ts[t0i+phase2ti],
+                                V1, V2))
+                # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti:
+                # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
+                chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
+                chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
+            else:
+                # get new data window using old maxchan, wrt 1st phase this time, update everything that's wrt t0i
+                newt0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+                dt0i = t0i - newt0i
+                phase1ti += dt0i # update
+                phase2ti += dt0i
+                t0i = newt0i # overwrite
+                tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+                window = wave.data[chani, t0i:tendi]
+                # TODO: This window trange might include datapoints on neighbouring chans
+                # that are locked out. Not a big deal. Having different numbers of datapoints
+                # per chan per spike would add complexity with little benefit
+            '''
             # check if this (still roughly defined) event crosses ppthresh, and some other requirements,
             try:
-                assert abs(V2 - V1) >= self.ppthresh[chani], \
-                    "event doesn't cross ppthresh[chani=%d] = %.1f" % (chani, self.ppthresh[chani])
-                assert phase1ti-0 > 2, 'phase1t is very near window startpoint, probably a mistrigger'
-                assert len(window)-phase2ti > 2, 'phase2t is very near window endpoint, probably a mistrigger'
-                assert np.sign(V1) == -np.sign(V2), 'phases must be of opposite sign'
-                #assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[ti0+minti])
-                #assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[ti0+maxti])
+                # Vpp check now happens in arg2ndpeak and raises an error immediately
+                #assert abs(V2 - V1) >= self.ppthresh[chani], \
+                #    "event doesn't cross ppthresh[chani=%d] = %.1f" % (chani, self.ppthresh[chani])
+                #assert phase1ti-0 > 2, 'phase1t is very near window startpoint, probably a mistrigger'
+                #assert len(window)-phase2ti > 2, 'phase2t is very near window endpoint, probably a mistrigger'
+                #assert np.sign(V1) == -np.sign(V2), 'phases must be of opposite sign'
+                #assert minV < 0, 'minV is %s V at t = %d' % (minV, wave.ts[t0i+minti])
+                #assert maxV > 0, 'maxV is %s V at t = %d' % (maxV, wave.ts[t0i+maxti])
             except AssertionError, message: # doesn't qualify as a spike
                 if DEBUG: debug(message)
                 continue # skip to next event
-
+            '''
             # looks like a spike, calc and save some attribs
             s = Spike()
-            s.ti0, s.t0 = ti0, wave.ts[ti0]
-            s.ti = ti0+phase1ti
-            s.t = wave.ts[s.ti]
+            s.t0i, s.t0 = t0i, wave.ts[t0i]
+            s.phase1ti, s.phase2ti = ti, t0i + phase2ti # these ones bound to self are wrt wave.ts[0]
+            s.ti, s.t = ti, wave.ts[ti]
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
-            s.ts = wave.ts[ti0:tiend]
-            s.tiend, s.tend = tiend, wave.ts[tiend]
+            s.ts = wave.ts[t0i:tendi] # TODO: is this necessary? might be a waste of memory
+            s.tendi, s.tend = tendi, wave.ts[tendi]
             s.V1, s.V2 = V1, V2
             chans = np.asarray(self.chans)[chanis] # dereference
             s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
@@ -762,7 +787,7 @@ class Detector(object):
 
             # update lockouts to 2nd phase of this spike
             #dphaseti = phase2ti - phase1ti
-            lockout = ti0 + phase2ti #+ dphaseti / 2
+            lockout = s.phase2ti #+ dphaseti / 2
             lockouts[chanis] = lockout # same for all chans in this spike
             lockoutt = wave.ts[0] + lockout*self.stream.tres
             #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
@@ -776,7 +801,7 @@ class Detector(object):
         edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
         return edgeis
 
-    def find_spike_phases(self, window, tiw, reftype='trigger'):
+    def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
         """Find spike phases within window of data: search from tiw in direction
         (which might be, say, a threshold xing point) for 1st peak,
         then within self.dti of that for a 2nd peak of opposite phase.
@@ -810,7 +835,7 @@ class Detector(object):
             dir2 = 'right'
         else: # peak1i is +ve, look left for corresponding -ve peak
             dir2 = 'left'
-        peak2i = self.arg2ndpeak(window, exti, peak1i, dir2) # find biggest 2nd extremum of opposite sign in dir2 within self.dti
+        peak2i = self.arg2ndpeak(window, exti, peak1i, dir2, ppthresh) # find biggest 2nd extremum of opposite sign in dir2 within self.dti
         # check which comes first
         if dir2 == 'right':
             assert peak1i < peak2i
@@ -819,9 +844,9 @@ class Detector(object):
             assert peak2i < peak1i
             return peak2i, peak1i
 
-    def arg2ndpeak(self, signal, exti, peak1i, dir2):
+    def arg2ndpeak(self, signal, exti, peak1i, dir2, ppthresh):
         """Return signal's biggest local extremum of opposite sign,
-        in dir2, and within self.dti of peak1i"""
+        in direction dir2, and within self.dti of peak1i"""
         #dti = intround(dti) # this returns a np.int64 dtype, which is bad
         if dir2 == 'left':
             exti = exti[exti < peak1i] # keep only left half of exti
@@ -831,9 +856,10 @@ class Detector(object):
             pass # keep all of exti
         else:
             raise ValueError('unknown dir2 %r' % dir2)
-        assert type(peak1i) == int
+        #assert type(peak1i) == int
         dti = self.dti
-        assert type(dti) == int
+        #assert type(dti) == int
+        ppthresh = float(ppthresh)
         n_ext = len(exti)
         code = ("""
         // index into signal to get voltages
@@ -846,30 +872,34 @@ class Detector(object):
             ei = exti[i]; // i'th extremum's index into signal
             if ((abs(ei-peak1i) <= dti) && // if extremum is within dti of peak1i
                 (signal[ei] * peak1 < 0.0) && // and is of opposite sign
-                (fabs(signal[ei]) > abs_peak2)) { // and is bigger than last one found
+                (fabs(signal[ei]) > abs_peak2) && // and is bigger than last one found
+                (fabs(signal[ei] - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
                     peak2i = ei; // save it
                     abs_peak2 = fabs(signal[peak2i]);
             }
         }
         return_val = peak2i;""")
-        peak2i = inline(code, ['signal', 'exti', 'n_ext', 'peak1i', 'dir2', 'dti'],
+        peak2i = inline(code, ['signal', 'exti', 'n_ext', 'peak1i', 'dir2', 'dti', 'ppthresh'],
                         compiler='gcc')
-        if peak2i == -1:
+        if peak2i == -1 and ppthresh:
             raise NoPeakError("can't find suitable 2nd peak")
         return peak2i
 
     def get_spike_spatial_mean(self, spike, wave):
-        """Return weighted spatial mean of chans in spike at designated spike
-        time, to use as rough spatial origin of spike"""
-        x = self.siteloc[spike.chanis, 0] # 1D array (row)
-        y = self.siteloc[spike.chanis, 1]
-        chanweights = wave.data[spike.chanis, spike.ti] # unnormalized, some of these may be -ve
+        """Return weighted spatial mean of chans in spike according to their
+        Vpp, to use as rough spatial origin of spike"""
+        chanis = spike.chanis
+        x = self.siteloc[chanis, 0] # 1D array (row)
+        y = self.siteloc[chanis, 1]
+        weights = (wave.data[chanis, spike.phase2ti] -
+                   wave.data[chanis, spike.phase1ti]) # phase2 - phase1 on all chans, should be +ve
+        #weights = wave.data[spike.chanis, spike.ti] # unnormalized, some of these may be -ve
         # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
-        #chanweights = np.where(chanweights >= 0, chanweights, 0) # replace -ve weights with 0
-        chanweights = abs(chanweights)
-        chanweights /= chanweights.sum() # normalized
-        x0 = (chanweights * x).sum()
-        y0 = (chanweights * y).sum()
+        #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
+        #weights = abs(weights)
+        weights /= weights.sum() # normalized
+        x0 = (weights * x).sum()
+        y0 = (weights * y).sum()
         return x0, y0
 
     def modelspikes(self, events):
@@ -888,15 +918,15 @@ class Detector(object):
             sm.dmurange = self.dmurange
             print 'chans  = %s' % (chans,)
             print 'chanis = %s' % (chanis,)
-            ts = wave.ts[ti0:tiend]
+            ts = wave.ts[t0i:tendi]
             x = siteloc[chanis, 0] # 1D array (row)
             y = siteloc[chanis, 1]
-            V = wave.data[chanis, ti0:tiend]
+            V = wave.data[chanis, t0i:tendi]
 
             x0, y0 = self.get_spike_spatial_mean(sm, wave)
 
             # take weighted spatial mean of chanis at phase1ti to estimate initial (x0, y0)
-            multichanwindow = wave.data[chanis, ti0:tiend]
+            multichanwindow = wave.data[chanis, t0i:tendi]
             chanweights = multichanwindow[:, phase1ti] # unnormalized, some of these may be -ve
             chanweights = chanweights / chanweights.sum() # normalized
             chanweights = np.where(chanweights >= 0, chanweights, 0) # replace -ve weights with 0
@@ -911,7 +941,7 @@ class Detector(object):
             """
             # initial params
             p0 = [V1, V2, # Gaussian amplitudes (uV)
-                  wave.ts[ti0+phase1ti], wave.ts[ti0+phase2ti], # temporal means mu1, mu2 (us)
+                  wave.ts[t0i+phase1ti], wave.ts[t0i+phase2ti], # temporal means mu1, mu2 (us)
                   60, 60, # temporal sigmas s1, s2 (us)
                   x0, y0, # spatial origin, (um)
                   60, 60, 0] # sx, sy (um), theta (radians)
@@ -960,8 +990,8 @@ class Detector(object):
             # check to see if modelled spike qualifies as an actual spike
             try:
                 # ensure modelled spike time doesn't violate any existing lockout on any of its modelled chans
-                assert (lockout[chanis] < ti0+phase1ti).all(), 'model spike time is locked out'
-                assert wave.ts[ti0] < phase1t < wave.ts[tiend], "model spike time doesn't fall within time window"
+                assert (lockout[chanis] < t0i+phase1ti).all(), 'model spike time is locked out'
+                assert wave.ts[t0i] < phase1t < wave.ts[tendi], "model spike time doesn't fall within time window"
                 assert bigphase >= self.thresh[chani], \
                     "model (bigphase=%.1f) doesn't cross thresh[chani=%d]=%.1f " % (bigphase, chani, self.thresh[chani])
                 assert Vpp >= self.ppthresh[chani], \
@@ -987,7 +1017,7 @@ class Detector(object):
             lock out til one (TODO: maybe it should be two?) stdev after peak of 2nd phase,
             in case there's a noisy mini spike that might cause a trigger on the way down
             """
-            lockout[chanis] = ti0 + phase2ti + intround(s2 / self.stream.tres)
+            lockout[chanis] = t0i + phase2ti + intround(s2 / self.stream.tres)
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
     '''
     def check_spikes(self, spikes):
