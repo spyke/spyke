@@ -887,17 +887,20 @@ class Detector(object):
 
     def get_spike_spatial_mean(self, spike, wave):
         """Return weighted spatial mean of chans in spike according to their
-        Vpp, to use as rough spatial origin of spike"""
+        Vpp, to use as rough spatial origin of spike
+        NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
+        This is handled by giving them 0 weight."""
         chanis = spike.chanis
         x = self.siteloc[chanis, 0] # 1D array (row)
         y = self.siteloc[chanis, 1]
         weights = (wave.data[chanis, spike.phase2ti] -
-                   wave.data[chanis, spike.phase1ti]) # phase2 - phase1 on all chans, should be +ve
-        #weights = wave.data[spike.chanis, spike.ti] # unnormalized, some of these may be -ve
+                   wave.data[chanis, spike.phase1ti]) # phase2 - phase1 on all chans, should be +ve, at least on maxchan
+        weights = np.where(weights >= 0, weights, 0) # replace any -ve weights with 0
+        weights /= weights.sum() # normalized
+        #weights = wave.data[spike.chanis, spike.ti] # Vp weights, unnormalized, some of these may be -ve
         # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
         #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
         #weights = abs(weights)
-        weights /= weights.sum() # normalized
         x0 = (weights * x).sum()
         y0 = (weights * y).sum()
         return x0, y0
