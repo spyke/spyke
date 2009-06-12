@@ -840,11 +840,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             det.trange = (self.t-1, self.hpstream.t0)
         else:
             raise ValueError, which
-        spike = det.search() # don't bother saving it, don't update total_nspikes_label
+        spikes = det.search() # don't bother saving it, don't update total_nspikes_label
         wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
         try: # if a spike was found
-            t = spike[0, 0]
-            self.seek(t) # seek to it
+            spike = spikes[0]
+            self.seek(spike.t) # seek to it
             print '%r' % spike
         except IndexError: # if not, do nothing
             pass

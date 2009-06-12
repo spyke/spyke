@@ -13,7 +13,6 @@ import wx
 
 import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
-from enthought.mayavi import mlab
 from matplotlib.colors import hex2color
 #import pylab
 #import mdp
@@ -225,11 +224,13 @@ class Sort(object):
         #return n2sidsT
         return cidsT
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1], minspikes=2,
-             mode='point', scale_factor=1, scale_mode='scalar'):
+    def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1], minspikes=2):
         """Plot 3D projection of clustered data. nids should be a list
         of neuron ids corresponding to sorted sequence of spike ids. Make
         sure to pass the weighting that was used when clustering the data"""
+
+        from enthought.mayavi import mlab # can't delay this any longer
+
         assert len(dims) == 3
         if weighting in ['pca', 'ica']:
             X = self.get_cluster_data(weighting=weighting) # in sid order, nids should be as well
@@ -261,7 +262,7 @@ class Sort(object):
                 c.append(1.0) # add alpha as 4th channel
                 cmap.append(c)
 
-        name = 'weighting=%r, dims=%r, minspikes=%r' % (weighting, dims, minspikes)
+        name = 'dims=%r, weighting=%r, minspikes=%r' % (dims, weighting, minspikes)
         f = mlab.figure(name=name, bgcolor=(0, 0, 0))
         try:
             self.f
