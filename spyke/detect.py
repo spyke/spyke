@@ -798,10 +798,63 @@ class Detector(object):
         return spikes
 
     def get_edgeis(self, wave):
-        edges = np.diff(np.int8( abs(wave.data) >= np.vstack(self.thresh) )) # indices where changing abs(signal) has crossed thresh
+        """Return n x 2 array (ti, chani) of all threshold crossings in wave.data"""
+        '''
+        edges = np.diff(np.int8( np.abs(wave.data) >= np.vstack(self.thresh) )) # indices where changing abs(signal) has crossed thresh
         edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
         edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
+        for i, edgei in enumerate(edgeis):
+            print("edge %d, (%d, %d)" % (i+1, edgei[0], edgei[1]))
         return edgeis
+        '''
+        data = wave.data
+        thresh = self.thresh
+        nchans, nt = data.shape
+        assert nchans == len(thresh)
+
+        buflen = 200#2**16 # 65536
+        bufinc = 100#2**14 # 16384
+
+        edgeis = np.zeros((buflen, 2), dtype=np.int32) # columns are [ti, chani]
+        #else: # ti's might overflow, need to store int64s
+        #    edgeis = np.zeros((buflen, 2), dtype=np.int64)
+
+        code = (r"""
+        int nedges = 0;
+        int i = 0;
+        PyArray_Dims dims; // stores current dimensions of edgeis array
+        dims.len = 2;
+        PyObject *dummy;
+        for (int ti=1; ti<nt; ti++) {
+            for (int ci=0; ci<nchans; ci++) {
+                i = ci*nt + ti; // calculate only once for speed
+                if ((data[i] >= 0.0 && data[i-1] < thresh[ci] && data[i] >= thresh[ci]) ||
+                    (data[i] < 0.0 && data[i-1] > -thresh[ci] && data[i] <= -thresh[ci])) {
+                    // abs(voltage) has crossed threshold, maybe using fabs() would be faster than above code
+                    edgeis[nedges*2] = ti;
+                    edgeis[nedges*2+1] = ci;
+                    nedges++;
+                    //printf("edge %d, (%d, %d)\n", nedges, ti, ci);
+                    if (nedges == Nedgeis[0]) { // allocate more memory
+                        printf("allocating more memory!\n");
+                        dims.ptr = Nedgeis; // pointer to edgeis.shape
+                        dims.ptr[0] += bufinc; // add bufinc more rows to edgeis
+                        py_edgeis = PyArray_Resize(edgeis_array, &dims, 0, NPY_ANYORDER);
+                        if (dummy == NULL) goto fail;
+                        Py_DECREF(dummy)
+                        // resizing dynamically doesn't work yet...
+                        //PyArray_Resize(edgeis_array, &dims, 0, NPY_CORDER);
+                        printf("edgeis is now %d long\n", Nedgeis[0]);
+                    }
+                }
+            }
+        }
+        return_val = nedges;""")
+        nedges = inline(code, ['data', 'nchans', 'nt', 'thresh', 'edgeis', 'bufinc'],
+                        compiler='gcc')
+        #print("found %d edges" % nedges)
+        return edgeis[:nedges]
+
 
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
         """Find spike phases within window of data: search from tiw in direction

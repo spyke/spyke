@@ -258,6 +258,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSearch(self, evt):
         """Detect pane Search button click"""
         self.sort.detector = self.get_detector() # update sort session's current detector with a new one from widget values
+        #import cProfile
+        #cProfile.runctx('spikes = self.sort.detector.search()', globals(), locals())
         spikes = self.sort.detector.search() # list of Spikes
         detection = Detection(self.sort, self.sort.detector, # create a new Detection run
                               id=self.sort._detid,
