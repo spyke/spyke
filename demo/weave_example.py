@@ -68,6 +68,7 @@ def resize_cdef_arr():
 
     PyArray_Dims dims;
     int nd = 2;
+    int counter = 0;
     dims.len = nd;
     dims.ptr = dimsarr;
     PyObject *dummy;
@@ -92,7 +93,18 @@ def resize_cdef_arr():
         // manually doing pointer math using strides
         *((long long *) PyArray_GETPTR2(a, i, 0)) = i;   // assign to ith row, col 0
         *((long long *) PyArray_GETPTR2(a, i, 1)) = 2*i; // assign to ith row, col 1
+        counter++;
     }
+    // resize once more to reduce a down to just those values
+    // that were added to it
+    dims.ptr[0] = counter;
+    dummy = PyArray_Resize(a, &dims, 0, NPY_ANYORDER);
+    if (dummy == NULL) {
+        PyErr_Format(PyExc_TypeError, "can't resize a");
+        return NULL;
+    }
+    Py_DECREF(dummy);
+    printf("a is now %d long\n", dims.ptr[0]);
     //return_val = Na[0];
     //return_val = (PyObject *) a;  // these two both
     return_val = PyArray_Return(a); // seem to work
