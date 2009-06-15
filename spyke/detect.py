@@ -653,11 +653,11 @@ class Detector(object):
         exceeded thresh within the window
 
         TODO: search local window in space and time *simultaneously* for biggest signal,
-        deal with that first, maybe try to associate it with the nearest preceding thresh xing,
+        deal with biggest one first, maybe try to associate it with the nearest preceding thresh xing,
         then go back after applying lockout and deal with the
-        smaller fry. ex. ptc15.87.125820. Also, see error choosing the wrong maxchan due
-        to sequential time-space-time-space search at ptc15.87.68420 (should detect grey
-        maxchan 7, not slightly earlier magenta maxchan 46)
+        smaller fry. ex. ptc15.87.125820 and 89760.
+        Also, see error choosing the wrong maxchan due to sequential time-space-time-space
+        search at ptc15.87.68420 (should detect grey maxchan 7, not slightly earlier magenta maxchan 46)
             - maybe partition the data into 2D tiles with some overlap
         """
         edgeis = self.get_edgeis(wave)
@@ -811,49 +811,75 @@ class Detector(object):
         thresh = self.thresh
         nchans, nt = data.shape
         assert nchans == len(thresh)
-
-        buflen = 200#2**16 # 65536
-        bufinc = 100#2**14 # 16384
-
-        edgeis = np.zeros((buflen, 2), dtype=np.int32) # columns are [ti, chani]
-        #else: # ti's might overflow, need to store int64s
-        #    edgeis = np.zeros((buflen, 2), dtype=np.int64)
-
         code = (r"""
-        int nedges = 0;
-        int i = 0;
-        PyArray_Dims dims; // stores current dimensions of edgeis array
-        dims.len = 2;
-        PyObject *dummy;
-        for (int ti=1; ti<nt; ti++) {
+        #line 815 "detect.py"
+        int nd = 2; // num dimensions of output edgeis array
+        npy_intp dimsarr[nd];
+        int leninc = 16384; // 2**14
+        dimsarr[0] = 4*leninc; // nrows
+        dimsarr[1] = 2;        // ncols
+        PyArrayObject *edgeis = (PyArrayObject *) PyArray_SimpleNew(nd, dimsarr, NPY_LONGLONG);
+
+        PyArray_Dims dims; // stores current dimension info of edgeis array
+        dims.len = nd;
+        dims.ptr = dimsarr;
+        PyObject *OK;
+
+        long long nedges = 0;
+        long long i = 0;
+        for (long long ti=1; ti<nt; ti++) {
             for (int ci=0; ci<nchans; ci++) {
                 i = ci*nt + ti; // calculate only once for speed
                 if ((data[i] >= 0.0 && data[i-1] < thresh[ci] && data[i] >= thresh[ci]) ||
                     (data[i] < 0.0 && data[i-1] > -thresh[ci] && data[i] <= -thresh[ci])) {
                     // abs(voltage) has crossed threshold, maybe using fabs() would be faster than above code
-                    edgeis[nedges*2] = ti;
-                    edgeis[nedges*2+1] = ci;
-                    nedges++;
-                    //printf("edge %d, (%d, %d)\n", nedges, ti, ci);
-                    if (nedges == Nedgeis[0]) { // allocate more memory
+                    if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
                         printf("allocating more memory!\n");
-                        dims.ptr = Nedgeis; // pointer to edgeis.shape
-                        dims.ptr[0] += bufinc; // add bufinc more rows to edgeis
-                        py_edgeis = PyArray_Resize(edgeis_array, &dims, 0, NPY_ANYORDER);
-                        if (dummy == NULL) goto fail;
-                        Py_DECREF(dummy)
-                        // resizing dynamically doesn't work yet...
-                        //PyArray_Resize(edgeis_array, &dims, 0, NPY_CORDER);
-                        printf("edgeis is now %d long\n", Nedgeis[0]);
+                        dims.ptr[0] += leninc; // add leninc more rows to edgeis
+                        OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER); // 0 arg means don't check refcount or edgeis
+                        if (OK == NULL) {
+                            PyErr_Format(PyExc_TypeError, "can't resize edgeis");
+                            return NULL;
+                        }
+                        // don't need 'OK' anymore I guess, see
+                        // http://www.mail-archive.com/numpy-discussion@scipy.org/msg13013.html
+                        Py_DECREF(OK);
+                        printf("edgeis is now %d long\n", dims.ptr[0]);
                     }
+                    // get pointer to i,jth entry in data, typecast appropriately,
+                    // then dereference the whole thing so you can assign
+                    // a value to it. Using PyArray_GETPTR2 macro is easier than
+                    // manually doing pointer math using strides
+                    *((long long *) PyArray_GETPTR2(edgeis, nedges, 0)) = ti; // assign to nedges'th row, col 0
+                    *((long long *) PyArray_GETPTR2(edgeis, nedges, 1)) = ci; // assign to nedges'th row, col 1
+                    nedges++;
+                    // multi arg doesn't print right, even with %ld formatter, need a %lld formatter
+                    //printf("edge %d: (%d, %d)\n", nedges, ti, ci);
+                    // use this hack instead:
+                    //printf("edge %d: ", nedges);
+                    //printf("(%d, ", ti);
+                    //printf("%d)\n", ci);
                 }
             }
         }
-        return_val = nedges;""")
-        nedges = inline(code, ['data', 'nchans', 'nt', 'thresh', 'edgeis', 'bufinc'],
+
+        // resize edgeis once more to reduce edgeis down to
+        // just those values that were added to it
+        dims.ptr[0] = nedges;
+        OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER);
+        if (OK == NULL) {
+            PyErr_Format(PyExc_TypeError, "can't resize edgeis");
+            return NULL;
+        }
+        Py_DECREF(OK);
+        printf("shrunk edgeis to be %d long\n", dims.ptr[0]);
+        //return_val = (PyObject *) edgeis;  // these two both
+        return_val = PyArray_Return(edgeis); // seem to work
+        """)
+        edgeis = inline(code, ['data', 'nchans', 'nt', 'thresh'],
                         compiler='gcc')
-        #print("found %d edges" % nedges)
-        return edgeis[:nedges]
+        print("found %d edges" % len(edgeis))
+        return edgeis
 
 
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):

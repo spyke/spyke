@@ -60,14 +60,15 @@ def resize_cdef_arr():
     leninc = np.random.randint(50, 150) # inc arr len this much each time
     code = r"""
     #line 53 "weave_example.py"
-    npy_intp dimsarr[2];
+    int nd = 2; // num dimensions
+    npy_intp dimsarr[nd];
     dimsarr[0] = leninc; // nrows
     dimsarr[1] = 2;      // ncols
     PyArrayObject *a;
-    a = (PyArrayObject *) PyArray_SimpleNew(2, dimsarr, NPY_LONGLONG);
+    a = (PyArrayObject *) PyArray_SimpleNew(nd, dimsarr, NPY_LONGLONG);
 
     PyArray_Dims dims;
-    int nd = 2;
+
     int counter = 0;
     dims.len = nd;
     dims.ptr = dimsarr;
