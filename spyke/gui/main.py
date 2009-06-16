@@ -88,6 +88,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.file_pos_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
         self.fixedthresh_units_label.SetLabel(MU+'V')
+        self.dt_units_label.SetLabel(MU+'s')
         self.range_units_label.SetLabel(MU+'s')
         self.blocksize_units_label.SetLabel(MU+'s')
         self.spatial_units_label.SetLabel(MU+'m')
@@ -115,6 +116,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
         self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
         self.ppthreshmult_text_ctrl.SetValue(str(detect.Detector.DEFPPTHRESHMULT))
+        self.dt_spin_ctrl.SetRange(0, sys.maxint)
+        self.dt_spin_ctrl.SetValue(detect.Detector.DEFDT)
         self.nspikes_spin_ctrl.SetRange(0, sys.maxint)
         self.nspikes_spin_ctrl.SetValue(detect.Detector.DEFMAXNSPIKES)
 
@@ -787,6 +790,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.noisemethod = self.noise_method_choice.GetStringSelection()
         #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
         det.ppthreshmult = float(self.ppthreshmult_text_ctrl.GetValue())
+        det.dt = self.dt_spin_ctrl.GetValue()
         det.trange = self.get_detectortrange()
         det.maxnspikes = self.nspikes_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
         det.blocksize = int(self.blocksize_combo_box.GetValue())
