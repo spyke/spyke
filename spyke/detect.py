@@ -432,7 +432,10 @@ class Detector(object):
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
-        # TODO: instead of calling up the distance matrix and then checking for which chans are within slock over and over, if the slock is constant over an entire search, calculate each channel's neighbours once, and then call up that list of neighbours. Should be faster
+        self.nbhd = [] # list of neighbourhood of chanis for each chani, as defined by self.slock
+        for distances in self.dm.data: # iterate over rows
+            chanis, = np.where(distances <= self.slock) # at what col indices does the returned row fall within slock?
+            self.nbhd.append(chanis)
 
         self.dti = int(self.dt // self.stream.tres) # convert from numpy.int64 to normal int for inline C
 
@@ -557,7 +560,7 @@ class Detector(object):
         search at ptc15.87.68420 (should detect grey maxchan 7, not slightly earlier magenta maxchan 46)
             - maybe partition the data into 2D tiles with some overlap
 
-        TODO: keep an eye on broad spike at ptc16.87.1024880, about 340 us wide. Should be counted though
+        TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
         edgeis = self.get_edgeis(wave)
         lockouts = self.lockouts
@@ -591,10 +594,8 @@ class Detector(object):
                             wave.ts[ti], wave.ts[t0i+phase2ti],
                             V1, V2))
 
-            # find all the enabled chanis within slock of chani, exclude chanis temporally locked-out at 1st phase:
-            # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
-            chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
-            chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
+            # find all enabled chanis within nbhd of chani, exclude those locked-out at 1st phase
+            chanis = np.asarray([ chi for chi in self.nbhd[chani] if lockouts[chi] < ti ])
 
             # find maxchan within chanis based on Vpp, preserve sign so nearby inverted chans are ignored
             Vpps = wave.data[chanis, t0i+phase2ti] - wave.data[chanis, ti] # phase2 - phase1 on all chans, should be +ve
@@ -633,10 +634,8 @@ class Detector(object):
                                 % (wave.ts[t0i], wave.ts[tendi],
                                 wave.ts[ti], wave.ts[t0i+phase2ti],
                                 V1, V2))
-                # again, find all the enabled chanis within slock of new chani, exclude chanis locked-out at ti:
-                # TODO: for a fixed slock, precalculate this, don't do it repeatedly within this loop
-                chanis, = np.where(self.dm.data[chani] <= self.slock) # at what col indices does the returned row fall within slock?
-                chanis = np.asarray([ chi for chi in chanis if lockouts[chi] < ti ])
+                # find all enabled chanis within nbhd of chani, exclude those locked-out at 1st phase
+                chanis = np.asarray([ chi for chi in self.nbhd[chani] if lockouts[chi] < ti ])
             else:
                 # get new data window using old maxchan, wrt 1st phase this time, update everything that's wrt t0i
                 newt0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
