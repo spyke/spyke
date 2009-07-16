@@ -289,12 +289,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_SAMPLING, False)
         self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open windows other than sort
-        sf = self.OpenFrame('sort') # ensure it's open
-        #self.OpenFrame('pyshell') # for testing
-        t0 = time.clock()
-        sf.Append2SpikeList(uniquespikes)
-        print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
+        #sf = self.OpenFrame('sort') # ensure it's open
+        #t0 = time.clock()
+        #sf.Append2SpikeList(uniquespikes)
+        #print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
         #print '%r' % detection.spikes
+        #self.OpenFrame('pyshell') # for testing
 
     def OnMatch(self, evt):
         """Sort pane Match button click"""

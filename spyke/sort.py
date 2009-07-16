@@ -263,7 +263,7 @@ class Sort(object):
                 cmap.append(c)
 
         name = 'dims=%r, weighting=%r, minspikes=%r' % (dims, weighting, minspikes)
-        f = mlab.figure(name=name, bgcolor=(0, 0, 0))
+        f = mlab.figure(figure=name, bgcolor=(0, 0, 0))
         try:
             self.f
         except AttributeError:
