@@ -317,6 +317,38 @@ class Sort(object):
         n2sids, s2nids = self.get_ids(cids, spikes)
         return n2sids
 
+    def export2Charlie(self, n=3):
+        """Export spike data to a text file, one spike per row.
+        Columns are x0, y0, and then nearest n chans x most prominent 32 datapoints,
+        (-8, 24) wrt spike time. This is to give to Charlie to do WPD and SPC on."""
+        ti = 12 # time index each spike is assumed to be centered on
+        dims = len(self.spikes), 2+n*32
+        output = np.empty(dims, dtype=np.float32)
+        dm = self.detector.dm
+        chanis = np.arange(len(dm.data))
+        coords = np.asarray(dm.coords)
+        xcoords = coords[:, 0]
+        ycoords = coords[:, 1]
+        spikeis = self.spikes.keys() # self.spikes is a dict!
+        spikeis.sort()
+        import pdb; pdb.set_trace()
+        for spikei in spikeis:
+            spike = self.spikes[spikei]
+            # find closest chans to x0, y0
+            x0, y0 = spike.x0, spike.y0
+            #chani = spike.chani # max chani
+            d2s = (xcoords - x0)**2 + (ycoords - y0)**2 # squared distances
+            sortis = d2s.argsort()
+            nearestchanis = chanis[sortis][0:n] # pick the first n nearest chans
+            assert spike.chani in nearestchanis # make sure max chani is among the nearest n chanis
+            if spike.wave.data == None:
+                spike.update_wave(stream=self.stream)
+            row = [x0, y0]
+            import pdb; pdb.set_trace()
+            for chani in nearestchanis:
+                row.extend(spike.wave.data[chani][ti-8:ti+24])
+            output[spikei] = row
+        np.savetxt('spike_data.txt', output, fmt='%.1f', delimiter='  ')
 
     '''
     def match(self, templates=None, weighting='signal', sort=True):

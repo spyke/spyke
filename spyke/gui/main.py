@@ -1030,7 +1030,7 @@ class PyShellFrame(wx.MiniFrame,
         #self.shell.runfile(startupScript)
         #self.shell.run('from '+startupScript+' import *')
         self.shell.run('self = app.spykeframe')
-        self.shell.run("sf = self.frames['sort']") # convenience
+        #self.shell.run("sf = self.frames['sort']") # convenience
         self.shell.run('s = self.sort') # convenience
 
     def OnClose(self, evt):

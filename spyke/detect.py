@@ -432,9 +432,12 @@ class Detector(object):
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
-        self.nbhd = [] # list of neighbourhood of chanis for each chani, as defined by self.slock
+        self.nbhd = [] # list of neighbourhood of chanis for each chani, as defined by self.slock, each in ascending order
         for distances in self.dm.data: # iterate over rows
             chanis, = np.where(distances <= self.slock) # at what col indices does the returned row fall within slock?
+            ds = distances[chanis] # subset of distances
+            sortis = ds.argsort()
+            chanis = chanis[sortis] # sort by distance from chani
             self.nbhd.append(chanis)
 
         self.dti = int(self.dt // self.stream.tres) # convert from numpy.int64 to normal int for inline C
