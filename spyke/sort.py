@@ -317,12 +317,16 @@ class Sort(object):
         n2sids, s2nids = self.get_ids(cids, spikes)
         return n2sids
 
-    def export2Charlie(self, n=3):
+    def export2Charlie(self, fname='spike_data', nchans=3, npoints=32):
         """Export spike data to a text file, one spike per row.
-        Columns are x0, y0, and then nearest n chans x most prominent 32 datapoints,
-        (-8, 24) wrt spike time. This is to give to Charlie to do WPD and SPC on."""
-        ti = 12 # time index each spike is assumed to be centered on
-        dims = len(self.spikes), 2+n*32
+        Columns are x0, y0, followed by most prominent npoints datapoints
+        (1/4, 3/4 wrt spike time) of each nearest nchans. This is to
+        give to Charlie to do WPD and SPC on"""
+        assert np.log2(npoints) % 1 == 0, 'npoints is not a power of 2'
+        # get ti - time index each spike is assumed to be centered on
+        self.spikes[0].update_wave(stream=self.stream) # make sure it has a wave
+        ti = intround(self.spikes[0].wave.data.shape[-1] / 4) # 13 for 50 kHz, 6 for 25 kHz
+        dims = len(self.spikes), 2+nchans*npoints
         output = np.empty(dims, dtype=np.float32)
         dm = self.detector.dm
         chanis = np.arange(len(dm.data))
@@ -335,16 +339,14 @@ class Sort(object):
             spike = self.spikes[spikei]
             # find closest chans to x0, y0
             x0, y0 = spike.x0, spike.y0
-            #chani = spike.chani # max chani
             d2s = (xcoords - x0)**2 + (ycoords - y0)**2 # squared distances
             sortis = d2s.argsort()
-            nearestchanis = chanis[sortis][0:n] # pick the first n nearest chans
-            try:
-                assert spike.chani in nearestchanis, ("max chani %d is not among the %d chanis nearest "
-                                                      "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
-                                                      % (spike.chani, n, x0, y0, spikei, spike.t))
-            except AssertionError, msg:
-                print("WARNING: "+str(msg))
+            nearestchanis = chanis[sortis][0:nchans] # pick the first nchan nearest chans
+            chani = spike.chani # max chani
+            if chani not in nearestchanis:
+                print("WARNING: max chani %d is not among the %d chanis nearest "
+                      "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
+                      % (chani, nchans, x0, y0, spikei, spike.t))
                 #import pdb; pdb.set_trace()
             if spike.wave.data == None:
                 spike.update_wave(stream=self.stream)
@@ -355,12 +357,17 @@ class Sort(object):
                     data = spike.wave[chan].data[0] # pull out singleton dimension
                 except IndexError: # empty array
                     data = np.zeros(data.shape[-1], data.dtype)
-                row.extend(data[ti-8:ti+24])
+                row.extend(data[ti-npoints/4:ti+npoints*3/4])
             try:
                 output[spikei] = row
             except:
                 import pdb; pdb.set_trace()
-        np.savetxt('spike_data.txt', output, fmt='%.1f', delimiter='  ')
+        dt = str(datetime.datetime.now())
+        dt = dt.split('.')[0] # ditch the us
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        fname += '.' + dt + '.txt'
+        np.savetxt(fname, output, fmt='%.1f', delimiter=' ')
 
     '''
     def match(self, templates=None, weighting='signal', sort=True):
