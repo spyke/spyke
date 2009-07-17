@@ -555,6 +555,15 @@ def cvec(x):
     x.shape = (nrows, 1)
     return x
 '''
+def isempty(x):
+    """Check if sequence is empty. There really should be a np.isempty function"""
+    print("WARNING: not thouroughly tested!!!")
+    x = np.asarray(x)
+    if np.prod(x.shape) == 0:
+        return True
+    else:
+        return False
+
 def cut(ts, trange):
     """Returns timestamps, where tstart <= timestamps <= tend
     Copied and modified from neuropy rev 149"""

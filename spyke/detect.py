@@ -511,6 +511,7 @@ class Detector(object):
         #import cProfile
         #cProfile.runctx('spikes = self.threshwave(wave, cutrange)', globals(), locals())
         #spikes = self.modelspikes(spikes)
+        #spikes = []
 
         self.nspikes += len(spikes) # update for next call
         self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
@@ -773,7 +774,7 @@ class Detector(object):
             return NULL;
         }
         Py_DECREF(OK);
-        printf("shrunk edgeis to be %d long\n", dims.ptr[0]);
+        //printf("shrunk edgeis to be %d long\n", dims.ptr[0]);
         //return_val = (PyObject *) edgeis;  // these two both
         return_val = PyArray_Return(edgeis); // seem to work
         """)
