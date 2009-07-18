@@ -317,11 +317,13 @@ class Sort(object):
         n2sids, s2nids = self.get_ids(cids, spikes)
         return n2sids
 
-    def export2Charlie(self, fname='spike_data', nchans=3, npoints=32):
+    def export2Charlie(self, fname='spike_data', onlymaxchan=False, nchans=3, npoints=32):
         """Export spike data to a text file, one spike per row.
         Columns are x0, y0, followed by most prominent npoints datapoints
         (1/4, 3/4 wrt spike time) of each nearest nchans. This is to
         give to Charlie to do WPD and SPC on"""
+        if onlymaxchan:
+            nchans = 1
         assert np.log2(npoints) % 1 == 0, 'npoints is not a power of 2'
         # get ti - time index each spike is assumed to be centered on
         self.spikes[0].update_wave(stream=self.stream) # make sure it has a wave
@@ -337,17 +339,20 @@ class Sort(object):
         spikeis.sort()
         for spikei in spikeis:
             spike = self.spikes[spikei]
-            # find closest chans to x0, y0
-            x0, y0 = spike.x0, spike.y0
-            d2s = (xcoords - x0)**2 + (ycoords - y0)**2 # squared distances
-            sortis = d2s.argsort()
-            nearestchanis = chanis[sortis][0:nchans] # pick the first nchan nearest chans
             chani = spike.chani # max chani
-            if chani not in nearestchanis:
-                print("WARNING: max chani %d is not among the %d chanis nearest "
-                      "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
-                      % (chani, nchans, x0, y0, spikei, spike.t))
-                #import pdb; pdb.set_trace()
+            x0, y0 = spike.x0, spike.y0
+            if onlymaxchan:
+                nearestchanis = np.asarray([chani])
+            else:
+                # find closest chans to x0, y0
+                d2s = (xcoords - x0)**2 + (ycoords - y0)**2 # squared distances
+                sortis = d2s.argsort()
+                nearestchanis = chanis[sortis][0:nchans] # pick the first nchan nearest chans
+                if chani not in nearestchanis:
+                    print("WARNING: max chani %d is not among the %d chanis nearest "
+                          "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
+                          % (chani, nchans, x0, y0, spikei, spike.t))
+                    #import pdb; pdb.set_trace()
             if spike.wave.data == None:
                 spike.update_wave(stream=self.stream)
             row = [x0, y0]
@@ -452,7 +457,10 @@ class Detection(object):
             s.id = self.sort._sid
             self.sort._sid += 1 # inc for next unique SpikeModel
             s.detection = self
-            s.wave = WaveForm() # init to empty waveform
+            try:
+                s.wave
+            except AttributeError:
+                s.wave = WaveForm() # init to empty waveform
             s.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
             s.plt = None # Plot currently holding self
             s.neuron = None # neuron currently associated with

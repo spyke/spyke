@@ -28,9 +28,8 @@ from text import SimpleTable
 DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
 TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-# save all Spike waveforms, even for those that have never been plotted or added to a neuron
-#SAVEALLSPIKEWAVES = False
-DONTSAVESPIKEWAVES = True
+SAVESPIKEWAVES = True
+DONTPICKLESPIKEWAVES = True
 
 # print detection info and debug msgs to file, and info msgs to screen
 logger = logging.Logger('detection')
@@ -166,11 +165,8 @@ class SpikeModel(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        #if SAVEALLSPIKEWAVES and self.wave.data == None:
-        #    # make sure .wave is loaded before pickling to file
-        #    self.update_wave()
         d = self.__dict__.copy() # this doesn't seem to be a slow step
-        if DONTSAVESPIKEWAVES:
+        if DONTPICKLESPIKEWAVES:
             d['wave'] = None # clear wave data to save space and time
             d['V'] = None
         d['errs'] = None
@@ -508,6 +504,7 @@ class Detector(object):
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
         spikes = self.threshwave(wave, cutrange)
+        print('found %d spikes' % len(spikes))
         #import cProfile
         #cProfile.runctx('spikes = self.threshwave(wave, cutrange)', globals(), locals())
         #spikes = self.modelspikes(spikes)
@@ -678,12 +675,17 @@ class Detector(object):
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
-            s.ts = wave.ts[t0i:tendi] # TODO: is this necessary? might be a waste of memory
+            s.ts = wave.ts[t0i:tendi]
             s.tendi, s.tend = tendi, wave.ts[tendi]
             s.V1, s.V2 = V1, V2
             s.Vpp = V2 - V1 # maintain polarity
             chans = np.asarray(self.chans)[chanis] # dereference
             s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
+            if SAVESPIKEWAVES: # save spike waveform for later use
+                s.wave = WaveForm()
+                s.wave.data = wave.data[chanis, t0i:tendi]
+                s.wave.ts = s.ts
+                s.wave.chans = s.chans
             s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
