@@ -671,7 +671,7 @@ class Detector(object):
             s.t0i, s.t0 = t0i, wave.ts[t0i]
             s.tendi, s.tend = tendi, wave.ts[tendi]
             s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
-            #s.dphase = s.ts[phase2ti] - s.ts[phase1ti]
+            s.dphase = s.ts[phase2ti] - s.ts[phase1ti]
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts

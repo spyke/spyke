@@ -122,6 +122,7 @@ class Sort(object):
         """Extract XY parameters from spikes using extraction method"""
         if len(self.spikes) == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
+        t0 = time.clock()
         if method.lower() == 'spatial mean':
             for spike in self.spikes.values():
                 det = spike.detection.detector
@@ -132,7 +133,8 @@ class Sort(object):
                 spike.x0, spike.y0 = det.get_gaussian_fit(spike)
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % method)
-        print("Done extracting XY parameters from all %d spikes" % len(self.spikes))
+        print("Extracting XY parameters from all %d spikes using %s took %.3f sec" %
+              (len(self.spikes), method.lower(), time.clock()-t0))
 
     def get_param_matrix(self):
         """Organize parameters from all spikes into a data matrix for clustering.
@@ -220,7 +222,7 @@ class Sort(object):
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
         to the datapoints in the order presented in the input .dat file. Returns cidsT dict"""
-        spikes = self.spikes_sortedbyID()
+        #spikes = self.spikes_sortedbyID()
         if fname == None:
             fname = self.spclabfname
         f = open(fname, 'r')
@@ -238,8 +240,12 @@ class Sort(object):
         #return n2sidsT
         return cidsT
 
+    def parse_charlies_output(self, fname=r'C:\home\mspacek\Desktop\Charlie\From\2009-07-20\clustered_events_coiflet_T0.125.txt'):
+        nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
+        return nids
+
     def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1], minspikes=2):
-        """Plot 3D projection of clustered data. nids should be a list
+        """Plot 3D projection of clustered data. nids is a sequence
         of neuron ids corresponding to sorted sequence of spike ids. Make
         sure to pass the weighting that was used when clustering the data"""
 
@@ -251,7 +257,8 @@ class Sort(object):
         else:
             X = self.get_param_matrix()
             X *= np.asarray(weighting)
-        if nids:
+        if nids != None:
+            nids = np.asarray(nids)
             maxnid = max(nids)
             hist, bins = np.histogram(nids, bins=range(maxnid+1), new=True)
             #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
@@ -290,7 +297,7 @@ class Sort(object):
         z = X[:, dims[2]]
         # 3D glyphs like 'sphere' come out looking almost black for some reason,
         # use 'point' instead
-        if nids:
+        if nids != None:
             glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
             glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
         else:
