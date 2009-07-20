@@ -296,9 +296,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
-    def OnMatch(self, evt):
-        """Sort pane Match button click"""
-        self.sort.match()
+    def OnExtract(self, evt):
+        """Extract pane Extract button click"""
+        XYmethod = self.extract_radio_box.GetStringSelection()
+        self.sort.extractXY(XYmethod)
 
     def OnKeyDown(self, evt):
         """Handle key presses
@@ -765,6 +766,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_SAVE, enable)
         self.toolbar.EnableTool(wx.ID_SAVE, enable)
         self.menubar.Enable(wx.ID_RASTERS, enable)
+        self.extract_pane.Enable()
         self.sort_pane.Enable()
 
     def get_detector(self):

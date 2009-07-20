@@ -118,6 +118,22 @@ class Sort(object):
         spikes = [ self.spikes[spikeid] for spikeid in spikeids ] # sorted list of spikes
         return spikes
 
+    def extractXY(self, method):
+        """Extract XY parameters from spikes using extraction method"""
+        if len(self.spikes) == 0:
+            raise RuntimeError("No spikes to extract XY parameters from")
+        if method.lower() == 'spatial mean':
+            for spike in self.spikes.values():
+                det = spike.detection.detector
+                spike.x0, spike.y0 = det.get_spike_spatial_mean(spike)
+        elif method.lower() == 'gaussian fit':
+            for spike in self.spikes.values():
+                det = spike.detection.detector
+                spike.x0, spike.y0 = det.get_gaussian_fit(spike)
+        else:
+            raise ValueError("Unknown XY parameter extraction method %r" % method)
+        print("Done extracting XY parameters from all %d spikes" % len(self.spikes))
+
     def get_param_matrix(self):
         """Organize parameters from all spikes into a data matrix for clustering.
         This includes manually weighting them"""
@@ -203,9 +219,7 @@ class Sort(object):
         """Parse output .lab file from SPC. Each row is the cluster assignment of each spin
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
-        to the datapoints in the order presented in the input .dat file
-
-        Returns cidsT dict"""
+        to the datapoints in the order presented in the input .dat file. Returns cidsT dict"""
         spikes = self.spikes_sortedbyID()
         if fname == None:
             fname = self.spclabfname

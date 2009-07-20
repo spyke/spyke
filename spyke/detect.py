@@ -666,17 +666,17 @@ class Detector(object):
             '''
             # looks like a spike, calc and save some attribs
             s = Spike()
+            s.t = wave.ts[ti]
+            s.ts = wave.ts[t0i:tendi]
             s.t0i, s.t0 = t0i, wave.ts[t0i]
-            s.phase1ti, s.phase2ti = ti, t0i + phase2ti # these ones bound to self are wrt wave.ts[0]
-            s.dphase = wave.ts[s.phase2ti] - wave.ts[s.phase1ti]
-            s.ti, s.t = ti, wave.ts[ti]
+            s.tendi, s.tend = tendi, wave.ts[tendi]
+            s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
+            #s.dphase = s.ts[phase2ti] - s.ts[phase1ti]
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
-            s.ts = wave.ts[t0i:tendi]
-            s.tendi, s.tend = tendi, wave.ts[tendi]
             s.V1, s.V2 = V1, V2
             s.Vpp = V2 - V1 # maintain polarity
             chans = np.asarray(self.chans)[chanis] # dereference
@@ -685,19 +685,21 @@ class Detector(object):
                 s.wave = WaveForm()
                 s.wave.data = wave.data[chanis, t0i:tendi]
                 s.wave.ts = s.ts
-                s.wave.chans = s.chans
-            s.x0, s.y0 = self.get_spike_spatial_mean(s, wave)
+                s.wave.chans = chans
+            #s.x0, s.y0 = self.get_spike_spatial_mean(s) # this is optionally done later
+            #s.x0, s.y0 = None, None
             s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
-            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, intround(s.x0), intround(s.y0)))
+            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to 2nd phase of this spike
             #dphaseti = phase2ti - phase1ti
-            lockout = s.phase2ti #+ dphaseti / 2
+            lockout = t0i + phase2ti #+ dphaseti / 2
             lockouts[chanis] = lockout # same for all chans in this spike
-            lockoutt = wave.ts[0] + lockout*self.stream.tres
-            #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
-            if DEBUG: debug('lockout = %d for chans = %s' % (lockoutt, chans))
+            if DEBUG:
+                lockoutt = wave.ts[lockout]
+                #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
+                debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
         return spikes
 
@@ -869,16 +871,19 @@ class Detector(object):
             raise NoPeakError("can't find suitable 2nd peak")
         return peak2i
 
-    def get_spike_spatial_mean(self, spike, wave):
+    def get_spike_spatial_mean(self, spike):
         """Return weighted spatial mean of chans in spike according to their
         Vpp, to use as rough spatial origin of spike
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
         This is handled by giving them 0 weight."""
         chanis = spike.chanis
+        wave = spike.wave
+        if wave.data == None:
+            spike.update_wave(self.stream)
         x = self.siteloc[chanis, 0] # 1D array (row)
         y = self.siteloc[chanis, 1]
-        weights = (wave.data[chanis, spike.phase2ti] -
-                   wave.data[chanis, spike.phase1ti]) # phase2 - phase1 on all chans, should be +ve, at least on maxchan
+        weights = (wave.data[:, spike.phase2ti] -
+                   wave.data[:, spike.phase1ti]) # phase2 - phase1 on all chans, should be +ve, at least on maxchan
         weights = np.where(weights >= 0, weights, 0) # replace any -ve weights with 0
         weights /= weights.sum() # normalized
         #weights = wave.data[spike.chanis, spike.ti] # Vp weights, unnormalized, some of these may be -ve
@@ -888,6 +893,9 @@ class Detector(object):
         x0 = (weights * x).sum()
         y0 = (weights * y).sum()
         return x0, y0
+
+    def get_gaussian_fit(self, spike):
+        raise NotImplementedError
 
     def modelspikes(self, events):
         """Model spike events that roughly look like spikes
