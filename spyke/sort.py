@@ -240,7 +240,7 @@ class Sort(object):
         #return n2sidsT
         return cidsT
 
-    def parse_charlies_output(self, fname=r'C:\home\mspacek\Desktop\Charlie\From\2009-07-20\clustered_events_coiflet_T0.125.txt'):
+    def parse_charlies_output(self, fname=r'C:\Documents and Settings\Administrator\Desktop\Charlie\From\2009-07-20\clustered_events_coiflet_T0.125.txt'):
         nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
         return nids
 
@@ -252,15 +252,18 @@ class Sort(object):
         from enthought.mayavi import mlab # can't delay this any longer
 
         assert len(dims) == 3
+        t0 = time.clock()
         if weighting in ['pca', 'ica']:
             X = self.get_cluster_data(weighting=weighting) # in sid order, nids should be as well
         else:
             X = self.get_param_matrix()
             X *= np.asarray(weighting)
+        print("Getting weighted param matrix took %.3f sec" % (time.clock()-t0))
         if nids != None:
+            t0 = time.clock()
             nids = np.asarray(nids)
             maxnid = max(nids)
-            hist, bins = np.histogram(nids, bins=range(maxnid+1), new=True)
+            hist, bins = np.histogram(nids, bins=range(maxnid+1))
             #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
             goodnids = bins[hist >= minspikes] # find all non-junk nids
             # get indices in goodnid order that pull out just the goodnids - this looks nasty:
@@ -282,6 +285,7 @@ class Sort(object):
                 c = list(c)
                 c.append(1.0) # add alpha as 4th channel
                 cmap.append(c)
+            print("Figuring out colours took %.3f sec" % (time.clock()-t0))
 
         name = 'dims=%r, weighting=%r, minspikes=%r' % (dims, weighting, minspikes)
         f = mlab.figure(figure=name, bgcolor=(0, 0, 0))
@@ -292,6 +296,7 @@ class Sort(object):
         self.f.append(f)
 
         # plot it
+        t0 = time.clock()
         x = X[:, dims[0]]
         y = X[:, dims[1]]
         z = X[:, dims[2]]
@@ -302,6 +307,7 @@ class Sort(object):
             glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
         else:
             glyph = mlab.points3d(x, y, z, figure=f, mode='point')
+        print("Plotting took %.3f sec" % (time.clock()-t0))
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
