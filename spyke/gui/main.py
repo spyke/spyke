@@ -123,7 +123,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # temporary, for faster testing
         #self.range_start_combo_box.SetValue('0')
-        self.range_end_combo_box.SetValue('1e6')
+        self.range_end_combo_box.SetValue('10e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetRange(0, sys.maxint)
@@ -575,9 +575,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
         self.DeleteSortSession() # delete any existing sort Session
-        pf = gzip.open(fname, 'rb')
+        #pf = gzip.open(fname, 'rb') # gzip.read() is reaaaallly slow for some reason
+        pf = open(fname, 'rb')
         print 'unpickling sort file'
         t0 = time.clock()
+        #import cProfile
+        #cProfile.runctx('self.sort = cPickle.load(pf)', globals(), locals())
         self.sort = cPickle.load(pf)
         print 'done unpickling sort file, took %.3f sec' % (time.clock()-t0)
         pf.close()
@@ -595,12 +598,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.notebook.Show(True) # lets us do stuff with the sort session
         for detection in self.sort.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
+        '''
         sf = self.OpenFrame('sort') # ensure it's open
         sf.Append2SpikeList(self.sort.spikes) # restore unsorted spikes to spike list
         for neuron in self.sort.neurons.values(): # restore neurons and their sorted spikes to tree
             sf.AddNeuron2Tree(neuron)
             for spike in neuron.spikes.values():
                 sf.AddSpike2Tree(neuron.itemID, spike)
+        '''
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         self.update_detect_pane(self.sort.detector)
@@ -611,11 +616,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Save sort sort to a .sort file"""
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
-        pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
-        p = cPickle.Pickler(pf, protocol=-1) # make a Pickler, use most efficient (least human readable) protocol
+        #pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
+        pf = open(fname, 'wb')
         print 'pickling sort file'
         t0 = time.clock()
-        p.dump(self.sort)
+        cPickle.dump(self.sort, pf, protocol=-1) # use most efficient (least human readable) protocol
         print 'done pickling sort file, took %.3f sec' % (time.clock()-t0)
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved

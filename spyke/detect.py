@@ -127,51 +127,30 @@ class DistanceMatrix(object):
             raise ValueError, 'key must specify 1 or 2 chans'
     '''
 
-class SpikeModel(object):
-    """A model for fitting two voltage Gaussians to spike phases,
-    plus a 2D spatial gaussian to model decay across channels"""
-    def __init__(self):
-        self.errs = []
-        self.valid = False # modelled event is assumed not to be a spike until proven spike-worthy
-        self.sxsyfactor = 3 # sx and sy need to be within this factor of each other
-
+class Spike(object):
+    """A Spike"""
     def __eq__(self, other):
-        """Compare SpikeModels by their parameter arrays"""
+        """Compare Spikes according to their hashes"""
         if self.__class__ != other.__class__: # might be comparing a Spike with a Neuron
             return False
-        #return np.all(self.p == other.p) # disable for now while not modelling
         return hash(self) == hash(other) # good enough for just simple detection
 
     def __hash__(self):
         """Unique hash value for self, based on modelled spike time and location.
-        Required for effectively using SpikeModels in a Set"""
+        Required for effectively using Spikes in a Set"""
         return hash((self.t, self.chan)) # hash of their tuple, should guarantee uniqueness
 
     def __repr__(self):
         return str((self.t, self.chan))
 
-    def __getitem__(self, key):
-        """Return WaveForm for this spike given slice key"""
-        assert type(key) == slice
-        #stream = self.detection.detector.stream
-        #if stream != None: # stream is available
-        #    self.wave = stream[key] # let stream handle the slicing, save result
-        #    return self.wave
-        #elif self.wave != None: # stream unavailable, .wave from before last pickling is available
-        if self.wave != None:
-            return self.wave[key] # slice existing .wave
-        else: # existing .wave unavailable
-            return WaveForm() # return empty waveform
-
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # this doesn't seem to be a slow step
         if DONTPICKLESPIKEWAVES:
-            d['wave'] = None # clear wave data to save space and time
+            d['wave'] = None # clear wave data to save space and time during pickling
             d['V'] = None
-        d['errs'] = None
-        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+        #d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        #d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         return d
 
     def update_wave(self, stream=None, tw=None):
@@ -192,6 +171,40 @@ class SpikeModel(object):
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
+
+
+class SpikeModel(Spike):
+    """A model for fitting two voltage Gaussians to spike phases,
+    plus a 2D spatial gaussian to model decay across channels"""
+    def __init__(self):
+        self.errs = []
+        self.valid = False # modelled event is assumed not to be a spike until proven spike-worthy
+        self.sxsyfactor = 3 # sx and sy need to be within this factor of each other
+
+    def __eq__(self, other):
+        """Compare SpikeModels by their parameter arrays"""
+        if self.__class__ != other.__class__: # might be comparing a Spike with a Neuron
+            return False
+        return np.all(self.p == other.p) # disable for now while not modelling
+
+    def __getitem__(self, key):
+        """Return WaveForm for this spike given slice key"""
+        assert type(key) == slice
+        #stream = self.detection.detector.stream
+        #if stream != None: # stream is available
+        #    self.wave = stream[key] # let stream handle the slicing, save result
+        #    return self.wave
+        #elif self.wave != None: # stream unavailable, .wave from before last pickling is available
+        if self.wave != None:
+            return self.wave[key] # slice existing .wave
+        else: # existing .wave unavailable
+            return WaveForm() # return empty waveform
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = Spike.__getstate__(self)
+        d['errs'] = None
+        return d
 
     def plot(self):
         """Plot modelled and raw data for all chans, plus the single spatially
@@ -368,12 +381,6 @@ class NLLSPSpikeModel(SpikeModel):
         return d
 
 
-class Spike(NLLSPSpikeModel):
-    """A Spike is just a subclass of a subclass of SpikeModel.
-    Change inheritance to suit desired type of SpikeModel"""
-    pass
-
-
 class Detector(object):
     """Spike detector base class"""
     DEFTHRESHMETHOD = 'GlobalFixed' # GlobalFixed, ChanFixed, or Dynamic
@@ -384,7 +391,7 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFBLOCKSIZE = 1000000 # us, waveform data block size
+    DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
@@ -688,7 +695,7 @@ class Detector(object):
                 s.wave.chans = chans
             #s.x0, s.y0 = self.get_spike_spatial_mean(s) # this is optionally done later
             #s.x0, s.y0 = None, None
-            s.valid = True
+            #s.valid = True
             spikes.append(s) # add to list of valid Spikes to return
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
@@ -877,9 +884,9 @@ class Detector(object):
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
         This is handled by giving them 0 weight."""
         chanis = spike.chanis
-        wave = spike.wave
-        if wave.data == None:
+        if spike.wave == None or spike.wave.data == None:
             spike.update_wave(self.stream)
+        wave = spike.wave
         x = self.siteloc[chanis, 0] # 1D array (row)
         y = self.siteloc[chanis, 1]
         weights = (wave.data[:, spike.phase2ti] -

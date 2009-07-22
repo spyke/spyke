@@ -15,11 +15,10 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 from matplotlib.colors import hex2color
 #import pylab
-#import mdp
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import COLOURS
+from spyke.gui.plot import CLUSTERCOLOURS
 from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
@@ -35,7 +34,11 @@ Keep tabs on how far and in what direction each chan had to be realigned. Maybe
 take sum(abs(phase1V*realignments)) over all chans in the event, (weighted by
 amount of signal at phase1 on that chan) and call that another feature.
 Events with lots of realignment are more likely BPAPs, or are certainly a different
-mode of spike than those with very little realignment.
+mode of spike than those with very little realignment. To find the min of each chan
+reliably even in noise, find all the local minima within some trange of the maxchan
+phase1t (say +/- max allowable dphase/2, ie ~ +/- 175 us) and outside of any preceding
+lockouts. Then, take the temporal median of all the local minima found within those constraints,
+and align the channel to that. That gives you some confidence about reslilience to noise.
 """
 
 class Sort(object):
@@ -137,53 +140,61 @@ class Sort(object):
               (len(self.spikes), method.lower(), time.clock()-t0))
 
     def get_param_matrix(self):
-        """Organize parameters from all spikes into a data matrix for clustering.
-        This includes manually weighting them"""
-        nspikes = len(self.spikes)
-        nparams = 4
-        X = np.zeros((nspikes, nparams))
-        spikes = self.spikes_sortedbyID()
-        for i, s in enumerate(spikes):
-            X[i] = np.asarray([s.x0, s.y0, s.Vpp, s.dphase])
-        '''
-        nparams = 9
-        X = np.zeros((nspikes, nparams))
-        spikes = self.spikes_sortedbyID()
-        for i, s in enumerate(spikes):
-            V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
-            # for clustering, substitute V1/V2 with Vpp, and mu1/mu2 with dphase
-            X[i] = np.array([s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta])
-            #X[i] = np.array([x0, y0])
-        # normalize each column in X (ie each param) from [0, 1]
-        '''
-        '''
-        X -= X.min(axis=0) # have them all start from 0
-        X /= X.max(axis=0) # normalize
-        # now weight some parameters more than others. This affects the euclidean distance
-        # between clusters, which affects their agglomeration/density.
-        # maybe the ideal parameter weights can come from openopt...
-        X[:, 0] *= 2 # Vpp
-        X[:, 2] *= 5 # x0
-        X[:, 3] *= 10 # y0
-        '''
-        return X
+        """Organize parameters from all spikes into a data matrix for clustering"""
+        try:
+            return self.X # see if param matrix has already been calculated and saved
+        except AttributeError:
+            nspikes = len(self.spikes)
+            nparams = 4
+            #nparams = 9
+            X = np.zeros((nspikes, nparams))
+            spikes = self.spikes_sortedbyID()
+            for i, s in enumerate(spikes):
+                X[i] = [s.x0, s.y0, s.Vpp, s.dphase]
+                '''
+                V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
+                # for clustering, substitute V1/V2 with Vpp, and mu1/mu2 with dphase
+                X[i] = [s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta]
+                #X[i] = [x0, y0]
+                '''
+            '''
+            # normalize each column in X (ie each param) from [0, 1]
+            X -= X.min(axis=0) # have them all start from 0
+            X /= X.max(axis=0) # normalize
+            # now weight some parameters more than others. This affects the euclidean distance
+            # between clusters, which affects their agglomeration/density.
+            # maybe the ideal parameter weights can come from openopt...
+            X[:, 0] *= 2 # Vpp
+            X[:, 2] *= 5 # x0
+            X[:, 3] *= 10 # y0
+            '''
+            self.X = X # save
+            return X
 
     def get_cluster_data(self, weighting='pca'):
         """Convert spike param matrix into pca/ica data for clustering"""
-        X = self.get_param_matrix()
-        if weighting.lower() == 'ica':
-            icanode = mdp.nodes.FastICANode()
-            icanode.train(X)
-            features = icanode.execute(X) # returns all available components
-            self.node = icanode
-        elif weighting.lower() == 'pca':
-            pcanode = mdp.nodes.PCANode()
-            pcanode.train(X)
-            features = pcanode.execute(X) # returns all available components
-            self.node = pcanode
-        else:
-            raise ValueError, 'unknown weighting %r' % weighting
-        return features
+
+        import mdp # can't delay this any longer
+
+        try:
+            if self.weighting == weighting:
+                return self.features # return previously saved features
+            else:
+                raise AttributeError("self.weighting != weighting")
+        except AttributeError: # self.weighting and/or self.features don't exist, or self.weighting != weighting
+            X = self.get_param_matrix()
+            if weighting.lower() == 'ica':
+                node = mdp.nodes.FastICANode()
+            elif weighting.lower() == 'pca':
+                node = mdp.nodes.PCANode()
+            else:
+                raise ValueError, 'unknown weighting %r' % weighting
+            node.train(X)
+            features = node.execute(X) # returns all available components
+            self.node = node
+            self.weighting = weighting
+            self.features = features
+            return features
 
     def get_ids(self, cids, spikes):
         """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to
@@ -254,17 +265,33 @@ class Sort(object):
         assert len(dims) == 3
         t0 = time.clock()
         if weighting in ['pca', 'ica']:
-            X = self.get_cluster_data(weighting=weighting) # in sid order, nids should be as well
+            X = self.get_cluster_data(weighting=weighting) # in spike id order
         else:
             X = self.get_param_matrix()
-            X *= np.asarray(weighting)
+            X = X * np.asarray(weighting) # don't use *= since that'll modify self.X in place
         print("Getting weighted param matrix took %.3f sec" % (time.clock()-t0))
         if nids != None:
             t0 = time.clock()
             nids = np.asarray(nids)
+            nidis = nids.argsort() # indices to get nids in sorted order
             maxnid = max(nids)
             hist, bins = np.histogram(nids, bins=range(maxnid+1))
-            #junknids = bins[np.where(hist < minspikes)[0]] # find junk singleton nids
+            if set(nids) != set(bins):
+                print("WARNING: nids has gaps in it")
+            # assume lowest numbered nids are the most frequent ones...
+            # find histi where hist drops below minspikes, take bins[histi] to find nid
+            # at which point all subsequently numbered nids occur less than minspikes,
+            # then simply create new X = X[nidis] to get it in the same sorted order,
+            # then do s[sum(hist[:histi]):] = ncolours
+            #histis = hist.argsort()
+            junkhistis, = np.where(hist < minspikes)
+            junknids = bins[junkhistis] # find junk neuron ids
+            junknidis = [ np.where(nids == junknid)[0] for junknid in junknids ]
+            try:
+                junknidis = np.concatenate(junknidis) # indices into nids that pull out the junk nids
+            except:
+                import pdb; pdb.set_trace()
+            '''
             goodnids = bins[hist >= minspikes] # find all non-junk nids
             # get indices in goodnid order that pull out just the goodnids - this looks nasty:
             nidis = np.array([], dtype=int) # otherwise concatenating gives a float array
@@ -273,19 +300,25 @@ class Sort(object):
                 nidis = np.concatenate((nidis, newnidis))
             nids = nids[nidis]
             X = X[nidis]
+            '''
             # s are indices into colourmap
-            ncolours = len(COLOURS)
-            s = nids % ncolours
-            #s = nids % (ncolours - 1) # save last colour for junk singleton clusters
-            #s[junk_nids] = ncolours # assign last colour to junk singleton clusters
-            # convert COLOURS list into a colourmap (RGBA list)
-            cmap = []
-            for c in COLOURS:
-                c = hex2color(c) # convert hex string to RGB tuple
-                c = list(c)
-                c.append(1.0) # add alpha as 4th channel
-                cmap.append(c)
+            ncolours = len(CLUSTERCOLOURS)
+            #s = nids % ncolours
+            s = nids % (ncolours - 1) # save last colour for junk clusters
+            s[junknidis] = ncolours # assign last colour to junk clusters
+            # convert CLUSTERCOLOURS list into a colourmap (RGBA list)
+            try:
+                self.cmap
+            except AttributeError:
+                self.cmap = []
+                for c in CLUSTERCOLOURS:
+                    c = hex2color(c) # convert hex string to RGB tuple
+                    c = list(c)
+                    c.append(1.0) # add alpha as 4th channel
+                    self.cmap.append(c)
             print("Figuring out colours took %.3f sec" % (time.clock()-t0))
+            # TODO: order colours consecutively according to cluster mean y location, to
+            # make neighbouring clusters in X-Y space less likely to be assigned the same colour
 
         name = 'dims=%r, weighting=%r, minspikes=%r' % (dims, weighting, minspikes)
         f = mlab.figure(figure=name, bgcolor=(0, 0, 0))
@@ -304,7 +337,7 @@ class Sort(object):
         # use 'point' instead
         if nids != None:
             glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
-            glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
+            glyph.module_manager.scalar_lut_manager.load_lut_from_list(self.cmap) # assign colourmap
         else:
             glyph = mlab.points3d(x, y, z, figure=f, mode='point')
         print("Plotting took %.3f sec" % (time.clock()-t0))
@@ -379,7 +412,6 @@ class Sort(object):
                     print("WARNING: max chani %d is not among the %d chanis nearest "
                           "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
                           % (chani, nchans, x0, y0, spikei, spike.t))
-                    #import pdb; pdb.set_trace()
             if spike.wave.data == None:
                 spike.update_wave(stream=self.stream)
             row = [x0, y0]
@@ -390,10 +422,7 @@ class Sort(object):
                 except IndexError: # empty array
                     data = np.zeros(data.shape[-1], data.dtype)
                 row.extend(data[ti-npoints/4:ti+npoints*3/4])
-            try:
-                output[spikei] = row
-            except:
-                import pdb; pdb.set_trace()
+            output[spikei] = row
         dt = str(datetime.datetime.now())
         dt = dt.split('.')[0] # ditch the us
         dt = dt.replace(' ', '_')
