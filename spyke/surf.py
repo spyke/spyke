@@ -233,8 +233,7 @@ class File(Record):
         """Pickle self to a .parse file"""
         print 'Saving parse info to %r' % self.parsefname
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
-        p = cPickle.Pickler(pf, protocol=-1) # use most efficient (least human readable) protocol
-        p.dump(self) # pickle self to .parse file
+        cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
         pf.close()
         print 'Saved parse info to %r' % self.parsefname
 
@@ -242,9 +241,8 @@ class File(Record):
         """Unpickle self from a .parse file"""
         print 'Trying to recover parse info from %r' % self.parsefname
         pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
-        u = cPickle.Unpickler(pf)
-        #self = u.load() # NOTE: this doesn't work as intended
-        other = u.load()
+        #self = cPickle.load(pf) # NOTE: this doesn't work as intended
+        other = cPickle.load(pf)
         self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         pf.close()
         print 'Recovered parse info from %r' % self.parsefname

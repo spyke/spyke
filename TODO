@@ -1,5 +1,22 @@
 GENERAL:
 
+- for spike in self.sort.spikes.values():
+     spike.update_waveform()
+
+    t = timeit.Timer('for spike in s.sorted_spikes: spike.update_wave(s.stream)', 'from __main__ import s')
+    t.timeit(1)
+    424.21932110020794
+
+    ... is really slow, I think because for each spike it loads 100 ms of data, interpolates it, grabs the spike's 1 ms x 9 chan window, throws the rest away, and repeats it for all 10s of thousands of spikes. Need to retain highpass records (and their interpolated data) at least for a while, so they can be reused when loading data from multiple spikes consecutively in time. Maybe use weakref somehow, so when too many are loaded, the gc cleans up the least used ones?
+    - this happens when extracting param values from detected spikes after restoring a .sort session that didn't have waveforms saved in it
+    - with "del record.data" commented out in core.Stream:243, timeit drops only very slightly to 412.45705476673595.
+    - related: add a File/Restore waveforms to the menu, leave it greyed out when not applicable
+
+- profile pickling and unpickling of both .parse and .sort files by temporarily using the Python pickle module instead of the cPickle module, to hopefully figure out why the surf.File and sort.Sort objects take so damned long to process - too many references?
+
+- order colours consecutively according to cluster mean y location, to make neighbouring clusters in X-Y space less likely to be assigned the same colour
+
+
 - WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
 
 - abstract out spike detection and obvious rejection from spike modelling, do all detection first in its own loop, followed by all modelling later in its own loop

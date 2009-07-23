@@ -240,7 +240,10 @@ class Stream(object):
             tstart = record.TimeStamp
             nt = record.data.shape[1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
-            del record.data # save memory by unloading waveform data from records that aren't needed anymore - TODO: this can cause a race condition if multithreading
+            # save memory by unloading waveform data from records that aren't needed anymore
+            # TODO: this can cause a race condition if multithreading
+            # TODO: use weakref, so garbage collector unloads .data when it needs memory?
+            del record.data
         ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster

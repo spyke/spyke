@@ -575,7 +575,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
         self.DeleteSortSession() # delete any existing sort Session
-        #pf = gzip.open(fname, 'rb') # gzip.read() is reaaaallly slow for some reason
+        # gzip.read() is reaaaallly slow for some reason, even when file was on compresslevel=1
+        #pf = gzip.open(fname, 'rb')
         pf = open(fname, 'rb')
         print 'unpickling sort file'
         t0 = time.clock()
@@ -616,7 +617,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Save sort sort to a .sort file"""
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
-        #pf = gzip.open(fname, 'wb') # compress pickle with gzip, can also control compression level
+        #pf = gzip.open(fname, 'wb', compresslevel=1) # compress pickle with gzip, can also control compression level
         pf = open(fname, 'wb')
         print 'pickling sort file'
         t0 = time.clock()

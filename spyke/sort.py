@@ -255,10 +255,21 @@ class Sort(object):
         nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
         return nids
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1], minspikes=2):
+    def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1],
+             minspikes=1, mode='point', alpha=0.5, scale_factor=None,
+             mask_points=None, resolution=8, line_width=2.0):
         """Plot 3D projection of clustered data. nids is a sequence
         of neuron ids corresponding to sorted sequence of spike ids. Make
-        sure to pass the weighting that was used when clustering the data"""
+        sure to pass the weighting that was used when clustering the data.
+        "Clusters" with less than minspikes will all be coloured the
+        same dark grey. Mode can be '2darrow', '2dcircle', '2dcross',
+        '2ddash', '2ddiamond', '2dhooked_arrow', '2dsquare', '2dthick_arrow',
+        '2dthick_cross', '2dtriangle', '2dvertex', 'arrow', 'cone', 'cube',
+        'cylinder', 'point', 'sphere'. 3D glyphs like 'sphere' come out
+        looking almost black if OpenGL isn't working
+        right, and are slower - use 'point' instead. if mask_points is not
+        None, plots only 1 out of every mask_points points, to reduce
+        number of plotted points for big data sets"""
 
         from enthought.mayavi import mlab # can't delay this any longer
 
@@ -273,49 +284,50 @@ class Sort(object):
         if nids != None:
             t0 = time.clock()
             nids = np.asarray(nids)
-            nidis = nids.argsort() # indices to get nids in sorted order
+            sortednidis = nids.argsort() # indices to get nids in sorted order
+            nids = nids[sortednidis] # nids is now sorted
+            X = X[sortednidis] # now param matrix X is in the same sorted order
             maxnid = max(nids)
-            hist, bins = np.histogram(nids, bins=range(maxnid+1))
-            if set(nids) != set(bins):
+            consecutivenids = np.arange(maxnid+1)
+            if set(nids) != set(consecutivenids):
                 print("WARNING: nids has gaps in it")
-            # assume lowest numbered nids are the most frequent ones...
-            # find histi where hist drops below minspikes, take bins[histi] to find nid
-            # at which point all subsequently numbered nids occur less than minspikes,
-            # then simply create new X = X[nidis] to get it in the same sorted order,
-            # then do s[sum(hist[:histi]):] = ncolours
-            #histis = hist.argsort()
-            junkhistis, = np.where(hist < minspikes)
-            junknids = bins[junkhistis] # find junk neuron ids
-            junknidis = [ np.where(nids == junknid)[0] for junknid in junknids ]
+            # the extra +1 gives us the correct rightmost bin edge
+            # for histogram's end inclusive semantics
+            bins = np.arange(maxnid+1+1)
+            hist, bins = np.histogram(nids, bins=bins)
+            # assume lowest numbered nids are the most frequent ones
+            # is hist in decreasing order, ie is difference between subsequent entries <= 0?
             try:
-                junknidis = np.concatenate(junknidis) # indices into nids that pull out the junk nids
-            except:
+                assert (np.diff(hist) <= 0).all()
+            except AssertionError:
                 import pdb; pdb.set_trace()
-            '''
-            goodnids = bins[hist >= minspikes] # find all non-junk nids
-            # get indices in goodnid order that pull out just the goodnids - this looks nasty:
-            nidis = np.array([], dtype=int) # otherwise concatenating gives a float array
-            for goodnid in goodnids:
-                newnidis = np.where(nids == goodnid)[0]
-                nidis = np.concatenate((nidis, newnidis))
-            nids = nids[nidis]
-            X = X[nidis]
-            '''
+            # find histi where hist drops to minspikes
+            # searchsorted requires ascending order, not descending
+            histifromend = hist[::-1].searchsorted(minspikes)
+            histi = len(hist) - histifromend
+            # take bins[histi] to find junknid, at which point all subsequently
+            # numbered nids occur less than minspikes
+            junknid = bins[histi]
+            # should really get junknid == histi if everything's right
+            try:
+                assert junknid == histi
+            except AssertionError:
+                import pdb; pdb.set_trace()
+            # junknidi is first index into sorted nids which occurs <= minspikes times,
+            # and is considered junk, as are all subsequent ones
+            junknidi = nids.searchsorted(junknid)
+            # or maybe junknidi = sum(hist[:histi]) would work as well? faster?
             # s are indices into colourmap
             ncolours = len(CLUSTERCOLOURS)
-            #s = nids % ncolours
             s = nids % (ncolours - 1) # save last colour for junk clusters
-            s[junknidis] = ncolours # assign last colour to junk clusters
+            s[junknidi:] = ncolours - 1 # assign last colour (dk grey) to junk clusters
             # convert CLUSTERCOLOURS list into a colourmap (RGBA list)
-            try:
-                self.cmap
-            except AttributeError:
-                self.cmap = []
-                for c in CLUSTERCOLOURS:
-                    c = hex2color(c) # convert hex string to RGB tuple
-                    c = list(c)
-                    c.append(1.0) # add alpha as 4th channel
-                    self.cmap.append(c)
+            cmap = []
+            for c in CLUSTERCOLOURS:
+                c = hex2color(c) # convert hex string to RGB tuple
+                c = list(c)
+                c.append(alpha) # add alpha as 4th channel
+                cmap.append(c)
             print("Figuring out colours took %.3f sec" % (time.clock()-t0))
             # TODO: order colours consecutively according to cluster mean y location, to
             # make neighbouring clusters in X-Y space less likely to be assigned the same colour
@@ -326,20 +338,29 @@ class Sort(object):
             self.f
         except AttributeError:
             self.f = []
-        self.f.append(f)
+        if f in self.f: # figure with same name already exists
+            mlab.clf(f) # clear the figure before plotting to it
+        else:
+            self.f.append(f)
 
         # plot it
         t0 = time.clock()
         x = X[:, dims[0]]
         y = X[:, dims[1]]
         z = X[:, dims[2]]
-        # 3D glyphs like 'sphere' come out looking almost black for some reason,
-        # use 'point' instead
         if nids != None:
-            glyph = mlab.points3d(x, y, z, s, figure=f, mode='point')
-            glyph.module_manager.scalar_lut_manager.load_lut_from_list(self.cmap) # assign colourmap
+            args = x, y, z, s
         else:
-            glyph = mlab.points3d(x, y, z, figure=f, mode='point')
+            args = x, y, z
+        kwargs = {'figure':f, 'mode':mode,
+                  'mask_points':mask_points,
+                  'resolution':resolution,
+                  'line_width':line_width}
+        if scale_factor != None:
+            kwargs['scale_factor'] = scale_factor
+        glyph = mlab.points3d(*args, **kwargs)
+        if nids != None:
+            glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
         print("Plotting took %.3f sec" % (time.clock()-t0))
 
     def write_spc_app_input(self):
@@ -348,7 +369,7 @@ class Sort(object):
         X = self.get_cluster_data()
         # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
         # first row has labels "AFFX", "NAME", and then spike ids
-        # first col has lables "AFFX", and then param names
+        # first col has labels "AFFX", and then param names
         f = open(r'C:\home\mspacek\Desktop\Work\SPC\Weizmann\spc_app\spc_app_input.txt', 'w')
         f.write('AFFX\tNAME\t')
         for spike in spikes:
