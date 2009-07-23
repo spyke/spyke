@@ -63,10 +63,9 @@ MAGENTA = '#FF00FF'
 GREY = '#888888'
 WHITE = '#FFFFFF'
 BROWN = '#AF5050'
-DARKGREY = '#222222' # reserve as garbage cluster colour
+DARKGREY = '#222222' # reserve as junk cluster colour
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
-CLUSTERCOLOURS = COLOURS + [DARKGREY]
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call

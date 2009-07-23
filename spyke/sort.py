@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import datetime
+import copy
 
 import wx
 
@@ -18,7 +19,7 @@ from matplotlib.colors import hex2color
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import CLUSTERCOLOURS
+from spyke.gui.plot import COLOURS, DARKGREY
 from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
@@ -255,8 +256,8 @@ class Sort(object):
         nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
         return nids
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting=[2, 1, 0.3, 1],
-             minspikes=1, mode='point', alpha=0.5, scale_factor=None,
+    def plot(self, nids=None, dims=[0, 1, 2], weighting=[1, 1, 1, 1],
+             minspikes=1, mode='point', alpha=0.5, scale_factor=0.5,
              mask_points=None, resolution=8, line_width=2.0):
         """Plot 3D projection of clustered data. nids is a sequence
         of neuron ids corresponding to sorted sequence of spike ids. Make
@@ -285,8 +286,8 @@ class Sort(object):
             t0 = time.clock()
             nids = np.asarray(nids)
             sortednidis = nids.argsort() # indices to get nids in sorted order
+            unsortednidis = sortednidis.argsort() # indices that unsort nids back to original order
             nids = nids[sortednidis] # nids is now sorted
-            X = X[sortednidis] # now param matrix X is in the same sorted order
             maxnid = max(nids)
             consecutivenids = np.arange(maxnid+1)
             if set(nids) != set(consecutivenids):
@@ -317,17 +318,27 @@ class Sort(object):
             # and is considered junk, as are all subsequent ones
             junknidi = nids.searchsorted(junknid)
             # or maybe junknidi = sum(hist[:histi]) would work as well? faster?
+            njunk = len(nids) - junknidi # number of junk points
+            colours = COLOURS
+            ncolours = len(colours)
             # s are indices into colourmap
-            ncolours = len(CLUSTERCOLOURS)
-            s = nids % (ncolours - 1) # save last colour for junk clusters
-            s[junknidi:] = ncolours - 1 # assign last colour (dk grey) to junk clusters
-            # convert CLUSTERCOLOURS list into a colourmap (RGBA list)
+            s = nids % ncolours
+            if njunk > 0:
+                # only add extra junk colour to cmap if it's needed, otherwise mayavi throws out
+                # a middle colour (like light blue), and you end up with dk grey points
+                # even though you don't have any junk points
+                colours.append(DARKGREY)
+                ncolours = len(colours)
+                s[junknidi:] = ncolours - 1 # assign last colour (dk grey) to junk clusters
+            # convert colours hex string list into a colourmap (RGBA list)
             cmap = []
-            for c in CLUSTERCOLOURS:
+            for c in colours:
                 c = hex2color(c) # convert hex string to RGB tuple
-                c = list(c)
-                c.append(alpha) # add alpha as 4th channel
+                c = list(c) + [alpha] # convert to list, add alpha as 4th channel
                 cmap.append(c)
+            # unsort, so mayavi pick indices match spike indices
+            nids = nids[unsortednidis] # unsort nids back to its original spike id order
+            s = s[unsortednidis] # do the same for the colourmap indices
             print("Figuring out colours took %.3f sec" % (time.clock()-t0))
             # TODO: order colours consecutively according to cluster mean y location, to
             # make neighbouring clusters in X-Y space less likely to be assigned the same colour
@@ -352,10 +363,11 @@ class Sort(object):
             args = x, y, z, s
         else:
             args = x, y, z
-        kwargs = {'figure':f, 'mode':mode,
-                  'mask_points':mask_points,
-                  'resolution':resolution,
-                  'line_width':line_width}
+        kwargs = {'figure': f, 'mode': mode,
+                  'mask_points': mask_points,
+                  'resolution': resolution,
+                  'line_width': line_width,
+                  'scale_mode': 'none'} # keep all points the same size
         if scale_factor != None:
             kwargs['scale_factor'] = scale_factor
         glyph = mlab.points3d(*args, **kwargs)
