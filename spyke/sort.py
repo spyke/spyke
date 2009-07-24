@@ -48,6 +48,7 @@ class Sort(object):
     to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single Sort object, pickled and gzipped"""
+    SAVESPIKEWAVES = True
     def __init__(self, detector=None, probe=None, stream=None):
         self.detector = detector # this sort session's current Detector object
         self.probe = probe # only one probe design per sort allowed

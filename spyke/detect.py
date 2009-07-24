@@ -28,8 +28,7 @@ from text import SimpleTable
 DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
 TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-SAVESPIKEWAVES = True
-DONTPICKLESPIKEWAVES = True
+KEEPSPIKEWAVESONDETECT = True
 
 # print detection info and debug msgs to file, and info msgs to screen
 logger = logging.Logger('detection')
@@ -146,7 +145,7 @@ class Spike(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # this doesn't seem to be a slow step
-        if DONTPICKLESPIKEWAVES:
+        if not self.detection.sort.SAVESPIKEWAVES:
             d['wave'] = None # clear wave data to save space and time during pickling
             d['V'] = None
         #d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
@@ -688,7 +687,7 @@ class Detector(object):
             s.Vpp = V2 - V1 # maintain polarity
             chans = np.asarray(self.chans)[chanis] # dereference
             s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
-            if SAVESPIKEWAVES: # save spike waveform for later use
+            if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
                 s.wave = WaveForm()
                 s.wave.data = wave.data[chanis, t0i:tendi]
                 s.wave.ts = s.ts
