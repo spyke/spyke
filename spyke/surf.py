@@ -44,7 +44,7 @@ class File(object):
         self.f = open(fname, 'rb')
         self._parseFileHeader()
         # TODO: maybe the extension should be .srf.parse
-        self.parsefname = os.path.splitext(fname)[0] + '.parse'
+        self.parsefname = fname + '.parse'
 
     def close(self):
         """Close the .srf file"""
@@ -77,7 +77,7 @@ class File(object):
         #print 'Asserting increasing record order'
         for item in self.__dict__:
             if item.endswith('records'):
-                #print 'Asserting ' + item + ' is in causal order'
+                #print('Asserting %s are in causal order' % item)
                 assert causalorder(self.__dict__[item])
 
     def parse(self, force=False, save=True):
@@ -607,7 +607,6 @@ class ContinuousRecord(object):
         self.NumSamples, = unpack('i', f.read(4))
         # no, that's about 25% slower when thrashing from uncached disk, below is better:
         '''
-        # TODO: maybe skipping the first 8 junk bytes, then reading the subsequent 20 in one go would be fastest
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = unpack('qqhhii', f.read(28))
         self.dataoffset = f.tell()
         # skip the waveform data for now
@@ -780,19 +779,22 @@ class DigitalSValRecord(object):
     def parse(self, f):
         # for speed and memory, read all 24 bytes at a time, skip UffType and SubType
         # Cardinal, 64 bit signed int; 16 bit single value
-        # TODO: try skipping over first 8 junk bytes and last 4 or even 6 junk bytes
+        # NOTE: skipping over first 8 junk bytes and last 4 or even 6 junk bytes only
+        # slows down parsing, or seems to during hardware caching from > 1 tests w/o reboot.
+        # Read the whole 24 bytes in one go, including the junk
         junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
 
 
 def causalorder(records):
     """Checks to see if the timestamps of all the records are in
     causal (increasing) order. Returns True or False"""
+    '''
     for record1, record2 in itertools.izip(records[:-1], records[1:]):
         if record1.TimeStamp > record2.TimeStamp:
             return False
     return True
-
-
-if __name__ == '__main__':
-    # TODO: insert unittests here
-    pass
+    '''
+    # more straightforward using numpy:
+    ts = np.asarray([ record.TimeStamp for record in records ])
+    # is ts in increasing order, ie is difference between subsequent entries >= 0?
+    return (np.diff(ts) >= 0).all()

@@ -15,6 +15,8 @@ GENERAL:
 
 - profile pickling and unpickling of both .parse and .sort files by temporarily using the Python pickle module instead of the cPickle module, to hopefully figure out why the surf.File and sort.Sort objects take so damned long to process - too many references?
 
+- assigning 64 bit range values to the wx slider on startup overflows if they're outside 32 bit values - this is a problem for 7 GB .srf files. Might have to use the slider as a rougher metric - instead of us, have it represent 10us steps? Or interpolated Xus steps? This then needs translation between slider values and actual time values...
+
 - order colours consecutively according to cluster mean y location, to make neighbouring clusters in X-Y space less likely to be assigned the same colour
 
 - WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former

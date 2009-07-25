@@ -14,7 +14,6 @@ import os
 import wx
 
 import numpy as np
-import scipy.signal
 
 # set some numpy options - will these hold for all modules in spyke?
 np.set_printoptions(precision=3)
