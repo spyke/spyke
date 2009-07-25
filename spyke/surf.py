@@ -9,7 +9,7 @@ import numpy as np
 import os
 import cPickle
 #import gzip
-import struct
+from struct import unpack
 import unittest
 from copy import copy
 import re
@@ -26,26 +26,9 @@ class DRDBError(ValueError):
     """Used to indicate when you've passed the last DRDB at the start of the .srf file"""
 
 
-class Record(object):
-    """Used to explicitly represent the endianness of the surf file and that
-    of the machine. The machine endianness doesn't strictly have to be known
-    but it might come in useful"""
-    SURF_ENDIANNESS = '<'
-    def __init__(self):
-        if struct.pack('i', 1)[0] == '\x01':
-            self.endianness = '<'
-        else:
-            self.endianness = '>'
-
-    def unpack(self, format, bytes):
-        return struct.unpack(self.SURF_ENDIANNESS + format, bytes)
-
-
-class File(Record):
+class File(object):
     """Open a .srf file and, after parsing, expose all of its headers and
     records as attribs.
-    Disabled: If no synonymous .parse file exists, parse
-              the .srf file and save the parsing in a .parse file.
     Store as attribs:
         - Surf file header
         - Surf data record descriptor blocks
@@ -55,12 +38,12 @@ class File(Record):
         - stimulus display header records
         - stimulus digital single val records"""
     def __init__(self, fname):
-        Record.__init__(self)
         # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
         self.fname = fname
         self.fileSize = os.stat(fname)[6]
         self.f = open(fname, 'rb')
         self._parseFileHeader()
+        # TODO: maybe the extension should be .srf.parse
         self.parsefname = os.path.splitext(fname)[0] + '.parse'
 
     def close(self):
@@ -69,22 +52,23 @@ class File(Record):
 
     def _parseFileHeader(self):
         """Parse the Surf file header"""
-        self.fileheader = FileHeader(self)
-        self.fileheader.parse()
+        self.fileheader = FileHeader()
+        self.fileheader.parse(self.f)
         #print 'Parsed fileheader'
 
     def _parseDRDBS(self):
         """Parse the DRDBs (Data Record Descriptor Blocks)"""
         self.drdbs = []
+        f = self.f
         while True:
-            drdb = DRDB(self)
+            drdb = DRDB()
             try:
-                drdb.parse()
+                drdb.parse(f)
                 self.drdbs.append(drdb)
             except DRDBError:
                 # we've gone past the last DRDB
                 # set file pointer back to where we were
-                self.f.seek(drdb.offset)
+                f.seek(drdb.offset)
                 break
 
     def _verifyParsing(self):
@@ -116,11 +100,14 @@ class File(Record):
             self._verifyParsing()
             self._connectRecords()
 
-            self.hpstream = Stream(self.highpassrecords) # highpass record (spike) stream
-            try: # check if lowpassmultichanrecords are present
-                self.lpstream = Stream(self.lowpassmultichanrecords) # lowpassmultichan record (LFP) stream
+            try: # check if highpassrecords are present
+                self.hpstream = Stream(self, kind='highpass') # highpass record (spike) stream
             except AttributeError:
-                pass
+                self.hpstream = None
+            try: # check if lowpassmultichanrecords are present
+                self.lpstream = Stream(self, kind='lowpass') # lowpassmultichan record (LFP) stream
+            except AttributeError:
+                self.lpstream = None
 
             print 'parsing took %f sec' % (time.clock()-t0)
             if save:
@@ -150,8 +137,8 @@ class File(Record):
             f.seek(-2, 1)
             if flag in FLAG2REC:
                 rectype, reclistname = FLAG2REC[flag]
-                rec = rectype(self)
-                rec.parse()
+                rec = rectype()
+                rec.parse(f)
                 wx.Yield() # allow wx GUI event processing during parsing
                 self._appendRecord(rec, reclistname)
             else:
@@ -253,7 +240,7 @@ class File(Record):
         self.f = open(self.fname, 'rb')
 
 
-class FileHeader(Record):
+class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file
     pointer position, stores header fields as attribs"""
     # Surf file header constants, field sizes in bytes
@@ -271,43 +258,38 @@ class FileHeader(Record):
     UFF_FILEDESC_LEN = 64
     UFF_FH_USERAREA_LEN = UFF_FILEHEADER_LEN - 512 # 1536
 
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 2050
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         self.offset = f.tell()
-        self.FH_rec_type, = self.unpack('B', f.read(1)) # must be 1
+        self.FH_rec_type, = unpack('B', f.read(1)) # must be 1
         assert self.FH_rec_type == 1
-        self.FH_rec_type_ext, = self.unpack('B', f.read(1)) # must be 0
+        self.FH_rec_type_ext, = unpack('B', f.read(1)) # must be 0
         assert self.FH_rec_type_ext == 0
         self.UFF_name = f.read(self.UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
         assert self.UFF_name == 'UFF'
         # major UFF ver
-        self.UFF_major, = self.unpack('B', f.read(1))
+        self.UFF_major, = unpack('B', f.read(1))
         # minor UFF ver
-        self.UFF_minor, = self.unpack('B', f.read(1))
+        self.UFF_minor, = unpack('B', f.read(1))
         # FH record length in bytes
-        self.FH_rec_len, = self.unpack('H', f.read(2))
+        self.FH_rec_len, = unpack('H', f.read(2))
         # DBRD record length in bytes
-        self.DRDB_rec_len, = self.unpack('H', f.read(2))
+        self.DRDB_rec_len, = unpack('H', f.read(2))
         # 2 bi-directional seeks format
-        self.bi_di_seeks, = self.unpack('H', f.read(2))
+        self.bi_di_seeks, = unpack('H', f.read(2))
         # OS name, ie "WINDOWS 2000"
         self.OS_name = f.read(self.UFF_OSNAME_LEN).rstrip(NULL)
-        self.OS_major, = self.unpack('B', f.read(1)) # OS major rev
-        self.OS_minor, = self.unpack('B', f.read(1)) # OS minor rev
+        self.OS_major, = unpack('B', f.read(1)) # OS major rev
+        self.OS_minor, = unpack('B', f.read(1)) # OS minor rev
         # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
-        self.create = TimeDate(self.srff)
-        self.create.parse()
+        self.create = TimeDate()
+        self.create.parse(f)
         # last append time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes,
         # although this tends to be identical to creation time for some reason
-        self.append = TimeDate(self.srff)
-        self.append.parse()
+        self.append = TimeDate()
+        self.append.parse(f)
         # system node name - same as BDT
         self.node = f.read(self.UFF_NODENAME_LEN).rstrip(NULL)
         # device name - same as BDT
@@ -327,46 +309,41 @@ class FileHeader(Record):
         # non user area of UFF header should be 512 bytes
         assert f.tell() - self.offset == 512
         # additional user area
-        self.user_area = self.unpack('B'*self.UFF_FH_USERAREA_LEN, f.read(self.UFF_FH_USERAREA_LEN))
+        self.user_area = unpack('B'*self.UFF_FH_USERAREA_LEN, f.read(self.UFF_FH_USERAREA_LEN))
         assert f.tell() - self.offset == self.UFF_FILEHEADER_LEN
 
         # this is the end of the original UFF header I think,
         # the next two fields seem to have been added on to the end by Tim:
 
         # record type, must be 1 BIDIRECTIONAL SUPPORT
-        self.bd_FH_rec_type, = self.unpack('B', f.read(1))
+        self.bd_FH_rec_type, = unpack('B', f.read(1))
         assert self.bd_FH_rec_type == 1
         # record type extension, must be 0 BIDIRECTIONAL SUPPORT
-        self.bd_FH_rec_type_ext, = self.unpack('B', f.read(1))
+        self.bd_FH_rec_type_ext, = unpack('B', f.read(1))
         assert self.bd_FH_rec_type_ext == 0
         # total length is 2050 bytes
         self.length = f.tell() - self.offset
         assert self.length == 2050
 
 
-class TimeDate(Record):
+class TimeDate(object):
     """TimeDate record, reverse of C'S DateTime"""
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 18
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
-        self.sec, = self.unpack('H', f.read(2))
-        self.min, = self.unpack('H', f.read(2))
-        self.hour, = self.unpack('H', f.read(2))
-        self.day, = self.unpack('H', f.read(2))
-        self.month, = self.unpack('H', f.read(2))
-        self.year, = self.unpack('H', f.read(2))
-        self.junk = self.unpack('B'*6, f.read(6)) # junk data at end
+        self.sec, = unpack('H', f.read(2))
+        self.min, = unpack('H', f.read(2))
+        self.hour, = unpack('H', f.read(2))
+        self.day, = unpack('H', f.read(2))
+        self.month, = unpack('H', f.read(2))
+        self.year, = unpack('H', f.read(2))
+        self.junk = unpack('B'*6, f.read(6)) # junk data at end
 
 
-class DRDB(Record):
+class DRDB(object):
     """Data Record Descriptor Block, aka UFF_DATA_REC_DESC_BLOCK in SurfBawd"""
     # Surf DRDB constants
     UFF_DRDB_BLOCK_LEN = 2048
@@ -374,9 +351,7 @@ class DRDB(Record):
     UFF_DRDB_PAD_LEN = 16
     UFF_RSFD_PER_DRDB = 77
 
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
+    def __init__(self):
         self.DR_subfields = []
 
     def __len__(self):
@@ -389,35 +364,34 @@ class DRDB(Record):
         #    info += "\t" + str(sub) + "\n"
         return info
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         self.offset = f.tell()
         # record type; must be 2
-        self.DRDB_rec_type, = self.unpack('B', f.read(1))
+        self.DRDB_rec_type, = unpack('B', f.read(1))
         # SurfBawd uses this to detect that it's passed the last DRDB, not exactly failsafe...
         if self.DRDB_rec_type != 2:
             raise DRDBError
         # record type extension
-        self.DRDB_rec_type_ext, = self.unpack('B', f.read(1))
+        self.DRDB_rec_type_ext, = unpack('B', f.read(1))
         # Data Record type for DRDB 3-255, ie 'P' or 'V' or 'M', etc..
         # don't know quite why SurfBawd required these byte values, this is
         # more than the normal set of ASCII chars
         self.DR_rec_type = f.read(1)
-        assert int(self.unpack('B', self.DR_rec_type)[0]) in range(3, 256)
+        assert int(unpack('B', self.DR_rec_type)[0]) in range(3, 256)
         # Data Record type ext; ignored
-        self.DR_rec_type_ext, = self.unpack('B', f.read(1))
+        self.DR_rec_type_ext, = unpack('B', f.read(1))
         # Data Record size in bytes, signed, -1 means dynamic
-        self.DR_size, = self.unpack('i', f.read(4))
+        self.DR_size, = unpack('i', f.read(4))
         # Data Record name
         self.DR_name = f.read(self.UFF_DRDB_NAME_LEN).rstrip(NULL)
         # number of sub-fields in Data Record
-        self.DR_num_fields, = self.unpack('H', f.read(2))
+        self.DR_num_fields, = unpack('H', f.read(2))
         # pad bytes for expansion
-        self.DR_pad = self.unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
+        self.DR_pad = unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
         # sub fields desc. RSFD = Record Subfield Descriptor
         for rsfdi in xrange(self.UFF_RSFD_PER_DRDB):
-            rsfd = RSFD(self.srff)
-            rsfd.parse()
+            rsfd = RSFD()
+            rsfd.parse(f)
             self.DR_subfields.append(rsfd)
         assert f.tell() - self.offset == self.UFF_DRDB_BLOCK_LEN
 
@@ -427,10 +401,10 @@ class DRDB(Record):
         # hack to skip past unexplained extra 156 bytes (happens to equal 6*RSFD.length)
         f.seek(156, 1)
         # record type; must be 2 BIDIRECTIONAL SUPPORT
-        self.bd_DRDB_rec_type, = self.unpack('B', f.read(1))
+        self.bd_DRDB_rec_type, = unpack('B', f.read(1))
         assert self.bd_DRDB_rec_type == 2
         # record type extension; must be 0 BIDIRECTIONAL SUPPORT
-        self.bd_DRDB_rec_type_ext, = self.unpack('B', f.read(1))
+        self.bd_DRDB_rec_type_ext, = unpack('B', f.read(1))
         assert self.bd_DRDB_rec_type_ext == 0
         # hack to skip past unexplained extra 2 bytes, sometimes they're 0s, sometimes not
         f.seek(2, 1)
@@ -439,13 +413,9 @@ class DRDB(Record):
         assert self.length == 2208
 
 
-class RSFD(Record):
+class RSFD(object):
     """Record Subfield Descriptor for Data Record Descriptor Block"""
     UFF_DRDB_RSFD_NAME_LEN = 20
-
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
 
     def __len__(self):
         return 26
@@ -454,33 +424,27 @@ class RSFD(Record):
         return "%s of type: %s with field size: %s" \
                 % (self.subfield_name, self.subfield_data_type, self.subfield_size)
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         self.offset = f.tell()
         # DRDB subfield name
         self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
         # underlying data type
-        self.subfield_data_type, = self.unpack('H', f.read(2))
+        self.subfield_data_type, = unpack('H', f.read(2))
         # sub field size in bytes, signed
-        self.subfield_size, = self.unpack('i', f.read(4))
+        self.subfield_size, = unpack('i', f.read(4))
         self.length = f.tell() - self.offset
         assert self.length == 26
 
 
-class LayoutRecord(Record):
+class LayoutRecord(object):
     """Polytrode layout record"""
     # Surf layout record constants
     SURF_MAX_CHANNELS = 64 # currently supports one or two DT3010 boards, could be higher
 
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 1725
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
         # Record type 'L'
@@ -488,64 +452,64 @@ class LayoutRecord(Record):
         # hack to skip next 7 bytes
         f.seek(7, 1)
         # Time stamp, 64 bit signed int
-        self.TimeStamp, = self.unpack('q', f.read(8))
+        self.TimeStamp, = unpack('q', f.read(8))
         # SURF major version number (2)
-        self.SurfMajor, = self.unpack('B', f.read(1))
+        self.SurfMajor, = unpack('B', f.read(1))
         # SURF minor version number (1)
-        self.SurfMinor, = self.unpack('B', f.read(1))
+        self.SurfMinor, = unpack('B', f.read(1))
         # hack to skip next 2 bytes
         f.seek(2, 1)
         # ADC/precision CT master clock frequency (1Mhz for DT3010)
-        self.MasterClockFreq, = self.unpack('i', f.read(4))
+        self.MasterClockFreq, = unpack('i', f.read(4))
         # undecimated base sample frequency per channel (25kHz)
-        self.BaseSampleFreq, = self.unpack('i', f.read(4))
+        self.BaseSampleFreq, = unpack('i', f.read(4))
         # true (1) if Stimulus DIN acquired
-        self.DINAcquired, = self.unpack('B', f.read(1))
+        self.DINAcquired, = unpack('B', f.read(1))
         # hack to skip next byte
         f.seek(1, 1)
         # probe number
-        self.Probe, = self.unpack('h', f.read(2))
+        self.Probe, = unpack('h', f.read(2))
         # =E,S,C for epochspike, spikestream, or continuoustype
         self.ProbeSubType = f.read(1)
         # hack to skip next byte
         f.seek(1, 1)
         # number of channels in the probe (54, 1)
-        self.nchans, = self.unpack('h', f.read(2))
+        self.nchans, = unpack('h', f.read(2))
         # number of samples displayed per waveform per channel (25, 100)
-        self.pts_per_chan, = self.unpack('h', f.read(2))
+        self.pts_per_chan, = unpack('h', f.read(2))
         # hack to skip next 2 bytes
         f.seek(2, 1)
         # {n/a to cat9} total number of samples per file buffer for this probe
         # (redundant with SS_REC.NumSamples) (135000, 100)
-        self.pts_per_buffer, = self.unpack('i', f.read(4))
+        self.pts_per_buffer, = unpack('i', f.read(4))
         # pts before trigger (7)
-        self.trigpt, = self.unpack('h', f.read(2))
+        self.trigpt, = unpack('h', f.read(2))
         # Lockout in pts (2)
-        self.lockout, = self.unpack('h', f.read(2))
+        self.lockout, = unpack('h', f.read(2))
         # A/D board threshold for trigger (0-4096)
-        self.threshold, = self.unpack('h', f.read(2))
+        self.threshold, = unpack('h', f.read(2))
         # A/D sampling decimation factor (1, 25)
-        self.skippts, = self.unpack('h', f.read(2))
+        self.skippts, = unpack('h', f.read(2))
         # S:H delay offset for first channel of this probe (1)
-        self.sh_delay_offset, = self.unpack('h', f.read(2))
+        self.sh_delay_offset, = unpack('h', f.read(2))
         # hack to skip next 2 bytes
         f.seek(2, 1)
         # A/D sampling frequency specific to this probe (ie. after decimation,
         # if any) (25000, 1000)
-        self.sampfreqperchan, = self.unpack('i', f.read(4))
+        self.sampfreqperchan, = unpack('i', f.read(4))
         # us, store it here for convenience
         self.tres = intround(1 / float(self.sampfreqperchan) * 1e6)
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999
         # only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
-        self.extgain = self.unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS))
+        self.extgain = unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS))
         # throw away the junk values
         self.extgain = self.extgain[:self.nchans]
         # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
-        self.intgain, = self.unpack('h', f.read(2))
+        self.intgain, = unpack('h', f.read(2))
         # (0 to 53 for highpass, 54 to 63 for lowpass, + junk values that pad
         # to 64 channels) v1.0 had ADchanlist to be an array of 32 ints.  Now it
         # is an array of 64, so delete 32*4=128 bytes from end
-        self.ADchanlist = self.unpack('h'*self.SURF_MAX_CHANNELS, f.read(2 * self.SURF_MAX_CHANNELS))
+        self.ADchanlist = unpack('h'*self.SURF_MAX_CHANNELS, f.read(2 * self.SURF_MAX_CHANNELS))
         # throw away the junk values, convert tuple to list
         self.ADchanlist = list(self.ADchanlist[:self.nchans])
         # hack to skip next byte
@@ -560,55 +524,45 @@ class LayoutRecord(Record):
         f.seek(2, 1)
         # MOVE BELOW ADCHANLIST FOR CAT 9
         # v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
-        self.probewinlayout = ProbeWinLayout(self.srff)
-        self.probewinlayout.parse()
+        self.probewinlayout = ProbeWinLayout()
+        self.probewinlayout.parse(f)
         # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE;
         # {pad for future expansion/modification}
-        self.pad = self.unpack(str(880-4-2)+'B', f.read(880-4-2))
+        self.pad = unpack(str(880-4-2)+'B', f.read(880-4-2))
         # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
         f.seek(6, 1)
 
 
-class ProbeWinLayout(Record):
+class ProbeWinLayout(object):
     """Probe window layout"""
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 16
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
-        self.left, = self.unpack('i', f.read(4))
-        self.top, = self.unpack('i', f.read(4))
-        self.width, = self.unpack('i', f.read(4))
-        self.height, = self.unpack('i', f.read(4))
+        self.left, = unpack('i', f.read(4))
+        self.top, = unpack('i', f.read(4))
+        self.width, = unpack('i', f.read(4))
+        self.height, = unpack('i', f.read(4))
 
 
-class EpochRecord(Record):
+class EpochRecord(object):
     def __init__(self):
         raise NotImplementedError('Spike epoch (non-continous) recordings currently unsupported')
 
 
-class AnalogSValRecord(Record):
+class AnalogSValRecord(object):
     def __init__(self):
         raise NotImplementedError('Analog single value recordings currently unsupported')
 
 
-class MessageRecord(Record):
+class MessageRecord(object):
     """Message record"""
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 28 + self.MsgLength
 
-    def parse(self):
-        f = self.srff.f # abbrev
+    def parse(self, f):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
         # 1 byte -- SURF_MSG_REC_UFFTYPE: 'M'
@@ -618,11 +572,11 @@ class MessageRecord(Record):
         # hack to skip next 6 bytes
         f.seek(6, 1)
         # Time stamp, 64 bit signed int
-        self.TimeStamp, = self.unpack('q', f.read(8))
+        self.TimeStamp, = unpack('q', f.read(8))
         # 8 bytes -- double - number of days (integral and fractional) since 30 Dec 1899
-        self.DateTime, = self.unpack('d', f.read(8))
+        self.DateTime, = unpack('d', f.read(8))
         # 4 bytes -- length of the msg string
-        self.MsgLength, = self.unpack('i', f.read(4))
+        self.MsgLength, = unpack('i', f.read(4))
         # any length message {shortstring - for cat9!!!}
         self.Msg = f.read(self.MsgLength)
 
@@ -635,17 +589,12 @@ class UserMessageRecord(MessageRecord):
     """User generated message record"""
 
 
-class ContinuousRecord(Record):
+class ContinuousRecord(object):
     """Continuous waveform record"""
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 28 + self.NumSamples*2
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         # not really necessary, comment out to save memory
         #self.offset = f.tell()
         # for speed and memory, read all 28 bytes at a time, skip reading
@@ -653,24 +602,29 @@ class ContinuousRecord(Record):
         '''
         instead of reading the junk values, skip them using seek, like this?:
         f.seek(8, 1)
-        self.TimeStamp, self.Probe = self.unpack('qh', f.read(10))
+        self.TimeStamp, self.Probe = unpack('qh', f.read(10))
         f.seek(6, 1)
-        self.NumSamples, = self.unpack('i', f.read(4))
+        self.NumSamples, = unpack('i', f.read(4))
         # no, that's about 25% slower when thrashing from uncached disk, below is better:
         '''
-        junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = self.unpack('qqhhii', f.read(28))
+        # TODO: maybe skipping the first 8 junk bytes, then reading the subsequent 20 in one go would be fastest
+        junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = unpack('qqhhii', f.read(28))
         self.dataoffset = f.tell()
         # skip the waveform data for now
         f.seek(self.NumSamples*2, 1)
 
-    def load(self):
+    def load(self, f):
         """Loads waveform data for this continuous record, assumes that the
         appropriate probe layout record has been assigned as a .layout attrib"""
-        f = self.srff.f
         f.seek(self.dataoffset)
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
         # Using stuct.unpack for this is super slow:
-        #self.data = np.asarray(self.unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
+        #self.data = np.asarray(unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
+        # TODO: would it not be better to use uint16 instead of int16, at least for futureproofness?
+        # Do I really need the integer data on my end to be signed? Yes, because the first thing
+        # I do to it in Stream.AD2uV is subtract 2048, and then convert to float. But, I could convert
+        # to float first, then subtract 2048. Wouldn't make any difference I can think of. So using uint16
+        # is probably more correct
         self.data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
         # reshape to have nchans rows, as indicated in layout
         #nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
@@ -695,14 +649,11 @@ class LowPassRecord(ContinuousRecord):
     """Low-pass continuous waveform record"""
 
 
-class LowPassMultiChanRecord(Record):
+class LowPassMultiChanRecord(object):
     """Low-pass multichannel (usually 10) continuous waveform record"""
     def __init__(self, lowpassrecords):
         """Takes several low pass records, all at the same timestamp"""
-        Record.__init__(self)
         self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
-        self.srff = self.lowpassrecords[0].srff
-        #self.fname = self.lowpassrecords[0].f.name # full filename with path, needed for unpickling
         self.TimeStamp = self.lowpassrecords[0].TimeStamp
         self.layout = self.lowpassrecords[0].layout
         self.NumSamples = self.lowpassrecords[0].NumSamples
@@ -724,12 +675,12 @@ class LowPassMultiChanRecord(Record):
             self.chanis.extend(newchanis)
         '''
 
-    def load(self):
+    def load(self, f):
         """Load waveform data for each lowpass record, appending it as
         channel(s) to a single 2D data array"""
         self.data = []
         for record in self.lowpassrecords:
-            record.load()
+            record.load(f)
             # shouldn't matter if record.data is one channel (row) or several
             self.data.append(record.data)
         # save as array, removing singleton dimensions
@@ -755,33 +706,28 @@ class LowPassMultiChanRecord(Record):
             record
     '''
 
-class DisplayRecord(Record):
+class DisplayRecord(object):
     """Stimulus display header record"""
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 24 + len(self.Header) + 4
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         #self.offset = f.tell() # not really necessary, comment out to save memory
         # 1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
         self.UffType = f.read(1)
         # hack to skip next 7 bytes
         f.seek(7, 1)
         # Cardinal, 64 bit signed int
-        self.TimeStamp, = self.unpack('q', f.read(8))
+        self.TimeStamp, = unpack('q', f.read(8))
         # double, 8 bytes - number of days (integral and fractional) since 30 Dec 1899
-        self.DateTime, = self.unpack('d', f.read(8))
-        self.Header = StimulusHeader(self.srff)
-        self.Header.parse()
+        self.DateTime, = unpack('d', f.read(8))
+        self.Header = StimulusHeader()
+        self.Header.parse(f)
         # hack to skip next 4 bytes
         f.seek(4, 1)
 
 
-class StimulusHeader(Record):
+class StimulusHeader(object):
     """Stimulus display header"""
     # Stimulus header constants
     OLD_STIMULUS_HEADER_FILENAME_LEN = 16
@@ -789,21 +735,16 @@ class StimulusHeader(Record):
     NVS_PARAM_LEN = 749
     PYTHON_TBL_LEN = 50000
 
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         if self.version == 100: # Cat < 15
             return 4 + self.OLD_STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + 28
         elif self.version == 110: # Cat >= 15
             return 4 + self.STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + self.PYTHON_TBL_LEN + 28
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         #self.offset = f.tell() # not really necessary, comment out to save memory
         self.header = f.read(2).rstrip(NULL) # always 'DS'?
-        self.version, = self.unpack('H', f.read(2))
+        self.version, = unpack('H', f.read(2))
         if self.version not in (100, 110): # Cat < 15, Cat >= 15
             raise ValueError, 'Unknown stimulus header version %d' % self.version
         if self.version == 100: # Cat < 15 has filename field length == 16
@@ -812,7 +753,7 @@ class StimulusHeader(Record):
         elif self.version == 110: # Cat >= 15 has filename field length == 64
             self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
         # NVS binary header, array of single floats
-        self.parameter_tbl = list(self.unpack('f'*self.NVS_PARAM_LEN, f.read(4*self.NVS_PARAM_LEN)))
+        self.parameter_tbl = list(unpack('f'*self.NVS_PARAM_LEN, f.read(4*self.NVS_PARAM_LEN)))
         for parami, param in enumerate(self.parameter_tbl):
             if str(param) == '1.#QNAN':
                 # replace 'Quiet NAN' floats with Nones. This won't work for Cat < 15
@@ -821,30 +762,26 @@ class StimulusHeader(Record):
         # dimstim's text header
         if self.version == 110: # only Cat >= 15 has the text header
             self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
-        self.screen_width, = self.unpack('f', f.read(4)) # cm, single float
-        self.screen_height, = self.unpack('f', f.read(4)) # cm
-        self.view_distance, = self.unpack('f', f.read(4)) # cm
-        self.frame_rate, = self.unpack('f', f.read(4)) # Hz
-        self.gamma_correct, = self.unpack('f', f.read(4))
-        self.gamma_offset, = self.unpack('f', f.read(4))
-        self.est_runtime, = self.unpack('H', f.read(2)) # in seconds
-        self.checksum, = self.unpack('H', f.read(2))
+        self.screen_width, = unpack('f', f.read(4)) # cm, single float
+        self.screen_height, = unpack('f', f.read(4)) # cm
+        self.view_distance, = unpack('f', f.read(4)) # cm
+        self.frame_rate, = unpack('f', f.read(4)) # Hz
+        self.gamma_correct, = unpack('f', f.read(4))
+        self.gamma_offset, = unpack('f', f.read(4))
+        self.est_runtime, = unpack('H', f.read(2)) # in seconds
+        self.checksum, = unpack('H', f.read(2))
 
 
-class DigitalSValRecord(Record):
+class DigitalSValRecord(object):
     """Digital single value record"""
-    def __init__(self, srff):
-        Record.__init__(self)
-        self.srff = srff
-
     def __len__(self):
         return 24
 
-    def parse(self):
-        f = self.srff.f
+    def parse(self, f):
         # for speed and memory, read all 24 bytes at a time, skip UffType and SubType
         # Cardinal, 64 bit signed int; 16 bit single value
-        junk, self.TimeStamp, self.SVal, junk, junk = self.unpack('QQHHI', f.read(24))
+        # TODO: try skipping over first 8 junk bytes and last 4 or even 6 junk bytes
+        junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
 
 
 def causalorder(records):

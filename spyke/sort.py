@@ -47,7 +47,7 @@ class Sort(object):
     build Neurons up from spikes in those Detection runs, and then use Neurons
     to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
-    A .sort file is a single Sort object, pickled and gzipped"""
+    A .sort file is a single pickled Sort object"""
     SAVESPIKEWAVES = True
     def __init__(self, detector=None, probe=None, stream=None):
         self.detector = detector # this sort session's current Detector object
@@ -88,7 +88,7 @@ class Sort(object):
         if self.stream != None:
             d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
             d['shcorrect'] = self.stream.shcorrect
-        del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
+        del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
         return d
 
     def append_spikes(self, spikes):

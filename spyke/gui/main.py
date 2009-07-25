@@ -409,10 +409,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetTitle(os.path.basename(self.srffname)) # update the caption
 
         self.hpstream = self.srff.hpstream # highpass record (spike) stream
-        try: # check if lowpassmultichanrecords are present
-            self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
-        except AttributeError:
-            pass
+        self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width
         self.t = intround(self.hpstream.t0 + tww/2) # set current time position in recording (us)

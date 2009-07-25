@@ -117,34 +117,34 @@ class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk. Converts from AD units to uV
-
-    TODO: might need to do something in Stream that keeps its attibs like .sampfreq,
-    .rawsampfreq., etc, upon pickling, while still not trying to access an unavailable
-    .srf file - maybe set its ctsrecords to []?
     """
-    def __init__(self, ctsrecords=None, sampfreq=None, shcorrect=None, endinclusive=False):
+    def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None, endinclusive=False):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
         to the same probe"""
-        self.ctsrecords = ctsrecords
-        self.layout = self.ctsrecords[0].layout # layout record for this stream
-        #self.fname = self.ctsrecords[0].srff.fname # full filename with path, needed for unpickling?
-        fname = self.ctsrecords[0].srff.fname # full filename with path
-        self.srffname = os.path.basename(fname) # filename excluding path
+        self.srff = srff
+        self.kind = kind
+        if kind == 'highpass':
+            self.ctsrecords = srff.highpassrecords
+        elif kind == 'lowpass':
+            self.ctsrecords = srff.lowpassmultichanrecords
+        else:
+            raise ValueError('Unknown stream kind %r' % kind)
+        self.layout = self.ctsrecords[0].layout
+        self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us, for convenience
         self.nchans = len(self.layout.ADchanlist)
-        try: # are ctsrecords LowPassMultiChanRecords?
-            self.ctsrecords[0].lowpassrecords # yes, it's a low pass stream
-            self.chans = self.layout.chans # probe chan values already parsed from LFP probe description
-            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
-            self.shcorrect = shcorrect or False # don't s+h correct by default
-        except AttributeError: # ctsrecords are HighPassRecords
+        if kind == 'highpass':
             self.chans = range(self.nchans) # probe chans, as opposed to AD chans, don't know yet of any probe
                                             # type whose chans aren't contiguous from 0 (see probes.py)
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
             self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
+        elif kind == 'lowpass':
+            self.chans = self.layout.chans # probe chan values already parsed from LFP probe description
+            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+            self.shcorrect = shcorrect or False # don't s+h correct by default
         self.endinclusive = endinclusive
         self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords]) # array of ctsrecord timestamps
         probename = self.layout.electrode_name
@@ -224,7 +224,7 @@ class Stream(object):
             try:
                 record.data
             except AttributeError:
-                record.load() # to save time, only load the waveform if it's not already loaded
+                record.load(self.srff.f) # to save time, only load the waveform if it's not already loaded
         # join all waveforms, returns a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
