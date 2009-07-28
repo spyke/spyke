@@ -229,8 +229,8 @@ class Sort(object):
             params.tofile(f, sep='  ', format='%.6f')
             f.write('\n')
         f.close()
-
-    def parse_spc_lab_file(self, fname=None):
+    '''
+    def parse_spc_lab_file_slow(self, fname=None):
         """Parse output .lab file from SPC. Each row is the cluster assignment of each spin
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
@@ -252,14 +252,34 @@ class Sort(object):
         #return n2sidsT, s2nidsT
         #return n2sidsT
         return cidsT
+    '''
+    def parse_spc_lab_file(self, fname=None):
+        """Parse output .lab file from SPC. Each row in the file is the assignment of each spin
+        (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
+        run number (0-based). 2nd column is the temperature. All remaining columns correspond
+        to the datapoints in the order presented in the input .dat file. Returns (Ts, cids)"""
+        #spikes = self.spikes_sortedbyID()
+        if fname == None:
+            dlg = wx.FileDialog(None, message="Open SPC .lab file",
+                                defaultDir=r"C:\Documents and Settings\Administrator\Desktop\Charlie\From", defaultFile='',
+                                wildcard="All files (*.*)|*.*|.lab files (*.lab)|*.lab|",
+                                style=wx.OPEN)
+            if dlg.ShowModal() == wx.ID_OK:
+                fname = dlg.GetPath()
+            dlg.Destroy()
+        data = np.loadtxt(fname, dtype=np.float32)
+        Ts = data[:, 1] # 2nd column
+        cids = np.int32(data[:, 2:]) # 3rd column on
+        print('Parsed %r' % fname)
+        return Ts, cids
 
     def parse_charlies_output(self, fname=r'C:\Documents and Settings\Administrator\Desktop\Charlie\From\2009-07-20\clustered_events_coiflet_T0.125.txt'):
         nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
         return nids
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting=[1, 1, 1, 1],
+    def plot(self, nids=None, dims=[0, 1, 2], weighting=[3, 1, 1, 1],
              minspikes=1, mode='point', alpha=0.5, scale_factor=0.5,
-             mask_points=None, resolution=8, line_width=2.0):
+             mask_points=None, resolution=8, line_width=2.0, envisage=False):
         """Plot 3D projection of clustered data. nids is a sequence
         of neuron ids corresponding to sorted sequence of spike ids. Make
         sure to pass the weighting that was used when clustering the data.
@@ -271,10 +291,13 @@ class Sort(object):
         looking almost black if OpenGL isn't working
         right, and are slower - use 'point' instead. if mask_points is not
         None, plots only 1 out of every mask_points points, to reduce
-        number of plotted points for big data sets"""
+        number of plotted points for big data sets. backend='envisage'
+        gives mayavi's full envisage GUI"""
 
         from enthought.mayavi import mlab # can't delay this any longer
 
+        if envisage == True:
+            mlab.options.backend = 'envisage' # full GUI instead of just simple window
         assert len(dims) == 3
         t0 = time.clock()
         if weighting in ['pca', 'ica']:
