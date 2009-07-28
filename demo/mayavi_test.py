@@ -3,8 +3,8 @@
 If you're using the mlab API:
 
 from enthought.mayavi import mlab
-f = mlab.figure() # Returns the current scene.
-engine = mlab.get_engine() # Returns the running mayavi engine.
+f = mlab.figure() # returns the current scene
+engine = mlab.get_engine() # returns the running mayavi engine
 
 """
 

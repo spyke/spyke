@@ -27,7 +27,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MU, intround
+from spyke.core import MU, intround, hex2cmap
 from spyke.detect import TW # default time window relative to spike time
 
 SPIKELINEWIDTH = 1 # in points
@@ -66,6 +66,10 @@ BROWN = '#AF5050'
 DARKGREY = '#222222' # reserve as junk cluster colour
 
 COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
+COLOURSWITHJUNK = COLOURS + [DARKGREY]
+
+CMAP = hex2cmap(COLOURS, alpha=0.5)
+CMAPWITHJUNK = hex2cmap(COLOURSWITHJUNK, alpha=0.5)
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call

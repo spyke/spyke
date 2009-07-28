@@ -22,6 +22,8 @@ np.set_printoptions(edgeitems=5)
 np.set_printoptions(linewidth=150)
 np.set_printoptions(suppress=True)
 
+from matplotlib.colors import hex2color
+
 from spyke import probes
 
 MU = '\xb5' # greek mu symbol
@@ -698,3 +700,12 @@ def hamming(t, N):
     #if N == None:
     #    N = (len(t) - 1) / 2
     return 0.54 - 0.46 * np.cos(np.pi * (2*t + N)/N)
+
+def hex2cmap(hexcolours, alpha=0.0):
+    """Convert colours hex string list into a colourmap (RGBA list)"""
+    cmap = []
+    for c in hexcolours:
+        c = hex2color(c) # convert hex string to RGB tuple
+        c = list(c) + [alpha] # convert to list, add alpha as 4th channel
+        cmap.append(c)
+    return cmap

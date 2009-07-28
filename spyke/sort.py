@@ -14,12 +14,11 @@ import wx
 
 import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
-from matplotlib.colors import hex2color
 #import pylab
 
 from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
 from spyke.gui import wxglade_gui
-from spyke.gui.plot import COLOURS, DARKGREY
+from spyke.gui.plot import CMAP, CMAPWITHJUNK
 from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
@@ -343,23 +342,17 @@ class Sort(object):
             junknidi = nids.searchsorted(junknid)
             # or maybe junknidi = sum(hist[:histi]) would work as well? faster?
             njunk = len(nids) - junknidi # number of junk points
-            colours = COLOURS
-            ncolours = len(colours)
             # s are indices into colourmap
-            s = nids % ncolours
-            if njunk > 0:
-                # only add extra junk colour to cmap if it's needed, otherwise mayavi throws out
-                # a middle colour (like light blue), and you end up with dk grey points
-                # even though you don't have any junk points
-                colours.append(DARKGREY)
-                ncolours = len(colours)
-                s[junknidi:] = ncolours - 1 # assign last colour (dk grey) to junk clusters
-            # convert colours hex string list into a colourmap (RGBA list)
-            cmap = []
-            for c in colours:
-                c = hex2color(c) # convert hex string to RGB tuple
-                c = list(c) + [alpha] # convert to list, add alpha as 4th channel
-                cmap.append(c)
+            s = nids % len(CMAP)
+            if njunk == 0:
+                cmap = CMAP
+            else:
+                # use CMAPWITHJUNK with its extra junk colour only if it's needed,
+                # otherwise mayavi rescales and throws out a middle colour
+                # (like light blue), and you end up with dk grey points even
+                # though you don't have any junk points
+                cmap = CMAPWITHJUNK # has extra dk grey colour at end for junk
+                s[junknidi:] = len(cmap) - 1 # assign last colour (dk grey) to junk clusters
             # unsort, so mayavi pick indices match spike indices
             nids = nids[unsortednidis] # unsort nids back to its original spike id order
             s = s[unsortednidis] # do the same for the colourmap indices
@@ -398,6 +391,36 @@ class Sort(object):
         if nids != None:
             glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
         print("Plotting took %.3f sec" % (time.clock()-t0))
+
+    def add_ellipsoid(self, id=0, f=None):
+        """Add an ellipsoid to figure f. id is used to index into CMAP
+        to colour the ellipsoid"""
+        #from enthought.mayavi import mlab
+        from enthought.mayavi.sources.api import ParametricSurface
+        from enthought.mayavi.modules.api import Surface
+
+        f = f or self.f[-1] # returns the current scene #mlab.figure()
+        #engine = mlab.get_engine() # returns the running mayavi engine
+        engine = f.parent
+        f.scene.disable_render = True # for speed
+        source = ParametricSurface()
+        source.function = 'ellipsoid'
+        engine.add_source(source)
+        surface = Surface()
+        source.add_module(surface)
+        actor = surface.actor # mayavi actor, actor.actor is tvtk actor
+        actor.property.opacity = 0.5
+        actor.property.color = tuple(CMAP[id % len(CMAP)][0:3]) # leave out alpha
+        # don't colour ellipses by their scalar indices into builtin colour map,
+        # since I can't figure out how to set the scalar value of an ellipsoid anyway
+        actor.mapper.scalar_visibility = False
+        actor.property.backface_culling = True # gets rid of weird rendering artifact when opacity is < 1
+        #actor.property.frontface_culling = True
+        #actor.actor.orientation = 0, 0, 0 #np.random.rand(3) * 360 # in degrees
+        #actor.actor.origin = np.random.rand(3)
+        actor.actor.position = 0, 0, 50
+        actor.actor.scale = 20, 20, 50
+        return actor
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
