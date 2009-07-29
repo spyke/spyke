@@ -572,22 +572,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file"""
         self.DeleteSortSession() # delete any existing sort Session
-        # gzip.read() is reaaaallly slow for some reason, even when file was on compresslevel=1
+        # gzip.read() is reaaaallly slow for some reason, even if file is at compresslevel=1
         #pf = gzip.open(fname, 'rb')
         pf = open(fname, 'rb')
         print 'unpickling sort file'
         t0 = time.clock()
         #import cProfile
+        #import pickle
         #cProfile.runctx('self.sort = cPickle.load(pf)', globals(), locals())
+        #cProfile.runctx('self.sort = pickle.load(pf)', globals(), locals())
         self.sort = cPickle.load(pf)
         print 'done unpickling sort file, took %.3f sec' % (time.clock()-t0)
         pf.close()
-        sortProbe = self.sort.probe.__class__
+        sortProbeType = type(self.sort.probe)
         if self.hpstream != None:
-            if sortProbe != self.hpstream.probe.__class__:
+            streamProbeType = type(self.hpstream.probe)
+            if sortProbeType != streamProbeType:
                 self.CreateNewSortSession() # overwrite the failed sort session
                 raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
-                                    % (sortProbe, self.hpstream.probe.__class__)
+                                    % (sortProbeType, streamProbeType)
         self.sort.stream = self.hpstream # restore missing stream object to sort session
         self.SetSampfreq(self.sort.sampfreq)
         self.SetSHCorrect(self.sort.shcorrect)
