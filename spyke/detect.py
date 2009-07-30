@@ -566,7 +566,9 @@ class Detector(object):
 
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
+        t0 = time.clock()
         edgeis = self.get_edgeis(wave)
+        info('self.get_edgeis() took %.3f sec' % (time.clock()-t0))
         lockouts = self.lockouts
         twi = self.twi
         spikes = []
@@ -718,10 +720,12 @@ class Detector(object):
         '''
         data = wave.data
         thresh = self.thresh
+        #assert (thresh >= 0).all() # assume it's passed as +ve
+        # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling fabs()
         nchans, nt = data.shape
         assert nchans == len(thresh)
         code = (r"""
-        #line 815 "detect.py"
+        #line 728 "detect.py"
         int nd = 2; // num dimensions of output edgeis array
         npy_intp dimsarr[nd];
         int leninc = 16384; // 2**14
@@ -735,13 +739,12 @@ class Detector(object):
         PyObject *OK;
 
         long long nedges = 0;
-        long long i = 0;
+        long long i;
         for (long long ti=1; ti<nt; ti++) {
             for (int ci=0; ci<nchans; ci++) {
                 i = ci*nt + ti; // calculate only once for speed
-                if ((data[i] >= 0.0 && data[i-1] < thresh[ci] && data[i] >= thresh[ci]) ||
-                    (data[i] < 0.0 && data[i-1] > -thresh[ci] && data[i] <= -thresh[ci])) {
-                    // abs(voltage) has crossed threshold, maybe using fabs() would be faster than above code
+                if (fabs(data[i]) >= thresh[ci] && fabs(data[i-1]) < thresh[ci]) {
+                    // abs(voltage) has crossed threshold
                     if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
                         printf("allocating more memory!\n");
                         dims.ptr[0] += leninc; // add leninc more rows to edgeis
