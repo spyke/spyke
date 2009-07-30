@@ -445,19 +445,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
-        self.CreateNewSortSession() # create a new sort session
+        self.CreateNewSort() # create a new sort session
         self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
 
         self.EnableSurfWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
-    def CreateNewSortSession(self):
+    def CreateNewSort(self):
         """Create a new sort session and bind it to .self"""
         self.DeleteSortSession()
         self.sort = Sort(detector=None, # this is assigned in OnSearch
                          probe=self.hpstream.probe,
                          stream=self.hpstream)
         #self.sort.detector = self.get_detector() # creating a detector depends on a self.sort
+        self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.EnableSortWidgets(True)
 
     def DeleteSortSession(self):
@@ -589,12 +590,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.hpstream != None:
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
-                self.CreateNewSortSession() # overwrite the failed sort session
+                self.CreateNewSort() # overwrite the failed sort session
                 raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
                                     % (sortProbeType, streamProbeType)
         self.sort.stream = self.hpstream # restore missing stream object to sort session
         self.SetSampfreq(self.sort.sampfreq)
         self.SetSHCorrect(self.sort.shcorrect)
+        self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort session
@@ -624,6 +626,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         any changes you make to detector at the command line will be saved,
         regardless of when you searched, so you better know what you're doing
         when at the command line"""
+        self.sort.SAVEWAVES = self.menubar.IsChecked(wx.ID_SAVEWAVES) # update from menu
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         #pf = gzip.open(fname, 'wb', compresslevel=1) # compress pickle with gzip, can also control compression level
