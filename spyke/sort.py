@@ -75,9 +75,6 @@ class Sort(object):
         except AttributeError:
             pass # either stream is None or self.sampfreq/shcorrect aren't bound
         self._stream = stream
-        self.detector.stream = stream
-        for detection in self.detections.values():
-            detection.detector.stream = stream
 
     stream = property(get_stream, set_stream)
 

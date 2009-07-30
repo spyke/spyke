@@ -28,7 +28,7 @@ from text import SimpleTable
 DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
 TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-KEEPSPIKEWAVESONDETECT = True
+KEEPSPIKEWAVESONDETECT = False
 
 # print detection info and debug msgs to file, and info msgs to screen
 logger = logging.Logger('detection')
@@ -47,7 +47,7 @@ debug = logger.debug
 
 DEBUG = False # print detection debug messages to log file? slows down detection
 
-def arglext(signal):
+def arglocalextrema(signal):
     """Return indices of all local extrema in 1D signal"""
     nt = len(signal)
     exti = np.zeros(nt, dtype=int)
@@ -189,11 +189,6 @@ class SpikeModel(Spike):
     def __getitem__(self, key):
         """Return WaveForm for this spike given slice key"""
         assert type(key) == slice
-        #stream = self.detection.detector.stream
-        #if stream != None: # stream is available
-        #    self.wave = stream[key] # let stream handle the slicing, save result
-        #    return self.wave
-        #elif self.wave != None: # stream unavailable, .wave from before last pickling is available
         if self.wave != None:
             return self.wave[key] # slice existing .wave
         else: # existing .wave unavailable
@@ -397,15 +392,15 @@ class Detector(object):
 
     BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
 
-    def __init__(self, stream, chans=None,
+    def __init__(self, sort, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None, ppthreshmult=None,
                  fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
                  slock=None, dt=None, randomsample=None):
-        """Takes a data stream and sets various parameters"""
-        self.srffname = stream.srffname # used to potentially reassociate self with stream on unpickling
-        self.stream = stream
-        self.chans = chans or range(self.stream.nchans) # None means search all channels
+        """Takes a parent Sort session and sets various parameters"""
+        self.sort = sort
+        self.srffname = sort.stream.srffname # for reference, store which .srf file this Detector is run on
+        self.chans = chans or range(sort.stream.nchans) # None means search all channels
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
@@ -413,7 +408,7 @@ class Detector(object):
         self.ppthreshmult = ppthreshmult or self.DEFPPTHRESHMULT
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
-        self.trange = trange or (stream.t0, stream.tend)
+        self.trange = trange or (sort.stream.t0, sort.stream.tend)
         self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes, applies across chans
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
@@ -431,8 +426,9 @@ class Detector(object):
         since we can't say when an interrupted falling or rising edge would've reached peak
         """
         self.enabledSiteLoc = {}
+        stream = self.sort.stream
         for chan in self.chans: # for all enabled chans
-            self.enabledSiteLoc[chan] = self.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
+            self.enabledSiteLoc[chan] = stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
         self.nbhd = [] # list of neighbourhood of chanis for each chani, as defined by self.slock, each in ascending order
         for distances in self.dm.data: # iterate over rows
@@ -442,7 +438,7 @@ class Detector(object):
             chanis = chanis[sortis] # sort by distance from chani
             self.nbhd.append(chanis)
 
-        self.dti = int(self.dt // self.stream.tres) # convert from numpy.int64 to normal int for inline C
+        self.dti = int(self.dt // stream.tres) # convert from numpy.int64 to normal int for inline C
 
         t0 = time.clock()
         self.thresh = self.get_thresh() # abs, in uV, one per chan in self.chans
@@ -477,6 +473,7 @@ class Detector(object):
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid SpikeModels"""
         #info('searchblock():')
+        stream = self.sort.stream
         info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
              (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
@@ -485,9 +482,9 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
         info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
-        wave = self.stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
+        wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
         wave = wave[self.chans] # get a WaveForm with just the enabled chans
-        tres = self.stream.tres
+        tres = stream.tres
         self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
         self.lockouts[self.lockouts < 0] = 0 # don't allow -ve lockout indices
         #info('at start of searchblock:\n new wave.ts[0, end] = %s\n new lockouts = %s' %
@@ -761,7 +758,7 @@ class Detector(object):
                     // get pointer to i,jth entry in data, typecast appropriately,
                     // then dereference the whole thing so you can assign
                     // a value to it. Using PyArray_GETPTR2 macro is easier than
-                    // manually doing pointer math using strides
+                    // manually doing pointer math using strides, but might be slower?
                     *((long long *) PyArray_GETPTR2(edgeis, nedges, 0)) = ti; // assign to nedges'th row, col 0
                     *((long long *) PyArray_GETPTR2(edgeis, nedges, 1)) = ci; // assign to nedges'th row, col 1
                     nedges++;
@@ -801,7 +798,7 @@ class Detector(object):
         Decide which peak comes first, return window indices of 1st and 2nd spike phases.
         reftype describes what tiw represents: a 'trigger' point or previously found spike 'phase'
         """
-        exti = arglext(window) # indices of local extrema, wrt window
+        exti = arglocalextrema(window) # indices of local extrema, wrt window
         if len(exti) == 0:
             raise NoPeakError("can't find any extrema within window")
         if reftype == 'trigger':
@@ -884,7 +881,7 @@ class Detector(object):
         This is handled by giving them 0 weight."""
         chanis = spike.chanis
         if spike.wave == None or spike.wave.data == None:
-            spike.update_wave(self.stream)
+            spike.update_wave(self.sort.stream)
         wave = spike.wave
         x = self.siteloc[chanis, 0] # 1D array (row)
         y = self.siteloc[chanis, 1]
@@ -1018,7 +1015,7 @@ class Detector(object):
             lock out til one (TODO: maybe it should be two?) stdev after peak of 2nd phase,
             in case there's a noisy mini spike that might cause a trigger on the way down
             """
-            lockout[chanis] = t0i + phase2ti + intround(s2 / self.stream.tres)
+            lockout[chanis] = t0i + phase2ti + intround(s2 / self.sort.stream.tres)
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
     '''
     def check_spikes(self, spikes):
@@ -1082,26 +1079,6 @@ class Detector(object):
         for st, sm in sortedsm:
             sm.plot()
 
-    # leave the stream be, let it be pickled
-    '''
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['_stream'] # don't pickle the stream, cuz it relies on ctsrecords, which rely on open .srf file
-        return d
-    '''
-    def get_stream(self):
-        return self._stream
-
-    def set_stream(self, stream=None):
-        """Check that self's srf file matches stream's srf file before binding stream"""
-        if stream == None or stream.srffname != self.srffname:
-            self._stream = None
-        else:
-            self._stream = stream # it's from the same file, bind it
-
-    stream = property(get_stream, set_stream)
-
     def get_thresh(self):
         """Return array of thresholds, one per chan in self.chans,
         depending on threshmethod and noisemethod"""
@@ -1122,7 +1099,7 @@ class Detector(object):
                 wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
             data = []
             for wavetrange in wavetranges:
-                wave = self.stream[wavetrange[0]:wavetrange[1]]
+                wave = self.sort.stream[wavetrange[0]:wavetrange[1]]
                 wave = wave[self.chans] # keep just the enabled chans
                 data.append(wave.data)
             data = np.concatenate(data, axis=1)

@@ -454,9 +454,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CreateNewSortSession(self):
         """Create a new sort session and bind it to .self"""
         self.DeleteSortSession()
-        self.sort = Sort(detector=self.get_detector(),
+        self.sort = Sort(detector=None, # this is assigned in OnSearch
                          probe=self.hpstream.probe,
                          stream=self.hpstream)
+        #self.sort.detector = self.get_detector() # creating a detector depends on a self.sort
         self.EnableSortWidgets(True)
 
     def DeleteSortSession(self):
@@ -570,19 +571,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sortfname = '' # forces a SaveAs on next Save event
 
     def OpenSortFile(self, fname):
-        """Open a sort session from a .sort file"""
+        """Open a sort session from a .sort file, restore the stream"""
         self.DeleteSortSession() # delete any existing sort Session
         # gzip.read() is reaaaallly slow for some reason, even if file is at compresslevel=1
         #pf = gzip.open(fname, 'rb')
         pf = open(fname, 'rb')
-        print 'unpickling sort file'
+        print('unpickling sort file %r' % fname)
         t0 = time.clock()
         #import cProfile
         #import pickle
         #cProfile.runctx('self.sort = cPickle.load(pf)', globals(), locals())
         #cProfile.runctx('self.sort = pickle.load(pf)', globals(), locals())
         self.sort = cPickle.load(pf)
-        print 'done unpickling sort file, took %.3f sec' % (time.clock()-t0)
+        print('done unpickling sort file, took %.3f sec' % (time.clock()-t0))
         pf.close()
         sortProbeType = type(self.sort.probe)
         if self.hpstream != None:
@@ -609,12 +610,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         '''
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        self.update_detect_pane(self.sort.detector)
+        if self.sort.detector != None:
+            self.update_detect_pane(self.sort.detector)
         self.EnableSortWidgets(True)
-        print 'done opening sort file'
+        print('done opening sort file')
 
     def SaveSortFile(self, fname):
-        """Save sort sort to a .sort file"""
+        """Save sort to a .sort file.
+        Don't bother calling update_detector() on save,
+        only really needed and useful right after a search, plus any inadvertent
+        changes to detector via the GUI would misleading one to conclude those
+        were the settings used that resulted in the detected spikes. However,
+        any changes you make to detector at the command line will be saved,
+        regardless of when you searched, so you better know what you're doing
+        when at the command line"""
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         #pf = gzip.open(fname, 'wb', compresslevel=1) # compress pickle with gzip, can also control compression level
@@ -777,7 +786,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def get_detector(self):
         """Create a Detector object based on widget values"""
-        det = detect.Detector(stream=self.hpstream)
+        det = detect.Detector(sort=self.sort)
         self.update_detector(det)
         return det
 
