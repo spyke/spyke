@@ -645,7 +645,8 @@ class Neuron(object):
         chans, ts = set(), set() # build up union of chans and relative timepoints of all member spikes
         for spike in self.spikes.values():
             chans = chans.union(spike.chans)
-            ts = ts.union(spike.ts - spike.t) # timepoints wrt spike time, not absolute
+            spikets = np.arange(spike.t0, spike.tend, self.sort.stream.tres) # build them up
+            ts = ts.union(spikets - spike.t) # timepoints wrt spike time, not absolute
         chans = np.asarray(list(chans))
         ts = np.asarray(list(ts))
         chans.sort() # Neuron's chans are a sorted union of chans of all its member spikes

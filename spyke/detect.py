@@ -160,13 +160,14 @@ class Spike(object):
             assert self.V != None
             data = self.V
         else:
-            wave = stream[self.ts[0] : self.ts[-1]+stream.tres] # end inclusive
+            wave = stream[self.t0 : self.tend]
             # can't do this cuz chanis indexes only into enabled chans,
             # not into all stream chans represented in data array:
             #data = wave.data[self.chanis]
             data = wave[self.chans].data # maybe a bit slower, but correct
-            #assert data.shape[1] == len(self.ts) # make sure I know what I'm doing
-        self.wave = WaveForm(data=data, ts=self.ts, chans=self.chans)
+            #assert data.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
+        ts = np.arange(self.t0, self.tend, stream.tres) # build them up
+        self.wave = WaveForm(data=data, ts=ts, chans=self.chans)
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
@@ -672,6 +673,7 @@ class Detector(object):
             # looks like a spike, calc and save some attribs
             s = Spike()
             s.t = wave.ts[ti]
+            #s.ts = wave.ts[t0i:tendi] # reconstruct this using np.arange(s.t0, s.tend, stream.tres)
             ts = wave.ts[t0i:tendi]
             s.t0, s.tend = wave.ts[t0i], wave.ts[tendi]
             s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
