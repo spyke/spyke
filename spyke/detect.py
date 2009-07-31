@@ -672,28 +672,24 @@ class Detector(object):
             # looks like a spike, calc and save some attribs
             s = Spike()
             s.t = wave.ts[ti]
-            s.ts = wave.ts[t0i:tendi]
-            s.t0i, s.t0 = t0i, wave.ts[t0i]
-            s.tendi, s.tend = tendi, wave.ts[tendi]
+            ts = wave.ts[t0i:tendi]
+            s.t0, s.tend = wave.ts[t0i], wave.ts[tendi]
             s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
-            s.dphase = s.ts[phase2ti] - s.ts[phase1ti]
+            s.dphase = ts[phase2ti] - ts[phase1ti]
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
-            s.V1, s.V2 = V1, V2
+            #s.V1, s.V2 = V1, V2
             s.Vpp = V2 - V1 # maintain polarity
             chans = np.asarray(self.chans)[chanis] # dereference
-            s.chani, s.chanis, s.chan, s.chans = chani, chanis, chan, chans
+            #s.chani, s.chanis  = chani, chanis
+            s.chan, s.chans = chan, chans
             if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
-                s.wave = WaveForm()
-                s.wave.data = wave.data[chanis, t0i:tendi]
-                s.wave.ts = s.ts
-                s.wave.chans = chans
-            #s.x0, s.y0 = self.get_spike_spatial_mean(s) # this is optionally done later
-            #s.x0, s.y0 = None, None
-            #s.valid = True
+                s.wave = WaveForm(data=wave.data[chanis, t0i:tendi],
+                                  ts=ts,
+                                  chans=chans)
             spikes.append(s) # add to list of valid Spikes to return
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
