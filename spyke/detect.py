@@ -675,23 +675,26 @@ class Detector(object):
                 if DEBUG: debug(message)
                 continue # skip to next event
             '''
-            # looks like a spike, calc and save some attribs
+            # looks like a spike. For pickling/unpickling efficiency, save as few
+            # attribs as possible with the most compact representation possible.
+            # Saving numpy scalars is less efficient than using basic Python types
             s = Spike()
-            s.t = wave.ts[ti]
+            s.t = int(wave.ts[ti])
             #s.ts = wave.ts[t0i:tendi] # reconstruct this using np.arange(s.t0, s.tend, stream.tres)
             ts = wave.ts[t0i:tendi]
-            s.t0, s.tend = wave.ts[t0i], wave.ts[tendi]
-            s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
-            s.dphase = ts[phase2ti] - ts[phase1ti]
+            s.t0, s.tend = int(wave.ts[t0i]), int(wave.ts[tendi])
+            s.phase1ti, s.phase2ti = int(phase1ti), int(phase2ti) # wrt t0i
+            s.dphase = int(ts[phase2ti] - ts[phase1ti]) # in us
             try:
                 assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
             #s.V1, s.V2 = V1, V2
-            s.Vpp = V2 - V1 # maintain polarity
+            s.Vpp = float(V2 - V1) # maintain polarity, Py float is more efficient than np.float32
             chans = np.asarray(self.chans)[chanis] # dereference
-            s.chani, s.chanis  = chani, chanis
+            # chanis as a list is less efficient than as an array
+            s.chani, s.chanis = int(chani), chanis
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
             if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
                 s.wave = WaveForm(data=wave.data[chanis, t0i:tendi],
@@ -899,8 +902,8 @@ class Detector(object):
         # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
         #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
         #weights = abs(weights)
-        x0 = (weights * x).sum()
-        y0 = (weights * y).sum()
+        x0 = float((weights * x).sum())
+        y0 = float((weights * y).sum())
         return x0, y0
 
     def get_gaussian_fit(self, spike):

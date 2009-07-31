@@ -47,7 +47,7 @@ class Sort(object):
     to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single pickled Sort object"""
-    SAVEWAVES = True # save each spike's .wave to .sort file?
+    SAVEWAVES = False # save each spike's .wave to .sort file?
     def __init__(self, detector=None, probe=None, stream=None):
         self.detector = detector # this sort session's current Detector object
         self.probe = probe # only one probe design per sort allowed
@@ -123,6 +123,7 @@ class Sort(object):
         """Extract XY parameters from spikes using extraction method"""
         if len(self.spikes) == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
+        print("Extracting parameters from spikes")
         t0 = time.clock()
         if method.lower() == 'spatial mean':
             for spike in self.spikes.values():
