@@ -594,9 +594,9 @@ class Detection(object):
                 s.wave
             except AttributeError:
                 s.wave = WaveForm() # init to empty waveform
-            s.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-            s.plt = None # Plot currently holding self
-            s.neuron = None # neuron currently associated with
+            #s.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
+            #s.plt = None # Plot currently holding self
+            #s.neuron = None # neuron currently associated with
             self.spikes[s.id] = s
     '''
     deprecated: use spike.chans instead:

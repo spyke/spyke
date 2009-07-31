@@ -237,7 +237,9 @@ class Raster(Plot):
     def update(self, spike, tref):
         """Update lines data from spike.t and spike.chans"""
         self.spike = spike
-        for chan in spike.chans:
+        spikechan = spike.detection.detector.chans[spike.chani] # dereference
+        spikechans = spike.detection.detector.chans[spike.chanis] # dereference
+        for chan in spikechans:
             try:
                 line = self.lines[chan]
             except KeyError:
@@ -247,16 +249,16 @@ class Raster(Plot):
             chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
             ylims = ypos - chanheight/2, ypos + chanheight/2
             line.set_data([x, x], ylims) # update the line's x and y data
-            line.set_color(self.panel.vcolours[spike.chan]) # colour according to max chan
+            line.set_color(self.panel.vcolours[spikechan]) # colour according to max chan
             line.set_visible(True) # enable this chan for this spike
-        notchans = self.chans.difference(spike.chans)
+        notchans = self.chans.difference(spikechans)
         for notchan in notchans: # disable all chans not in this spike
             self.lines[notchan].set_visible(False)
 
     def show(self, enable=True):
         """Show/hide lines on all of spike's chans"""
         try:
-            chans = self.spike.chans
+            chans = self.spike.detection.detector.chans[self.spike.chanis] # dereference
         except AttributeError: # no spike
             if enable == False:
                 chans = self.lines.keys() # disable all lines

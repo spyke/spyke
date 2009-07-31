@@ -15,6 +15,8 @@ import datetime
 import gzip
 from copy import copy
 
+import numpy as np
+
 import spyke
 from spyke import core, surf, detect
 from spyke.sort import Sort, Detection
@@ -484,7 +486,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.total_nspikes_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
-        return [ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ]
+        return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ])
 
     def set_chans_enabled(self, chans, enable=None):
         """Updates which chans are enabled in ._chans_enabled dict and in the plot panels.
@@ -597,6 +599,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSampfreq(self.sort.sampfreq)
         self.SetSHCorrect(self.sort.shcorrect)
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
+        self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the sort session

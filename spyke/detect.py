@@ -137,37 +137,42 @@ class Spike(object):
     def __hash__(self):
         """Unique hash value for self, based on modelled spike time and location.
         Required for effectively using Spikes in a Set"""
-        return hash((self.t, self.chan)) # hash of their tuple, should guarantee uniqueness
+        return hash((self.t, self.chani)) # hash of their tuple, should guarantee uniqueness
 
     def __repr__(self):
-        return str((self.t, self.chan))
+        chan = self.detection.detector.chans[self.chani] # dereference
+        return str((self.t, chan))
 
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # this doesn't seem to be a slow step
+        # when deleting a dict entry, the strategy here is to use
+        # d.pop(entry, None) to not raise an error if the entry doesn't exist
         if not self.detection.sort.SAVEWAVES:
-            d['wave'] = None # clear wave data to save space and time during pickling
-            d['V'] = None
-        #d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        #d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+            d.pop('wave', None) # clear wave (if any) to save space and time during pickling
+        if 'neuron' in d and d['neuron'] == None:
+            del d['neuron']
+        d.pop('plt', None) # clear plot (if any) self is assigned to, since that'll have changed anyway on unpickle
+        d.pop('itemID', None) # clear tree item ID (if any) since that'll have changed anyway on unpickle
         return d
 
-    def update_wave(self, stream=None, tw=None):
-        """Load/update self's waveform, based either on data already present in
-        self.V, or taken from the given stream. Optionally slice it according to
-        tw around self's spike time"""
-        if stream == None:
-            assert self.V != None
-            data = self.V
-        else:
-            wave = stream[self.t0 : self.tend]
-            # can't do this cuz chanis indexes only into enabled chans,
-            # not into all stream chans represented in data array:
-            #data = wave.data[self.chanis]
-            data = wave[self.chans].data # maybe a bit slower, but correct
-            #assert data.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
+    # TODO: Could potentially define __setstate___ to reset .wave, .neuron,
+    # .plt, and .itemID back to None if they don't exist in the d returned
+    # from the pickle. This might make it easier to work with other
+    # code that relies on all of these attribs exsting all the time"""
+
+    def update_wave(self, stream, tw=None):
+        """Load/update self's waveform taken from the given stream.
+        Optionally slice it according to tw around self's spike time"""
+        wave = stream[self.t0 : self.tend]
         ts = np.arange(self.t0, self.tend, stream.tres) # build them up
-        self.wave = WaveForm(data=data, ts=ts, chans=self.chans)
+        # can't do this cuz chanis indexes only into enabled chans,
+        # not into all stream chans represented in data array:
+        #data = wave.data[self.chanis]
+        chans = self.detection.detector.chans[self.chanis] # dereference
+        data = wave[chans].data # maybe a bit slower, but correct
+        #assert data.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
+        self.wave = WaveForm(data=data, ts=ts, chans=chans)
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
@@ -401,7 +406,7 @@ class Detector(object):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
         self.srffname = sort.stream.srffname # for reference, store which .srf file this Detector is run on
-        self.chans = chans or range(sort.stream.nchans) # None means search all channels
+        self.chans = np.asarray(chans) or np.arange(sort.stream.nchans) # None means search all channels
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
@@ -686,8 +691,8 @@ class Detector(object):
             #s.V1, s.V2 = V1, V2
             s.Vpp = V2 - V1 # maintain polarity
             chans = np.asarray(self.chans)[chanis] # dereference
-            #s.chani, s.chanis  = chani, chanis
-            s.chan, s.chans = chan, chans
+            s.chani, s.chanis  = chani, chanis
+            #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
             if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
                 s.wave = WaveForm(data=wave.data[chanis, t0i:tendi],
                                   ts=ts,
