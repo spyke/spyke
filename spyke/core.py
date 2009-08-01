@@ -221,16 +221,19 @@ class Stream(object):
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
+        recorddatas = []
         for record in cutrecords:
             try:
-                record.data
+                recorddata = record.data
             except AttributeError:
-                record.load(self.srff.f) # to save time, only load the waveform if it's not already loaded
-        # join all waveforms, returns a copy. Also, convert to float32 here,
+                recorddata = record.load(self.srff.f) # to save time, only load the waveform if it's not already loaded
+            recorddatas.append(recorddata)
+        # join all waveforms, return a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
         # Don't need float64 precision anyway.
-        data = np.concatenate([np.float32(record.data) for record in cutrecords], axis=1)
+        data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1)
+        # TODO: is there a way to return a multistride array, so you don't need to do a copy?
         # all ctsrecords should be using the same layout, use tres from the first one
         tres = cutrecords[0].layout.tres
 
@@ -241,11 +244,7 @@ class Stream(object):
             tstart = record.TimeStamp
             nt = record.data.shape[1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
-            # save memory by unloading waveform data from records that aren't needed anymore
-            # TODO: this can cause a race condition if multithreading
-            # TODO: use weakref, so garbage collector unloads .data when it needs memory?
-            del record.data
-        ts = np.asarray(ts, dtype=np.int64) # force timestamps to be int64
+        ts = np.int64(ts) # force timestamps to be int64
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
         ts = ts[lo:hi+self.endinclusive] # .take doesn't seem to be any faster
@@ -269,7 +268,7 @@ class Stream(object):
 
         # now get rid of any excess
         if xs:
-            lo, hi = ts.searchsorted([start, stop])
+            lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted really necessary?
             data = data[:, lo:hi+self.endinclusive]
             ts = ts[lo:hi+self.endinclusive]
 

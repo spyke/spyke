@@ -14,6 +14,7 @@ import unittest
 from copy import copy
 import re
 import time
+import weakref
 
 import wx
 
@@ -634,15 +635,32 @@ class ContinuousRecord(object):
         # I do to it in Stream.AD2uV is subtract 2048, and then convert to float. But, I could convert
         # to float first, then subtract 2048. Wouldn't make any difference I can think of. So using uint16
         # is probably more correct
-        self.data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
+        data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
+        # TODO: maybe convert to float32 and to uV immediately, no need to store as int, since everything
+        # downstream wants uV in float32 anyway! This way, if the data hasn't been garbage collected
+        # the 2nd time it's accessed, it's already in the right format and doesn't need to be converted
+        # again
         # reshape to have nchans rows, as indicated in layout
-        self.data.shape = (self.layout.nchans, -1)
+        data.shape = (self.layout.nchans, -1)
+        self.weakref_data = weakref.ref(data)
+        return data
+
+    def get_data(self):
+        data = self.weakref_data() # try the weakref to the data
+        if data == None:
+            raise AttributeError("record data has been garbage collected")
+        return data
+
+    data = property(get_data)
+
     '''
     # not sure why record.data never seems to get pickled in spite of this being commented out
+    # Oh, I think it's because the .parse file is saved before any data is even loaded for display
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         d.pop('data', None) # don't pickle the data, that can always be reloaded after unpickling
+        d.pop('weakref_data', None) # don't pickle the data, that can always be reloaded after unpickling
         return d
     '''
 
@@ -683,33 +701,27 @@ class LowPassMultiChanRecord(object):
     def load(self, f):
         """Load waveform data for each lowpass record, appending it as
         channel(s) to a single 2D data array"""
-        self.data = []
+        data = []
         for record in self.lowpassrecords:
-            record.load(f)
+            try:
+                recorddata = record.data
+            except AttributeError:
+                recorddata = record.load(f) # to save time, only load the waveform if it's not already loaded
             # shouldn't matter if record.data is one channel (row) or several
-            self.data.append(record.data)
+            data.append(recorddata)
         # save as array, removing singleton dimensions
-        self.data = np.squeeze(self.data)
-    '''
-    def get_f(self):
-        """Get open .srf file, should be the same for all lowpassrecords"""
-        return self.lowpassrecords[0].f
+        data = np.squeeze(data)
+        self.weakref_data = weakref.ref(data)
+        return data
 
-    def set_f(self, f):
-        """This can be called by Stream when unpickling self. Instead of binding
-        an open .srf file to self, bind it to its constituent lowpassrecords"""
-        for lowpassrecord in self.lowpassrecords:
-            lowpassrecord.f = f
+    def get_data(self):
+        data = self.weakref_data() # try the weakref to the data
+        if data == None:
+            raise AttributeError("record data has been garbage collected")
+        return data
 
-    """Make this LowPassMultiChanRecord look like it has its own open .srf file,
-    when really it's that of its constiuent lowpassrecords"""
-    f = property(get_f, set_f)
+    data = property(get_data)
 
-    def __setstate__(self, d):
-        self.__dict__ = d
-        for record in self.lowpassrecords:
-            record
-    '''
 
 class DisplayRecord(object):
     """Stimulus display header record"""

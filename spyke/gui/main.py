@@ -359,7 +359,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
         for det in selectedDetections:
             for spike in det.spikes.values(): # first check all detection's spikes to ensure they aren't neuron members
-                if spike.neuron != None:
+                if getattr(spike, 'neuron', None) != None:
                     wx.MessageBox("can't remove detection %d: spike %d is a"
                                   "member of neuron %d"
                                   % (det.id, spike.id, spike.neuron.id),
