@@ -135,7 +135,7 @@ class Stream(object):
         self.layout = self.ctsrecords[0].layout
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
-        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us, for convenience
+        self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
         self.nchans = len(self.layout.ADchanlist)
         if kind == 'highpass':
             self.chans = range(self.nchans) # probe chans, as opposed to AD chans, don't know yet of any probe
@@ -154,7 +154,7 @@ class Stream(object):
         self.probe = probetype() # instantiate it
 
         self.t0 = self.rts[0] # us, time that recording began
-        lastctsrecordtw = intround(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.rawtres)
+        lastctsrecordtw = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.rawtres))
         self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
 
     def get_sampfreq(self):
@@ -167,7 +167,7 @@ class Stream(object):
             del self.kernels
         except AttributeError:
             pass
-        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
+        self.tres = int(round(1 / self.sampfreq * 1e6)) # us, for convenience
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
@@ -259,13 +259,13 @@ class Stream(object):
         extgain = self.ctsrecords[0].layout.extgain
         intgain = self.ctsrecords[0].layout.intgain
         data = self.AD2uV(data, intgain, extgain)
-        #print 'raw data shape before resample: %r' % (data.shape,)
+        #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary
         if resample:
             #tresample = time.clock()
             data, ts = self.resample(data, ts)
-            #print 'resample took %.3f sec' % (time.clock()-tresample)
+            #print('resample took %.3f sec' % (time.clock()-tresample))
 
         # now get rid of any excess
         if xs:
@@ -273,8 +273,8 @@ class Stream(object):
             data = data[:, lo:hi+self.endinclusive]
             ts = ts[lo:hi+self.endinclusive]
 
-        #print 'data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape)
-        #print 'Stream slice took %.3f sec' % (time.clock()-tslice)
+        #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
+        #print('Stream slice took %.3f sec' % (time.clock()-tslice))
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans)
@@ -305,7 +305,7 @@ class Stream(object):
         #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
-        resamplex = intround(self.sampfreq / self.rawsampfreq) # resample factor: n output resampled points per input raw point
+        resamplex = int(round(self.sampfreq / self.rawsampfreq)) # resample factor: n output resampled points per input raw point
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
@@ -527,8 +527,11 @@ def get_sha1(fname, blocksize=2**20):
 
 def intround(n):
     """Round to the nearest integer, return an integer. Works on arrays,
-    saves on parentheses"""
-    return np.int64(np.round(n))
+    saves on parentheses, nothing more"""
+    if iterable(n): # it's a sequence, return as an int64 array
+        return np.int64(np.round(n))
+    else: # it's a scalar, return as normal Python int
+        return int(round(n))
 
 def iterable(x):
     """Check if the input is iterable, stolen from numpy.iterable()"""
@@ -561,7 +564,7 @@ def cvec(x):
 '''
 def isempty(x):
     """Check if sequence is empty. There really should be a np.isempty function"""
-    print("WARNING: not thouroughly tested!!!")
+    print("WARNING: not thoroughly tested!!!")
     x = np.asarray(x)
     if np.prod(x.shape) == 0:
         return True

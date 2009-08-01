@@ -27,7 +27,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MU, intround, hex2cmap
+from spyke.core import MU, hex2cmap
 from spyke.detect import TW # default time window relative to spike time
 
 SPIKELINEWIDTH = 1 # in points
@@ -756,7 +756,7 @@ class PlotPanel(FigureCanvasWxAgg):
             t = evt.mouseevent.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
             v = (evt.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
-                t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
+                t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d\n' % chan + \
                       't=%d %s\n' % (t, MU+'s') + \
                       'V=%.1f %s\n' % (v, MU+'V') + \
@@ -781,7 +781,7 @@ class PlotPanel(FigureCanvasWxAgg):
                 t = evt.xdata - xpos + self.qrplt.tref
                 v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
-                    t = intround(t / self.stream.tres) * self.stream.tres # round to nearest (possibly interpolated) sample
+                    t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
                     tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
                           't=%d %s\n' % (t, MU+'s') + \
                           'V=%.1f %s\n' % (v, MU+'V') + \
@@ -1139,7 +1139,7 @@ class SortPanel(PlotPanel):
                     tres = 1
                 t = evt.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
                 v = (evt.ydata - ypos) / self.gain
-                t = intround(t / tres) * tres # round to nearest (possibly interpolated) sample
+                t = int(round(t / tres)) * tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
                       't=%d %s\n' % (t, MU+'s') + \
                       'V=%.1f %s\n' % (v, MU+'V') + \

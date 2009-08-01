@@ -16,7 +16,7 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from spyke.core import WaveForm, Gaussian, intround, MAXLONGLONG
+from spyke.core import WaveForm, Gaussian, MAXLONGLONG
 from spyke.gui import wxglade_gui
 from spyke.gui.plot import CMAP, CMAPWITHJUNK
 from spyke.detect import Spike, TW
@@ -465,7 +465,7 @@ class Sort(object):
         assert np.log2(npoints) % 1 == 0, 'npoints is not a power of 2'
         # get ti - time index each spike is assumed to be centered on
         self.spikes[0].update_wave(stream=self.stream) # make sure it has a wave
-        ti = intround(self.spikes[0].wave.data.shape[-1] / 4) # 13 for 50 kHz, 6 for 25 kHz
+        ti = int(round(self.spikes[0].wave.data.shape[-1] / 4)) # 13 for 50 kHz, 6 for 25 kHz
         dims = len(self.spikes), 2+nchans*npoints
         output = np.empty(dims, dtype=np.float32)
         dm = self.detector.dm
@@ -559,7 +559,7 @@ class Sort(object):
                     weights = np.abs(np.asarray([templatewave.data, spikewave.data])).max(axis=0) # take elementwise max of abs of template and spike data
                 err = (templatewave.data - spikewave.data) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
-                template.err.append((spike.id, intround(err)))
+                template.err.append((spike.id, int(round(err))))
             template.err = np.asarray(template.err, dtype=np.int64)
             if sort and len(template.err) != 0:
                 i = template.err[:, 1].argsort() # row indices that sort by error
@@ -1125,7 +1125,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for rowi in range(self.list.GetItemCount()):
             sid = int(self.list.GetItemText(rowi)) # 0th column
             s = self.sort.spikes[sid]
-            y0 = intround(s.y0) # needs to be an int unfortunately
+            y0 = int(round(s.y0)) # needs to be an int unfortunately
             self.list.SetItemData(rowi, y0)
         self.list.SortItems(cmp) # now do the actual sort, based on the item data
 
@@ -1165,7 +1165,7 @@ class SortFrame(wxglade_gui.SortFrame):
         SiteLoc = self.sort.probe.SiteLoc
         for s in spikes.values():
             # TODO: does first entry in each row have to be a string???????????
-            row = [s.id, intround(s.x0), intround(s.y0), s.t] # leave err column empty for now
+            row = [s.id, int(round(s.x0)), int(round(s.y0)), s.t] # leave err column empty for now
             self.list.Append(row)
             # using this instead of .Append(row) is just as slow:
             #rowi = self.list.InsertStringItem(sys.maxint, str(s.id))
@@ -1174,7 +1174,7 @@ class SortFrame(wxglade_gui.SortFrame):
             # should probably use a virtual listctrl to speed up listctrl creation
             # and subsequent addition and especially removal of items
             # hack to make items sort by y0, or x0 if y0 vals are identical
-            data = intround(s.y0) # needs to be an int unfortunately
+            data = int(round(s.y0)) # needs to be an int unfortunately
             # use item count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
             self.list.SetItemData(self.list.GetItemCount()-1, data)
@@ -1283,7 +1283,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if spike in self.sort.spikes.values():
             # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
             print "Can't move: spike %d (x0=%d, y0=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
-                  % (spike.id, intround(spike.x0), intround(spike.y0), spike.t, spike.neuron.id)
+                  % (spike.id, int(round(spike.x0)), int(round(spike.y0)), spike.t, spike.neuron.id)
             return
         neuron = spike.neuron
         del neuron.spikes[spike.id] # del spike from its neuron's spike dict
@@ -1296,7 +1296,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.RemoveNeuron(neuron) # remove empty Neuron
         else:
             neuron.update_wave() # update mean neuron waveform
-        data = [spike.id, intround(spike.x0), intround(spike.y0), spike.t]
+        data = [spike.id, int(round(spike.x0)), int(round(spike.y0)), spike.t]
         self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
         # TODO: maybe re-sort the list
 

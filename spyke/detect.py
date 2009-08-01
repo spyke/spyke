@@ -503,7 +503,7 @@ class Detector(object):
 
         twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
         twts += twts[0] % tres # get rid of mod, so twts go through zero
-        self.twi = intround(twts[0] / tres), intround(twts[-1] / tres) # time window indices wrt thresh xing or 1st phase
+        self.twi = int(round(twts[0] / tres)), int(round(twts[-1] / tres)) # time window indices wrt thresh xing or 1st phase
         #info('twi = %s' % (self.twi,))
 
         # want an nchan*2 array of [chani, x/ycoord]
@@ -1012,7 +1012,7 @@ class Detector(object):
             # it's a spike, record it
             sm.valid = True
             sms.append(sm) # add to list of valid SpikeModels to return
-            print 'found new spike: %d @ (%d, %d)' % (phase1t, intround(x0), intround(y0))
+            print 'found new spike: %d @ (%d, %d)' % (phase1t, int(round(x0)), int(round(y0)))
             """
             update spatiotemporal lockout
 
@@ -1024,7 +1024,7 @@ class Detector(object):
             lock out til one (TODO: maybe it should be two?) stdev after peak of 2nd phase,
             in case there's a noisy mini spike that might cause a trigger on the way down
             """
-            lockout[chanis] = t0i + phase2ti + intround(s2 / self.sort.stream.tres)
+            lockout[chanis] = t0i + phase2ti + int(round(s2 / self.sort.stream.tres))
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
     '''
     def check_spikes(self, spikes):
@@ -1104,7 +1104,7 @@ class Detector(object):
             if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
                 wavetranges = [self.trange] # use a single block of data, as defined by trange
             else:
-                nblocks = intround(self.fixednoisewin / self.blocksize)
+                nblocks = int(round(self.fixednoisewin / self.blocksize))
                 wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
             data = []
             for wavetrange in wavetranges:

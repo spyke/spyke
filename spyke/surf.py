@@ -17,7 +17,7 @@ import time
 
 import wx
 
-from spyke.core import Stream, toiter, intround
+from spyke.core import Stream, toiter
 
 NULL = '\x00'
 
@@ -143,7 +143,7 @@ class File(object):
                 self._appendRecord(rec, reclistname)
             else:
                 raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
-            self.percentParsed = f.tell() / self.fileSize * 100
+            #self.percentParsed = f.tell() / self.fileSize * 100
 
     def _appendRecord(self, rec, reclistname):
         """Append record to reclistname"""
@@ -209,8 +209,8 @@ class File(object):
                 ADchanlist.append(ADchan)
             else:
                 raise ValueError, 'cannot parse LFP chan from probe description: %r' % layout.probe_descrip
-        lpmclayout.chans = chans
-        lpmclayout.ADchanlist = ADchanlist # replace single chan A/D chanlist with our new multichan highpass probe based one
+        lpmclayout.chans = np.asarray(chans)
+        lpmclayout.ADchanlist = np.asarray(ADchanlist) # replace single chan A/D chanlist with our new multichan highpass probe based one
         lpmclayout.probe_descrip = "LFP probe chans: %r; A/D chans: %r" % (lpmclayout.chans, lpmclayout.ADchanlist)
         lpmclayout.electrode_name = hplayout.electrode_name
         lpmclayout.probewinlayout = hplayout.probewinlayout
@@ -233,6 +233,12 @@ class File(object):
         self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         pf.close()
         print 'Recovered parse info from %r' % self.parsefname
+
+    def __getstate__(self):
+        """Don't pickle open .srf file on pickle"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['f'] # exclude open .srf file
+        return d
 
     def __setstate__(self, d):
         """Restore open .srf file on unpickle"""
@@ -298,8 +304,9 @@ class FileHeader(object):
         self.path = f.read(self.UFF_PATH_LEN).rstrip(NULL)
         # original file name at creation
         self.filename = f.read(self.UFF_FILENAME_LEN).rstrip(NULL)
-        # pad area to bring uff area to 512
-        self.pad = f.read(self.UFF_FH_PAD_LEN).replace(NULL, ' ')
+        # pad area to bring uff area to 512, no need to save it, skip it instead
+        #self.pad = f.read(self.UFF_FH_PAD_LEN).replace(NULL, ' ')
+        f.seek(self.UFF_FH_PAD_LEN, 1)
         # application task name & version
         self.app_info = f.read(self.UFF_APPINFO_LEN).rstrip(NULL)
         # user's name as owner of file
@@ -308,8 +315,9 @@ class FileHeader(object):
         self.file_desc = f.read(self.UFF_FILEDESC_LEN).rstrip(NULL)
         # non user area of UFF header should be 512 bytes
         assert f.tell() - self.offset == 512
-        # additional user area
-        self.user_area = unpack('B'*self.UFF_FH_USERAREA_LEN, f.read(self.UFF_FH_USERAREA_LEN))
+        # additional user area, no need to save it, skip it instead
+        #self.user_area = unpack('B'*self.UFF_FH_USERAREA_LEN, f.read(self.UFF_FH_USERAREA_LEN))
+        f.seek(self.UFF_FH_USERAREA_LEN, 1)
         assert f.tell() - self.offset == self.UFF_FILEHEADER_LEN
 
         # this is the end of the original UFF header I think,
@@ -340,7 +348,8 @@ class TimeDate(object):
         self.day, = unpack('H', f.read(2))
         self.month, = unpack('H', f.read(2))
         self.year, = unpack('H', f.read(2))
-        self.junk = unpack('B'*6, f.read(6)) # junk data at end
+        # hack to skip 6 bytes
+        f.seek(6, 1)
 
 
 class DRDB(object):
@@ -386,8 +395,9 @@ class DRDB(object):
         self.DR_name = f.read(self.UFF_DRDB_NAME_LEN).rstrip(NULL)
         # number of sub-fields in Data Record
         self.DR_num_fields, = unpack('H', f.read(2))
-        # pad bytes for expansion
-        self.DR_pad = unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
+        # pad bytes for expansion, no need to save it, skip it instead
+        #self.DR_pad = unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
+        f.seek(self.UFF_DRDB_PAD_LEN, 1)
         # sub fields desc. RSFD = Record Subfield Descriptor
         for rsfdi in xrange(self.UFF_RSFD_PER_DRDB):
             rsfd = RSFD()
@@ -498,10 +508,10 @@ class LayoutRecord(object):
         # if any) (25000, 1000)
         self.sampfreqperchan, = unpack('i', f.read(4))
         # us, store it here for convenience
-        self.tres = intround(1 / float(self.sampfreqperchan) * 1e6)
+        self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6)) # us
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999
         # only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
-        self.extgain = unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS))
+        self.extgain = np.asarray(unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS)))
         # throw away the junk values
         self.extgain = self.extgain[:self.nchans]
         # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
@@ -510,8 +520,8 @@ class LayoutRecord(object):
         # to 64 channels) v1.0 had ADchanlist to be an array of 32 ints.  Now it
         # is an array of 64, so delete 32*4=128 bytes from end
         self.ADchanlist = unpack('h'*self.SURF_MAX_CHANNELS, f.read(2 * self.SURF_MAX_CHANNELS))
-        # throw away the junk values, convert tuple to list
-        self.ADchanlist = list(self.ADchanlist[:self.nchans])
+        # throw away the junk values
+        self.ADchanlist = np.asarray(self.ADchanlist[:self.nchans])
         # hack to skip next byte
         f.seek(1, 1)
         # ShortString (uMap54_2a, 65um spacing)
@@ -527,9 +537,9 @@ class LayoutRecord(object):
         self.probewinlayout = ProbeWinLayout()
         self.probewinlayout.parse(f)
         # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE;
-        # {pad for future expansion/modification}
-        self.pad = unpack(str(880-4-2)+'B', f.read(880-4-2))
-        # hack to skip next 6 bytes, or perhaps self.pad should be 4+2 longer
+        # {pad for future expansion/modification}, no need to save it, skip it instead
+        f.seek(880-4-2, 1)
+        # hack to skip next 6 bytes, or perhaps pad should be 4+2 longer
         f.seek(6, 1)
 
 
@@ -626,17 +636,13 @@ class ContinuousRecord(object):
         # is probably more correct
         self.data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
         # reshape to have nchans rows, as indicated in layout
-        #nt = self.NumSamples / self.layout.nchans # result should remain an int, no need to intround() it, usually 2500
-        #self.data.shape = (self.layout.nchans, nt)
         self.data.shape = (self.layout.nchans, -1)
     '''
+    # not sure why record.data never seems to get pickled in spite of this being commented out
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        try:
-            del d['data'] # don't pickle the data, that can always be reloaded after unpickling
-        except KeyError:
-            pass
+        d.pop('data', None) # don't pickle the data, that can always be reloaded after unpickling
         return d
     '''
 

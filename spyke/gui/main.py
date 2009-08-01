@@ -20,7 +20,7 @@ import numpy as np
 import spyke
 from spyke import core, surf, detect
 from spyke.sort import Sort, Detection
-from spyke.core import toiter, MU, intround
+from spyke.core import toiter, MU
 from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
 from spyke.sort import SortFrame
 import wxglade_gui
@@ -414,7 +414,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width
-        self.t = intround(self.hpstream.t0 + tww/2) # set current time position in recording (us)
+        self.t = int(round(self.hpstream.t0 + tww/2)) # set current time position in recording (us)
 
         self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         self.OpenFrame('spike')
@@ -748,7 +748,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
-        tres = intround(1 / sampfreq * 1e6)
+        tres = int(round(1 / sampfreq * 1e6))
         self.slider.SetLineSize(tres)
         self.plot()
 
@@ -882,7 +882,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Seek to position in surf file. offset is time in us"""
         self.oldt = self.t
         self.t = offset
-        self.t = intround(self.t / self.hpstream.tres) * self.hpstream.tres # round to nearest (possibly interpolated) sample
+        self.t = int(round(self.t / self.hpstream.tres)) * self.hpstream.tres # round to nearest (possibly interpolated) sample
         self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
         self.str2t['now'] = self.t # update
         # only plot if t has actually changed, though this doesn't seem to improve
