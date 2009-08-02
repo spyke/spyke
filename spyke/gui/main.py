@@ -256,7 +256,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSlider(self, evt):
         """Strange: keyboard press or page on mouse click when slider in focus generates
         two slider events, and hence two plot events - mouse drag only generates one slider event"""
-        self.seek(self.slider.GetValue())
+        nt = self.slider.GetValue()
+        self.seek(nt * self.hpstream.tres)
         #print time.time(), 'OnSlider()'
         #evt.Skip() # doesn't seem to be necessary
 
@@ -439,10 +440,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_pos_combo_box.SetValue(str(self.t))
         self.file_min_label.SetLabel(str(self.hpstream.t0))
         self.file_max_label.SetLabel(str(self.hpstream.tend))
-        self.slider.SetRange(self.range[0], self.range[1])
-        self.slider.SetValue(self.t)
-        self.slider.SetLineSize(self.hpstream.tres) # us, TODO: this should be based on level of interpolation
-        self.slider.SetPageSize(self.spiketw[1]-self.spiketw[0]) # us
+        # set all slider values in number of interploated timepoints
+        self.slider.SetRange(0, (self.range[1]-self.range[0]) // self.hpstream.tres) # shouldn't need to round
+        self.slider.SetValue(self.t // self.hpstream.tres)
+        self.slider.SetLineSize(1)
+        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // self.hpstream.tres)
 
         self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
@@ -748,8 +750,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
-        tres = int(round(1 / sampfreq * 1e6))
-        self.slider.SetLineSize(tres)
+        self.slider.SetRange(0, (self.range[1]-self.range[0]) // self.hpstream.tres) # shouldn't need to round
+        self.slider.SetValue(self.t // self.hpstream.tres)
+        #self.slider.SetLineSize(1) # doesn't change
+        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // self.hpstream.tres)
         self.plot()
 
     def SetSHCorrect(self, enable):
@@ -890,7 +894,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.t != self.oldt:
             # update controls first so they don't lag
             self.file_pos_combo_box.SetValue(str(self.t)) # update file combo box
-            self.slider.SetValue(self.t) # update slider
+            self.slider.SetValue(self.t // self.hpstream.tres) # update slider
             wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
             self.plot()
     '''
