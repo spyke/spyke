@@ -231,6 +231,8 @@ class Stream(object):
             except AttributeError:
                 recorddata = record.load(self.srff.f) # to save time, only load the waveform if it's not already loaded
             recorddatas.append(recorddata)
+        nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
+        totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
         print('record.load() took %.3f sec' % (time.clock()-tload))
         # join all waveforms, return a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
@@ -238,7 +240,10 @@ class Stream(object):
         # Don't need float64 precision anyway.
         # TODO: maybe leave conversion to float32 to np.convolve, since it does so automatically if need be
         tcat = time.clock()
-        data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1)
+        #data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1)
+        data = np.empty((nchans, totalnt), dtype=np.float32)
+        for i, recorddata in enumerate(recorddatas):
+            data[:, i*nt:min((i+1)*nt, totalnt)] = recorddata
         print('concatenate took %.3f sec' % (time.clock()-tcat))
         # TODO: is there a way to return a multistride array, so you don't need to do a copy?
         # all ctsrecords should be using the same layout, use tres from the first one
@@ -346,7 +351,7 @@ class Stream(object):
         #print 'data.shape = %r' % (data.shape,)
         tconvolve = time.clock()
         tconvolvesum = 0
-        for ADchani, ADchan in enumerate(ADchans):
+        for ADchani in xrange(len(ADchans)):
             for point, kernel in enumerate(self.kernels[ADchani]):
                 """np.convolve(a, v, mode)
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
@@ -389,10 +394,10 @@ class Stream(object):
         wh = hamming # window function
         h = np.sinc # sin(pi*t) / pi*t
         kernels = [] # list of list of kernels, indexed by [ADchani][resample point]
-        for ADchani in range(len(ADchans)):
+        for ADchani in xrange(len(ADchans)):
             d = ds[ADchani] # delay for this chan
             kernelrow = []
-            for point in range(resamplex): # iterate over resampled points per raw point
+            for point in xrange(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
                 tstop = tstart + (N+1)
