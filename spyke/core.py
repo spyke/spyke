@@ -236,28 +236,33 @@ class Stream(object):
         print('record.load() took %.3f sec' % (time.clock()-tload))
         # join all waveforms, return a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
-        # Use float32 cuz it uses half the memory, and is also a little faster as a result.
+        # Use float32 cuz it uses half the memory of float64, and is also a little faster as a result.
         # Don't need float64 precision anyway.
         # TODO: maybe leave conversion to float32 to np.convolve, since it does so automatically if need be
         tcat = time.clock()
-        #data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1)
-        data = np.empty((nchans, totalnt), dtype=np.float32)
-        for i, recorddata in enumerate(recorddatas):
-            data[:, i*nt:min((i+1)*nt, totalnt)] = recorddata
+        #data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1) # slow
+        data = np.empty((nchans, totalnt), dtype=np.float32) # init
+        for recordi, recorddata in enumerate(recorddatas):
+            i = recordi * nt
+            data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
         print('concatenate took %.3f sec' % (time.clock()-tcat))
-        # TODO: is there a way to return a multistride array, so you don't need to do a copy?
-        # all ctsrecords should be using the same layout, use tres from the first one
         tres = self.layout.tres # actual tres of record data may not match self.tres due to interpolation
 
         # build up waveform timepoints, taking into account any time gaps in
-        # between records due to pauses in recording
+        # between records due to pauses in recording, assumes all records
+        # are the same length, except for maybe the last
         ttsbuild = time.clock()
-        ts = []
-        for record, recorddata in zip(cutrecords, recorddatas):
+        ts = np.empty(totalnt, dtype=np.int64) # init
+        for recordi, (record, recorddata) in enumerate(zip(cutrecords, recorddatas)):
+            i = recordi * nt
             tstart = record.TimeStamp
-            nt = recorddata.shape[1] # number of timepoints (columns) in this record's waveform
-            ts.extend(range(tstart, tstart + nt*tres, tres))
-        ts = np.int64(ts) # force timestamps to be int64
+            tend = tstart + min(nt, totalnt-i)*tres # last record may be shorter
+            ts[i:i+nt] = np.arange(tstart, tend, tres, dtype=np.int64)
+        '''
+        # assumes no gaps between records, negligibly faster:
+        tstart = cutrecords[0].TimeStamp
+        ts = np.arange(tstart, tstart + totalnt*tres, tres, dtype=np.int64)
+        '''
         print('ts building took %.3f sec' % (time.clock()-ttsbuild))
         #ttrim = time.clock()
         lo, hi = ts.searchsorted([start-xs, stop+xs])
