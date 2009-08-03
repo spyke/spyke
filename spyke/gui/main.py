@@ -441,10 +441,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_min_label.SetLabel(str(self.hpstream.t0))
         self.file_max_label.SetLabel(str(self.hpstream.tend))
         # set all slider values in number of interploated timepoints
-        self.slider.SetRange(0, (self.range[1]-self.range[0]) // self.hpstream.tres) # shouldn't need to round
-        self.slider.SetValue(self.t // self.hpstream.tres)
+        tres = self.hpstream.tres
+        self.slider.SetRange(self.range[0] // tres,
+                            (self.range[1]-self.range[0]) // tres) # shouldn't need to round
+        self.slider.SetValue(self.t // tres)
         self.slider.SetLineSize(1)
-        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // self.hpstream.tres)
+        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
 
         self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
@@ -750,10 +752,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
-        self.slider.SetRange(0, (self.range[1]-self.range[0]) // self.hpstream.tres) # shouldn't need to round
-        self.slider.SetValue(self.t // self.hpstream.tres)
+        tres = self.hpstream.tres
+        self.slider.SetRange(self.range[0] // tres,
+                            (self.range[1]-self.range[0]) // tres) # shouldn't need to round
+        self.slider.SetValue(self.t // tres)
         #self.slider.SetLineSize(1) # doesn't change
-        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // self.hpstream.tres)
+        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
         self.plot()
 
     def SetSHCorrect(self, enable):
