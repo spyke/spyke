@@ -624,7 +624,7 @@ class ContinuousRecord(object):
         f.seek(self.NumSamples*2, 1)
 
     def load(self, f):
-        """Loads waveform data for this continuous record, assumes that the
+        """Load waveform data for this continuous record, assume that the
         appropriate probe layout record has been assigned as a .layout attrib"""
         f.seek(self.dataoffset)
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
@@ -642,9 +642,9 @@ class ContinuousRecord(object):
         # again
         # reshape to have nchans rows, as indicated in layout
         data.shape = (self.layout.nchans, -1)
-        self.weakref_data = weakref.ref(data)
+        #self.weakref_data = weakref.ref(data)
         return data
-
+    '''
     def get_data(self):
         data = self.weakref_data() # try the weakref to the data
         if data == None:
@@ -652,7 +652,7 @@ class ContinuousRecord(object):
         return data
 
     data = property(get_data)
-
+    '''
     '''
     # not sure why record.data never seems to get pickled in spite of this being commented out
     # Oh, I think it's because the .parse file is saved before any data is even loaded for display

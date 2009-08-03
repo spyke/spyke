@@ -572,9 +572,10 @@ class Detector(object):
 
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
-        t0 = time.clock()
+        tedgeis = time.clock()
         edgeis = self.get_edgeis(wave)
-        info('self.get_edgeis() took %.3f sec' % (time.clock()-t0))
+        info('self.get_edgeis() took %.3f sec' % (time.clock()-tedgeis))
+        tcheckedges = time.clock()
         lockouts = self.lockouts
         twi = self.twi
         spikes = []
@@ -712,6 +713,7 @@ class Detector(object):
                 #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
                 debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
+        info('checking edges took %.3f sec' % (time.clock()-tcheckedges))
         return spikes
 
     def get_edgeis(self, wave):

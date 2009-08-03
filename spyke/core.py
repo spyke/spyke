@@ -193,7 +193,7 @@ class Stream(object):
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
-        #tslice = time.clock()
+        tslice = time.clock()
 
         # for now, accept only slice objects as keys
         assert type(key) == slice
@@ -216,38 +216,49 @@ class Stream(object):
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
         # timestamp, end with that record (even though you'll only potentially use the one timepoint from
         # that record, depending on the value of 'endinclusive')"""
+        #trts = time.clock()
         lorec, hirec = self.rts.searchsorted([start-xs, stop+xs], side='right') # TODO: this might need to be 'left' for step=-1
+        #print('rts.searchsorted() took %.3f sec' % (time.clock()-trts)) # this takes 0 sec
 
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
         recorddatas = []
+        tload = time.clock()
         for record in cutrecords:
             try:
                 recorddata = record.data
             except AttributeError:
                 recorddata = record.load(self.srff.f) # to save time, only load the waveform if it's not already loaded
             recorddatas.append(recorddata)
+        print('record.load() took %.3f sec' % (time.clock()-tload))
         # join all waveforms, return a copy. Also, convert to float32 here,
         # instead of in .AD2uV(), since we're doing a copy here anyway.
         # Use float32 cuz it uses half the memory, and is also a little faster as a result.
         # Don't need float64 precision anyway.
+        # TODO: maybe leave conversion to float32 to np.convolve, since it does so automatically if need be
+        tcat = time.clock()
         data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1)
+        print('concatenate took %.3f sec' % (time.clock()-tcat))
         # TODO: is there a way to return a multistride array, so you don't need to do a copy?
         # all ctsrecords should be using the same layout, use tres from the first one
-        tres = cutrecords[0].layout.tres
+        tres = self.layout.tres # actual tres of record data may not match self.tres due to interpolation
 
         # build up waveform timepoints, taking into account any time gaps in
         # between records due to pauses in recording
+        ttsbuild = time.clock()
         ts = []
-        for record in cutrecords:
+        for record, recorddata in zip(cutrecords, recorddatas):
             tstart = record.TimeStamp
-            nt = record.data.shape[1] # number of timepoints (columns) in this record's waveform
+            nt = recorddata.shape[1] # number of timepoints (columns) in this record's waveform
             ts.extend(range(tstart, tstart + nt*tres, tres))
         ts = np.int64(ts) # force timestamps to be int64
+        print('ts building took %.3f sec' % (time.clock()-ttsbuild))
+        #ttrim = time.clock()
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
         ts = ts[lo:hi+self.endinclusive] # .take doesn't seem to be any faster
+        #print('record data trimming took %.3f sec' % (time.clock()-ttrim)) # this takes 0 sec
 
         # reverse data if need be
         if key.step == -1:
@@ -255,25 +266,29 @@ class Stream(object):
             ts = ts[::key.step]
 
         # transform AD values to uV, assume all chans in ctsrecords have same gain
-        extgain = self.ctsrecords[0].layout.extgain
-        intgain = self.ctsrecords[0].layout.intgain
+        extgain = self.layout.extgain
+        intgain = self.layout.intgain
+        tad2uv = time.clock()
         data = self.AD2uV(data, intgain, extgain)
+        print('AD2uv took %.3f sec' % (time.clock()-tad2uv))
         #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary
         if resample:
-            #tresample = time.clock()
+            tresample = time.clock()
             data, ts = self.resample(data, ts)
-            #print('resample took %.3f sec' % (time.clock()-tresample))
+            print('resample took %.3f sec' % (time.clock()-tresample))
 
         # now get rid of any excess
         if xs:
+            #txs = time.clock()
             lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted really necessary?
             data = data[:, lo:hi+self.endinclusive]
             ts = ts[lo:hi+self.endinclusive]
+            #print('xs took %.3f sec' % (time.clock()-txs)) # this takes 0 sec
 
         #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
-        #print('Stream slice took %.3f sec' % (time.clock()-tslice))
+        print('Stream slice took %.3f sec' % (time.clock()-tslice))
 
         # return a WaveForm object
         return WaveForm(data=data, ts=ts, chans=self.chans)
@@ -329,13 +344,17 @@ class Stream(object):
         assert len(ts) == nt
         data = np.empty((self.nchans, nt), dtype=np.float32) # resampled data, float32 uses half the space
         #print 'data.shape = %r' % (data.shape,)
+        tconvolve = time.clock()
+        tconvolvesum = 0
         for ADchani, ADchan in enumerate(ADchans):
             for point, kernel in enumerate(self.kernels[ADchani]):
                 """np.convolve(a, v, mode)
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 where K = len(a)-1 and M = len(v) - 1 and K >= M
                 for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
+                tconvolveonce = time.clock()
                 row = np.convolve(rawdata[ADchani], kernel, mode='same')
+                tconvolvesum += (time.clock() - tconvolveonce)
                 #print 'len(rawdata[ADchani]) = %r' % len(rawdata[ADchani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
@@ -343,6 +362,8 @@ class Stream(object):
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
+        print('convolve calls took %.3f sec total' % (tconvolvesum))
+        print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
         return data, ts
 
     def get_kernels(self, ADchans, resamplex, N):
@@ -375,7 +396,8 @@ class Stream(object):
                 t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
                 tstop = tstart + (N+1)
-                t = np.arange(start=tstart, stop=tstop, step=1) # kernel sample timepoints, all of length N+1
+                # kernel sample timepoints, all of length N+1, float32s to match voltage data type
+                t = np.arange(start=tstart, stop=tstop, step=1, dtype=np.float32)
                 kernel = wh(t, N) * h(t) # windowed sinc
                 kernelrow.append(kernel)
             kernels.append(kernelrow)
