@@ -41,7 +41,7 @@ class WaveForm(object):
     """Just a container for data, timestamps, and channels.
     Sliceable in time, and indexable in channel space"""
     def __init__(self, data=None, ts=None, chans=None):
-        self.data = data # in uV, potentially multichannel, depending on shape
+        self.data = data # in AD, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
 
@@ -117,8 +117,7 @@ class WaveForm(object):
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
-    approriate range of waveform data from disk. Converts from AD units to uV
-    """
+    approriate range of waveform data from disk"""
     def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None, endinclusive=False):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
@@ -241,7 +240,7 @@ class Stream(object):
         # TODO: maybe leave conversion to float32 to np.convolve, since it does so automatically if need be
         tcat = time.clock()
         #data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1) # slow
-        data = np.empty((nchans, totalnt), dtype=np.float32) # init
+        data = np.empty((nchans, totalnt), dtype=np.int32) # init as int32 so we can rescale and zero later, then convert back to int16
         for recordi, recorddata in enumerate(recorddatas):
             i = recordi * nt
             data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
@@ -276,11 +275,18 @@ class Stream(object):
             ts = ts[::key.step]
 
         # transform AD values to uV, assume all chans in ctsrecords have same gain
+        '''
         extgain = self.layout.extgain
         intgain = self.layout.intgain
         tad2uv = time.clock()
         data = self.AD2uV(data, intgain, extgain)
         print('AD2uv took %.3f sec' % (time.clock()-tad2uv))
+        '''
+        tscaleandshift = time.clock()
+        data *= 2**(16-12) # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
+        data -= 2**15 # shift values to center them around 0 AD == 0 V
+        # data is still int32 at this point
+        print('scaling and shifting data took %.3f sec' % (time.clock()-tscaleandshift))
         #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary
@@ -288,6 +294,15 @@ class Stream(object):
             tresample = time.clock()
             data, ts = self.resample(data, ts)
             print('resample took %.3f sec' % (time.clock()-tresample))
+
+        #datamax = data.max()
+        #datamin = data.min()
+        #print('data max=%d and min=%d' % (datamax, datamin))
+        #assert datamax < 2**15 - 1
+        #assert datamin > -2**15
+        tint16 = time.clock()
+        data = np.int16(data) # should be safe to convert back down to int16 now
+        print('int16() took %.3f sec' % (time.clock()-tint16))
 
         # now get rid of any excess
         if xs:
@@ -349,10 +364,10 @@ class Stream(object):
         # the above can be simplified to:
         nt = nrawts*resamplex - (resamplex - 1)
         tstart = rawts[0]
-        ts = np.arange(start=tstart, stop=tstart+tres*nt, step=tres) # generate interpolated timepoints
+        ts = np.arange(tstart, tstart+tres*nt, tres) # generate interpolated timepoints
         #print 'len(ts) is %r' % len(ts)
         assert len(ts) == nt
-        data = np.empty((self.nchans, nt), dtype=np.float32) # resampled data, float32 uses half the space
+        data = np.empty((self.nchans, nt), dtype=np.int32) # resampled data, leave as int32 for convolution, then convert to int16
         #print 'data.shape = %r' % (data.shape,)
         tconvolve = time.clock()
         tconvolvesum = 0
@@ -372,6 +387,7 @@ class Stream(object):
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
+        data //= 2**16 # undo kernel scaling
         print('convolve calls took %.3f sec total' % (tconvolvesum))
         print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
         return data, ts
@@ -405,10 +421,11 @@ class Stream(object):
             for point in xrange(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
-                tstop = tstart + (N+1)
+                tend = tstart + (N+1)
                 # kernel sample timepoints, all of length N+1, float32s to match voltage data type
-                t = np.arange(start=tstart, stop=tstop, step=1, dtype=np.float32)
-                kernel = wh(t, N) * h(t) # windowed sinc
+                t = np.arange(tstart, tend, 1, dtype=np.float32)
+                kernel = wh(t, N) * h(t) # windowed sinc, sums to 1.0, max val is 1.0
+                kernel = np.int32(np.round(kernel * 2**16)) # rescale to get values up to 2**16, convert to int32
                 kernelrow.append(kernel)
             kernels.append(kernelrow)
         return kernels
