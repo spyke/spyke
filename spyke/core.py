@@ -279,7 +279,7 @@ class Stream(object):
         extgain = self.layout.extgain
         intgain = self.layout.intgain
         tad2uv = time.clock()
-        data = self.AD2uV(data, intgain, extgain)
+        self.AD2uV(data, intgain, extgain) # modify data in-place
         print('AD2uv took %.3f sec' % (time.clock()-tad2uv))
         '''
         tscaleandshift = time.clock()
@@ -328,11 +328,13 @@ class Stream(object):
         self.layout.f = f # reset it for this stream's layout record as well
     '''
     def AD2uV(self, data, intgain, extgain):
-        """Convert AD values in data to uV
+        """Convert AD values in data to uV, operate in-place
         TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
         TODO: stop hard-coding 10V, should be max range at intgain of 1
         """
-        return (data - 2048) * (10 / (2048 * intgain * extgain[0]) * 1000000)
+        data -= 2048
+        #data *= 10 / (2048 * intgain * extgain[0]) * 1000000
+        data *= 10000000 / (2048 * intgain * extgain[0])
 
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
