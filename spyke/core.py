@@ -233,14 +233,11 @@ class Stream(object):
         nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
         totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
         print('record.load() took %.3f sec' % (time.clock()-tload))
-        # join all waveforms, return a copy. Also, convert to float32 here,
-        # instead of in .AD2uV(), since we're doing a copy here anyway.
-        # Use float32 cuz it uses half the memory of float64, and is also a little faster as a result.
-        # Don't need float64 precision anyway.
-        # TODO: maybe leave conversion to float32 to np.convolve, since it does so automatically if need be
+
         tcat = time.clock()
-        #data = np.concatenate([np.float32(recorddata) for recorddata in recorddatas], axis=1) # slow
-        data = np.empty((nchans, totalnt), dtype=np.int32) # init as int32 so we can rescale and zero later, then convert back to int16
+        #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1) # slow
+        # init as int32 so we have space to rescale and zero, then convert back to int16
+        data = np.empty((nchans, totalnt), dtype=np.int32)
         for recordi, recorddata in enumerate(recorddatas):
             i = recordi * nt
             data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
@@ -274,19 +271,14 @@ class Stream(object):
             data = data[:, ::key.step]
             ts = ts[::key.step]
 
-        # transform AD values to uV, assume all chans in ctsrecords have same gain
-        '''
-        extgain = self.layout.extgain
-        intgain = self.layout.intgain
-        tad2uv = time.clock()
-        self.AD2uV(data, intgain, extgain) # modify data in-place
-        print('AD2uv took %.3f sec' % (time.clock()-tad2uv))
-        '''
-        tscaleandshift = time.clock()
-        data *= 2**(16-12) # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
-        data -= 2**15 # shift values to center them around 0 AD == 0 V
+        tscaleandoffset = time.clock()
+        #data *= 2**(16-12) # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
+        # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as * 2**(16-12) == 16
+        # this provides more fidelity for interpolation, reduces uV per AD to about 0.02
+        data <<= 4
+        data -= 2**15 # offset values to center them around 0 AD == 0 V
         # data is still int32 at this point
-        print('scaling and shifting data took %.3f sec' % (time.clock()-tscaleandshift))
+        print('scaling and offsetting data took %.3f sec' % (time.clock()-tscaleandoffset))
         #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary
@@ -294,6 +286,14 @@ class Stream(object):
             tresample = time.clock()
             data, ts = self.resample(data, ts)
             print('resample took %.3f sec' % (time.clock()-tresample))
+
+        # now get rid of any excess
+        if xs:
+            #txs = time.clock()
+            lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted really necessary?
+            data = data[:, lo:hi+self.endinclusive]
+            ts = ts[lo:hi+self.endinclusive]
+            #print('xs took %.3f sec' % (time.clock()-txs)) # this takes 0 sec
 
         #datamax = data.max()
         #datamin = data.min()
@@ -303,14 +303,6 @@ class Stream(object):
         tint16 = time.clock()
         data = np.int16(data) # should be safe to convert back down to int16 now
         print('int16() took %.3f sec' % (time.clock()-tint16))
-
-        # now get rid of any excess
-        if xs:
-            #txs = time.clock()
-            lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted really necessary?
-            data = data[:, lo:hi+self.endinclusive]
-            ts = ts[lo:hi+self.endinclusive]
-            #print('xs took %.3f sec' % (time.clock()-txs)) # this takes 0 sec
 
         #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
         print('Stream slice took %.3f sec' % (time.clock()-tslice))
@@ -326,7 +318,7 @@ class Stream(object):
         for ctsrecord in self.ctsrecords:
             ctsrecord.f = f # reset the open srf file for each ctsrecord
         self.layout.f = f # reset it for this stream's layout record as well
-    '''
+
     def AD2uV(self, data, intgain, extgain):
         """Convert AD values in data to uV, operate in-place
         TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
@@ -335,7 +327,7 @@ class Stream(object):
         data -= 2048
         #data *= 10 / (2048 * intgain * extgain[0]) * 1000000
         data *= 10000000 / (2048 * intgain * extgain[0])
-
+    '''
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints. See Blanche & Swindale, 2006
@@ -389,9 +381,11 @@ class Stream(object):
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
-        data //= 2**16 # undo kernel scaling
-        print('convolve calls took %.3f sec total' % (tconvolvesum))
         print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
+        print('convolve calls took %.3f sec total' % (tconvolvesum))
+        tundoscaling = time.clock()
+        data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
+        print('undo kernel scaling took %.3f sec total' % (time.clock() - tundoscaling))
         return data, ts
 
     def get_kernels(self, ADchans, resamplex, N):
