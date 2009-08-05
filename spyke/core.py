@@ -132,6 +132,8 @@ class Stream(object):
         else:
             raise ValueError('Unknown stream kind %r' % kind)
         self.layout = self.ctsrecords[0].layout
+        self.intgain = self.layout.intgain
+        self.extgain = self.layout.extgain[0] # assume extgain is the same for all chans in this layout
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
@@ -318,16 +320,19 @@ class Stream(object):
         for ctsrecord in self.ctsrecords:
             ctsrecord.f = f # reset the open srf file for each ctsrecord
         self.layout.f = f # reset it for this stream's layout record as well
-
-    def AD2uV(self, data, intgain, extgain):
-        """Convert AD values in data to uV, operate in-place
-        TODO: stop hard-coding 2048, should be (maxval of AD board + 1) / 2
-        TODO: stop hard-coding 10V, should be max range at intgain of 1
-        """
-        data -= 2048
-        #data *= 10 / (2048 * intgain * extgain[0]) * 1000000
-        data *= 10000000 / (2048 * intgain * extgain[0])
     '''
+    def AD2uV(self, AD):
+        """Convert AD values to float32 uV
+
+        TODO: unsure: does the DT3010 acquire from -10 to 10 V at intgain == 1 and encode that from 0 to 4095?
+        Biggest +ve voltage is 10 million uV, biggest +ve rescaled signed int16 AD val is half of 16 bits,
+        then divide by internal and external gains"""
+        return np.float32(AD) * 10000000 / (2**15 * self.intgain * self.extgain)
+
+    def uV2AD(self, uV):
+        """Convert uV to signed rescaled int16 AD values"""
+        return np.int16(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
+
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints. See Blanche & Swindale, 2006

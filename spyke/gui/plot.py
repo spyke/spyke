@@ -103,7 +103,6 @@ class ColourDict(dict):
 COLOURDICT = ColourDict(colours=COLOURS)
 
 
-
 class Plot(object):
     """Plot slot, holds lines for all chans for plotting
     a single stretch of data, contiguous in time"""
@@ -165,13 +164,16 @@ class Plot(object):
         TODO: most of the time, updating the xdata won't be necessary,
         but I think updating takes no time at all relative to drawing time"""
         self.tref = tref
+        AD2uV = self.panel.stream.AD2uV
         for chan, line in self.lines.iteritems():
+            # convert AD wave data to uV, remove any singleton dimensions
+            data = AD2uV(wave[chan].data.squeeze())
             xpos, ypos = self.panel.pos[chan]
             if wave.ts == None:
                 xdata = []
                 ydata = []
             else:
-                ydata = (wave[chan].data*self.panel.gain + ypos).squeeze() # remove any singleton dimensions
+                ydata = data * self.panel.gain + ypos
                 if ydata.size == 0: # if ydata is empty
                     xdata = [] # make xdata empty too to prevent matplotlib RunTimeError
                 else:
