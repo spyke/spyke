@@ -133,7 +133,7 @@ class Stream(object):
             raise ValueError('Unknown stream kind %r' % kind)
         self.layout = self.ctsrecords[0].layout
         self.intgain = self.layout.intgain
-        self.extgain = self.layout.extgain[0] # assume extgain is the same for all chans in this layout
+        self.extgain = int(self.layout.extgain[0]) # assume extgain is the same for all chans in this layout
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us

@@ -52,12 +52,14 @@ def arglocalextrema(signal):
     nt = len(signal)
     exti = np.zeros(nt, dtype=int)
     code = ("""
+    #line 55 "detect.py"
     int n_ext = 0;
-    double last, last2;
+    int last, last2;
     for (int i=2; i<nt; i++) {
         last = signal[i-1];
         last2 = signal[i-2];
-        //if ((last-last2) * (signal[i]-last) < 0.0) {
+        //if ((last-last2) * (signal[i]-last) < 0) {
+        // TODO: should be able to replace this with a single clause using abs()
         if ((last2 < last && last > signal[i]) || (last2 > last && last < signal[i])) {
             exti[n_ext] = i-1;
             n_ext++;
@@ -447,11 +449,12 @@ class Detector(object):
         self.dti = int(self.dt // stream.tres) # convert from numpy.int64 to normal int for inline C
 
         t0 = time.clock()
-        self.thresh = self.get_thresh() # abs, in uV, one per chan in self.chans
-        self.ppthresh = self.thresh * self.ppthreshmult # peak-to-peak threshold, abs, in uV
+        self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
+        self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
+        AD2uV = self.sort.stream.AD2uV
         info('thresh calcs took %.3f sec' % (time.clock()-t0))
-        info('thresh   = %s' % intround(self.thresh))
-        info('ppthresh = %s' % intround(self.ppthresh))
+        info('thresh   = %s' % AD2uV(self.thresh))
+        info('ppthresh = %s' % AD2uV(self.ppthresh))
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -527,7 +530,7 @@ class Detector(object):
 
     def threshwave(self, wave, cutrange):
         """Threshold wave data and return only events that fall within
-        cutrange and roughly look like spikes. Search in window
+        cutrange and look like spikes. Search in window
         forward from thresh for a peak, then in appropriate direction from
         that peak (based on sign of signal) for up to self.dt for another
         one of opposite sign. If you don't find a 2nd one that meets these
@@ -729,11 +732,11 @@ class Detector(object):
         data = wave.data
         thresh = self.thresh
         #assert (thresh >= 0).all() # assume it's passed as +ve
-        # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling fabs()
+        # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling abs() in the loop
         nchans, nt = data.shape
-        assert nchans == len(thresh)
+        #assert nchans == len(thresh)
         code = (r"""
-        #line 728 "detect.py"
+        #line 738 "detect.py"
         int nd = 2; // num dimensions of output edgeis array
         npy_intp dimsarr[nd];
         int leninc = 16384; // 2**14
@@ -751,7 +754,7 @@ class Detector(object):
         for (long long ti=1; ti<nt; ti++) {
             for (int ci=0; ci<nchans; ci++) {
                 i = ci*nt + ti; // calculate only once for speed
-                if (fabs(data[i]) >= thresh[ci] && fabs(data[i-1]) < thresh[ci]) {
+                if (abs(data[i]) >= thresh[ci] && abs(data[i-1]) < thresh[ci]) {
                     // abs(voltage) has crossed threshold
                     if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
                         printf("allocating more memory!\n");
@@ -832,7 +835,7 @@ class Detector(object):
         else: # dir1 == 'nearest'
             peak1i = exti[abs(exti - tiw).argmin()]
         peak1i = int(peak1i)
-        if window[peak1i] < 0.0: # peak1i is -ve, look right for corresponding +ve peak
+        if window[peak1i] < 0: # peak1i is -ve, look right for corresponding +ve peak
             dir2 = 'right'
         else: # peak1i is +ve, look left for corresponding -ve peak
             dir2 = 'left'
@@ -858,24 +861,26 @@ class Detector(object):
             raise ValueError('unknown dir2 %r' % dir2)
         #assert type(peak1i) == int
         dti = self.dti
+        # abs(signal[ei] - peak1) converts to Python int, so ppthresh has to be same type for >= comparison
+        ppthresh = int(ppthresh) # convert from np.int16 type to Python int
         #assert type(dti) == int
-        ppthresh = float(ppthresh)
         n_ext = len(exti)
         code = ("""
+        #line 866 "detect.py"
         // index into signal to get voltages
-        double peak1 = signal[peak1i];
-        double abs_peak2 = 0.0;
+        int peak1 = signal[peak1i]; // this should really be short, but doesn't seem to make a difference
         int peak2i = -1; // indicates suitable 2nd peak not yet found
         int ei;
         // test all extrema in exti
+        // TODO: order of these 4 clauses might be changed for speed, test > abs_peak2 first?
         for (int i=0; i<n_ext; i++) {
             ei = exti[i]; // i'th extremum's index into signal
             if ((abs(ei-peak1i) <= dti) && // if extremum is within dti of peak1i
-                (signal[ei] * peak1 < 0.0) && // and is of opposite sign
-                (fabs(signal[ei]) > abs_peak2) && // and is bigger than last one found
-                (fabs(signal[ei] - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
+                (signal[ei] * peak1 < 0) && // and is of opposite sign
+                //(abs(signal[ei]) > abs_peak2) && // and is bigger than last one found
+                (abs(signal[ei]) > abs(signal[peak2i])) && // and is bigger than last one found
+                (abs(signal[ei] - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
                     peak2i = ei; // save it
-                    abs_peak2 = fabs(signal[peak2i]);
             }
         }
         return_val = peak2i;""")
@@ -1091,10 +1096,10 @@ class Detector(object):
             sm.plot()
 
     def get_thresh(self):
-        """Return array of thresholds, one per chan in self.chans,
-        depending on threshmethod and noisemethod"""
+        """Return array of thresholds in AD units, one per chan in self.chans,
+        according to threshmethod and noisemethod"""
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            fixedthresh = np.float32(self.fixedthresh)
+            fixedthresh = self.sort.stream.uV2AD(self.fixedthresh) # convert to AD units
             thresh = np.tile(fixedthresh, len(self.chans))
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
             """randomly sample self.fixednoisewin's worth of data from self.trange in
@@ -1113,9 +1118,10 @@ class Detector(object):
                 wave = self.sort.stream[wavetrange[0]:wavetrange[1]]
                 wave = wave[self.chans] # keep just the enabled chans
                 data.append(wave.data)
-            data = np.concatenate(data, axis=1)
-            noise = self.get_noise(data)
-            thresh = noise * self.noisemult
+            data = np.concatenate(data, axis=1) # int16 AD units
+            noise = self.get_noise(data) # float AD units
+            thresh = noise * self.noisemult # float AD units
+            thresh = np.int16(np.round(thresh)) # int16 AD units
         elif self.threshmethod == 'Dynamic':
             # dynamic threshes are calculated on the fly during the search, so leave as zero for now
             # or at least they were, in the Cython code
@@ -1123,8 +1129,8 @@ class Detector(object):
             raise NotImplementedError
         else:
             raise ValueError
-        assert len(thresh) == len(self.chans)
-        assert thresh.dtype == np.float32
+        #assert len(thresh) == len(self.chans)
+        #assert thresh.dtype == np.float32
         return thresh
 
     def get_noise(self, data):
