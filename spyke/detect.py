@@ -49,7 +49,7 @@ DEBUG = False # print detection debug messages to log file? slows down detection
 
 def arglocalextrema(signal):
     """Return indices of all local extrema in 1D signal"""
-    nt = len(signal)
+    nt = len(signal) # possible to have a local extremum at every point
     exti = np.zeros(nt, dtype=int)
     code = ("""
     #line 55 "detect.py"
@@ -58,9 +58,13 @@ def arglocalextrema(signal):
     for (int i=2; i<nt; i++) {
         last = signal[i-1];
         last2 = signal[i-2];
-        //if ((last-last2) * (signal[i]-last) < 0) {
-        // TODO: should be able to replace this with a single clause using abs()
-        if ((last2 < last && last > signal[i]) || (last2 > last && last < signal[i])) {
+        // Two methods, equally fast. First one isn't quite correct, 2nd one is.
+        // Test with signal = np.array([0, -5, -5, -5, -2]) and signal = -signal
+        // should get 3 as an answer in both cases
+        // Method 1: not quite right
+        // if ((last2 < last) == (last > signal[i])) {
+        // Method 2: gives correct answer for consecutive identical points, both +ve and -ve:
+        if ((last2 <= last && last > signal[i]) || (last2 >= last && last < signal[i])) {
             exti[n_ext] = i-1;
             n_ext++;
         }
@@ -886,7 +890,7 @@ class Detector(object):
         return_val = peak2i;""")
         peak2i = inline(code, ['signal', 'exti', 'n_ext', 'peak1i', 'dir2', 'dti', 'ppthresh'],
                         compiler='gcc')
-        if peak2i == -1 and ppthresh:
+        if peak2i == -1:
             raise NoPeakError("can't find suitable 2nd peak")
         return peak2i
 
