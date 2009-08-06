@@ -905,15 +905,17 @@ class Detector(object):
         wave = spike.wave
         x = self.siteloc[chanis, 0] # 1D array (row)
         y = self.siteloc[chanis, 1]
+        # phase2 - phase1 on all chans, should be +ve, at least on maxchan
         weights = (wave.data[:, spike.phase2ti] -
-                   wave.data[:, spike.phase1ti]) # phase2 - phase1 on all chans, should be +ve, at least on maxchan
-        weights = np.where(weights >= 0, weights, 0) # replace any -ve weights with 0
+                   wave.data[:, spike.phase1ti])
+        # replace any -ve weights with 0, convert to float before normalization
+        weights = np.float32(np.where(weights >= 0, weights, 0))
         weights /= weights.sum() # normalized
         #weights = wave.data[spike.chanis, spike.ti] # Vp weights, unnormalized, some of these may be -ve
         # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
         #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
         #weights = abs(weights)
-        x0 = float((weights * x).sum())
+        x0 = float((weights * x).sum()) # switch from np.float32 scalar to Python float
         y0 = float((weights * y).sum())
         return x0, y0
 
