@@ -114,6 +114,7 @@ class WaveForm(object):
         padded_data[commonis] = self.data[chanis] # for overlapping chans, overwrite the zeros with data
         return padded_data
     '''
+
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
@@ -200,16 +201,16 @@ class Stream(object):
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
         tslice = time.clock()
-
         # for now, accept only slice objects as keys
-        assert type(key) == slice
+        #assert type(key) == slice
         # key.step == -1 indicates we want the returned Waveform reversed in time
         # key.step == None behaves the same as key.step == 1
-        assert key.step in [None, 1, -1]
-        if key.step == -1:
+        if key.step in [None, 1]:
+            start, stop = key.start, key.stop
+        elif key.step == -1:
             start, stop = key.stop, key.start # reverse start and stop, now start should be < stop
         else:
-            start, stop = key.start, key.stop
+            raise ValueError('unsupported slice step size: %s' % key.step)
 
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
@@ -254,6 +255,7 @@ class Stream(object):
         # build up waveform timepoints, taking into account any time gaps in
         # between records due to pauses in recording, assumes all records
         # are the same length, except for maybe the last
+        # TODO: if self.contiguous, do this the easy way instead!
         ttsbuild = time.clock()
         ts = np.empty(totalnt, dtype=np.int64) # init
         for recordi, (record, recorddata) in enumerate(zip(cutrecords, recorddatas)):
@@ -439,15 +441,15 @@ class Stream(object):
     def save_contiguous_resampled(self, blocksize=5000000):
         """Save contiguous resampled data to temp binary file on disk for quicker
         retrieval later. Do it in blocksize us slices of data at a time,
-        final file contents won't change"""
+        final file contents and ordering won't change, but there should be a sweet
+        spot for optimal block size to read, resample, and then write"""
         assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
-        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resampled' % (self.shcorrect, self.sampfreq // 1000)
-        f = open(fname, 'wb')
-        totalnsamples = int(round((self.tend - self.t0) / 1e6 * self.sampfreq))
-        assert totalnsamples  * 54 / 2 == sum([ record.NumSamples for record in self.ctsrecords ])
-        blocknsamples = int(round(blocksize / 1e6 * self.sampfreq))
+        totalnsamples = int(round((self.tend - self.t0) / self.tres))
+        blocknsamples = int(round(blocksize / self.tres))
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
         print('nblocks == %r' % nblocks)
+        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
+        f = open(fname, 'wb')
         t0 = time.clock()
         for blocki in xrange(nblocks):
             tstart = blocki*blocksize
@@ -460,11 +462,63 @@ class Stream(object):
                 chandata.tofile(f)
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
-
+    '''
     def save_blocks_resampled(self):
         """Save resampled data in multiple 10s contiguous blocks to disk
         for quicker retrieval later"""
         pass
+    '''
+    def switch(self):
+        self.__class__ = ResampleFileStream
+        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
+        self.f = open(fname, 'rb') # expect it to exist
+
+
+class ResampleFileStream(Stream):
+    """A Stream that pulls data from a .resample file, hopefully more quickly than having
+    to stitch it together and resample it from a .srf file. The current hpstream __class__
+    is modified to be ResampleFileStream as needed when using an existing .resample file
+    is possible.
+
+    TODO: control changing of __class__ when shcorrect or sampfreq change - if
+    the current combination match an existing .resample file, make __class__ = ResampleFileStream,
+    otherwise, set it back to normal Stream. Do this in the set_sampfreq and set_shcorrect methods
+
+    TODO: use the key.step attrib to describe which channels you want returned. Can you do something like
+    hpstream[0:1000:[0,1,2,5,6]] ? I think so... That would be much more efficient than loading them all
+    and then just picking out the ones you want. Might even be doable in the base Stream class, but then
+    you'd have to add args to record.load() to load only specific chans from that record, which might be
+    slow enough to negate any speed benefit, but at least it should be possible to make it work
+    on both ResampleFileStream and Stream
+
+    """
+    def __getitem__(self, key):
+        tslice = time.clock()
+        if key.step in [None, 1]:
+            start, stop = key.start, key.stop
+        elif key.step == -1:
+            start, stop = key.stop, key.start # reverse start and stop, now start should be < stop
+        else:
+            raise ValueError('unsupported slice step size: %s' % key.step)
+
+        start = max(start, self.t0) # stay within limits of data in the file
+        stop = min(stop, self.tend)
+        totalnsamples = int(round((self.tend - self.t0) / self.tres)) # in the whole file
+        nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
+        data = np.empty((self.nchans, nsamples), dtype=np.int16) # allocate
+        starti = (start - self.t0) / self.tres # nsamples offset from start of recording
+        for chan in self.chans:
+            samplei = starti + chan*totalnsamples
+            self.f.seek(samplei*2) # 2 bytes for each int16 sample
+            data[chan] = np.fromfile(self.f, dtype=np.int16, count=nsamples)
+        ts = np.arange(start, stop, self.tres, dtype=np.int64)
+        print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
+        return WaveForm(data=data, ts=ts, chans=self.chans)
+
+    def switch(self):
+        self.__class__ = Stream
+        self.f.close()
+        del self.f
 
 
 class SpykeListCtrl(wx.ListCtrl):
