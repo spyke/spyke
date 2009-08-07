@@ -149,6 +149,11 @@ class Stream(object):
             self.shcorrect = shcorrect or False # don't s+h correct by default
         self.endinclusive = endinclusive
         self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords]) # array of ctsrecord timestamps
+        # check whether self.rts values are all equally spaced,
+        # indicating there were no pauses in recording. Then, set a flag
+        self.contiguous = (np.diff(self.rts, n=2) == 0).all()
+        if not self.contiguous:
+            print('***NOTE: time gaps exist in recording, probably due to pauses')
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
@@ -378,7 +383,7 @@ class Stream(object):
                 for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
                 tconvolveonce = time.clock()
                 row = np.convolve(rawdata[ADchani], kernel, mode='same')
-                tconvolvesum += (time.clock() - tconvolveonce)
+                tconvolvesum += (time.clock()-tconvolveonce)
                 #print 'len(rawdata[ADchani]) = %r' % len(rawdata[ADchani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
@@ -390,7 +395,7 @@ class Stream(object):
         print('convolve calls took %.3f sec total' % (tconvolvesum))
         tundoscaling = time.clock()
         data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
-        print('undo kernel scaling took %.3f sec total' % (time.clock() - tundoscaling))
+        print('undo kernel scaling took %.3f sec total' % (time.clock()-tundoscaling))
         return data, ts
 
     def get_kernels(self, ADchans, resamplex, N):
@@ -430,6 +435,36 @@ class Stream(object):
                 kernelrow.append(kernel)
             kernels.append(kernelrow)
         return kernels
+
+    def save_contiguous_resampled(self, blocksize=5000000):
+        """Save contiguous resampled data to temp binary file on disk for quicker
+        retrieval later. Do it in blocksize us slices of data at a time,
+        final file contents won't change"""
+        assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
+        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resampled' % (self.shcorrect, self.sampfreq // 1000)
+        f = open(fname, 'wb')
+        totalnsamples = int(round((self.tend - self.t0) / 1e6 * self.sampfreq))
+        assert totalnsamples  * 54 / 2 == sum([ record.NumSamples for record in self.ctsrecords ])
+        blocknsamples = int(round(blocksize / 1e6 * self.sampfreq))
+        nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
+        print('nblocks == %r' % nblocks)
+        t0 = time.clock()
+        for blocki in xrange(nblocks):
+            tstart = blocki*blocksize
+            tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
+            wave = self[tstart:tend] # slicing in blocks of time
+            print('wave.data.shape == %r' % (wave.data.shape,))
+            for chani, chandata in enumerate(wave.data):
+                pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                f.seek(pos)
+                chandata.tofile(f)
+        f.close()
+        print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
+
+    def save_blocks_resampled(self):
+        """Save resampled data in multiple 10s contiguous blocks to disk
+        for quicker retrieval later"""
+        pass
 
 
 class SpykeListCtrl(wx.ListCtrl):
