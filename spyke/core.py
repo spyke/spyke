@@ -160,9 +160,9 @@ class Stream(object):
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
         self.probe = probetype() # instantiate it
 
-        self.t0 = self.rts[0] # us, time that recording began
-        lastctsrecordtw = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans * self.rawtres))
-        self.tend = self.rts[-1] + lastctsrecordtw  # time of last recorded data point
+        self.t0 = self.rts[0] # us, time that recording began, time of first recorded data point
+        lastctsrecordnt = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans)) # nsamples in last record
+        self.tend = self.rts[-1] + (lastctsrecordnt-1)*self.rawtres # time of last recorded data point
 
     def get_sampfreq(self):
         return self._sampfreq
@@ -392,7 +392,7 @@ class Stream(object):
                 # interleave by assigning from point to end in steps of resamplex
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
-                data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions
+                data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions, since interpolated values have to be bounded on both sides by raw values?
         print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
         print('convolve calls took %.3f sec total' % (tconvolvesum))
         tundoscaling = time.clock()
@@ -438,19 +438,23 @@ class Stream(object):
             kernels.append(kernelrow)
         return kernels
 
-    def save_contiguous_resampled(self, blocksize=5000000):
+    def save_resampled(self, blocksize=5000000):
         """Save contiguous resampled data to temp binary file on disk for quicker
         retrieval later. Do it in blocksize us slices of data at a time,
         final file contents and ordering won't change, but there should be a sweet
         spot for optimal block size to read, resample, and then write"""
         assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
-        totalnsamples = int(round((self.tend - self.t0) / self.tres))
+        totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
         blocknsamples = int(round(blocksize / self.tres))
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
         print('nblocks == %r' % nblocks)
         fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
-        f = open(fname, 'wb')
         t0 = time.clock()
+        f = open(fname, 'wb')
+        # for speed, allocate the full file size by writing a NULL byte to the very end:
+        f.seek(totalnsamples*self.nchans*2 - 1) # 0-based end of file position
+        np.int8(0).tofile(f)
+        f.flush() # this seems necessary to get the speedup
         for blocki in xrange(nblocks):
             tstart = blocki*blocksize
             tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
@@ -462,12 +466,7 @@ class Stream(object):
                 chandata.tofile(f)
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
-    '''
-    def save_blocks_resampled(self):
-        """Save resampled data in multiple 10s contiguous blocks to disk
-        for quicker retrieval later"""
-        pass
-    '''
+
     def switch(self):
         self.__class__ = ResampleFileStream
         fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
@@ -502,8 +501,8 @@ class ResampleFileStream(Stream):
             raise ValueError('unsupported slice step size: %s' % key.step)
 
         start = max(start, self.t0) # stay within limits of data in the file
-        stop = min(stop, self.tend)
-        totalnsamples = int(round((self.tend - self.t0) / self.tres)) # in the whole file
+        stop = min(stop, self.tend+self.tres)
+        totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
         nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
         data = np.empty((self.nchans, nsamples), dtype=np.int16) # allocate
         starti = (start - self.t0) / self.tres # nsamples offset from start of recording

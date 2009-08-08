@@ -846,10 +846,10 @@ class Detector(object):
         peak2i = self.arg2ndpeak(window, exti, peak1i, dir2, ppthresh) # find biggest 2nd extremum of opposite sign in dir2 within self.dti
         # check which comes first
         if dir2 == 'right':
-            assert peak1i < peak2i
+            #assert peak1i < peak2i
             return peak1i, peak2i
         else: # dir2 == 'left'
-            assert peak2i < peak1i
+            #assert peak2i < peak1i
             return peak2i, peak1i
 
     def arg2ndpeak(self, signal, exti, peak1i, dir2, ppthresh):
@@ -876,12 +876,10 @@ class Detector(object):
         int peak2i = -1; // indicates suitable 2nd peak not yet found
         int ei;
         // test all extrema in exti
-        // TODO: order of these 4 clauses might be changed for speed, test > abs_peak2 first?
         for (int i=0; i<n_ext; i++) {
             ei = exti[i]; // i'th extremum's index into signal
             if ((abs(ei-peak1i) <= dti) && // if extremum is within dti of peak1i
                 (signal[ei] * peak1 < 0) && // and is of opposite sign
-                //(abs(signal[ei]) > abs_peak2) && // and is bigger than last one found
                 (abs(signal[ei]) > abs(signal[peak2i])) && // and is bigger than last one found
                 (abs(signal[ei] - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
                     peak2i = ei; // save it
