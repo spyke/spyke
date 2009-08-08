@@ -101,14 +101,14 @@ class File(object):
             self._verifyParsing()
             self._connectRecords()
 
-            try: # check if highpassrecords are present
-                self.hpstream = Stream(self, kind='highpass') # highpass record (spike) stream
-            except AttributeError:
-                self.hpstream = None
-            try: # check if lowpassmultichanrecords are present
-                self.lpstream = Stream(self, kind='lowpass') # lowpassmultichan record (LFP) stream
-            except AttributeError:
-                self.lpstream = None
+            #try: # check if highpassrecords are present
+            self.hpstream = Stream(self, kind='highpass') # highpass record (spike) stream
+            #except AttributeError: # catches too many potential AttributeErrors, leave off for now
+            #    self.hpstream = None
+            #try: # check if lowpassmultichanrecords are present
+            self.lpstream = Stream(self, kind='lowpass') # lowpassmultichan record (LFP) stream
+            #except AttributeError:
+            #    self.lpstream = None
 
             print 'parsing took %f sec' % (time.clock()-t0)
             if save:
@@ -626,23 +626,14 @@ class ContinuousRecord(object):
     def load(self, f):
         """Load waveform data for this continuous record, assume that the
         appropriate probe layout record has been assigned as a .layout attrib"""
+        # TODO: add chans arg to pull out only certain chans, and maybe a ti arg
+        # to pull out less than the full set of sample points for this record
         f.seek(self.dataoffset)
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
-        # Using stuct.unpack for this is super slow:
+        # Using stuct.unpack for this is very slow:
         #self.data = np.asarray(unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
-        # TODO: would it not be better to use uint16 instead of int16, at least for futureproofness?
-        # Do I really need the integer data on my end to be signed? Yes, because the first thing
-        # I do to it in Stream.AD2uV is subtract 2048, and then convert to float. But, I could convert
-        # to float first, then subtract 2048. Wouldn't make any difference I can think of. So using uint16
-        # is probably more correct
         data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
-        # TODO: maybe convert to float32 and to uV immediately, no need to store as int, since everything
-        # downstream wants uV in float32 anyway! This way, if the data hasn't been garbage collected
-        # the 2nd time it's accessed, it's already in the right format and doesn't need to be converted
-        # again
-        # reshape to have nchans rows, as indicated in layout
-        data.shape = (self.layout.nchans, -1)
-        #self.weakref_data = weakref.ref(data)
+        data.shape = (self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
         return data
     '''
     def get_data(self):

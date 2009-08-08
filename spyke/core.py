@@ -168,12 +168,14 @@ class Stream(object):
         return self._sampfreq
 
     def set_sampfreq(self, sampfreq):
-        """Deletes .kernels (if set), and updates .tres on .sampfreq change"""
+        """On .sampfreq change, delete .kernels (if set), try to switch
+        classes to use a .resample file (if available), and update .tres"""
         self._sampfreq = sampfreq
         try:
             del self.kernels
         except AttributeError:
             pass
+        self.try_switch()
         self.tres = int(round(1 / self.sampfreq * 1e6)) # us, for convenience
 
     sampfreq = property(get_sampfreq, set_sampfreq)
@@ -182,12 +184,14 @@ class Stream(object):
         return self._shcorrect
 
     def set_shcorrect(self, shcorrect):
-        """Deletes .kernels (if set) on .shcorrect change"""
+        """On .shcorrect change, deletes .kernels (if set), and try to
+        switch classes to use a .resample file (if available)"""
         self._shcorrect = shcorrect
         try:
             del self.kernels
         except AttributeError:
             pass
+        self.try_switch()
 
     shcorrect = property(get_shcorrect, set_shcorrect)
 
@@ -320,13 +324,10 @@ class Stream(object):
         return WaveForm(data=data, ts=ts, chans=self.chans)
     '''
     def __setstate__(self, d):
-        """Restore self on unpickle per usual, but also restore open .srf file
-        for all records that self relies on, so they can once again read from the file"""
+        """Restore self on unpickle per usual, but also try switching
+        to a .resample file"""
         self.__dict__ = d
-        f = open(self.fname, 'rb')
-        for ctsrecord in self.ctsrecords:
-            ctsrecord.f = f # reset the open srf file for each ctsrecord
-        self.layout.f = f # reset it for this stream's layout record as well
+        self.try_switch()
     '''
     def AD2uV(self, AD):
         """Convert AD values to float32 uV
@@ -467,17 +468,35 @@ class Stream(object):
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
 
-    def switch(self):
-        self.__class__ = ResampleFileStream
-        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
-        self.f = open(fname, 'rb') # expect it to exist
+    def switch(self, to='resample'):
+        """Switch self to be a ResampleFileStream, use .resample file to get waveform data"""
+        try:
+            self.srff
+            self.sampfreq
+            self.shcorrect
+        except AttributeError: # self isn't fully __init__'d yet
+            return
+        if to == 'resample':
+            self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
+            self.f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
+            self.__class__ = ResampleFileStream
+        elif to == 'normal':
+            return
+
+    def try_switch(self):
+        """Try switching to using an appropriate .resample file"""
+        try:
+            self.switch(to='resample')
+        except IOError: # matching .resample file doesn't exist
+            self.switch(to='normal')
 
 
 class ResampleFileStream(Stream):
     """A Stream that pulls data from a .resample file, hopefully more quickly than having
     to stitch it together and resample it from a .srf file. The current hpstream __class__
     is modified to be ResampleFileStream as needed when using an existing .resample file
-    is possible.
+    is possible. You can't just overwrite __getitem__ on the fly, that only works for
+    normal methods, not special __ methods. Instead, you have to switch the whole class.
 
     TODO: control changing of __class__ when shcorrect or sampfreq change - if
     the current combination match an existing .resample file, make __class__ = ResampleFileStream,
@@ -514,10 +533,32 @@ class ResampleFileStream(Stream):
         print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
-    def switch(self):
-        self.__class__ = Stream
-        self.f.close()
-        del self.f
+    def switch(self, to='normal'):
+        """Switch self to be a normal Stream, use .srf file to get waveform data"""
+        if to == 'normal':
+            try:
+                self.f.close()
+                del self.f
+                del self.fname
+            except AttributeError:
+                pass
+            self.__class__ = Stream
+        elif to == 'resample':
+            pass
+
+    def __getstate__(self):
+        """Don't pickle open .resample file on pickle"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['f'] # exclude open .resample file
+        return d
+
+    def __setstate__(self, d):
+        """Restore open .resample file (if available) on unpickle"""
+        self.__dict__ = d
+        try:
+            self.f = open(self.fname, 'rb')
+        except IOError:
+            self.switch(to='normal')
 
 
 class SpykeListCtrl(wx.ListCtrl):
