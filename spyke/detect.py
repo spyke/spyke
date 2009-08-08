@@ -898,9 +898,11 @@ class Detector(object):
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
         This is handled by giving them 0 weight."""
         chanis = spike.chanis
-        if spike.wave == None or spike.wave.data == None:
+        try:
+            wave = spike.wave
+        except AttributeError:
             spike.update_wave(self.sort.stream)
-        wave = spike.wave
+            wave = spike.wave
         x = self.siteloc[chanis, 0] # 1D array (row)
         y = self.siteloc[chanis, 1]
         # phase2 - phase1 on all chans, should be +ve, at least on maxchan
