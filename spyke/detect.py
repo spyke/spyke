@@ -484,7 +484,7 @@ class Detector(object):
         return spikes
 
     def searchblock(self, wavetrange, direction):
-        """Search a block of data, return a list of valid SpikeModels"""
+        """Search a block of data, return a list of valid Spikes"""
         #info('searchblock():')
         stream = self.sort.stream
         info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
@@ -496,7 +496,17 @@ class Detector(object):
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
         info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
-        wave = wave[self.chans] # get a WaveForm with just the enabled chans
+        tdead = time.clock()
+        # TODO: is this really necessary? can't I just leave all the chans in the wave?
+        # This takes some serious time because slicing out only certain channels creates
+        # a copy of (nearly) the whole array - this step is even slower if the array
+        # is F-contig due to a previous transpose
+        #wave = wave[self.chans] # get a WaveForm with just the enabled chans
+        # TODO: simplify the whole channel deselection and indexing approach, maybe
+        # make all chanis always index into the full probe chan layout instead of the self.chans
+        # that represent which chans are enabled for this detector. Also, maybe do away with
+        # the whole slicing/indexing into a WaveForm object - just work directly on the .data
+        # and .chans and .ts, convenience be damned
         tres = stream.tres
         self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
         self.lockouts[self.lockouts < 0] = 0 # don't allow -ve lockout indices
@@ -508,17 +518,18 @@ class Detector(object):
         else:
             maxnspikes = self.maxnspikes - self.nspikes
 
-        twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timespoints wrt thresh xing or phase1t
+        twts = np.arange(self.tw[0], self.tw[1], tres) # temporal window timepoints wrt thresh xing or phase1t
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twi = int(round(twts[0] / tres)), int(round(twts[-1] / tres)) # time window indices wrt thresh xing or 1st phase
         #info('twi = %s' % (self.twi,))
 
         # want an nchan*2 array of [chani, x/ycoord]
+        # TODO: why is this done on every searchblock call???
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
-
+        print('dead time took %.3f sec' % (time.clock()-tdead))
         spikes = self.threshwave(wave, cutrange)
         print('found %d spikes' % len(spikes))
         #import cProfile
@@ -597,7 +608,7 @@ class Detector(object):
             # get data window wrt threshold crossing
             t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
             tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-            window = wave.data[chani, t0i:tendi] # window of data
+            window = wave.data[chani, t0i:tendi].copy() # window of data, C-contiguous
 
             # find spike phases
             tiw = ti - t0i # time index where ti falls wrt the window
@@ -630,7 +641,7 @@ class Detector(object):
                 # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
                 newt0i = max(ti+twi[0], lockouts[newchani]+1) # make sure any timepoints included prior to ti aren't locked out
                 newtendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-                newwindow = wave.data[newchani, newt0i:newtendi]
+                newwindow = wave.data[newchani, newt0i:newtendi].copy() # C-contiguous
                 if DEBUG: debug('new window params: t0=%d, tend=%d'
                                 % (wave.ts[newt0i], wave.ts[newtendi]))
 
@@ -664,7 +675,7 @@ class Detector(object):
                 phase2ti += dt0i
                 t0i = newt0i # overwrite
                 tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-                window = wave.data[chani, t0i:tendi]
+                window = wave.data[chani, t0i:tendi].copy() # C-contiguous
                 # TODO: This window trange might include datapoints on neighbouring chans
                 # that are locked out. Not a big deal. Having different numbers of datapoints
                 # per chan per spike would add complexity with little benefit
@@ -739,6 +750,15 @@ class Detector(object):
         # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling abs() in the loop
         nchans, nt = data.shape
         #assert nchans == len(thresh)
+        if data.flags[C_CONTIGUOUS]: # data is C-contiguous
+            str1 = 'ci*nt + ti'
+            str2 = '1'
+        elif data.flags[F_CONTIGUOUS]: # data is is F-contiguous
+            str1 = 'ti*nchans + ci'
+            str2 = 'nchans'
+        else:
+            # this would be due to an earlier slice over a dim other than the slowest changing one
+            raise ValueError('data is neither C- nor F-contiguous')
         code = (r"""
         #line 738 "detect.py"
         int nd = 2; // num dimensions of output edgeis array
@@ -757,8 +777,8 @@ class Detector(object):
         long long i;
         for (long long ti=1; ti<nt; ti++) {
             for (int ci=0; ci<nchans; ci++) {
-                i = ci*nt + ti; // calculate only once for speed
-                if (abs(data[i]) >= thresh[ci] && abs(data[i-1]) < thresh[ci]) {
+                i = %s; // calculate i only once for speed
+                if (abs(data[i]) >= thresh[ci] && abs(data[i-%s]) < thresh[ci]) {
                     // abs(voltage) has crossed threshold
                     if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
                         printf("allocating more memory!\n");
@@ -771,7 +791,7 @@ class Detector(object):
                         // don't need 'OK' anymore I guess, see
                         // http://www.mail-archive.com/numpy-discussion@scipy.org/msg13013.html
                         Py_DECREF(OK);
-                        printf("edgeis is now %d long\n", dims.ptr[0]);
+                        printf("edgeis is now %%d long\n", dims.ptr[0]);
                     }
                     // get pointer to i,jth entry in data, typecast appropriately,
                     // then dereference the whole thing so you can assign
@@ -780,12 +800,12 @@ class Detector(object):
                     *((long long *) PyArray_GETPTR2(edgeis, nedges, 0)) = ti; // assign to nedges'th row, col 0
                     *((long long *) PyArray_GETPTR2(edgeis, nedges, 1)) = ci; // assign to nedges'th row, col 1
                     nedges++;
-                    // multi arg doesn't print right, even with %ld formatter, need a %lld formatter
-                    //printf("edge %d: (%d, %d)\n", nedges, ti, ci);
+                    // multi arg doesn't print right, even with %%ld formatter, need a %%lld formatter
+                    //printf("edge %%d: (%%d, %%d)\n", nedges, ti, ci);
                     // use this hack instead:
-                    //printf("edge %d: ", nedges);
-                    //printf("(%d, ", ti);
-                    //printf("%d)\n", ci);
+                    //printf("edge %%d: ", nedges);
+                    //printf("(%%d, ", ti);
+                    //printf("%%d)\n", ci);
                 }
             }
         }
@@ -799,10 +819,10 @@ class Detector(object):
             return NULL;
         }
         Py_DECREF(OK);
-        //printf("shrunk edgeis to be %d long\n", dims.ptr[0]);
+        //printf("shrunk edgeis to be %%d long\n", dims.ptr[0]);
         //return_val = (PyObject *) edgeis;  // these two both
         return_val = PyArray_Return(edgeis); // seem to work
-        """)
+        """ % (str1, str2))
         edgeis = inline(code, ['data', 'nchans', 'nt', 'thresh'],
                         compiler='gcc')
         print("found %d edges" % len(edgeis))

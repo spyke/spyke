@@ -244,7 +244,7 @@ class Stream(object):
             recorddatas.append(recorddata)
         nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
         totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
-        print('record.load() took %.3f sec' % (time.clock()-tload))
+        #print('record.load() took %.3f sec' % (time.clock()-tload))
 
         tcat = time.clock()
         #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1) # slow
@@ -253,7 +253,7 @@ class Stream(object):
         for recordi, recorddata in enumerate(recorddatas):
             i = recordi * nt
             data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
-        print('concatenate took %.3f sec' % (time.clock()-tcat))
+        #print('concatenate took %.3f sec' % (time.clock()-tcat))
         tres = self.layout.tres # actual tres of record data may not match self.tres due to interpolation
 
         # build up waveform timepoints, taking into account any time gaps in
@@ -272,7 +272,7 @@ class Stream(object):
         tstart = cutrecords[0].TimeStamp
         ts = np.arange(tstart, tstart + totalnt*tres, tres, dtype=np.int64)
         '''
-        print('ts building took %.3f sec' % (time.clock()-ttsbuild))
+        #print('ts building took %.3f sec' % (time.clock()-ttsbuild))
         #ttrim = time.clock()
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
@@ -291,14 +291,14 @@ class Stream(object):
         data <<= 4
         data -= 2**15 # offset values to center them around 0 AD == 0 V
         # data is still int32 at this point
-        print('scaling and offsetting data took %.3f sec' % (time.clock()-tscaleandoffset))
+        #print('scaling and offsetting data took %.3f sec' % (time.clock()-tscaleandoffset))
         #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary
         if resample:
             tresample = time.clock()
             data, ts = self.resample(data, ts)
-            print('resample took %.3f sec' % (time.clock()-tresample))
+            #print('resample took %.3f sec' % (time.clock()-tresample))
 
         # now get rid of any excess
         if xs:
@@ -315,7 +315,7 @@ class Stream(object):
         #assert datamin > -2**15
         tint16 = time.clock()
         data = np.int16(data) # should be safe to convert back down to int16 now
-        print('int16() took %.3f sec' % (time.clock()-tint16))
+        #print('int16() took %.3f sec' % (time.clock()-tint16))
 
         #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
         print('Stream slice took %.3f sec' % (time.clock()-tslice))
@@ -394,11 +394,11 @@ class Stream(object):
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions, since interpolated values have to be bounded on both sides by raw values?
-        print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
-        print('convolve calls took %.3f sec total' % (tconvolvesum))
+        #print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
+        #print('convolve calls took %.3f sec total' % (tconvolvesum))
         tundoscaling = time.clock()
         data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
-        print('undo kernel scaling took %.3f sec total' % (time.clock()-tundoscaling))
+        #print('undo kernel scaling took %.3f sec total' % (time.clock()-tundoscaling))
         return data, ts
 
     def get_kernels(self, ADchans, resamplex, N):
@@ -439,11 +439,13 @@ class Stream(object):
             kernels.append(kernelrow)
         return kernels
 
-    def save_resampled(self, blocksize=5000000):
+    def save_resampled(self, blocksize=5000000, order='col'):
         """Save contiguous resampled data to temp binary file on disk for quicker
         retrieval later. Do it in blocksize us slices of data at a time,
         final file contents and ordering won't change, but there should be a sweet
-        spot for optimal block size to read, resample, and then write"""
+        spot for optimal block size to read, resample, and then write. 'col' order means
+        dump the data columnwise, ie 1st timepoint, all channels, 2nd timepoint, etc.
+        'row' order means dump the data rowwise, ie 1st channel, all timepoints, 2nd channel, etc"""
         assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
         blocknsamples = int(round(blocksize / self.tres))
@@ -461,10 +463,15 @@ class Stream(object):
             tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
             wave = self[tstart:tend] # slicing in blocks of time
             print('wave.data.shape == %r' % (wave.data.shape,))
-            for chani, chandata in enumerate(wave.data):
-                pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+            if order == 'row':
+                for chani, chandata in enumerate(wave.data):
+                    pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                    f.seek(pos)
+                    chandata.tofile(f)
+            elif order == 'col':
+                pos = (self.nchans*blocki*blocknsamples) * 2 # each sample is a 2 byte int16
                 f.seek(pos)
-                chandata.tofile(f)
+                wave.data.T.tofile(f) # write in column order
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
 
@@ -498,16 +505,19 @@ class ResampleFileStream(Stream):
     is possible. You can't just overwrite __getitem__ on the fly, that only works for
     normal methods, not special __ methods. Instead, you have to switch the whole class.
 
-    TODO: control changing of __class__ when shcorrect or sampfreq change - if
-    the current combination match an existing .resample file, make __class__ = ResampleFileStream,
-    otherwise, set it back to normal Stream. Do this in the set_sampfreq and set_shcorrect methods
-
     TODO: use the key.step attrib to describe which channels you want returned. Can you do something like
     hpstream[0:1000:[0,1,2,5,6]] ? I think so... That would be much more efficient than loading them all
     and then just picking out the ones you want. Might even be doable in the base Stream class, but then
     you'd have to add args to record.load() to load only specific chans from that record, which might be
     slow enough to negate any speed benefit, but at least it should be possible to make it work
     on both ResampleFileStream and Stream
+
+    TODO: save resampled data in say 10s blocksizes ideal for detection. That way, retrieving those blocks
+    of data takes just a single call, np.fromfile, no having to seek 54 times over a wide swath of file,
+    no multiple np.fromfile calls over multiple channels, no having to fill in an empty data array one
+    channel at a time - just load and reshape and you're done. Another option is to save one sample per chan,
+    do all 54 chans, then move on to next sample. That way, retrieving any stretch of resampled data is easy
+    (takes a bit of reshaping and a transpose), but you always have to get all 54 chans for it to be efficient.
 
     """
     def __getitem__(self, key):
@@ -521,14 +531,15 @@ class ResampleFileStream(Stream):
 
         start = max(start, self.t0) # stay within limits of data in the file
         stop = min(stop, self.tend+self.tres)
-        totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
+        #totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
         nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
         data = np.empty((self.nchans, nsamples), dtype=np.int16) # allocate
         starti = (start - self.t0) / self.tres # nsamples offset from start of recording
-        for chan in self.chans:
-            samplei = starti + chan*totalnsamples
-            self.f.seek(samplei*2) # 2 bytes for each int16 sample
-            data[chan] = np.fromfile(self.f, dtype=np.int16, count=nsamples)
+        self.f.seek(self.nchans*starti*2) # 2 bytes for each int16 sample
+        data = np.fromfile(self.f, dtype=np.int16, count=self.nchans*nsamples)
+        data.shape = (nsamples, self.nchans)
+        # transpose it, just gets you a new view, but remember it won't be C-contiguous until you copy it!
+        data = data.T
         ts = np.arange(start, stop, self.tres, dtype=np.int64)
         print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
