@@ -467,8 +467,11 @@ class Stream(object):
             print('wave.data.shape == %r' % (wave.data.shape,))
             if order == 'F':
                 wave.data.T.tofile(f) # write in column order
-            elif order == 'C':
-                wave.data.tofile(f) # write in row order
+            elif order == 'C': # have to do 1 chan at a time, with correct offset for current block of time
+                for chani, chandata in enumerate(wave.data):
+                    pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                    f.seek(pos)
+                    chandata.tofile(f) # write in row order
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
 
