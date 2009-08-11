@@ -163,7 +163,6 @@ class Stream(object):
         self.t0 = self.rts[0] # us, time that recording began, time of first recorded data point
         lastctsrecordnt = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans)) # nsamples in last record
         self.tend = self.rts[-1] + (lastctsrecordnt-1)*self.rawtres # time of last recorded data point
-        self.blocksize = 10000000 # size of blocks to save at a time to .resample file, should match detect block size
 
     def get_sampfreq(self):
         return self._sampfreq
@@ -176,6 +175,7 @@ class Stream(object):
             del self.kernels
         except AttributeError:
             pass
+        self.try_switch()
         self.tres = int(round(1 / self.sampfreq * 1e6)) # us, for convenience
 
     sampfreq = property(get_sampfreq, set_sampfreq)
@@ -191,6 +191,7 @@ class Stream(object):
             del self.kernels
         except AttributeError:
             pass
+        self.try_switch()
 
     shcorrect = property(get_shcorrect, set_shcorrect)
 
@@ -438,45 +439,56 @@ class Stream(object):
             kernels.append(kernelrow)
         return kernels
 
-    def save_resampled(self):
+    def save_resampled(self, blocksize=5000000, order='col'):
         """Save contiguous resampled data to temp binary file on disk for quicker
-        retrieval later. Do it in blocksize us slices of data at a time, each block in
-        C-contiguous order"""
+        retrieval later. Do it in blocksize us slices of data at a time,
+        final file contents and ordering won't change, but there should be a sweet
+        spot for optimal block size to read, resample, and then write. 'col' order means
+        dump the data columnwise, ie 1st timepoint, all channels, 2nd timepoint, etc.
+        'row' order means dump the data rowwise, ie 1st channel, all timepoints, 2nd channel, etc"""
         assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
-        blocknsamples = int(round(self.blocksize / self.tres))
+        blocknsamples = int(round(blocksize / self.tres))
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
         print('nblocks == %r' % nblocks)
-        fname = self.get_resample_fname()
+        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
         t0 = time.clock()
         f = open(fname, 'wb')
         # for speed, allocate the full file size by writing a NULL byte to the very end:
         f.seek(totalnsamples*self.nchans*2 - 1) # 0-based end of file position
         np.int8(0).tofile(f)
         f.flush() # this seems necessary to get the speedup
-        f.seek(0) # back to start
         for blocki in xrange(nblocks):
-            tstart = blocki*self.blocksize
-            tend = tstart + self.blocksize # don't need to worry about out of bounds at end when slicing
+            tstart = blocki*blocksize
+            tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
             wave = self[tstart:tend] # slicing in blocks of time
             print('wave.data.shape == %r' % (wave.data.shape,))
-            wave.data.tofile(f)
+            if order == 'row':
+                for chani, chandata in enumerate(wave.data):
+                    pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                    f.seek(pos)
+                    chandata.tofile(f)
+            elif order == 'col':
+                pos = (self.nchans*blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                f.seek(pos)
+                wave.data.T.tofile(f) # write in column order
         f.close()
-        print('saving resampled data to disk with blocksize=%d took %.3f sec' % (self.blocksize, time.clock()-t0))
+        print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
 
     def switch(self, to='resample'):
         """Switch self to be a ResampleFileStream, use .resample file to get waveform data"""
+        try:
+            self.srff
+            self.sampfreq
+            self.shcorrect
+        except AttributeError: # self isn't fully __init__'d yet
+            return
         if to == 'resample':
-            fname = self.get_resample_fname()
-            self.f = open(fname, 'rb') # expect it to exist, otherwise propagate an IOError
+            self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
+            self.f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
             self.__class__ = ResampleFileStream
         elif to == 'normal':
             return
-
-    def get_resample_fname(self):
-        fname = (self.srff.fname + '.blocksize=%ds.shcorrect=%s.%dkHz.resample'
-                 % (self.blocksize // 1000000, self.shcorrect, self.sampfreq // 1000))
-        return fname
 
     def try_switch(self):
         """Try switching to using an appropriate .resample file"""
@@ -520,16 +532,14 @@ class ResampleFileStream(Stream):
         start = max(start, self.t0) # stay within limits of data in the file
         stop = min(stop, self.tend+self.tres)
         #totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
-        assert start % self.blocksize == 0 # start time must be a multiple of blocksize in the .resample file
         nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
-        assert nsamples == self.blocksize // self.tres
-        #assert nsamples % (self.blocksize // self.tres) # less stringent restriction, but would require
-        # preallocating an array and filling it, one blocksize at a time, which would be slightly more complex,
-        # maybe slightly slower for the degenerate and most common single blocksize loading case
-        starti = (start - self.t0) // self.tres # nsamples offset from start of recording
+        data = np.empty((self.nchans, nsamples), dtype=np.int16) # allocate
+        starti = (start - self.t0) / self.tres # nsamples offset from start of recording
         self.f.seek(self.nchans*starti*2) # 2 bytes for each int16 sample
         data = np.fromfile(self.f, dtype=np.int16, count=self.nchans*nsamples)
-        data.shape = (self.nchans, nsamples)
+        data.shape = (nsamples, self.nchans)
+        # transpose it, just gets you a new view, but remember it won't be C-contiguous until you copy it!
+        data = data.T
         ts = np.arange(start, stop, self.tres, dtype=np.int64)
         print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
@@ -537,12 +547,16 @@ class ResampleFileStream(Stream):
     def switch(self, to='normal'):
         """Switch self to be a normal Stream, use .srf file to get waveform data"""
         if to == 'normal':
-            self.f.close()
-            del self.f
+            try:
+                self.f.close()
+                del self.f
+                del self.fname
+            except AttributeError:
+                pass
             self.__class__ = Stream
         elif to == 'resample':
             pass
-    '''
+
     def __getstate__(self):
         """Don't pickle open .resample file on pickle"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
@@ -556,7 +570,7 @@ class ResampleFileStream(Stream):
             self.f = open(self.fname, 'rb')
         except IOError:
             self.switch(to='normal')
-    '''
+
 
 class SpykeListCtrl(wx.ListCtrl):
     """ListCtrl with a couple of extra methods defined"""
