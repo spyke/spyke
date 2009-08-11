@@ -30,48 +30,194 @@ TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st p
 
 KEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
 
-# print detection info and debug msgs to file, and info msgs to screen
 logger = logging.Logger('detection')
-logf = open('../detection.log', 'w')
-fhandler = logging.StreamHandler(strm=logf) # prints to file
 shandler = logging.StreamHandler(strm=sys.stdout) # prints to screen
 formatter = logging.Formatter('%(message)s')
-fhandler.setFormatter(formatter)
 shandler.setFormatter(formatter)
-fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
 shandler.setLevel(logging.INFO) # log info level and higher to screen
-logger.addHandler(fhandler)
 logger.addHandler(shandler)
 info = logger.info
-debug = logger.debug
 
 DEBUG = False # print detection debug messages to log file? slows down detection
 
+if DEBUG:
+    # print detection info and debug msgs to file, and info msgs to screen
+    logfname = r'C:\data\ptc15\detection.log' # TODO: stop hard coding the folder
+    logf = open(logfname, 'w')
+    fhandler = logging.StreamHandler(strm=logf) # prints to file
+    fhandler.setFormatter(formatter)
+    fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
+    logger.addHandler(fhandler)
+    debug = logger.debug
+
+
 def arglocalextrema(signal):
     """Return indices of all local extrema in 1D signal"""
-    nt = len(signal) # possible to have a local extremum at every point
+    nt = len(signal) # it's possible to have a local extremum at every point
+    stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
     exti = np.zeros(nt, dtype=int)
     code = ("""
-    #line 55 "detect.py"
+    #line 60 "detect.py"
     int n_ext = 0;
-    int last, last2;
-    for (int i=2; i<nt; i++) {
-        last = signal[i-1];
-        last2 = signal[i-2];
+    int now, last, last2;
+    // let's start from timepoint 2 (0-based)
+    last = signal[stride]; // signal[(2-1)*stride] // signal 1 timepoint ago
+    last2 = signal[0]; // signal[(2-2)*stride] // signal 2 timepoints ago
+    for (int ti=2; ti<nt; ti++) {
+        now = signal[ti*stride]; // signal at current timepoint
         // Two methods, equally fast. First one isn't quite correct, 2nd one is.
         // Test with signal = np.array([0, -5, -5, -5, -2]) and signal = -signal
         // should get 3 as an answer in both cases
         // Method 1: not quite right
-        // if ((last2 < last) == (last > signal[i])) {
+        // if ((last2 < last) == (last > now)) {
         // Method 2: gives correct answer for consecutive identical points, both +ve and -ve:
-        if ((last2 <= last && last > signal[i]) || (last2 >= last && last < signal[i])) {
-            exti[n_ext] = i-1;
+        if ((last2 <= last && last > now) || (last2 >= last && last < now)) {
+            exti[n_ext] = ti-1; // save previous time index
             n_ext++;
         }
+        // update for next loop, reuse 'now' value instead of constantly indexing into signal
+        last2 = last;
+        last = now;
     }
     return_val = n_ext;""")
-    n_ext = inline(code, ['signal', 'nt', 'exti'], compiler='gcc')
+    n_ext = inline(code, ['signal', 'nt', 'stride', 'exti'], compiler='gcc')
     return exti[:n_ext]
+
+def arg2ndpeak(signal, exti, peak1i, dir2, dti, ppthresh):
+    """Return signal's biggest local extremum of opposite sign,
+    in direction dir2, and within dti indices of signal at peak1i"""
+    #assert type(peak1i) == int
+    #assert type(dti) == int
+    stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
+    if dir2 == 'left':
+        exti = exti[exti < peak1i] # keep only left half of exti
+    elif dir2 == 'right':
+        exti = exti[exti > peak1i] # keep only right half of exti
+    elif dir2 == 'both':
+        pass # keep all of exti
+    else:
+        raise ValueError('unknown dir2 %r' % dir2)
+    # abs(now - peak1) converts to Python int, so ppthresh has to be same type for >= comparison
+    ppthresh = int(ppthresh) # convert from np.int16 type to Python int
+    n_ext = len(exti)
+    code = ("""
+    #line 103 "detect.py"
+    // index into signal to get voltages
+    int peak1 = signal[peak1i*stride]; // int or short, doesn't matter
+    int peak2i = -1; // 2nd peak index, -1 indicates suitable 2nd peak not yet found
+    int peak2 = 0; // 2nd peak value
+    int i, now;
+    // test all extrema in exti
+    for (int ei=0; ei<n_ext; ei++) {
+        i = exti[ei]; // ei'th extremum's index into signal
+        now = signal[i*stride]; // signal value at i
+        if ((abs(i-peak1i) <= dti) && // if extremum's index is within dti of peak1i
+            (now * peak1 < 0) && // and is of opposite sign
+            (abs(now) > abs(peak2)) && // and is bigger than last one found
+            (abs(now - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
+                peak2i = i; // save it
+                peak2 = now;
+        }
+    }
+    return_val = peak2i;""")
+    peak2i = inline(code, ['signal', 'stride', 'exti', 'n_ext', 'peak1i', 'dti', 'ppthresh'],
+                    compiler='gcc')
+    if peak2i == -1:
+        raise NoPeakError("can't find suitable 2nd peak")
+    return peak2i
+
+def get_edgeis(wave, thresh):
+    """Return n x 2 array (ti, chani) of all threshold crossings in wave.data.
+    Total wave.data should have no more than 2**31 elements in it"""
+    '''
+    # using pure numpy this way is slow:
+    edges = np.diff(np.int8( np.abs(wave.data) >= np.vstack(self.thresh) )) # indices where changing abs(signal) has crossed thresh
+    edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
+    edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
+    for i, edgei in enumerate(edgeis):
+        print("edge %d, (%d, %d)" % (i+1, edgei[0], edgei[1]))
+    return edgeis
+    '''
+    data = wave.data
+    assert data.size < 2**31 # we're sticking with signed int32 indices for speed
+    itemsize = data.dtype.itemsize
+    stride0 = data.strides[0] // itemsize
+    stride1 = data.strides[1] // itemsize
+    #assert (thresh >= 0).all() # assume it's passed as +ve
+    # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling abs() in the loop
+    nchans, nt = data.shape
+    #assert nchans == len(thresh)
+    # TODO: this could be sped up by declaring a pointer to data and calculating byte
+    # offsets directly in the C code, instead of relying on weave to do it for you
+    code = (r"""
+    #line 149 "detect.py"
+    int nd = 2; // num dimensions of output edgeis array
+    npy_intp dimsarr[nd];
+    int leninc = 16384; // 2**14
+    dimsarr[0] = 4*leninc; // nrows
+    dimsarr[1] = 2;        // ncols
+    PyArrayObject *edgeis = (PyArrayObject *) PyArray_SimpleNew(nd, dimsarr, NPY_INT);
+
+    PyArray_Dims dims; // stores current dimension info of edgeis array
+    dims.len = nd;
+    dims.ptr = dimsarr;
+    PyObject *OK;
+
+    int nedges = 0;
+    int i; // can get 12 hours of timestamps at 50 kHz with signed int32, but only 0.2 hours of sample
+           // indices for 54 chans, but wave.data should be much shorter than that anyway
+    for (int ti=1; ti<nt; ti++) { // start at 1'th timepoint so we can index back 1 timepoint into the past
+        for (int ci=0; ci<nchans; ci++) {
+            i = ci*stride0 + ti*stride1; // calculate only once for speed
+            if (abs(data[i]) >= thresh[ci] && abs(data[i-stride1]) < thresh[ci]) {
+                // abs(voltage) has crossed threshold
+                if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
+                    printf("allocating more memory!\n");
+                    dims.ptr[0] += leninc; // add leninc more rows to edgeis
+                    OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER); // 0 arg means don't check refcount or edgeis
+                    if (OK == NULL) {
+                        PyErr_Format(PyExc_TypeError, "can't resize edgeis");
+                        return NULL;
+                    }
+                    // don't need 'OK' anymore I guess, see
+                    // http://www.mail-archive.com/numpy-discussion@scipy.org/msg13013.html
+                    Py_DECREF(OK);
+                    printf("edgeis is now %d long\n", dims.ptr[0]);
+                }
+                // get pointer to i,jth entry in data, typecast appropriately,
+                // then dereference the whole thing so you can assign
+                // a value to it. Using PyArray_GETPTR2 macro is easier than
+                // manually doing pointer math using strides, but might be slower?
+                *((int *) PyArray_GETPTR2(edgeis, nedges, 0)) = ti; // assign to nedges'th row, col 0
+                *((int *) PyArray_GETPTR2(edgeis, nedges, 1)) = ci; // assign to nedges'th row, col 1
+                nedges++;
+                // multi arg doesn't print right, even with %ld formatter, need a %lld formatter
+                //printf("edge %d: (%d, %d)\n", nedges, ti, ci);
+                // use this hack instead:
+                //printf("edge %d: ", nedges);
+                //printf("(%d, ", ti);
+                //printf("%d)\n", ci);
+            }
+        }
+    }
+
+    // resize edgeis once more to reduce edgeis down to
+    // just those values that were added to it
+    dims.ptr[0] = nedges;
+    OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER);
+    if (OK == NULL) {
+        PyErr_Format(PyExc_TypeError, "can't resize edgeis");
+        return NULL;
+    }
+    Py_DECREF(OK);
+    //printf("shrunk edgeis to be %d long\n", dims.ptr[0]);
+    //return_val = (PyObject *) edgeis;  // these two both
+    return_val = PyArray_Return(edgeis); // seem to work
+    """)
+    edgeis = inline(code, ['data', 'nchans', 'nt', 'stride0', 'stride1', 'thresh'],
+                    compiler='gcc')
+    print("found %d edges" % len(edgeis))
+    return edgeis
 
 
 class FoundEnoughSpikesError(ValueError):
@@ -591,8 +737,8 @@ class Detector(object):
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
         tedgeis = time.clock()
-        edgeis = self.get_edgeis(wave)
-        info('self.get_edgeis() took %.3f sec' % (time.clock()-tedgeis))
+        edgeis = get_edgeis(wave, self.thresh)
+        info('get_edgeis() took %.3f sec' % (time.clock()-tedgeis))
         tcheckedges = time.clock()
         lockouts = self.lockouts
         twi = self.twi
@@ -608,7 +754,7 @@ class Detector(object):
             # get data window wrt threshold crossing
             t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
             tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-            window = wave.data[chani, t0i:tendi].copy() # window of data, C-contiguous
+            window = wave.data[chani, t0i:tendi] # window of data, not necessarily contiguous
 
             # find spike phases
             tiw = ti - t0i # time index where ti falls wrt the window
@@ -641,7 +787,7 @@ class Detector(object):
                 # get new data window using new maxchan and wrt 1st phase this time, instead of wrt the original thresh xing
                 newt0i = max(ti+twi[0], lockouts[newchani]+1) # make sure any timepoints included prior to ti aren't locked out
                 newtendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-                newwindow = wave.data[newchani, newt0i:newtendi].copy() # C-contiguous
+                newwindow = wave.data[newchani, newt0i:newtendi]
                 if DEBUG: debug('new window params: t0=%d, tend=%d'
                                 % (wave.ts[newt0i], wave.ts[newtendi]))
 
@@ -675,7 +821,7 @@ class Detector(object):
                 phase2ti += dt0i
                 t0i = newt0i # overwrite
                 tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
-                window = wave.data[chani, t0i:tendi].copy() # C-contiguous
+                window = wave.data[chani, t0i:tendi]
                 # TODO: This window trange might include datapoints on neighbouring chans
                 # that are locked out. Not a big deal. Having different numbers of datapoints
                 # per chan per spike would add complexity with little benefit
@@ -734,101 +880,6 @@ class Detector(object):
         info('checking edges took %.3f sec' % (time.clock()-tcheckedges))
         return spikes
 
-    def get_edgeis(self, wave):
-        """Return n x 2 array (ti, chani) of all threshold crossings in wave.data"""
-        '''
-        edges = np.diff(np.int8( np.abs(wave.data) >= np.vstack(self.thresh) )) # indices where changing abs(signal) has crossed thresh
-        edgeis = np.where(edges.T == 1) # indices of +ve edges, where increasing abs(signal) has crossed thresh
-        edgeis = np.transpose(edgeis) # columns are [ti, chani], rows temporally sorted
-        for i, edgei in enumerate(edgeis):
-            print("edge %d, (%d, %d)" % (i+1, edgei[0], edgei[1]))
-        return edgeis
-        '''
-        data = wave.data
-        thresh = self.thresh
-        #assert (thresh >= 0).all() # assume it's passed as +ve
-        # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling abs() in the loop
-        nchans, nt = data.shape
-        #assert nchans == len(thresh)
-        if data.flags[C_CONTIGUOUS]: # data is C-contiguous
-            str1 = 'ci*nt + ti'
-            str2 = '1'
-        elif data.flags[F_CONTIGUOUS]: # data is is F-contiguous
-            str1 = 'ti*nchans + ci'
-            str2 = 'nchans'
-        else:
-            # this would be due to an earlier slice over a dim other than the slowest changing one
-            raise ValueError('data is neither C- nor F-contiguous')
-        code = (r"""
-        #line 738 "detect.py"
-        int nd = 2; // num dimensions of output edgeis array
-        npy_intp dimsarr[nd];
-        int leninc = 16384; // 2**14
-        dimsarr[0] = 4*leninc; // nrows
-        dimsarr[1] = 2;        // ncols
-        PyArrayObject *edgeis = (PyArrayObject *) PyArray_SimpleNew(nd, dimsarr, NPY_LONGLONG);
-
-        PyArray_Dims dims; // stores current dimension info of edgeis array
-        dims.len = nd;
-        dims.ptr = dimsarr;
-        PyObject *OK;
-
-        long long nedges = 0;
-        long long i;
-        for (long long ti=1; ti<nt; ti++) {
-            for (int ci=0; ci<nchans; ci++) {
-                i = %s; // calculate i only once for speed
-                if (abs(data[i]) >= thresh[ci] && abs(data[i-%s]) < thresh[ci]) {
-                    // abs(voltage) has crossed threshold
-                    if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
-                        printf("allocating more memory!\n");
-                        dims.ptr[0] += leninc; // add leninc more rows to edgeis
-                        OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER); // 0 arg means don't check refcount or edgeis
-                        if (OK == NULL) {
-                            PyErr_Format(PyExc_TypeError, "can't resize edgeis");
-                            return NULL;
-                        }
-                        // don't need 'OK' anymore I guess, see
-                        // http://www.mail-archive.com/numpy-discussion@scipy.org/msg13013.html
-                        Py_DECREF(OK);
-                        printf("edgeis is now %%d long\n", dims.ptr[0]);
-                    }
-                    // get pointer to i,jth entry in data, typecast appropriately,
-                    // then dereference the whole thing so you can assign
-                    // a value to it. Using PyArray_GETPTR2 macro is easier than
-                    // manually doing pointer math using strides, but might be slower?
-                    *((long long *) PyArray_GETPTR2(edgeis, nedges, 0)) = ti; // assign to nedges'th row, col 0
-                    *((long long *) PyArray_GETPTR2(edgeis, nedges, 1)) = ci; // assign to nedges'th row, col 1
-                    nedges++;
-                    // multi arg doesn't print right, even with %%ld formatter, need a %%lld formatter
-                    //printf("edge %%d: (%%d, %%d)\n", nedges, ti, ci);
-                    // use this hack instead:
-                    //printf("edge %%d: ", nedges);
-                    //printf("(%%d, ", ti);
-                    //printf("%%d)\n", ci);
-                }
-            }
-        }
-
-        // resize edgeis once more to reduce edgeis down to
-        // just those values that were added to it
-        dims.ptr[0] = nedges;
-        OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER);
-        if (OK == NULL) {
-            PyErr_Format(PyExc_TypeError, "can't resize edgeis");
-            return NULL;
-        }
-        Py_DECREF(OK);
-        //printf("shrunk edgeis to be %%d long\n", dims.ptr[0]);
-        //return_val = (PyObject *) edgeis;  // these two both
-        return_val = PyArray_Return(edgeis); // seem to work
-        """ % (str1, str2))
-        edgeis = inline(code, ['data', 'nchans', 'nt', 'thresh'],
-                        compiler='gcc')
-        print("found %d edges" % len(edgeis))
-        return edgeis
-
-
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
         """Find spike phases within window of data: search from tiw in direction
         (which might be, say, a threshold xing point) for 1st peak,
@@ -863,7 +914,8 @@ class Detector(object):
             dir2 = 'right'
         else: # peak1i is +ve, look left for corresponding -ve peak
             dir2 = 'left'
-        peak2i = self.arg2ndpeak(window, exti, peak1i, dir2, ppthresh) # find biggest 2nd extremum of opposite sign in dir2 within self.dti
+        # find biggest 2nd extremum of opposite sign in dir2 within self.dti
+        peak2i = arg2ndpeak(window, exti, peak1i, dir2, self.dti, ppthresh)
         # check which comes first
         if dir2 == 'right':
             #assert peak1i < peak2i
@@ -871,46 +923,6 @@ class Detector(object):
         else: # dir2 == 'left'
             #assert peak2i < peak1i
             return peak2i, peak1i
-
-    def arg2ndpeak(self, signal, exti, peak1i, dir2, ppthresh):
-        """Return signal's biggest local extremum of opposite sign,
-        in direction dir2, and within self.dti of peak1i"""
-        if dir2 == 'left':
-            exti = exti[exti < peak1i] # keep only left half of exti
-        elif dir2 == 'right':
-            exti = exti[exti > peak1i] # keep only right half of exti
-        elif dir2 == 'both':
-            pass # keep all of exti
-        else:
-            raise ValueError('unknown dir2 %r' % dir2)
-        #assert type(peak1i) == int
-        dti = self.dti
-        # abs(signal[ei] - peak1) converts to Python int, so ppthresh has to be same type for >= comparison
-        ppthresh = int(ppthresh) # convert from np.int16 type to Python int
-        #assert type(dti) == int
-        n_ext = len(exti)
-        code = ("""
-        #line 866 "detect.py"
-        // index into signal to get voltages
-        int peak1 = signal[peak1i]; // this should really be short, but doesn't seem to make a difference
-        int peak2i = -1; // indicates suitable 2nd peak not yet found
-        int ei;
-        // test all extrema in exti
-        for (int i=0; i<n_ext; i++) {
-            ei = exti[i]; // i'th extremum's index into signal
-            if ((abs(ei-peak1i) <= dti) && // if extremum is within dti of peak1i
-                (signal[ei] * peak1 < 0) && // and is of opposite sign
-                (abs(signal[ei]) > abs(signal[peak2i])) && // and is bigger than last one found
-                (abs(signal[ei] - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
-                    peak2i = ei; // save it
-            }
-        }
-        return_val = peak2i;""")
-        peak2i = inline(code, ['signal', 'exti', 'n_ext', 'peak1i', 'dir2', 'dti', 'ppthresh'],
-                        compiler='gcc')
-        if peak2i == -1:
-            raise NoPeakError("can't find suitable 2nd peak")
-        return peak2i
 
     def get_spike_spatial_mean(self, spike):
         """Return weighted spatial mean of chans in spike according to their

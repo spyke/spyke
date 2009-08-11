@@ -439,13 +439,14 @@ class Stream(object):
             kernels.append(kernelrow)
         return kernels
 
-    def save_resampled(self, blocksize=5000000, order='col'):
-        """Save contiguous resampled data to temp binary file on disk for quicker
-        retrieval later. Do it in blocksize us slices of data at a time,
-        final file contents and ordering won't change, but there should be a sweet
-        spot for optimal block size to read, resample, and then write. 'col' order means
-        dump the data columnwise, ie 1st timepoint, all channels, 2nd timepoint, etc.
-        'row' order means dump the data rowwise, ie 1st channel, all timepoints, 2nd channel, etc"""
+    def save_resampled(self, blocksize=5000000, order='F'):
+        """Save contiguous resampled data to temporary binary .resample file
+        on disk for quicker retrieval later. Do it in blocksize us slices of
+        data at a time, final file contents and ordering won't change, but there
+        should be a sweet spot for optimal block size to read, resample, and
+        then write. 'C' order means dump the data as C-contiguous, ie 1st
+        timepoint, all channels, 2nd timepoint, etc. 'F' order means dump the
+        data as Fortran-contiguous, ie 1st channel, all timepoints, 2nd channel, etc"""
         assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
         blocknsamples = int(round(blocksize / self.tres))
@@ -458,20 +459,16 @@ class Stream(object):
         f.seek(totalnsamples*self.nchans*2 - 1) # 0-based end of file position
         np.int8(0).tofile(f)
         f.flush() # this seems necessary to get the speedup
+        f.seek(0) # go back to start
         for blocki in xrange(nblocks):
             tstart = blocki*blocksize
             tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
             wave = self[tstart:tend] # slicing in blocks of time
             print('wave.data.shape == %r' % (wave.data.shape,))
-            if order == 'row':
-                for chani, chandata in enumerate(wave.data):
-                    pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
-                    f.seek(pos)
-                    chandata.tofile(f)
-            elif order == 'col':
-                pos = (self.nchans*blocki*blocknsamples) * 2 # each sample is a 2 byte int16
-                f.seek(pos)
+            if order == 'F':
                 wave.data.T.tofile(f) # write in column order
+            elif order == 'C':
+                wave.data.tofile(f) # write in row order
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
 
