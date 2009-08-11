@@ -475,20 +475,31 @@ class Stream(object):
         f.close()
         print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
 
-    def switch(self, to='resample'):
-        """Switch self to be a ResampleFileStream, use .resample file to get waveform data"""
-        try:
-            self.srff
-            self.sampfreq
-            self.shcorrect
-        except AttributeError: # self isn't fully __init__'d yet
-            return
-        if to == 'resample':
+    def switch(self, to=None):
+        """Switch self to be a ResampleFileStream, or a normal Stream"""
+        if to == None: # switch to the opposite type
+            if type(self) == Stream:
+                to = 'resample'
+            else: # type(self) == ResampleFileStream
+                to = 'normal'
+        if to == 'resample': # use .resample file to get waveform data
+            try:
+                self.srff
+                self.sampfreq
+                self.shcorrect
+            except AttributeError: # self isn't fully __init__'d yet
+                return
             self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
             self.f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
             self.__class__ = ResampleFileStream
-        elif to == 'normal':
-            return
+        elif to == 'normal': # use .srf file to get waveform data
+            try:
+                self.f.close()
+                del self.f
+                del self.fname
+            except AttributeError:
+                pass
+            self.__class__ = Stream
 
     def try_switch(self):
         """Try switching to using an appropriate .resample file"""
@@ -543,19 +554,6 @@ class ResampleFileStream(Stream):
         ts = np.arange(start, stop, self.tres, dtype=np.int64)
         print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
-
-    def switch(self, to='normal'):
-        """Switch self to be a normal Stream, use .srf file to get waveform data"""
-        if to == 'normal':
-            try:
-                self.f.close()
-                del self.f
-                del self.fname
-            except AttributeError:
-                pass
-            self.__class__ = Stream
-        elif to == 'resample':
-            pass
 
     def __getstate__(self):
         """Don't pickle open .resample file on pickle"""
