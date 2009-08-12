@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import time
 import os
+import sys
 
 import wx
 
@@ -223,7 +224,7 @@ class Stream(object):
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
-        tslice = time.clock()
+        #tslice = time.clock()
         # for now, accept only slice objects as keys
         #assert type(key) == slice
         # key.step == -1 indicates we want the returned Waveform reversed in time
@@ -318,9 +319,10 @@ class Stream(object):
             tresample = time.clock()
             data, ts = self.resample(data, ts)
             #print('resample took %.3f sec' % (time.clock()-tresample))
-        else: # just cut out self.chans data
-            data = data[self.chans]
-
+        else: # don't resample, just cut out self.chans data, if necessary
+            if range(nchans) != list(self.chans): # some chans are disabled
+                # TODO: BUG: this doesn't work right for lowpass Streams, because their ADchans and probe chans don't map 1 to 1
+                data = data[self.chans]
         # now get rid of any excess
         if xs:
             #txs = time.clock()
@@ -339,7 +341,7 @@ class Stream(object):
         #print('int16() took %.3f sec' % (time.clock()-tint16))
 
         #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
-        print('Stream slice took %.3f sec' % (time.clock()-tslice))
+        #print('Stream slice took %.3f sec' % (time.clock()-tslice))
 
         # return a WaveForm object
         assert len(data) == len(self.chans), "self.chans doesn't seem to correspond to rows in data"
@@ -471,6 +473,8 @@ class Stream(object):
         timepoint, all channels, 2nd timepoint, etc. 'F' order means dump the
         data as Fortran-contiguous, ie 1st channel, all timepoints, 2nd channel, etc"""
         assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
+        # make sure we're pulling data from the original .srf file, not some other existing .resample file
+        self.switch(to='normal')
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
         blocknsamples = int(round(blocksize / self.tres))
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
@@ -497,7 +501,6 @@ class Stream(object):
             tstart = blocki*blocksize
             tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
             wave = self[tstart:tend] # slicing in blocks of time
-            print('wave.data.shape == %r' % (wave.data.shape,))
             if order == 'F':
                 wave.data.T.tofile(f) # write in column order
             elif order == 'C': # have to do 1 chan at a time, with correct offset for current block of time
@@ -508,8 +511,8 @@ class Stream(object):
                     chandata.tofile(f) # write in row order
             sys.stdout.write('.')
         f.close()
-        print('saving resampled data to disk took %.3f sec' % time.clock()-t0)
-        self.try_switch() # switch to it now that's there
+        print('saving resampled data to disk took %.3f sec' % (time.clock()-t0))
+        self.try_switch() # switch to the .resample file, now that it's there
 
     def switch(self, to=None):
         """Switch self to be a ResampleFileStream, or a normal Stream"""
@@ -546,8 +549,10 @@ class Stream(object):
         """Try switching to using an appropriate .resample file"""
         try:
             self.switch(to='resample')
+            print("switched to ResampleFileStream")
         except IOError: # matching .resample file doesn't exist
             self.switch(to='normal')
+            print("switched to Stream")
 
 
 class ResampleFileStream(Stream):
@@ -573,7 +578,7 @@ class ResampleFileStream(Stream):
 
     """
     def __getitem__(self, key):
-        tslice = time.clock()
+        #tslice = time.clock()
         if key.step in [None, 1]:
             start, stop = key.start, key.stop
         elif key.step == -1:
@@ -599,7 +604,7 @@ class ResampleFileStream(Stream):
         # transpose it, just gets you a new view, but remember it won't be C-contiguous until you copy it!
         data = data.T
         ts = np.arange(start, stop, self.tres, dtype=np.int64)
-        print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
+        #print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
     def __getstate__(self):

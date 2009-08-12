@@ -164,7 +164,7 @@ class Plot(object):
         TODO: most of the time, updating the xdata won't be necessary,
         but I think updating takes no time at all relative to drawing time"""
         self.tref = tref
-        AD2uV = self.panel.stream.AD2uV
+        AD2uV = self.panel.AD2uV
         for chan, line in self.lines.iteritems():
             # convert AD wave data to uV, remove any singleton dimensions
             data = AD2uV(wave[chan].data.squeeze())
@@ -296,6 +296,7 @@ class PlotPanel(FigureCanvasWxAgg):
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self.spykeframe = self.GetTopLevelParent().Parent
+        self.AD2uV = self.spykeframe.hpstream.AD2uV # convenience for Plot objects to reference
 
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
@@ -949,7 +950,6 @@ class SortPanel(PlotPanel):
     """A plot panel specialized for overplotting spikes and neurons"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
-        #self.spykeframe = self.GetTopLevelParent().Parent
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
@@ -964,7 +964,7 @@ class SortPanel(PlotPanel):
 
     def update_rasters(self, tref):
         """Disable for SortPanel"""
-        passs
+        pass
 
     def _add_vref(self):
         """Increase pick radius for vrefs from default zero, since we're

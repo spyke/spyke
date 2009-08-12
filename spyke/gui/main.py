@@ -298,10 +298,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_SAMPLING, False)
         self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open windows other than sort
-        #sf = self.OpenFrame('sort') # ensure it's open
-        #t0 = time.clock()
-        #sf.Append2SpikeList(uniquespikes)
-        #print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
+        sf = self.OpenFrame('sort') # ensure it's open
+        t0 = time.clock()
+        sf.Append2SpikeList(uniquespikes)
+        print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
@@ -619,14 +619,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.notebook.Show(True) # lets us do stuff with the sort session
         for detection in self.sort.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
-        '''
+
         sf = self.OpenFrame('sort') # ensure it's open
         sf.Append2SpikeList(self.sort.spikes) # restore unsorted spikes to spike list
         for neuron in self.sort.neurons.values(): # restore neurons and their sorted spikes to tree
             sf.AddNeuron2Tree(neuron)
             for spike in neuron.spikes.values():
                 sf.AddSpike2Tree(neuron.itemID, spike)
-        '''
+
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         if self.sort.detector != None:

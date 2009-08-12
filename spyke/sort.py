@@ -1165,7 +1165,9 @@ class SortFrame(wxglade_gui.SortFrame):
         SiteLoc = self.sort.probe.SiteLoc
         for s in spikes.values():
             # TODO: does first entry in each row have to be a string???????????
-            row = [s.id, int(round(s.x0)), int(round(s.y0)), s.t] # leave err column empty for now
+            #x0, y0 = s.x0, s.y0 # enable this if spikes have their x0, y0 set
+            x0, y0 = SiteLoc[s.chan]
+            row = [s.id, int(round(x0)), int(round(y0)), s.t] # leave err column empty for now
             self.list.Append(row)
             # using this instead of .Append(row) is just as slow:
             #rowi = self.list.InsertStringItem(sys.maxint, str(s.id))
@@ -1174,7 +1176,7 @@ class SortFrame(wxglade_gui.SortFrame):
             # should probably use a virtual listctrl to speed up listctrl creation
             # and subsequent addition and especially removal of items
             # hack to make items sort by y0, or x0 if y0 vals are identical
-            data = int(round(s.y0)) # needs to be an int unfortunately
+            data = int(round(y0)) # needs to be an int unfortunately
             # use item count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
             self.list.SetItemData(self.list.GetItemCount()-1, data)

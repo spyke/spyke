@@ -313,6 +313,22 @@ class Spike(object):
     # from the pickle. This might make it easier to work with other
     # code that relies on all of these attribs exsting all the time"""
 
+    def get_chan(self):
+        return self.detection.detector.chans[self.chani] # dereference max chani
+
+    def set_chan(self, chans):
+        raise RuntimeError("spike.chan isn't settable, set spike.chani instead")
+
+    chan = property(get_chan, set_chan)
+
+    def get_chans(self):
+        return self.detection.detector.chans[self.chanis] # dereference
+
+    def set_chans(self, chans):
+        raise RuntimeError("spike.chans isn't settable, set spike.chanis instead")
+
+    chans = property(get_chans, set_chans)
+
     def update_wave(self, stream, tw=None):
         """Load/update self's waveform taken from the given stream.
         Optionally slice it according to tw around self's spike time"""
@@ -641,13 +657,11 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
         info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
+        tslice = time.clock()
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
+        print('Stream slice took %.3f sec' % (time.clock()-tslice))
         tdead = time.clock()
-        # TODO: is this really necessary? can't I just leave all the chans in the wave?
-        # This takes some serious time because slicing out only certain channels creates
-        # a copy of (nearly) the whole array - this step is even slower if the array
-        # is F-contig due to a previous transpose
-        #wave = wave[self.chans] # get a WaveForm with just the enabled chans
+        #wave = wave[self.chans] # get a WaveForm with just the enabled chans - no longer necessary
         # TODO: simplify the whole channel deselection and indexing approach, maybe
         # make all chanis always index into the full probe chan layout instead of the self.chans
         # that represent which chans are enabled for this detector. Also, maybe do away with
