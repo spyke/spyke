@@ -612,11 +612,6 @@ class PlotPanel(FigureCanvasWxAgg):
 
     def plot(self, wave, tref=None):
         """Plot waveforms and optionally rasters wrt a reference time point"""
-        '''
-        if wave == None:
-            wave = self.wave
-        else:
-            self.wave = wave'''
         if tref == None:
             tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
             #tref = self.tref

@@ -721,7 +721,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         frame.Destroy()
 
     def ToggleWaveforms(self):
-        pass
+        raise NotImplementedError
 
     def ToggleRasters(self):
         """Toggle visibility of rasters"""

@@ -313,16 +313,13 @@ class Stream(object):
         #print('scaling and offsetting data took %.3f sec' % (time.clock()-tscaleandoffset))
         #print('raw data shape before resample: %r' % (data.shape,))
 
-        # do any resampling if necessary
+        # do any resampling if necessary, returning only self.chans data
         if resample:
             tresample = time.clock()
             data, ts = self.resample(data, ts)
             #print('resample took %.3f sec' % (time.clock()-tresample))
-        else:
-            # TODO: cut out only the chans in self.chans - non-resampled
-            # data with some self.chans disabled won't return the correct rows
-            # until this is done!
-            pass
+        else: # just cut out self.chans data
+            data = data[self.chans]
 
         # now get rid of any excess
         if xs:
@@ -345,8 +342,7 @@ class Stream(object):
         print('Stream slice took %.3f sec' % (time.clock()-tslice))
 
         # return a WaveForm object
-        # make sure self.chans actually corresponds to data!
-        assert len(data) == len(self.chans)
+        assert len(data) == len(self.chans), "self.chans doesn't seem to correspond to rows in data"
         return WaveForm(data=data, ts=ts, chans=self.chans)
     '''
     def __setstate__(self, d):
