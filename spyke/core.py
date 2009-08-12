@@ -474,8 +474,8 @@ class Stream(object):
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
         blocknsamples = int(round(blocksize / self.tres))
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
-        print('nblocks == %r' % nblocks)
         fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
+        print('saving resampled data to %r' % fname)
         t0 = time.clock()
         f = open(fname, 'wb')
 
@@ -506,8 +506,10 @@ class Stream(object):
                     pos = (CHANFIELDLEN + chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
                     f.seek(pos)
                     chandata.tofile(f) # write in row order
+            sys.stdout.write('.')
         f.close()
-        print('saving resampled data to disk with blocksize=%d took %.3f sec' % (blocksize, time.clock()-t0))
+        print('saving resampled data to disk took %.3f sec' % time.clock()-t0)
+        self.try_switch() # switch to it now that's there
 
     def switch(self, to=None):
         """Switch self to be a ResampleFileStream, or a normal Stream"""

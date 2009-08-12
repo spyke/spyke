@@ -162,6 +162,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.SaveSortFile(fname)
         dlg.Destroy()
 
+    def OnSaveParse(self, evt):
+        self.srff.pickle()
+
+    def OnSaveResample(self, evt):
+        self.hpstream.save_resampled()
+
     def OnClose(self, evt):
         # TODO: add confirmation dialog if sort session not saved
         self.CloseSurfFile()
