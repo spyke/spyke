@@ -493,9 +493,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ])
 
     def set_chans_enabled(self, chans, enable=None):
-        """Updates which chans are enabled in ._chans_enabled dict and in the plot panels.
-        If enable is set, chans specifies which chans should have their enable
-        flag overwritten. Otherwise, chans specifies all the chans we want enabled.
+        """Updates which chans are enabled in ._chans_enabled dict and in the
+        plot panels, and in the highpass stream. If enable is set, chans specifies
+        which chans should have their enable flag overwritten. Otherwise,
+        chans specifies all the chans we want enabled.
         The code for the 2nd case is quite elaborate, such that the visibility
         state of any given plot in all plotpanels isn't needlessly toggled,
         which slows things down and causes flicker, I think"""
@@ -522,27 +523,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     self.frames[frametype].panel.enable_chans(chans, enable=enable)
                 except KeyError: # frametype hasn't been opened yet
                     pass
-            return
-
         # ...or, leave only chans enabled
-        enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
-        disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==False ]
-        notchans = set(allchans).difference(chans) # chans we don't want enabled
-        # find the difference between currently enabled chans and the chans we want enabled
-        chans2disable = set(enabledchans).difference(chans)
-        # find the difference between currently disabled chans and the chans we want disabled
-        chans2enable = set(disabledchans).difference(notchans)
-        for chan in chans2enable:
-            self._chans_enabled[chan] = True
-        for chan in chans2disable:
-            self._chans_enabled[chan] = False
-        # now change the actual plots in the plotpanels
-        for frametype in FRAMEUPDATEORDER:
-            try:
-                self.frames[frametype].panel.enable_chans(chans2enable, enable=True)
-                self.frames[frametype].panel.enable_chans(chans2disable, enable=False)
-            except KeyError: # frametype hasn't been opened yet
-                pass
+        else:
+            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
+            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==False ]
+            notchans = set(allchans).difference(chans) # chans we don't want enabled
+            # find the difference between currently enabled chans and the chans we want enabled
+            chans2disable = set(enabledchans).difference(chans)
+            # find the difference between currently disabled chans and the chans we want disabled
+            chans2enable = set(disabledchans).difference(notchans)
+            for chan in chans2enable:
+                self._chans_enabled[chan] = True
+            for chan in chans2disable:
+                self._chans_enabled[chan] = False
+            # now change the actual plots in the plotpanels
+            for frametype in FRAMEUPDATEORDER:
+                try:
+                    self.frames[frametype].panel.enable_chans(chans2enable, enable=True)
+                    self.frames[frametype].panel.enable_chans(chans2disable, enable=False)
+                except KeyError: # frametype hasn't been opened yet
+                    pass
+
+        # update stream, might trigger change of stream type
+        if self.hpstream != None:
+            self.hpstream.chans = self.chans_enabled
 
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
@@ -620,7 +624,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         if self.sort.detector != None:
-            self.update_detect_pane(self.sort.detector)
+            self.update_from_detector(self.sort.detector)
         self.EnableSortWidgets(True)
         print('done opening sort file')
 
@@ -828,8 +832,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.slock = self.slock_spin_ctrl.GetValue()
         det.randomsample = self.random_sample_checkbox.GetValue()
 
-    def update_detect_pane(self, det):
-        """Update detect pane widgets from detector attribs"""
+    def update_from_detector(self, det):
+        """Update self from detector attribs"""
         self.set_detectorthresh(det)
         self.chans_enabled = det.chans
         self.fixedthresh_spin_ctrl.SetValue(det.fixedthresh)

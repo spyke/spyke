@@ -36,6 +36,7 @@ NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
 MAXLONGLONG = 2**63-1
 
+CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
 class WaveForm(object):
     """Just a container for data, timestamps, and channels.
@@ -138,10 +139,14 @@ class Stream(object):
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
-        self.nchans = len(self.layout.ADchanlist)
         if kind == 'highpass':
-            self.chans = range(self.nchans) # probe chans, as opposed to AD chans, don't know yet of any probe
-                                            # type whose chans aren't contiguous from 0 (see probes.py)
+            ADchans = self.layout.ADchanlist
+            nADchans = len(ADchans)
+            assert list(ADchans) == range(nADchans), ("ADchans aren't contiguous from 0, highpass recordings are "
+                                                      "nonstandard, and assumptions made for resampling are wrong")
+            nADchans = len(self.layout.ADchanlist)
+            self.chans = np.arange(nADchans) # probe chans, as opposed to AD chans, don't know yet of any probe
+                                             # type whose chans aren't contiguous from 0 (see probes.py)
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
             self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
         elif kind == 'lowpass':
@@ -163,6 +168,20 @@ class Stream(object):
         self.t0 = self.rts[0] # us, time that recording began, time of first recorded data point
         lastctsrecordnt = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans)) # nsamples in last record
         self.tend = self.rts[-1] + (lastctsrecordnt-1)*self.rawtres # time of last recorded data point
+
+    def get_chans(self):
+        return self._chans
+
+    def set_chans(self, chans):
+        """On .chans changed, update .nchans, and try to switch
+        classes to use a .resample file with this exact set of chans in it.
+        No need to delete .kernels because the full set are indexed into
+        according to which chans are enabled"""
+        self._chans = chans
+        self.nchans = len(self._chans)
+        self.try_switch()
+
+    chans = property(get_chans, set_chans)
 
     def get_sampfreq(self):
         return self._sampfreq
@@ -299,6 +318,11 @@ class Stream(object):
             tresample = time.clock()
             data, ts = self.resample(data, ts)
             #print('resample took %.3f sec' % (time.clock()-tresample))
+        else:
+            # TODO: cut out only the chans in self.chans - non-resampled
+            # data with some self.chans disabled won't return the correct rows
+            # until this is done!
+            pass
 
         # now get rid of any excess
         if xs:
@@ -321,6 +345,8 @@ class Stream(object):
         print('Stream slice took %.3f sec' % (time.clock()-tslice))
 
         # return a WaveForm object
+        # make sure self.chans actually corresponds to data!
+        assert len(data) == len(self.chans)
         return WaveForm(data=data, ts=ts, chans=self.chans)
     '''
     def __setstate__(self, d):
@@ -346,7 +372,6 @@ class Stream(object):
         data and timepoints. See Blanche & Swindale, 2006
 
         TODO: should interpolation be multithreaded?
-        TODO: self.kernels should be deleted when selected chans change, self.nchans should be updated
         """
         #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
         rawtres = self.rawtres # us
@@ -355,12 +380,12 @@ class Stream(object):
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        ADchans = self.layout.ADchanlist
-        assert self.nchans == len(self.chans) == len(ADchans) # pretty basic assumption which might change if chans are disabled
+        #assert self.nchans == len(self.chans) == len(ADchans) # pretty basic assumption which might change if chans are disabled
         # check if kernels have been generated already
         try:
             self.kernels
         except AttributeError:
+            ADchans = self.layout.ADchanlist
             self.kernels = self.get_kernels(ADchans, resamplex, N)
 
         # convolve the data with each kernel
@@ -378,25 +403,27 @@ class Stream(object):
         #print 'data.shape = %r' % (data.shape,)
         tconvolve = time.clock()
         tconvolvesum = 0
-        for ADchani in xrange(len(ADchans)):
-            for point, kernel in enumerate(self.kernels[ADchani]):
+        # assume chans map onto ADchans 1 to 1, ie chan 0 taps off of ADchan 0
+        # this way, only the chans that are actually needed are resampled and returned
+        for chani, chan in enumerate(self.chans):
+            for point, kernel in enumerate(self.kernels[chan]):
                 """np.convolve(a, v, mode)
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 where K = len(a)-1 and M = len(v) - 1 and K >= M
                 for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
-                tconvolveonce = time.clock()
-                row = np.convolve(rawdata[ADchani], kernel, mode='same')
-                tconvolvesum += (time.clock()-tconvolveonce)
+                #tconvolveonce = time.clock()
+                row = np.convolve(rawdata[chan], kernel, mode='same')
+                #tconvolvesum += (time.clock()-tconvolveonce)
                 #print 'len(rawdata[ADchani]) = %r' % len(rawdata[ADchani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
                 # interleave by assigning from point to end in steps of resamplex
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
-                data[ADchani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions, since interpolated values have to be bounded on both sides by raw values?
+                data[chani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions, since interpolated values have to be bounded on both sides by raw values?
         #print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
         #print('convolve calls took %.3f sec total' % (tconvolvesum))
-        tundoscaling = time.clock()
+        #tundoscaling = time.clock()
         data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
         #print('undo kernel scaling took %.3f sec total' % (time.clock()-tundoscaling))
         return data, ts
@@ -415,7 +442,7 @@ class Stream(object):
         WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans
         0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
         """
-        i = np.asarray(ADchans) % NCHANSPERBOARD # ordinal position of each chan in the hold queue
+        i = ADchans % NCHANSPERBOARD # ordinal position of each chan in the hold queue
         if self.shcorrect:
             dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
         else:
@@ -424,8 +451,8 @@ class Stream(object):
         wh = hamming # window function
         h = np.sinc # sin(pi*t) / pi*t
         kernels = [] # list of list of kernels, indexed by [ADchani][resample point]
-        for ADchani in xrange(len(ADchans)):
-            d = ds[ADchani] # delay for this chan
+        for ADchan in ADchans:
+            d = ds[ADchan] # delay for this chan
             kernelrow = []
             for point in xrange(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
@@ -455,11 +482,21 @@ class Stream(object):
         fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
         t0 = time.clock()
         f = open(fname, 'wb')
+
         # for speed, allocate the full file size by writing a NULL byte to the very end:
-        f.seek(totalnsamples*self.nchans*2 - 1) # 0-based end of file position
+        f.seek(CHANFIELDLEN + totalnsamples*self.nchans*2 - 1) # 0-based end of file position
         np.int8(0).tofile(f)
         f.flush() # this seems necessary to get the speedup
         f.seek(0) # go back to start
+
+        # write the chans string field
+        chanstr = 'chans = %r' % list(self.chans)
+        assert len(chanstr) <= CHANFIELDLEN
+        f.seek(0) # back to start
+        f.write(chanstr) # write chans string field
+        nulls = np.zeros(CHANFIELDLEN-len(chanstr), dtype=np.int8)
+        nulls.tofile(f) # fill the rest of the field with null bytes
+
         for blocki in xrange(nblocks):
             tstart = blocki*blocksize
             tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
@@ -468,8 +505,9 @@ class Stream(object):
             if order == 'F':
                 wave.data.T.tofile(f) # write in column order
             elif order == 'C': # have to do 1 chan at a time, with correct offset for current block of time
+                raise RuntimeError("***WARNING: this C order writing code is untested, and no code for reading it back exists")
                 for chani, chandata in enumerate(wave.data):
-                    pos = (chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                    pos = (CHANFIELDLEN + chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
                     f.seek(pos)
                     chandata.tofile(f) # write in row order
         f.close()
@@ -485,12 +523,17 @@ class Stream(object):
         if to == 'resample': # use .resample file to get waveform data
             try:
                 self.srff
+                self.chans
                 self.sampfreq
                 self.shcorrect
             except AttributeError: # self isn't fully __init__'d yet
                 return
             self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
             self.f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
+            # first CHANFIELDLEN bytes are a 'nchans = [0, 1, 2, ...]' string indicating channels in the file
+            chanstr = self.f.read(CHANFIELDLEN).rstrip('\x00') # strip any null bytes off the end
+            if eval(chanstr.split('= ')[-1]) != list(self.chans):
+                raise IOError("file %r doesn't have the right channels in it" % self.fname)
             self.__class__ = ResampleFileStream
         elif to == 'normal': # use .srf file to get waveform data
             try:
@@ -543,12 +586,18 @@ class ResampleFileStream(Stream):
         start = max(start, self.t0) # stay within limits of data in the file
         stop = min(stop, self.tend+self.tres)
         #totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
+
+        """
+        TODO: add a File/Save .parse menu item, to resave the .parse file with the current Stream
+        in it, with its current .chans. That way, every time you load up a .srf file, your
+        previously disabled chans will be automatically disabled.
+
+        """
         nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
-        data = np.empty((self.nchans, nsamples), dtype=np.int16) # allocate
         starti = (start - self.t0) / self.tres # nsamples offset from start of recording
-        self.f.seek(self.nchans*starti*2) # 2 bytes for each int16 sample
+        self.f.seek(CHANFIELDLEN + self.nchans*starti*2) # 2 bytes for each int16 sample
         data = np.fromfile(self.f, dtype=np.int16, count=self.nchans*nsamples)
-        data.shape = (nsamples, self.nchans)
+        data.shape = (nsamples, self.nchans) # assume file is in Fortran order
         # transpose it, just gets you a new view, but remember it won't be C-contiguous until you copy it!
         data = data.T
         ts = np.arange(start, stop, self.tres, dtype=np.int64)
