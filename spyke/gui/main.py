@@ -291,7 +291,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sort._detid += 1 # inc for next unique Detection run
         detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to spikes
         self.sort.detections[detection.id] = detection
-        uniquespikes = self.sort.append_spikes(detection.spikes)
+        self.sort.append_spikes(detection.spikes)
         self.append_detection_list(detection)
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
         # now that we've had at least one detection run
@@ -299,9 +299,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open windows other than sort
         sf = self.OpenFrame('sort') # ensure it's open
-        t0 = time.clock()
-        sf.Append2SpikeList(uniquespikes)
-        print 'sf.Append2SpikeList(uniquespikes) took %.3f sec' % (time.clock()-t0)
+        # refresh spike virtual listctrl
+        sf.list.SetItemCount(len(self.sort.spikes))
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
@@ -367,7 +366,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for det in selectedDetections:
             for spike in det.spikes.values(): # first check all detection's spikes to ensure they aren't neuron members
                 if getattr(spike, 'neuron', None) != None:
-                    wx.MessageBox("can't remove detection %d: spike %d is a"
+                    wx.MessageBox("can't remove detection %d: spike %d is a "
                                   "member of neuron %d"
                                   % (det.id, spike.id, spike.neuron.id),
                                   "Error", wx.OK|wx.ICON_EXCLAMATION)
@@ -375,8 +374,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             for spikei in det.spikes.keys(): # now do the actual removal
                 try:
                     del self.sort.spikes[spikei] # remove from unsorted spikes dict
-                    if 'sort' in self.frames.keys(): # if sort frame exists, which it should
-                        self.frames['sort'].list.DeleteItemByData(spikei) # remove from spike listctrl
                 except KeyError: # check if it's in the trash
                     try:
                         del self.sort.trash[spikei] # remove from trash
@@ -384,7 +381,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         print "can't find spike %d in sort.spikes or in sort.trash, it may have been a duplicate" % spikei
             del self.sort.detections[det.id] # remove from sort's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
-        self.sort.update_st()
+        self.sort.update_spike_arrays() # update spike arrays with new spikes dict contents
+        # refresh spike virtual listctrl
+        self.frames['sort'].list.SetItemCount(len(self.sort._spikes))
+        self.frames['sort'].list.RefreshItems(0, sys.maxint)
         self.plot() # update rasters
         if len(self.sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
@@ -621,8 +621,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.append_detection_list(detection)
 
         sf = self.OpenFrame('sort') # ensure it's open
-        sf.Append2SpikeList(self.sort.spikes) # restore unsorted spikes to spike list
-        for neuron in self.sort.neurons.values(): # restore neurons and their sorted spikes to tree
+        # refresh spike virtual listctrl
+        sf.list.SetItemCount(len(self.sort._spikes))
+        # restore neurons and their sorted spikes to tree
+        for neuron in self.sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
             for spike in neuron.spikes.values():
                 sf.AddSpike2Tree(neuron.itemID, spike)
@@ -761,14 +763,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Set highpass stream sampling frequency, update widgets"""
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
+            tres = self.hpstream.tres
+            self.slider.SetRange(self.range[0] // tres,
+                                (self.range[1]-self.range[0]) // tres) # shouldn't need to round
+            self.slider.SetValue(self.t // tres)
+            #self.slider.SetLineSize(1) # doesn't change
+            self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
+            self.plot()
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
-        tres = self.hpstream.tres
-        self.slider.SetRange(self.range[0] // tres,
-                            (self.range[1]-self.range[0]) // tres) # shouldn't need to round
-        self.slider.SetValue(self.t // tres)
-        #self.slider.SetLineSize(1) # doesn't change
-        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
-        self.plot()
 
     def SetSHCorrect(self, enable):
         """Set highpass stream sample & hold correct flag, update widgets"""

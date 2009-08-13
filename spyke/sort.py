@@ -49,6 +49,7 @@ class Sort(object):
     A .sort file is a single pickled Sort object"""
     SAVEWAVES = False # save each spike's .wave to .sort file?
     def __init__(self, detector=None, probe=None, stream=None):
+        self.__version__ = 0.1
         self.detector = detector # this sort session's current Detector object
         self.probe = probe # only one probe design per sort allowed
         self.detections = {} # history of detection runs
@@ -85,10 +86,12 @@ class Sort(object):
             d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
             d['shcorrect'] = self.stream.shcorrect
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
+        del d['st'] # temporary, can be regenerated from .spikes
+        del d['_spikes'] # temporary, can be regenerated from .spikes
         return d
 
     def append_spikes(self, spikes):
-        """Append spikes to self, update self.st.
+        """Append spikes to self.spikes dict, update associated sorted spike arrays.
         Don't add a new spike from a new detection if the identical spike
         is already in self.spikes"""
         newspikes = set(spikes.values()).difference(self.spikes.values())
@@ -99,25 +102,29 @@ class Sort(object):
         for newspike in newspikes:
             uniquespikes[newspike.id] = newspike
         self.spikes.update(uniquespikes)
-        self.update_st()
-        return uniquespikes
+        self.update_spike_arrays()
 
-    def update_st(self):
-        """Update self.st sorted array of spike times and self.sorted_spikes array
+    def update_spike_arrays(self):
+        """Update self.st sorted array of spike times and self._spikes array
         of spike objects"""
         spikes_array = np.asarray([ spike for spike in self.spikes.itervalues() ])
         st = np.asarray([ spike.t for spike in spikes_array ])
         # can't assume spikes come out of dict sorted in time
         sti = st.argsort()
         self.st = st[sti] # temporally sorted array of current spike times
-        self.sorted_spikes = spikes_array[sti] # temporally sorted array of current spikes
+        self._spikes = spikes_array[sti] # temporally sorted array of current spikes
 
     def spikes_sortedbyID(self):
         """Return list of spikes, sorted by their IDs"""
-        spikeids = self.spikes.keys()
-        spikeids.sort()
-        spikes = [ self.spikes[spikeid] for spikeid in spikeids ] # sorted list of spikes
+        print("***WARNING: new spikes_sortedbyID is untested")
+        spikes = self.spikes.values()
+        spikes.sort(key=operator.attrgetter('id')) # sort in-place according to .id attrib
         return spikes
+        # old code:
+        #spikeids = self.spikes.keys()
+        #spikeids.sort()
+        #spikes = [ self.spikes[spikeid] for spikeid in spikeids ] # sorted list of spikes
+        #return spikes
 
     def extractXY(self, method):
         """Extract XY parameters from spikes using extraction method"""
@@ -841,8 +848,11 @@ class SortFrame(wxglade_gui.SortFrame):
         columnlabels = ['sID', 'x0', 'y0', 'time'] # spike list column labels
         for coli, label in enumerate(columnlabels):
             self.list.InsertColumn(coli, label)
-        for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
-            self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+        #for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
+        #    self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+        # hard code column widths for precise control, autosize seems buggy
+        for coli, width in {0:40, 1:40, 2:40, 3:80}.items(): # (sid, x0, y0, time)
+            self.list.SetColumnWidth(coli, width)
 
         self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
         self.list.Bind(wx.EVT_RIGHT_DOWN, self.OnListRightDown)
@@ -1159,7 +1169,7 @@ class SortFrame(wxglade_gui.SortFrame):
         """Redraws refs and resaves background of sort panel(s)"""
         self.spikesortpanel.draw_refs()
         #self.chartsortpanel.draw_refs()
-
+    '''
     def Append2SpikeList(self, spikes):
         """Append spikes to self's spike list control"""
         SiteLoc = self.sort.probe.SiteLoc
@@ -1174,8 +1184,8 @@ class SortFrame(wxglade_gui.SortFrame):
             #self.list.SetStringItem(rowi, 1, str(s.maxchan))
             #self.list.SetStringItem(rowi, 2, str(s.t))
             # should probably use a virtual listctrl to speed up listctrl creation
-            # and subsequent addition and especially removal of items
-            # hack to make items sort by y0, or x0 if y0 vals are identical
+            # and subsequent addition and especially removal of items.
+            # hack to make items sort by y0, or x0 if y0 vals are identical:
             data = int(round(y0)) # needs to be an int unfortunately
             # use item count instead of counting from 0 cuz you want to handle there
             # already being items in the list from prior append/removal
@@ -1185,7 +1195,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # hard code column widths for precise control, autosize seems buggy
         for coli, width in {0:40, 1:40, 2:40, 3:80, 4:60}.items(): # (sid, x0, y0, time, err)
             self.list.SetColumnWidth(coli, width)
-
+    '''
     def AddObjects2Plot(self, objects):
         #print 'objects to add: %r' % [ obj.id for obj in objects ]
         self.spikesortpanel.addObjects(objects)

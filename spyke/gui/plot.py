@@ -635,7 +635,7 @@ class PlotPanel(FigureCanvasWxAgg):
         # find out which spikes are within time window
         sort = self.spykeframe.sort
         lo, hi = sort.st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
-        spikes = sort.sorted_spikes[lo:hi] # spikes within range of current time window
+        spikes = sort._spikes[lo:hi] # spikes within range of current time window
         while len(spikes) > len(self.rasters):
             self.init_rasters() # append another batch to self.rasters
         rasteriter = iter(self.rasters) # iterator over rasters
