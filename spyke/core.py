@@ -668,7 +668,13 @@ class SpykeListCtrl(wx.ListCtrl):
 
 
 class SpykeVirtualListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl. The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    """A virtual ListCtrl. The wx.LC_VIRTUAL flag is set in wxglade_gui.py
+
+    TODO:
+    - every time sort.spikes is modified, need to call SetItemCount, and RefreshItems if necessary
+        - is there some special __setitem__ dict method that could be overriden to automatically update the listctrl? might not be necessary. Instead, just make info flow from listctrl to sort.spikes, and manually update the listctrl when need be after some manual change to sort.spikes
+    - Spike deletion should move spikes from sort.spikes to sort.trash, and vice versa.
+    """
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         self.col2attr = {0:'id', 1:'x0', 2:'y0', 3:'t'}
@@ -677,26 +683,21 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
         """For virtual list ctrl, return data string for the given item and its col"""
         # index into _spikes array, in whatever order it was last sorted
         spike = self.GetTopLevelParent().sort._spikes[row]
+        attr = self.col2attr[col]
         try:
-            attr = self.col2attr[col]
-            return spike.__dict__[attr]
+            val = spike.__dict__[attr]
         except KeyError: # attrib isn't currently available
             return ''
-    """TODO:
-    - every time sort.spikes is modified, need to call SetItemCount, and RefreshItems if necessary
-        - is there some special __setitem__ dict method that could be overriden to automatically update the listctrl? might not be necessary. Instead, just make info flow from listctrl to sort.spikes, and manually update the listctrl when need be after some manual change to sort.spikes
-    - Spike deletion should move spikes from sort.spikes to sort.trash, and vice versa.
-    - re OnGetItemText(row, col), the row thing is a little tricky. spike.sort Dict is unordered, indexed by spike id, but we want consecutive numbering. Maybe row should index into sort.st list, and there should be a temp dict that maps spike time to spike id, but that's not always gonna be a foolproof mapping - some spikes might have the same spike time
-        - or, just use an OrderedDict, like in Python 2.6! - might be a good reason to upgrade?
-
-    """
+        # this formatting step doesn't seem to have a performance cost:
+        if type(val) == float:
+            val = '%.1f' % val
+        return val
 
     def InsertRow(self, row, data):
         raise RuntimeError("InsertRow is N/A on a virtual listctrl")
 
     def DeleteItemByData(self, data):
         raise RuntimeError("DeleteItemByData is N/A on a virtual listctrl")
-
 
 
 class SpykeTreeCtrl(wx.TreeCtrl):
