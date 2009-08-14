@@ -9,6 +9,7 @@ import sys
 import time
 import datetime
 import copy
+import operator
 
 import wx
 
@@ -60,6 +61,9 @@ class Sort(object):
         self.neurons = {} # first hierarchy of neurons
         self.trash = {} # discarded spikes
 
+        self._spikes_sorted_by = 't'
+        self._spikes_reversed = False
+
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs
         self._nid = 0 # used to count off unique neuron IDs
@@ -86,12 +90,13 @@ class Sort(object):
             d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
             d['shcorrect'] = self.stream.shcorrect
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        del d['st'] # temporary, can be regenerated from .spikes
+        del d['_st'] # temporary, can be regenerated from .spikes
+        del d['_spikes_by_time'] # temporary, can be regenerated from .spikes
         del d['_spikes'] # temporary, can be regenerated from .spikes
         return d
 
     def append_spikes(self, spikes):
-        """Append spikes to self.spikes dict, update associated sorted spike arrays.
+        """Append spikes to self.spikes dict, update associated spike lists.
         Don't add a new spike from a new detection if the identical spike
         is already in self.spikes"""
         newspikes = set(spikes.values()).difference(self.spikes.values())
@@ -102,23 +107,27 @@ class Sort(object):
         for newspike in newspikes:
             uniquespikes[newspike.id] = newspike
         self.spikes.update(uniquespikes)
-        self.update_spike_arrays()
+        self.update_spike_lists()
 
-    def update_spike_arrays(self):
-        """Update self.st sorted array of spike times and self._spikes array
-        of spike objects"""
-        spikes_array = np.asarray([ spike for spike in self.spikes.itervalues() ])
-        st = np.asarray([ spike.t for spike in spikes_array ])
+    def update_spike_lists(self):
+        """Update self._st sorted array of spike times, _spikes_by_time array,
+        and self._spikes list"""
+        spikes = self.spikes.values() # pull list out of dict
+        st = np.asarray([ spike.t for spike in spikes ]) # spike times
         # can't assume spikes come out of dict sorted in time
-        sti = st.argsort()
-        self.st = st[sti] # temporally sorted array of current spike times
-        self._spikes = spikes_array[sti] # temporally sorted array of current spikes
+        sti = st.argsort() # spike time indices
+        # self._st and self._spikes_by_time are required for quick raster plotting
+        self._st = st[sti] # array of current spike times
+        self._spikes_by_time = np.asarray(spikes)[sti] # array of current spikes sorted by time
+        self._spikes = spikes # indep list of current spikes, by however they were last sorted
+        self._spikes.sort(key=operator.attrgetter(self._spikes_sorted_by),
+                          reverse=self._spikes_reversed)
 
-    def spikes_sortedbyID(self):
-        """Return list of spikes, sorted by their IDs"""
-        print("***WARNING: new spikes_sortedbyID is untested")
+    def get_spikes_sortedby(self, attr='id'):
+        """Return list of spikes, sorted by attribute 'attr'"""
+        print("***WARNING: new get_spikes_sortedby() is untested")
         spikes = self.spikes.values()
-        spikes.sort(key=operator.attrgetter('id')) # sort in-place according to .id attrib
+        spikes.sort(key=operator.attrgetter(attr)) # sort in-place by spike attribute
         return spikes
         # old code:
         #spikeids = self.spikes.keys()
@@ -154,7 +163,7 @@ class Sort(object):
             nparams = 4
             #nparams = 9
             X = np.zeros((nspikes, nparams))
-            spikes = self.spikes_sortedbyID()
+            spikes = self.get_spikes_sortedby('id')
             for i, s in enumerate(spikes):
                 X[i] = [s.x0, s.y0, s.Vpp, s.dphase]
                 '''
@@ -239,7 +248,7 @@ class Sort(object):
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
         to the datapoints in the order presented in the input .dat file. Returns cidsT dict"""
-        #spikes = self.spikes_sortedbyID()
+        #spikes = self.get_spikes_sortedby('id')
         if fname == None:
             fname = self.spclabfname
         f = open(fname, 'r')
@@ -262,7 +271,7 @@ class Sort(object):
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
         run number (0-based). 2nd column is the temperature. All remaining columns correspond
         to the datapoints in the order presented in the input .dat file. Returns (Ts, cids)"""
-        #spikes = self.spikes_sortedbyID()
+        #spikes = self.get_spikes_sortedby('id')
         if fname == None:
             dlg = wx.FileDialog(None, message="Open SPC .lab file",
                                 defaultDir=r"C:\Documents and Settings\Administrator\Desktop\Charlie\From", defaultFile='',
@@ -429,7 +438,7 @@ class Sort(object):
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
-        spikes = self.spikes_sortedbyID()
+        spikes = self.get_spikes_sortedby('id')
         X = self.get_cluster_data()
         # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
         # first row has labels "AFFX", "NAME", and then spike ids
@@ -455,7 +464,7 @@ class Sort(object):
         only be considered after the best ones already have, and therefore that you start off
         with pretty good clusters that are then only slightly refined using the lousy params
         """
-        spikes = self.spikes_sortedbyID()
+        spikes = self.get_spikes_sortedby('id')
         X = self.get_cluster_data()
         print X
         cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
@@ -906,7 +915,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnListTimer(self, evt):
         """Run when started timer runs out and triggers a TimerEvent"""
         selectedRows = self.list.GetSelections()
-        selectedListSpikes = [ self.listRow2Spike(row) for row in selectedRows ]
+        selectedListSpikes = [ self.sort._spikes[row] for row in selectedRows ]
         removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
         addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
         self.RemoveObjectsFromPlot(removeSpikes)
@@ -919,13 +928,13 @@ class SortFrame(wxglade_gui.SortFrame):
         the selection ListEvent happening before the MouseEvent, or something"""
         print 'in OnListRightDown'
         pt = evt.GetPosition()
-        itemID, flags = self.list.HitTest(pt)
-        spike = self.listRow2Spike(itemID)
+        row, flags = self.list.HitTest(pt)
+        spike = self.sort._spikes[row]
         print 'spikeID is %r' % spike.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
-        #selected = not self.list.IsSelected(itemID)
-        #self.list.Select(itemID, on=int(not selected))
+        #selected = not self.list.IsSelected(row)
+        #self.list.Select(row, on=int(not selected))
         # here is a yucky workaround:
         try:
             self.spikesortpanel.used_plots['s'+str(spike.id)] # is it plotted?
@@ -934,22 +943,28 @@ class SortFrame(wxglade_gui.SortFrame):
         except KeyError:
             selected = False # item is not selected
             print 'spike %d not in used_plots' % spike.id
-        self.list.Select(itemID, on=not selected) # toggle selection, this fires sel spike, which updates the plot
+        self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):
-        coli = evt.GetColumn()
-        if coli == 0:
-            self.SortListByID()
-        elif coli == 1: # x0 column
-            raise NotImplementedError
-        elif coli == 2: # y0 column
-            self.SortListByY()
-        elif coli == 3: # time column
-            self.SortListByTime()
-        #elif coli == 4: # err column
-        #    self.SortListByErr()
-        else:
-            raise ValueError, 'weird column id %d' % coli
+        """Sort ._spikes according to column clicked.
+
+        TODO: keep track of currently selected spikes and currently focused spike,
+        clear the selection, then reselect those same spikes after sorting is done,
+        and re-focus the same spike. Scroll into view of the focused spike (maybe
+        that happens automatically). Right now, the selection remains in the list
+        as-is, regardless of the entries that change beneath it"""
+        col = evt.GetColumn()
+        attr = self.list.COL2ATTR[col]
+        s = self.sort
+        # for speed, check if already sorted by attr
+        if s._spikes_sorted_by == attr: # already sorted, reverse the order
+            s._spikes.reverse() # in-place
+            s._spikes_reversed = not s._spikes_reversed # update reversed flag
+        else: # not sorted by attr
+            s._spikes.sort(key=operator.attrgetter(attr)) # in-place
+            s._spikes_sorted_by = attr # update
+            s._spikes_reversed = False # update
+        self.list.RefreshItems()
 
     def OnListKeyDown(self, evt):
         """Spike list key down evt"""
@@ -1121,81 +1136,11 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.SetItemText(neuron.itemID, 'n'+str(neuron.id)) # update its entry in the tree
         self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
 
-    def SortListByID(self):
-        """Sort spike list by spike ID"""
-        for rowi in range(self.list.GetItemCount()):
-            sid = int(self.list.GetItemText(rowi))
-            self.list.SetItemData(rowi, sid)
-        self.list.SortItems(cmp) # now do the actual sort, based on the item data
-
-    def SortListByY(self):
-        """Sort spike list by its y0 coord, from top to bottom of probe"""
-        # first set the itemdata for each row
-        SiteLoc = self.sort.probe.SiteLoc
-        for rowi in range(self.list.GetItemCount()):
-            sid = int(self.list.GetItemText(rowi)) # 0th column
-            s = self.sort.spikes[sid]
-            y0 = int(round(s.y0)) # needs to be an int unfortunately
-            self.list.SetItemData(rowi, y0)
-        self.list.SortItems(cmp) # now do the actual sort, based on the item data
-
-    def SortListByTime(self):
-        """Sort spike list by spike timepoint"""
-        for rowi in range(self.list.GetItemCount()):
-            sid = int(self.list.GetItemText(rowi)) # 0th column
-            s = self.sort.spikes[sid]
-            # TODO: this will cause a problem once timestamps exceed 2**32 us, see SortListByErr for fix
-            self.list.SetItemData(rowi, s.t)
-        self.list.SortItems(cmp) # now do the actual sort, based on the item data
-    '''
-    def SortListByErr(self):
-        """Sort spike list by match error.
-        Hack to get around stupid SetItemData being limited to int32s"""
-        errcol = 4 # err is in 4th column (0-based)
-        errs = []
-        for rowi in range(self.list.GetItemCount()):
-            err = self.list.GetItem(rowi, errcol).GetText()
-            try:
-                err = int(err)
-            except ValueError: # err is empty string
-                err = MAXLONGLONG
-            errs.append(err)
-        erris = np.asarray(errs).argsort() # indices that return errs sorted
-        for rowi, erri in enumerate(erris):
-            self.list.SetItemData(erri, rowi) # the erri'th row is set the rowi'th rank value
-        self.list.SortItems(cmp) # now do the actual sort, based on the item data
-    '''
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
         self.spikesortpanel.draw_refs()
         #self.chartsortpanel.draw_refs()
-    '''
-    def Append2SpikeList(self, spikes):
-        """Append spikes to self's spike list control"""
-        SiteLoc = self.sort.probe.SiteLoc
-        for s in spikes.values():
-            # TODO: does first entry in each row have to be a string???????????
-            #x0, y0 = s.x0, s.y0 # enable this if spikes have their x0, y0 set
-            x0, y0 = SiteLoc[s.chan]
-            row = [s.id, int(round(x0)), int(round(y0)), s.t] # leave err column empty for now
-            self.list.Append(row)
-            # using this instead of .Append(row) is just as slow:
-            #rowi = self.list.InsertStringItem(sys.maxint, str(s.id))
-            #self.list.SetStringItem(rowi, 1, str(s.maxchan))
-            #self.list.SetStringItem(rowi, 2, str(s.t))
-            # should probably use a virtual listctrl to speed up listctrl creation
-            # and subsequent addition and especially removal of items.
-            # hack to make items sort by y0, or x0 if y0 vals are identical:
-            data = int(round(y0)) # needs to be an int unfortunately
-            # use item count instead of counting from 0 cuz you want to handle there
-            # already being items in the list from prior append/removal
-            self.list.SetItemData(self.list.GetItemCount()-1, data)
-        self.list.SortItems(cmp) # sort the list by maxchan from top to bottom of probe
-        #width = wx.LIST_AUTOSIZE_USEHEADER # resize columns to fit
-        # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:40, 3:80, 4:60}.items(): # (sid, x0, y0, time, err)
-            self.list.SetColumnWidth(coli, width)
-    '''
+
     def AddObjects2Plot(self, objects):
         #print 'objects to add: %r' % [ obj.id for obj in objects ]
         self.spikesortpanel.addObjects(objects)
@@ -1240,12 +1185,6 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.Delete(neuron.itemID)
         del self.sort.neurons[neuron.id]
 
-    def listRow2Spike(self, row):
-        """Return Spike at list row"""
-        spikei = int(self.list.GetItemText(row))
-        spike = self.sort.spikes[spikei]
-        return spike
-
     def MoveSpike2Neuron(self, spike, row, neuron=None):
         """Move a spike spike from unsorted sort.spikes to a neuron.
         Also, move it from a list control row to a neuron in the tree.
@@ -1257,13 +1196,15 @@ class SortFrame(wxglade_gui.SortFrame):
             if spike in n.spikes.values():
                 print "Can't move: spike %d is identical to a member spike in neuron %d" % (spike.id, n.id)
                 return
-        self.list.DeleteItem(row) # remove it from the spike list
-        self.list.Select(row) # automatically select the new item at that position
         createdNeuron = False
         if neuron == None:
             neuron = self.CreateNeuron()
             createdNeuron = True
         del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+        self.sort.update_spike_lists()
+        self.list.RefreshItems() # refresh the list
+        # TODO: selection doesn't seem to be working, always jumps to top of list
+        self.list.Select(row) # automatically select the new item at that position
         neuron.spikes[spike.id] = spike # add spike to neuron
         neuron.update_wave() # update mean neuron waveform
         spike.neuron = neuron # bind neuron to spike
@@ -1278,9 +1219,11 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def MoveSpike2Trash(self, spike, row):
         """Move spike from spike list to trash"""
-        self.list.DeleteItem(row) # remove it from the spike list
-        self.list.Select(row) # automatically select the new item at that position
         del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+        self.sort.update_spike_lists()
+        # TODO: selection doesn't seem to be working, always jumps to top of list
+        self.list.RefreshItems() # refresh the list
+        self.list.Select(row) # automatically select the new item at that position
         self.sort.trash[spike.id] = spike # add it to trash
         print 'moved spike %d to trash' % spike.id
 
@@ -1301,6 +1244,7 @@ class SortFrame(wxglade_gui.SortFrame):
         del neuron.spikes[spike.id] # del spike from its neuron's spike dict
         spike.neuron = None # unbind spike's neuron from itself
         self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
+        self.sort.update_spike_lists()
         # GUI operations:
         self.tree.Delete(spike.itemID)
         spike.itemID = None # no longer applicable
@@ -1308,9 +1252,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.RemoveNeuron(neuron) # remove empty Neuron
         else:
             neuron.update_wave() # update mean neuron waveform
-        data = [spike.id, int(round(spike.x0)), int(round(spike.y0)), spike.t]
-        self.list.InsertRow(0, data) # stick it at the top of the list, is there a better place to put it?
-        # TODO: maybe re-sort the list
+        self.list.RefreshItems() # refresh the list
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
         if which == 'selected':
@@ -1321,7 +1263,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
-            spike = self.listRow2Spike(row)
+            spike = self.sort._spikes[row]
             if spike.wave.data != None: # only move it to neuron if it's got wave data
                 neuron = self.MoveSpike2Neuron(spike, row, neuron) # if neuron was None, it isn't any more
             else:
@@ -1345,7 +1287,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
-            spike = self.listRow2Spike(row)
+            spike = self.sort._spikes[row]
             self.MoveSpike2Trash(spike, row)
 
     def GetFirstSelectedNeuron(self):

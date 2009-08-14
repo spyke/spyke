@@ -671,19 +671,24 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
     """A virtual ListCtrl. The wx.LC_VIRTUAL flag is set in wxglade_gui.py
 
     TODO:
-    - every time sort.spikes is modified, need to call SetItemCount, and RefreshItems if necessary
-        - is there some special __setitem__ dict method that could be overriden to automatically update the listctrl? might not be necessary. Instead, just make info flow from listctrl to sort.spikes, and manually update the listctrl when need be after some manual change to sort.spikes
+    - every time sort.spikes is modified, need to call SetItemCount and maybe RefreshItems
+        - make info flow from listctrl to sort.spikes, and manually update the listctrl
+          when need be after some manual change to sort.spikes
     - Spike deletion should move spikes from sort.spikes to sort.trash, and vice versa.
+    - bug: selecting multiple items over a range with shift+mouse or shift+arrows doesn't
+    update the plots - probably some selection event that was happening in normal listctrl
+    isn't happening in virtual listctrl. Doing a ctrl+click or ctrl+space will make whatever's
+    already selected be plotted
     """
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.col2attr = {0:'id', 1:'x0', 2:'y0', 3:'t'}
+        self.COL2ATTR = {0:'id', 1:'x0', 2:'y0', 3:'t'}
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
-        # index into _spikes array, in whatever order it was last sorted
+        # index into _spikes list, in whatever order it was last sorted
         spike = self.GetTopLevelParent().sort._spikes[row]
-        attr = self.col2attr[col]
+        attr = self.COL2ATTR[col]
         try:
             val = spike.__dict__[attr]
         except KeyError: # attrib isn't currently available
@@ -692,6 +697,11 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
         if type(val) == float:
             val = '%.1f' % val
         return val
+
+    def RefreshItems(self):
+        """Convenience function"""
+        SpykeListCtrl.RefreshItems(self, 0, sys.maxint) # refresh all possible items
+        self.Refresh() # repaint the listctrl
 
     def InsertRow(self, row, data):
         raise RuntimeError("InsertRow is N/A on a virtual listctrl")

@@ -301,6 +301,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort') # ensure it's open
         # refresh spike virtual listctrl
         sf.list.SetItemCount(len(self.sort.spikes))
+        sf.list.RefreshItems()
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
@@ -308,6 +309,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Extract pane Extract button click"""
         XYmethod = self.extract_radio_box.GetStringSelection()
         self.sort.extractXY(XYmethod)
+        self.frames['sort'].list.RefreshItems()
 
     def OnKeyDown(self, evt):
         """Handle key presses
@@ -357,7 +359,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.detection_list.Append(row)
         for coli in range(len(row)):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        self.total_nspikes_label.SetLabel(str(len(self.sort.st)))
+        self.total_nspikes_label.SetLabel(str(len(self.sort.spikes)))
 
     def delete_selected_detections(self):
         """Delete selected rows in detection list"""
@@ -381,14 +383,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         print "can't find spike %d in sort.spikes or in sort.trash, it may have been a duplicate" % spikei
             del self.sort.detections[det.id] # remove from sort's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
-        self.sort.update_spike_arrays() # update spike arrays with new spikes dict contents
+        self.sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
         self.frames['sort'].list.SetItemCount(len(self.sort._spikes))
-        self.frames['sort'].list.RefreshItems(0, sys.maxint)
+        self.frames['sort'].list.RefreshItems()
         self.plot() # update rasters
         if len(self.sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
-        self.total_nspikes_label.SetLabel(str(len(self.sort.st))) # update
+        self.total_nspikes_label.SetLabel(str(len(self.sort.spikes))) # update
 
     def listRow2Detection(self, row):
         """Return Detection at detection list row"""
@@ -623,6 +625,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort') # ensure it's open
         # refresh spike virtual listctrl
         sf.list.SetItemCount(len(self.sort._spikes))
+        sf.list.RefreshItems()
         # restore neurons and their sorted spikes to tree
         for neuron in self.sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
