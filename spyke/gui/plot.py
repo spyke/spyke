@@ -296,7 +296,7 @@ class PlotPanel(FigureCanvasWxAgg):
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
         FigureCanvasWxAgg.__init__(self, parent, id, Figure())
         self.spykeframe = self.GetTopLevelParent().Parent
-        self.AD2uV = self.spykeframe.hpstream.AD2uV # convenience for Plot objects to reference
+        self.AD2uV = self.spykeframe.sort.converter.AD2uV # convenience for Plot objects to reference
 
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended

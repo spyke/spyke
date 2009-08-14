@@ -39,6 +39,30 @@ MAXLONGLONG = 2**63-1
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
+
+class Converter(object):
+    """Simple object to store intgain and extgain values and
+    provide methods to convert between AD and uV values, even
+    when a .srf file (and associated Stream where intgain
+    and extgain are stored) isn't available"""
+    def __init__(self, intgain, extgain):
+        self.intgain = intgain
+        self.extgain = extgain
+
+    def AD2uV(self, AD):
+        """Convert rescaled AD values to float32 uV
+        Biggest +ve voltage is 10 million uV, biggest +ve rescaled signed int16 AD val is half of 16 bits,
+        then divide by internal and external gains
+
+        TODO: unsure: does the DT3010 acquire from -10 to 10 V at intgain == 1 and encode that from 0 to 4095?
+        """
+        return np.float32(AD) * 10000000 / (2**15 * self.intgain * self.extgain)
+
+    def uV2AD(self, uV):
+        """Convert uV to signed rescaled int16 AD values"""
+        return np.int16(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
+
+
 class WaveForm(object):
     """Just a container for data, timestamps, and channels.
     Sliceable in time, and indexable in channel space"""
@@ -135,8 +159,9 @@ class Stream(object):
         else:
             raise ValueError('Unknown stream kind %r' % kind)
         self.layout = self.ctsrecords[0].layout
-        self.intgain = self.layout.intgain
-        self.extgain = int(self.layout.extgain[0]) # assume extgain is the same for all chans in this layout
+        intgain = self.layout.intgain
+        extgain = int(self.layout.extgain[0]) # assume extgain is the same for all chans in this layout
+        self.converter = Converter(intgain, extgain)
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
@@ -353,18 +378,6 @@ class Stream(object):
         self.__dict__ = d
         self.try_switch()
     '''
-    def AD2uV(self, AD):
-        """Convert AD values to float32 uV
-
-        TODO: unsure: does the DT3010 acquire from -10 to 10 V at intgain == 1 and encode that from 0 to 4095?
-        Biggest +ve voltage is 10 million uV, biggest +ve rescaled signed int16 AD val is half of 16 bits,
-        then divide by internal and external gains"""
-        return np.float32(AD) * 10000000 / (2**15 * self.intgain * self.extgain)
-
-    def uV2AD(self, uV):
-        """Convert uV to signed rescaled int16 AD values"""
-        return np.int16(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
-
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints. See Blanche & Swindale, 2006

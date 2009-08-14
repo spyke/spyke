@@ -425,6 +425,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         tww = self.spiketw[1]-self.spiketw[0] # window width
         self.t = int(round(self.hpstream.t0 + tww/2)) # set current time position in recording (us)
 
+        self.CreateNewSort() # create a new sort session
+        self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
+
         self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         self.OpenFrame('spike')
         #self.OpenFrame('chart')
@@ -459,9 +462,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
-        self.CreateNewSort() # create a new sort session
-        self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
-
         self.EnableSurfWidgets(True)
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
@@ -469,7 +469,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Create a new sort session and bind it to .self"""
         self.DeleteSortSession()
         self.sort = Sort(detector=None, # this is assigned in OnSearch
-                         probe=self.hpstream.probe,
                          stream=self.hpstream)
         #self.sort.detector = self.get_detector() # creating a detector depends on a self.sort
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
@@ -643,7 +642,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Save sort to a .sort file.
         Don't bother calling update_detector() on save,
         only really needed and useful right after a search, plus any inadvertent
-        changes to detector via the GUI would misleading one to conclude those
+        changes to detector via the GUI would mislead one to conclude those
         were the settings used that resulted in the detected spikes. However,
         any changes you make to detector at the command line will be saved,
         regardless of when you searched, so you better know what you're doing

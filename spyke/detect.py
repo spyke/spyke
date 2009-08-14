@@ -126,7 +126,7 @@ def arg2ndpeak(signal, exti, peak1i, dir2, dti, ppthresh):
         raise NoPeakError("can't find suitable 2nd peak")
     return peak2i
 
-def get_edgeis(wave, thresh):
+def get_edges(wave, thresh):
     """Return n x 2 array (ti, chani) of all threshold crossings in wave.data.
     Total wave.data should have no more than 2**31 elements in it"""
     '''
@@ -617,7 +617,7 @@ class Detector(object):
         t0 = time.clock()
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
         self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
-        AD2uV = self.sort.stream.AD2uV
+        AD2uV = self.sort.converter.AD2uV
         info('thresh calcs took %.3f sec' % (time.clock()-t0))
         info('thresh   = %s' % AD2uV(self.thresh))
         info('ppthresh = %s' % AD2uV(self.ppthresh))
@@ -660,8 +660,6 @@ class Detector(object):
         tslice = time.clock()
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
         print('Stream slice took %.3f sec' % (time.clock()-tslice))
-        tdead = time.clock()
-        #wave = wave[self.chans] # get a WaveForm with just the enabled chans - no longer necessary
         # TODO: simplify the whole channel deselection and indexing approach, maybe
         # make all chanis always index into the full probe chan layout instead of the self.chans
         # that represent which chans are enabled for this detector. Also, maybe do away with
@@ -684,17 +682,20 @@ class Detector(object):
         #info('twi = %s' % (self.twi,))
 
         # want an nchan*2 array of [chani, x/ycoord]
-        # TODO: why is this done on every searchblock call???
+        # TODO: why is this done on every searchblock call? Doesn't take any noticeable amount of time
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
-        print('dead time took %.3f sec' % (time.clock()-tdead))
-        spikes = self.threshwave(wave, cutrange)
+        tget_edges = time.clock()
+        edgeis = get_edges(wave, self.thresh)
+        info('get_edges() took %.3f sec' % (time.clock()-tget_edges))
+        tcheck_edges = time.clock()
+        spikes = self.check_edges(wave, edgeis, cutrange)
+        info('checking edges took %.3f sec' % (time.clock()-tcheck_edges))
         print('found %d spikes' % len(spikes))
         #import cProfile
-        #cProfile.runctx('spikes = self.threshwave(wave, cutrange)', globals(), locals())
-        #spikes = self.modelspikes(spikes)
+        #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
         #spikes = []
 
         self.nspikes += len(spikes) # update for next call
@@ -703,9 +704,9 @@ class Detector(object):
         #     (self.lockouts, self.lockouts_us))
         return spikes
 
-    def threshwave(self, wave, cutrange):
-        """Threshold wave data and return only events that fall within
-        cutrange and look like spikes. Search in window
+    def check_edges(self, wave, edgeis, cutrange):
+        """Check which edges (threshold crossings) in wave data look like spikes
+        and return only events that fall within cutrange. Search in window
         forward from thresh for a peak, then in appropriate direction from
         that peak (based on sign of signal) for up to self.dt for another
         one of opposite sign. If you don't find a 2nd one that meets these
@@ -750,10 +751,6 @@ class Detector(object):
 
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
-        tedgeis = time.clock()
-        edgeis = get_edgeis(wave, self.thresh)
-        info('get_edgeis() took %.3f sec' % (time.clock()-tedgeis))
-        tcheckedges = time.clock()
         lockouts = self.lockouts
         twi = self.twi
         spikes = []
@@ -891,7 +888,6 @@ class Detector(object):
                 #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
                 debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
-        info('checking edges took %.3f sec' % (time.clock()-tcheckedges))
         return spikes
 
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
@@ -1151,7 +1147,7 @@ class Detector(object):
         """Return array of thresholds in AD units, one per chan in self.chans,
         according to threshmethod and noisemethod"""
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            fixedthresh = self.sort.stream.uV2AD(self.fixedthresh) # convert to AD units
+            fixedthresh = self.sort.converter.uV2AD(self.fixedthresh) # convert to AD units
             thresh = np.tile(fixedthresh, len(self.chans))
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
             """randomly sample self.fixednoisewin's worth of data from self.trange in

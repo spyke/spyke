@@ -49,12 +49,14 @@ class Sort(object):
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single pickled Sort object"""
     SAVEWAVES = False # save each spike's .wave to .sort file?
-    def __init__(self, detector=None, probe=None, stream=None):
+    def __init__(self, detector=None, stream=None):
         self.__version__ = 0.1
         self.detector = detector # this sort session's current Detector object
-        self.probe = probe # only one probe design per sort allowed
         self.detections = {} # history of detection runs
         self.stream = stream
+        self.probe = stream.probe # only one probe design per sort allowed
+        self.converter = stream.converter
+
         # all unsorted spikes detected in this sort session across all Detection runs, indexed by unique ID
         # sorted spikes go in their respective Neuron's .spikes dict
         self.spikes = {}
@@ -90,10 +92,17 @@ class Sort(object):
             d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
             d['shcorrect'] = self.stream.shcorrect
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        del d['_st'] # temporary, can be regenerated from .spikes
-        del d['_spikes_by_time'] # temporary, can be regenerated from .spikes
-        del d['_spikes'] # temporary, can be regenerated from .spikes
+        for attr in ['_st', '_spikes_by_time', '_spikes']:
+            # all are temporary, and can be regenerated from .spikes
+            try: del d[attr]
+            except KeyError: pass
         return d
+
+    def __setstate__(self, d):
+        """Restore self on unpickle per usual, but also restore
+        ._st, ._spikes_by_time, and ._spikes"""
+        self.__dict__ = d
+        self.update_spike_lists()
 
     def append_spikes(self, spikes):
         """Append spikes to self.spikes dict, update associated spike lists.
@@ -860,7 +869,7 @@ class SortFrame(wxglade_gui.SortFrame):
         #for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
         #    self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
         # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:40, 3:80}.items(): # (sid, x0, y0, time)
+        for coli, width in {0:40, 1:40, 2:60, 3:80}.items(): # (sid, x0, y0, time)
             self.list.SetColumnWidth(coli, width)
 
         self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
