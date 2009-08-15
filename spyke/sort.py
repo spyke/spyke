@@ -74,10 +74,10 @@ class Sort(object):
         return self._stream
 
     def set_stream(self, stream=None):
-        """Set Stream object for self's detector and all detections,
-        for (un)pickling purposes"""
+        """Restore sampfreq and shcorrect to stream when binding/modifying
+        stream to self"""
         try:
-            stream.sampfreq = self.sampfreq # restore sampfreq and shcorrect to stream
+            stream.sampfreq = self.sampfreq
             stream.shcorrect = self.shcorrect
         except AttributeError:
             pass # either stream is None or self.sampfreq/shcorrect aren't bound
@@ -88,9 +88,6 @@ class Sort(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step
-        if self.stream != None:
-            d['sampfreq'] = self.stream.sampfreq # grab sampfreq and shcorrect before removing stream
-            d['shcorrect'] = self.stream.shcorrect
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
         for attr in ['_st', '_spikes_by_time', '_spikes']:
             # all are temporary, and can be regenerated from .spikes
@@ -105,18 +102,29 @@ class Sort(object):
         self.update_spike_lists()
 
     def append_spikes(self, spikes):
-        """Append spikes to self.spikes dict, update associated spike lists.
-        Don't add a new spike from a new detection if the identical spike
-        is already in self.spikes"""
+        """Append spikes to self.spikes dict, update associated spike lists,
+        and lockdown sampfreq and shcorrect attribs. Don't add a new spike
+        from a new detection if the identical spike is already in self.spikes"""
         newspikes = set(spikes.values()).difference(self.spikes.values())
         duplicates = set(spikes.values()).difference(newspikes)
         if duplicates:
-            print 'not adding duplicate spikes %r' % [ spike.id for spike in duplicates ]
+            print('not adding duplicate spikes %r' % [ spike.id for spike in duplicates ])
         uniquespikes = {}
         for newspike in newspikes:
             uniquespikes[newspike.id] = newspike
         self.spikes.update(uniquespikes)
         self.update_spike_lists()
+        try:
+            if self.sampfreq != self.stream.sampfreq:
+                raise RuntimeError("Sort.sampfreq = %s doesn't match Stream.sampfreq = %s while appending spikes"
+                                   % (self.sampfreq, self.stream.sampfreq))
+            if self.shcorrect != self.stream.shcorrect:
+                raise RuntimeError("Sort.shcorrect = %s doesn't match Stream.shcorrect = %s while appending spikes"
+                                   % (self.shcorrect, self.stream.shcorrect))
+        except AttributeError: # self's attribs haven't been set yet
+            self.sampfreq = self.stream.sampfreq
+            self.shcorrect = self.stream.shcorrect
+            self.tres = self.stream.tres # for convenience
 
     def update_spike_lists(self):
         """Update self._st sorted array of spike times, _spikes_by_time array,
@@ -671,7 +679,7 @@ class Neuron(object):
         chans, ts = set(), set() # build up union of chans and relative timepoints of all member spikes
         for spike in self.spikes.values():
             chans = chans.union(spike.chans)
-            spikets = np.arange(spike.t0, spike.tend, self.sort.stream.tres) # build them up
+            spikets = np.arange(spike.t0, spike.tend, self.sort.tres) # build them up
             ts = ts.union(spikets - spike.t) # timepoints wrt spike time, not absolute
         chans = np.asarray(list(chans))
         ts = np.asarray(list(ts))

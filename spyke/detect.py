@@ -127,8 +127,8 @@ def arg2ndpeak(signal, exti, peak1i, dir2, dti, ppthresh):
     return peak2i
 
 def get_edges(wave, thresh):
-    """Return n x 2 array (ti, chani) of all threshold crossings in wave.data.
-    Total wave.data should have no more than 2**31 elements in it"""
+    """Return n x 2 array (ti, chani) of indices of all threshold crossings
+    in wave.data. Total wave.data should have no more than 2**31 elements in it"""
     '''
     # using pure numpy this way is slow:
     edges = np.diff(np.int8( np.abs(wave.data) >= np.vstack(self.thresh) )) # indices where changing abs(signal) has crossed thresh
