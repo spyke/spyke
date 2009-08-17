@@ -267,12 +267,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #print time.time(), 'OnSlider()'
         #evt.Skip() # doesn't seem to be necessary
 
-    def OnSearch(self, evt):
-        """Detect pane Search button click"""
+    def OnDetect(self, evt):
+        """Detect pane Detect button click"""
         self.sort.detector = self.get_detector() # update sort session's current detector with a new one from widget values
         #import cProfile
-        #cProfile.runctx('spikes = self.sort.detector.search()', globals(), locals())
-        spikes = self.sort.detector.search() # list of Spikes
+        #cProfile.runctx('spikes = self.sort.detector.detect()', globals(), locals())
+        spikes = self.sort.detector.detect() # list of Spikes
         detection = Detection(self.sort, self.sort.detector, # create a new Detection run
                               id=self.sort._detid,
                               datetime=datetime.datetime.now(),
@@ -468,7 +468,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CreateNewSort(self):
         """Create a new sort session and bind it to .self"""
         self.DeleteSortSession()
-        self.sort = Sort(detector=None, # this is assigned in OnSearch
+        self.sort = Sort(detector=None, # detector is assigned in OnDetect
                          stream=self.hpstream)
         #self.sort.detector = self.get_detector() # creating a detector depends on a self.sort
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
@@ -798,7 +798,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
         self.file_pos_control_panel.Show(enable)
         self.notebook.Show(enable)
-        self.search_button.Enable(enable)
+        self.detect_button.Enable(enable)
         self.file_min_label.Show(enable)
         self.file_max_label.Show(enable)
 
@@ -891,7 +891,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             det.trange = (self.t-1, self.hpstream.t0)
         else:
             raise ValueError, which
-        spikes = det.search() # don't bother saving it, don't update total_nspikes_label
+        spikes = det.detect() # don't bother saving it, don't update total_nspikes_label
         wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
         try: # if a spike was found
             spike = spikes[0]

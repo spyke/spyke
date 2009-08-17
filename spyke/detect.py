@@ -564,7 +564,10 @@ class Detector(object):
     DEFDT = 350 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
 
-    BLOCKEXCESS = 1000 # us, extra data as buffer at start and end of a block while searching for spikes. Only useful for ensuring spike times within the actual block time range are accurate. Spikes detected in the excess are discarded
+    # us, extra data as buffer at start and end of a block while detecting spikes.
+    # Only useful for ensuring spike times within the actual block time range are
+    # accurate. Spikes detected in the excess are discarded
+    BLOCKEXCESS = 1000
 
     def __init__(self, sort, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None, ppthreshmult=None,
@@ -592,7 +595,7 @@ class Detector(object):
         self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
         self.tw = TW # spike time window range, us, centered on 1st phase of spike
 
-    def search(self):
+    def detect(self):
         """Search for spikes. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results
@@ -642,7 +645,7 @@ class Detector(object):
         spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
         spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
         info('\nfound %d spikes in total' % len(spikes))
-        info('inside .search() took %.3f sec' % (time.clock()-t0))
+        info('inside .detect() took %.3f sec' % (time.clock()-t0))
         return spikes
 
     def searchblock(self, wavetrange, direction):
@@ -751,6 +754,7 @@ class Detector(object):
 
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
+        AD2uV = self.sort.converter.AD2uV
         lockouts = self.lockouts
         twi = self.twi
         spikes = []
@@ -867,7 +871,7 @@ class Detector(object):
                 if DEBUG: debug(message)
                 continue # skip to next event
             #s.V1, s.V2 = V1, V2
-            s.Vpp = float(V2 - V1) # maintain polarity, Py float is more efficient than np.float32
+            s.Vpp = float(AD2uV(V2 - V1)) # maintain polarity, Py float is more efficient than np.float32 for scalars
             chans = np.asarray(self.chans)[chanis] # dereference
             # chanis as a list is less efficient than as an array
             s.chani, s.chanis = int(chani), chanis
@@ -892,11 +896,11 @@ class Detector(object):
 
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
         """Find spike phases within window of data: search from tiw in direction
-        (which might be, say, a threshold xing point) for 1st peak,
-        then within self.dti of that for a 2nd peak of opposite phase.
-        Decide which peak comes first, return window indices of 1st and 2nd spike phases.
-        reftype describes what tiw represents: a 'trigger' point or previously found spike 'phase'
-        """
+        (which might be, say, a threshold xing point) for 1st peak, then within
+        self.dti of that for a 2nd peak of opposite phase. Decide which peak
+        comes first, return window indices of 1st and 2nd spike phases. reftype
+        describes what tiw represents: a 'trigger' point or previously found
+        spike 'phase'"""
         exti = arglocalextrema(window) # indices of local extrema, wrt window
         if len(exti) == 0:
             raise NoPeakError("can't find any extrema within window")
@@ -1084,7 +1088,7 @@ class Detector(object):
     '''
     def check_spikes(self, spikes):
         """Checks for duplicate spikes between results from latest .searchblock() call,
-        and previously saved spikes in this .search()"""
+        and previously saved spikes in this .detect() call"""
         if spikes == None:
             return
         nnewspikes = spikes.shape[1] # number of columns
@@ -1117,7 +1121,7 @@ class Detector(object):
             # wavetranges is an iterator that spits out random ranges starting from within
             # self.trange, and of width bs + 2bx
             if direction == -1:
-                raise ValueError, "Check trange - I'd rather not do a backwards random search"
+                raise ValueError("Check trange - I'd rather not do a backwards random search")
             wavetranges = RandomWaveTranges(self.trange, bs, bx)
         else:
             es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks

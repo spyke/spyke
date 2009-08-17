@@ -142,15 +142,9 @@ class Sort(object):
 
     def get_spikes_sortedby(self, attr='id'):
         """Return list of spikes, sorted by attribute 'attr'"""
-        print("***WARNING: new get_spikes_sortedby() is untested")
         spikes = self.spikes.values()
         spikes.sort(key=operator.attrgetter(attr)) # sort in-place by spike attribute
         return spikes
-        # old code:
-        #spikeids = self.spikes.keys()
-        #spikeids.sort()
-        #spikes = [ self.spikes[spikeid] for spikeid in spikeids ] # sorted list of spikes
-        #return spikes
 
     def extractXY(self, method):
         """Extract XY parameters from spikes using extraction method"""
@@ -179,7 +173,7 @@ class Sort(object):
             nspikes = len(self.spikes)
             nparams = 4
             #nparams = 9
-            X = np.zeros((nspikes, nparams))
+            X = np.empty((nspikes, nparams), dtype=np.float32)
             spikes = self.get_spikes_sortedby('id')
             for i, s in enumerate(spikes):
                 X[i] = [s.x0, s.y0, s.Vpp, s.dphase]
@@ -310,19 +304,18 @@ class Sort(object):
     def plot(self, nids=None, dims=[0, 1, 2], weighting=[3, 1, 1, 1],
              minspikes=1, mode='point', alpha=0.5, scale_factor=0.5,
              mask_points=None, resolution=8, line_width=2.0, envisage=False):
-        """Plot 3D projection of clustered data. nids is a sequence
-        of neuron ids corresponding to sorted sequence of spike ids. Make
-        sure to pass the weighting that was used when clustering the data.
-        "Clusters" with less than minspikes will all be coloured the
-        same dark grey. Mode can be '2darrow', '2dcircle', '2dcross',
+        """Plot 3D projection of (possibly clustered) spike data. nids is
+        a sequence of neuron ids corresponding to sorted sequence of spike
+        ids. Make sure to pass the weighting that was used when clustering
+        the data. "Clusters" with less than minspikes will all be coloured
+        the same dark grey. Mode can be '2darrow', '2dcircle', '2dcross',
         '2ddash', '2ddiamond', '2dhooked_arrow', '2dsquare', '2dthick_arrow',
         '2dthick_cross', '2dtriangle', '2dvertex', 'arrow', 'cone', 'cube',
         'cylinder', 'point', 'sphere'. 3D glyphs like 'sphere' come out
-        looking almost black if OpenGL isn't working
-        right, and are slower - use 'point' instead. if mask_points is not
-        None, plots only 1 out of every mask_points points, to reduce
-        number of plotted points for big data sets. backend='envisage'
-        gives mayavi's full envisage GUI"""
+        looking almost black if OpenGL isn't working right, and are slower -
+        use 'point' instead. if mask_points is not None, plots only 1 out
+        of every mask_points points, to reduce number of plotted points for
+        big data sets. envisage=True gives mayavi's full envisage GUI"""
 
         from enthought.mayavi import mlab # can't delay this any longer
 
@@ -725,6 +718,7 @@ class Neuron(object):
         """Return 2D array of stddev of each timepoint of each chan of member spikes.
         Assumes self.update_wave has already been called"""
         data = []
+        # TODO: speed this up by pre-allocating memory and then filling in the array
         for spike in self.spikes.values():
             data.append(spike.wave.data) # collect spike's data
         stdev = np.asarray(data).std(axis=0)
