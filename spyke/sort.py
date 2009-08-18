@@ -338,7 +338,7 @@ class Sort(object):
             maxnid = max(nids)
             consecutivenids = np.arange(maxnid+1)
             if set(nids) != set(consecutivenids):
-                print("WARNING: nids has gaps in it")
+                print("***WARNING: nids has gaps in it")
             # the extra +1 gives us the correct rightmost bin edge
             # for histogram's end inclusive semantics
             bins = np.arange(maxnid+1+1)
