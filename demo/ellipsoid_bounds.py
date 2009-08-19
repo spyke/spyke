@@ -1,5 +1,6 @@
-"""Demonstrate translation and rotational transformation of point
-coordinates to match that of an ellipsoid"""
+"""Demonstrate translation and rotational transformation of points
+ to determine if they fall within an ellipsoid of arbitrary
+position, orientation, and scaling"""
 
 import numpy as np
 from enthought.mayavi import mlab
@@ -11,22 +12,32 @@ c = np.cos
 s = np.sin
 
 def Rx(t):
-    return np.array([[1, 0,     0   ],
-                     [0, c(t), -s(t)],
-                     [0, s(t),  c(t)]])
+    """Rotation matrix around x axis"""
+    return np.matrix([[1, 0,     0   ],
+                      [0, c(t), -s(t)],
+                      [0, s(t),  c(t)]])
 
 def Ry(t):
-    return np.array([[ c(t), 0, s(t)],
-                     [ 0,    1, 0   ],
-                     [-s(t), 0, c(t)]])
+    """Rotation matrix around y axis"""
+    return np.matrix([[ c(t), 0, s(t)],
+                      [ 0,    1, 0   ],
+                      [-s(t), 0, c(t)]])
 
 def Rz(t):
-    return np.array([[c(t), -s(t), 0],
-                     [s(t),  c(t), 0],
-                     [0,     0,    1]])
+    """Rotation matrix around z axis"""
+    return np.matrix([[c(t), -s(t), 0],
+                      [s(t),  c(t), 0],
+                      [0,     0,    1]])
 
-#def R(tx, ty, tz):
-#    return Rz(tz)*Ry(ty)*Rx(tx)
+def R(tx, ty, tz):
+    """Return full rotation matrix. Mayavi (tvtk actually) rotates
+    axes in Z, X, Y order, for some unknown reason. So, we have to
+    do the same. See:
+    tvtk_classes.zip/actor.py:32
+    tvtk_classes.zip/prop3d.py:67
+    """
+    return Rz(tz)*Rx(tx)*Ry(ty)
+
 
 # translation params
 x0 = 50
@@ -47,20 +58,10 @@ tx = txdeg * np.pi / 180
 ty = tydeg * np.pi / 180
 tz = tzdeg * np.pi / 180
 
-#RxRy = np.dot(Rx(tx), Ry(ty))
-#RxRyRz = np.dot(RxRy, Rz(tz))
-
 # mayavi (tvtk actually) rotates axes in Z, X, Y order, for some unknown reason
-RzRx = np.dot(Rz(tz), Rx(tx))
-RzRxRy = np.dot(RzRx, Ry(ty))
-
-#RzRy = np.dot(Rz(tz), Ry(ty))
-#RzRyRx = np.dot(RzRy, Rx(tx))
-
-#RyRx = np.dot(Ry(ty), Rx(tx))
-#RyRxRz = np.dot(RyRx, Rz(tz))
-
-#R = Rz(tz)*Ry(ty)*Rx(tx) # they need to be matrices for this to work, yet plotted result is still wrong
+#RzRx = np.dot(Rz(tz), Rx(tx))
+#RzRxRy = np.dot(RzRx, Ry(ty))
+#assert (RzRxRy == R(tx, ty, tz)).all()
 
 # create a figure
 f = mlab.figure(bgcolor=(0, 0, 0))
@@ -96,8 +97,8 @@ p[:, 0] += x0
 p[:, 1] += y0
 p[:, 2] += z0
 
-# To find which points fall within the ellipse, need to do the inverse of all the operations that
-# translate, and rotate the ellipse, in the correct order. Need to do those operations on the points,
+# To find which points fall within the ellipsoid, need to do the inverse of all the operations that
+# translate and rotate the ellipse, in the correct order. Need to do those operations on the points,
 # just to figure out which points to pick out, then pick them out of the original set of
 # unmodified points
 
@@ -108,7 +109,8 @@ p2[:, 1] -= y0
 p2[:, 2] -= z0
 
 # undo the rotation by taking product of inverse of rotation matrix (which == its transpose) and the untranslated points
-p3 = np.dot(RzRxRy.T, p2.T).T
+p3 = (R(tx, ty, tz).T * p2.T).T
+p3 = np.asarray(p3) # convert back to array to prevent from taking matrix power
 
 # which points are inside the ellipsoid?
 ini, = np.where((p3[:, 0])**2/A**2 + (p3[:, 1])**2/B**2 + (p3[:, 2])**2/C**2 <= 1)
