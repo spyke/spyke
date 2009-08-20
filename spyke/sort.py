@@ -459,7 +459,11 @@ class Sort(object):
         actor.actor.position = 0, 0, 50
         actor.actor.scale = 20, 20, 50
         f.scene.disable_render = False
-        return actor
+        return surface
+    '''
+    def apply_ellipsoids(self):
+        for ellipsoid in self.ellipsoids.values():
+    '''
 
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""

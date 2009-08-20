@@ -810,7 +810,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.toolbar.EnableTool(wx.ID_SAVE, enable)
         self.menubar.Enable(wx.ID_RASTERS, enable)
         self.extract_pane.Enable()
-        self.sort_pane.Enable()
+        self.cluster_pane.Enable()
 
     def get_detector(self):
         """Create a Detector object based on widget values"""
