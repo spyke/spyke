@@ -301,7 +301,7 @@ class Sort(object):
         nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
         return nids
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting=[3, 1, 1, 1],
+    def plot(self, nids=None, dims=[0, 1, 2], weighting=None, scale=(3, 1, 1),
              minspikes=1, mode='point', alpha=0.5, scale_factor=0.5,
              mask_points=None, resolution=8, line_width=2.0, envisage=False):
         """Plot 3D projection of (possibly clustered) spike data. nids is
@@ -315,7 +315,15 @@ class Sort(object):
         looking almost black if OpenGL isn't working right, and are slower -
         use 'point' instead. if mask_points is not None, plots only 1 out
         of every mask_points points, to reduce number of plotted points for
-        big data sets. envisage=True gives mayavi's full envisage GUI"""
+        big data sets. envisage=True gives mayavi's full envisage GUI
+
+        NOTE: glyph.module_manager.source.data.get_point(point_id) gets you
+        the coordinates of point point_id. Or, the plotted data is available
+        at glyph.module_manager.source.data.points, so you can just index
+        into that to get point coords. scalars are at
+        glyph.module_manager.source.data.point_data.scalars
+
+        """
 
         from enthought.mayavi import mlab # can't delay this any longer
 
@@ -323,13 +331,13 @@ class Sort(object):
             mlab.options.backend = 'envisage' # full GUI instead of just simple window
         assert len(dims) == 3
         t0 = time.clock()
-        if weighting in ['pca', 'ica']:
+        if weighting:
             X = self.get_cluster_data(weighting=weighting) # in spike id order
         else:
-            X = self.get_param_matrix()
-            X = X * np.asarray(weighting) # don't use *= since that'll modify self.X in place
-        print("Getting weighted param matrix took %.3f sec" % (time.clock()-t0))
-        if nids != None:
+            X = self.get_param_matrix() # in spike id order
+        print("Getting param matrix took %.3f sec" % (time.clock()-t0))
+        cmap = CMAP
+        if nids:
             t0 = time.clock()
             nids = np.asarray(nids)
             sortednidis = nids.argsort() # indices to get nids in sorted order
@@ -368,9 +376,7 @@ class Sort(object):
             njunk = len(nids) - junknidi # number of junk points
             # s are indices into colourmap
             s = nids % len(CMAP)
-            if njunk == 0:
-                cmap = CMAP
-            else:
+            if njunk > 0:
                 # use CMAPWITHJUNK with its extra junk colour only if it's needed,
                 # otherwise mayavi rescales and throws out a middle colour
                 # (like light blue), and you end up with dk grey points even
@@ -383,6 +389,8 @@ class Sort(object):
             print("Figuring out colours took %.3f sec" % (time.clock()-t0))
             # TODO: order colours consecutively according to cluster mean y location, to
             # make neighbouring clusters in X-Y space less likely to be assigned the same colour
+        else:
+            s = np.tile(9, len(X)) # CMAP[9] is WHITE
 
         name = 'dims=%r, weighting=%r, minspikes=%r' % (dims, weighting, minspikes)
         f = mlab.figure(figure=name, bgcolor=(0, 0, 0))
@@ -397,28 +405,34 @@ class Sort(object):
 
         # plot it
         t0 = time.clock()
+        f.scene.disable_render = True # for speed
+        #f.scene.camera.view_transform_matrix.scale(3, 1, 1) # this doesn't seem to work
         x = X[:, dims[0]]
         y = X[:, dims[1]]
         z = X[:, dims[2]]
-        if nids != None:
-            args = x, y, z, s
-        else:
-            args = x, y, z
         kwargs = {'figure': f, 'mode': mode,
+                  'opacity': alpha,
+                  #'transparent': True, # make the alpha of each point depend on the alpha of each scalar?
                   'mask_points': mask_points,
                   'resolution': resolution,
                   'line_width': line_width,
-                  'scale_mode': 'none'} # keep all points the same size
-        if scale_factor != None:
-            kwargs['scale_factor'] = scale_factor
-        glyph = mlab.points3d(*args, **kwargs)
-        if nids != None:
-            glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
+                  'scale_mode': 'none', # keep all points the same size
+                  'scale_factor': scale_factor,
+                  'vmin': 0, # make sure mayavi respects full range of cmap indices
+                  'vmax': len(CMAP)-1}
+        glyph = mlab.points3d(x, y, z, s, **kwargs)
+        glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
+        if scale: glyph.actor.actor.scale = scale
+        f.scene.disable_render = False
         print("Plotting took %.3f sec" % (time.clock()-t0))
+        return glyph
 
     def add_ellipsoid(self, id=0, f=None):
         """Add an ellipsoid to figure f. id is used to index into CMAP
-        to colour the ellipsoid"""
+        to colour the ellipsoid
+
+        TODO: turn on 4th light source - looks great!
+        """
         #from enthought.mayavi import mlab
         from enthought.mayavi.sources.api import ParametricSurface
         from enthought.mayavi.modules.api import Surface
@@ -435,15 +449,16 @@ class Sort(object):
         actor = surface.actor # mayavi actor, actor.actor is tvtk actor
         actor.property.opacity = 0.5
         actor.property.color = tuple(CMAP[id % len(CMAP)][0:3]) # leave out alpha
-        # don't colour ellipses by their scalar indices into builtin colour map,
+        # don't colour ellipsoids by their scalar indices into builtin colour map,
         # since I can't figure out how to set the scalar value of an ellipsoid anyway
         actor.mapper.scalar_visibility = False
         actor.property.backface_culling = True # gets rid of weird rendering artifact when opacity is < 1
         #actor.property.frontface_culling = True
-        #actor.actor.orientation = 0, 0, 0 #np.random.rand(3) * 360 # in degrees
-        #actor.actor.origin = np.random.rand(3)
+        #actor.actor.orientation = 0, 0, 0
+        #actor.actor.origin = 0, 0, 0
         actor.actor.position = 0, 0, 50
         actor.actor.scale = 20, 20, 50
+        f.scene.disable_render = False
         return actor
 
     def write_spc_app_input(self):

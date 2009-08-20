@@ -86,6 +86,7 @@ actor.actor.orientation = txdeg, tydeg, tzdeg
 #actor.actor.origin = 0, 0, 0
 actor.actor.position = x0, y0, z0
 actor.actor.scale = A, B, C
+f.scene.disable_render = False
 
 # set up cube of points centerd on and engulfing the ellipsoid
 npoints = 100000
@@ -124,7 +125,7 @@ pout = p[outi]
 
 # plot the points inside
 glyph_in = mlab.points3d(pin[:, 0], pin[:, 1], pin[:, 2], mode='point') # plotted points should lie within the ellipse
-glyph_in.actor.property.color = 1, 1, 1 # inside is white
+glyph_in.actor.property.color = 1, 0, 0 # inside is red
 
 # plot the points outside
 glyph_out = mlab.points3d(pout[:, 0], pout[:, 1], pout[:, 2], mode='point') # plotted points should lie within the ellipse
