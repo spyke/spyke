@@ -56,7 +56,7 @@ cy_thread_test = Extension('demo.cy_thread_test',
                         #extra_link_args=["-g"],
                         )
 
-spyke_files = ["gui/res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
+spyke_files = ["res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
 
 setup(name='spyke',
       version='0.1',
@@ -66,7 +66,7 @@ setup(name='spyke',
       author_email='mspacek at interchange ubc ca',
       url='http://swindale.ecc.ubc.ca/spyke',
       #long_description='',
-      packages=['spyke', 'spyke.gui'], # have to explicitly include subfolders with code as additional packages
+      packages=['spyke'], # have to explicitly include subfolders with code as additional packages
       package_data={'spyke' : spyke_files},
       cmdclass={'build_ext': build_ext},
       ext_modules=[#simple_detect_cy,

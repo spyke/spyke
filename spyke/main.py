@@ -21,7 +21,7 @@ import spyke
 from spyke import core, surf, detect
 from spyke.sort import Sort, Detection
 from spyke.core import toiter, MU
-from spyke.gui.plot import ChartPanel, LFPPanel, SpikePanel
+from spyke.plot import ChartPanel, LFPPanel, SpikePanel
 from spyke.sort import SortFrame
 import wxglade_gui
 
@@ -48,6 +48,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     'chart': wx.ID_CHARTWIN,
                     'lfp': wx.ID_LFPWIN,
                     'sort': wx.ID_SORTWIN,
+                    'cluster': wx.ID_CLUSTERWIN,
                     'pyshell': wx.ID_PYSHELL}
     REFTYPE2ID = {'tref': wx.ID_TREF,
                   'vref': wx.ID_VREF,
@@ -197,6 +198,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSort(self, evt):
         """Sort window toggle menu/button event"""
         self.ToggleFrame('sort')
+
+    def OnCluster(self, evt):
+        """Cluster window toggle menu/button event"""
+        self.ToggleFrame('cluster')
 
     def OnPyShell(self, evt):
         """PyShell window toggle menu/button event"""
@@ -691,6 +696,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 frame = SortFrame(parent=self, pos=wx.Point(x, y))
                 for panel in [frame.spikesortpanel]:#, frame.chartsortpanel]:
                     panel.callAfterFrameInit(self.sort.probe) # post frame creation tasks for panel
+            elif frametype == 'cluster':
+                from spyke.cluster import ClusterFrame # can't delay this any longer
+                frame = ClusterFrame(parent=self)
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
@@ -710,7 +718,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         id = self.FRAMETYPE2ID[frametype]
         self.menubar.Check(id, enable)
         self.toolbar.ToggleTool(id, enable)
-        if enable and frametype not in ['sort', 'pyshell']:
+        if enable and frametype not in ['sort', 'cluster', 'pyshell']:
             self.plot(frametype) # update only the newly shown data frame's data, in case self.t changed since it was last visible
 
     def HideFrame(self, frametype):
@@ -981,7 +989,7 @@ class DataFrame(wx.MiniFrame):
         evt.Skip()
 
     def OnClose(self, evt):
-        frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
+        frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 
     def DrawRefs(self):

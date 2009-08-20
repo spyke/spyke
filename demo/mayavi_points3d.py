@@ -7,7 +7,7 @@ This was fixed by passing the vmin and vmax args to points3d(),
 which define the scalar range to use"""
 
 import numpy as np
-from spyke.gui.plot import CMAP
+from spyke.plot import CMAP
 from enthought.mayavi import mlab
 
 npoints = 10000

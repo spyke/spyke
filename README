@@ -19,4 +19,4 @@ To develop:
 >>> python setup.py build_ext --inplace
 (you might need to add --compiler=mingw32 if you're in win32 and mingw isn't your default compiler in Python)
 
-Launch the program by running /spyke/gui/main.py
+Launch the program by running spyke/main.py

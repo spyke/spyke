@@ -1155,7 +1155,7 @@ e.g. mpfit.status, mpfit.errmsg, mpfit.params, npfit.niter, mpfit.covar.
                 ## Determine the levenberg-marquardt parameter
                 catch_msg = 'calculating LM parameter (MPFIT_)'
                 [fjac, par, wa1, wa2] = self.lmpar(fjac, ipvt, diag, qtf,
-                                                                                                                        delta, wa1, wa2, par=par)
+                                                   delta, wa1, wa2, par=par)
                 ## Store the direction p and x+p. Calculate the norm of p
                 wa1 = -wa1
 
@@ -1356,8 +1356,8 @@ e.g. mpfit.status, mpfit.errmsg, mpfit.params, npfit.niter, mpfit.covar.
     ## Default procedure to be called every iteration.  It simply prints
     ## the parameter values.
     def defiter(self, fcn, x, iter, fnorm=None, functkw=None,
-                                                            quiet=0, iterstop=None, parinfo=None,
-                                                            format=None, pformat='%.10g', dof=1):
+                quiet=0, iterstop=None, parinfo=None,
+                format=None, pformat='%.10g', dof=1):
 
         if (self.debug): print 'Entering defiter...'
         if (quiet): return
