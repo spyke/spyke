@@ -303,8 +303,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now that we've had at least one detection run
         self.menubar.Enable(wx.ID_SAMPLING, False)
         self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
-        self.ShowRasters() # show spike rasters for open windows other than sort
+        self.ShowRasters() # show spike rasters for open data windows
         sf = self.OpenFrame('sort') # ensure it's open
+        self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         # refresh spike virtual listctrl
         sf.list.SetItemCount(len(self.sort.spikes))
         sf.list.RefreshItems()
@@ -836,8 +837,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_SAVE, enable)
         self.toolbar.EnableTool(wx.ID_SAVE, enable)
         self.menubar.Enable(wx.ID_RASTERS, enable)
-        self.extract_pane.Enable()
-        self.cluster_pane.Enable()
+        self.EnableSpikeWidgets(enable)
+
+    def EnableSpikeWidgets(self, enable):
+        """Enable/disable all widgets that require the current Sort to have spikes"""
+        try:
+            if len(self.sort.spikes) == 0:
+                enable = False
+        except AttributeError: # self.sort doesn't exist yet
+            enable = False
+        self.extract_pane.Enable(enable)
+        self.cluster_pane.Enable(enable)
+        self.validate_pane.Enable(enable)
 
     def get_detector(self):
         """Create a Detector object based on widget values"""
