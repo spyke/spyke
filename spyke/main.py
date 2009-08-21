@@ -317,6 +317,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         XYmethod = self.extract_radio_box.GetStringSelection()
         self.sort.extractXY(XYmethod)
         self.frames['sort'].list.RefreshItems()
+        self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnAddCluster(self, evt):
         """Cluster pane Add button click"""
@@ -842,12 +843,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def EnableSpikeWidgets(self, enable):
         """Enable/disable all widgets that require the current Sort to have spikes"""
         try:
-            if len(self.sort.spikes) == 0:
-                enable = False
-        except AttributeError: # self.sort doesn't exist yet
-            enable = False
+            if len(self.sort.spikes) == 0: enable = False # no spikes
+        except AttributeError: enable = False # self.sort doesn't exist yet
         self.extract_pane.Enable(enable)
+        try: self.sort.spikes.values()[0].x0
+        except (AttributeError, IndexError): enable = False # no spikes/params or .sort doesn't exist
         self.cluster_pane.Enable(enable)
+        try:
+            if len(self.sort.neurons) == 0: enable = False # no neurons
+        except AttributeError: enable = False # self.sort doesn't exist yet
         self.validate_pane.Enable(enable)
 
     def get_detector(self):
