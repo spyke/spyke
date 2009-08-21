@@ -51,16 +51,19 @@ class Sort(object):
     SAVEWAVES = False # save each spike's .wave to .sort file?
     def __init__(self, detector=None, stream=None):
         self.__version__ = 0.1
-        self.detector = detector # this sort session's current Detector object
+        self.detector = detector # this Sort's current Detector object
         self.detections = {} # history of detection runs
         self.stream = stream
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
 
-        # all unsorted spikes detected in this sort session across all Detection runs, indexed by unique ID
+        # all unsorted spikes detected in this Sort across all Detection runs, indexed by unique ID
         # sorted spikes go in their respective Neuron's .spikes dict
         self.spikes = {}
-        self.neurons = {} # first hierarchy of neurons
+        # most neurons will have an associated cluster, but not necessarily all -
+        # some neurons may be purely hand sorted, one spike at a time
+        self.neurons = {}
+        self.clusters = {} # dict of multidim ellipsoid params
         self.trash = {} # discarded spikes
 
         self._spikes_sorted_by = 't'
@@ -454,7 +457,7 @@ class Detection(object):
     When you're merely searching for the previous/next spike with
     F2/F3, that's not considered a detection run"""
     def __init__(self, sort, detector, id=None, datetime=None, spikes=None):
-        self.sort = sort # parent sort session
+        self.sort = sort
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
@@ -505,19 +508,18 @@ class Neuron(object):
     """A collection of spikes that have been deemed somehow, whether manually
     or automatically, to have come from the same cell. A Neuron's waveform
     is the mean of its member spikes"""
-    def __init__(self, sort, id=None, parent=None):
-        self.sort = sort # parent sort session
+    def __init__(self, sort, id=None):
+        self.sort = sort
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
         self.spikes = {} # member spikes that make up this neuron
         self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-        self.ellipsoid_params = None
+        self.cluster = None
         #self.surffname # not here, let's allow neurons to have spikes from different files?
 
-
-    def update_wave(self):
+    def update_wave(self, stream=None):
         """Update mean waveform, should call this every time .spikes are modified.
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
@@ -542,7 +544,7 @@ class Neuron(object):
         nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
         for spike in self.spikes.values():
             if spike.wave.data == None: # empty WaveForm
-                spike.update_wave()
+                spike.update_wave(stream)
             wave = spike.wave[chans] # has intersection of spike.wave.chans and chans
             # get chan indices into chans corresponding to wave.chans, chans is a superset of wave.chans
             chanis = chans.searchsorted(wave.chans)
@@ -1028,9 +1030,9 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def CreateNeuron(self):
         """Create, select, and return a new neuron"""
-        neuron = Neuron(self.sort, self.sort._nid, parent=None)
+        neuron = Neuron(self.sort, self.sort._nid)
         self.sort._nid += 1 # inc for next unique neuron
-        self.sort.neurons[neuron.id] = neuron # add neuron to sort session
+        self.sort.neurons[neuron.id] = neuron # add neuron to Sort
         self.AddNeuron2Tree(neuron)
         return neuron
 
@@ -1043,13 +1045,14 @@ class SortFrame(wxglade_gui.SortFrame):
         self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
 
     def RemoveNeuron(self, neuron):
-        """Remove neuron and all its spikes from the tree and the sort session"""
+        """Remove neuron and all its spikes from the tree and the Sort"""
         for spike in neuron.spikes.values():
             self.MoveSpike2List(spike)
         self.tree.Delete(neuron.itemID)
         try:
-            del self.sort.neurons[neuron.id]
-        except KeyError: # it's already been removed due to a recursive call
+            del self.sort.neurons[neuron.id] # maybe already removed due to recursive call
+            del self.sort.clusters[neuron.id] # may or may not exist
+        except KeyError:
             pass
 
     def MoveSpike2Neuron(self, spike, row, neuron=None):

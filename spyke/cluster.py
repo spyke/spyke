@@ -9,12 +9,25 @@ from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel
 from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 
 
-class EllipsoidParams(object):
-    """Just a simple container for ellipsoid parameters"""
-    def __init__(self):
-        self.pos = {'x0':0, 'y0':0, 'Vpp':0}
-        self.ori = {'x0':0, 'y0':0, 'Vpp':0}
-        self.scale = {'x0':0, 'y0':0, 'Vpp':0}
+class Cluster(object):
+    """Just a simple container for multidim ellipsoid parameters. A
+    Cluster will always correspond to a Neuron, but not all Neurons
+    will necessarily have a cluster. It's possible to create a Neuron
+    purely by manually sorting individual spikes, without using a
+    multidim ellipsoid at all"""
+    def __init__(self, neuron):
+        self.neuron = neuron
+        self.pos =   {'x0':0,  'y0':0,  'Vpp':100}
+        self.ori =   {'x0':0,  'y0':0,  'Vpp':0  }
+        self.scale = {'x0':20, 'y0':20, 'Vpp':50 }
+
+    def get_id(self):
+        return self.neuron.id
+
+    def set_id(self, id):
+        self.neuron.id = id
+
+    id = property(get_id, set_id)
 
 
 class Viz(HasTraits):

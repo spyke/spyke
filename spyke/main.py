@@ -154,8 +154,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.SaveSortFile(self.sortfname) # save to existing sort fname
 
     def OnSaveAs(self, evt):
-        """Save sort session to new .sort file"""
-        dlg = wx.FileDialog(self, message="Save sort session as",
+        """Save Sort to new .sort file"""
+        dlg = wx.FileDialog(self, message="Save sort as",
                             defaultDir=self.DEFAULTDIR, defaultFile='',
                             wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
@@ -171,11 +171,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.hpstream.save_resampled()
 
     def OnClose(self, evt):
-        # TODO: add confirmation dialog if sort session not saved
+        # TODO: add confirmation dialog if Sort not saved
         self.CloseSurfFile()
 
     def OnExit(self, evt):
-        # TODO: add confirmation dialog if sort session not saved
+        # TODO: add confirmation dialog if Sort not saved
         self.CloseSurfFile()
         self.Destroy()
 
@@ -275,7 +275,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnDetect(self, evt):
         """Detect pane Detect button click"""
-        self.sort.detector = self.get_detector() # update sort session's current detector with a new one from widget values
+        self.sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
         #import cProfile
         #cProfile.runctx('spikes = self.sort.detector.detect()', globals(), locals())
         spikes = self.sort.detector.detect() # list of Spikes
@@ -322,19 +322,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnAddCluster(self, evt):
         """Cluster pane Add button click"""
         neuron = self.frames['sort'].CreateNeuron()
+        from cluster import Cluster # can't delay this any longer
+        cluster = Cluster(neuron)
+        self.sort.clusters[cluster.id] = cluster
+        neuron.cluster = cluster
         cf = self.OpenFrame('cluster')
-        cf.add_ellipsoid(neuron.id)
-        self.cluster_list_box.Append(str(neuron.id), clientData=neuron)
+        #cf.add_ellipsoid(cluster)
+        self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
+        self.cluster_params_pane.Enable(True)
 
     def OnDelCluster(self, evt):
         """Cluster pane Del button click"""
         i = self.cluster_list_box.GetSelection() # listbox index
         if i == -1: # nothing selected
             return
-        #nid = int(self.cluster_list_box.GetStringSelection())
-        neuron = self.cluster_list_box.GetClientData(i)
-        self.frames['sort'].RemoveNeuron(neuron)
+        cluster = self.cluster_list_box.GetClientData(i)
+        self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
+        if self.cluster_list_box.Count == 0:
+            self.cluster_params_pane.Enable(False)
 
     def OnKeyDown(self, evt):
         """Handle key presses
@@ -385,6 +391,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for coli in range(len(row)):
             self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
         self.total_nspikes_label.SetLabel(str(len(self.sort.spikes)))
+        self.EnableSpikeWidgets(True)
 
     def delete_selected_detections(self):
         """Delete selected rows in detection list"""
@@ -416,6 +423,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if len(self.sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
         self.total_nspikes_label.SetLabel(str(len(self.sort.spikes))) # update
+        self.EnableSpikeWidgets(True) # call in case nspikes has dropped to 0
 
     def listRow2Detection(self, row):
         """Return Detection at detection list row"""
@@ -450,7 +458,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         tww = self.spiketw[1]-self.spiketw[0] # window width
         self.t = int(round(self.hpstream.t0 + tww/2)) # set current time position in recording (us)
 
-        self.CreateNewSort() # create a new sort session
+        self.CreateNewSort() # create a new Sort
         self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
 
         self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
@@ -491,20 +499,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSort(self):
-        """Create a new sort session and bind it to .self"""
-        self.DeleteSortSession()
+        """Create a new Sort and bind it to .self"""
+        self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in OnDetect
                          stream=self.hpstream)
         #self.sort.detector = self.get_detector() # creating a detector depends on a self.sort
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.EnableSortWidgets(True)
 
-    def DeleteSortSession(self):
-        """Delete any existing sort session"""
+    def DeleteSort(self):
+        """Delete any existing Sort"""
         try:
-            # TODO: if Save button is enabled, check if sort session is saved,
+            # TODO: if Save button is enabled, check if Sort is saved,
             # if not, prompt to save
-            print 'deleting existing sort session and entries in list controls'
+            print 'deleting existing Sort and entries in list controls'
             del self.sort
         except AttributeError:
             pass
@@ -609,14 +617,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.CloseSortFile()
 
     def CloseSortFile(self):
-        self.DeleteSortSession()
+        self.DeleteSort()
         self.EnableSortWidgets(False)
         self.sortfname = '' # forces a SaveAs on next Save event
 
     def OpenSortFile(self, fname):
-        """Open a sort session from a .sort file, restore the stream"""
+        """Open a Sort from a .sort file, restore the stream"""
         print("TODO: create ellipsoids from neuron ellipsoid params when loading a .sort")
-        self.DeleteSortSession() # delete any existing sort Session
+        self.DeleteSort() # delete any existing Sort
         # gzip.read() is reaaaallly slow for some reason, even if file is at compresslevel=1
         #pf = gzip.open(fname, 'rb')
         pf = open(fname, 'rb')
@@ -633,17 +641,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.hpstream != None:
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
-                self.CreateNewSort() # overwrite the failed sort session
+                self.CreateNewSort() # overwrite the failed Sort
                 raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
                                     % (sortProbeType, streamProbeType)
-        self.sort.stream = self.hpstream # restore missing stream object to sort session
+        self.sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(self.sort.sampfreq)
         self.SetSHCorrect(self.sort.shcorrect)
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
-            self.notebook.Show(True) # lets us do stuff with the sort session
+            self.notebook.Show(True) # lets us do stuff with the Sort
         for detection in self.sort.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
 
@@ -849,6 +857,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: self.sort.spikes.values()[0].x0
         except (AttributeError, IndexError): enable = False # no spikes/params or .sort doesn't exist
         self.cluster_pane.Enable(enable)
+        try:
+            if len(self.sort.clusters) == 0: enable = False # no clusters exist yet
+        except AttributeError: enable = False
+        self.cluster_params_pane.Enable(enable)
         try:
             if len(self.sort.neurons) == 0: enable = False # no neurons
         except AttributeError: enable = False # self.sort doesn't exist yet
