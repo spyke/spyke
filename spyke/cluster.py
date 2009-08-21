@@ -9,6 +9,14 @@ from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel
 from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 
 
+class EllipsoidParams(object):
+    """Just a simple container for ellipsoid parameters"""
+    def __init__(self):
+        self.pos = {'x0':0, 'y0':0, 'Vpp':0}
+        self.ori = {'x0':0, 'y0':0, 'Vpp':0}
+        self.scale = {'x0':0, 'y0':0, 'Vpp':0}
+
+
 class Viz(HasTraits):
     scene = Instance(MlabSceneModel, ())
     '''
@@ -34,6 +42,8 @@ class ClusterFrame(wx.MiniFrame):
         #self.Show(True)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+        self.ellipsoids = {}
 
     def OnClose(self, evt):
         frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
@@ -154,7 +164,7 @@ class ClusterFrame(wx.MiniFrame):
         print("Plotting took %.3f sec" % (time.clock()-t0))
         return glyph
 
-    def add_ellipsoid(self, id=0, f=None):
+    def add_ellipsoid(self, id=0):
         """Add an ellipsoid to figure f. id is used to index into CMAP
         to colour the ellipsoid
 
@@ -164,7 +174,7 @@ class ClusterFrame(wx.MiniFrame):
         from enthought.mayavi.sources.api import ParametricSurface
         from enthought.mayavi.modules.api import Surface
 
-        f = f or self.f # returns the current scene #mlab.figure()
+        f = self.f # the current scene #mlab.figure()
         #engine = mlab.get_engine() # returns the running mayavi engine
         engine = f.parent
         f.scene.disable_render = True # for speed
@@ -187,6 +197,9 @@ class ClusterFrame(wx.MiniFrame):
         actor.actor.scale = 20, 20, 50
         f.scene.disable_render = False
         return surface
+
+
+
     '''
     def apply_ellipsoids(self):
         for ellipsoid in self.ellipsoids.values():

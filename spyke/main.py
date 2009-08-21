@@ -147,6 +147,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dlg.Destroy()
 
     def OnSave(self, evt):
+        print("TODO: copy over ellipsoid params to neurons before saving")
         if not self.sortfname:
             self.OnSaveAs(evt)
         else:
@@ -315,6 +316,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         XYmethod = self.extract_radio_box.GetStringSelection()
         self.sort.extractXY(XYmethod)
         self.frames['sort'].list.RefreshItems()
+
+    def OnAddCluster(self, evt):
+        """Cluster pane Add button click"""
+        neuron = self.frames['sort'].CreateNeuron()
+        cf = self.OpenFrame('cluster')
+        cf.add_ellipsoid(neuron.id)
+        self.cluster_list_box.Append(str(neuron.id), clientData=neuron)
+
+    def OnDelCluster(self, evt):
+        """Cluster pane Del button click"""
+        i = self.cluster_list_box.GetSelection() # listbox index
+        if i == -1: # nothing selected
+            return
+        #nid = int(self.cluster_list_box.GetStringSelection())
+        neuron = self.cluster_list_box.GetClientData(i)
+        self.frames['sort'].RemoveNeuron(neuron)
+        self.cluster_list_box.Delete(i)
 
     def OnKeyDown(self, evt):
         """Handle key presses
@@ -595,6 +613,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OpenSortFile(self, fname):
         """Open a sort session from a .sort file, restore the stream"""
+        print("TODO: create ellipsoids from neuron ellipsoid params when loading a .sort")
         self.DeleteSortSession() # delete any existing sort Session
         # gzip.read() is reaaaallly slow for some reason, even if file is at compresslevel=1
         #pf = gzip.open(fname, 'rb')
@@ -1084,6 +1103,7 @@ class PyShellFrame(wx.MiniFrame,
         #self.shell.run('from '+startupScript+' import *')
         self.shell.run('self = app.spykeframe')
         #self.shell.run("sf = self.frames['sort']") # convenience
+        #self.shell.run("cf = self.frames['cluster']") # convenience
         self.shell.run('s = self.sort') # convenience
 
     def OnClose(self, evt):

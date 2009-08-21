@@ -513,7 +513,9 @@ class Neuron(object):
         self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
+        self.ellipsoid_params = None
         #self.surffname # not here, let's allow neurons to have spikes from different files?
+
 
     def update_wave(self):
         """Update mean waveform, should call this every time .spikes are modified.
@@ -1040,16 +1042,15 @@ class SortFrame(wxglade_gui.SortFrame):
         neuron.itemID = self.tree.AppendItem(root, 'n'+str(neuron.id)) # add neuron to tree
         self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
 
-    def DeleteNeuron(self, neuron):
-        """Move all of a neuron's spikes back to the spike list.
-        This indirectly removes the neuron as well"""
-        for spike in neuron.spikes.values():
-            self.MoveSpike2List(spike) # removing last spike calls RemoveNeuron()
-
     def RemoveNeuron(self, neuron):
-        """Remove neuron from the tree and the sort session"""
+        """Remove neuron and all its spikes from the tree and the sort session"""
+        for spike in neuron.spikes.values():
+            self.MoveSpike2List(spike)
         self.tree.Delete(neuron.itemID)
-        del self.sort.neurons[neuron.id]
+        try:
+            del self.sort.neurons[neuron.id]
+        except KeyError: # it's already been removed due to a recursive call
+            pass
 
     def MoveSpike2Neuron(self, spike, row, neuron=None):
         """Move a spike spike from unsorted sort.spikes to a neuron.
@@ -1141,10 +1142,10 @@ class SortFrame(wxglade_gui.SortFrame):
         for itemID in self.tree.GetSelections():
             if itemID: # check if spike's tree parent (neuron) has already been deleted
                 obj = self.tree.GetItemPyData(itemID)
-                if obj.__class__ == Spike:
+                if type(obj) == Spike:
                     self.MoveSpike2List(obj)
-                elif obj.__class__ == Neuron:
-                    self.DeleteNeuron(obj) # delete == remove Neuron and all its Spikes
+                elif type(obj) == Neuron:
+                    self.RemoveNeuron(obj) # remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
 
     def MoveCurrentSpikes2Trash(self):
@@ -1159,10 +1160,10 @@ class SortFrame(wxglade_gui.SortFrame):
     def GetFirstSelectedNeuron(self):
         for itemID in self.tree.GetSelections():
             obj = self.tree.GetItemPyData(itemID)
-            if obj.__class__ == Neuron:
+            if type(obj) == Neuron:
                 return obj
             # no neuron selected, check to see if an spike is selected in the tree, grab its neuron
-            elif obj.__class__ == Spike:
+            elif type(obj) == Spike:
                 return obj.neuron
         return None
 
