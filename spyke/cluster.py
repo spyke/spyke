@@ -15,8 +15,9 @@ class Cluster(object):
     will necessarily have a cluster. It's possible to create a Neuron
     purely by manually sorting individual spikes, without using a
     multidim ellipsoid at all"""
-    def __init__(self, neuron):
+    def __init__(self, neuron, ellipsoid=None):
         self.neuron = neuron
+        self.ellipsoid = ellipsoid
         self.pos =   {'x0':0,  'y0':0,  'Vpp':100}
         self.ori =   {'x0':0,  'y0':0,  'Vpp':0  }
         self.scale = {'x0':20, 'y0':20, 'Vpp':50 }
@@ -30,13 +31,10 @@ class Cluster(object):
     id = property(get_id, set_id)
 
 
-class Viz(HasTraits):
+class Visualization(HasTraits):
+    """See http://code.enthought.com/projects/mayavi/docs/development/htm
+    /mayavi/building_applications.html"""
     scene = Instance(MlabSceneModel, ())
-    '''
-    def __init__(self):
-        HasTraits.__init__(self)
-    '''
-    # the layout of the dialog created
     view = View(Item('scene', editor=SceneEditor(scene_class=MayaviScene),
                      height=300, width=300, show_label=False))
 
@@ -49,8 +47,8 @@ class ClusterFrame(wx.MiniFrame):
         kwds["style"] = self.STYLE
         wx.MiniFrame.__init__(self, *args, **kwds)
 
-        self.viz = Viz()
-        self.control = self.viz.edit_traits(parent=self, kind='subpanel').control
+        self.vis = Visualization()
+        self.control = self.vis.edit_traits(parent=self, kind='subpanel').control
         self.SetTitle("cluster window")
         #self.Show(True)
 

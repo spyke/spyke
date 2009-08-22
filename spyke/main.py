@@ -109,19 +109,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_defaults(self):
-        """Set widget initial values and limits"""
+        """Set detect pane widget initial values"""
         self.METH2RADIOBTN = {'GlobalFixed': self.globalfixedthresh_radio_btn,
                               'ChanFixed': self.chanfixedthresh_radio_btn,
                               'Dynamic': self.dynamicthresh_radio_btn}
         self.METH2RADIOBTN[detect.Detector.DEFTHRESHMETHOD].SetValue(True) # enable the appropriate radio button
-        self.fixedthresh_spin_ctrl.SetRange(-sys.maxint, sys.maxint)
         self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
         self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
         self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
         self.ppthreshmult_text_ctrl.SetValue(str(detect.Detector.DEFPPTHRESHMULT))
-        self.dt_spin_ctrl.SetRange(0, sys.maxint)
         self.dt_spin_ctrl.SetValue(detect.Detector.DEFDT)
-        self.nspikes_spin_ctrl.SetRange(0, sys.maxint)
         self.nspikes_spin_ctrl.SetValue(detect.Detector.DEFMAXNSPIKES)
 
         # temporary, for faster testing
@@ -129,7 +126,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.range_end_combo_box.SetValue('10e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
-        self.slock_spin_ctrl.SetRange(0, sys.maxint)
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
@@ -326,21 +322,122 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
-        cf = self.OpenFrame('cluster')
-        #cf.add_ellipsoid(cluster)
-        self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
+        cf = self.OpenFrame('cluster') # in case it isn't already open
+        #cluster.ellipsoid = cf.add_ellipsoid(cluster)
+        # TODO: plot the data if it isn't already?
+        i = self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
+        # select newly created item, but this doesn't trigger a selection event:
+        self.cluster_list_box.Select(i)
         self.cluster_params_pane.Enable(True)
 
     def OnDelCluster(self, evt):
         """Cluster pane Del button click"""
-        i = self.cluster_list_box.GetSelection() # listbox index
-        if i == -1: # nothing selected
-            return
+        i = self.GetClusterIndex() # need both the index and the cluster
         cluster = self.cluster_list_box.GetClientData(i)
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
         if self.cluster_list_box.Count == 0:
             self.cluster_params_pane.Enable(False)
+
+    def OnClusterListBox(self, evt):
+        """Cluster list box item selection. Update cluster param widgets
+        given current dims"""
+        cluster = evt.GetClientData()
+        self.UpdateParamWidgets(cluster)
+        # TODO: draw a selection box around the the ellipsoid
+
+    def OnDim(self, evt):
+        """Update cluster widgets based on current cluster and dims,
+        replace data in plot, or just plot if it doesn't already exist"""
+        cluster = self.GetCluster()
+        self.UpdateParamWidgets(cluster)
+
+    def GetClusterIndex(self):
+        """Return index of currently selected cluster in cluster listbox"""
+        i = self.cluster_list_box.GetSelection() # listbox index
+        if i == -1: # nothing selected
+            raise RuntimeError("no cluster selected")
+        return i
+
+    def GetCluster(self):
+        i = self.GetClusterIndex()
+        cluster = self.cluster_list_box.GetClientData(i)
+        return cluster
+
+    def GetDimNames(self):
+        """Return tuple of strings of cluster dimension names, in (x, y, z) order"""
+        x = self.xdim.GetStringSelection()
+        y = self.ydim.GetStringSelection()
+        z = self.zdim.GetStringSelection()
+        return x, y, z
+
+    def UpdateParamWidgets(self, cluster):
+        """Update 3x3 grid of cluster param widgets from values in cluster"""
+        x, y, z = self.GetDimNames() # tuple of dim names, in (x, y, z) order
+        self.xpos.SetValue(cluster.pos[x])
+        self.ypos.SetValue(cluster.pos[y])
+        self.zpos.SetValue(cluster.pos[z])
+        self.xori.SetValue(cluster.ori[x])
+        self.yori.SetValue(cluster.ori[y])
+        self.zori.SetValue(cluster.ori[z])
+        self.xscale.SetValue(cluster.scale[x])
+        self.yscale.SetValue(cluster.scale[y])
+        self.zscale.SetValue(cluster.scale[z])
+
+    """Update parameters for currently selected cluster, and associated ellipsoid"""
+    def OnXPos(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.pos[x] = val
+
+    def OnYPos(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.pos[y] = val
+
+    def OnZPos(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.pos[z] = val
+
+    def OnXOri(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.ori[x] = val
+
+    def OnYOri(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.ori[y] = val
+
+    def OnZOri(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.ori[z] = val
+
+    def OnXScale(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.scale[x] = val
+
+    def OnYScale(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.scale[y] = val
+
+    def OnZScale(self, evt):
+        cluster = self.GetCluster()
+        x, y, z = self.GetDimNames()
+        val = evt.GetInt()
+        cluster.scale[z] = val
 
     def OnKeyDown(self, evt):
         """Handle key presses
