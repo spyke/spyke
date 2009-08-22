@@ -19,7 +19,6 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG
 from spyke import wxglade_gui
-from spyke.plot import CMAP, CMAPWITHJUNK
 from spyke.detect import Spike, TW
 
 MAXCHANTOLERANCE = 100 # um
@@ -168,62 +167,58 @@ class Sort(object):
         print("Extracting XY parameters from all %d spikes using %s took %.3f sec" %
               (len(self.spikes), method.lower(), time.clock()-t0))
 
-    def get_param_matrix(self):
-        """Organize parameters from all spikes into a data matrix for clustering"""
+    def get_param_matrix(self, dims=None):
+        """Organize parameters in dims from all spikes into a
+        data matrix for clustering"""
+        '''
         try:
-            return self.X # see if param matrix has already been calculated and saved
+            # see if param matrix with dims has already been calculated and saved
+            if self.X_dims == dims: return self.X
+            else: raise AttributeError("self.X_dims != dims")
         except AttributeError:
-            nspikes = len(self.spikes)
-            nparams = 4
-            #nparams = 9
-            X = np.empty((nspikes, nparams), dtype=np.float32)
-            spikes = self.get_spikes_sortedby('id')
-            for i, s in enumerate(spikes):
-                X[i] = [s.x0, s.y0, s.Vpp, s.dphase]
-                '''
-                V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
-                # for clustering, substitute V1/V2 with Vpp, and mu1/mu2 with dphase
-                X[i] = [s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta]
-                #X[i] = [x0, y0]
-                '''
+        '''
+        t0 = time.clock()
+        nspikes = len(self.spikes)
+        nparams = len(dims)
+        X = np.empty((nspikes, nparams), dtype=np.float32)
+        spikes = self.get_spikes_sortedby('id')
+        for i, s in enumerate(spikes):
+            X[i] = [s.__dict__[attr] for attr in dims]
             '''
-            # normalize each column in X (ie each param) from [0, 1]
-            X -= X.min(axis=0) # have them all start from 0
-            X /= X.max(axis=0) # normalize
-            # now weight some parameters more than others. This affects the euclidean distance
-            # between clusters, which affects their agglomeration/density.
-            # maybe the ideal parameter weights can come from openopt...
-            X[:, 0] *= 2 # Vpp
-            X[:, 2] *= 5 # x0
-            X[:, 3] *= 10 # y0
+            V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
+            # for clustering, substitute V1/V2 with Vpp, and mu1/mu2 with dphase
+            X[i] = [s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta]
             '''
-            self.X = X # save
-            return X
+        #self.X_dims = dims # save
+        #self.X = X # save
+        print("Getting param matrix took %.3f sec" % (time.clock()-t0))
+        return X
 
-    def get_cluster_data(self, weighting='pca'):
+    def get_cluster_data(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
 
         import mdp # can't delay this any longer
-
+        '''
         try:
-            if self.weighting == weighting:
-                return self.features # return previously saved features
-            else:
-                raise AttributeError("self.weighting != weighting")
+            if self.weighting == weighting: return self.features # return previously saved features
+            else: raise AttributeError("self.weighting != weighting")
         except AttributeError: # self.weighting and/or self.features don't exist, or self.weighting != weighting
-            X = self.get_param_matrix()
-            if weighting.lower() == 'ica':
-                node = mdp.nodes.FastICANode()
-            elif weighting.lower() == 'pca':
-                node = mdp.nodes.PCANode()
-            else:
-                raise ValueError, 'unknown weighting %r' % weighting
-            node.train(X)
-            features = node.execute(X) # returns all available components
-            self.node = node
-            self.weighting = weighting
-            self.features = features
-            return features
+        '''
+        X = self.get_param_matrix(dims=dims)
+        if weighting == None:
+            return X
+        if weighting.lower() == 'ica':
+            node = mdp.nodes.FastICANode()
+        elif weighting.lower() == 'pca':
+            node = mdp.nodes.PCANode()
+        else:
+            raise ValueError, 'unknown weighting %r' % weighting
+        node.train(X)
+        features = node.execute(X) # returns all available components
+        #self.node = node
+        #self.weighting = weighting
+        #self.features = features
+        return features
 
     def get_ids(self, cids, spikes):
         """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to

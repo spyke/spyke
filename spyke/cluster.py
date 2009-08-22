@@ -1,4 +1,7 @@
-"""Define the cluster frame and methods for dealing with ellipsoids"""
+"""Define the cluster frame, with methods for dealing with ellipsoids"""
+
+import numpy as np
+import time
 
 import wx
 
@@ -7,6 +10,10 @@ from enthought.traits.ui.api import View, Item
 from enthought.tvtk.pyface.scene_editor import SceneEditor
 from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel
 from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
+from enthought.mayavi import mlab
+from enthought.mayavi.tools.engine_manager import get_engine
+
+from spyke.plot import CMAP, CMAPWITHJUNK
 
 
 class Cluster(object):
@@ -18,9 +25,9 @@ class Cluster(object):
     def __init__(self, neuron, ellipsoid=None):
         self.neuron = neuron
         self.ellipsoid = ellipsoid
-        self.pos =   {'x0':0,  'y0':0,  'Vpp':100}
-        self.ori =   {'x0':0,  'y0':0,  'Vpp':0  }
-        self.scale = {'x0':20, 'y0':20, 'Vpp':50 }
+        self.pos =   {'x0':0,  'y0':0,  'Vpp':100, 'dphase':200}
+        self.ori =   {'x0':0,  'y0':0,  'Vpp':0,   'dphase':0  }
+        self.scale = {'x0':20, 'y0':20, 'Vpp':50,  'dphase':50 }
 
     def get_id(self):
         return self.neuron.id
@@ -32,11 +39,12 @@ class Cluster(object):
 
 
 class Visualization(HasTraits):
-    """See http://code.enthought.com/projects/mayavi/docs/development/htm
-    /mayavi/building_applications.html"""
+    """I don't understand this. See http://code.enthought.com/projects/mayavi/
+    docs/development/htm/mayavi/building_applications.html"""
     scene = Instance(MlabSceneModel, ())
-    view = View(Item('scene', editor=SceneEditor(scene_class=MayaviScene),
-                     height=300, width=300, show_label=False))
+    editor = SceneEditor(scene_class=MayaviScene)
+    item = Item('scene', editor=editor, show_label=False)
+    view = View(item)
 
 
 class ClusterFrame(wx.MiniFrame):
@@ -54,20 +62,22 @@ class ClusterFrame(wx.MiniFrame):
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-        self.ellipsoids = {}
+        self.f = get_engine().current_scene
+        self.f.scene.background = 0, 0, 0 # set it to black
+        #self.ellipsoids = {}
 
     def OnClose(self, evt):
         frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
 
-    def plot(self, nids=None, dims=[0, 1, 2], weighting=None, scale=(3, 1, 1),
-             minspikes=1, mode='point', alpha=0.5, scale_factor=0.5,
+    def plot(self, X, scale=None, nids=None, minspikes=1,
+             mode='point', scale_factor=0.5, alpha=0.5,
              mask_points=None, resolution=8, line_width=2.0, envisage=False):
-        """Plot 3D projection of (possibly clustered) spike data. nids is
-        a sequence of neuron ids corresponding to sorted sequence of spike
-        ids. Make sure to pass the weighting that was used when clustering
-        the data. "Clusters" with less than minspikes will all be coloured
-        the same dark grey. Mode can be '2darrow', '2dcircle', '2dcross',
+        """Plot 3D projection of (possibly clustered) spike params in X. scale
+        each dimension in X by scale. nids is a sequence of neuron ids
+        corresponding to a sorted sequence of spike ids. "Neurons" with than
+        minspikes will all be coloured the same dark grey.
+        Mode can be '2darrow', '2dcircle', '2dcross',
         '2ddash', '2ddiamond', '2dhooked_arrow', '2dsquare', '2dthick_arrow',
         '2dthick_cross', '2dtriangle', '2dvertex', 'arrow', 'cone', 'cube',
         'cylinder', 'point', 'sphere'. 3D glyphs like 'sphere' come out
@@ -80,27 +90,16 @@ class ClusterFrame(wx.MiniFrame):
         the coordinates of point point_id. Or, the plotted data is available
         at glyph.module_manager.source.data.points, so you can just index
         into that to get point coords. scalars are at
-        glyph.module_manager.source.data.point_data.scalars
-
-        """
-
-        from enthought.mayavi import mlab # can't delay this any longer
-
-        if envisage == True:
-            mlab.options.backend = 'envisage' # full GUI instead of just simple window
-        assert len(dims) == 3
-        t0 = time.clock()
-        if weighting:
-            X = self.get_cluster_data(weighting=weighting) # in spike id order
-        else:
-            X = self.get_param_matrix() # in spike id order
-        print("Getting param matrix took %.3f sec" % (time.clock()-t0))
+        glyph.module_manager.source.data.point_data.scalars"""
+        x = X[:, 0]
+        y = X[:, 1]
+        z = X[:, 2]
         cmap = CMAP
-        if nids:
+        if nids: # figure out scalar value to assign to each spike to colour it correctly
             t0 = time.clock()
             nids = np.asarray(nids)
             sortednidis = nids.argsort() # indices to get nids in sorted order
-            unsortednidis = sortednidis.argsort() # indices that unsort nids back to original order
+            unsortednidis = sortednidis.argsort() # indices that unsort nids back to original spike id order
             nids = nids[sortednidis] # nids is now sorted
             maxnid = max(nids)
             consecutivenids = np.arange(maxnid+1)
@@ -151,13 +150,14 @@ class ClusterFrame(wx.MiniFrame):
         else:
             s = np.tile(9, len(X)) # CMAP[9] is WHITE
 
+        if envisage == True:
+            mlab.options.backend = 'envisage' # full GUI instead of just simple window
         # plot it
         t0 = time.clock()
+        f = self.f
         f.scene.disable_render = True # for speed
+        mlab.clf(f) # clear it
         #f.scene.camera.view_transform_matrix.scale(3, 1, 1) # this doesn't seem to work
-        x = X[:, dims[0]]
-        y = X[:, dims[1]]
-        z = X[:, dims[2]]
         kwargs = {'figure': f, 'mode': mode,
                   'opacity': alpha,
                   #'transparent': True, # make the alpha of each point depend on the alpha of each scalar?
@@ -176,7 +176,7 @@ class ClusterFrame(wx.MiniFrame):
         return glyph
 
     def add_ellipsoid(self, id=0):
-        """Add an ellipsoid to figure f. id is used to index into CMAP
+        """Add an ellipsoid to figure self.f. id is used to index into CMAP
         to colour the ellipsoid
 
         TODO: turn on 4th light source - looks great!
@@ -185,8 +185,7 @@ class ClusterFrame(wx.MiniFrame):
         from enthought.mayavi.sources.api import ParametricSurface
         from enthought.mayavi.modules.api import Surface
 
-        f = self.f # the current scene #mlab.figure()
-        #engine = mlab.get_engine() # returns the running mayavi engine
+        f = self.f # the current scene
         engine = f.parent
         f.scene.disable_render = True # for speed
         source = ParametricSurface()

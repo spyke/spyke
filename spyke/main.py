@@ -25,15 +25,16 @@ from spyke.plot import ChartPanel, LFPPanel, SpikePanel
 from spyke.sort import SortFrame
 import wxglade_gui
 
-DEFSPIKETW = (-500, 500) # spike frame temporal window (us)
-DEFCHARTTW = (-25000, 25000) # chart frame temporal window (us)
-DEFLFPTW = (-500000, 500000) # lfp frame temporal window (us)
+DEFSPIKETW = -500, 500 # spike frame temporal window (us)
+DEFCHARTTW = -25000, 25000 # chart frame temporal window (us)
+DEFLFPTW = -500000, 500000 # lfp frame temporal window (us)
 
 SPIKEFRAMEWIDTHPERCOLUMN = 80
 SPIKEFRAMEHEIGHT = 700
-CHARTFRAMESIZE = (900, SPIKEFRAMEHEIGHT)
-LFPFRAMESIZE = (250, SPIKEFRAMEHEIGHT)
-PYSHELLSIZE = (CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2)
+CHARTFRAMESIZE = 900, SPIKEFRAMEHEIGHT
+LFPFRAMESIZE = 250, SPIKEFRAMEHEIGHT
+PYSHELLSIZE = CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2
+CLUSTERFRAMESIZE = 530, 530
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
 
@@ -322,11 +323,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
-        cf = self.OpenFrame('cluster') # in case it isn't already open
+        try: cf = self.frames['cluster']
+        except KeyError:
+            cf = self.OpenFrame('cluster')
+            self.OnClusterPlot() # plot data on first open
         #cluster.ellipsoid = cf.add_ellipsoid(cluster)
-        # TODO: plot the data if it isn't already?
         i = self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
-        # select newly created item, but this doesn't trigger a selection event:
+        # select newly created item, this doesn't seem to trigger a selection event:
         self.cluster_list_box.Select(i)
         self.cluster_params_pane.Enable(True)
 
@@ -351,6 +354,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         replace data in plot, or just plot if it doesn't already exist"""
         cluster = self.GetCluster()
         self.UpdateParamWidgets(cluster)
+        self.OnClusterPlot()
+
+    def OnClusterPlot(self, evt=None):
+        """Plot button press in cluster_pane. Don't need the evt"""
+        dims = self.GetDimNames()
+        scale = []
+        for dim in dims:
+            if dim in ['x0', 'dphase']: scale.append(3)
+            else: scale.append(1)
+        cf = self.OpenFrame('cluster') # in case it isn't already open
+        X = self.sort.get_param_matrix(dims=dims)
+        #X = self.sort.get_cluster_data(dims=dims, weighting='pca')
+        glyph = cf.plot(X, scale=scale)
+
+    def OnApplyCluster(self, evt):
+        """Cluster button press in cluster_pane"""
+        pass
 
     def GetClusterIndex(self):
         """Return index of currently selected cluster in cluster listbox"""
@@ -823,8 +843,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 for panel in [frame.spikesortpanel]:#, frame.chartsortpanel]:
                     panel.callAfterFrameInit(self.sort.probe) # post frame creation tasks for panel
             elif frametype == 'cluster':
+                x = self.GetPosition()[0] + self.SPIKEFRAMEWIDTH
+                y = self.GetPosition()[1] + self.GetSize()[1]
                 from spyke.cluster import ClusterFrame # can't delay this any longer
-                frame = ClusterFrame(parent=self)
+                frame = ClusterFrame(parent=self, pos=wx.Point(x, y), size=CLUSTERFRAMESIZE)
             elif frametype == 'pyshell':
                 try:
                     ncols = self.hpstream.probe.ncols
