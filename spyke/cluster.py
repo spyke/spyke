@@ -37,6 +37,23 @@ class Cluster(object):
 
     id = property(get_id, set_id)
 
+    def update_ellipsoid(self, param=None, dims=None):
+        ellipsoid = self.ellipsoid
+        if ellipsoid == None:
+            return
+        if param == 'pos':
+            ellipsoid.actor.actor.position = [ self.pos[dim] for dim in dims ]
+        elif param == 'ori':
+            ellipsoid.actor.actor.orientation = [ self.ori[dim] for dim in dims ]
+        elif param == 'scale':
+            ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
+        elif param == None: # update all params
+            ellipsoid.actor.actor.position =  [ self.pos[dim] for dim in dims ]
+            ellipsoid.actor.actor.orientation =  [ self.ori[dim] for dim in dims ]
+            ellipsoid.actor.actor.scale =  [ self.scale[dim] for dim in dims ]
+        else:
+            raise ValueError("invalid param %r" % param)
+
 
 class Visualization(HasTraits):
     """I don't understand this. See http://code.enthought.com/projects/mayavi/
@@ -156,7 +173,10 @@ class ClusterFrame(wx.MiniFrame):
         t0 = time.clock()
         f = self.f
         f.scene.disable_render = True # for speed
-        mlab.clf(f) # clear it
+        # clear just the plotted glyph representing the points, not the whole scene including the ellipsoids
+        try: f.scene.remove_actor(self.glyph.actor.actor)
+        except AttributeError: pass # no glyph exists yet
+        #mlab.clf(f) # clear the whole scene
         #f.scene.camera.view_transform_matrix.scale(3, 1, 1) # this doesn't seem to work
         kwargs = {'figure': f, 'mode': mode,
                   'opacity': alpha,
@@ -175,39 +195,40 @@ class ClusterFrame(wx.MiniFrame):
         print("Plotting took %.3f sec" % (time.clock()-t0))
         return glyph
 
-    def add_ellipsoid(self, id=0):
-        """Add an ellipsoid to figure self.f. id is used to index into CMAP
-        to colour the ellipsoid
-
+    def add_ellipsoid(self, cluster, dims, alpha=0.5):
+        """Add an ellipsoid to figure self.f, given its corresponding cluster
         TODO: turn on 4th light source - looks great!
         """
-        #from enthought.mayavi import mlab
         from enthought.mayavi.sources.api import ParametricSurface
         from enthought.mayavi.modules.api import Surface
 
         f = self.f # the current scene
+        x, y, z = dims # dimension names
         engine = f.parent
         f.scene.disable_render = True # for speed
         source = ParametricSurface()
         source.function = 'ellipsoid'
         engine.add_source(source)
-        surface = Surface()
-        source.add_module(surface)
-        actor = surface.actor # mayavi actor, actor.actor is tvtk actor
-        actor.property.opacity = 0.5
-        actor.property.color = tuple(CMAP[id % len(CMAP)][0:3]) # leave out alpha
+        ellipsoid = Surface() # the surface is the ellipsoid
+        source.add_module(ellipsoid)
+        actor = ellipsoid.actor # mayavi actor, actor.actor is tvtk actor
+        actor.property.opacity = alpha
+        # use cluster id (from associated neuron) as index into CMAP to colour the ellipse
+        actor.property.color = tuple(CMAP[cluster.id % len(CMAP)][0:3]) # leave out alpha
         # don't colour ellipsoids by their scalar indices into builtin colour map,
         # since I can't figure out how to set the scalar value of an ellipsoid anyway
         actor.mapper.scalar_visibility = False
-        actor.property.backface_culling = True # gets rid of weird rendering artifact when opacity is < 1
+        # get rid of weird rendering artifact when opacity is < 1:
+        actor.property.backface_culling = True
         #actor.property.frontface_culling = True
-        #actor.actor.orientation = 0, 0, 0
         #actor.actor.origin = 0, 0, 0
-        actor.actor.position = 0, 0, 50
-        actor.actor.scale = 20, 20, 50
+        cluster.ellipsoid = ellipsoid
+        cluster.update_ellipsoid(dims=dims) # update all params
         f.scene.disable_render = False
-        return surface
 
+    def remove_ellipsoid(self, cluster):
+        """Remove ellipsoid from scene, given its corresponding cluster"""
+        self.f.scene.remove_actor(cluster.ellipsoid.actor.actor)
 
 
     '''

@@ -323,20 +323,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
-        try: cf = self.frames['cluster']
-        except KeyError:
-            cf = self.OpenFrame('cluster')
-            self.OnClusterPlot() # plot data on first open
-        #cluster.ellipsoid = cf.add_ellipsoid(cluster)
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
+        dims = self.GetDimNames()
+        cf.add_ellipsoid(cluster, dims)
         i = self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
         # select newly created item, this doesn't seem to trigger a selection event:
-        self.cluster_list_box.Select(i)
+        #self.cluster_list_box.Select(i)
         self.cluster_params_pane.Enable(True)
 
     def OnDelCluster(self, evt):
         """Cluster pane Del button click"""
         i = self.GetClusterIndex() # need both the index and the cluster
         cluster = self.cluster_list_box.GetClientData(i)
+        cf = self.OpenFrame('cluster')
+        cf.remove_ellipsoid(cluster)
+        cluster.ellipsoid = None
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
         if self.cluster_list_box.Count == 0:
@@ -366,7 +369,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_cluster_data(dims=dims, weighting='pca')
-        glyph = cf.plot(X, scale=scale)
+        cf.glyph = cf.plot(X, scale=scale)
+        # update all ellipsoids
+        for cluster in self.sort.clusters.values():
+            cluster.update_ellipsoid(dims=dims)
 
     def OnApplyCluster(self, evt):
         """Cluster button press in cluster_pane"""
@@ -385,7 +391,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return cluster
 
     def GetDimNames(self):
-        """Return tuple of strings of cluster dimension names, in (x, y, z) order"""
+        """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
         x = self.xdim.GetStringSelection()
         y = self.ydim.GetStringSelection()
         z = self.zdim.GetStringSelection()
@@ -410,54 +416,63 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.pos[x] = val
+        cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnYPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.pos[y] = val
+        cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnZPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.pos[z] = val
+        cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnXOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.ori[x] = val
+        cluster.update_ellipsoid('ori', dims=(x, y, z))
 
     def OnYOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.ori[y] = val
+        cluster.update_ellipsoid('ori', dims=(x, y, z))
 
     def OnZOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.ori[z] = val
+        cluster.update_ellipsoid('ori', dims=(x, y, z))
 
     def OnXScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.scale[x] = val
+        cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnYScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.scale[y] = val
+        cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnZScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
         cluster.scale[z] = val
+        cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnKeyDown(self, evt):
         """Handle key presses
