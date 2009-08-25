@@ -81,7 +81,6 @@ class ClusterFrame(wx.MiniFrame):
 
         self.f = get_engine().current_scene
         self.f.scene.background = 0, 0, 0 # set it to black
-        #self.ellipsoids = {}
 
     def OnClose(self, evt):
         frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name

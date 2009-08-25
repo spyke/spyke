@@ -170,27 +170,30 @@ class Sort(object):
     def get_param_matrix(self, dims=None):
         """Organize parameters in dims from all spikes into a
         data matrix for clustering"""
-        '''
-        try:
-            # see if param matrix with dims has already been calculated and saved
-            if self.X_dims == dims: return self.X
-            else: raise AttributeError("self.X_dims != dims")
-        except AttributeError:
-        '''
         t0 = time.clock()
         nspikes = len(self.spikes)
         nparams = len(dims)
+        try:
+            # self.Xcols stores all currently created columns of any potential param matrix X
+            assert len(self.Xcols.values()[0]) == nspikes
+        except (AttributeError, AssertionError):
+            # not created yet, or change in number of spikes
+            self.Xcols = {}
+
+        try:
+            for dim in dims:
+                #print('asserting dim %r is in Xcols' % dim)
+                assert dim in self.Xcols
+        except AssertionError: # missing column
+            spikes = self.get_spikes_sortedby('id')
+            for dim in dims:
+                if dim not in self.Xcols:
+                    self.Xcols[dim] = [ s.__dict__[dim] for s in spikes ]
+
+        #X = np.column_stack([self.Xcols[dim] for dim in dims]) # can't control dtype using this
         X = np.empty((nspikes, nparams), dtype=np.float32)
-        spikes = self.get_spikes_sortedby('id')
-        for i, s in enumerate(spikes):
-            X[i] = [s.__dict__[attr] for attr in dims]
-            '''
-            V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = s.p # underlying model parameters
-            # for clustering, substitute V1/V2 with Vpp, and mu1/mu2 with dphase
-            X[i] = [s.Vpp, s.dphase, s1, s2, x0, y0, sx, sy, theta]
-            '''
-        #self.X_dims = dims # save
-        #self.X = X # save
+        for i, dim in enumerate(dims):
+            X[:, i] = self.Xcols[dim]
         print("Getting param matrix took %.3f sec" % (time.clock()-t0))
         return X
 
