@@ -329,9 +329,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dims = self.GetDimNames()
         cf.add_ellipsoid(cluster, dims)
         i = self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
-        # select newly created item, this doesn't seem to trigger a selection event:
-        #self.cluster_list_box.Select(i)
+        self.SelectClusterItem(i) # select newly created item
         self.cluster_params_pane.Enable(True)
+
+    def SelectClusterItem(self, i):
+        """Programmatically select a cluster list box item"""
+        self.cluster_list_box.Select(i) # this doesn't seem to trigger a selection event
+        cluster = self.cluster_list_box.GetClientData(i)
+        self.OnClusterListBox(None, cluster) # manually call the selection event
 
     def OnDelCluster(self, evt):
         """Cluster pane Del button click"""
@@ -342,13 +347,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster.ellipsoid = None
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
-        if self.cluster_list_box.Count == 0:
+        nitems = self.cluster_list_box.Count
+        if nitems == 0:
             self.cluster_params_pane.Enable(False)
+        else:
+            self.SelectClusterItem(min(i, (nitems-1)))
 
-    def OnClusterListBox(self, evt):
+    def OnClusterListBox(self, evt, cluster=None):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
-        cluster = evt.GetClientData()
+        if evt != None:
+            cluster = evt.GetClientData()
         self.UpdateParamWidgets(cluster)
         # TODO: draw a selection box around the the ellipsoid
 
@@ -368,7 +377,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dims = self.GetDimNames()
         for dim, fp in zip(dims, fps):
             cluster.pos[dim] = fp
-        cluster.update_ellipsoid(param='pos', dims=dims)
+        cluster.update_ellipsoid('pos', dims=dims)
         self.UpdateParamWidgets(cluster)
 
     def OnClusterPlot(self, evt=None):
@@ -377,8 +386,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
-        cf.glyph = cf.plot(X, mode='cube')
+        cf.glyph = cf.plot(X, alpha=1.0)
         # update all ellipsoids
+        for cluster in self.sort.clusters.values():
+            cluster.update_ellipsoid(dims=dims)
 
     def OnApplyCluster(self, evt=None):
         """Cluster button press in cluster_pane, Don't need the evt"""
@@ -410,9 +421,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.xpos.SetValue(cluster.pos[x])
         self.ypos.SetValue(cluster.pos[y])
         self.zpos.SetValue(cluster.pos[z])
-        self.xori.SetValue(cluster.ori[x])
-        self.yori.SetValue(cluster.ori[y])
-        self.zori.SetValue(cluster.ori[z])
+        if (y, z) in cluster.ori[x]: self.xori.SetValue(cluster.ori[x][(y, z)])
+        elif (z, y) in cluster.ori[x]: self.xori.SetValue(-cluster.ori[x][(z, y)])
+        else: self.xori.SetValue(0)
+        if (z, x) in cluster.ori[y]: self.yori.SetValue(cluster.ori[y][(z, x)])
+        elif (x, z) in cluster.ori[y]: self.yori.SetValue(-cluster.ori[y][(x, z)])
+        else: self.yori.SetValue(0)
+        if (x, y) in cluster.ori[z]: self.zori.SetValue(cluster.ori[z][(x, y)])
+        elif (y, x) in cluster.ori[z]: self.zori.SetValue(-cluster.ori[z][(y, x)])
+        else: self.zori.SetValue(0)
         self.xscale.SetValue(cluster.scale[x])
         self.yscale.SetValue(cluster.scale[y])
         self.zscale.SetValue(cluster.scale[z])
@@ -443,21 +460,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.ori[x] = val
+        if (z, y) in cluster.ori[x]: # reversed axes already used as a key
+            cluster.ori[x][(z, y)] = -val # reverse the ori
+        else:
+            cluster.ori[x][(y, z)] = val # add or overwrite non-reversed axes entry
         cluster.update_ellipsoid('ori', dims=(x, y, z))
 
     def OnYOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.ori[y] = val
+        if (x, z) in cluster.ori[y]:
+            cluster.ori[y][(x, z)] = -val
+        else:
+            cluster.ori[y][(z, x)] = val
         cluster.update_ellipsoid('ori', dims=(x, y, z))
 
     def OnZOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.ori[z] = val
+        if (y, x) in cluster.ori[z]:
+            cluster.ori[z][(y, x)] = -val
+        else:
+            cluster.ori[z][(x, y)] = val
         cluster.update_ellipsoid('ori', dims=(x, y, z))
 
     def OnXScale(self, evt):

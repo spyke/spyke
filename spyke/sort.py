@@ -198,7 +198,7 @@ class Sort(object):
         #    X[:, i] = self.Xcols[dim]
         print("Getting param matrix took %.3f sec" % (time.clock()-t0))
         return X
-    '''
+
     def apply_cluster(self, cluster):
         """Apply cluster to spike data - calculate which spikes
         fall with the cluster's multidimensional ellipsoid, move
@@ -222,11 +222,9 @@ class Sort(object):
             X[:, i] -= cluster.pos[dim]
 
         # undo the rotation by taking product of inverse of rotation matrix (which == its transpose) and the untranslated points
-        for dims in projections:
-            x, y, z = dims
         p3 = (R(tx, ty, tz).T * X.T).T
         p3 = np.asarray(p3) # convert back to array to prevent from taking matrix power
-    '''
+
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""

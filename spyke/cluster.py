@@ -26,9 +26,10 @@ class Cluster(object):
         self.neuron = neuron
         self.ellipsoid = ellipsoid
         self.pos =   {'x0':0,  'y0':0,  'Vpp':100, 'dphase':200}
-        self.ori =   {'x0':0,  'y0':0,  'Vpp':0,   'dphase':0  }
-        self.scale = {'x0':20, 'y0':20, 'Vpp':50,  'dphase':50 }
-        self.proj = {} # dict of last projection (ordered list of dimnames) of each dim in which that dim's ori was adjusted
+        # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
+        # reversing the dims in the key requires negating the ori_value
+        self.ori =   {'x0':{}, 'y0':{}, 'Vpp':{},  'dphase':{}}
+        self.scale = {'x0':20, 'y0':20, 'Vpp':50,  'dphase':100000}
 
     def get_id(self):
         return self.neuron.id
@@ -38,22 +39,31 @@ class Cluster(object):
 
     id = property(get_id, set_id)
 
-    def update_ellipsoid(self, param=None, dims=None):
+    def update_ellipsoid(self, params=None, dims=None):
+        if params == None:
+            params = ['pos', 'ori', 'scale']
         ellipsoid = self.ellipsoid
         if ellipsoid == None:
             return
-        if param == 'pos':
+        if 'pos' in params:
             ellipsoid.actor.actor.position = [ self.pos[dim] for dim in dims ]
-        elif param == 'ori':
-            ellipsoid.actor.actor.orientation = [ self.ori[dim] for dim in dims ]
-        elif param == 'scale':
+        if 'ori' in params:
+            oris = []
+            for dimi, dim in enumerate(dims):
+                # pick the two next highest dims, in that order,
+                # wrapping back to lowest one when out of bounds
+                # len(dims) is always 3, so mod by 3 for the wrap around
+                otherdims = dims[(dimi+1)%3], dims[(dimi+2)%3]
+                rotherdims = otherdims[1], otherdims[0] # reversed
+                if otherdims in self.ori[dim]:
+                    oris.append(self.ori[dim][otherdims])
+                elif rotherdims in self.ori[dim]:
+                    oris.append(-self.ori[dim][rotherdims])
+                else: # otherdims/rotherdims is not a key, ori for this combination hasn't been set
+                    oris.append(0)
+            ellipsoid.actor.actor.orientation = oris
+        if 'scale' in params:
             ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
-        elif param == None: # update all params
-            ellipsoid.actor.actor.position =  [ self.pos[dim] for dim in dims ]
-            ellipsoid.actor.actor.orientation =  [ self.ori[dim] for dim in dims ]
-            ellipsoid.actor.actor.scale =  [ self.scale[dim] for dim in dims ]
-        else:
-            raise ValueError("invalid param %r" % param)
 
 
 class Visualization(HasTraits):
