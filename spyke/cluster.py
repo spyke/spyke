@@ -28,6 +28,7 @@ class Cluster(object):
         self.pos =   {'x0':0,  'y0':0,  'Vpp':100, 'dphase':200}
         self.ori =   {'x0':0,  'y0':0,  'Vpp':0,   'dphase':0  }
         self.scale = {'x0':20, 'y0':20, 'Vpp':50,  'dphase':50 }
+        self.proj = {} # dict of last projection (ordered list of dimnames) of each dim in which that dim's ori was adjusted
 
     def get_id(self):
         return self.neuron.id
@@ -228,10 +229,4 @@ class ClusterFrame(wx.MiniFrame):
     def remove_ellipsoid(self, cluster):
         """Remove ellipsoid from scene, given its corresponding cluster"""
         self.f.scene.remove_actor(cluster.ellipsoid.actor.actor)
-
-
-    '''
-    def apply_ellipsoids(self):
-        for ellipsoid in self.ellipsoids.values():
-    '''
 

@@ -287,7 +287,7 @@ class Spike(object):
         return hash(self) == hash(other) # good enough for just simple detection
 
     def __hash__(self):
-        """Unique hash value for self, based on modelled spike time and location.
+        """Unique hash value for self, based on spike time and location.
         Required for effectively using Spikes in a Set"""
         return hash((self.t, self.chani)) # hash of their tuple, should guarantee uniqueness
 
@@ -304,6 +304,7 @@ class Spike(object):
             d.pop('wave', None) # clear wave (if any) to save space and time during pickling
         if 'neuron' in d and d['neuron'] == None:
             del d['neuron']
+        # TODO: do spikes really need a .neuron attribute at all?
         d.pop('plt', None) # clear plot (if any) self is assigned to, since that'll have changed anyway on unpickle
         d.pop('itemID', None) # clear tree item ID (if any) since that'll have changed anyway on unpickle
         return d

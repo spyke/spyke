@@ -359,24 +359,31 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.UpdateParamWidgets(cluster)
         self.OnClusterPlot()
 
+    def OnFocus(self, evt=None):
+        """Sets the position of the currently selected cluster to
+        the point in 3D where the scene's camera is currently focused"""
+        cf = self.frames['cluster']
+        fps = cf.f.scene.camera.focal_point
+        cluster = self.GetCluster()
+        dims = self.GetDimNames()
+        for dim, fp in zip(dims, fps):
+            cluster.pos[dim] = fp
+        cluster.update_ellipsoid(param='pos', dims=dims)
+        self.UpdateParamWidgets(cluster)
+
     def OnClusterPlot(self, evt=None):
         """Plot button press in cluster_pane. Don't need the evt"""
         dims = self.GetDimNames()
-        scale = []
-        for dim in dims:
-            if dim in ['x0', 'dphase']: scale.append(3)
-            else: scale.append(1)
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
-        #X = self.sort.get_cluster_data(dims=dims, weighting='pca')
-        cf.glyph = cf.plot(X, scale=scale)
+        #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
+        cf.glyph = cf.plot(X, mode='cube')
         # update all ellipsoids
-        for cluster in self.sort.clusters.values():
-            cluster.update_ellipsoid(dims=dims)
 
-    def OnApplyCluster(self, evt):
-        """Cluster button press in cluster_pane"""
-        pass
+    def OnApplyCluster(self, evt=None):
+        """Cluster button press in cluster_pane, Don't need the evt"""
+        cluster = self.GetCluster()
+        self.sort.apply_cluster(cluster)
 
     def GetClusterIndex(self):
         """Return index of currently selected cluster in cluster listbox"""

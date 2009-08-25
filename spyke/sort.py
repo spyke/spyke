@@ -188,25 +188,50 @@ class Sort(object):
             spikes = self.get_spikes_sortedby('id')
             for dim in dims:
                 if dim not in self.Xcols:
-                    self.Xcols[dim] = [ s.__dict__[dim] for s in spikes ]
+                    self.Xcols[dim] = np.asarray([ s.__dict__[dim] for s in spikes ], dtype=np.float32)
+                    if dim in ['x0', 'dphase']:
+                        self.Xcols[dim] *= 3 # scale these two dims
 
-        #X = np.column_stack([self.Xcols[dim] for dim in dims]) # can't control dtype using this
-        X = np.empty((nspikes, nparams), dtype=np.float32)
-        for i, dim in enumerate(dims):
-            X[:, i] = self.Xcols[dim]
+        X = np.column_stack([self.Xcols[dim] for dim in dims]) # can't control dtype using this
+        #X = np.empty((nspikes, nparams), dtype=np.float32)
+        #for i, dim in enumerate(dims):
+        #    X[:, i] = self.Xcols[dim]
         print("Getting param matrix took %.3f sec" % (time.clock()-t0))
         return X
+    '''
+    def apply_cluster(self, cluster):
+        """Apply cluster to spike data - calculate which spikes
+        fall with the cluster's multidimensional ellipsoid, move
+        them into the corresponding entry in the .neurons dict,
+        and update their neuron attribute"""
+        ellipsoid = cluster.ellipsoid
+        dims = cluster.pos.keys() # use all the dimensions in this cluster to cut the spikes
+        assert cluster.ori.keys() == dims
+        assert cluster.scale.keys() == dims
 
-    def get_cluster_data(self, dims=None, weighting=None):
+        # TODO: scale x0 by 3 within get_param_matrix, don't scale the glyph in mayavi
+        X = self.get_param_matrix(dims=dims)
+
+        # To find which points fall within the ellipsoid, need to do the inverse of all the operations that
+        # translate and rotate the ellipse, in the correct order. Need to do those operations on the points,
+        # just to figure out which points to pick out, then pick them out of the original set of
+        # unmodified points
+
+        # undo the translation
+        for i, dim in enumerate(dims):
+            X[:, i] -= cluster.pos[dim]
+
+        # undo the rotation by taking product of inverse of rotation matrix (which == its transpose) and the untranslated points
+        for dims in projections:
+            x, y, z = dims
+        p3 = (R(tx, ty, tz).T * X.T).T
+        p3 = np.asarray(p3) # convert back to array to prevent from taking matrix power
+    '''
+    '''
+    def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
 
         import mdp # can't delay this any longer
-        '''
-        try:
-            if self.weighting == weighting: return self.features # return previously saved features
-            else: raise AttributeError("self.weighting != weighting")
-        except AttributeError: # self.weighting and/or self.features don't exist, or self.weighting != weighting
-        '''
         X = self.get_param_matrix(dims=dims)
         if weighting == None:
             return X
@@ -222,7 +247,7 @@ class Sort(object):
         #self.weighting = weighting
         #self.features = features
         return features
-
+    '''
     def get_ids(self, cids, spikes):
         """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to
         spike IDs; s2nids maps spike IDs to neuron IDs"""
@@ -240,7 +265,7 @@ class Sort(object):
 
     def write_spc_input(self):
         """Generate input data file to SPC"""
-        X = self.get_cluster_data()
+        X = self.get_component_matrix()
         # write to space-delimited .dat file. Each row is a spike, each column a param
         spykedir = os.path.dirname(__file__)
         dt = str(datetime.datetime.now())
@@ -305,7 +330,7 @@ class Sort(object):
     def write_spc_app_input(self):
         """Generate input data file to spc_app"""
         spikes = self.get_spikes_sortedby('id')
-        X = self.get_cluster_data()
+        X = self.get_component_matrix()
         # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
         # first row has labels "AFFX", "NAME", and then spike ids
         # first col has labels "AFFX", and then param names
@@ -331,7 +356,7 @@ class Sort(object):
         with pretty good clusters that are then only slightly refined using the lousy params
         """
         spikes = self.get_spikes_sortedby('id')
-        X = self.get_cluster_data()
+        X = self.get_component_matrix()
         print X
         cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
         n2sids, s2nids = self.get_ids(cids, spikes)
