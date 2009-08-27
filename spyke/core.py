@@ -1007,3 +1007,33 @@ def hex2cmap(hexcolours, alpha=0.0):
         c = list(c) + [alpha] # convert to list, add alpha as 4th channel
         cmap.append(c)
     return cmap
+
+c = np.cos
+s = np.sin
+
+def Rx(t):
+    """Rotation matrix around x axis"""
+    return np.matrix([[1, 0,     0   ],
+                      [0, c(t), -s(t)],
+                      [0, s(t),  c(t)]])
+
+def Ry(t):
+    """Rotation matrix around y axis"""
+    return np.matrix([[ c(t), 0, s(t)],
+                      [ 0,    1, 0   ],
+                      [-s(t), 0, c(t)]])
+
+def Rz(t):
+    """Rotation matrix around z axis"""
+    return np.matrix([[c(t), -s(t), 0],
+                      [s(t),  c(t), 0],
+                      [0,     0,    1]])
+
+def R(tx, ty, tz):
+    """Return full 3D rotation matrix. Mayavi (tvtk actually) rotates
+    axes in Z, X, Y order, for some unknown reason. So, we have to
+    do the same. See:
+    tvtk_classes.zip/actor.py:32
+    tvtk_classes.zip/prop3d.py:67
+    """
+    return Rz(tz)*Rx(tx)*Ry(ty)
