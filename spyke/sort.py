@@ -17,7 +17,7 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R
+from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
 from spyke.detect import Spike, TW
 
@@ -192,7 +192,7 @@ class Sort(object):
                     if dim == 'x0':
                         self.Xcols[dim] *= 3 # scale this dim
 
-        X = np.column_stack([self.Xcols[dim] for dim in dims])
+        X = np.column_stack([ self.Xcols[dim] for dim in dims ])
         print("Getting param matrix took %.3f sec" % (time.clock()-t0))
         return X
 
@@ -211,21 +211,23 @@ class Sort(object):
         # pick them out of the original set of unmodified points
 
         # undo the translation, in place
+        dim2coli = {}
         for i, dim in enumerate(dims):
             X[:, i] -= cluster.pos[dim]
+            dim2coli[dim] = i # build up dim to X column index mapping while we're at it
 
         # build up dict of groups of rotations which not only have the same set of 3 dims,
         # but are also ordered according to the right hand rule
-        rotgroups = {} # key is ordered set of dims, value is ori value
-        nonrotdims = [] # all dims that have no non-zero rotation value in any projection
+        rotgroups = {} # key is ordered tuple of dims, value is list of corresponding ori values
+        nonrotdims = [] # all dims that have no rotation in any projection
         for dim in dims:
             val = cluster.ori[dim]
             if val == {}: # this dim has an empty orientation value
                 nonrotdims.append(dim)
-            else:: # this dim has a non-empty orientation value
+            else: # this dim has a non-empty orientation value
                 for reldims, ori in val.items():
                     rotdim = dim, reldims[0], reldims[1] # tuple of rotated dim and the (ordered) 2 dims it was done wrt
-                    if rotdim in rotgroups: # already?
+                    if rotdim in rotgroups: # is rotdim already in rotgroups?
                         raise RuntimeError("can't have more than one rotation value for a given dim and its relative dims")
                     elif (rotdim[2], rotdim[0], rotdim[1]) in rotgroups: # same set of dims exist, but are rotated around rotdim[2]
                         rotgroups[(rotdim[2], rotdim[0], rotdim[1])][1] = ori
@@ -234,50 +236,38 @@ class Sort(object):
                     else: # no ring permutation of these dims is in rotgroups, add it
                         rotgroups[rotdim] = [ori, 0, 0] # leave the other two slots available for ring permutations
 
-        # for each rotation group, undo the rotation by taking product of inverse of
-        # rotation matrix (which == its transpose) with the detranslated points
-        trutharray = np.array(len(X), dtype=bool) # init
-
         # TODO: check at start of method to make sure if a cluster.ori[dim] != {},
         # that its entries all have non-zero ori values. This might not be the case
         # if an ori value is set to something, then set back to 0 in the GUI
 
+        # First take the non-oriented dims, however many there are, and plug them
+        # into the ellipsoid eq'n. That'll init your trutharray. Then go
+        # through each rotgroup in succession and AND its results to the trutharray,
+        # and you're done!
+        sumterms = np.zeros(len(X)) # ellipsoid eq'n sum of terms over non-rotated dimensions
+        for dim in nonrotdims:
+            x = X[:, dim2coli[dim]] # pull correct column out of X for this non-rotated dim
+            A = cluster.scale[dim]
+            sumterms += x**2/A**2
+        trutharray = (sumterms <= 1) # which points in nonrotdims space fall inside the ellipsoid?
 
-        # ALTERNATIVE: iterate over all possible purely 3D projections, ensuring that each
-        # dim shows up in at least one of the projections considered. Then AND all the results
-        # from each projection. Projections could be 2D too
-
-        # ALTERNATIVE 2: first take the non-oriented dims,
-        # however many there are, and plug them into the ellipsoid eq'n, and that'll give you your
-        # first trutharray. Ah, then once you've done that, go through each rotgroup in succession
-        # and AND its results to the trutharray, and you're done!
-
+        # for each rotation group, undo the rotation by taking product of inverse of
+        # rotation matrix (which == its transpose) with the detranslated points
         for rotdims, oris in rotgroups.items():
-            Xrot = X[]
+            Xrot = np.column_stack([ X[dim2coli[dim]] for dim in rotdims ]) # pull correct columns out of X for this rotgroup
             Xrot = (R(oris[0], oris[1], oris[2]).T * Xrot.T).T
             Xrot = np.asarray(Xrot) # convert from np.matrix back to np.array to prevent from taking matrix power
             # which points are inside the ellipsoid?
             x = Xrot[:, 0]; A = cluster.scale[rotdims[0]]
             y = Xrot[:, 1]; B = cluster.scale[rotdims[1]]
             z = Xrot[:, 2]; C = cluster.scale[rotdims[2]]
-            # TODO: for each group, calculate sum of terms of all dims not in that group, and add it to the ellipsoid eq'n
-            # this sum will be different for each group
             trutharray *= (x**2/A**2 + y**2/B**2 + z**2/C**2 <= 1) # AND with interior points from any previous rotgroups
-        for dim in dims: # including those that weren't rotated
 
-        import pdb; pdb.set_trace()
         i, = np.where(trutharray) # indices of points that fall within ellipsoids of all rotgroups
         #assert len(i) > 0, "no points fall within the ellipsoid"
         #Xin = X[i] # pick out those points
-        spikes = self.get_spikes_sortedby('id')[i]
-        nid = cluster.id
-        for spike in spikes:
-            spike.neuron = nid
-            self.neurons[nid].spikes[spike.id] = spike
+        spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
         return spikes
-
-
-
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -299,6 +289,14 @@ class Sort(object):
         #self.features = features
         return features
     '''
+
+    def create_neuron(self):
+        """Create and return a new Neuron with a unique ID"""
+        neuron = Neuron(self, self._nid)
+        self._nid += 1 # inc for next unique neuron
+        self.neurons[neuron.id] = neuron # add neuron to self
+        return neuron
+
     def get_ids(self, cids, spikes):
         """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to
         spike IDs; s2nids maps spike IDs to neuron IDs"""
@@ -330,30 +328,7 @@ class Sort(object):
             params.tofile(f, sep='  ', format='%.6f')
             f.write('\n')
         f.close()
-    '''
-    def parse_spc_lab_file_slow(self, fname=None):
-        """Parse output .lab file from SPC. Each row is the cluster assignment of each spin
-        (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
-        run number (0-based). 2nd column is the temperature. All remaining columns correspond
-        to the datapoints in the order presented in the input .dat file. Returns cidsT dict"""
-        #spikes = self.get_spikes_sortedby('id')
-        if fname == None:
-            fname = self.spclabfname
-        f = open(fname, 'r')
-        #n2sidsT = {} # at different temperatures
-        #s2nidsT = {} # at different temperatures
-        cidsT = {} # at different temperatures
-        for row in f:
-            row = np.fromstring(row, sep=' ') # array of floats
-            T = row[1] # row[0] is run #
-            cids = np.int32(row[2:])
-            cidsT[T] = cids
-            #n2sidsT[T], s2nidsT[T] = self.get_ids(cids, spikes)
-        f.close()
-        #return n2sidsT, s2nidsT
-        #return n2sidsT
-        return cidsT
-    '''
+
     def parse_spc_lab_file(self, fname=None):
         """Parse output .lab file from SPC. Each row in the file is the assignment of each spin
         (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
@@ -589,7 +564,7 @@ class Neuron(object):
         self.spikes = {} # member spikes that make up this neuron
         self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
-        self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
+        #self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.cluster = None
         #self.surffname # not here, let's allow neurons to have spikes from different files?
 
@@ -666,7 +641,8 @@ class Neuron(object):
         """Get object state for pickling"""
         d = self.__dict__.copy()
         d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+        #d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
+        d.pop('itemID', None) # remove tree item ID, if any, since that'll have changed anyway on unpickle
         return d
 
     '''
@@ -1102,14 +1078,6 @@ class SortFrame(wxglade_gui.SortFrame):
 
     # TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
 
-    def CreateNeuron(self):
-        """Create, select, and return a new neuron"""
-        neuron = Neuron(self.sort, self.sort._nid)
-        self.sort._nid += 1 # inc for next unique neuron
-        self.sort.neurons[neuron.id] = neuron # add neuron to Sort
-        self.AddNeuron2Tree(neuron)
-        return neuron
-
     def AddNeuron2Tree(self, neuron):
         """Add a neuron to the tree control"""
         root = self.tree.GetRootItem()
@@ -1118,41 +1086,52 @@ class SortFrame(wxglade_gui.SortFrame):
         neuron.itemID = self.tree.AppendItem(root, 'n'+str(neuron.id)) # add neuron to tree
         self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
 
+    def RemoveNeuronFromTree(self, neuron):
+        """Remove neuron and all its spikes from the tree"""
+        self.MoveSpikes2List(neuron.spikes.values())
+        self.RemoveObjectsFromPlot([neuron])
+        try:
+            self.tree.Delete(neuron.itemID)
+            del neuron.itemID # makes it clear that neuron is no longer in tree
+        except AttributeError:
+            pass # neuron.itemID already deleted due to recursive call
+
     def RemoveNeuron(self, neuron):
         """Remove neuron and all its spikes from the tree and the Sort"""
-        for spike in neuron.spikes.values():
-            self.MoveSpike2List(spike)
-        self.tree.Delete(neuron.itemID)
+        self.RemoveNeuronFromTree(neuron)
         try:
-            del self.sort.neurons[neuron.id] # maybe already removed due to recursive call
+            del self.sort.neurons[neuron.id] # maybe already be removed due to recursive call
             del self.sort.clusters[neuron.id] # may or may not exist
         except KeyError:
             pass
 
-    def MoveSpike2Neuron(self, spike, row, neuron=None):
-        """Move a spike spike from unsorted sort.spikes to a neuron.
-        Also, move it from a list control row to a neuron in the tree.
+    def MoveSpikes2Neuron(self, spikes, neuron=None):
+        """Move spikes from unsorted sort.spikes to a neuron.
+        Also, move it from the spike list control to a neuron in the tree.
         If neuron is None, create a new one
         """
         # make sure this spike isn't already a member of this neuron,
         # or of any other neuron
-        for n in self.sort.neurons.values():
-            if spike in n.spikes.values():
-                print "Can't move: spike %d is identical to a member spike in neuron %d" % (spike.id, n.id)
-                return
+        #for n in self.sort.neurons.values():
+        #    if spike in n.spikes.values():
+        #        print "Can't move: spike %d is identical to a member spike in neuron %d" % (spike.id, n.id)
+        #        return
+        spikes = toiter(spikes)
         createdNeuron = False
         if neuron == None:
-            neuron = self.CreateNeuron()
+            neuron = self.sort.create_neuron()
+            self.AddNeuron2Tree(neuron)
             createdNeuron = True
-        del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+        for spike in spikes:
+            del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+            neuron.spikes[spike.id] = spike # add spike to neuron
+            spike.neuron = neuron # bind neuron to spike
         self.sort.update_spike_lists()
         self.list.RefreshItems() # refresh the list
         # TODO: selection doesn't seem to be working, always jumps to top of list
-        self.list.Select(row) # automatically select the new item at that position
-        neuron.spikes[spike.id] = spike # add spike to neuron
+        #self.list.Select(row) # automatically select the new item at that position
+        self.AddSpikes2Tree(neuron.itemID, spikes)
         neuron.update_wave() # update mean neuron waveform
-        spike.neuron = neuron # bind neuron to spike
-        self.AddSpike2Tree(neuron.itemID, spike)
         if createdNeuron:
             #self.tree.Expand(root) # make sure root is expanded
             self.tree.Expand(neuron.itemID) # expand neuron
@@ -1171,31 +1150,34 @@ class SortFrame(wxglade_gui.SortFrame):
         self.sort.trash[spike.id] = spike # add it to trash
         print 'moved spike %d to trash' % spike.id
 
-    def AddSpike2Tree(self, parent, spike):
-        """Add a spike to the tree, where parent is a tree itemID"""
-        spike.itemID = self.tree.AppendItem(parent, 's'+str(spike.id)) # add spike to tree, save its itemID
-        self.tree.SetItemPyData(spike.itemID, spike) # associate spike tree item with spike
+    def AddSpikes2Tree(self, parent, spikes):
+        """Add spikes to the tree, where parent is a tree itemID"""
+        spikes = toiter(spikes)
+        for spike in spikes:
+            spike.itemID = self.tree.AppendItem(parent, 's'+str(spike.id)) # add spike to tree, save its itemID
+            self.tree.SetItemPyData(spike.itemID, spike) # associate spike tree item with spike
 
-    def MoveSpike2List(self, spike):
-        """Move a spike spike from a neuron in the tree back to the list control"""
+    def MoveSpikes2List(self, spikes):
+        """Move spikes from a neuron in the tree back to the list control.
+        Restore spikes back to the unsorted sort.spikes dict"""
         # make sure this spike isn't already in sort.spikes
-        if spike in self.sort.spikes.values():
-            # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
-            print "Can't move: spike %d (x0=%d, y0=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
-                  % (spike.id, int(round(spike.x0)), int(round(spike.y0)), spike.t, spike.neuron.id)
-            return
-        neuron = spike.neuron
-        del neuron.spikes[spike.id] # del spike from its neuron's spike dict
-        spike.neuron = None # unbind spike's neuron from itself
-        self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
+        #if spike in self.sort.spikes.values():
+        #    # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
+        #    print "Can't move: spike %d (x0=%d, y0=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
+        #          % (spike.id, int(round(spike.x0)), int(round(spike.y0)), spike.t, spike.neuron.id)
+        #    return
+        spikes = toiter(spikes)
+        if len(spikes) == 0:
+            return # nothing to do
+        for spike in spikes:
+            neuron = spike.neuron
+            del neuron.spikes[spike.id] # del spike from its neuron's spike dict
+            del spike.neuron # unbind spike's neuron from itself
+            self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
+            # GUI operations:
+            self.tree.Delete(spike.itemID)
+            del spike.itemID # no longer applicable
         self.sort.update_spike_lists()
-        # GUI operations:
-        self.tree.Delete(spike.itemID)
-        spike.itemID = None # no longer applicable
-        if len(neuron.spikes) == 0:
-            self.RemoveNeuron(neuron) # remove empty Neuron
-        else:
-            neuron.update_wave() # update mean neuron waveform
         self.list.RefreshItems() # refresh the list
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
@@ -1206,12 +1188,12 @@ class SortFrame(wxglade_gui.SortFrame):
         selected_rows = self.list.GetSelections()
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
-        for row in selected_rows:
-            spike = self.sort._spikes[row]
-            if spike.wave.data != None: # only move it to neuron if it's got wave data
-                neuron = self.MoveSpike2Neuron(spike, row, neuron) # if neuron was None, it isn't any more
-            else:
-                print "can't add spike %d to neuron because its data isn't accessible" % spike.id
+        #for row in selected_rows:
+        spikes = np.asarray(self.sort._spikes)[selected_rows]
+        #if spike.wave.data != None: # only move it to neuron if it's got wave data
+        neuron = self.MoveSpikes2Neuron(spikes, neuron) # if neuron was None, it isn't any more
+        #else:
+        #    print("can't add spike %d to neuron because its data isn't accessible" % spike.id)
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
             self.UpdateObjectsInPlot([neuron]) # update its plot
 
@@ -1220,7 +1202,11 @@ class SortFrame(wxglade_gui.SortFrame):
             if itemID: # check if spike's tree parent (neuron) has already been deleted
                 obj = self.tree.GetItemPyData(itemID)
                 if type(obj) == Spike:
-                    self.MoveSpike2List(obj)
+                    self.MoveSpikes2List(obj)
+                    if len(obj.neuron.spikes) == 0:
+                        self.RemoveNeuron(obj.neuron) # remove empty Neuron
+                    else:
+                        obj.neuron.update_wave() # update mean neuron waveform
                 elif type(obj) == Neuron:
                     self.RemoveNeuron(obj) # remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
@@ -1239,7 +1225,7 @@ class SortFrame(wxglade_gui.SortFrame):
             obj = self.tree.GetItemPyData(itemID)
             if type(obj) == Neuron:
                 return obj
-            # no neuron selected, check to see if an spike is selected in the tree, grab its neuron
+            # no neuron selected, check to see if a spike is selected in the tree, grab its neuron
             elif type(obj) == Spike:
                 return obj.neuron
         return None

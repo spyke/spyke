@@ -318,7 +318,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnAddCluster(self, evt):
         """Cluster pane Add button click"""
-        neuron = self.frames['sort'].CreateNeuron()
+        neuron = self.sort.create_neuron()
         from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
@@ -394,7 +394,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnApplyCluster(self, evt=None):
         """Cluster button press in cluster_pane, Don't need the evt"""
         cluster = self.GetCluster()
-        self.sort.apply_cluster(cluster)
+        neuron = cluster.neuron
+        spikes = self.sort.apply_cluster(cluster) # spikes that fall within this cluster
+        sf = self.frames['sort']
+        if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
+            sf.RemoveNeuronFromTree(neuron)
+            return
+        # TODO: take difference between returned spikes and any that may already
+        # be classified as part of this neuron, and only add and remove those spikes
+        # that are necessary.
+        # move any existing spikes in this neuron back to unsorted list:
+        sf.MoveSpikes2List(neuron.spikes.values())
+        try: neuron.itemID # is it in the tree yet/still?
+        except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
+        sf.MoveSpikes2Neuron(spikes, neuron)
 
     def GetClusterIndex(self):
         """Return index of currently selected cluster in cluster listbox"""

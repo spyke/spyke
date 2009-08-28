@@ -1062,6 +1062,8 @@ class SortPanel(PlotPanel):
 
     def removeObject(self, obj):
         """Restore object's Plot from used to available plot pool, return the Plot"""
+        if obj.plt == None:
+            return
         plt = self.used_plots.pop(obj.plt.id)
         # TODO: reset plot colour and line style here, or just set them each time in addObject?
         plt.id = None # clear its index into .used_plots

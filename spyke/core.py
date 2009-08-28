@@ -838,9 +838,9 @@ def iterable(x):
 
 def toiter(x):
     """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
-    Useful when you want to iterate over a Record (like in a for loop),
+    Useful when you want to iterate over something (like in a for loop),
     and you don't want to have to do type checking or handle exceptions
-    when the Record isn't a sequence"""
+    when it isn't a sequence"""
     if iterable(x):
         return x
     else:

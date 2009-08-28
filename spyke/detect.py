@@ -304,7 +304,8 @@ class Spike(object):
             d.pop('wave', None) # clear wave (if any) to save space and time during pickling
         if 'neuron' in d and d['neuron'] == None:
             del d['neuron']
-        # TODO: do spikes really need a .neuron attribute at all?
+        # TODO: do spikes really need a .neuron attribute at all? How about just a .nid attribute? .nid would be invalid
+        # after a renumbering of the neurons
         d.pop('plt', None) # clear plot (if any) self is assigned to, since that'll have changed anyway on unpickle
         d.pop('itemID', None) # clear tree item ID (if any) since that'll have changed anyway on unpickle
         return d
