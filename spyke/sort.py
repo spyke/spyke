@@ -254,7 +254,7 @@ class Sort(object):
         # for each rotation group, undo the rotation by taking product of inverse of
         # rotation matrix (which == its transpose) with the detranslated points
         for rotdims, oris in rotgroups.items():
-            Xrot = np.column_stack([ X[dim2coli[dim]] for dim in rotdims ]) # pull correct columns out of X for this rotgroup
+            Xrot = np.column_stack([ X[:, dim2coli[dim]] for dim in rotdims ]) # pull correct columns out of X for this rotgroup
             Xrot = (R(oris[0], oris[1], oris[2]).T * Xrot.T).T
             Xrot = np.asarray(Xrot) # convert from np.matrix back to np.array to prevent from taking matrix power
             # which points are inside the ellipsoid?
@@ -289,7 +289,6 @@ class Sort(object):
         #self.features = features
         return features
     '''
-
     def create_neuron(self):
         """Create and return a new Neuron with a unique ID"""
         neuron = Neuron(self, self._nid)

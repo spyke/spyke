@@ -395,16 +395,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Cluster button press in cluster_pane, Don't need the evt"""
         cluster = self.GetCluster()
         neuron = cluster.neuron
-        spikes = self.sort.apply_cluster(cluster) # spikes that fall within this cluster
         sf = self.frames['sort']
-        if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
-            sf.RemoveNeuronFromTree(neuron)
-            return
         # TODO: take difference between returned spikes and any that may already
         # be classified as part of this neuron, and only add and remove those spikes
         # that are necessary.
         # move any existing spikes in this neuron back to unsorted list:
         sf.MoveSpikes2List(neuron.spikes.values())
+        spikes = self.sort.apply_cluster(cluster) # unsorted spikes that fall within this cluster
+        if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
+            sf.RemoveNeuronFromTree(neuron)
+            return
         try: neuron.itemID # is it in the tree yet/still?
         except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
         sf.MoveSpikes2Neuron(spikes, neuron)
