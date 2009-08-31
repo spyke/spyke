@@ -8,7 +8,7 @@ import os
 import sys
 import time
 import datetime
-import copy
+from copy import copy
 import operator
 
 import wx
@@ -219,26 +219,30 @@ class Sort(object):
         # build up dict of groups of rotations which not only have the same set of 3 dims,
         # but are also ordered according to the right hand rule
         rotgroups = {} # key is ordered tuple of dims, value is list of corresponding ori values
-        nonrotdims = [] # all dims that have no rotation in any projection
+        nonrotdims = copy(dims) # dims that aren't in any rotated projection, init to all dims and remove one by one
         for dim in dims:
             val = cluster.ori[dim]
             if val == {}: # this dim has an empty orientation value
-                nonrotdims.append(dim)
-            else: # this dim has a non-empty orientation value
-                for reldims, ori in val.items():
-                    rotdim = dim, reldims[0], reldims[1] # tuple of rotated dim and the (ordered) 2 dims it was done wrt
-                    if rotdim in rotgroups: # is rotdim already in rotgroups?
-                        raise RuntimeError("can't have more than one rotation value for a given dim and its relative dims")
-                    elif (rotdim[2], rotdim[0], rotdim[1]) in rotgroups: # same set of dims exist, but are rotated around rotdim[2]
-                        rotgroups[(rotdim[2], rotdim[0], rotdim[1])][1] = ori
-                    elif (rotdim[1], rotdim[2], rotdim[0]) in rotgroups: # same set of dims exist, but are rotated around rotdim[1]
-                        rotgroups[(rotdim[1], rotdim[2], rotdim[0])][2] = ori
-                    else: # no ring permutation of these dims is in rotgroups, add it
-                        rotgroups[rotdim] = [ori, 0, 0] # leave the other two slots available for ring permutations
+                continue
+            for reldims, ori in val.items():
+                rotdim = dim, reldims[0], reldims[1] # tuple of rotated dim and the (ordered) 2 dims it was done wrt
+                for d in rotdim:
+                    try: nonrotdims.remove(d) # remove dim from nonrotdims
+                    except ValueError: pass
+                if rotdim in rotgroups: # is rotdim already in rotgroups?
+                    raise RuntimeError("can't have more than one rotation value for a given dim and its relative dims")
+                elif (rotdim[2], rotdim[0], rotdim[1]) in rotgroups: # same set of dims exist, but are rotated around rotdim[2]
+                    rotgroups[(rotdim[2], rotdim[0], rotdim[1])][1] = ori
+                elif (rotdim[1], rotdim[2], rotdim[0]) in rotgroups: # same set of dims exist, but are rotated around rotdim[1]
+                    rotgroups[(rotdim[1], rotdim[2], rotdim[0])][2] = ori
+                else: # no ring permutation of these dims is in rotgroups, add it
+                    rotgroups[rotdim] = [ori, 0, 0] # leave the other two slots available for ring permutations
 
         # TODO: check at start of method to make sure if a cluster.ori[dim] != {},
         # that its entries all have non-zero ori values. This might not be the case
-        # if an ori value is set to something, then set back to 0 in the GUI
+        # if an ori value is set to something, then set back to 0 in the GUI. Fixing
+        # this will stop unnecessary plugging in of values into the rotation matrix,
+        # though this isn't really a big performance hit it seems
 
         # First take the non-oriented dims, however many there are, and plug them
         # into the ellipsoid eq'n. That'll init your trutharray. Then go
@@ -253,7 +257,6 @@ class Sort(object):
 
         # for each rotation group, undo the rotation by taking product of inverse of
         # rotation matrix (which == its transpose) with the detranslated points
-        #import pdb; pdb.set_trace()
         for rotdims, oris in rotgroups.items():
             Xrot = np.column_stack([ X[:, dim2coli[dim]] for dim in rotdims ]) # pull correct columns out of X for this rotgroup
             Xrot = (R(oris[0], oris[1], oris[2]).T * Xrot.T).T
@@ -264,11 +267,11 @@ class Sort(object):
             z = Xrot[:, 2]; C = cluster.scale[rotdims[2]]
             trutharray *= (x**2/A**2 + y**2/B**2 + z**2/C**2 <= 1) # AND with interior points from any previous rotgroups
 
-        i, = np.where(trutharray) # indices of points that fall within ellipsoids of all rotgroups
+        spikeis, = np.where(trutharray) # indices of points that fall within ellipsoids of all rotgroups
         #assert len(i) > 0, "no points fall within the ellipsoid"
         #Xin = X[i] # pick out those points
-        spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
-        return spikes
+        #spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
+        return spikeis
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""

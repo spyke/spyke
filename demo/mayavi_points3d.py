@@ -22,3 +22,10 @@ f.scene.disable_render = True # for speed
 glyph = mlab.points3d(x, y, z, s, mode='point', vmin=0, vmax=len(CMAP)-1)
 glyph.module_manager.scalar_lut_manager.load_lut_from_list(list(CMAP)) # assign colourmap
 f.scene.disable_render = False
+
+# to change the scalar data after the glyph has been created:
+#glyph.mlab_source.scalars = replacement_array
+# OR:
+#glyph.mlab_source.scalars[startindex:endindex] = value(s)
+#glyph.mlab_source.update()
+# although .update() often doesn't seem to work as expected for some reason

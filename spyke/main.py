@@ -21,7 +21,7 @@ import spyke
 from spyke import core, surf, detect
 from spyke.sort import Sort, Detection
 from spyke.core import toiter, MU
-from spyke.plot import ChartPanel, LFPPanel, SpikePanel
+from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP
 from spyke.sort import SortFrame
 import wxglade_gui
 
@@ -396,12 +396,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         neuron = cluster.neuron
         sf = self.frames['sort']
+        cf = self.frames['cluster']
         # TODO: take difference between returned spikes and any that may already
         # be classified as part of this neuron, and only add and remove those spikes
         # that are necessary.
         # move any existing spikes in this neuron back to unsorted list:
-        sf.MoveSpikes2List(neuron.spikes.values())
-        spikes = self.sort.apply_cluster(cluster) # unsorted spikes that fall within this cluster
+        oldspikes = neuron.spikes.values()
+        sf.MoveSpikes2List(oldspikes)
+        # reset scalar values for these oldspikes
+        oldspikeis = [ oldspike.id for oldspike in oldspikes ] # can't really rely on spike.id for index into list of spikes
+        cf.glyph.mlab_source.scalars[oldspikeis] = np.tile(9, len(oldspikeis)) # CMAP[9] is WHITE
+        spikeis = self.sort.apply_cluster(cluster) # indices of unsorted spikes that fall within this cluster
+        cf.glyph.mlab_source.scalars[spikeis] = np.tile(neuron.id % len(CMAP), len(spikeis))
+        #cf.glyph.mlab_source.update() # doesn't seem to work reliably
+        cf.glyph.mlab_source.scalars = cf.glyph.mlab_source.scalars
+        spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[spikeis]
         if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
             sf.RemoveNeuronFromTree(neuron)
             return

@@ -115,11 +115,13 @@ class ClusterFrame(wx.MiniFrame):
         of every mask_points points, to reduce number of plotted points for
         big data sets. envisage=True gives mayavi's full envisage GUI
 
-        NOTE: glyph.module_manager.source.data.get_point(point_id) gets you
-        the coordinates of point point_id. Or, the plotted data is available
-        at glyph.module_manager.source.data.points, so you can just index
-        into that to get point coords. scalars are at
-        glyph.module_manager.source.data.point_data.scalars"""
+        NOTE: use glyph.mlab_source.x, .y, .z, and .scalars traits to modify
+        data in-place. If you're not replacing the whole trait, say just
+        a slice of it, you need to call glyph.mlab_source.update() afterwards.
+        Actually, .update() only seems to be effective for scalar updates,
+        doesn't seem to work for x, y and z.
+        You can also use the .set() method to update multiple traits at once
+        """
         x = X[:, 0]
         y = X[:, 1]
         z = X[:, 2]
