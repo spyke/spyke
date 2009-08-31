@@ -15,6 +15,7 @@ import sys
 import wx
 
 import numpy as np
+from numpy import pi
 
 # set some numpy options - will these hold for all modules in spyke?
 np.set_printoptions(precision=3)
@@ -921,7 +922,7 @@ class Gaussian(object):
 
     def __call__(self, x):
         """Called when self is called as a f'n.
-        Don't bother normalizing by 1/(sigma*np.sqrt(2*np.pi)),
+        Don't bother normalizing by 1/(sigma*np.sqrt(2*pi)),
         don't care about normalizing the integral,
         just want to make sure that f(0) == 1"""
         return np.exp( -(x-self.mu)**2 / (2*self.sigma**2) )
@@ -947,7 +948,7 @@ def Vf(Im, x0, y0, z0, sx, sy, sz, x, y, z):
     What to do with the singularity so that the leastsq gets a smooth differentiable f'n?"""
     #if np.any(x == x0) and np.any(y == y0) and np.any(z == z0):
     #    raise ValueError, 'V undefined at singularity'
-    return Im / (4*np.pi) / np.sqrt( sx**2 * (x-x0)**2 + sy**2 * (y-y0)**2 + sz**2 * (z-z0)**2)
+    return Im / (4*pi) / np.sqrt( sx**2 * (x-x0)**2 + sy**2 * (y-y0)**2 + sz**2 * (z-z0)**2)
 
 def dgdmu(mu, sigma, x):
     """Partial of g wrt mu"""
@@ -997,7 +998,7 @@ def hamming(t, N):
     """Return y values of Hamming window at sample points t"""
     #if N == None:
     #    N = (len(t) - 1) / 2
-    return 0.54 - 0.46 * np.cos(np.pi * (2*t + N)/N)
+    return 0.54 - 0.46 * np.cos(pi * (2*t + N)/N)
 
 def hex2cmap(hexcolours, alpha=0.0):
     """Convert colours hex string list into a colourmap (RGBA list)"""
@@ -1012,28 +1013,29 @@ c = np.cos
 s = np.sin
 
 def Rx(t):
-    """Rotation matrix around x axis"""
+    """Rotation matrix around x axis, theta in radians"""
     return np.matrix([[1, 0,     0   ],
                       [0, c(t), -s(t)],
                       [0, s(t),  c(t)]])
 
 def Ry(t):
-    """Rotation matrix around y axis"""
+    """Rotation matrix around y axis, theta in radians"""
     return np.matrix([[ c(t), 0, s(t)],
                       [ 0,    1, 0   ],
                       [-s(t), 0, c(t)]])
 
 def Rz(t):
-    """Rotation matrix around z axis"""
+    """Rotation matrix around z axis, theta in radians"""
     return np.matrix([[c(t), -s(t), 0],
                       [s(t),  c(t), 0],
                       [0,     0,    1]])
 
 def R(tx, ty, tz):
-    """Return full 3D rotation matrix. Mayavi (tvtk actually) rotates
-    axes in Z, X, Y order, for some unknown reason. So, we have to
-    do the same. See:
+    """Return full 3D rotation matrix, given thetas in degress.
+    Mayavi (tvtk actually) rotates axes in Z, X, Y order, for
+    some unknown reason. So, we have to do the same. See:
     tvtk_classes.zip/actor.py:32
     tvtk_classes.zip/prop3d.py:67
     """
-    return Rz(tz)*Rx(tx)*Ry(ty)
+    # convert to radians, then take matrix product
+    return Rz(tz*pi/180)*Rx(tx*pi/180)*Ry(ty*pi/180)
