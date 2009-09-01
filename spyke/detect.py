@@ -1087,25 +1087,7 @@ class Detector(object):
             """
             lockout[chanis] = t0i + phase2ti + int(round(s2 / self.sort.stream.tres))
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
-    '''
-    def check_spikes(self, spikes):
-        """Checks for duplicate spikes between results from latest .searchblock() call,
-        and previously saved spikes in this .detect() call"""
-        if spikes == None:
-            return
-        nnewspikes = spikes.shape[1] # number of columns
-        #wx.Yield() # allow GUI to update
-        if self.randomsample and spikes.tolist() in np.asarray(self.spikes).tolist():
-            # check if spikes is a duplicate of any that are already in .spikes, if so,
-            # don't append this new spikes array, and don't inc self.nspikes. Duplicates are possible
-            # in random sampling cuz we might end up with blocks with overlapping tranges.
-            # Converting to lists for the check is probably slow cuz, but at least it's legible and correct
-            sys.stdout.write('found duplicate spike')
-        elif nnewspikes != 0:
-            self.spikes.append(spikes)
-            self.nspikes += nnewspikes # update
-            sys.stdout.write('.')
-    '''
+
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
         given blocksize and blockexcess"""

@@ -67,6 +67,11 @@ class Cluster(object):
         if 'scale' in params:
             ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
 
+    def __getstate__(self, d):
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        d.pop('spikeis', None) # exclude spikeis which hold indices of currently coloured points
+        return d
+
 
 class Visualization(HasTraits):
     """I don't understand this. See http://code.enthought.com/projects/mayavi/

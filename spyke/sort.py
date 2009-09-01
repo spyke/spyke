@@ -56,8 +56,8 @@ class Sort(object):
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
 
-        # all unsorted spikes detected in this Sort across all Detection runs, indexed by unique ID
-        # sorted spikes go in their respective Neuron's .spikes dict
+        # all spikes detected in this Sort across all Detection runs, indexed by unique ID
+        # whether sorted or not. Sorted spikes also go in their respective Neuron's .spikes dict
         self.spikes = {}
         # most neurons will have an associated cluster, but not necessarily all -
         # some neurons may be purely hand sorted, one spike at a time
@@ -1109,16 +1109,17 @@ class SortFrame(wxglade_gui.SortFrame):
             pass
 
     def MoveSpikes2Neuron(self, spikes, neuron=None):
-        """Move spikes from unsorted sort.spikes to a neuron.
+        """Assign spikes from sort.spikes to a neuron.
         Also, move it from the spike list control to a neuron in the tree.
-        If neuron is None, create a new one
-        """
+        If neuron is None, create a new one"""
+
         # make sure this spike isn't already a member of this neuron,
         # or of any other neuron
         #for n in self.sort.neurons.values():
         #    if spike in n.spikes.values():
         #        print "Can't move: spike %d is identical to a member spike in neuron %d" % (spike.id, n.id)
         #        return
+
         spikes = toiter(spikes)
         createdNeuron = False
         if neuron == None:
@@ -1126,7 +1127,6 @@ class SortFrame(wxglade_gui.SortFrame):
             self.AddNeuron2Tree(neuron)
             createdNeuron = True
         for spike in spikes:
-            del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
             neuron.spikes[spike.id] = spike # add spike to neuron
             spike.neuron = neuron # bind neuron to spike
         self.sort.update_spike_lists()
@@ -1145,7 +1145,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def MoveSpike2Trash(self, spike, row):
         """Move spike from spike list to trash"""
-        del self.sort.spikes[spike.id] # remove spike from unsorted sort.spikes
+        del self.sort.spikes[spike.id] # remove spike from sort.spikes
         self.sort.update_spike_lists()
         # TODO: selection doesn't seem to be working, always jumps to top of list
         self.list.RefreshItems() # refresh the list
@@ -1161,14 +1161,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.SetItemPyData(spike.itemID, spike) # associate spike tree item with spike
 
     def MoveSpikes2List(self, spikes):
-        """Move spikes from a neuron in the tree back to the list control.
-        Restore spikes back to the unsorted sort.spikes dict"""
-        # make sure this spike isn't already in sort.spikes
-        #if spike in self.sort.spikes.values():
-        #    # would be useful to print out the guilty spike id in the spike list, but that would require a more expensive search
-        #    print "Can't move: spike %d (x0=%d, y0=%d, t=%d) in neuron %d is identical to an unsorted spike in the spike list" \
-        #          % (spike.id, int(round(spike.x0)), int(round(spike.y0)), spike.t, spike.neuron.id)
-        #    return
+        """Move spikes from a neuron in the tree back to the list control"""
         spikes = toiter(spikes)
         if len(spikes) == 0:
             return # nothing to do
@@ -1176,7 +1169,6 @@ class SortFrame(wxglade_gui.SortFrame):
             neuron = spike.neuron
             del neuron.spikes[spike.id] # del spike from its neuron's spike dict
             del spike.neuron # unbind spike's neuron from itself
-            self.sort.spikes[spike.id] = spike # restore spike to unsorted sort.spikes
             # GUI operations:
             self.tree.Delete(spike.itemID)
             del spike.itemID # no longer applicable
@@ -1205,11 +1197,12 @@ class SortFrame(wxglade_gui.SortFrame):
             if itemID: # check if spike's tree parent (neuron) has already been deleted
                 obj = self.tree.GetItemPyData(itemID)
                 if type(obj) == Spike:
+                    neuron = obj.neuron
                     self.MoveSpikes2List(obj)
-                    if len(obj.neuron.spikes) == 0:
-                        self.RemoveNeuron(obj.neuron) # remove empty Neuron
+                    if len(neuron.spikes) == 0:
+                        self.RemoveNeuron(neuron) # remove empty Neuron
                     else:
-                        obj.neuron.update_wave() # update mean neuron waveform
+                        neuron.update_wave() # update mean neuron waveform
                 elif type(obj) == Neuron:
                     self.RemoveNeuron(obj) # remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
