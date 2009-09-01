@@ -42,11 +42,11 @@ class Cluster(object):
     id = property(get_id, set_id)
 
     def update_ellipsoid(self, params=None, dims=None):
-        if params == None:
-            params = ['pos', 'ori', 'scale']
         ellipsoid = self.ellipsoid
         if ellipsoid == None:
             return
+        if params == None:
+            params = ['pos', 'ori', 'scale']
         if 'pos' in params:
             ellipsoid.actor.actor.position = [ self.pos[dim] for dim in dims ]
         if 'ori' in params:

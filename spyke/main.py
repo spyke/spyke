@@ -344,6 +344,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.cluster_list_box.GetClientData(i)
         cf = self.OpenFrame('cluster')
         cf.remove_ellipsoid(cluster)
+        self.DeColourPoints(cluster.spikeis)
+        cf.glyph.mlab_source.update()
         cluster.ellipsoid = None
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
@@ -409,12 +411,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf.MoveSpikes2List(neuron.spikes.values())
         # reset scalar values for cluster's existing points
         try:
-            cf.glyph.mlab_source.scalars[cluster.spikeis] = np.tile(9, len(cluster.spikeis)) # CMAP[9] is WHITE
+            self.DeColourPoints(cluster.spikeis)
         except AttributeError: pass
         cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
         cf.glyph.mlab_source.scalars[cluster.spikeis] = np.tile(neuron.id % len(CMAP), len(cluster.spikeis))
-        #cf.glyph.mlab_source.update() # doesn't seem to work reliably
-        cf.glyph.mlab_source.scalars = cf.glyph.mlab_source.scalars # trigger the trait update mechanism
+        cf.glyph.mlab_source.update() # make the trait update
         spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[cluster.spikeis]
         if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
             sf.RemoveNeuronFromTree(neuron)
@@ -422,6 +423,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: neuron.itemID # is it in the tree yet/still?
         except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
         sf.MoveSpikes2Neuron(spikes, neuron)
+
+    def DeColourPoints(self, spikeis):
+        """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
+        Don't forget to call cf.glyph.mlab_source.update() after calling this"""
+        cf = self.frames['cluster']
+        cf.glyph.mlab_source.scalars[spikeis] = np.tile(9, len(spikeis)) # CMAP[9] is WHITE
 
     def GetClusterIndex(self):
         """Return index of currently selected cluster in cluster listbox"""
