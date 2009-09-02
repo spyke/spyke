@@ -316,7 +316,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.frames['sort'].list.RefreshItems()
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
-    def OnAddCluster(self, evt):
+    def OnAddCluster(self, evt=None):
         """Cluster pane Add button click"""
         neuron = self.sort.create_neuron()
         from cluster import Cluster # can't delay this any longer
@@ -338,13 +338,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.cluster_list_box.GetClientData(i)
         self.OnClusterListBox(None, cluster) # manually call the selection event
 
-    def OnDelCluster(self, evt):
+    def OnDelCluster(self, evt=None):
         """Cluster pane Del button click"""
         i = self.GetClusterIndex() # need both the index and the cluster
         cluster = self.cluster_list_box.GetClientData(i)
         cf = self.OpenFrame('cluster')
         cf.remove_ellipsoid(cluster)
-        self.DeColourPoints(cluster.spikeis)
+        try: self.DeColourPoints(cluster.spikeis)
+        except AttributeError: pass
         cf.glyph.mlab_source.update()
         cluster.ellipsoid = None
         self.frames['sort'].RemoveNeuron(cluster.neuron)
@@ -363,7 +364,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.UpdateParamWidgets(cluster)
         # TODO: draw a selection box around the the ellipsoid
 
-    def OnDim(self, evt):
+    def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,
         replace data in plot, or just plot if it doesn't already exist"""
         cluster = self.GetCluster()
@@ -410,8 +411,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # remove any existing spikes from neuron and restore them to spike listctrl:
         sf.MoveSpikes2List(neuron.spikes.values())
         # reset scalar values for cluster's existing points
-        try:
-            self.DeColourPoints(cluster.spikeis)
+        try: self.DeColourPoints(cluster.spikeis)
         except AttributeError: pass
         cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
         cf.glyph.mlab_source.scalars[cluster.spikeis] = np.tile(neuron.id % len(CMAP), len(cluster.spikeis))

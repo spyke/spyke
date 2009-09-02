@@ -1,7 +1,8 @@
 """Define the cluster frame, with methods for dealing with ellipsoids"""
 
-import numpy as np
+import sys
 import time
+import numpy as np
 
 import wx
 
@@ -70,14 +71,45 @@ class Cluster(object):
     def __getstate__(self, d):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         d.pop('spikeis', None) # exclude spikeis which hold indices of currently coloured points
+        del d['ellipsoid'] # remove Mayavi ellipsoid surface, recreate on unpickle
         return d
+
+
+class SpykeMayaviScene(MayaviScene):
+    def OnKeyDown(self, event):
+        """Set camera focus point and move current cluster to
+        that point in one step, with a single keypress"""
+        key = event.GetKeyCode()
+        modifiers = event.HasModifiers()
+        if key in [ord('a'), ord('d'), ord('x'), ord('c')]:
+            # can't call spykeframe from here, do it in on_vtkkeypress
+            if key == ord('x'): # x marks the spot
+                # set camera focal point. Copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
+                if not modifiers:
+                    if sys.platform == 'darwin':
+                        x, y = self._interactor.event_position
+                    else:
+                        x = event.GetX()
+                        y = self._vtk_control.GetSize()[1] - event.GetY()
+                    data = self.picker.pick_world(x, y)
+                    coord = data.coordinate
+                    if coord is not None:
+                        self.camera.focal_point = coord
+                        self.render()
+                        self._record_methods('camera.focal_point = %r\n'\
+                                             'render()'%list(coord))
+                # then, set current cluster position to == camera focal point
+                # can't call spykeframe from here, do it in on_vtkkeypress
+            self._vtk_control.OnKeyDown(event)
+        else: # propagate event to parent class
+            MayaviScene.OnKeyDown(self, event)
 
 
 class Visualization(HasTraits):
     """I don't understand this. See http://code.enthought.com/projects/mayavi/
     docs/development/htm/mayavi/building_applications.html"""
     scene = Instance(MlabSceneModel, ())
-    editor = SceneEditor(scene_class=MayaviScene)
+    editor = SceneEditor(scene_class=SpykeMayaviScene)
     item = Item('scene', editor=editor, show_label=False)
     view = View(item)
 
@@ -94,6 +126,11 @@ class ClusterFrame(wx.MiniFrame):
         self.control = self.vis.edit_traits(parent=self, kind='subpanel').control
         self.SetTitle("cluster window")
         #self.Show(True)
+        # this is a hack to remove the vtkObserver that catches 'a' and 'c' VTK CharEvents
+        # to see all registered observers, print the interactor
+        self.vis.scene.interactor.remove_observer(1)
+        # add my own observer to catch keypress events that need access to spykeframe
+        self.vis.scene.interactor.add_observer('KeyPressEvent', self.on_vtkkeypress)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
@@ -103,6 +140,21 @@ class ClusterFrame(wx.MiniFrame):
     def OnClose(self, evt):
         frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
+
+    def on_vtkkeypress(self, obj, evt):
+        """Custom VTK key press event.
+        See http://article.gmane.org/gmane.comp.python.enthought.devel/10491"""
+        key = obj.GetKeyCode()
+        spykeframe = self.Parent
+        # finish handling the 'x' keypress. First part was handled by SpykeMayaviScene.OnKeyDown()
+        if key == 'a':
+            spykeframe.OnAddCluster()
+        elif key == 'd':
+            spykeframe.OnDelCluster()
+        elif key == 'x':
+            spykeframe.OnFocus()
+        elif key == 'c':
+            spykeframe.OnApplyCluster()
 
     def plot(self, X, scale=None, nids=None, minspikes=1,
              mode='point', scale_factor=0.5, alpha=0.5,
