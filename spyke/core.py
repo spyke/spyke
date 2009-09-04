@@ -576,19 +576,16 @@ class ResampleFileStream(Stream):
     is possible. You can't just overwrite __getitem__ on the fly, that only works for
     normal methods, not special __ methods. Instead, you have to switch the whole class.
 
+    Restore one sample per chan, all 54 chans, then move on to next sample. This way, retrieving
+    any stretch of resampled data is easy (takes a bit of reshaping and a transpose), but you
+    always have to get all 54 chans for it to be efficient.
+
     TODO: use the key.step attrib to describe which channels you want returned. Can you do something like
     hpstream[0:1000:[0,1,2,5,6]] ? I think so... That would be much more efficient than loading them all
     and then just picking out the ones you want. Might even be doable in the base Stream class, but then
     you'd have to add args to record.load() to load only specific chans from that record, which might be
     slow enough to negate any speed benefit, but at least it should be possible to make it work
     on both ResampleFileStream and Stream
-
-    TODO: save resampled data in say 10s blocksizes ideal for detection. That way, retrieving those blocks
-    of data takes just a single call, np.fromfile, no having to seek 54 times over a wide swath of file,
-    no multiple np.fromfile calls over multiple channels, no having to fill in an empty data array one
-    channel at a time - just load and reshape and you're done. Another option is to save one sample per chan,
-    do all 54 chans, then move on to next sample. That way, retrieving any stretch of resampled data is easy
-    (takes a bit of reshaping and a transpose), but you always have to get all 54 chans for it to be efficient.
 
     """
     def __getitem__(self, key):
@@ -603,13 +600,6 @@ class ResampleFileStream(Stream):
         start = max(start, self.t0) # stay within limits of data in the file
         stop = min(stop, self.tend+self.tres)
         #totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
-
-        """
-        TODO: add a File/Save .parse menu item, to resave the .parse file with the current Stream
-        in it, with its current .chans. That way, every time you load up a .srf file, your
-        previously disabled chans will be automatically disabled.
-
-        """
         nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
         starti = (start - self.t0) / self.tres # nsamples offset from start of recording
         self.f.seek(CHANFIELDLEN + self.nchans*starti*2) # 2 bytes for each int16 sample

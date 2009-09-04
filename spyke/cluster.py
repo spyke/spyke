@@ -68,11 +68,15 @@ class Cluster(object):
         if 'scale' in params:
             ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
 
-    def __getstate__(self, d):
+    def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         d.pop('spikeis', None) # exclude spikeis which hold indices of currently coloured points
         del d['ellipsoid'] # remove Mayavi ellipsoid surface, recreate on unpickle
         return d
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+        self.ellipsoid = None # restore attrib, proper value is restored later
 
 
 class SpykeMayaviScene(MayaviScene):
@@ -296,8 +300,9 @@ class ClusterFrame(wx.MiniFrame):
         cluster.ellipsoid = ellipsoid
         cluster.update_ellipsoid(dims=dims) # update all params
         f.scene.disable_render = False
-
+    '''
+    # unnecessary, just use ellipsoid.remove()
     def remove_ellipsoid(self, cluster):
         """Remove ellipsoid from scene, given its corresponding cluster"""
         self.f.scene.remove_actor(cluster.ellipsoid.actor.actor)
-
+    '''

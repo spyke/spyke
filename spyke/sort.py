@@ -1225,5 +1225,3 @@ class SortFrame(wxglade_gui.SortFrame):
             elif type(obj) == Spike:
                 return obj.neuron
         return None
-
-

@@ -323,6 +323,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
+        self.AddCluster(cluster)
+
+    def AddCluster(self, cluster):
+        """Add cluster to GUI"""
         cf = self.OpenFrame('cluster')
         try: cf.glyph # glyph already plotted
         except AttributeError: self.OnClusterPlot() # create glyph on first open
@@ -342,12 +346,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Cluster pane Del button click"""
         i = self.GetClusterIndex() # need both the index and the cluster
         cluster = self.cluster_list_box.GetClientData(i)
-        cf = self.OpenFrame('cluster')
-        cf.remove_ellipsoid(cluster)
+        cluster.ellipsoid.remove() # from pipeline
+        cluster.ellipsoid = None
         try: self.DeColourPoints(cluster.spikeis)
         except AttributeError: pass
-        cf.glyph.mlab_source.update()
-        cluster.ellipsoid = None
+        self.frames['cluster'].glyph.mlab_source.update()
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
         nitems = self.cluster_list_box.Count
@@ -414,6 +417,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: self.DeColourPoints(cluster.spikeis)
         except AttributeError: pass
         cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
+        self.ColourPoints(cluster)
         cf.glyph.mlab_source.scalars[cluster.spikeis] = np.tile(neuron.id % len(CMAP), len(cluster.spikeis))
         cf.glyph.mlab_source.update() # make the trait update
         spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[cluster.spikeis]
@@ -423,6 +427,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: neuron.itemID # is it in the tree yet/still?
         except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
         sf.MoveSpikes2Neuron(spikes, neuron)
+
+    def ColourPoints(self, clusters):
+        """Colour the points that fall within each cluster (as specified
+        by cluster.spikeis) the same colour as the cluster itself"""
+        clusters = toiter(clusters)
+        for cluster in clusters:
+            spikeis = cluster.spikeis
+            neuron = cluster.neuron
+            cf = self.frames['cluster']
+            cf.glyph.mlab_source.scalars[spikeis] = np.tile(neuron.id % len(CMAP), len(spikeis))
+        cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
 
     def DeColourPoints(self, spikeis):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
@@ -712,6 +727,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # TODO: if Save button is enabled, check if Sort is saved,
             # if not, prompt to save
             print 'deleting existing Sort and entries in list controls'
+            clusters = self.sort.clusters # need it below
             del self.sort
         except AttributeError:
             pass
@@ -724,8 +740,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf.lastSelectedTreeObjects = []
             sf.spikesortpanel.removeAllObjects()
             #sf.chartsortpanel.removeAllObjects()
-        else: # sort window hasn't been opened yet
-            pass
+        if 'cluster' in self.frames:
+            cf = self.frames['cluster']
+            for cluster in clusters.values():
+                cluster.ellipsoid.remove() # from pipeline
+                # no need to del cluster.ellipsoid, since all clusters are deleted when sort is deleted
+            try:
+                cf.glyph.remove() # from pipeline
+                del cf.glyph # cluster frame hangs around, so del its glyph
+            except AttributeError: pass
+            try:
+                while True: self.cluster_list_box.Delete(0) # delete cluster list entries
+            except wx.PyAssertionError: pass # no entries left to delete
         self.total_nspikes_label.SetLabel(str(0))
 
     def get_chans_enabled(self):
@@ -858,11 +884,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # refresh spike virtual listctrl
         sf.list.SetItemCount(len(self.sort._spikes))
         sf.list.RefreshItems()
-        # restore neurons and their sorted spikes to tree
+        # restore neurons and their sorted spikes to tree, restore cluster plot too
+        cluster = None
         for neuron in self.sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
             for spike in neuron.spikes.values():
-                sf.AddSpike2Tree(neuron.itemID, spike)
+                sf.AddSpikes2Tree(neuron.itemID, spike)
+            try: cluster = neuron.cluster
+            except AttributeError: continue
+            self.AddCluster(cluster)
+            cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
+        self.ColourPoints(self.sort.clusters.values()) # to save time, colour points for all clusters in one shot
+        if cluster: self.notebook.SetSelection(2) # switch to the cluster pane
 
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
