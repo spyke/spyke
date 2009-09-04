@@ -392,6 +392,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
+        if len(X) == 0:
+            return # nothing to plot
         cf.glyph = cf.plot(X, alpha=1.0)
         # update all ellipsoids
         for cluster in self.sort.clusters.values():
@@ -609,34 +611,54 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def delete_selected_detections(self):
         """Delete selected rows in detection list"""
+        sort = self.sort
+        sf = self.frames['sort']
         selectedRows = self.detection_list.GetSelections()
         selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
         for det in selectedDetections:
-            for spike in det.spikes.values(): # first check all detection's spikes to ensure they aren't neuron members
-                if getattr(spike, 'neuron', None) != None:
-                    wx.MessageBox("can't remove detection %d: spike %d is a "
-                                  "member of neuron %d"
-                                  % (det.id, spike.id, spike.neuron.id),
-                                  "Error", wx.OK|wx.ICON_EXCLAMATION)
-                    raise RuntimeError
-            for spikei in det.spikes.keys(): # now do the actual removal
-                try:
-                    del self.sort.spikes[spikei] # remove from spikes dict
+            ask = False
+            result = None
+            for spike in det.spikes.values(): # first check all detection's spikes to see if they're neuron members
+                if hasattr(spike, 'neuron'):
+                    ask = True
+                    break # out of inner for loop
+            if ask:
+                dlg = wx.MessageDialog(self,
+                                       "Spikes in detection %d are neuron members.\n"
+                                       "Delete detection %d and all its spikes anyway?" % (det.id, det.id),
+                                       'Remove spikes from neurons?', wx.YES_NO | wx.ICON_QUESTION)
+                result = dlg.ShowModal()
+                dlg.Destroy()
+            if result == wx.ID_NO:
+                continue # to next selectedDetection
+            for spikei, spike in det.spikes.iteritems(): # now do the actual removal
+                try: del sort.spikes[spikei] # remove from spikes dict
                 except KeyError: # check if it's in the trash
-                    try:
-                        del self.sort.trash[spikei] # remove from trash
+                    try: del sort.trash[spikei] # remove from trash
                     except KeyError:
                         print "can't find spike %d in sort.spikes or in sort.trash, it may have been a duplicate" % spikei
-            del self.sort.detections[det.id] # remove from sort's detections dict
+                try:
+                    del spike.neuron.spikes[spikei] # remove spike from its neuron too, if any
+                    sf.tree.Delete(spike.itemID) # remove spike from tree, if it's there
+                except AttributeError: pass
+            del sort.detections[det.id] # remove from sort's detections dict
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
-        self.sort.update_spike_lists() # update spike lists with new spikes dict contents
+        sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
-        self.frames['sort'].list.SetItemCount(len(self.sort._spikes))
-        self.frames['sort'].list.RefreshItems()
+        sf.list.SetItemCount(len(sort._spikes))
+        sf.list.RefreshItems()
         self.plot() # update rasters
-        if len(self.sort.detections) == 0: # if no detection runs are left
+        try:
+            cf = self.frames['cluster']
+            cf.glyph.remove() # from pipeline
+            del cf.glyph # del its glyph
+            # replot any remaining points, but don't apply clusters - leave it to user:
+            self.OnClusterPlot()
+        except(KeyError, AttributeError): pass
+
+        if len(sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
-        self.total_nspikes_label.SetLabel(str(len(self.sort.spikes))) # update
+        self.total_nspikes_label.SetLabel(str(len(sort.spikes))) # update
         self.EnableSpikeWidgets(True) # call in case nspikes has dropped to 0
 
     def listRow2Detection(self, row):
