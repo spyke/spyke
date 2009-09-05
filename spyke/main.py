@@ -144,7 +144,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dlg.Destroy()
 
     def OnSave(self, evt):
-        print("TODO: copy over ellipsoid params to neurons before saving")
         if not self.sortfname:
             self.OnSaveAs(evt)
         else:
@@ -603,19 +602,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
-        row = [str(detection.id),
-               detection.detector.threshmethod,
-               str(detection.detector.fixedthresh or detection.det.noisemult),
-               str(detection.detector.trange),
-               str(len(detection.spikes)),
-               str(detection.detector.slock),
-               str(detection.datetime).rpartition('.')[0],
-               detection.detector.srffname]
+        row = [str(detection.id), # 0:detID
+               detection.detector.threshmethod, # 1:class
+               str(detection.detector.fixedthresh or detection.det.noisemult), # 2:thresh
+               str(detection.detector.trange), # 3:trange
+               str(len(detection.spikes)), # 4: nspikes
+               str(detection.detector.slock), # 5: slock
+               str(detection.datetime).rpartition('.')[0], # 6: datetime
+               detection.detector.srffname] # 7: file
+        auto = wx.LIST_AUTOSIZE_USEHEADER
+        col2width = {0:auto, 1:auto, 2:auto, 3:100, 4:auto, 5:auto, 6:auto, 7:100}
         self.detection_list.Append(row)
-        for coli in range(len(row)):
-            if coli < len(row)-1: size = wx.LIST_AUTOSIZE_USEHEADER
-            else: size = 125 # set fixed column width for filename
-            self.detection_list.SetColumnWidth(coli, size) # resize columns to fit
+        for coli, width in col2width.items():
+            self.detection_list.SetColumnWidth(coli, width) # resize columns
         self.total_nspikes_label.SetLabel(str(len(self.sort.spikes)))
         self.EnableSpikeWidgets(True)
 
@@ -880,7 +879,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort file, restore the stream"""
-        print("TODO: create ellipsoids from neuron ellipsoid params when loading a .sort")
         self.DeleteSort() # delete any existing Sort
         # gzip.read() is reaaaallly slow for some reason, even if file is at compresslevel=1
         #pf = gzip.open(fname, 'rb')

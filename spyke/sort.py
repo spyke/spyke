@@ -68,6 +68,9 @@ class Sort(object):
         self._spikes_sorted_by = 't'
         self._spikes_reversed = False
 
+        # how much to scale each dim for better viewing in cluster plots
+        self.SCALE = {'x0': 3}
+
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs
         self._nid = 0 # used to count off unique neuron IDs
@@ -91,8 +94,8 @@ class Sort(object):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        for attr in ['_st', '_spikes_by_time', '_spikes']:
-            # all are temporary, and can be regenerated from .spikes
+        for attr in ['_st', '_spikes_by_time', '_spikes', 'Xcols']:
+            # all are temporary, and can be regenerated from .spikes or extracted params
             try: del d[attr]
             except KeyError: pass
         return d
@@ -189,8 +192,8 @@ class Sort(object):
             for dim in dims:
                 if dim not in self.Xcols: # add missing column
                     self.Xcols[dim] = np.asarray([ s.__dict__[dim] for s in spikes ], dtype=np.float32)
-                    if dim == 'x0':
-                        self.Xcols[dim] *= 3 # scale this dim
+                    if dim in self.SCALE:
+                        self.Xcols[dim] *= self.SCALE[dim] # scale this dim appropriately
 
         X = np.column_stack([ self.Xcols[dim] for dim in dims ])
         print("Getting param matrix took %.3f sec" % (time.clock()-t0))
@@ -621,8 +624,8 @@ class Neuron(object):
         self.wave.data = data
         self.wave.chans = chans
         self.wave.ts = ts
-        print 'neuron[%d].wave.chans = %r' % (self.id, chans)
-        print 'neuron[%d].wave.ts = %r' % (self.id, ts)
+        #print('neuron[%d].wave.chans = %r' % (self.id, chans))
+        #print('neuron[%d].wave.ts = %r' % (self.id, ts))
         return self.wave
 
     def get_stdev(self):
