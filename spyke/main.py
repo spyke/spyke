@@ -82,7 +82,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-        columnlabels = ['detID', 'class', 'thresh', 'trange', 'nspikes', 'slock', 'datetime']
+        columnlabels = ['detID', 'class', 'thresh', 'trange', 'nspikes', 'slock', 'datetime', 'file']
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -607,10 +607,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                str(detection.detector.trange),
                str(len(detection.spikes)),
                str(detection.detector.slock),
-               str(detection.datetime).rpartition('.')[0] ]
+               str(detection.datetime).rpartition('.')[0],
+               detection.detector.srffname]
         self.detection_list.Append(row)
         for coli in range(len(row)):
-            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+            if coli < len(row)-1: size = wx.LIST_AUTOSIZE_USEHEADER
+            else: size = 125 # set fixed column width for filename
+            self.detection_list.SetColumnWidth(coli, size) # resize columns to fit
         self.total_nspikes_label.SetLabel(str(len(self.sort.spikes)))
         self.EnableSpikeWidgets(True)
 
