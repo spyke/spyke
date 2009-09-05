@@ -722,7 +722,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #wx.GetApp().SetTopWindow(self) # neither does this
 
         self.str2t = {'start': self.hpstream.t0,
-                      'now': self.t,
+                      'now': self.t, # FIXME: this won't track self.t automatically
                       'end': self.hpstream.tend}
 
         self.range = (self.hpstream.t0, self.hpstream.tend) # us
@@ -780,9 +780,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 cf.glyph.remove() # from pipeline
                 del cf.glyph # cluster frame hangs around, so del its glyph
             except AttributeError: pass
-            try:
-                while True: self.cluster_list_box.Delete(0) # delete cluster list entries
-            except wx.PyAssertionError: pass # no entries left to delete
+        try:
+            while True: self.cluster_list_box.Delete(0) # delete cluster list entries
+        except wx.PyAssertionError: pass # no entries left to delete
         self.total_nspikes_label.SetLabel(str(0))
 
     def get_chans_enabled(self):

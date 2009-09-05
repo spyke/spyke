@@ -334,6 +334,13 @@ class Spike(object):
     def update_wave(self, stream, tw=None):
         """Load/update self's waveform taken from the given stream.
         Optionally slice it according to tw around self's spike time"""
+        if self.detection.detector.srffname != stream.srffname:
+            msg = ("Spike %d was extracted from .srf file %s.\n"
+                   "The currently opened .srf file is %s.\n"
+                   "Can't update spike %d's waveform." %
+                   (self.id, self.detection.detector.srffname, stream.srffname, self.id))
+            wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
+            raise RuntimeError(msg)
         wave = stream[self.t0 : self.tend]
         ts = np.arange(self.t0, self.tend, stream.tres) # build them up
         # can't do this cuz chanis indexes only into enabled chans,

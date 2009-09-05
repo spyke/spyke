@@ -403,7 +403,7 @@ class Sort(object):
             nchans = 1
         assert np.log2(npoints) % 1 == 0, 'npoints is not a power of 2'
         # get ti - time index each spike is assumed to be centered on
-        self.spikes[0].update_wave(stream=self.stream) # make sure it has a wave
+        self.spikes[0].update_wave(self.stream) # make sure it has a wave
         ti = int(round(self.spikes[0].wave.data.shape[-1] / 4)) # 13 for 50 kHz, 6 for 25 kHz
         dims = len(self.spikes), 2+nchans*npoints
         output = np.empty(dims, dtype=np.float32)
@@ -430,7 +430,7 @@ class Sort(object):
                           "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
                           % (chani, nchans, x0, y0, spikei, spike.t))
             if spike.wave.data == None:
-                spike.update_wave(stream=self.stream)
+                spike.update_wave(self.stream)
             row = [x0, y0]
             for chani in nearestchanis:
                 chan = dm.chans[chani] # dereference
@@ -574,7 +574,7 @@ class Neuron(object):
         self.cluster = None
         #self.surffname # not here, let's allow neurons to have spikes from different files?
 
-    def update_wave(self, stream=None):
+    def update_wave(self, stream):
         """Update mean waveform, should call this every time .spikes are modified.
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
@@ -598,7 +598,7 @@ class Neuron(object):
         data = np.zeros(shape, dtype=np.float32) # collect data that corresponds to chans and ts
         nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
         for spike in self.spikes.values():
-            if spike.wave.data == None: # empty WaveForm
+            if not hasattr(spike, 'wave') or spike.wave == None or spike.wave.data == None: # empty WaveForm
                 spike.update_wave(stream)
             wave = spike.wave[chans] # has intersection of spike.wave.chans and chans
             # get chan indices into chans corresponding to wave.chans, chans is a superset of wave.chans
@@ -1137,7 +1137,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.list.Select(row) # automatically select the new item at that position
         self.AddSpikes2Tree(neuron.itemID, spikes)
-        neuron.update_wave() # update mean neuron waveform
+        neuron.update_wave(self.sort.stream) # update mean neuron waveform
         if createdNeuron:
             #self.tree.Expand(root) # make sure root is expanded
             self.tree.Expand(neuron.itemID) # expand neuron
@@ -1205,7 +1205,7 @@ class SortFrame(wxglade_gui.SortFrame):
                     if len(neuron.spikes) == 0:
                         self.RemoveNeuron(neuron) # remove empty Neuron
                     else:
-                        neuron.update_wave() # update mean neuron waveform
+                        neuron.update_wave(self.sort.stream) # update mean neuron waveform
                 elif type(obj) == Neuron:
                     self.RemoveNeuron(obj) # remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
