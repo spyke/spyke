@@ -21,7 +21,7 @@ import spyke
 from spyke import core, surf, detect
 from spyke.sort import Sort, Detection
 from spyke.core import toiter, MU
-from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP
+from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
 from spyke.sort import SortFrame
 import wxglade_gui
 
@@ -374,7 +374,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.UpdateParamWidgets(cluster)
         self.OnClusterPlot()
 
-    def OnFocus(self, evt=None):
+    def FocusCurrentCluster(self):
         """Sets the position of the currently selected cluster to
         the point in 3D where the scene's camera is currently focused"""
         cf = self.frames['cluster']
@@ -394,41 +394,46 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot
-        cf.glyph = cf.plot(X, alpha=1.0)
+        cf.glyph = cf.plot(X)
         # update all ellipsoids
         for cluster in self.sort.clusters.values():
             cluster.update_ellipsoid(dims=dims)
 
     def OnApplyCluster(self, evt=None):
-        """Cluster button press in cluster_pane, Don't need the evt"""
+        """Apply (cluster) button press in cluster_pane, Don't need the evt"""
         cluster = self.GetCluster()
-        self.ApplyCluster(cluster)
+        self.ApplyClusters(cluster)
 
-    def ApplyCluster(self, cluster):
+    def OnApplyAllClusters(self, evt=None):
+        """Apply all (cluster) button press in cluster_pane, Don't need the evt"""
+        self.ApplyClusters(self.sort.clusters.values())
+
+    def ApplyClusters(self, clusters):
         """Apply the cluster params to the spikes. Cut the spikes and
         update the plot"""
-        neuron = cluster.neuron
         sf = self.frames['sort']
         cf = self.frames['cluster']
-        # TODO: take difference between returned spikes and any that may already
-        # be classified as part of this neuron, and only add and remove those spikes
-        # that are necessary.
-        # remove any existing spikes from neuron and restore them to spike listctrl:
-        sf.MoveSpikes2List(neuron.spikes.values())
-        # reset scalar values for cluster's existing points
-        try: self.DeColourPoints(cluster.spikeis)
-        except AttributeError: pass
-        cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
-        self.ColourPoints(cluster)
-        cf.glyph.mlab_source.scalars[cluster.spikeis] = np.tile(neuron.id % len(CMAP), len(cluster.spikeis))
-        cf.glyph.mlab_source.update() # make the trait update
-        spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[cluster.spikeis]
-        if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
-            sf.RemoveNeuronFromTree(neuron)
-            return
-        try: neuron.itemID # is it in the tree yet/still?
-        except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
-        sf.MoveSpikes2Neuron(spikes, neuron)
+        for cluster in toiter(clusters):
+            neuron = cluster.neuron
+            # TODO: take difference between returned spikes and any that may already
+            # be classified as part of this neuron, and only add and remove those spikes
+            # that are necessary.
+            # remove any existing spikes from neuron and restore them to spike listctrl:
+            sf.MoveSpikes2List(neuron.spikes.values())
+            # reset scalar values for cluster's existing points
+            try: self.DeColourPoints(cluster.spikeis)
+            except AttributeError: pass
+            cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
+            self.ColourPoints(cluster)
+            cf.glyph.mlab_source.scalars[cluster.spikeis] = np.tile(neuron.id % len(CMAP), len(cluster.spikeis))
+            spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[cluster.spikeis]
+            if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
+                sf.RemoveNeuronFromTree(neuron)
+                return
+            try: neuron.itemID # is it in the tree yet/still?
+            except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
+            sf.MoveSpikes2Neuron(spikes, neuron)
+        cf.glyph.mlab_source.update() # to reflect scalars change, update trait, but only once
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
@@ -445,7 +450,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
         Don't forget to call cf.glyph.mlab_source.update() after calling this"""
         cf = self.frames['cluster']
-        cf.glyph.mlab_source.scalars[spikeis] = np.tile(9, len(spikeis)) # CMAP[9] is WHITE
+        cf.glyph.mlab_source.scalars[spikeis] = np.tile(TRANSWHITEI, len(spikeis))
 
     def GetClusterIndex(self):
         """Return index of currently selected cluster in cluster listbox"""
@@ -908,6 +913,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf.list.RefreshItems()
         # restore neurons and their sorted spikes to tree, restore cluster plot too
         cluster = None
+        # don't use self.ApplyClusters() to do all the following, since it's possible that
+        # some neurons don't have clusters
         for neuron in self.sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
             for spike in neuron.spikes.values():

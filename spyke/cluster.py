@@ -14,7 +14,7 @@ from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 from enthought.mayavi import mlab
 from enthought.mayavi.tools.engine_manager import get_engine
 
-from spyke.plot import CMAP, CMAPWITHJUNK
+from spyke.plot import CMAP, CMAPPLUSJUNK, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 
 class Cluster(object):
@@ -156,12 +156,12 @@ class ClusterFrame(wx.MiniFrame):
         elif key == 'd':
             spykeframe.OnDelCluster()
         elif key == 'x':
-            spykeframe.OnFocus()
+            spykeframe.FocusCurrentCluster()
         elif key == 'c':
             spykeframe.OnApplyCluster()
 
     def plot(self, X, scale=None, nids=None, minspikes=1,
-             mode='point', scale_factor=0.5, alpha=0.5,
+             mode='point', scale_factor=0.5, alpha=None,
              mask_points=None, resolution=8, line_width=2.0, envisage=False):
         """Plot 3D projection of (possibly clustered) spike params in X. scale
         each dimension in X by scale. nids is a sequence of neuron ids
@@ -186,7 +186,7 @@ class ClusterFrame(wx.MiniFrame):
         x = X[:, 0]
         y = X[:, 1]
         z = X[:, 2]
-        cmap = CMAP
+        cmap = CMAPPLUSTRANSWHITE
         if nids: # figure out scalar value to assign to each spike to colour it correctly
             t0 = time.clock()
             nids = np.asarray(nids)
@@ -225,13 +225,13 @@ class ClusterFrame(wx.MiniFrame):
             # or maybe junknidi = sum(hist[:histi]) would work as well? faster?
             njunk = len(nids) - junknidi # number of junk points
             # s are indices into colourmap
-            s = nids % len(CMAP)
+            s = nids % len(cmap)
             if njunk > 0:
-                # use CMAPWITHJUNK with its extra junk colour only if it's needed,
+                # use CMAPPLUSJUNK with its extra junk colour only if it's needed,
                 # otherwise mayavi rescales and throws out a middle colour
                 # (like light blue), and you end up with dk grey points even
                 # though you don't have any junk points
-                cmap = CMAPWITHJUNK # has extra dk grey colour at end for junk
+                cmap = CMAPPLUSJUNK # has extra dk grey colour at end for junk
                 s[junknidi:] = len(cmap) - 1 # assign last colour (dk grey) to junk clusters
             # unsort, so mayavi pick indices match spike indices
             nids = nids[unsortednidis] # unsort nids back to its original spike id order
@@ -240,7 +240,7 @@ class ClusterFrame(wx.MiniFrame):
             # TODO: order colours consecutively according to cluster mean y location, to
             # make neighbouring clusters in X-Y space less likely to be assigned the same colour
         else:
-            s = np.tile(9, len(X)) # CMAP[9] is WHITE
+            s = np.tile(TRANSWHITEI, len(X))
 
         if envisage == True:
             mlab.options.backend = 'envisage' # full GUI instead of just simple window
@@ -254,17 +254,18 @@ class ClusterFrame(wx.MiniFrame):
         #mlab.clf(f) # clear the whole scene
         #f.scene.camera.view_transform_matrix.scale(3, 1, 1) # this doesn't seem to work
         kwargs = {'figure': f, 'mode': mode,
-                  'opacity': alpha,
-                  #'transparent': True, # make the alpha of each point depend on the alpha of each scalar?
+                  #'opacity': alpha,
+                  'transparent': True, # make the alpha of each point depend on the alpha of each scalar?
                   'mask_points': mask_points,
                   'resolution': resolution,
                   'line_width': line_width,
                   'scale_mode': 'none', # keep all points the same size
                   'scale_factor': scale_factor,
                   'vmin': 0, # make sure mayavi respects full range of cmap indices
-                  'vmax': len(CMAP)-1}
+                  'vmax': len(cmap)-1}
         glyph = mlab.points3d(x, y, z, s, **kwargs)
         glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
+        glyph.module_manager.scalar_lut_manager.data_range = np.array([0, len(cmap)-1]) # need to force it again for some reason
         if scale: glyph.actor.actor.scale = scale
         f.scene.disable_render = False
         print("Plotting took %.3f sec" % (time.clock()-t0))
