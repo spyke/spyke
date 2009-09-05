@@ -397,6 +397,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf.glyph = cf.plot(X)
         # update all ellipsoids
         for cluster in self.sort.clusters.values():
+            try: del cluster.spikeis # no longer relevant, coloured points are now all white
+            except AttributeError: pass
             cluster.update_ellipsoid(dims=dims)
 
     def OnApplyCluster(self, evt=None):
