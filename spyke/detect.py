@@ -946,37 +946,7 @@ class Detector(object):
         else: # dir2 == 'left'
             #assert peak2i < peak1i
             return peak2i, peak1i
-
-    def get_spike_spatial_mean(self, spike):
-        """Return weighted spatial mean of chans in spike according to their
-        Vpp, to use as rough spatial origin of spike
-        NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
-        This is handled by giving them 0 weight."""
-        chanis = spike.chanis
-        try:
-            wave = spike.wave
-        except AttributeError:
-            spike.update_wave(self.sort.stream)
-            wave = spike.wave
-        x = self.siteloc[chanis, 0] # 1D array (row)
-        y = self.siteloc[chanis, 1]
-        # phase2 - phase1 on all chans, should be +ve, at least on maxchan
-        weights = (wave.data[:, spike.phase2ti] -
-                   wave.data[:, spike.phase1ti])
-        # replace any -ve weights with 0, convert to float before normalization
-        weights = np.float32(np.where(weights >= 0, weights, 0))
-        weights /= weights.sum() # normalized
-        #weights = wave.data[spike.chanis, spike.ti] # Vp weights, unnormalized, some of these may be -ve
-        # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
-        #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
-        #weights = abs(weights)
-        x0 = float((weights * x).sum()) # switch from np.float32 scalar to Python float
-        y0 = float((weights * y).sum())
-        return x0, y0
-
-    def get_gaussian_fit(self, spike):
-        raise NotImplementedError
-
+    '''
     def modelspikes(self, events):
         """Model spike events that roughly look like spikes
         TODO: needs updating to make use of given set of spikes.
@@ -1094,7 +1064,7 @@ class Detector(object):
             """
             lockout[chanis] = t0i + phase2ti + int(round(s2 / self.sort.stream.tres))
             print 'lockout for chanis = %s' % wave.ts[lockout[chanis]]
-
+    '''
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
         given blocksize and blockexcess"""

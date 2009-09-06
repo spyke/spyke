@@ -18,7 +18,7 @@ from copy import copy
 import numpy as np
 
 import spyke
-from spyke import core, surf, detect
+from spyke import core, surf, detect, extract
 from spyke.sort import Sort, Detection
 from spyke.core import toiter, MU
 from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
@@ -308,11 +308,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
-    def OnExtract(self, evt):
-        """Extract pane Extract button click"""
-        XYmethod = self.extract_radio_box.GetStringSelection()
-        self.sort.extractXY(XYmethod)
-        self.frames['sort'].list.RefreshItems()
+    def OnExtract(self, evt=None):
+        """Extract pane Extract button click. Extracts (or re-extracts and
+        overwrites) spike parameters from all sort.spikes, and stores
+        them as spike attribs"""
+        ext = extract.Extractor(sort=self.sort) # or eventually, self.get_extractor()
+        #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
+        self.sort.extractor = ext
+        ext.XYmethod = self.extract_radio_box.GetStringSelection()
+        ext.extract() # adds extracted params to sort.spikes
+        self.frames['sort'].list.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnAddCluster(self, evt=None):

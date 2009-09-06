@@ -151,25 +151,6 @@ class Sort(object):
         spikes.sort(key=operator.attrgetter(attr)) # sort in-place by spike attribute
         return spikes
 
-    def extractXY(self, method):
-        """Extract XY parameters from spikes using extraction method"""
-        if len(self.spikes) == 0:
-            raise RuntimeError("No spikes to extract XY parameters from")
-        print("Extracting parameters from spikes")
-        t0 = time.clock()
-        if method.lower() == 'spatial mean':
-            for spike in self.spikes.values():
-                det = spike.detection.detector
-                spike.x0, spike.y0 = det.get_spike_spatial_mean(spike)
-        elif method.lower() == 'gaussian fit':
-            for spike in self.spikes.values():
-                det = spike.detection.detector
-                spike.x0, spike.y0 = det.get_gaussian_fit(spike)
-        else:
-            raise ValueError("Unknown XY parameter extraction method %r" % method)
-        print("Extracting XY parameters from all %d spikes using %s took %.3f sec" %
-              (len(self.spikes), method.lower(), time.clock()-t0))
-
     def get_param_matrix(self, dims=None):
         """Organize parameters in dims from all spikes into a
         data matrix for clustering"""
