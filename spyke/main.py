@@ -373,10 +373,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,
-        replace data in plot, or just plot if it doesn't already exist"""
+        and replot the data in the (potentially) new projection, while
+        maintaining the colour of each point"""
         cluster = self.GetCluster()
         self.UpdateParamWidgets(cluster)
-        self.OnClusterPlot()
+        cf = self.frames['cluster']
+        scalars = cf.glyph.mlab_source.scalars # save scalars
+        self.OnClusterPlot() # replot
+        cf.glyph.mlab_source.scalars = scalars # restore scalars
+        cf.glyph.mlab_source.update() # make scalar changes visible
 
     def FocusCurrentCluster(self):
         """Sets the position of the currently selected cluster to

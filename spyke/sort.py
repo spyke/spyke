@@ -561,10 +561,11 @@ class Neuron(object):
         properties only catch name binding of spikes, not modification of an object
         that's already been bound"""
         if self.spikes == {}: # no member spikes, perhaps I should be deleted?
-            raise RuntimeError, "neuron %d has no spikes and its waveform can't be updated" % self.id
+            raise RuntimeError("neuron %d has no spikes and its waveform can't be updated" % self.id)
             #self.wave = WaveForm() # empty waveform
             #return self.wave
-        chans, ts = set(), set() # build up union of chans and relative timepoints of all member spikes
+        # build up union of chans and relative timepoints of all member spikes
+        chans, ts = set(), set()
         for spike in self.spikes.values():
             chans = chans.union(spike.chans)
             spikets = np.arange(spike.t0, spike.tend, self.sort.tres) # build them up
@@ -601,7 +602,15 @@ class Neuron(object):
             '''
             data[i] += wave.data.ravel() # accumulate appropriate data points
             nspikes[i] += 1 # increment spike counts at appropriate data points
+        # some entries in nspikes can be 0 - this raises an 'invalid' error instead
+        # of a div by 0 error because those same entries in data are also 0, so we
+        # get 0/0. This can be dealt with by temporarily ignoring invalid errors
+        # from numpy, using np.seterr. Or instead, we can replace all the zeros in
+        # nspikes with 1s, and get 0/1 which wouldn't raise any errors
+        nspikes = np.maximum(nspikes, np.ones(shape, dtype=np.float32)) # element-wise max
+        #np.seterr(invalid='ignore')
         data /= nspikes # normalize each data point appropriately
+        #np.seterr(invalid='raise') # restore error level
         self.wave.data = data
         self.wave.chans = chans
         self.wave.ts = ts
