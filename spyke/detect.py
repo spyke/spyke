@@ -799,7 +799,9 @@ class Detector(object):
             chanis = np.asarray([ chi for chi in self.nbhd[chani] if lockouts[chi] < ti ])
 
             # find maxchan within chanis based on Vpp, preserve sign so nearby inverted chans are ignored
-            Vpps = wave.data[chanis, t0i+phase2ti] - wave.data[chanis, ti] # phase2 - phase1 on all chans, should be +ve
+            # phase2 - phase1 on all chans, should be +ve
+            # first convert from int16 to int32 to prevent overflow
+            Vpps = np.int32(wave.data[chanis, t0i+phase2ti]) - np.int32(wave.data[chanis, ti])
             chanii = Vpps.argmax() # max chanii within chanis neighbourhood
             usenewchan = False
             newchani = chanis[chanii] # new max chani
@@ -880,7 +882,9 @@ class Detector(object):
                 if DEBUG: debug(message)
                 continue # skip to next event
             #s.V1, s.V2 = V1, V2
-            s.Vpp = float(AD2uV(V2 - V1)) # maintain polarity, Py float is more efficient than np.float32 for scalars
+            # maintain polarity, Py float is more efficient than np.float32 for scalars
+            # first convert to float to prevent overflow
+            s.Vpp = float(AD2uV(np.float32(V2) - np.float32(V1)))
             chans = np.asarray(self.chans)[chanis] # dereference
             # chanis as a list is less efficient than as an array
             s.chani, s.chanis = int(chani), chanis

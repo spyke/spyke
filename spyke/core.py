@@ -17,12 +17,15 @@ import wx
 import numpy as np
 from numpy import pi
 
-# set some numpy options - will these hold for all modules in spyke?
+# set some numpy options - these should hold for all modules in spyke
 np.set_printoptions(precision=3)
 np.set_printoptions(threshold=1000)
 np.set_printoptions(edgeitems=5)
 np.set_printoptions(linewidth=150)
 np.set_printoptions(suppress=True)
+# make overflow, underflow, div by zero, and invalid all raise errors
+# this really should be the default in numpy...
+np.seterr(all='raise')
 
 from matplotlib.colors import hex2color
 
