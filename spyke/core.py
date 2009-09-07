@@ -693,8 +693,8 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
-        # index into _spikes list, in whatever order it was last sorted
-        spike = self.GetTopLevelParent().sort._spikes[row]
+        # index into _uspikes list, in whatever order it was last sorted
+        spike = self.GetTopLevelParent().sort._uspikes[row]
         attr = self.COL2ATTR[col]
         try:
             val = spike.__dict__[attr]

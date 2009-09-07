@@ -65,8 +65,8 @@ class Sort(object):
         self.clusters = {} # dict of multidim ellipsoid params
         self.trash = {} # discarded spikes
 
-        self._spikes_sorted_by = 't'
-        self._spikes_reversed = False
+        self._uspikes_sorted_by = 't'
+        self._uspikes_reversed = False
 
         # how much to scale each dim for better viewing in cluster plots
         self.SCALE = {'x0': 3}
@@ -94,7 +94,7 @@ class Sort(object):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        for attr in ['_st', '_spikes_by_time', '_spikes', 'Xcols']:
+        for attr in ['_st', '_spikes_by_time', '_uspikes', 'Xcols']:
             # all are temporary, and can be regenerated from .spikes or extracted params
             try: del d[attr]
             except KeyError: pass
@@ -102,7 +102,7 @@ class Sort(object):
 
     def __setstate__(self, d):
         """Restore self on unpickle per usual, but also restore
-        ._st, ._spikes_by_time, and ._spikes"""
+        ._st, ._spikes_by_time, and ._uspikes"""
         self.__dict__ = d
         self.update_spike_lists()
 
@@ -132,21 +132,24 @@ class Sort(object):
             self.tres = self.stream.tres # for convenience
 
     def update_spike_lists(self):
-        """Update self._st sorted array of spike times, _spikes_by_time array,
-        and self._spikes list"""
+        """Update self._st sorted array of all spike times, _spikes_by_time array,
+        and self._uspikes list containing only unsorted spikes"""
         spikes = self.spikes.values() # pull list out of dict
         st = np.asarray([ spike.t for spike in spikes ]) # spike times
         # can't assume spikes come out of dict sorted in time
         sti = st.argsort() # spike time indices
         # self._st and self._spikes_by_time are required for quick raster plotting
         self._st = st[sti] # array of current spike times
-        self._spikes_by_time = np.asarray(spikes)[sti] # array of current spikes sorted by time
-        self._spikes = spikes # indep list of current spikes, by however they were last sorted
-        self._spikes.sort(key=operator.attrgetter(self._spikes_sorted_by),
-                          reverse=self._spikes_reversed)
+        self._spikes_by_time = np.asarray(spikes)[sti] # array of current spikes, sorted by time
+        # _uspikes is a list of unsorted spikes, used by spike virtual listctrl
+        self._uspikes = [ spike for spike in spikes if not hasattr(spike, 'neuron') ]
+        # order it by ._uspikes_sorted_by and ._uspikes_reversed
+        self._uspikes.sort(key=operator.attrgetter(self._uspikes_sorted_by),
+                          reverse=self._uspikes_reversed)
+
 
     def get_spikes_sortedby(self, attr='id'):
-        """Return list of spikes, sorted by attribute 'attr'"""
+        """Return list of all spikes, sorted by attribute 'attr'"""
         spikes = self.spikes.values()
         spikes.sort(key=operator.attrgetter(attr)) # sort in-place by spike attribute
         return spikes
@@ -509,12 +512,12 @@ class Detection(object):
         self.spikes = {}
         for s in self._spikes:
             s.id = self.sort._sid
-            self.sort._sid += 1 # inc for next unique SpikeModel
+            self.sort._sid += 1 # inc for next unique Spike
             s.detection = self
-            try:
-                s.wave
-            except AttributeError:
-                s.wave = WaveForm() # init to empty waveform
+            #try:
+            #    s.wave
+            #except AttributeError:
+            #    s.wave = WaveForm() # init to empty waveform
             #s.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
             #s.plt = None # Plot currently holding self
             #s.neuron = None # neuron currently associated with
@@ -831,7 +834,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnListTimer(self, evt):
         """Run when started timer runs out and triggers a TimerEvent"""
         selectedRows = self.list.GetSelections()
-        selectedListSpikes = [ self.sort._spikes[row] for row in selectedRows ]
+        selectedListSpikes = [ self.sort._uspikes[row] for row in selectedRows ]
         removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
         addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
         self.RemoveObjectsFromPlot(removeSpikes)
@@ -845,7 +848,7 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'in OnListRightDown'
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
-        spike = self.sort._spikes[row]
+        spike = self.sort._uspikes[row]
         print 'spikeID is %r' % spike.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
@@ -862,7 +865,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):
-        """Sort ._spikes according to column clicked.
+        """Sort ._uspikes according to column clicked.
 
         TODO: keep track of currently selected spikes and currently focused spike,
         clear the selection, then reselect those same spikes after sorting is done,
@@ -873,13 +876,13 @@ class SortFrame(wxglade_gui.SortFrame):
         attr = self.list.COL2ATTR[col]
         s = self.sort
         # for speed, check if already sorted by attr
-        if s._spikes_sorted_by == attr: # already sorted, reverse the order
-            s._spikes.reverse() # in-place
-            s._spikes_reversed = not s._spikes_reversed # update reversed flag
+        if s._uspikes_sorted_by == attr: # already sorted, reverse the order
+            s._uspikes.reverse() # in-place
+            s._uspikes_reversed = not s._uspikes_reversed # update reversed flag
         else: # not sorted by attr
-            s._spikes.sort(key=operator.attrgetter(attr)) # in-place
-            s._spikes_sorted_by = attr # update
-            s._spikes_reversed = False # update
+            s._uspikes.sort(key=operator.attrgetter(attr)) # in-place
+            s._uspikes_sorted_by = attr # update
+            s._uspikes_reversed = False # update
         self.list.RefreshItems()
 
     def OnListKeyDown(self, evt):
@@ -1123,6 +1126,7 @@ class SortFrame(wxglade_gui.SortFrame):
             neuron.spikes[spike.id] = spike # add spike to neuron
             spike.neuron = neuron # bind neuron to spike
         self.sort.update_spike_lists()
+        self.list.SetItemCount(len(self.sort._uspikes))
         self.list.RefreshItems() # refresh the list
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.list.Select(row) # automatically select the new item at that position
@@ -1141,6 +1145,7 @@ class SortFrame(wxglade_gui.SortFrame):
         del self.sort.spikes[spike.id] # remove spike from sort.spikes
         self.sort.update_spike_lists()
         # TODO: selection doesn't seem to be working, always jumps to top of list
+        self.list.SetItemCount(len(self.sort._uspikes))
         self.list.RefreshItems() # refresh the list
         self.list.Select(row) # automatically select the new item at that position
         self.sort.trash[spike.id] = spike # add it to trash
@@ -1166,6 +1171,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.Delete(spike.itemID)
             del spike.itemID # no longer applicable
         self.sort.update_spike_lists()
+        self.list.SetItemCount(len(self.sort._uspikes))
         self.list.RefreshItems() # refresh the list
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
@@ -1177,7 +1183,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         #for row in selected_rows:
-        spikes = np.asarray(self.sort._spikes)[selected_rows]
+        spikes = np.asarray(self.sort._uspikes)[selected_rows]
         #if spike.wave.data != None: # only move it to neuron if it's got wave data
         neuron = self.MoveSpikes2Neuron(spikes, neuron) # if neuron was None, it isn't any more
         #else:
@@ -1206,7 +1212,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
-            spike = self.sort._spikes[row]
+            spike = self.sort._uspikes[row]
             self.MoveSpike2Trash(spike, row)
 
     def GetFirstSelectedNeuron(self):

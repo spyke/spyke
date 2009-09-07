@@ -334,6 +334,8 @@ class Spike(object):
     def update_wave(self, stream, tw=None):
         """Load/update self's waveform taken from the given stream.
         Optionally slice it according to tw around self's spike time"""
+        if stream == None:
+            raise RuntimeError("No stream open, can't update waveform for spike %d" % self.id)
         if self.detection.detector.srffname != stream.srffname:
             msg = ("Spike %d was extracted from .srf file %s.\n"
                    "The currently opened .srf file is %s.\n"
