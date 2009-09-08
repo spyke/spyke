@@ -332,6 +332,8 @@ class Stream(object):
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
         ts = ts[lo:hi+self.endinclusive] # .take doesn't seem to be any faster
+        if data.size == 0:
+            raise RuntimeError("no data to return, check slice key: %r" % key)
         #print('record data trimming took %.3f sec' % (time.clock()-ttrim)) # this takes 0 sec
 
         # reverse data if need be
@@ -503,7 +505,7 @@ class Stream(object):
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
         fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
         print('saving resampled data to %r' % fname)
-        t0 = time.clock()
+        tsave = time.clock()
         f = open(fname, 'wb')
 
         # for speed, allocate the full file size by writing a NULL byte to the very end:
@@ -520,7 +522,7 @@ class Stream(object):
         nulls.tofile(f) # fill the rest of the field with null bytes
 
         for blocki in xrange(nblocks):
-            tstart = blocki*blocksize
+            tstart = self.t0 + blocki*blocksize
             tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
             wave = self[tstart:tend] # slicing in blocks of time
             if order == 'F':
@@ -533,7 +535,7 @@ class Stream(object):
                     chandata.tofile(f) # write in row order
             sys.stdout.write('.')
         f.close()
-        print('saving resampled data to disk took %.3f sec' % (time.clock()-t0))
+        print('saving resampled data to disk took %.3f sec' % (time.clock()-tsave))
         self.try_switch() # switch to the .resample file, now that it's there
 
     def switch(self, to=None):
