@@ -356,7 +356,7 @@ class Spike(object):
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
 
-
+'''
 class SpikeModel(Spike):
     """A model for fitting two voltage Gaussians to spike phases,
     plus a 2D spatial gaussian to model decay across channels"""
@@ -413,11 +413,11 @@ class SpikeModel(Spike):
         e = mpl.patches.Ellipse(ellorig, 2*sx, 2*sy, angle=thetadeg,
                                 ec='#007700', fill=False, ls='dotted')
         a.add_patch(e)
-        '''
+        """
         c = mpl.patches.Circle((0, yrange-15), radius=15, # for calibrating aspect ratio of display
                                 ec='#ffffff', fill=False, ls='dotted')
         a.add_patch(c)
-        '''
+        """
         # plot a radial arrow on the ellipse to make its vertical axis obvious. theta=0 should plot a vertical radial line
         arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], -sy*np.sin(theta), sy*np.cos(theta),
                                   ec='#007700', fc='#007700', ls='solid')
@@ -558,7 +558,7 @@ class NLLSPSpikeModel(SpikeModel):
         # TODO: would be really nice to be able to keep the .pr attrib, for later inspection after unpickling of, say, bounds
         d['pr'] = None # don't pickle the openopt.NLLSP problem object, cuz it has lambdas which aren't picklable apparently
         return d
-
+'''
 
 class Detector(object):
     """Spike detector base class"""
@@ -884,7 +884,7 @@ class Detector(object):
                 if DEBUG: debug(message)
                 continue # skip to next event
             #s.V1, s.V2 = V1, V2
-            # maintain polarity, Py float is more efficient than np.float32 for scalars
+            # maintain polarity, Py float is more efficient to pickle than scalar np.float32
             # first convert to float to prevent overflow
             s.Vpp = float(AD2uV(np.float32(V2) - np.float32(V1)))
             chans = np.asarray(self.chans)[chanis] # dereference

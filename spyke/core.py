@@ -189,7 +189,8 @@ class Stream(object):
         # indicating there were no pauses in recording. Then, set a flag
         self.contiguous = (np.diff(self.rts, n=2) == 0).all()
         if not self.contiguous:
-            print('***NOTE: time gaps exist in recording, probably due to pauses')
+            wx.MessageBox('NOTE: time gaps exist in recording, possibly due to pauses',
+                          caption="Beware", style=wx.OK|wx.ICON_EXCLAMATION)
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
@@ -286,11 +287,16 @@ class Stream(object):
         recorddatas = []
         tload = time.clock()
         for record in cutrecords:
-            try:
-                recorddata = record.data
-            except AttributeError:
-                recorddata = record.load(self.srff.f) # to save time, only load the waveform if it's not already loaded
-            recorddatas.append(recorddata)
+            recorddatas.append(record.load(self.srff.f))
+        '''
+        # don't really feel like dealing with this right now:
+        if not self.contiguous: # fill in gaps with zeros
+            gaps = np.diff(self.rts)
+            uniquegaps = list(set(allgaps))
+            gapcounts = []
+            for gap in uniquegaps:
+                gapcounts.append((gaps == gap).sum())
+        '''
         nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
         totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
         #print('record.load() took %.3f sec' % (time.clock()-tload))
@@ -509,7 +515,6 @@ class Stream(object):
         # write the chans string field
         chanstr = 'chans = %r' % list(self.chans)
         assert len(chanstr) <= CHANFIELDLEN
-        f.seek(0) # back to start
         f.write(chanstr) # write chans string field
         nulls = np.zeros(CHANFIELDLEN-len(chanstr), dtype=np.int8)
         nulls.tofile(f) # fill the rest of the field with null bytes

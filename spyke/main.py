@@ -106,7 +106,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # for faster testing:
         srffname = os.path.join(self.DEFAULTDIR, '87 - track 7c spontaneous craziness.srf')
         #sortfname = self.DEFAULTDIR + '/87 testing.sort'
-        self.OpenSurfFile(srffname)
+        #self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_defaults(self):
@@ -1118,6 +1118,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Enable/disable all widgets that require an "open" .sort file"""
         self.menubar.Enable(wx.ID_SORTWIN, enable)
         self.toolbar.EnableTool(wx.ID_SORTWIN, enable)
+        self.menubar.Enable(wx.ID_CLUSTERWIN, enable)
+        self.toolbar.EnableTool(wx.ID_CLUSTERWIN, enable)
         self.menubar.Enable(wx.ID_SAVE, enable)
         self.toolbar.EnableTool(wx.ID_SAVE, enable)
         self.menubar.Enable(wx.ID_RASTERS, enable)
