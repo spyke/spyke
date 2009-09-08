@@ -612,7 +612,7 @@ class ResampleFileStream(Stream):
         stop = min(stop, self.tend+self.tres)
         #totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
         nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
-        starti = (start - self.t0) / self.tres # nsamples offset from start of recording
+        starti = int(round((start - self.t0) / self.tres)) # nsamples offset from start of recording
         self.f.seek(CHANFIELDLEN + self.nchans*starti*2) # 2 bytes for each int16 sample
         data = np.fromfile(self.f, dtype=np.int16, count=self.nchans*nsamples)
         data.shape = (nsamples, self.nchans) # assume file is in Fortran order
