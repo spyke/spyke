@@ -44,7 +44,7 @@ class Extractor(object):
         """Return weighted spatial mean of chans in spike according to their
         Vpp, to use as rough spatial origin of spike
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
-        This is handled by giving them 0 weight."""
+        This is handled by giving them 0 weight. Maybe it's better to take abs instead?"""
         chanis = spike.chanis
         siteloc = spike.detection.detector.siteloc
         if not hasattr(spike, 'wave'):

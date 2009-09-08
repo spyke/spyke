@@ -571,12 +571,13 @@ class Stream(object):
 
     def try_switch(self):
         """Try switching to using an appropriate .resample file"""
+        oldtype = type(self)
         try:
             self.switch(to='resample')
-            print("switched to ResampleFileStream")
         except IOError: # matching .resample file doesn't exist
             self.switch(to='normal')
-            print("switched to Stream")
+        newtype = type(self)
+        if newtype != oldtype: print("switched to %r" % newtype)
 
 
 class ResampleFileStream(Stream):

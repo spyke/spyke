@@ -145,8 +145,7 @@ class Sort(object):
         self._uspikes = [ spike for spike in spikes if not hasattr(spike, 'neuron') ]
         # order it by ._uspikes_sorted_by and ._uspikes_reversed
         self._uspikes.sort(key=operator.attrgetter(self._uspikes_sorted_by),
-                          reverse=self._uspikes_reversed)
-
+                           reverse=self._uspikes_reversed)
 
     def get_spikes_sortedby(self, attr='id'):
         """Return list of all spikes, sorted by attribute 'attr'"""
