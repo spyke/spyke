@@ -28,7 +28,7 @@ from text import SimpleTable
 DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
 TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-KEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
+KEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
 
 logger = logging.Logger('detection')
 shandler = logging.StreamHandler(strm=sys.stdout) # prints to screen
@@ -620,7 +620,7 @@ class Detector(object):
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search
         self.nbhd = [] # list of neighbourhood of chanis for each chani, as defined by self.slock, each in ascending order
         for distances in self.dm.data: # iterate over rows
-            chanis, = np.where(distances <= self.slock) # at what col indices does the returned row fall within slock?
+            chanis, = np.uint8(np.where(distances <= self.slock)) # at what col indices does the returned row fall within slock?
             ds = distances[chanis] # subset of distances
             sortis = ds.argsort()
             chanis = chanis[sortis] # sort by distance from chani

@@ -196,9 +196,9 @@ class Stream(object):
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
         self.probe = probetype() # instantiate it
 
-        self.t0 = self.rts[0] # us, time that recording began, time of first recorded data point
+        self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
         lastctsrecordnt = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans)) # nsamples in last record
-        self.tend = self.rts[-1] + (lastctsrecordnt-1)*self.rawtres # time of last recorded data point
+        self.tend = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
 
     def get_chans(self):
         return self._chans

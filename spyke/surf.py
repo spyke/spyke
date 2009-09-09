@@ -619,7 +619,7 @@ class ContinuousRecord(object):
         # no, that's about 25% slower when thrashing from uncached disk, below is better:
         '''
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = unpack('qqhhii', f.read(28))
-        self.dataoffset = f.tell()
+        self.dataoffset = int(f.tell()) # try and keep it more compact if possible
         # skip the waveform data for now
         f.seek(self.NumSamples*2, 1)
 
@@ -702,16 +702,7 @@ class LowPassMultiChanRecord(object):
             data.append(recorddata)
         # save as array, removing singleton dimensions
         data = np.squeeze(data)
-        self.weakref_data = weakref.ref(data)
         return data
-
-    def get_data(self):
-        data = self.weakref_data() # try the weakref to the data
-        if data == None:
-            raise AttributeError("record data has been garbage collected")
-        return data
-
-    data = property(get_data)
 
 
 class DisplayRecord(object):
