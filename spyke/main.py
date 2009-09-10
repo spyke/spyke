@@ -274,7 +274,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
         #import cProfile
         #cProfile.runctx('spikes = self.sort.detector.detect()', globals(), locals())
-        spikes = self.sort.detector.detect() # list of Spikes
+        spikes = self.sort.detector.detect() # recarray of spikes
+        import pdb; pdb.set_trace()
+
         detection = Detection(self.sort, self.sort.detector, # create a new Detection run
                               id=self.sort._detid,
                               datetime=datetime.datetime.now(),
@@ -287,9 +289,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             else:
                 intersect = set(detection._spikes).intersection(det._spikes)
                 if intersect:
-                    raise ValueError("New detection ignored for sharing the following"
-                                     "spikes with existing detection %d: %r" %
-                                     (det.id, intersect))
+                    raise ValueError("New detection ignored for sharing "
+                                     "spikes with existing detection %d" %
+                                     det.id)
         self.sort._detid += 1 # inc for next unique Detection run
         detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to spikes
         self.sort.detections[detection.id] = detection

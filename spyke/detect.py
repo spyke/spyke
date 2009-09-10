@@ -30,6 +30,12 @@ TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st p
 
 KEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
 
+SPIKEDTYPE = [('detection', object), ('Vpp', np.float32), ('chanis', object),
+              ('dphase', np.int16), ('t0', np.int64), ('tend', np.int64),
+              ('phase1ti', np.uint8), ('phase2ti', np.uint8), ('chani', np.uint8),
+              ('t', np.int64), ('wave', object), ('id', np.int64)]
+
+
 logger = logging.Logger('detection')
 shandler = logging.StreamHandler(strm=sys.stdout) # prints to screen
 formatter = logging.Formatter('%(message)s')
@@ -644,17 +650,21 @@ class Detector(object):
         self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
         self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
-        spikes = [] # list of spikes collected from .searchblock() call(s)
+        spikes = np.recarray(0, SPIKEDTYPE) # init
 
         t0 = time.clock()
         for wavetrange in wavetranges:
             try:
-                spikes.extend(self.searchblock(wavetrange, direction))
+                blockspikes = self.searchblock(wavetrange, direction)
             except FoundEnoughSpikesError:
                 break
-        spikets = [ s.t for s in spikes ]
-        spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
-        spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
+            nblockspikes = len(blockspikes)
+            spikes.resize(self.nspikes + nblockspikes, refcheck=False)
+            spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
+            self.nspikes += nblockspikes
+        #spikets = [ s.t for s in spikes ]
+        #spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
+        #spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
         info('\nfound %d spikes in total' % len(spikes))
         info('inside .detect() took %.3f sec' % (time.clock()-t0))
         return spikes
@@ -711,11 +721,6 @@ class Detector(object):
         #import cProfile
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
         #spikes = []
-
-        dtype = [('detection', object), ('Vpp', np.float32), ('chanis', object), ('dphase', np.int16), ('t0', np.int64), ('tend', np.int64), ('phase1ti', np.uint8), ('phase2ti', np.uint8), ('chani', np.uint8), ('t', np.int64), ('wave', object), ('id', np.int64)]
-        spikerecs = np.recarray(len(spikes), dtype)
-
-        self.nspikes += len(spikes) # update for next call
         self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
         #info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
         #     (self.lockouts, self.lockouts_us))
@@ -771,7 +776,8 @@ class Detector(object):
         AD2uV = self.sort.converter.AD2uV
         lockouts = self.lockouts
         twi = self.twi
-        spikes = []
+        nspikes = 0
+        spikes = np.recarray(len(edgeis), SPIKEDTYPE) # nspikes will always be far less than nedgeis
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
             chan = self.chans[chani]
@@ -874,31 +880,30 @@ class Detector(object):
             # looks like a spike. For pickling/unpickling efficiency, save as few
             # attribs as possible with the most compact representation possible.
             # Saving numpy scalars is less efficient than using basic Python types
-            s = Spike()
-            s.t = int(wave.ts[ti])
-            #s.ts = wave.ts[t0i:tendi] # reconstruct this using np.arange(s.t0, s.tend, stream.tres)
-            ts = wave.ts[t0i:tendi]
-            s.t0, s.tend = int(wave.ts[t0i]), int(wave.ts[tendi])
-            s.phase1ti, s.phase2ti = int(phase1ti), int(phase2ti) # wrt t0i
-            s.dphase = int(ts[phase2ti] - ts[phase1ti]) # in us
+            s = spikes[nspikes]
+            s.t = wave.ts[ti]
             try:
-                assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
+                try: assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
+                except: import pdb; pdb.set_trace()
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
+            #s.ts = wave.ts[t0i:tendi] # reconstruct this using np.arange(s.t0, s.tend, stream.tres)
+            ts = wave.ts[t0i:tendi]
+            s.t0, s.tend = wave.ts[t0i], wave.ts[tendi]
+            s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
+            s.dphase = ts[phase2ti] - ts[phase1ti] # in us
             #s.V1, s.V2 = V1, V2
-            # maintain polarity, Py float is more efficient to pickle than scalar np.float32
-            # first convert to float to prevent overflow
-            s.Vpp = float(AD2uV(np.float32(V2) - np.float32(V1)))
+            # maintain polarity, first convert from int16 to float to prevent overflow
+            s.Vpp = AD2uV(np.float32(V2) - np.float32(V1))
             chans = np.asarray(self.chans)[chanis] # dereference
             # chanis as a list is less efficient than as an array
-            s.chani, s.chanis = int(chani), chanis
+            s.chani, s.chanis = chani, chanis
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
             if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
                 s.wave = WaveForm(data=wave.data[chanis, t0i:tendi],
                                   ts=ts,
                                   chans=chans)
-            spikes.append(s) # add to list of valid Spikes to return
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to 2nd phase of this spike
@@ -910,6 +915,9 @@ class Detector(object):
                 #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
                 debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
+            nspikes += 1
+
+        spikes.resize(nspikes, refcheck=False)
         return spikes
 
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
