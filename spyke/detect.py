@@ -712,6 +712,9 @@ class Detector(object):
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
         #spikes = []
 
+        dtype = [('detection', object), ('Vpp', np.float32), ('chanis', object), ('dphase', np.int16), ('t0', np.int64), ('tend', np.int64), ('phase1ti', np.uint8), ('phase2ti', np.uint8), ('chani', np.uint8), ('t', np.int64), ('wave', object), ('id', np.int64)]
+        spikerecs = np.recarray(len(spikes), dtype)
+
         self.nspikes += len(spikes) # update for next call
         self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
         #info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
