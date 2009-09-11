@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import Spike, TW
+from spyke.detect import Spike, TW, SPIKEDTYPE
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -56,17 +56,18 @@ class Sort(object):
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
 
-        # all spikes detected in this Sort across all Detection runs, indexed by unique ID
-        # whether sorted or not. Sorted spikes also go in their respective Neuron's .spikes dict
-        self.spikes = {}
+        # recarray of all spikes detected in this Sort across all Detection runs,
+        # whether sorted or not. Each record has a unique .id field
+        # Sorted spike IDs also go in their respective Neuron's .spikeis dict
+        self.spikes = np.recarray(0, SPIKEDTYPE)
         # most neurons will have an associated cluster, but not necessarily all -
         # some neurons may be purely hand sorted, one spike at a time
         self.neurons = {}
         self.clusters = {} # dict of multidim ellipsoid params
         self.trash = {} # discarded spikes
 
-        self._uspikes_sorted_by = 't'
-        self._uspikes_reversed = False
+        self._uris_sorted_by = 't'
+        self._uris_reversed = False
 
         # how much to scale each dim for better viewing in cluster plots
         self.SCALE = {'x0': 3}
@@ -94,7 +95,7 @@ class Sort(object):
         """Get object state for pickling"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        for attr in ['_st', '_spikes_by_time', '_uspikes', 'Xcols']:
+        for attr in ['_st', '_ris_by_time', '_uris', 'Xcols']:
             # all are temporary, and can be regenerated from .spikes or extracted params
             try: del d[attr]
             except KeyError: pass
@@ -102,22 +103,17 @@ class Sort(object):
 
     def __setstate__(self, d):
         """Restore self on unpickle per usual, but also restore
-        ._st, ._spikes_by_time, and ._uspikes"""
+        ._st, ._ris_by_time, and ._uris"""
         self.__dict__ = d
         self.update_spike_lists()
 
     def append_spikes(self, spikes):
-        """Append spikes to self.spikes dict, update associated spike lists,
-        and lockdown sampfreq and shcorrect attribs. Don't add a new spike
-        from a new detection if the identical spike is already in self.spikes"""
-        newspikes = set(spikes.values()).difference(self.spikes.values())
-        duplicates = set(spikes.values()).difference(newspikes)
-        if duplicates:
-            print('not adding duplicate spikes %r' % [ spike.id for spike in duplicates ])
-        uniquespikes = {}
-        for newspike in newspikes:
-            uniquespikes[newspike.id] = newspike
-        self.spikes.update(uniquespikes)
+        """Append spikes recarray to self.spikes recarray, update associated
+        spike lists, and lock down sampfreq and shcorrect attribs"""
+        nspikes = len(self.spikes)
+        nnewspikes = len(spikes)
+        self.spikes.resize(nspikes+nnewspikes) # resize in-place
+        self.spikes[nspikes:] = spikes # append
         self.update_spike_lists()
         try:
             if self.sampfreq != self.stream.sampfreq:
@@ -132,20 +128,30 @@ class Sort(object):
             self.tres = self.stream.tres # for convenience
 
     def update_spike_lists(self):
-        """Update self._st sorted array of all spike times, _spikes_by_time array,
-        and self._uspikes list containing only unsorted spikes"""
-        spikes = self.spikes.values() # pull list out of dict
-        st = np.asarray([ spike.t for spike in spikes ]) # spike times
-        # can't assume spikes come out of dict sorted in time
-        sti = st.argsort() # spike time indices
-        # self._st and self._spikes_by_time are required for quick raster plotting
-        self._st = st[sti] # array of current spike times
-        self._spikes_by_time = np.asarray(spikes)[sti] # array of current spikes, sorted by time
-        # _uspikes is a list of unsorted spikes, used by spike virtual listctrl
-        self._uspikes = [ spike for spike in spikes if not hasattr(spike, 'neuron') ]
-        # order it by ._uspikes_sorted_by and ._uspikes_reversed
-        self._uspikes.sort(key=operator.attrgetter(self._uspikes_sorted_by),
-                           reverse=self._uspikes_reversed)
+        """Update self._st sorted array of all spike times, _ris_by_time array,
+        and self._uspikeis list containing only unsorted spike IDs"""
+        #spikes = self.spikes.values() # pull list out of dict
+        st = self.spikes.t # all spike times
+        sids = self.spikes.id # all spike ids
+        # can't assume spikes come out of recarray sorted in time
+        ris = st.argsort() # recarray indices, sorted by time
+        # self._st and self._ris_by_time are required for quick raster plotting
+        self._st = st[ris] # array of current spike times
+        self._ris_by_time = ris # recarray indices of all spikes, sorted by time
+        # _uris is an array of recarray indices of unsorted spikes, used by spike virtual listctrl
+        neurons = self.spikes.neuron
+        # neurons == None doesn't work as expected, see
+        # http://www.mail-archive.com/numpy-discussion@scipy.org/msg02919.html
+        self._uris, = np.where(np.equal(neurons, None))
+        #self._uris = [ ri for ri in ris if self.spikes[ri].neuron != None ]
+        # order it by ._uris_sorted_by and ._uris_reversed
+        if self._uris_sorted_by != 't':
+            vals = self.spikes[self._uris][self._uris_sorted_by]
+            urisis = vals.argsort() # recarray indices, sorted by _uris_sorted_by
+            self._uris = self._uris[urisis]
+        if self._uris_reversed:
+            self._uris = self._uris[::-1] # is there a way to reverse an array in-place, like a list?
+        # TODO: (re)create a si2ri dict here
 
     def get_spikes_sortedby(self, attr='id'):
         """Return list of all spikes, sorted by attribute 'attr'"""
@@ -490,58 +496,6 @@ class Sort(object):
         print '\nmatch took %.3f sec' % (time.clock()-t0)
     '''
 
-class Detection(object):
-    """A spike detection run, which happens every time Search is pressed.
-    When you're merely searching for the previous/next spike with
-    F2/F3, that's not considered a detection run"""
-    def __init__(self, sort, detector, id=None, datetime=None, spikes=None):
-        self.sort = sort
-        self.detector = detector # Detector object used in this Detection run
-        self.id = id
-        self.datetime = datetime
-        self._spikes = spikes # list of spikes collected from Detector.search
-
-    def __eq__(self, other):
-        """Compare detection runs by their ._spikes lists"""
-        return np.all(self._spikes == other._spikes)
-
-    def set_spikeids(self):
-        """Give each spike an ID, inc sort's _sid spike ID counter after each one.
-        Stick a references to all spikes into a .spikes dict, using spike IDs as the keys"""
-        self.spikes = {}
-        for s in self._spikes:
-            s.id = self.sort._sid
-            self.sort._sid += 1 # inc for next unique Spike
-            s.detection = self
-            #try:
-            #    s.wave
-            #except AttributeError:
-            #    s.wave = WaveForm() # init to empty waveform
-            #s.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
-            #s.plt = None # Plot currently holding self
-            #s.neuron = None # neuron currently associated with
-            self.spikes[s.id] = s
-    '''
-    deprecated: use spike.chans instead:
-    def get_slock_chans(self, maxchan):
-        """Get or generate list of chans within spatial lockout of maxchan, use
-        spatial lockout of self.detector
-        Note this can't be used as the getter in a property, I think cuz you can't pass
-        args to a getter"""
-        try:
-            return self._slock_chans[maxchan]
-        except KeyError:
-            det = self.detector
-            # NOTE: dm is now always a full matrix, where its row indices always correspond
-            # to channel indices, so no need for messing around with indices into indices...
-            #chans = np.asarray(det.chans) # chans that correspond to rows/columns in det.dm
-            #maxchani, = np.where(chans == maxchan) # get index into det.dm that corresponds to maxchan
-            chans, = np.where(det.dm[maxchan].flat <= det.slock) # flat removes the singleton dimension
-            chans = list(chans)
-            self._slock_chans[maxchan] = chans # save for quick retrieval next time
-            return chans
-    '''
-
 class Neuron(object):
     """A collection of spikes that have been deemed somehow, whether manually
     or automatically, to have come from the same cell. A Neuron's waveform
@@ -833,7 +787,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnListTimer(self, evt):
         """Run when started timer runs out and triggers a TimerEvent"""
         selectedRows = self.list.GetSelections()
-        selectedListSpikes = [ self.sort._uspikes[row] for row in selectedRows ]
+        selectedListSpikes = [ self.sort._uris[row] for row in selectedRows ]
         removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
         addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
         self.RemoveObjectsFromPlot(removeSpikes)
@@ -847,7 +801,7 @@ class SortFrame(wxglade_gui.SortFrame):
         print 'in OnListRightDown'
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
-        spike = self.sort._uspikes[row]
+        spike = self.sort._uris[row]
         print 'spikeID is %r' % spike.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
@@ -864,7 +818,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):
-        """Sort ._uspikes according to column clicked.
+        """Sort ._uris according to column clicked.
 
         TODO: keep track of currently selected spikes and currently focused spike,
         clear the selection, then reselect those same spikes after sorting is done,
@@ -872,16 +826,16 @@ class SortFrame(wxglade_gui.SortFrame):
         that happens automatically). Right now, the selection remains in the list
         as-is, regardless of the entries that change beneath it"""
         col = evt.GetColumn()
-        attr = self.list.COL2ATTR[col]
+        field = self.list.COL2FIELD[col]
         s = self.sort
-        # for speed, check if already sorted by attr
-        if s._uspikes_sorted_by == attr: # already sorted, reverse the order
-            s._uspikes.reverse() # in-place
-            s._uspikes_reversed = not s._uspikes_reversed # update reversed flag
-        else: # not sorted by attr
-            s._uspikes.sort(key=operator.attrgetter(attr)) # in-place
-            s._uspikes_sorted_by = attr # update
-            s._uspikes_reversed = False # update
+        # for speed, check if already sorted by field
+        if s._uris_sorted_by == field: # already sorted, reverse the order
+            s._uris.reverse() # in-place
+            s._uris_reversed = not s._uris_reversed # update reversed flag
+        else: # not sorted by field
+            s._uris.sort(key=operator.attrgetter(attr)) # in-place
+            s._uris_sorted_by = attr # update
+            s._uris_reversed = False # update
         self.list.RefreshItems()
 
     def OnListKeyDown(self, evt):
@@ -1125,7 +1079,7 @@ class SortFrame(wxglade_gui.SortFrame):
             neuron.spikes[spike.id] = spike # add spike to neuron
             spike.neuron = neuron # bind neuron to spike
         self.sort.update_spike_lists()
-        self.list.SetItemCount(len(self.sort._uspikes))
+        self.list.SetItemCount(len(self.sort._uris))
         self.list.RefreshItems() # refresh the list
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.list.Select(row) # automatically select the new item at that position
@@ -1144,7 +1098,7 @@ class SortFrame(wxglade_gui.SortFrame):
         del self.sort.spikes[spike.id] # remove spike from sort.spikes
         self.sort.update_spike_lists()
         # TODO: selection doesn't seem to be working, always jumps to top of list
-        self.list.SetItemCount(len(self.sort._uspikes))
+        self.list.SetItemCount(len(self.sort._uris))
         self.list.RefreshItems() # refresh the list
         self.list.Select(row) # automatically select the new item at that position
         self.sort.trash[spike.id] = spike # add it to trash
@@ -1170,7 +1124,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.Delete(spike.itemID)
             del spike.itemID # no longer applicable
         self.sort.update_spike_lists()
-        self.list.SetItemCount(len(self.sort._uspikes))
+        self.list.SetItemCount(len(self.sort._uris))
         self.list.RefreshItems() # refresh the list
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
@@ -1182,7 +1136,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         #for row in selected_rows:
-        spikes = np.asarray(self.sort._uspikes)[selected_rows]
+        spikes = np.asarray(self.sort._uris)[selected_rows]
         #if spike.wave.data != None: # only move it to neuron if it's got wave data
         neuron = self.MoveSpikes2Neuron(spikes, neuron) # if neuron was None, it isn't any more
         #else:
@@ -1211,7 +1165,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         for row in selected_rows:
-            spike = self.sort._uspikes[row]
+            spike = self.sort._uris[row]
             self.MoveSpike2Trash(spike, row)
 
     def GetFirstSelectedNeuron(self):

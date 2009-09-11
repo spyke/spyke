@@ -19,7 +19,8 @@ import numpy as np
 
 import spyke
 from spyke import core, surf, detect, extract
-from spyke.sort import Sort, Detection
+from spyke.detect import Detection
+from spyke.sort import Sort
 from spyke.core import toiter, MU
 from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
 from spyke.sort import SortFrame
@@ -271,31 +272,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnDetect(self, evt):
         """Detect pane Detect button click"""
-        self.sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
+        sort = self.sort
+        sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
         #import cProfile
-        #cProfile.runctx('spikes = self.sort.detector.detect()', globals(), locals())
-        spikes = self.sort.detector.detect() # recarray of spikes
-        import pdb; pdb.set_trace()
-
-        detection = Detection(self.sort, self.sort.detector, # create a new Detection run
-                              id=self.sort._detid,
-                              datetime=datetime.datetime.now(),
-                              spikes=spikes)
-        # compare this detection to all previous ones, ignore it if it has a set of spikes
-        # overlapping with any other (see Detection.__eq__ and Spike.__eq__)
-        for det in self.sort.detections.values():
-            if detection == det:
-                raise ValueError("Identical detection ignored")
-            else:
-                intersect = set(detection._spikes).intersection(det._spikes)
-                if intersect:
-                    raise ValueError("New detection ignored for sharing "
-                                     "spikes with existing detection %d" %
-                                     det.id)
-        self.sort._detid += 1 # inc for next unique Detection run
-        detection.set_spikeids() # now that we know this detection isn't redundant, assign IDs to spikes
-        self.sort.detections[detection.id] = detection
-        self.sort.append_spikes(detection.spikes)
+        #cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
+        spikes = sort.detector.detect() # recarray of spikes
+        # compare spikes from this detection to all previous ones,
+        # ignore all new ones if they overlap with any existing ones
+        if spikes == sort.spikes:
+            raise ValueError("Identical detection ignored")
+        elif set(spikes).intersection(sort.spikes):
+            raise ValueError("New detection ignored for sharing "
+                             "spikes with existing detection")
+        detection = Detection(sort, sort.detector, # create a new Detection run
+                              id=sort._detid,
+                              datetime=datetime.datetime.now())
+        sort._detid += 1 # inc for next unique Detection run
+        detection.set_spikeids(spikes) # now that we know this detection isn't redundant, assign IDs to spikes
+        sort.detections[detection.id] = detection
+        sort.append_spikes(spikes)
         self.append_detection_list(detection)
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
         # now that we've had at least one detection run
@@ -305,7 +300,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         # refresh spike virtual listctrl
-        sf.list.SetItemCount(len(self.sort._uspikes))
+        sf.list.SetItemCount(len(sort._uris))
         sf.list.RefreshItems()
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
@@ -617,7 +612,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                detection.detector.threshmethod, # 1:class
                str(detection.detector.fixedthresh or detection.det.noisemult), # 2:thresh
                str(detection.detector.trange), # 3:trange
-               str(len(detection.spikes)), # 4: nspikes
+               str(len(detection.spikeis)), # 4: nspikes
                str(detection.detector.slock), # 5: slock
                str(detection.datetime).rpartition('.')[0], # 6: datetime
                detection.detector.srffname] # 7: file
@@ -665,7 +660,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
         sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
-        sf.list.SetItemCount(len(sort._uspikes))
+        sf.list.SetItemCount(len(sort._uris))
         sf.list.RefreshItems()
         self.plot() # update rasters
         try:
@@ -898,52 +893,53 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         t0 = time.clock()
         #import cProfile
         #import pickle
-        #cProfile.runctx('self.sort = cPickle.load(pf)', globals(), locals())
-        #cProfile.runctx('self.sort = pickle.load(pf)', globals(), locals())
-        self.sort = cPickle.load(pf)
+        #cProfile.runctx('sort = cPickle.load(pf)', globals(), locals())
+        #cProfile.runctx('sort = pickle.load(pf)', globals(), locals())
+        sort = cPickle.load(pf)
+        self.sort = sort
         print('done unpickling sort file, took %.3f sec' % (time.clock()-t0))
         pf.close()
-        sortProbeType = type(self.sort.probe)
+        sortProbeType = type(sort.probe)
         if self.hpstream != None:
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
                 self.CreateNewSort() # overwrite the failed Sort
                 raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
                                     % (sortProbeType, streamProbeType)
-        self.sort.stream = self.hpstream # restore missing stream object to Sort
-        self.SetSampfreq(self.sort.sampfreq)
-        self.SetSHCorrect(self.sort.shcorrect)
-        self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
+        sort.stream = self.hpstream # restore missing stream object to Sort
+        self.SetSampfreq(sort.sampfreq)
+        self.SetSHCorrect(sort.shcorrect)
+        self.menubar.Check(wx.ID_SAVEWAVES, sort.SAVEWAVES) # update menu option from sort
         self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the Sort
-        for detection in self.sort.detections.values(): # restore detections to detection list
+        for detection in sort.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
 
         sf = self.OpenFrame('sort') # ensure it's open
         # refresh spike virtual listctrl
-        sf.list.SetItemCount(len(self.sort._uspikes))
+        sf.list.SetItemCount(len(sort._uris))
         sf.list.RefreshItems()
         # restore neurons and their sorted spikes to tree, restore cluster plot too
         cluster = None
         # don't use self.ApplyClusters() to do all the following, since it's possible that
         # some neurons don't have clusters
-        for neuron in self.sort.neurons.values():
+        for neuron in sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
             for spike in neuron.spikes.values():
                 sf.AddSpikes2Tree(neuron.itemID, spike)
             try: cluster = neuron.cluster
             except AttributeError: continue
             self.AddCluster(cluster)
-            cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
-        self.ColourPoints(self.sort.clusters.values()) # to save time, colour points for all clusters in one shot
+            cluster.spikeis = sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
+        self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
         if cluster: self.notebook.SetSelection(2) # switch to the cluster pane
 
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        if self.sort.detector != None:
-            self.update_from_detector(self.sort.detector)
+        if sort.detector != None:
+            self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
         print('done opening sort file')
 

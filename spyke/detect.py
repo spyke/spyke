@@ -25,15 +25,15 @@ from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2, RM
 from text import SimpleTable
 
 
-DMURANGE = (0, 500) # allowed time difference between peaks of modelled spike
-TW = (-250, 750) # spike time window range, us, centered on thresh xing or 1st phase of spike
+DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
+TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
 KEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
 
-SPIKEDTYPE = [('detection', object), ('Vpp', np.float32), ('chanis', object),
-              ('dphase', np.int16), ('t0', np.int64), ('tend', np.int64),
-              ('phase1ti', np.uint8), ('phase2ti', np.uint8), ('chani', np.uint8),
-              ('t', np.int64), ('wave', object), ('id', np.int64)]
+SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
+              ('chanis', object), ('Vpp', np.float32), ('t0', np.int64),
+              ('tend', np.int64), ('dphase', np.int16), ('phase1ti', np.uint8),
+              ('phase2ti', np.uint8), ('detection', object), ('neuron', object)]
 
 
 logger = logging.Logger('detection')
@@ -884,7 +884,7 @@ class Detector(object):
             s.t = wave.ts[ti]
             try:
                 try: assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
-                except: import pdb; pdb.set_trace()
+                except TypeError: import pdb; pdb.set_trace()
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
@@ -1172,3 +1172,29 @@ class Detector(object):
             return np.stdev(data, axis=-1)
         else:
             raise ValueError
+
+
+class Detection(object):
+    """A spike detection run, which happens every time Detect is pressed.
+    When you're merely searching for the previous/next spike with
+    F2/F3, that's not considered a detection run"""
+    def __init__(self, sort, detector, id=None, datetime=None):
+        self.sort = sort
+        self.detector = detector # Detector object used in this Detection run
+        self.id = id
+        self.datetime = datetime
+        self.spikeis = [] # list of spike IDs that came from this detection
+    '''
+    def __eq__(self, other):
+        """Compare detection runs by their ._spikes lists"""
+        return np.all(self._spikes == other._spikes)
+    '''
+    def set_spikeids(self, spikes):
+        """Give each spike an ID, inc sort's _sid spike ID counter after each one
+        and append each id to self.spikeis"""
+        #for reci in xrange(len(spikes):
+        for s in spikes:
+            s.id = self.sort._sid
+            self.sort._sid += 1 # inc for next unique spike
+            s.detection = self
+            self.spikeis.append(s.id)

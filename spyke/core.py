@@ -697,16 +697,18 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
     """
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.COL2ATTR = {0:'id', 1:'x0', 2:'y0', 3:'t'}
+        self.COL2FIELD = {0:'id', 1:'x0', 2:'y0', 3:'t'}
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
-        # index into _uspikes list, in whatever order it was last sorted
-        spike = self.GetTopLevelParent().sort._uspikes[row]
-        attr = self.COL2ATTR[col]
+        # index into _uris list, in whatever order it was last sorted
+        sort = self.GetTopLevelParent().sort
+        ri = sort._uris[row]
+        spike = sort.spikes[ri]
+        field = self.COL2FIELD[col]
         try:
-            val = spike.__dict__[attr]
-        except KeyError: # attrib isn't currently available
+            val = spike[field]
+        except IndexError: # field isn't currently available
             return ''
         # this formatting step doesn't seem to have a performance cost:
         if type(val) == float:
