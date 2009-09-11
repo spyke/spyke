@@ -145,13 +145,21 @@ class Sort(object):
         self._uris, = np.where(np.equal(neurons, None))
         #self._uris = [ ri for ri in ris if self.spikes[ri].neuron != None ]
         # order it by ._uris_sorted_by and ._uris_reversed
-        if self._uris_sorted_by != 't':
-            vals = self.spikes[self._uris][self._uris_sorted_by]
-            urisis = vals.argsort() # recarray indices, sorted by _uris_sorted_by
-            self._uris = self._uris[urisis]
-        if self._uris_reversed:
-            self._uris = self._uris[::-1] # is there a way to reverse an array in-place, like a list?
+        if self._uris_sorted_by != 't': self.sort_uris()
+        if self._uris_reversed: self.reverse_uris()
         # TODO: (re)create a si2ri dict here
+
+    def sort_uris(self, sort_by):
+        """Sort recarray row indices of unsorted spikes according to
+        sort_by"""
+        vals = self.spikes[self._uris][sort_by] # vals from just the unsorted rows and the desired column
+        urisis = vals.argsort() # indices into _uris, sorted by sort_by
+        self._uris = self._uris[urisis] # _uris are now sorted by sorty_by
+        self._uris_sorted_by = sort_by # update
+
+    def reverse_uris(self):
+        """Reverse _uris"""
+        self._uris = self._uris[::-1] # is there a way to reverse an array in-place, like a list?
 
     def get_spikes_sortedby(self, attr='id'):
         """Return list of all spikes, sorted by attribute 'attr'"""
@@ -830,11 +838,11 @@ class SortFrame(wxglade_gui.SortFrame):
         s = self.sort
         # for speed, check if already sorted by field
         if s._uris_sorted_by == field: # already sorted, reverse the order
-            s._uris.reverse() # in-place
+            s.reverse_uris()
             s._uris_reversed = not s._uris_reversed # update reversed flag
-        else: # not sorted by field
-            s._uris.sort(key=operator.attrgetter(attr)) # in-place
-            s._uris_sorted_by = attr # update
+        else: # not yet sorted by field
+            s.sort_uris(field)
+            s._uris_sorted_by = field # update
             s._uris_reversed = False # update
         self.list.RefreshItems()
 
