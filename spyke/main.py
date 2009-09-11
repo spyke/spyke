@@ -300,7 +300,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         # refresh spike virtual listctrl
-        sf.list.SetItemCount(len(sort._uris))
+        sf.list.SetItemCount(len(sort.uris))
         sf.list.RefreshItems()
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
@@ -660,7 +660,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
         sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
-        sf.list.SetItemCount(len(sort._uris))
+        sf.list.SetItemCount(len(sort.uris))
         sf.list.RefreshItems()
         self.plot() # update rasters
         try:
@@ -919,7 +919,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         sf = self.OpenFrame('sort') # ensure it's open
         # refresh spike virtual listctrl
-        sf.list.SetItemCount(len(sort._uris))
+        sf.list.SetItemCount(len(sort.uris))
         sf.list.RefreshItems()
         # restore neurons and their sorted spikes to tree, restore cluster plot too
         cluster = None

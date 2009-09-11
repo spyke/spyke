@@ -701,9 +701,9 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
-        # index into _uris list, in whatever order it was last sorted
+        # index into uris list, in whatever order it was last sorted
         sort = self.GetTopLevelParent().sort
-        ri = sort._uris[row]
+        ri = sort.uris[row]
         spike = sort.spikes[ri]
         field = self.COL2FIELD[col]
         try:
