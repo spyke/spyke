@@ -25,15 +25,16 @@ from spyke.core import WaveForm, toiter, argcut, intround, eucd, g, g2, RM
 from text import SimpleTable
 
 
-DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
+#DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
 KEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
 
 SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
-              ('chanis', object), ('Vpp', np.float32), ('t0', np.int64),
+              ('chanis', np.ndarray), ('Vpp', np.float32), ('t0', np.int64),
               ('tend', np.int64), ('dphase', np.int16), ('phase1ti', np.uint8),
-              ('phase2ti', np.uint8), ('detection', object), ('neuron', object)]
+              ('phase2ti', np.uint8), ('wavedata', np.ndarray),
+              ('detection', object), ('neuron', object)]
 
 
 logger = logging.Logger('detection')
@@ -609,7 +610,7 @@ class Detector(object):
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
 
-        self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
+        #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
         self.tw = TW # spike time window range, us, centered on 1st phase of spike
 
     def detect(self):
@@ -883,8 +884,7 @@ class Detector(object):
             s = spikes[nspikes]
             s.t = wave.ts[ti]
             try:
-                try: assert cutrange[0] <= s.t <= cutrange[1], 'spike time %d falls outside cutrange for this searchblock call, discarding' % s.t
-                except TypeError: import pdb; pdb.set_trace()
+                assert cutrange[0] <= s.t <= cutrange[1], 'spike time %r falls outside cutrange for this searchblock call, discarding' % s.t # use %r since s.t is np.int64 and %d gives TypeError if > 2**31
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
@@ -901,9 +901,7 @@ class Detector(object):
             s.chani, s.chanis = chani, chanis
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
             if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
-                s.wave = WaveForm(data=wave.data[chanis, t0i:tendi],
-                                  ts=ts,
-                                  chans=chans)
+                s.wavedata = wave.data[chanis, t0i:tendi]
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to 2nd phase of this spike

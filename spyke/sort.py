@@ -147,7 +147,9 @@ class Sort(object):
         # order it by .uris_sorted_by and .uris_reversed
         if self.uris_sorted_by != 't': self.sort_uris()
         if self.uris_reversed: self.reverse_uris()
-        # TODO: (re)create a si2ri dict here
+        # TODO: (re)create a si2ri mapping here, not sure if it's needed though
+        #nspikes = len(spikes)
+        #self.si2ri = dict(zip(sids, np.arange(nspikes)))
 
     def sort_uris(self, sort_by):
         """Sort recarray row indices of unsorted spikes according to
