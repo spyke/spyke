@@ -72,15 +72,6 @@ class File(object):
                 f.seek(drdb.offset)
                 break
 
-    def _verifyParsing(self):
-        """Make sure timestamps of all records are in causal (increasing)
-        order. If not, sort them I guess?"""
-        #print 'Asserting increasing record order'
-        for item in self.__dict__:
-            if item.endswith('records'):
-                #print('Asserting %s are in causal order' % item)
-                assert causalorder(self.__dict__[item])
-
     def parse(self, force=False, save=True):
         """Parse the .srf file, potentially unpickling parse info from
         a .parse file. If doing a new parsing, optionally save parse info
@@ -96,10 +87,10 @@ class File(object):
         except IOError:
             print 'Parsing %r' % self.fname
             self._parseDRDBS()
-            self._parserecords()
+            self._parseRecords()
             print 'Done parsing %r' % self.fname
-            self._verifyParsing()
             self._connectRecords()
+            self._verifyParsing()
 
             #try: # check if highpassrecords are present
             self.hpstream = Stream(self, kind='highpass') # highpass record (spike) stream
@@ -116,7 +107,7 @@ class File(object):
                 self.pickle()
                 print 'pickling took %f sec' % (time.clock()-tsave)
 
-    def _parserecords(self):
+    def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
         # dict of (record type, listname to store it in) tuples
         FLAG2REC = {'L'  : (LayoutRecord, 'layoutrecords'),
@@ -128,6 +119,7 @@ class File(object):
                     'D'  : (DisplayRecord, 'displayrecords'),
                     'VD' : (DigitalSValRecord, 'digitalsvalrecords'),
                     'VA' : (AnalogSValRecord, 'analogsvalrecords')}
+        digitalsvalrecord = DigitalSValRecord() # instantiate just one, use it over and over
         f = self.f
         while True:
             # returns an empty string when EOF is reached
@@ -138,8 +130,12 @@ class File(object):
             f.seek(-2, 1)
             if flag in FLAG2REC:
                 rectype, reclistname = FLAG2REC[flag]
-                rec = rectype()
-                rec.parse(f)
+                # save time and memory by not instantiating hordes of unnecessary DigitalSValRecords
+                if rectype == DigitalSValRecord:
+                    rec = digitalsvalrecord.parse(f) # rec is just a tuple, not a DigitalSValRecord object
+                else:
+                    rec = rectype()
+                    rec.parse(f)
                 wx.Yield() # allow wx GUI event processing during parsing
                 self._appendRecord(rec, reclistname)
             else:
@@ -186,6 +182,20 @@ class File(object):
         lpmclayout = self.get_LowPassMultiChanLayout()
         for lpmcr in self.lowpassmultichanrecords:
             lpmcr.layout = lpmclayout # overwrite each lpmc record's layout attrib
+
+        # Rearrange digitalsvalsrecords list into a more memory efficient recarray
+        if hasattr(self, 'digitalsvalrecords'):
+            DTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
+            self.digitalsvalrecords = np.rec.array(self.digitalsvalrecords, dtype=DTYPE)
+
+    def _verifyParsing(self):
+        """Make sure timestamps of all records are in causal (increasing)
+        order. If not, sort them I guess?"""
+        #print 'Asserting increasing record order'
+        for item in self.__dict__:
+            if item.endswith('records'):
+                #print('Asserting %s are in causal order' % item)
+                assert causalorder(self.__dict__[item])
 
     def get_LowPassMultiChanLayout(self):
         """Creates sort of a fake lowpassmultichan layout record, based on
@@ -782,7 +792,9 @@ class DigitalSValRecord(object):
         # NOTE: skipping over first 8 junk bytes and last 4 or even 6 junk bytes only
         # slows down parsing, or seems to during hardware caching from > 1 tests w/o reboot.
         # Read the whole 24 bytes in one go, including the junk
-        junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
+        #junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
+        junk, TimeStamp, SVal, junk, junk = unpack('QQHHI', f.read(24))
+        return TimeStamp, SVal
 
 
 def causalorder(records):
