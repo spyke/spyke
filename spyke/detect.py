@@ -28,7 +28,7 @@ from text import SimpleTable
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-KEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
+MAXNSAVEDWAVEFORMS = 700000
 
 SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
               ('chanis', np.ndarray), ('Vpp', np.float32), ('t0', np.int64),
@@ -581,6 +581,7 @@ class Detector(object):
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
+    DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -588,10 +589,11 @@ class Detector(object):
     BLOCKEXCESS = 1000
 
     def __init__(self, sort, chans=None,
-                 threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None, ppthreshmult=None,
-                 fixednoisewin=None, dynamicnoisewin=None,
+                 threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
+                 ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
-                 slock=None, dt=None, randomsample=None):
+                 slock=None, dt=None, randomsample=None,
+                 keepspikewavesondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
         self.srffname = sort.stream.srffname # for reference, store which .srf file this Detector is run on
@@ -609,6 +611,7 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
+        self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
         self.tw = TW # spike time window range, us, centered on 1st phase of spike
@@ -678,6 +681,8 @@ class Detector(object):
              (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
+        if self.nspikes > MAXNSAVEDWAVEFORMS:
+            self.keepspikewavesondetect = False
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
@@ -900,7 +905,7 @@ class Detector(object):
             # chanis as a list is less efficient than as an array
             s.chani, s.chanis = chani, chanis
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
-            if KEEPSPIKEWAVESONDETECT: # keep spike waveform for later use
+            if self.keepspikewavesondetect: # keep spike waveform for later use
                 s.wavedata = wave.data[chanis, t0i:tendi]
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
