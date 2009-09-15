@@ -802,14 +802,14 @@ class SortFrame(wxglade_gui.SortFrame):
         selectedRows = self.list.GetSelections()
         selectedListSpikes = [ sort.spikes[sort.uris[row]] for row in selectedRows ] # records
         selectedListSpikes = filterobjs(selectedListSpikes) # Spikes
-        selectedListSpikes = {}.fromkeys(selectedListSpikes)
+        selectedListSpikes = set(selectedListSpikes)
         for spike in self.lastSelectedListSpikes:
             # overwrite any Spikes that match existing ones that may have
             # had some attribs modified since their creation
             if spike in selectedListSpikes:
-                selectedListSpikes.pop(spike) # remove naive spike
-                selectedListSpikes[spike] = None # replace with mature one
-        selectedListSpikes = list(selectedListSpikes.keys())
+                selectedListSpikes.remove(spike) # remove naive spike
+                selectedListSpikes.add(spike) # replace with mature one
+        selectedListSpikes = list(selectedListSpikes)
         removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
         addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
         self.RemoveObjectsFromPlot(removeSpikes)
