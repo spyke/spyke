@@ -8,6 +8,8 @@ import time
 
 import numpy as np
 
+from spyke.detect import filterobjs
+
 
 class Extractor(object):
     """Spike extractor base class"""
@@ -18,12 +20,14 @@ class Extractor(object):
         self.XYmethod = XYmethod # or DEFXYMETHOD
 
     def extract(self):
-        """Extract spike parameters, store them as spike attribs"""
+        """Extract spike parameters, store them as spike attribs. Every time
+        you do a new extraction, (re)create a new .params recarray with the right
+        set of params in it"""
         self.extractXY() # just x and y params for now
 
     def extractXY(self):
         """Extract XY parameters from spikes using XYmethod"""
-        spikes = self.sort.spikes
+        spikes = self.sort.spikes # recarray
         method = self.XYmethod
         if len(spikes) == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
@@ -35,7 +39,7 @@ class Extractor(object):
             f = self.get_gaussian_fit
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % method)
-        for spike in spikes.values():
+        for spike in spikes:
             spike.x0, spike.y0 = f(spike) # save as spike attribs
         print("Extracting XY parameters from all %d spikes using %r took %.3f sec" %
               (len(spikes), method.lower(), time.clock()-t0))
@@ -47,14 +51,16 @@ class Extractor(object):
         This is handled by giving them 0 weight. Maybe it's better to take abs instead?"""
         chanis = spike.chanis
         siteloc = spike.detection.detector.siteloc
-        if not hasattr(spike, 'wave'):
+        wavedata = spike.wavedata
+        if wavedata == None:
+            spike = filterobjs(spike)
             spike.update_wave(self.sort.stream)
-        wave = spike.wave
+            wavedata = spike.wave.data
         x = siteloc[chanis, 0] # 1D array (row)
         y = siteloc[chanis, 1]
         # phase2 - phase1 on all chans, should be +ve, at least on maxchan
-        weights = (wave.data[:, spike.phase2ti] -
-                   wave.data[:, spike.phase1ti])
+        weights = (wavedata[:, spike.phase2ti] -
+                   wavedata[:, spike.phase1ti])
         # replace any -ve weights with 0, convert to float before normalization
         weights = np.float32(np.where(weights >= 0, weights, 0))
         weights /= weights.sum() # normalized
@@ -62,8 +68,8 @@ class Extractor(object):
         # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
         #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
         #weights = abs(weights)
-        x0 = float((weights * x).sum()) # switch from np.float32 scalar to Python float
-        y0 = float((weights * y).sum())
+        x0 = (weights * x).sum()
+        y0 = (weights * y).sum()
         return x0, y0
 
     def get_gaussian_fit(self, spike):

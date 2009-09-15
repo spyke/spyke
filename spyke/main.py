@@ -1129,8 +1129,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             if len(self.sort.spikes) == 0: enable = False # no spikes
         except AttributeError: enable = False # self.sort doesn't exist yet
         self.extract_pane.Enable(enable)
-        try: self.sort.spikes.values()[0].x0
-        except (AttributeError, IndexError): enable = False # no spikes/params or .sort doesn't exist
+        try: self.sort.extractor
+        except AttributeError: enable = False # no params extracted, or .sort doesn't exist
         self.cluster_pane.Enable(enable)
         try:
             if len(self.sort.clusters) == 0: enable = False # no clusters exist yet

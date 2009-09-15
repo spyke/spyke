@@ -711,7 +711,7 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
         except IndexError: # field isn't currently available
             return ''
         # this formatting step doesn't seem to have a performance cost:
-        if type(val) == float:
+        if type(val) == np.float32:
             val = '%.1f' % val
         return val
 

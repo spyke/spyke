@@ -166,9 +166,10 @@ class Sort(object):
         self.uris = self.uris[::-1]
 
     def get_spikes_sortedby(self, attr='id'):
-        """Return list of all spikes, sorted by attribute 'attr'"""
-        spikes = self.spikes.values()
-        spikes.sort(key=operator.attrgetter(attr)) # sort in-place by spike attribute
+        """Return array of all spikes, sorted by attribute 'attr'"""
+        vals = self.spikes[attr]
+        ris = vals.argsort()
+        spikes = self.spikes[ris]
         return spikes
 
     def get_param_matrix(self, dims=None):
@@ -192,7 +193,7 @@ class Sort(object):
             spikes = self.get_spikes_sortedby('id')
             for dim in dims:
                 if dim not in self.Xcols: # add missing column
-                    self.Xcols[dim] = np.asarray([ s.__dict__[dim] for s in spikes ], dtype=np.float32)
+                    self.Xcols[dim] = np.asarray([ s[dim] for s in spikes ], dtype=np.float32)
                     if dim in self.SCALE:
                         self.Xcols[dim] *= self.SCALE[dim] # scale this dim appropriately
 

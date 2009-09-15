@@ -28,13 +28,13 @@ from text import SimpleTable
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-MAXNSAVEDWAVEFORMS = 500000
+MAXNSAVEDWAVEFORMS = 500000 # prevents MemoryErrors
 
 SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
-              ('chanis', np.ndarray), ('Vpp', np.float32), ('t0', np.int64),
-              ('tend', np.int64), ('dphase', np.int16), ('phase1ti', np.uint8),
-              ('phase2ti', np.uint8), ('wavedata', np.ndarray),
-              ('detection', object), ('neuron', object)]
+              ('chanis', np.ndarray), ('t0', np.int64), ('tend', np.int64),
+              ('phase1ti', np.uint8), ('phase2ti', np.uint8),
+              ('wavedata', np.ndarray), ('detection', object), ('neuron', object),
+              ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
 # spikes recarray fieldnames to convert to Spike attribs when filtering
 SPIKEATTRS = [ fieldname for (fieldname, dtype) in SPIKEDTYPE ]
