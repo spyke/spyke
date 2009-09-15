@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import Spike, TW, SPIKEDTYPE
+from spyke.detect import Spike, TW, SPIKEDTYPE, filterobjs
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -161,7 +161,9 @@ class Sort(object):
 
     def reverse_uris(self):
         """Reverse uris"""
-        self.uris = self.uris[::-1] # is there a way to reverse an array in-place, like a list?
+        # is there a way to reverse an array in-place, like a list?
+        # maybe swap the start and end points, and set stride to -1?
+        self.uris = self.uris[::-1]
 
     def get_spikes_sortedby(self, attr='id'):
         """Return list of all spikes, sorted by attribute 'attr'"""
@@ -796,8 +798,18 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnListTimer(self, evt):
         """Run when started timer runs out and triggers a TimerEvent"""
+        sort = self.sort
         selectedRows = self.list.GetSelections()
-        selectedListSpikes = [ self.sort.uris[row] for row in selectedRows ]
+        selectedListSpikes = [ sort.spikes[sort.uris[row]] for row in selectedRows ] # records
+        selectedListSpikes = filterobjs(selectedListSpikes) # Spikes
+        selectedListSpikes = {}.fromkeys(selectedListSpikes)
+        for spike in self.lastSelectedListSpikes:
+            # overwrite any Spikes that match existing ones that may have
+            # had some attribs modified since their creation
+            if spike in selectedListSpikes:
+                selectedListSpikes.pop(spike) # remove naive spike
+                selectedListSpikes[spike] = None # replace with mature one
+        selectedListSpikes = list(selectedListSpikes.keys())
         removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
         addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
         self.RemoveObjectsFromPlot(removeSpikes)
@@ -808,10 +820,10 @@ class SortFrame(wxglade_gui.SortFrame):
         """Toggle selection of the clicked list item, without changing selection
         status of any other items. This is a nasty hack required to get around
         the selection ListEvent happening before the MouseEvent, or something"""
-        print 'in OnListRightDown'
+        print('in OnListRightDown')
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
-        spike = self.sort.uris[row]
+        spike = filterobjs(self.spikes[self.sort.uris[row]])
         print 'spikeID is %r' % spike.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
@@ -821,10 +833,10 @@ class SortFrame(wxglade_gui.SortFrame):
         try:
             self.spikesortpanel.used_plots['s'+str(spike.id)] # is it plotted?
             selected = True # if so, item must be selected
-            print 'spike %d in used_plots' % spike.id
+            print('spike %d in used_plots' % spike.id)
         except KeyError:
             selected = False # item is not selected
-            print 'spike %d not in used_plots' % spike.id
+            print('spike %d not in used_plots' % spike.id)
         self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):

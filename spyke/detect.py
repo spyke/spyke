@@ -28,13 +28,37 @@ from text import SimpleTable
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-MAXNSAVEDWAVEFORMS = 700000
+MAXNSAVEDWAVEFORMS = 500000
 
 SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
               ('chanis', np.ndarray), ('Vpp', np.float32), ('t0', np.int64),
               ('tend', np.int64), ('dphase', np.int16), ('phase1ti', np.uint8),
               ('phase2ti', np.uint8), ('wavedata', np.ndarray),
               ('detection', object), ('neuron', object)]
+
+# spikes recarray fieldnames to convert to Spike attribs when filtering
+SPIKEATTRS = [ fieldname for (fieldname, dtype) in SPIKEDTYPE ]
+SPIKEATTRS.remove('wavedata')
+
+def filterobjs(in_objs):
+    in_objs = toiter(in_objs)
+    out_objs = []
+    for obj in in_objs:
+        if type(obj) != np.rec.record:
+            out_objs.append(obj)
+            continue
+        # it's a simple spike record, turn it into a full-fledged Spike
+        s = Spike()
+        for attr in SPIKEATTRS:
+            s.__dict__[attr] = obj[attr]
+        if obj.wavedata != None:
+            tres = s.detection.sort.stream.tres
+            wave = WaveForm(data=obj.wavedata,
+                            ts=np.arange(obj.t0, obj.tend, tres),
+                            chans=s.chans)
+            s.wave = wave
+        out_objs.append(s) # replace spike record with Spike
+    return out_objs
 
 
 logger = logging.Logger('detection')
@@ -295,7 +319,7 @@ class Spike(object):
 
     def __hash__(self):
         """Unique hash value for self, based on spike time and location.
-        Required for effectively using Spikes in a Set"""
+        Required for effectively using Spikes in a Set, and for testing equality"""
         return hash((self.t, self.chani)) # hash of their tuple, should guarantee uniqueness
 
     def __repr__(self):
@@ -362,6 +386,7 @@ class Spike(object):
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
+
 
 '''
 class SpikeModel(Spike):
@@ -571,8 +596,8 @@ class Detector(object):
     """Spike detector base class"""
     DEFTHRESHMETHOD = 'GlobalFixed' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
-    DEFNOISEMULT = 3.5
-    DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed
+    DEFNOISEMULT = 4.0
+    DEFFIXEDTHRESH = 60 # uV, used by GlobalFixed
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
     DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
