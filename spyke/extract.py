@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 
-from spyke.detect import filterobjs
+from spyke.detect import update_wave
 
 
 class Extractor(object):
@@ -53,8 +53,7 @@ class Extractor(object):
         siteloc = spike.detection.detector.siteloc
         wavedata = spike.wavedata
         if wavedata == None:
-            spike = filterobjs(spike)
-            spike.update_wave(self.sort.stream)
+            update_wave(spike, self.sort.stream)
             wavedata = spike.wave.data
         x = siteloc[chanis, 0] # 1D array (row)
         y = siteloc[chanis, 1]

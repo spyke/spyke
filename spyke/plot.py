@@ -28,7 +28,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from spyke.core import MU, hex2cmap
-from spyke.detect import TW # default time window relative to spike time
+from spyke.detect import TW, update_wave
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -1026,12 +1026,12 @@ class SortPanel(PlotPanel):
         plt.set_stylewidth(style, width)
         plt.obj = obj # bind object to plot
         obj.plt = plt # bind plot to object
-        if not hasattr(obj, 'wave') or obj.wave == None or obj.wave.data == None: # if it hasn't already been loaded
-            obj.update_wave(stream=self.spykeframe.hpstream) # update from stream
+        if obj.wave == None: # if it hasn't already been loaded
+            update_wave(obj, stream=self.spykeframe.hpstream) # update from stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, obj.t)
-        plt.show_chans(obj.chans) # unhide object's enabled chans
+        plt.show_chans(obj.wave.chans) # unhide object's enabled chans
         plt.draw()
         return plt
 
@@ -1098,7 +1098,7 @@ class SortPanel(PlotPanel):
         """Update and draw a spike's/neuron's plot"""
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         obj.plt.update(wave, obj.t)
-        obj.plt.show_chans(obj.chans) # ensure all of obj's chans are visible
+        obj.plt.show_chans(obj.wave.chans) # ensure all of obj's chans are visible
         obj.plt.draw()
 
     def get_closestline(self, evt):

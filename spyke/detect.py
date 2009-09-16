@@ -34,12 +34,13 @@ SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
               ('chanis', np.ndarray), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
               ('wavedata', np.ndarray), ('detection', object), ('neuron', object),
+              ('wave', object), ('plt', object), ('itemID', int),
               ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
 # spikes recarray fieldnames to convert to Spike attribs when filtering
 SPIKEATTRS = [ fieldname for (fieldname, dtype) in SPIKEDTYPE ]
 SPIKEATTRS.remove('wavedata')
-
+'''
 def filterobjs(in_objs):
     in_objs = toiter(in_objs)
     out_objs = []
@@ -52,13 +53,49 @@ def filterobjs(in_objs):
         for attr in SPIKEATTRS:
             s.__dict__[attr] = obj[attr]
         if obj.wavedata != None:
-            tres = s.detection.sort.stream.tres
+            tres = s.detection.sort.tres
             wave = WaveForm(data=obj.wavedata,
                             ts=np.arange(obj.t0, obj.tend, tres),
                             chans=s.chans)
             s.wave = wave
         out_objs.append(s) # replace spike record with Spike
     return out_objs
+'''
+
+def update_wave(obj, stream=None):
+    """Load/update object's waveform, taken from the given stream"""
+    if type(obj) != np.rec.record: # it's a Spike or Neuron
+        obj.update_wave(stream) # call Spike or Neuron method
+        return obj.wave
+    # it's a spike record
+    s = obj
+    tres = s.detection.sort.tres
+    ts = np.arange(s.t0, s.tend, tres) # build them up
+    chans = s.detection.detector.chans[s.chanis] # dereference
+    if s.wavedata != None: # wavedata was saved during detection
+        wave = WaveForm(data=s.wavedata,
+                        ts=ts,
+                        chans=chans)
+        s.wave = wave
+        return wave
+    # wavedata wasn't saved during detection
+    if stream == None:
+        raise RuntimeError("No stream open, can't update waveform for %s %d" % (s, s.id))
+    if s.detection.detector.srffname != stream.srffname:
+        msg = ("Spike %d was extracted from .srf file %s.\n"
+               "The currently opened .srf file is %s.\n"
+               "Can't update spike %d's waveform." %
+               (s.id, s.detection.detector.srffname, stream.srffname, s.id))
+        wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
+        raise RuntimeError(msg)
+    wave = stream[s.t0 : s.tend]
+    # can't do this cuz chanis indexes only into enabled chans,
+    # not into all stream chans represented in data array:
+    #data = wave.data[self.chanis]
+    wavedata = wave[chans].data # maybe a bit slower, but correct
+    #assert data.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
+    self.wave = WaveForm(data=wavedata, ts=ts, chans=chans)
+    return s.wave
 
 
 logger = logging.Logger('detection')

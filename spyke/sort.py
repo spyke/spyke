@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import Spike, TW, SPIKEDTYPE, filterobjs
+from spyke.detect import Spike, TW, SPIKEDTYPE
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -802,15 +802,6 @@ class SortFrame(wxglade_gui.SortFrame):
         sort = self.sort
         selectedRows = self.list.GetSelections()
         selectedListSpikes = [ sort.spikes[sort.uris[row]] for row in selectedRows ] # records
-        selectedListSpikes = filterobjs(selectedListSpikes) # Spikes
-        selectedListSpikes = set(selectedListSpikes)
-        for spike in self.lastSelectedListSpikes:
-            # overwrite any Spikes that match existing ones that may have
-            # had some attribs modified since their creation
-            if spike in selectedListSpikes:
-                selectedListSpikes.remove(spike) # remove naive spike
-                selectedListSpikes.add(spike) # replace with mature one
-        selectedListSpikes = list(selectedListSpikes)
         removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
         addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
         self.RemoveObjectsFromPlot(removeSpikes)
@@ -824,7 +815,7 @@ class SortFrame(wxglade_gui.SortFrame):
         print('in OnListRightDown')
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
-        spike = filterobjs(self.spikes[self.sort.uris[row]])
+        spike = self.sort.spikes[self.sort.uris[row]]
         print 'spikeID is %r' % spike.id
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
