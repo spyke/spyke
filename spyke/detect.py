@@ -34,7 +34,7 @@ SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
               ('chanis', np.ndarray), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
               ('wavedata', np.ndarray), ('detection', object), ('neuron', object),
-              ('wave', object), ('plt', object), ('itemID', int),
+              ('wave', object), ('plt', object), ('itemID', object),
               ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
 # spikes recarray fieldnames to convert to Spike attribs when filtering
@@ -63,7 +63,8 @@ def filterobjs(in_objs):
 '''
 
 def update_wave(obj, stream=None):
-    """Load/update object's waveform, taken from the given stream"""
+    """Return object's waveform, taken from the given stream.
+    If object is a spike record, update its .wavedata"""
     if type(obj) != np.rec.record: # it's a Spike or Neuron
         obj.update_wave(stream) # call Spike or Neuron method
         return obj.wave
@@ -76,26 +77,30 @@ def update_wave(obj, stream=None):
         wave = WaveForm(data=s.wavedata,
                         ts=ts,
                         chans=chans)
-        s.wave = wave
+        # avoid binding new object to potentially all spikes
+        #s.wave = wave
         return wave
     # wavedata wasn't saved during detection
     if stream == None:
-        raise RuntimeError("No stream open, can't update waveform for %s %d" % (s, s.id))
+        raise RuntimeError("No stream open, can't update .wavedata for %s %d" % (s, s.id))
     if s.detection.detector.srffname != stream.srffname:
         msg = ("Spike %d was extracted from .srf file %s.\n"
                "The currently opened .srf file is %s.\n"
-               "Can't update spike %d's waveform." %
+               "Can't update spike %d's .wavedata." %
                (s.id, s.detection.detector.srffname, stream.srffname, s.id))
         wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
         raise RuntimeError(msg)
     wave = stream[s.t0 : s.tend]
     # can't do this cuz chanis indexes only into enabled chans,
     # not into all stream chans represented in data array:
-    #data = wave.data[self.chanis]
+    #data = wave.data[s.chanis]
     wavedata = wave[chans].data # maybe a bit slower, but correct
-    #assert data.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
-    self.wave = WaveForm(data=wavedata, ts=ts, chans=chans)
-    return s.wave
+    #assert wavedata.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
+    s.wavedata = wavedata
+    wave = WaveForm(data=wavedata, ts=ts, chans=chans)
+    # avoid binding new object to potentially all spikes
+    #s.wave = wave
+    return wave
 
 
 logger = logging.Logger('detection')
@@ -955,6 +960,8 @@ class Detector(object):
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
+            # keep each spike's chanis in sorted order, useful assumption used later on, like in Neuron.update_wave
+            chanis.sort()
             #s.ts = wave.ts[t0i:tendi] # reconstruct this using np.arange(s.t0, s.tend, stream.tres)
             ts = wave.ts[t0i:tendi]
             s.t0, s.tend = wave.ts[t0i], wave.ts[tendi]
@@ -963,7 +970,7 @@ class Detector(object):
             #s.V1, s.V2 = V1, V2
             # maintain polarity, first convert from int16 to float to prevent overflow
             s.Vpp = AD2uV(np.float32(V2) - np.float32(V1))
-            chans = np.asarray(self.chans)[chanis] # dereference
+            #chans = np.asarray(self.chans)[chanis] # dereference
             # chanis as a list is less efficient than as an array
             s.chani, s.chanis = chani, chanis
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]

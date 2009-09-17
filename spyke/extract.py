@@ -51,10 +51,9 @@ class Extractor(object):
         This is handled by giving them 0 weight. Maybe it's better to take abs instead?"""
         chanis = spike.chanis
         siteloc = spike.detection.detector.siteloc
-        wavedata = spike.wavedata
-        if wavedata == None:
+        if spike.wavedata == None:
             update_wave(spike, self.sort.stream)
-            wavedata = spike.wave.data
+        wavedata = spike.wavedata
         x = siteloc[chanis, 0] # 1D array (row)
         y = siteloc[chanis, 1]
         # phase2 - phase1 on all chans, should be +ve, at least on maxchan

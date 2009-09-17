@@ -1027,7 +1027,7 @@ class SortPanel(PlotPanel):
         plt.obj = obj # bind object to plot
         obj.plt = plt # bind plot to object
         if obj.wave == None: # if it hasn't already been loaded
-            update_wave(obj, stream=self.spykeframe.hpstream) # update from stream
+            obj.wave = update_wave(obj, stream=self.spykeframe.hpstream) # update from stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, obj.t)

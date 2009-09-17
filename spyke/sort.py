@@ -536,7 +536,7 @@ class Neuron(object):
         # build up union of chans and relative timepoints of all member spikes
         chans, ts = set(), set()
         for spike in self.spikes.values():
-            chans = chans.union(spike.chans)
+            chans = chans.union(spike.detection.detector.chans[spike.chanis])
             spikets = np.arange(spike.t0, spike.tend, self.sort.tres) # build them up
             ts = ts.union(spikets - spike.t) # timepoints wrt spike time, not absolute
         chans = np.asarray(list(chans))
@@ -549,14 +549,16 @@ class Neuron(object):
         data = np.zeros(shape, dtype=np.float32) # collect data that corresponds to chans and ts
         nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
         for spike in self.spikes.values():
-            if not hasattr(spike, 'wave') or spike.wave == None or spike.wave.data == None: # empty WaveForm
-                spike.update_wave(stream)
-            wave = spike.wave[chans] # has intersection of spike.wave.chans and chans
-            # get chan indices into chans corresponding to wave.chans, chans is a superset of wave.chans
-            chanis = chans.searchsorted(wave.chans)
+            if spike.wavedata == None:
+                update_wave(spike, stream) # TODO: test if this is working right by turning off KEEPWAVESONDETECT
+            wavedata = spike.wavedata
+            spikechans = spike.detection.detector.chans[spike.chanis]
+            spikets = np.arange(spike.t0, spike.tend, self.sort.tres)
+            # get chan indices into chans corresponding to spikechans, chans is a superset of spikechans
+            chanis = chans.searchsorted(spikechans)
             #chanis = [ np.where(chans==chan)[0][0] for chan in wave.chans ]
             # get timepoint indices into ts corresponding to wave.ts timepoints relative to their spike time
-            tis = ts.searchsorted(wave.ts - spike.t)
+            tis = ts.searchsorted(spikets - spike.t)
             # there must be an easier way of doing the following:
             rowis = np.tile(False, len(chans))
             rowis[chanis] = True
@@ -569,7 +571,7 @@ class Neuron(object):
             colis = np.tile(tis, len(chanis))
             i = rowis, colis
             '''
-            data[i] += wave.data.ravel() # accumulate appropriate data points
+            data[i] += wavedata.ravel() # accumulate appropriate data points (add int16 to float32, keep as AD units)
             nspikes[i] += 1 # increment spike counts at appropriate data points
         # some entries in nspikes can be 0 - this raises an 'invalid' error instead
         # of a div by 0 error because those same entries in data are also 0, so we
