@@ -427,7 +427,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # be classified as part of this neuron, and only add and remove those spikes
             # that are necessary.
             # remove any existing spikes from neuron and restore them to spike listctrl:
-            sf.MoveSpikes2List(neuron.spikes.values())
+            sf.MoveSpikes2List(neuron.spikes)
             # reset scalar values for cluster's existing points
             try: self.DeColourPoints(cluster.spikeis)
             except AttributeError: pass
@@ -633,7 +633,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for det in selectedDetections:
             # check if any of this detection's spikes belong to a neuron
             result = None
-            neurons = sort.spikes.neuron.copy() # need to create new contig copy to prevent mysterious segfaults (due to previous resizing of sort.spikes?)
+            # FIXME: I really don't like doing this copy here!!!
+            # need to create new contig copy to prevent mysterious segfaults (due to previous resizing of sort.spikes?)
+            neurons = sort.spikes.neuron.copy()
             if neurons.any():
                 dlg = wx.MessageDialog(self,
                                        "Spikes in detection %d are neuron members.\n"
@@ -655,7 +657,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             delriis, = np.where(delspikes.neuron != [None])
             delmemberspikes = delspikes[delriis]
             for delmemberspike in delmemberspikes:
-                delmemberspike.neuron.spikes[delmemberspike.id] # remove spike from its Neuron
+                neuron = delmemberspike.neuron
+                neuron.spikeis.remove(delmemberspike.id) # remove spike from its Neuron
                 try: sf.tree.Delete(delmemberspike.itemID) # remove spike from tree
                 except: import pdb; pdb.set_trace()
             # overwrite sort.spikes
@@ -933,7 +936,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # some neurons don't have clusters
         for neuron in sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
-            for spike in neuron.spikes.values():
+            for spike in neuron.spikes:
                 sf.AddSpikes2Tree(neuron.itemID, spike)
             try: cluster = neuron.cluster
             except AttributeError: continue

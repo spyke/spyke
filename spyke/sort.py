@@ -112,7 +112,7 @@ class Sort(object):
         spike lists, and lock down sampfreq and shcorrect attribs"""
         nspikes = len(self.spikes)
         nnewspikes = len(spikes)
-        self.spikes.resize(nspikes+nnewspikes) # resize in-place
+        self.spikes.resize(nspikes+nnewspikes, refcheck=False) # resize in-place
         self.spikes[nspikes:] = spikes # append
         self.update_spike_lists()
         try:
@@ -149,10 +149,13 @@ class Sort(object):
         # order it by .uris_sorted_by and .uris_reversed
         if self.uris_sorted_by != 't': self.sort_uris()
         if self.uris_reversed: self.reverse_uris()
-        # TODO: (re)create a si2ri mapping here
-        # Not needed, now that we have spikes.ri
-        #nspikes = len(spikes)
-        #self.si2ri = dict(zip(sids, np.arange(nspikes)))
+        # (re)create a si2ri mapping here
+        self.si2ri = dict(zip(sids, np.arange(nspikes)))
+
+    def si2spikes(self, spikeis):
+        """Return array of spike records, given spike indices"""
+        ris = [ self.si2ri[spikei] for spikei in spikeis ]
+        return self.spikes[ris]
 
     def sort_uris(self, sort_by):
         """Sort recarray row indices of unsorted spikes according to
@@ -520,25 +523,37 @@ class Neuron(object):
         self.sort = sort
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
-        self.spikes = {} # member spikes that make up this neuron
+        self.spikeis = set() # indices of spikes that make up this neuron
         self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         #self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.cluster = None
         #self.surffname # not here, let's allow neurons to have spikes from different files?
 
+    def get_spikes(self):
+        return self.sort.si2spikes(self.spikeis)
+    '''
+    # doesn't seem to be needed
+    def set_spikes(self, spikes):
+        print('Is this even being used? Just checking!!')
+        self.spikeis.clear()
+        for spike in spikes:
+            self.spikeis.add(spike.id)
+    '''
+    spikes = property(get_spikes)
+
     def update_wave(self, stream):
         """Update mean waveform, should call this every time .spikes are modified.
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
         that's already been bound"""
-        if self.spikes == {}: # no member spikes, perhaps I should be deleted?
+        if len(self.spikeis) == 0: # no member spikes, perhaps I should be deleted?
             raise RuntimeError("neuron %d has no spikes and its waveform can't be updated" % self.id)
             #self.wave = WaveForm() # empty waveform
             #return self.wave
         # build up union of chans and relative timepoints of all member spikes
         chans, ts = set(), set()
-        for spike in self.spikes.values():
+        for spike in self.spikes:
             chans = chans.union(spike.detection.detector.chans[spike.chanis])
             spikets = np.arange(spike.t0, spike.tend, self.sort.tres) # build them up
             ts = ts.union(spikets - spike.t) # timepoints wrt spike time, not absolute
@@ -551,7 +566,7 @@ class Neuron(object):
         shape = len(chans), len(ts)
         data = np.zeros(shape, dtype=np.float32) # collect data that corresponds to chans and ts
         nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
-        for spike in self.spikes.values():
+        for spike in self.spikes:
             if spike.wavedata == None:
                 update_wave(spike, stream) # TODO: test if this is working right by turning off KEEPWAVESONDETECT
             wavedata = spike.wavedata
@@ -597,7 +612,7 @@ class Neuron(object):
         Assumes self.update_wave has already been called"""
         data = []
         # TODO: speed this up by pre-allocating memory and then filling in the array
-        for spike in self.spikes.values():
+        for spike in self.spikes:
             data.append(spike.wave.data) # collect spike's data
         stdev = np.asarray(data).std(axis=0)
         return stdev
@@ -1060,7 +1075,7 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def RemoveNeuronFromTree(self, neuron):
         """Remove neuron and all its spikes from the tree"""
-        self.MoveSpikes2List(neuron.spikes.values())
+        self.MoveSpikes2List(neuron.spikes)
         self.RemoveObjectsFromPlot([neuron])
         try:
             self.tree.Delete(neuron.itemID)
@@ -1096,8 +1111,8 @@ class SortFrame(wxglade_gui.SortFrame):
             self.AddNeuron2Tree(neuron)
             createdNeuron = True
         for spike in spikes:
-            neuron.spikes[spike.id] = spike # add spike to neuron
-            #spike.neuron = neuron
+            neuron.spikeis.add(spike.id) # add spike to neuron
+            spike.neuron = neuron # need to modify spike in spikes, since it's passed on to AddSpikes2Tree below
             self.sort.spikes[spike.ri].neuron = neuron # bind neuron to spike in recarray
         self.sort.update_spike_lists()
         self.list.SetItemCount(len(self.sort.uris))
@@ -1141,7 +1156,7 @@ class SortFrame(wxglade_gui.SortFrame):
             return # nothing to do
         for spike in spikes:
             neuron = spike.neuron
-            del neuron.spikes[spike.id] # del spike from its neuron's spike dict
+            neuron.spikeis.remove(spike.id) # remove spike from its neuron's spikeis
             #spike.neuron = None
             self.sort.spikes[spike.ri].neuron = None # unbind neuron of spike in recarray
             # GUI operations:
@@ -1175,7 +1190,7 @@ class SortFrame(wxglade_gui.SortFrame):
                 if type(obj) == Spike:
                     neuron = obj.neuron
                     self.MoveSpikes2List(obj)
-                    if len(neuron.spikes) == 0:
+                    if len(neuron.spikeis) == 0:
                         self.RemoveNeuron(neuron) # remove empty Neuron
                     else:
                         neuron.update_wave(self.sort.stream) # update mean neuron waveform
