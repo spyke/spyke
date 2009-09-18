@@ -631,13 +631,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         selectedRows = self.detection_list.GetSelections()
         selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
         for det in selectedDetections:
-            ask = False
+            # check if any of this detection's spikes belong to a neuron
             result = None
-            for spike in det.spikes.values(): # first check all detection's spikes to see if they're neuron members
-                if hasattr(spike, 'neuron'):
-                    ask = True
-                    break # out of inner for loop
-            if ask:
+            neurons = sort.spikes.neuron.copy() # need to create new contig copy to prevent mysterious segfaults (due to previous resizing of sort.spikes?)
+            if neurons.any():
                 dlg = wx.MessageDialog(self,
                                        "Spikes in detection %d are neuron members.\n"
                                        "Delete detection %d and all its spikes anyway?" % (det.id, det.id),
@@ -646,18 +643,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 dlg.Destroy()
             if result == wx.ID_NO:
                 continue # to next selectedDetection
-            for spikei, spike in det.spikes.iteritems(): # now do the actual removal
-                try: del sort.spikes[spikei] # remove from spikes dict
-                except KeyError: # check if it's in the trash
-                    try: del sort.trash[spikei] # remove from trash
-                    except KeyError:
-                        print "can't find spike %d in sort.spikes or in sort.trash, it may have been a duplicate" % spikei
-                try:
-                    del spike.neuron.spikes[spikei] # remove spike from its neuron too, if any
-                    sf.tree.Delete(spike.itemID) # remove spike from tree, if it's there
-                except AttributeError: pass
-            del sort.detections[det.id] # remove from sort's detections dict
-            self.detection_list.DeleteItemByData(det.id) # remove from detection listctrl
+
+            # rebuild sort.spikes, excluding detection's spikes
+            allspikeis = sort.spikes.id
+            allspikeis.sort() # make sure it's sorted
+            keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
+            delris = allspikeis.searchsorted(det.spikeis)
+            keepris = allspikeis.searchsorted(keepspikeis)
+            delspikes = sort.spikes[delris]
+            # which about-to-be-deleted spikes belong to a neuron?
+            delriis, = np.where(delspikes.neuron != [None])
+            delmemberspikes = delspikes[delriis]
+            for delmemberspike in delmemberspikes:
+                delmemberspike.neuron.spikes[delmemberspike.id] # remove spike from its Neuron
+                try: sf.tree.Delete(delmemberspike.itemID) # remove spike from tree
+                except: import pdb; pdb.set_trace()
+            # overwrite sort.spikes
+            sort.spikes = sort.spikes[keepris].copy()
+            # remove from sort's detections dict
+            del sort.detections[det.id]
+            # remove from detection listctrl
+            self.detection_list.DeleteItemByData(det.id)
         sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
         sf.list.SetItemCount(len(sort.uris))

@@ -64,7 +64,7 @@ class Sort(object):
         # some neurons may be purely hand sorted, one spike at a time
         self.neurons = {}
         self.clusters = {} # dict of multidim ellipsoid params
-        self.trash = {} # discarded spikes
+        #self.trash = {} # discarded spikes, disabled, not very useful, adds complexity
 
         self.uris_sorted_by = 't'
         self.uris_reversed = False
@@ -131,6 +131,8 @@ class Sort(object):
         """Update self.st sorted array of all spike times, ris_by_time array,
         and self._uspikeis list containing only unsorted spike IDs"""
         #spikes = self.spikes.values() # pull list out of dict
+        nspikes = len(self.spikes)
+        self.spikes.ri = np.arange(nspikes, dtype=np.uint32) # spike recarray row indices
         st = self.spikes.t # all spike times
         sids = self.spikes.id # all spike ids
         # can't assume spikes come out of recarray sorted in time
@@ -147,7 +149,8 @@ class Sort(object):
         # order it by .uris_sorted_by and .uris_reversed
         if self.uris_sorted_by != 't': self.sort_uris()
         if self.uris_reversed: self.reverse_uris()
-        # TODO: (re)create a si2ri mapping here, not sure if it's needed though
+        # TODO: (re)create a si2ri mapping here
+        # Not needed, now that we have spikes.ri
         #nspikes = len(spikes)
         #self.si2ri = dict(zip(sids, np.arange(nspikes)))
 
@@ -867,7 +870,8 @@ class SortFrame(wxglade_gui.SortFrame):
         elif key in [ord('C'), ord('N')]: # wx.WXK_SPACE doesn't seem to work
             self.MoveCurrentSpikes2Neuron(which='new')
         elif key in [wx.WXK_DELETE, ord('D')]:
-            self.MoveCurrentSpikes2Trash()
+            #self.MoveCurrentSpikes2Trash()
+            print('individual spike deletion disabled, not very useful feature')
         elif evt.ControlDown() and key == ord('S'):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         evt.Skip()
@@ -1093,7 +1097,8 @@ class SortFrame(wxglade_gui.SortFrame):
             createdNeuron = True
         for spike in spikes:
             neuron.spikes[spike.id] = spike # add spike to neuron
-            spike.neuron = neuron # bind neuron to spike
+            #spike.neuron = neuron
+            self.sort.spikes[spike.ri].neuron = neuron # bind neuron to spike in recarray
         self.sort.update_spike_lists()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
@@ -1108,7 +1113,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.SelectItem(neuron.itemID) # select the newly created neuron
             self.OnTreeSelectChanged() # now plot accordingly
         return neuron
-
+    '''
     def MoveSpike2Trash(self, spike, row):
         """Move spike from spike list to trash"""
         del self.sort.spikes[spike.id] # remove spike from sort.spikes
@@ -1119,13 +1124,15 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.Select(row) # automatically select the new item at that position
         self.sort.trash[spike.id] = spike # add it to trash
         print 'moved spike %d to trash' % spike.id
-
+    '''
     def AddSpikes2Tree(self, parent, spikes):
         """Add spikes to the tree, where parent is a tree itemID"""
         spikes = toiter(spikes)
         for spike in spikes:
-            spike.itemID = self.tree.AppendItem(parent, 's'+str(spike.id)) # add spike to tree, save its itemID
-            self.tree.SetItemPyData(spike.itemID, spike) # associate spike tree item with spike
+            itemID = self.tree.AppendItem(parent, 's'+str(spike.id)) # add spike to tree, save its itemID
+            self.sort.spikes[spike.ri].itemID = itemID
+            # maybe stop doing this, just use sid string to index back into neuron parent, or into sort.spikes - this bit might be contributing to tree slowness when highly populated:
+            self.tree.SetItemPyData(itemID, spike) # associate spike tree item with spike
 
     def MoveSpikes2List(self, spikes):
         """Move spikes from a neuron in the tree back to the list control"""
@@ -1135,10 +1142,11 @@ class SortFrame(wxglade_gui.SortFrame):
         for spike in spikes:
             neuron = spike.neuron
             del neuron.spikes[spike.id] # del spike from its neuron's spike dict
-            del spike.neuron # unbind spike's neuron from itself
+            #spike.neuron = None
+            self.sort.spikes[spike.ri].neuron = None # unbind neuron of spike in recarray
             # GUI operations:
             self.tree.Delete(spike.itemID)
-            del spike.itemID # no longer applicable
+            self.sort.spikes[spike.ri].itemID = None # no longer applicable
         self.sort.update_spike_lists()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
@@ -1152,7 +1160,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         #for row in selected_rows:
-        spikes = np.asarray(self.sort.uris)[selected_rows]
+        spikes = self.sort.spikes[np.asarray(self.sort.uris)[selected_rows]]
         #if spike.wave.data != None: # only move it to neuron if it's got wave data
         neuron = self.MoveSpikes2Neuron(spikes, neuron) # if neuron was None, it isn't any more
         #else:
@@ -1174,7 +1182,7 @@ class SortFrame(wxglade_gui.SortFrame):
                 elif type(obj) == Neuron:
                     self.RemoveNeuron(obj) # remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
-
+    '''
     def MoveCurrentSpikes2Trash(self):
         """Move currently selected spikes in spike list to trash"""
         selected_rows = self.list.GetSelections()
@@ -1183,7 +1191,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for row in selected_rows:
             spike = self.sort.uris[row]
             self.MoveSpike2Trash(spike, row)
-
+    '''
     def GetFirstSelectedNeuron(self):
         for itemID in self.tree.GetSelections():
             obj = self.tree.GetItemPyData(itemID)

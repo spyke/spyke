@@ -69,7 +69,9 @@ class Converter(object):
 
 class WaveForm(object):
     """Just a container for data, timestamps, and channels.
-    Sliceable in time, and indexable in channel space"""
+    Sliceable in time, and indexable in channel space. Only
+    really used for convenient plotting. Everything else uses
+    the plain spike.wavedata 2D array, and related spike attribs"""
     def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in AD, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
@@ -689,7 +691,6 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
     - every time sort.spikes is modified, need to call SetItemCount and maybe RefreshItems
         - make info flow from listctrl to sort.spikes, and manually update the listctrl
           when need be after some manual change to sort.spikes
-    - Spike deletion should move spikes from sort.spikes to sort.trash, and vice versa.
     - bug: selecting multiple items over a range with shift+mouse or shift+arrows doesn't
     update the plots - probably some selection event that was happening in normal listctrl
     isn't happening in virtual listctrl. Doing a ctrl+click or ctrl+space will make whatever's

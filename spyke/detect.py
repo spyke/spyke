@@ -30,8 +30,9 @@ TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st pha
 
 MAXNSAVEDWAVEFORMS = 500000 # prevents MemoryErrors
 
-SPIKEDTYPE = [('id', np.int64), ('t', np.int64), ('chani', np.uint8),
-              ('chanis', np.ndarray), ('t0', np.int64), ('tend', np.int64),
+SPIKEDTYPE = [('id', np.uint32), ('ri', np.uint32), # ri: row index into spikes recarray
+              ('chani', np.uint8), ('chanis', np.ndarray),
+              ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
               ('wavedata', np.ndarray), ('detection', object), ('neuron', object),
               ('wave', object), ('plt', object), ('itemID', object),
