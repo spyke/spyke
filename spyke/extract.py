@@ -61,7 +61,8 @@ class Extractor(object):
                    wavedata[:, spike.phase1ti])
         # replace any -ve weights with 0, convert to float before normalization
         weights = np.float32(np.where(weights >= 0, weights, 0))
-        weights /= weights.sum() # normalized
+        try: weights /= weights.sum() # normalized
+        except: import pdb; pdb.set_trace() # FloatingPointError?
         #weights = wave.data[spike.chanis, spike.ti] # Vp weights, unnormalized, some of these may be -ve
         # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
         #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0

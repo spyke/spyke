@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import Spike, TW, SPIKEDTYPE
+from spyke.detect import TW, SPIKEDTYPE
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -93,7 +93,7 @@ class Sort(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step
+        d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step, it's just a shallow copy
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
         for attr in ['st', 'ris_by_time', 'uris', 'Xcols']:
             # all are temporary, and can be regenerated from .spikes or extracted params
@@ -1146,6 +1146,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for spike in spikes:
             itemID = self.tree.AppendItem(parent, 's'+str(spike.id)) # add spike to tree, save its itemID
             self.sort.spikes[spike.ri].itemID = itemID
+            spike.itemID = itemID
             # maybe stop doing this, just use sid string to index back into neuron parent, or into sort.spikes - this bit might be contributing to tree slowness when highly populated:
             self.tree.SetItemPyData(itemID, spike) # associate spike tree item with spike
 
@@ -1187,9 +1188,9 @@ class SortFrame(wxglade_gui.SortFrame):
         for itemID in self.tree.GetSelections():
             if itemID: # check if spike's tree parent (neuron) has already been deleted
                 obj = self.tree.GetItemPyData(itemID)
-                if type(obj) == Spike:
+                if type(obj) == np.rec.record: # it's a spike
                     neuron = obj.neuron
-                    self.MoveSpikes2List(obj)
+                    self.MoveSpikes2List([obj]) # iter over single rec, not rec fields
                     if len(neuron.spikeis) == 0:
                         self.RemoveNeuron(neuron) # remove empty Neuron
                     else:
@@ -1213,6 +1214,6 @@ class SortFrame(wxglade_gui.SortFrame):
             if type(obj) == Neuron:
                 return obj
             # no neuron selected, check to see if a spike is selected in the tree, grab its neuron
-            elif type(obj) == Spike:
+            elif type(obj) == np.rec.record: # it's a spike
                 return obj.neuron
         return None

@@ -351,7 +351,8 @@ class DistanceMatrix(object):
         else:
             raise ValueError, 'key must specify 1 or 2 chans'
     '''
-
+'''
+# no longer necessary, now that spikes recarray is being used
 class Spike(object):
     """A Spike"""
     def __eq__(self, other):
@@ -429,7 +430,7 @@ class Spike(object):
         if tw != None:
             self.wave = self[self.t+tw[0] : self.t+tw[1]]
         return self.wave
-
+'''
 
 '''
 class SpikeModel(Spike):

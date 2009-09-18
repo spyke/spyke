@@ -966,14 +966,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             fname = fname + '.sort'
         #pf = gzip.open(fname, 'wb', compresslevel=1) # compress pickle with gzip, can also control compression level
         pf = open(fname, 'wb')
-        print 'pickling sort file'
+        print('pickling sort file')
         t0 = time.clock()
         cPickle.dump(self.sort, pf, protocol=-1) # use most efficient (least human readable) protocol
-        print 'done pickling sort file, took %.3f sec' % (time.clock()-t0)
+        print('done pickling sort file, took %.3f sec' % (time.clock()-t0))
         pf.close()
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        print 'done saving sort file'
+        print('done saving sort file')
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""
