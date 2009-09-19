@@ -93,12 +93,24 @@ class Sort(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes, this doesn't seem to be a slow step, it's just a shallow copy
+        t0 = time.clock()
+        d = self.__dict__.copy() # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
         del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        for attr in ['st', 'ris_by_time', 'uris', 'Xcols']:
+        for attr in ['st', 'ris_by_time', 'uris', 'si2ri', 'Xcols']:
             # all are temporary, and can be regenerated from .spikes or extracted params
             try: del d[attr]
             except KeyError: pass
+        tcopy = time.clock()
+        spikes = self.spikes.copy() # copies entire array, but not any objects it points to
+        print('sort.spikes.copy() took %.3f sec' % (time.clock()-tcopy))
+        if not self.SAVEWAVES:
+            spikes.wavedata = None # remove wavedata
+        # these 3 are only necessary for plotting:
+        spikes.wave = None
+        spikes.itemID = None
+        spikes.plt = None
+        d['spikes'] = spikes # update
+        print('sort.__getstate__ took %.3f sec' % (time.clock()-t0))
         return d
 
     def __setstate__(self, d):

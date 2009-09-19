@@ -277,13 +277,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #import cProfile
         #cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
         spikes = sort.detector.detect() # recarray of spikes
-        # compare spikes from this detection to all previous ones,
-        # ignore all new ones if they overlap with any existing ones
-        if spikes == sort.spikes:
-            raise ValueError("Identical detection ignored")
-        elif set(spikes).intersection(sort.spikes):
-            raise ValueError("New detection ignored for sharing "
-                             "spikes with existing detection")
+        # see if spikes from this detection are identical to all existing spikes
+        if (len(spikes) == len(sort.spikes)
+            and (spikes.t == sort.spikes.t).all()
+            and (spikes.chani == sort.spikes.chani).all()):
+            raise RuntimeError("Identical detection ignored")
+        else: # see if this detection overlaps in time with any existing ones
+            trange = sort.detector.trange
+            for det in sort.detections.values():
+                oldtrange = det.detector.trange
+                if (oldtrange[0] < trange[0] < oldtrange[1] or
+                    oldtrange[0] < trange[1] < oldtrange[1]):
+                        raise RuntimeError("New detection ignored for overlapping "
+                                           "in time with existing detection")
         detection = Detection(sort, sort.detector, # create a new Detection run
                               id=sort._detid,
                               datetime=datetime.datetime.now())

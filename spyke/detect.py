@@ -28,7 +28,7 @@ from text import SimpleTable
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-MAXNSAVEDWAVEFORMS = 500000 # prevents MemoryErrors
+MAXNSAVEDWAVEFORMS = 250000 # prevents MemoryErrors
 
 SPIKEDTYPE = [('id', np.uint32), ('ri', np.uint32), # ri: row index into spikes recarray
               ('chani', np.uint8), ('chanis', np.ndarray),
@@ -1264,11 +1264,13 @@ class Detection(object):
         return np.all(self._spikes == other._spikes)
     '''
     def set_spikeids(self, spikes):
-        """Give each spike an ID, inc sort's _sid spike ID counter after each one
-        and append each id to self.spikeis"""
-        #for reci in xrange(len(spikes):
-        for s in spikes:
-            s.id = self.sort._sid
-            self.sort._sid += 1 # inc for next unique spike
-            s.detection = self
-            self.spikeis.append(s.id)
+        """Give each spike an ID, inc sort's _sid spike ID counter, and save
+        array of spikeis to self"""
+        # don't iterate over spikes recarray, since that generates
+        # a bunch of record objects, which is slow
+        nspikes = len(spikes)
+        spikei0 = self.sort._sid
+        spikes.id = np.arange(spikei0, spikei0+nspikes) # assign IDs in one shot
+        spikes.detection = self
+        self.sort._sid += nspikes # inc for next unique Detection
+        self.spikeis = spikes.id
