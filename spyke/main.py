@@ -274,22 +274,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Detect pane Detect button click"""
         sort = self.sort
         sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
+        # see if this would-be detection overlaps in time with any existing ones
+        trange = sort.detector.trange
+        for det in sort.detections.values():
+            oldtrange = det.detector.trange
+            if trange == oldtrange:
+                raise RuntimeError("Identical detection ignored")
+            elif (oldtrange[0] < trange[0] < oldtrange[1] or
+                  oldtrange[0] < trange[1] < oldtrange[1]):
+                raise RuntimeError("New detection ignored for overlapping "
+                                   "in time with existing detection")
         #import cProfile
         #cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
         spikes = sort.detector.detect() # recarray of spikes
-        # see if spikes from this detection are identical to all existing spikes
-        if (len(spikes) == len(sort.spikes)
-            and (spikes.t == sort.spikes.t).all()
-            and (spikes.chani == sort.spikes.chani).all()):
-            raise RuntimeError("Identical detection ignored")
-        else: # see if this detection overlaps in time with any existing ones
-            trange = sort.detector.trange
-            for det in sort.detections.values():
-                oldtrange = det.detector.trange
-                if (oldtrange[0] < trange[0] < oldtrange[1] or
-                    oldtrange[0] < trange[1] < oldtrange[1]):
-                        raise RuntimeError("New detection ignored for overlapping "
-                                           "in time with existing detection")
         detection = Detection(sort, sort.detector, # create a new Detection run
                               id=sort._detid,
                               datetime=datetime.datetime.now())

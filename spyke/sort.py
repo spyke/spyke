@@ -141,7 +141,7 @@ class Sort(object):
 
     def update_spike_lists(self):
         """Update self.st sorted array of all spike times, ris_by_time array,
-        and self._uspikeis list containing only unsorted spike IDs"""
+        and self.uris list containing row indices of unsorted spikes"""
         #spikes = self.spikes.values() # pull list out of dict
         nspikes = len(self.spikes)
         self.spikes.ri = np.arange(nspikes, dtype=np.uint32) # spike recarray row indices
