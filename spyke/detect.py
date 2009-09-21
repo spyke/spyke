@@ -28,20 +28,21 @@ from text import SimpleTable
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-MAXNSAVEDWAVEFORMS = 250000 # prevents MemoryErrors
+#MAXNSAVEDWAVEFORMS = 250000 # prevents MemoryErrors
 
 SPIKEDTYPE = [('id', np.uint32), ('ri', np.uint32), # ri: row index into spikes recarray
               ('chani', np.uint8), ('chanis', np.ndarray),
               ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
-              ('wavedata', np.ndarray), ('detection', object), ('neuron', object),
+              ('detection', object), ('neuron', object),
               ('wave', object), ('plt', object), ('itemID', object),
               ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
+'''
 # spikes recarray fieldnames to convert to Spike attribs when filtering
 SPIKEATTRS = [ fieldname for (fieldname, dtype) in SPIKEDTYPE ]
 SPIKEATTRS.remove('wavedata')
-'''
+
 def filterobjs(in_objs):
     in_objs = toiter(in_objs)
     out_objs = []
@@ -63,45 +64,33 @@ def filterobjs(in_objs):
     return out_objs
 '''
 
-def update_wave(obj, stream=None):
-    """Return object's waveform, taken from the given stream.
-    If object is a spike record, update its .wavedata"""
-    if type(obj) != np.rec.record: # it's a Spike or Neuron
-        obj.update_wave(stream) # call Spike or Neuron method
-        return obj.wave
+def get_wave(obj, stream=None):
+    """Return object's waveform, taken from the given stream"""
+    if type(obj) != np.rec.record: # it's a Neuron
+        if not hasattr(obj, 'wave') or obj.wave == None:
+            wave = obj.update_wave(stream) # call Neuron method
+            return wave
+        else:
+            return obj.wave
     # it's a spike record
     s = obj
-    tres = s.detection.sort.tres
-    ts = np.arange(s.t0, s.tend, tres) # build them up
-    chans = s.detection.detector.chans[s.chanis] # dereference
-    if s.wavedata != None: # wavedata was saved during detection
-        wave = WaveForm(data=s.wavedata,
-                        ts=ts,
-                        chans=chans)
-        # avoid binding new object to potentially all spikes
-        #s.wave = wave
-        return wave
-    # wavedata wasn't saved during detection
+    if s.wave != None:
+        return s.wave
     if stream == None:
-        raise RuntimeError("No stream open, can't update .wavedata for %s %d" % (s, s.id))
+        raise RuntimeError("No stream open, can't get wave for %s %d" % (s, s.id))
     if s.detection.detector.srffname != stream.srffname:
         msg = ("Spike %d was extracted from .srf file %s.\n"
                "The currently opened .srf file is %s.\n"
-               "Can't update spike %d's .wavedata." %
+               "Can't get spike %d's wave" %
                (s.id, s.detection.detector.srffname, stream.srffname, s.id))
         wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
         raise RuntimeError(msg)
+    #tres = s.detection.sort.tres
+    #ts = np.arange(s.t0, s.tend, tres) # build them up
+    chans = s.detection.detector.chans[s.chanis] # dereference
     wave = stream[s.t0 : s.tend]
     # can't do this cuz chanis indexes only into enabled chans,
-    # not into all stream chans represented in data array:
-    #data = wave.data[s.chanis]
-    wavedata = wave[chans].data # maybe a bit slower, but correct
-    #assert wavedata.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
-    s.wavedata = wavedata
-    wave = WaveForm(data=wavedata, ts=ts, chans=chans)
-    # avoid binding new object to potentially all spikes
-    #s.wave = wave
-    return wave
+    return wave[chans]
 
 
 logger = logging.Logger('detection')
@@ -650,7 +639,7 @@ class Detector(object):
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
-    DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
+    #DEFKEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -680,7 +669,7 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
-        self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
+        #self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
         self.tw = TW # spike time window range, us, centered on 1st phase of spike
@@ -750,8 +739,8 @@ class Detector(object):
              (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
-        if self.nspikes > MAXNSAVEDWAVEFORMS:
-            self.keepspikewavesondetect = False
+        #if self.nspikes > MAXNSAVEDWAVEFORMS:
+        #    self.keepspikewavesondetect = False
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
@@ -976,8 +965,8 @@ class Detector(object):
             # chanis as a list is less efficient than as an array
             s.chani, s.chanis = chani, chanis
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
-            if self.keepspikewavesondetect: # keep spike waveform for later use
-                s.wavedata = wave.data[chanis, t0i:tendi]
+            #if self.keepspikewavesondetect: # keep spike waveform for later use
+            #    s.wavedata = wave.data[chanis, t0i:tendi]
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to 2nd phase of this spike

@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import TW, SPIKEDTYPE, update_wave
+from spyke.detect import TW, SPIKEDTYPE, get_wave
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -103,8 +103,8 @@ class Sort(object):
         tcopy = time.clock()
         spikes = self.spikes.copy() # copies entire array, but not any objects it points to
         print('sort.spikes.copy() took %.3f sec' % (time.clock()-tcopy))
-        if not self.SAVEWAVES:
-            spikes.wavedata = None # remove wavedata
+        #if not self.SAVEWAVES:
+        #    spikes.wavedata = None # remove wavedata
         # these 3 are only necessary for plotting:
         spikes.wave = None
         spikes.itemID = None
@@ -579,9 +579,8 @@ class Neuron(object):
         data = np.zeros(shape, dtype=np.float32) # collect data that corresponds to chans and ts
         nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
         for spike in self.spikes:
-            if spike.wavedata == None:
-                update_wave(spike, stream)
-            wavedata = spike.wavedata
+            wave = get_wave(spike, stream)
+            wavedata = wave.data
             spikechans = spike.detection.detector.chans[spike.chanis]
             spikets = np.arange(spike.t0, spike.tend, self.sort.tres)
             # get chan indices into chans corresponding to spikechans, chans is a superset of spikechans
@@ -618,7 +617,7 @@ class Neuron(object):
         #print('neuron[%d].wave.chans = %r' % (self.id, chans))
         #print('neuron[%d].wave.ts = %r' % (self.id, ts))
         return self.wave
-
+    '''
     def get_stdev(self):
         """Return 2D array of stddev of each timepoint of each chan of member spikes.
         Assumes self.update_wave has already been called"""
@@ -628,7 +627,7 @@ class Neuron(object):
             data.append(spike.wave.data) # collect spike's data
         stdev = np.asarray(data).std(axis=0)
         return stdev
-
+    '''
     def get_chans(self):
         return self.wave.chans # self.chans just refers to self.wave.chans
 

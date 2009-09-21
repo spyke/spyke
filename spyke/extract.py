@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 
-from spyke.detect import update_wave
+from spyke.detect import get_wave
 
 
 class Extractor(object):
@@ -47,26 +47,22 @@ class Extractor(object):
     def get_spike_spatial_mean(self, spike):
         """Return weighted spatial mean of chans in spike according to their
         Vpp, to use as rough spatial origin of spike
-        NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840
-        This is handled by giving them 0 weight. Maybe it's better to take abs instead?"""
+        NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
         chanis = spike.chanis
         siteloc = spike.detection.detector.siteloc
-        if spike.wavedata == None:
-            update_wave(spike, self.sort.stream)
-        wavedata = spike.wavedata
+        wave = get_wave(spike, self.sort.stream)
+        wavedata = wave.data
         x = siteloc[chanis, 0] # 1D array (row)
         y = siteloc[chanis, 1]
-        # phase2 - phase1 on all chans, should be +ve, at least on maxchan
-        weights = (wavedata[:, spike.phase2ti] -
-                   wavedata[:, spike.phase1ti])
-        # replace any -ve weights with 0, convert to float before normalization
-        weights = np.float32(np.where(weights >= 0, weights, 0))
-        try: weights /= weights.sum() # normalized
-        except: import pdb; pdb.set_trace() # FloatingPointError?
-        #weights = wave.data[spike.chanis, spike.ti] # Vp weights, unnormalized, some of these may be -ve
-        # not sure if this is a valid thing to do, maybe just take abs instead, like when spike inverts across space
-        #weights = np.where(weights >= 0, weights, 0) # replace -ve weights with 0
-        #weights = abs(weights)
+        # phase2 - phase1 on all chans, should be mostly +ve
+        weights = (wavedata[:, spike.phase2ti] - wavedata[:, spike.phase1ti])
+        # convert to float before normalization, take abs of all weights
+        weights = np.abs(np.float32(weights))
+        weights /= weights.sum() # normalized
+        # alternative approach: replace -ve weights with 0
+        #weights = np.float32(np.where(weights >= 0, weights, 0))
+        #try: weights /= weights.sum() # normalized
+        #except FloatingPointError: pass # weird all -ve weights spike, replaced with 0s
         x0 = (weights * x).sum()
         y0 = (weights * y).sum()
         return x0, y0

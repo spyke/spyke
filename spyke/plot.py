@@ -28,7 +28,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from spyke.core import MU, hex2cmap
-from spyke.detect import TW, update_wave
+from spyke.detect import TW, get_wave
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -1026,8 +1026,7 @@ class SortPanel(PlotPanel):
         plt.set_stylewidth(style, width)
         plt.obj = obj # bind object to plot
         obj.plt = plt # bind plot to object
-        if obj.wave == None: # if it hasn't already been loaded
-            obj.wave = update_wave(obj, stream=self.spykeframe.hpstream) # update from stream
+        obj.wave = get_wave(obj, stream=self.spykeframe.hpstream) # update from stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, obj.t)
@@ -1036,7 +1035,8 @@ class SortPanel(PlotPanel):
         return plt
 
     def removeObjects(self, objects):
-        """Remove objects from plots"""
+        """Remove objects from plots
+        TODO: set obj.wave = None when no longer plotting"""
         if objects == []: # do nothing
             return
         for obj in objects:
