@@ -449,10 +449,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Colour the points that fall within each cluster (as specified
         by cluster.spikeis) the same colour as the cluster itself"""
         clusters = toiter(clusters)
+        cf = self.frames['cluster']
         for cluster in clusters:
             spikeis = cluster.spikeis
             neuron = cluster.neuron
-            cf = self.frames['cluster']
             cf.glyph.mlab_source.scalars[spikeis] = np.tile(neuron.id % len(CMAP), len(spikeis))
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
 
@@ -944,8 +944,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             except AttributeError: continue
             self.AddCluster(cluster)
             cluster.spikeis = sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
-        self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
-        if cluster: self.notebook.SetSelection(2) # switch to the cluster pane
+        if cluster:
+            self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
+            self.notebook.SetSelection(2) # switch to the cluster pane
 
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))

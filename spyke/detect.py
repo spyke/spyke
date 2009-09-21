@@ -1257,7 +1257,7 @@ class Detection(object):
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        self.spikeis = [] # list of spike IDs that came from this detection
+        #self.spikeis = [] # list of spike IDs that came from this detection
     '''
     def __eq__(self, other):
         """Compare detection runs by their ._spikes lists"""
