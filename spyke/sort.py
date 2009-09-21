@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import TW, SPIKEDTYPE
+from spyke.detect import TW, SPIKEDTYPE, update_wave
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -580,7 +580,7 @@ class Neuron(object):
         nspikes = np.zeros(shape, dtype=np.uint32) # keep track of how many spikes have contributed to each point in data
         for spike in self.spikes:
             if spike.wavedata == None:
-                update_wave(spike, stream) # TODO: test if this is working right by turning off KEEPWAVESONDETECT
+                update_wave(spike, stream)
             wavedata = spike.wavedata
             spikechans = spike.detection.detector.chans[spike.chanis]
             spikets = np.arange(spike.t0, spike.tend, self.sort.tres)

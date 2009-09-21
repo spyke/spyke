@@ -916,8 +916,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
                 self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError, ".sort file's probe type %r doesn't match .srf file's probe type %r" \
-                                    % (sortProbeType, streamProbeType)
+                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
+                                   % (sortProbeType, streamProbeType))
         sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
@@ -939,8 +939,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # some neurons don't have clusters
         for neuron in sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
-            for spike in neuron.spikes:
-                sf.AddSpikes2Tree(neuron.itemID, spike)
+            sf.AddSpikes2Tree(neuron.itemID, neuron.spikes)
             try: cluster = neuron.cluster
             except AttributeError: continue
             self.AddCluster(cluster)
