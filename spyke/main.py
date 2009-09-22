@@ -441,7 +441,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             try: self.DeColourPoints(cluster.spikeis)
             except AttributeError: pass
             cluster.spikeis = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
-            self.ColourPoints(cluster)
             spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[cluster.spikeis]
             if len(spikes) == 0: # remove from tree and make this neuron have 0 spikes
                 sf.RemoveNeuronFromTree(neuron)
@@ -449,7 +448,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             try: neuron.itemID # is it in the tree yet/still?
             except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
             sf.MoveSpikes2Neuron(spikes, neuron)
-        cf.glyph.mlab_source.update() # to reflect scalars change, update trait, but only once
+        self.ColourPoints(clusters)
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
