@@ -14,48 +14,53 @@ from spyke.detect import get_wave
 class Extractor(object):
     """Spike extractor base class"""
     #DEFXYMETHOD = 'spatial mean'
-    def __init__(self, sort, XYmethod=None):
+    def __init__(self, sort, XYmethod):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
+        if XYmethod.lower() == 'spatial mean':
+            self.extractXY = self.get_spatial_mean
+        elif XYmethod.lower() == 'gaussian fit':
+            self.extractXY = self.get_gaussian_fit
+        else:
+            raise ValueError("Unknown XY parameter extraction method %r" % method)
 
     def extract(self):
         """Extract spike parameters, store them as spike attribs. Every time
         you do a new extraction, (re)create a new .params recarray with the right
         set of params in it"""
-        self.extractXY() # just x and y params for now
-
-    def extractXY(self):
-        """Extract XY parameters from spikes using XYmethod"""
         spikes = self.sort.spikes # recarray
-        method = self.XYmethod
         if len(spikes) == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
         print("Extracting parameters from spikes")
         t0 = time.clock()
-        if method.lower() == 'spatial mean':
-            f = self.get_spike_spatial_mean
-        elif method.lower() == 'gaussian fit':
-            f = self.get_gaussian_fit
-        else:
-            raise ValueError("Unknown XY parameter extraction method %r" % method)
-        for spike in spikes:
-            spike.x0, spike.y0 = f(spike) # save as spike attribs
-        print("Extracting XY parameters from all %d spikes using %r took %.3f sec" %
-              (len(spikes), method.lower(), time.clock()-t0))
+        for s in spikes:
+            wave = get_wave(s, self.sort.stream)
+            wavedata = wave.data
+            det = s.detection.detector
+            x = det.siteloc[s.chanis, 0] # 1D array (row)
+            y = det.siteloc[s.chanis, 1]
+            # just x and y params for now
+            s.x0, s.y0 = self.extractXY(wavedata, x, y, s.phase1ti, s.phase2ti) # save as spike attribs
+        print("Extracting parameters from all %d spikes using %r took %.3f sec" %
+              (len(spikes), self.XYmethod.lower(), time.clock()-t0))
 
-    def get_spike_spatial_mean(self, spike):
+    def get_spatial_mean(self, wavedata, x, y, phase1ti, phase2ti):
         """Return weighted spatial mean of chans in spike according to their
-        Vpp, to use as rough spatial origin of spike
+        Vpp at the same timepoints as on the max chan, to use as rough
+        spatial origin of spike. x and y are spatial coords of chans in wavedata.
+        phase1ti and phase2ti are timepoint indices in wavedata at which the max chan
+        hits its 1st and 2nd spike phases.
+        TODO: maybe you get better clustering if you allow phase1ti and phase2ti to
+        vary at least slightly for each chan, since they're never simultaneous across
+        chans, and sometimes they're very delayed or advanced in time. Maybe just try finding
+        max and min vals for each chan in some trange phase1ti-dt to phase2ti+dt for some dt
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
-        chanis = spike.chanis
-        siteloc = spike.detection.detector.siteloc
-        wave = get_wave(spike, self.sort.stream)
-        wavedata = wave.data
-        x = siteloc[chanis, 0] # 1D array (row)
-        y = siteloc[chanis, 1]
+        #if wavedata == None:
+        #    wave = get_wave(spike, self.sort.stream)
+        #    wavedata = wave.data
         # phase2 - phase1 on all chans, should be mostly +ve
-        weights = (wavedata[:, spike.phase2ti] - wavedata[:, spike.phase1ti])
+        weights = wavedata[:, phase2ti] - wavedata[:, phase1ti]
         # convert to float before normalization, take abs of all weights
         weights = np.abs(np.float32(weights))
         weights /= weights.sum() # normalized
@@ -67,5 +72,5 @@ class Extractor(object):
         y0 = (weights * y).sum()
         return x0, y0
 
-    def get_gaussian_fit(self, spike):
+    def get_gaussian_fit(self, spike, wavedata=None, siteloc=None):
         raise NotImplementedError

@@ -640,6 +640,7 @@ class Detector(object):
     DEFDT = 350 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
+    DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -651,7 +652,8 @@ class Detector(object):
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
                  slock=None, dt=None, randomsample=None,
-                 keepspikewavesondetect=None):
+                 #keepspikewavesondetect=None,
+                 extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
         self.srffname = sort.stream.srffname # for reference, store which .srf file this Detector is run on
@@ -670,6 +672,7 @@ class Detector(object):
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
         #self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
+        self.extractparamsondetect = extractparamsondetect or self.DEFEXTRACTPARAMSONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
         self.tw = TW # spike time window range, us, centered on 1st phase of spike
@@ -838,6 +841,7 @@ class Detector(object):
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
         AD2uV = self.sort.converter.AD2uV
+        extractXY = self.sort.extractor.extractXY
         lockouts = self.lockouts
         twi = self.twi
         nspikes = 0
@@ -967,6 +971,13 @@ class Detector(object):
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
             #if self.keepspikewavesondetect: # keep spike waveform for later use
             #    s.wavedata = wave.data[chanis, t0i:tendi]
+            if self.extractparamsondetect:
+                wavedata = wave.data[chanis, t0i:tendi]
+                # just x and y params for now
+                x = self.siteloc[chanis, 0] # 1D array (row)
+                y = self.siteloc[chanis, 1]
+                s.x0, s.y0 = extractXY(wavedata, x, y, phase1ti, phase2ti)
+
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to 2nd phase of this spike

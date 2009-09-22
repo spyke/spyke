@@ -286,6 +286,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                                    "in time with existing detection")
         #import cProfile
         #cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
+        if sort.detector.extractparamsondetect:
+            self.init_extractor() # init the Extractor
         spikes = sort.detector.detect() # recarray of spikes
         detection = Detection(sort, sort.detector, # create a new Detection run
                               id=sort._detid,
@@ -308,15 +310,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
+    def init_extractor(self):
+        """Initialize Extractor"""
+        XYmethod = self.extract_radio_box.GetStringSelection()
+        ext = extract.Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
+        self.sort.extractor = ext
+        #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
+
     def OnExtract(self, evt=None):
         """Extract pane Extract button click. Extracts (or re-extracts and
         overwrites) spike parameters from all sort.spikes, and stores
         them as spike attribs"""
-        ext = extract.Extractor(sort=self.sort) # or eventually, self.get_extractor()
-        #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
-        self.sort.extractor = ext
-        ext.XYmethod = self.extract_radio_box.GetStringSelection()
-        ext.extract() # adds extracted params to sort.spikes
+        self.init_extractor()
+        self.sort.extractor.extract() # adds extracted params to sort.spikes
         self.frames['sort'].list.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
