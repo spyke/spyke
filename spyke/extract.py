@@ -18,12 +18,24 @@ class Extractor(object):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
-        if XYmethod.lower() == 'spatial mean':
+        self.choose_XY_fun()
+
+    def choose_XY_fun(self):
+        if self.XYmethod.lower() == 'spatial mean':
             self.extractXY = self.get_spatial_mean
-        elif XYmethod.lower() == 'gaussian fit':
+        elif self.XYmethod.lower() == 'gaussian fit':
             self.extractXY = self.get_gaussian_fit
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % method)
+
+    def __getstate__(self):
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['extractXY'] # can't pickle an instance method, not sure why it even bothers trying
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+        self.choose_XY_fun() # restore instance method
 
     def extract(self):
         """Extract spike parameters, store them as spike attribs. Every time
