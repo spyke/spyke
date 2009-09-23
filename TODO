@@ -13,33 +13,20 @@ GENERAL:
     - related: add a File/Restore waveforms to the menu, leave it greyed out when not applicable
     - realted: reduce number of chans included in a spike according to amount of signal on that signal, maybe based on median signal for that chan for entire file, or randomly sampled subset of the file
 
-- profile pickling and unpickling of both .parse and .sort files by temporarily using the Python pickle module instead of the cPickle module, to hopefully figure out why the surf.File and sort.Sort objects take so damned long to process - too many references?
-
-- assigning 64 bit range values to the wx slider on startup overflows if they're outside 32 bit values - this is a problem for 7 GB .srf files. Might have to use the slider as a rougher metric - instead of us, have it represent 10us steps? Or interpolated Xus steps? This then needs translation between slider values and actual time values...
-
 - order colours consecutively according to cluster mean y location, to make neighbouring clusters in X-Y space less likely to be assigned the same colour
 
 - WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
 
-- abstract out spike detection and obvious rejection from spike modelling, do all detection first in its own loop, followed by all modelling later in its own loop
-
 - add NVS's one pixel row per channel display window, with greyscale of colour hue indicating voltage - see more recognizable patterns, can see spikes over the span of just a few pixels (look like gabors over space and time), yet can also look across a wide swath of time to find similar looking gabors elsewhere - interesting
-
-- Nick's suggestion: consider leaving voltages in AD units, as signed 16 bit integers (centered around 0 instead of 2048 as in the .srf files) instead of float32's. This would use half the memory, and might also speed up computation: integer math should be faster than float math. Whenever you actually need uV, just convert on the fly
-    - I think I decided to stick to float32's because during Nyquist interpolation, I have to switch to them anyways, and I'm always doing interpolation
 
 - Nick's suggestion: try smoothing across channels. For each timepoint, for each chan, weight the signal at that timepoint with 1, and all the others for other channels as a function of a gaussian. Then normalize to get the smoothed signal value for that channel for that timepoint. Then, repeat, centered on each of the channels, and repeat for all timepoints. This preserves signal they have in common, and gets rid of channel-independent noise. Drawback is that you lose spatial resolution for your spike: a spike will appear to spread across more channels than it did before smoothing. This tradeoff can be tweaked by changing the sigma of the 2D spatial smotthing gaussian. Looks pretty good in his implementation.
     - might be a bit slow, but could just be implemented as an extra step before or after interpolation. is equivalent to convolving with some kind of spatial filter? maybe this is already implemented somewhere in numpy or scipy
 
 - for convenience in neuropy, copy all stimulus data from .srf to .sort file
 
-- does disabling a channel really prevent it from being searched on?
-
 - think there's an issue with the cursor width not updating when the window it represents (the one to the left) changes its zoom level
 
 - add CSD calculation and display
-
-- just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
 
 - get tooltips to work on main spyke frame widgets
 
@@ -473,6 +460,16 @@ DONE:
     - no, they're MS and MU, for Surf and User generated messages. At least, there shouldn't be any .srf files out there that have only M as the record flag
 
 - instead of simply searching for max and min V within window, search in window forward from thresh for a peak, then in either from that peak for up to another 200us for another one of opposite sign. If you don't find a 2nd one, it ain't a spike. How to find peaks? Look for change in diff? Nah, use inline C.
+- profile pickling and unpickling of both .parse and .sort files by temporarily using the Python pickle module instead of the cPickle module, to hopefully figure out why the surf.File and sort.Sort objects take so damned long to process - too many references?
+- assigning 64 bit range values to the wx slider on startup overflows if they're outside 32 bit values - this is a problem for 7 GB .srf files. Might have to use the slider as a rougher metric - instead of us, have it represent 10us steps? Or interpolated Xus steps? This then needs translation between slider values and actual time values...
+- abstract out spike detection and obvious rejection from spike modelling, do all detection first in its own loop, followed by all modelling later in its own loop
+- Nick's suggestion: consider leaving voltages in AD units, as signed 16 bit integers (centered around 0 instead of 2048 as in the .srf files) instead of float32's. This would use half the memory, and might also speed up computation: integer math should be faster than float math. Whenever you actually need uV, just convert on the fly
+    - I think I decided to stick to float32's because during Nyquist interpolation, I have to switch to them anyways, and I'm always doing interpolation
+- does disabling a channel really prevent it from being searched on? yes
+- just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
+
+
+
 
 
 
