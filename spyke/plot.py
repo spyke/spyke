@@ -982,43 +982,47 @@ class SortPanel(PlotPanel):
         self.qrplt = None
         self.background = None
 
-    def addObjects(self, objects):
-        """Add spikes/neurons to self"""
-        if objects == []:
+    def addItems(self, items):
+        """Add items (spikes/neurons) to self"""
+        if items == []:
             return # do nothing
-        if len(objects) == 1:
-            # before blitting this single object to screen, grab current buffer,
-            # save as new background for quick restore if the next action is removal of this very same object
+        if len(items) == 1:
+            # before blitting this single item to screen, grab current buffer,
+            # save as new background for quick restore if the next action is removal of this very same item
             self.background = self.copy_from_bbox(self.ax.bbox)
-            self.qrplt = self.addObject(objects[0]) # add the single object, save reference to its plot
+            self.qrplt = self.addItem(items[0]) # add the single item, save reference to its plot
             #print 'saved quick remove plot %r' % self.qrplt
         else:
             self.background = None
-            for obj in objects: # add all objects
-                self.addObject(obj)
+            for item in items: # add all items
+                self.addItem(item)
         self.blit(self.ax.bbox)
 
-    def addObject(self, obj):
-        """Put object in an available Plot, return the Plot"""
-        if len(self.available_plots) == 0: # if we've run out of plots for additional objects
+    def addItem(self, item):
+        """Put item in an available Plot, return the Plot"""
+        if len(self.available_plots) == 0: # if we've run out of plots for additional items
             self.init_plots() # init another batch of plots
-        plt = self.available_plots.pop() # pop a Plot to assign this object to
-        try:
-            obj.spikes # it's a neuron
-            plt.id = 'n' + str(obj.id)
-            colours = [COLOURDICT[obj.id]]
+        plt = self.available_plots.pop() # pop a Plot to assign this item to
+        plt.id = item
+        id = int(item[1:])
+        sort = self.spykeframe.sort
+        if item[0] == 'n': # it's a neuron
+            obj = sort.neurons[id]
+            colours = [COLOURDICT[id]]
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
-        except AttributeError: # it's a spike
-            plt.id = 's' + str(obj.id)
+        else: # it's a spike
+            ri, = np.where(sort.spikes.id == id) # returns an array
+            ri = int(ri)
+            obj = sort.spikes[ri]
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
-            try:
-                obj.neuron # it's a member spike of a neuron. colour it the same as its neuron
+            if obj.neuron != None: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                colours = [COLOURDICT[obj.neuron.id]]
-            except AttributeError: # it's an unsorted spike, colour each chan separately
+                try: colours = [COLOURDICT[obj.neuron.id]]
+                except: import pdb; pdb.set_trace()
+            else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
                 colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
         plt.set_colours(colours)
@@ -1034,72 +1038,74 @@ class SortPanel(PlotPanel):
         plt.draw()
         return plt
 
-    def removeObjects(self, objects):
-        """Remove objects from plots
-        TODO: set obj.wave = None when no longer plotting"""
-        if objects == []: # do nothing
+    def removeItems(self, items):
+        """Remove items from plots
+        TODO: set obj.wave = None when no longer plotting?"""
+        if items == []: # do nothing
             return
-        for obj in objects:
-            # remove specified objects from .used_plots, use contents of
+        for item in items:
+            # remove items from .used_plots, use contents of
             # .used_plots to decide how to do the actual plot removal
-            plt = self.removeObject(obj)
-        # remove all objects
+            plt = self.removeItem(item)
+        # now remove items from actual plot
         if self.used_plots == {}:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
         # remove the last added plot if a saved bg is available
-        elif len(objects) == 1 and plt == self.qrplt and self.background != None:
+        elif len(items) == 1 and plt == self.qrplt and self.background != None:
             #print 'quick removing plot %r' % self.qrplt
             self.restore_region(self.background) # restore saved bg
-        # remove more than one, but not all objects
+        # remove more than one, but not all items
         else:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
             for plt in self.used_plots.values():
                 plt.draw() # redraw the remaining plots in .used_plots
-        self.background = None # what was background is no longer useful for quick restoration on any other object removal
-        self.qrplt = None # qrplt set in addObjects is no longer quickly removable
+        self.background = None # what was background is no longer useful for quick restoration on any other item removal
+        self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
-    def removeAllObjects(self):
-        """Shortcut for removing all object from plots"""
-        objects = [ plt.obj for plt in self.used_plots.values() ]
-        self.removeObjects(objects)
+    def removeAllItems(self):
+        """Shortcut for removing all items from plots"""
+        items = [ plt.id for plt in self.used_plots.values() ]
+        self.removeItems(items)
 
-    def removeObject(self, obj):
-        """Restore object's Plot from used to available plot pool, return the Plot"""
-        if obj.plt == None:
-            return
-        plt = self.used_plots.pop(obj.plt.id)
-        # TODO: reset plot colour and line style here, or just set them each time in addObject?
+    def removeItem(self, item):
+        """Restore item's Plot from used to available plot pool, return the Plot"""
+        plt = self.used_plots.pop(item)
+        # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
+        plt.obj.plt = None # unbind plot from object
         plt.obj = None # unbind object from plot
-        obj.plt = None # unbind plot from object
         plt.hide() # hide all chan lines
         self.available_plots.append(plt)
         return plt
 
-    def updateObjects(self, objects):
-        """Re-plot objects, potentially because their WaveForms have changed.
+    def updateItems(self, items):
+        """Re-plot items, potentially because their WaveForms have changed.
         Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""
-        if objects == []: # do nothing
+        if items == []: # do nothing
             return
-        if len(objects) == 1 and objects[0].plt != None and objects[0].plt == self.qrplt and self.background != None:
-            print 'quick removing and replotting plot %r' % self.qrplt
-            self.restore_region(self.background) # restore saved bg
-            self.updateObject(objects[0])
-        else: # update and redraw all objects
+        if len(items) == 1:
+            plt = self.used_plots[items[0]]
+            if plt != None and plt == self.qrplt and self.background != None:
+                print 'quick removing and replotting plot %r' % self.qrplt
+                self.restore_region(self.background) # restore saved bg
+                self.updateItem(items[0])
+        else: # update and redraw all items
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-            for obj in objects:
-                self.updateObject(obj)
-            self.background = None # what was background is no longer useful for quick restoration on any other object removal
-            self.qrplt = None # qrplt set in addObjects is no longer quickly removable
+            for item in items:
+                self.updateItem(item)
+            self.background = None # what was background is no longer useful for quick restoration on any other item removal
+            self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
-    def updateObject(self, obj):
+    def updateItem(self, item):
         """Update and draw a spike's/neuron's plot"""
+        plt = self.used_plots[item]
+        obj = plt.obj
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
-        obj.plt.update(wave, obj.t)
-        obj.plt.show_chans(obj.wave.chans) # ensure all of obj's chans are visible
-        obj.plt.draw()
+        plt.update(wave, obj.t)
+        plt.show_chans(obj.wave.chans) # ensure all of obj's chans are visible
+        plt.draw()
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords

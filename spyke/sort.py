@@ -568,6 +568,7 @@ class Neuron(object):
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
         self.spikeis = set() # indices of spikes that make up this neuron
+        self.t = 0 # relative reference timestamp, here for symmetry with fellow spike rec (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         #self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.cluster = None
@@ -874,8 +875,8 @@ class SortFrame(wxglade_gui.SortFrame):
         sids = sort.spikes.id[ris]
         remove_sids = [ sid for sid in self.list.lastSelectedIDs if sid not in sids ]
         add_sids = [ sid for sid in sids if sid not in self.list.lastSelectedIDs ]
-        self.RemoveItemsFromPlot('s'+str(sid) for sid in remove_sids)
-        self.AddItems2Plot('s'+str(sid) for sid in add_sids)
+        self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
+        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
         self.list.lastSelectedIDs = sids # save for next time
 
     def OnListRightDown(self, evt):
@@ -1061,25 +1062,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if root: # tree isn't empty
             self.tree.SortChildren(root)
             self.RelabelNeurons(root)
-    '''
-    def OnMatchNeuron(self, evt):
-        """Match spikes in spike list against first selected neuron, populate err column"""
-        errcol = 4 # err is in 4th column (0-based)
-        neuron = self.GetFirstSelectedNeuron()
-        if not neuron: # no neurons selected
-            return
-        self.sort.match(neurons=[neuron])
-        sid2err = dict(neuron.err) # maps spike ID to its error for this neuron
-        for rowi in range(self.list.GetItemCount()):
-            sid = int(self.list.GetItemText(rowi))
-            try:
-                err = str(sid2err[sid])
-            except KeyError: # no err for this sid because the spike and neuron don't overlap enough
-                err = ''
-            erritem = self.list.GetItem(rowi, errcol)
-            erritem.SetText(err)
-            self.list.SetItem(erritem)
-    '''
+
     def RelabelNeurons(self, root):
         """Consecutively relabel neurons according to their vertical order in the TreeCtrl.
         Relabeling happens both in the TreeCtrl and in the .sort.neurons dict"""
@@ -1218,7 +1201,7 @@ class SortFrame(wxglade_gui.SortFrame):
         #else:
         #    print("can't add spike %d to neuron because its data isn't accessible" % spike.id)
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
-            self.UpdateItemsInPlot(['n'+neuron.id]) # update its plot
+            self.UpdateItemsInPlot(['n'+str(neuron.id)]) # update its plot
 
     def MoveCurrentItems2List(self):
         for itemID in self.tree.GetSelections():
@@ -1227,7 +1210,8 @@ class SortFrame(wxglade_gui.SortFrame):
                 id = int(item[1:])
                 sort = self.sort
                 if item[0] == 's': # it's a spike
-                    ri, = np.where(sort.spikes.id == id)
+                    ri, = np.where(sort.spikes.id == id) # returns an array
+                    ri = int(ri)
                     neuron = sort.spikes.neuron[ri]
                     self.MoveSpikes2List(neuron, id)
                     if len(neuron.spikeis) == 0:
@@ -1245,7 +1229,8 @@ class SortFrame(wxglade_gui.SortFrame):
             id = int(item[1:])
             sort = self.sort
             if item[0] == 's': # it's a spike, get its neuron
-                ri, = np.where(sort.spikes.id == id)
+                ri, = np.where(sort.spikes.id == id) # returns an array
+                ri = int(ri)
                 return sort.spikes.neuron[ri]
             else: # it's a neuron
                 return sort.neurons[id]
