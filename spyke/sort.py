@@ -568,7 +568,6 @@ class Neuron(object):
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
         self.spikeis = set() # indices of spikes that make up this neuron
-        self.t = 0 # relative reference timestamp, here for symmetry with fellow obj Spike (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         #self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.cluster = None
@@ -801,8 +800,10 @@ class SortFrame(wxglade_gui.SortFrame):
 
         self.listTimer = wx.Timer(owner=self.list)
 
-        self.lastSelectedListSpikes = []
-        self.lastSelectedTreeObjects = []
+        self.list.lastSelectedIDs = []
+        self.tree.lastSelectedItems = []
+        self.tree.selectedItemIDs = []
+        self.tree.selectedItems = []
 
         columnlabels = ['sID', 'x0', 'y0', 'time'] # spike list column labels
         for coli, label in enumerate(columnlabels):
@@ -848,16 +849,19 @@ class SortFrame(wxglade_gui.SortFrame):
         wx.CallAfter(self.DrawRefs)
 
     def OnClose(self, evt):
-        frametype = self.__class__.__name__.lower().replace('frame', '') # remove 'Frame' from class name
+        # remove 'Frame' from class name
+        frametype = self.__class__.__name__.lower().replace('frame', '')
         self.spykeframe.HideFrame(frametype)
 
     def OnListSelect(self, evt):
         """Restart list selection timer
-        listTimer explanation: on any selection event, start or restart the timer for say 1 msec.
-        Then, when timer runs down, run self.list.GetSelections() and compare to previous list of
-        selections, and execute your plots accordingly. This makes all the sel event handling fast"""
+        listTimer explanation: on any selection event, start or restart the timer for say
+        1 msec. Then, when timer runs down, run self.list.GetSelections() and compare to
+        previous list of selections, and execute your plots accordingly. This makes all
+        the sel event handling fast"""
         self.listTimer.Stop()
-        self.listTimer.Start(milliseconds=1, oneShot=True) # only fire one timer event after specified interval
+        # only fire one timer event after specified interval
+        self.listTimer.Start(milliseconds=1, oneShot=True)
 
     def OnListDeselect(self, evt):
         self.OnListSelect(evt)
@@ -866,12 +870,13 @@ class SortFrame(wxglade_gui.SortFrame):
         """Run when started timer runs out and triggers a TimerEvent"""
         sort = self.sort
         selectedRows = self.list.GetSelections()
-        selectedListSpikes = [ sort.spikes[sort.uris[row]] for row in selectedRows ] # records
-        removeSpikes = [ spike for spike in self.lastSelectedListSpikes if spike not in selectedListSpikes ]
-        addSpikes = [ spike for spike in selectedListSpikes if spike not in self.lastSelectedListSpikes ]
-        self.RemoveObjectsFromPlot(removeSpikes)
-        self.AddObjects2Plot(addSpikes)
-        self.lastSelectedListSpikes = selectedListSpikes # save for next time
+        ris = sort.uris[selectedRows]
+        sids = sort.spikes.id[ris]
+        remove_sids = [ sid for sid in self.list.lastSelectedIDs if sid not in sids ]
+        add_sids = [ sid for sid in sids if sid not in self.list.lastSelectedIDs ]
+        self.RemoveItemsFromPlot('s'+str(sid) for sid in remove_sids)
+        self.AddItems2Plot('s'+str(sid) for sid in add_sids)
+        self.list.lastSelectedIDs = sids # save for next time
 
     def OnListRightDown(self, evt):
         """Toggle selection of the clicked list item, without changing selection
@@ -942,27 +947,27 @@ class SortFrame(wxglade_gui.SortFrame):
         flag set, as it is here. So, this handler has to be called manually on mouse
         and keyboard events. Don't think there's any harm in calling this handler twice
         for all other cases where a SEL_CHANGED event is fired"""
-        print 'in OnTreeSelectChanged'
+        print('in OnTreeSelectChanged')
         if evt: # just use this as a hack to update currently focused
             item = evt.GetItem()
             if item:
                 self.tree._focusedItem = item
                 print 'currently focused item: %s' % self.tree.GetItemText(item)
             return # don't allow the selection event to actually happen?????????????
-        self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
-        print [ self.tree.GetItemText(item) for item in self.tree._selectedItems ]
-        selectedTreeObjects = [] # objects could be a mix of Spikes and Neurons
-        for itemID in self.tree._selectedItems:
-            item = self.tree.GetItemPyData(itemID)
-            selectedTreeObjects.append(item)
-        removeObjects = [ obj for obj in self.lastSelectedTreeObjects if obj not in selectedTreeObjects ]
-        addObjects = [ obj for obj in selectedTreeObjects if obj not in self.lastSelectedTreeObjects ]
-        self.RemoveObjectsFromPlot(removeObjects)
-        self.AddObjects2Plot(addObjects)
-        self.lastSelectedTreeObjects = selectedTreeObjects # save for next time
+        selectedItemIDs = self.tree.GetSelections()
+        selectedItems = [ self.tree.GetItemText(itemID) for itemID in selectedItemIDs ]
+        # update list of selected tree items for OnTreeRightDown's benefit
+        self.tree.selectedItemIDs = selectedItemIDs
+        self.tree.selectedItems = selectedItems
+        print selectedItems
+        removeItems = [ item for item in self.tree.lastSelectedItems if item not in selectedItems ]
+        addItems = [ item for item in selectedItems if item not in self.tree.lastSelectedItems ]
+        self.RemoveItemsFromPlot(removeItems)
+        self.AddItems2Plot(addItems)
+        self.tree.lastSelectedItems = selectedItems # save for next time
 
     def OnTreeLeftDown(self, evt):
-        print 'in OnTreeLeftDown'
+        print('in OnTreeLeftDown')
         pt = evt.GetPosition()
         itemID, flags = self.tree.HitTest(pt)
         if itemID.IsOk(): # if we've clicked on an item
@@ -972,26 +977,25 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnTreeLeftUp(self, evt):
         """Need this to catch clicking on non focused item, bug #4448"""
-        print 'in OnTreeLeftUp'
+        print('in OnTreeLeftUp')
         self.OnTreeLeftDown(evt)
 
     def OnTreeRightDown(self, evt):
         """Toggle selection of the clicked item, without changing selection
         status of any other items. This is a nasty hack required to get around
         the selection TreeEvent happening before the MouseEvent"""
-        print 'in OnTreeRightDown'
+        print('in OnTreeRightDown')
         pt = evt.GetPosition()
         itemID, flags = self.tree.HitTest(pt)
         if not itemID.IsOk(): # if we haven't clicked on an item
             return
-        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Neuron
         # first, restore all prior selections in the tree (except our item) that were cleared by the right click selection event
-        for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
-            self.tree.SelectItem(itemID)
-        if obj.itemID not in self.tree._selectedItems: # if it wasn't selected before, it is now, so no need to do anything
+        for itID in self.tree.selectedItemIDs: # rely on tree.selectedItemIDs being judiciously kept up to date
+            self.tree.SelectItem(itID)
+        if itemID not in self.tree.selectedItemsIDs: # if it wasn't selected before, it is now, so no need to do anything
             pass
         else: # it was selected before, it still will be now, so need to deselect it
-            self.tree.SelectItem(obj.itemID, select=False)
+            self.tree.SelectItem(itemID, select=False)
         self.OnTreeSelectChanged() # now plot accordingly
 
     def OnTreeSpaceUp(self, evt):
@@ -1001,16 +1005,15 @@ class SortFrame(wxglade_gui.SortFrame):
         This causes an annoying flicker of the currently selected items, because they
         all unfortunately get deselected on the uncatchable SPACE keydown event,
         and aren't reselected until the SPACE keyup event"""
-        print 'in OnTreeSpaceUp'
+        print('in OnTreeSpaceUp')
         itemID = self.tree.GetFocusedItem()
-        obj = self.tree.GetItemPyData(itemID) # either a Spike or a Neuron
         # first, restore all prior selections in the tree (except our item) that were cleared by the space selection event
-        for itemID in self.tree._selectedItems: # rely on tree._selectedItems being judiciously kept up to date
-            self.tree.SelectItem(itemID)
-        if obj.itemID not in self.tree._selectedItems: # if it wasn't selected before, it is now, so no need to do anything
+        for itID in self.tree.selectedItemIDs: # rely on tree.selectedItemIDs being judiciously kept up to date
+            self.tree.SelectItem(itID)
+        if itemID not in self.tree.selectedItemIDs: # if it wasn't selected before, it is now, so no need to do anything
             pass
         else: # it was selected before, it still will be now, so need to deselect it
-            self.tree.SelectItem(obj.itemID, select=False)
+            self.tree.SelectItem(itemID, select=False)
         self.OnTreeSelectChanged() # now plot accordingly
 
     def OnTreeKeyDown(self, evt):
@@ -1024,7 +1027,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.OnTreeSelectChanged()
             # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [wx.WXK_DELETE, ord('D'),]:
-            self.MoveCurrentObjects2List()
+            self.MoveCurrentItems2List()
         elif key == ord('A'): # allow us to add from spike list even if tree is in focus
             self.MoveCurrentSpikes2Neuron(which='selected')
         elif key in [ord('C'), ord('N')]: # ditto for creating a new neuron
@@ -1034,7 +1037,7 @@ class SortFrame(wxglade_gui.SortFrame):
         elif key in [wx.WXK_UP, wx.WXK_DOWN]: # keyboard selection hack around multiselect bug
             wx.CallAfter(self.OnTreeSelectChanged)
             #self.OnTreeSelectChanged()
-        self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
+        self.tree.selectedItemIDs = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
     def OnTreeKeyUp(self, evt):
@@ -1050,7 +1053,7 @@ class SortFrame(wxglade_gui.SortFrame):
                 #self.OnTreeSelectChanged()
                 self.OnTreeSpaceUp(evt)
                 #evt.Skip() seems to prevent toggling, or maybe it untoggles
-        self.tree._selectedItems = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
+        self.tree.selectedItemIDs = self.tree.GetSelections() # update list of selected tree items for OnTreeRightDown's benefit
         evt.Skip()
 
     def OnSortTree(self, evt):
@@ -1080,12 +1083,16 @@ class SortFrame(wxglade_gui.SortFrame):
     def RelabelNeurons(self, root):
         """Consecutively relabel neurons according to their vertical order in the TreeCtrl.
         Relabeling happens both in the TreeCtrl and in the .sort.neurons dict"""
-        neurons = self.tree.GetTreeChildrenPyData(root) # get all children of root in order from top to bottom
-        self.sort.neurons = {} # clear the dict, gc won't kick in cuz we still have a ref
-        for neuroni, neuron in enumerate(neurons):
+        itemIDs = self.tree.GetTreeChildren(root) # get all children of root in order from top to bottom
+        items = [ self.tree.GetItemText(itemID) for itemID in itemIDs ]
+        neurons = {} # build up a new neurons dict
+        for neuroni, item in enumerate(items):
+            assert item[0] == 'n'
+            neuron = self.sort.neurons[int(item[1:])]
             neuron.id = neuroni # update its id
-            self.sort.neurons[neuron.id] = neuron # add it to its key in neuron dict
+            neurons[neuron.id] = neuron # add it to its key in neuron dict
             self.tree.SetItemText(neuron.itemID, 'n'+str(neuron.id)) # update its entry in the tree
+        self.sort.neurons = neurons # overwrite the dict
         self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
 
     def DrawRefs(self):
@@ -1093,20 +1100,17 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.draw_refs()
         #self.chartsortpanel.draw_refs()
 
-    def AddObjects2Plot(self, objects):
-        #print 'objects to add: %r' % [ obj.id for obj in objects ]
-        self.spikesortpanel.addObjects(objects)
-        #self.chartsortpanel.addObjects(objects)
+    def AddItems2Plot(self, items):
+        self.spikesortpanel.addItems(items)
+        #self.chartsortpanel.addItems(items)
 
-    def RemoveObjectsFromPlot(self, objects):
-        #print 'objects to remove: %r' % [ obj.id for obj in objects ]
-        self.spikesortpanel.removeObjects(objects)
-        #self.chartsortpanel.removeObjects(objects)
+    def RemoveItemsFromPlot(self, items):
+        self.spikesortpanel.removeItems(items)
+        #self.chartsortpanel.removeItems(items)
 
-    def UpdateObjectsInPlot(self, objects):
-        #print 'objects to update: %r' % [ obj.id for obj in objects ]
-        self.spikesortpanel.updateObjects(objects)
-        #self.chartsortpanel.updateObjects(objects)
+    def UpdateItemsInPlot(self, items):
+        self.spikesortpanel.updateItems(items)
+        #self.chartsortpanel.updateItems(items)
 
     # TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
 
@@ -1121,10 +1125,10 @@ class SortFrame(wxglade_gui.SortFrame):
     def RemoveNeuronFromTree(self, neuron):
         """Remove neuron and all its spikes from the tree"""
         self.MoveSpikes2List(neuron, neuron.spikeis)
-        self.RemoveObjectsFromPlot([neuron])
+        self.RemoveItemsFromPlot([neuron])
         try:
             self.tree.Delete(neuron.itemID)
-            del neuron.itemID # makes it clear that neuron is no longer in tree
+            del neuron.itemID # make it clear that neuron is no longer in tree
         except AttributeError:
             pass # neuron.itemID already deleted due to recursive call
 
@@ -1164,7 +1168,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.UnselectAll() # unselect all items in tree
             self.tree.SelectItem(neuron.itemID) # select the newly created neuron
             self.OnTreeSelectChanged() # now plot accordingly
-            return neuron
+        return neuron
 
     def AddSpikes2Tree(self, parent, spikeis):
         """Add spikes to the tree, where parent is a tree itemID"""
@@ -1177,7 +1181,6 @@ class SortFrame(wxglade_gui.SortFrame):
             # add spike to tree, save its itemID
             itemID = self.tree.AppendItem(parent, 's'+str(si))
             self.sort.spikes[ri].itemID = itemID
-            #self.tree.SetItemPyData(itemID, spike) # associate spike tree item with spike
 
     def MoveSpikes2List(self, neuron, spikeis):
         """Move spikes from a neuron in the tree back to the list control.
@@ -1196,7 +1199,7 @@ class SortFrame(wxglade_gui.SortFrame):
         for itemID in itemIDs:
             self.tree.Delete(itemID) # update tree
         spikes[ris].itemID = None # no longer applicable
-        self.sort.update_spike_lists()
+        self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
 
@@ -1215,38 +1218,35 @@ class SortFrame(wxglade_gui.SortFrame):
         #else:
         #    print("can't add spike %d to neuron because its data isn't accessible" % spike.id)
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
-            self.UpdateObjectsInPlot([neuron]) # update its plot
+            self.UpdateItemsInPlot(['n'+neuron.id]) # update its plot
 
-    def MoveCurrentObjects2List(self):
+    def MoveCurrentItems2List(self):
         for itemID in self.tree.GetSelections():
             if itemID: # check if spike's tree parent (neuron) has already been deleted
-                obj = self.tree.GetItemPyData(itemID)
-                if type(obj) == np.rec.record: # it's a spike
-                    neuron = obj.neuron
-                    self.MoveSpikes2List(neuron, obj.id)
+                item = self.tree.GetItemText(itemID)
+                id = int(item[1:])
+                sort = self.sort
+                if item[0] == 's': # it's a spike
+                    ri, = np.where(sort.spikes.id == id)
+                    neuron = sort.spikes.neuron[ri]
+                    self.MoveSpikes2List(neuron, id)
                     if len(neuron.spikeis) == 0:
                         self.RemoveNeuron(neuron) # remove empty Neuron
                     else:
-                        neuron.update_wave(self.sort.stream) # update mean neuron waveform
-                elif type(obj) == Neuron:
-                    self.RemoveNeuron(obj) # remove Neuron and all its Spikes
+                        neuron.update_wave(sort.stream) # update mean neuron waveform
+                else: # it's a neuron
+                    neuron = sort.neurons[id]
+                    self.RemoveNeuron(neuron) # remove Neuron and all its Spikes
         self.OnTreeSelectChanged() # update plot
-    '''
-    def MoveCurrentSpikes2Trash(self):
-        """Move currently selected spikes in spike list to trash"""
-        selected_rows = self.list.GetSelections()
-        # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
-        selected_rows.reverse()
-        for row in selected_rows:
-            spike = self.sort.uris[row]
-            self.MoveSpike2Trash(spike, row)
-    '''
+
     def GetFirstSelectedNeuron(self):
         for itemID in self.tree.GetSelections():
-            obj = self.tree.GetItemPyData(itemID)
-            if type(obj) == Neuron:
-                return obj
-            # no neuron selected, check to see if a spike is selected in the tree, grab its neuron
-            elif type(obj) == np.rec.record: # it's a spike
-                return obj.neuron
+            item = self.tree.GetItemText(itemID)
+            id = int(item[1:])
+            sort = self.sort
+            if item[0] == 's': # it's a spike, get its neuron
+                ri, = np.where(sort.spikes.id == id)
+                return sort.spikes.neuron[ri]
+            else: # it's a neuron
+                return sort.neurons[id]
         return None
