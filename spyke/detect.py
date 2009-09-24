@@ -30,7 +30,7 @@ TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st pha
 
 #MAXNSAVEDWAVEFORMS = 250000 # prevents MemoryErrors
 
-SPIKEDTYPE = [('id', np.uint32), ('ri', np.uint32), # ri: row index into spikes recarray
+SPIKEDTYPE = [('id', np.uint32),
               ('chani', np.uint8), ('chanis', np.ndarray),
               ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
@@ -1257,7 +1257,7 @@ class Detection(object):
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        #self.spikeis = [] # list of spike IDs that came from this detection
+        #self.spikeis # array of spike IDs that came from this detection
     '''
     def __eq__(self, other):
         """Compare detection runs by their ._spikes lists"""

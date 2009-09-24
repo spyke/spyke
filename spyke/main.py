@@ -431,26 +431,24 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Apply the cluster params to the spikes. Cut the spikes and
         update the plot"""
         sf = self.frames['sort']
-        cf = self.frames['cluster']
         for cluster in toiter(clusters):
             neuron = cluster.neuron
             # TODO: take difference between returned spikes and any that may already
             # be classified as part of this neuron, and only add and remove those spikes
             # that are necessary.
             # remove any existing spikes from neuron and restore them to spike listctrl:
-            sf.MoveSpikes2List(neuron.spikeis)
+            sf.MoveSpikes2List(neuron, neuron.spikeis)
             # reset scalar values for cluster's existing points
             try: self.DeColourPoints(cluster.spikeis)
             except AttributeError: pass
-            ris = self.sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
-            cluster.spikeis = self.sort.spikes[ris].id
-            #spikes = np.asarray(self.sort.get_spikes_sortedby('id'))[cluster.spikeis]
-            if len(ris) == 0: # remove from tree and make this neuron have 0 spikes
+            cluster.spikeis = self.sort.apply_cluster(cluster)
+            if len(cluster.spikeis) == 0: # remove from tree and make this neuron have 0 spikes
                 sf.RemoveNeuronFromTree(neuron)
                 return
             try: neuron.itemID # is it in the tree yet/still?
             except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
-            sf.MoveSpikes2Neuron(ris, neuron)
+            sf.MoveSpikes2Neuron(cluster.spikeis, neuron)
+            #neuron.update_wave(self.sort.stream) # this is already done above
         self.ColourPoints(clusters)
 
     def ColourPoints(self, clusters):
@@ -459,16 +457,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         clusters = toiter(clusters)
         cf = self.frames['cluster']
         for cluster in clusters:
-            spikeis = cluster.spikeis
+            ris = self.sort.spikes.id.searchsorted(cluster.spikeis)
             neuron = cluster.neuron
-            cf.glyph.mlab_source.scalars[spikeis] = np.tile(neuron.id % len(CMAP), len(spikeis))
+            cf.glyph.mlab_source.scalars[ris] = np.tile(neuron.id % len(CMAP), len(ris))
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
 
     def DeColourPoints(self, spikeis):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
         Don't forget to call cf.glyph.mlab_source.update() after calling this"""
         cf = self.frames['cluster']
-        cf.glyph.mlab_source.scalars[spikeis] = np.tile(TRANSWHITEI, len(spikeis))
+        ris = self.sort.spikes.id.searchsorted(spikeis)
+        cf.glyph.mlab_source.scalars[ris] = np.tile(TRANSWHITEI, len(ris))
 
     def GetClusterIndex(self):
         """Return index of currently selected cluster in cluster listbox"""
@@ -659,18 +658,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
             # rebuild sort.spikes, excluding detection's spikes
             allspikeis = sort.spikes.id
-            allspikeis.sort() # make sure it's sorted
+            #allspikeis.sort() # spikes recarray is always sorted by id
             keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
             delris = allspikeis.searchsorted(det.spikeis)
             keepris = allspikeis.searchsorted(keepspikeis)
             delspikes = sort.spikes[delris]
             # which about-to-be-deleted spikes belong to a neuron?
             delriis, = np.where(delspikes.neuron != [None])
-            delmemberspikes = delspikes[delriis]
-            for delmemberspike in delmemberspikes:
-                neuron = delmemberspike.neuron
-                neuron.spikeis.remove(delmemberspike.id) # remove spike from its Neuron
-                try: sf.tree.Delete(delmemberspike.itemID) # remove spike from tree
+            for delrii in delriis:
+                neuron = delspikes[delrii].neuron
+                try: neuron.spikeis.remove(delspikes[delrii].id) # remove spike from its Neuron
+                except KeyError: import pdb; pdb.set_trace()
+                try: sf.tree.Delete(delspikes[delrii].itemID) # remove spike from tree
                 except: import pdb; pdb.set_trace()
             # overwrite sort.spikes
             sort.spikes = sort.spikes[keepris].copy()
@@ -947,11 +946,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # some neurons don't have clusters
         for neuron in sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
-            sf.AddSpikes2Tree(neuron.itemID, neuron.spikes)
+            sf.AddSpikes2Tree(neuron.itemID, neuron.spikeis)
             try: cluster = neuron.cluster
             except AttributeError: continue
             self.AddCluster(cluster)
-            cluster.spikeis = sort.apply_cluster(cluster) # indices of spikes that fall within this cluster
+            cluster.spikeis = sort.apply_cluster(cluster)
         if cluster:
             self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
             self.notebook.SetSelection(2) # switch to the cluster pane
