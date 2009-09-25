@@ -13,6 +13,7 @@ import os
 import sys
 
 import wx
+from wx.lib.mixins.treemixin import VirtualTree
 
 import numpy as np
 from numpy import pi
@@ -804,6 +805,36 @@ class SpykeTreeCtrl(wx.TreeCtrl):
             select = True # select it
         self.SelectItem(item, select)
         #print 'SpykeTreeCtrl.ToggleFocusedItem() not implemented yet, use Ctrl+Space instead'
+
+
+class SpykeVirtualTreeCtrl(VirtualTree, SpykeTreeCtrl):
+    """Virtual tree control"""
+    def OnGetItemText(self, index):
+        """index is tuple of 0-based (root, child, child, ...) indices.
+        An empty tuple () represents the hidden root item"""
+        sort = self.GetTopLevelParent().sort
+        if len(index) == 0:
+            return ''
+        elif len(index) == 1:
+            nid = tuple(sort.neurons)[index[0]]
+            return 'n'+str(nid)
+        else: # len(index) == 2
+            nid = tuple(sort.neurons)[index[0]]
+            sid = tuple(sort.neurons[nid].spikeis)[index[1]]
+            return 's'+str(sid)
+
+    def OnGetChildrenCount(self, index):
+        """index is tuple of 0-based (root, child, child, ...) indices.
+        An empty tuple () represents the hidden root item"""
+        sort = self.GetTopLevelParent().sort
+        if len(index) == 0: # hidden root has nneurons children
+            return len(sort.neurons)
+        elif len(index) == 1:
+            nid = tuple(sort.neurons)[index[0]]
+            return len(sort.neurons[nid].spikeis)
+        else: # len(index) == 2
+            return 0 # spikes in tree have no children
+
 
 '''
 class SetList(set):
