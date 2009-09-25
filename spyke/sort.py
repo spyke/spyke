@@ -953,14 +953,14 @@ class SortFrame(wxglade_gui.SortFrame):
             item = evt.GetItem()
             if item:
                 self.tree._focusedItem = item
-                print 'currently focused item: %s' % self.tree.GetItemText(item)
+                print('currently focused item: %s' % self.tree.GetItemText(item))
             return # don't allow the selection event to actually happen?????????????
         selectedItemIDs = self.tree.GetSelections()
         selectedItems = [ self.tree.GetItemText(itemID) for itemID in selectedItemIDs ]
         # update list of selected tree items for OnTreeRightDown's benefit
         self.tree.selectedItemIDs = selectedItemIDs
         self.tree.selectedItems = selectedItems
-        print selectedItems
+        print(selectedItems)
         removeItems = [ item for item in self.tree.lastSelectedItems if item not in selectedItems ]
         addItems = [ item for item in selectedItems if item not in self.tree.lastSelectedItems ]
         self.RemoveItemsFromPlot(removeItems)
@@ -1108,7 +1108,6 @@ class SortFrame(wxglade_gui.SortFrame):
     def RemoveNeuronFromTree(self, neuron):
         """Remove neuron and all its spikes from the tree"""
         self.MoveSpikes2List(neuron, neuron.spikeis)
-        self.RemoveItemsFromPlot([neuron])
         try:
             self.tree.Delete(neuron.itemID)
             del neuron.itemID # make it clear that neuron is no longer in tree
@@ -1177,11 +1176,11 @@ class SortFrame(wxglade_gui.SortFrame):
         spikes = self.sort.spikes
         neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
         ris = spikes.id.searchsorted(spikeis)
-        spikes[ris].neuron = None # unbind neuron of spikeis in recarray
-        itemIDs = spikes[ris].itemID
+        spikes.neuron[ris] = None # unbind neuron of spikeis in recarray
+        itemIDs = spikes.itemID[ris]
         for itemID in itemIDs:
             self.tree.Delete(itemID) # update tree
-        spikes[ris].itemID = None # no longer applicable
+        spikes.itemID[ris] = None # no longer applicable
         self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list

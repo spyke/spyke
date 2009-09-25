@@ -792,10 +792,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf = self.frames['sort']
             sf.list.DeleteAllItems()
             sf.tree.DeleteAllItems()
-            sf.lastSelectedListSpikes = []
-            sf.lastSelectedTreeObjects = []
-            sf.spikesortpanel.removeAllObjects()
-            #sf.chartsortpanel.removeAllObjects()
+            sf.list.lastSelectedIDs = []
+            sf.tree.lastSelectedItems = []
+            sf.tree.selectedItemIDs = []
+            sf.tree.selectedItems = []
+            sf.spikesortpanel.removeAllItems()
+            #sf.chartsortpanel.removeAllItems()
         if 'cluster' in self.frames:
             cf = self.frames['cluster']
             for cluster in clusters.values():
