@@ -67,7 +67,7 @@ def filterobjs(in_objs):
 def get_wave(obj, stream=None):
     """Return object's waveform, taken from the given stream"""
     if type(obj) != np.rec.record: # it's a Neuron
-        if not hasattr(obj, 'wave') or obj.wave == None:
+        if obj.wave == None or obj.wave.data == None:
             wave = obj.update_wave(stream) # call Neuron method
             return wave
         else:

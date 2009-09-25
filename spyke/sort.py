@@ -1142,8 +1142,9 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.RefreshItems() # refresh the list
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.list.Select(row) # automatically select the new item at that position
-        self.AddSpikes2Tree(neuron.itemID, spikeis)
-        neuron.update_wave(self.sort.stream) # update mean neuron waveform
+        #self.AddSpikes2Tree(neuron.itemID, spikeis) # disable for huge cluster creation
+        neuron.wave.data = None # signify it needs an update when it's actually needed
+        #neuron.update_wave(self.sort.stream) # update mean neuron waveform
         if createdNeuron:
             #self.tree.Expand(root) # make sure root is expanded
             self.tree.Expand(neuron.itemID) # expand neuron

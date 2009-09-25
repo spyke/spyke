@@ -448,7 +448,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             try: neuron.itemID # is it in the tree yet/still?
             except AttributeError: sf.AddNeuron2Tree(neuron) # add it to the tree
             sf.MoveSpikes2Neuron(cluster.spikeis, neuron)
-            #neuron.update_wave(self.sort.stream) # this is already done above
         self.ColourPoints(clusters)
 
     def ColourPoints(self, clusters):
@@ -459,8 +458,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for cluster in clusters:
             ris = self.sort.spikes.id.searchsorted(cluster.spikeis)
             neuron = cluster.neuron
-            cf.glyph.mlab_source.scalars[ris] = np.tile(neuron.id % len(CMAP), len(ris))
+            cf.glyph.mlab_source.scalars[ris] = neuron.id % len(CMAP)
+        t0 = time.clock()
+        print('calling glyph.mlab_source.update()')
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
+        print('glyph.mlab_source.update() call took %.3f sec' % ((time.clock()-t0)))
 
     def DeColourPoints(self, spikeis):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
