@@ -816,11 +816,11 @@ class SpykeVirtualTreeCtrl(VirtualTree, SpykeTreeCtrl):
         if len(index) == 0:
             return ''
         elif len(index) == 1:
-            nid = tuple(sort.neurons)[index[0]]
+            nid = list(sort.neurons)[index[0]]
             return 'n'+str(nid)
         else: # len(index) == 2
-            nid = tuple(sort.neurons)[index[0]]
-            sid = tuple(sort.neurons[nid].spikeis)[index[1]]
+            nid = list(sort.neurons)[index[0]]
+            sid = list(sort.neurons[nid].spikeis)[index[1]]
             return 's'+str(sid)
 
     def OnGetChildrenCount(self, index):
@@ -829,11 +829,11 @@ class SpykeVirtualTreeCtrl(VirtualTree, SpykeTreeCtrl):
         sort = self.GetTopLevelParent().sort
         if len(index) == 0: # hidden root has nneurons children
             return len(sort.neurons)
-        elif len(index) == 1:
-            nid = tuple(sort.neurons)[index[0]]
+        elif len(index) == 1: # each neuron has spike children
+            nid = list(sort.neurons)[index[0]]
             return len(sort.neurons[nid].spikeis)
         else: # len(index) == 2
-            return 0 # spikes in tree have no children
+            return 0 # spikes have no children
 
 
 '''

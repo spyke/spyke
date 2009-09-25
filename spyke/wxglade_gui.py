@@ -5,7 +5,7 @@
 import wx
 
 # begin wxGlade: extracode
-from spyke.core import SpykeListCtrl, SpykeVirtualListCtrl, SpykeTreeCtrl
+from spyke.core import SpykeListCtrl, SpykeVirtualListCtrl, SpykeVirtualTreeCtrl
 wx.ID_SAVEPARSE = wx.NewId()
 wx.ID_SAVERESAMPLE = wx.NewId()
 wx.ID_SAVEWAVES = wx.NewId()
@@ -49,7 +49,7 @@ class SpykeFrame(wx.Frame):
         self.sizer_12_staticbox = wx.StaticBox(self.cluster_pane, -1, "Clusters")
         self.sizer_15_staticbox = wx.StaticBox(self.cluster_params_pane, -1, "Cluster parameters")
         self.file_pos_control_panel = wx.Panel(self, -1)
-        
+
         # Menu Bar
         self.menubar = wx.MenuBar()
         wxglade_tmp_menu = wx.Menu()
@@ -95,7 +95,7 @@ class SpykeFrame(wx.Frame):
         self.menubar.Append(wxglade_tmp_menu, "&Help")
         self.SetMenuBar(self.menubar)
         # Menu Bar end
-        
+
         # Tool Bar
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL|wx.TB_FLAT)
         self.SetToolBar(self.toolbar)
@@ -629,14 +629,14 @@ class SortFrame(wx.MiniFrame):
         self.splitter = wx.SplitterWindow(self, -1, style=wx.SP_3DSASH)
         self.plot_pane = wx.Panel(self.splitter, -1)
         self.sort_splitter = wx.SplitterWindow(self.splitter, -1, style=wx.SP_3DSASH)
-        
+
         # Tool Bar
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL|wx.TB_FLAT|wx.TB_TEXT|wx.TB_NOICONS|wx.TB_HORZ_LAYOUT|wx.TB_HORZ_TEXT)
         self.SetToolBar(self.toolbar)
         self.toolbar.AddLabelTool(wx.ID_SORT_TREE, "Sort tree", wx.NullBitmap, wx.NullBitmap, wx.ITEM_NORMAL, "Renumber and spatially sort templates in tree", "")
         self.toolbar.AddLabelTool(wx.ID_MATCH_TEMPLATE, "Match template", wx.NullBitmap, wx.NullBitmap, wx.ITEM_NORMAL, "Match all events in event list against currently selected template, populate err column", "")
         # Tool Bar end
-        self.tree = SpykeTreeCtrl(self.sort_splitter, -1, style=wx.TR_HAS_BUTTONS|wx.TR_LINES_AT_ROOT|wx.TR_MULTIPLE|wx.TR_HIDE_ROOT|wx.TR_MULTIPLE|wx.TR_DEFAULT_STYLE|wx.NO_BORDER|wx.WANTS_CHARS)
+        self.tree = SpykeVirtualTreeCtrl(self.sort_splitter, -1, style=wx.TR_HAS_BUTTONS|wx.TR_LINES_AT_ROOT|wx.TR_MULTIPLE|wx.TR_HIDE_ROOT|wx.TR_MULTIPLE|wx.TR_DEFAULT_STYLE|wx.NO_BORDER|wx.WANTS_CHARS)
         self.list = SpykeVirtualListCtrl(self.sort_splitter, -1, style=wx.LC_REPORT|wx.LC_VIRTUAL|wx.NO_BORDER|wx.WANTS_CHARS)
         self.spikesortpanel = SpikeSortPanel(self.plot_pane, -1)
 

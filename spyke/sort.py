@@ -671,7 +671,6 @@ class Neuron(object):
         """Get object state for pickling"""
         d = self.__dict__.copy()
         d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        #d['itemID'] = None # clear tree item ID, since that'll have changed anyway on unpickle
         d.pop('itemID', None) # remove tree item ID, if any, since that'll have changed anyway on unpickle
         return d
 
@@ -993,7 +992,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # first, restore all prior selections in the tree (except our item) that were cleared by the right click selection event
         for itID in self.tree.selectedItemIDs: # rely on tree.selectedItemIDs being judiciously kept up to date
             self.tree.SelectItem(itID)
-        if itemID not in self.tree.selectedItemsIDs: # if it wasn't selected before, it is now, so no need to do anything
+        if itemID not in self.tree.selectedItemIDs: # if it wasn't selected before, it is now, so no need to do anything
             pass
         else: # it was selected before, it still will be now, so need to deselect it
             self.tree.SelectItem(itemID, select=False)
@@ -1104,7 +1103,7 @@ class SortFrame(wxglade_gui.SortFrame):
             root = self.tree.AddRoot('Neurons')
         neuron.itemID = self.tree.AppendItem(root, 'n'+str(neuron.id)) # add neuron to tree
         #self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
-
+    '''
     def RemoveNeuronFromTree(self, neuron):
         """Remove neuron and all its spikes from the tree"""
         self.MoveSpikes2List(neuron, neuron.spikeis)
@@ -1113,15 +1112,17 @@ class SortFrame(wxglade_gui.SortFrame):
             del neuron.itemID # make it clear that neuron is no longer in tree
         except AttributeError:
             pass # neuron.itemID already deleted due to recursive call
-
+    '''
     def RemoveNeuron(self, neuron):
         """Remove neuron and all its spikes from the tree and the Sort"""
-        self.RemoveNeuronFromTree(neuron)
+        #self.RemoveNeuronFromTree(neuron)
+        self.MoveSpikes2List(neuron, neuron.spikeis)
         try:
             del self.sort.neurons[neuron.id] # maybe already be removed due to recursive call
             del self.sort.clusters[neuron.id] # may or may not exist
         except KeyError:
             pass
+        self.tree.RefreshItems()
 
     def MoveSpikes2Neuron(self, spikeis, neuron=None):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.
@@ -1133,8 +1134,8 @@ class SortFrame(wxglade_gui.SortFrame):
         createdNeuron = False
         if neuron == None:
             neuron = self.sort.create_neuron()
-            self.AddNeuron2Tree(neuron)
-            createdNeuron = True
+            #self.AddNeuron2Tree(neuron)
+            #createdNeuron = True
         neuron.spikeis.update(spikeis) # update the set
         spikes.neuron[ris] = neuron
         self.sort.update_uris()
@@ -1143,16 +1144,19 @@ class SortFrame(wxglade_gui.SortFrame):
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.list.Select(row) # automatically select the new item at that position
         #self.AddSpikes2Tree(neuron.itemID, spikeis) # disable for huge cluster creation
+        self.tree.RefreshItems()
         neuron.wave.data = None # signify it needs an update when it's actually needed
         #neuron.update_wave(self.sort.stream) # update mean neuron waveform
+        '''
         if createdNeuron:
             #self.tree.Expand(root) # make sure root is expanded
             self.tree.Expand(neuron.itemID) # expand neuron
             self.tree.UnselectAll() # unselect all items in tree
             self.tree.SelectItem(neuron.itemID) # select the newly created neuron
             self.OnTreeSelectChanged() # now plot accordingly
+        '''
         return neuron
-
+    '''
     def AddSpikes2Tree(self, parent, spikeis):
         """Add spikes to the tree, where parent is a tree itemID"""
         spikeis = toiter(spikeis)
@@ -1164,7 +1168,7 @@ class SortFrame(wxglade_gui.SortFrame):
             # add spike to tree, save its itemID
             itemID = self.tree.AppendItem(parent, 's'+str(si))
             self.sort.spikes[ri].itemID = itemID
-
+    '''
     def MoveSpikes2List(self, neuron, spikeis):
         """Move spikes from a neuron in the tree back to the list control.
         Make sure to call neuron.update_wave() at some appropriate time after
@@ -1178,13 +1182,14 @@ class SortFrame(wxglade_gui.SortFrame):
         neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
         ris = spikes.id.searchsorted(spikeis)
         spikes.neuron[ris] = None # unbind neuron of spikeis in recarray
-        itemIDs = spikes.itemID[ris]
-        for itemID in itemIDs:
-            self.tree.Delete(itemID) # update tree
-        spikes.itemID[ris] = None # no longer applicable
+        #itemIDs = spikes.itemID[ris]
+        #for itemID in itemIDs:
+        #    self.tree.Delete(itemID) # update tree
+        #spikes.itemID[ris] = None # no longer applicable
         self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
+        self.tree.RefreshItems()
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
         if which == 'selected':
