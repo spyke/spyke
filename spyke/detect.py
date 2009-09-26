@@ -35,7 +35,7 @@ SPIKEDTYPE = [('id', np.uint32),
               ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
               ('detection', object), ('neuron', object),
-              ('wave', object), ('plt', object), ('itemID', object),
+              ('wave', object), ('plt', object),
               ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
 '''
@@ -1258,11 +1258,7 @@ class Detection(object):
         self.id = id
         self.datetime = datetime
         #self.spikeis # array of spike IDs that came from this detection
-    '''
-    def __eq__(self, other):
-        """Compare detection runs by their ._spikes lists"""
-        return np.all(self._spikes == other._spikes)
-    '''
+
     def set_spikeids(self, spikes):
         """Give each spike an ID, inc sort's _sid spike ID counter, and save
         array of spikeis to self"""
@@ -1273,4 +1269,4 @@ class Detection(object):
         spikes.id = np.arange(spikei0, spikei0+nspikes) # assign IDs in one shot
         spikes.detection = self
         self.sort._sid += nspikes # inc for next unique Detection
-        self.spikeis = spikes.id
+        self.spikeis = spikes.id # save for future reference

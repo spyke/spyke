@@ -831,7 +831,7 @@ class SortFrame(wxglade_gui.SortFrame):
         return self.spykeframe.sort
 
     def set_sort(self):
-        raise RuntimeError, "SortFrame's .sort not settable"
+        raise RuntimeError("SortFrame's .sort not settable")
 
     sort = property(get_sort, set_sort) # make this a property for proper behaviour after unpickling
 
@@ -845,7 +845,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def OnSplitterSashChanged(self, evt):
         """Re-save reflines_background after resizing the SortPanel(s)
         with the frame's primary splitter"""
-        print 'in OnSplitterSashChanged'
+        print('in OnSplitterSashChanged')
         wx.CallAfter(self.DrawRefs)
 
     def OnClose(self, evt):
@@ -885,20 +885,20 @@ class SortFrame(wxglade_gui.SortFrame):
         print('in OnListRightDown')
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
-        spike = self.sort.spikes[self.sort.uris[row]]
-        print 'spikeID is %r' % spike.id
+        sid = self.sort.spikes.id[self.sort.uris[row]]
+        print('spikeID is %r' % id)
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
         #selected = not self.list.IsSelected(row)
         #self.list.Select(row, on=int(not selected))
         # here is a yucky workaround:
         try:
-            self.spikesortpanel.used_plots['s'+str(spike.id)] # is it plotted?
+            self.spikesortpanel.used_plots['s'+str(id)] # is it plotted?
             selected = True # if so, item must be selected
-            print('spike %d in used_plots' % spike.id)
+            print('spike %d in used_plots' % id)
         except KeyError:
             selected = False # item is not selected
-            print('spike %d not in used_plots' % spike.id)
+            print('spike %d not in used_plots' % id)
         self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):
@@ -1201,10 +1201,7 @@ class SortFrame(wxglade_gui.SortFrame):
         selected_rows.reverse()
         selected_uris = self.sort.uris[selected_rows]
         spikeis = self.sort.spikes.id[selected_uris]
-        #if spike.wave.data != None: # only move it to neuron if it's got wave data
         neuron = self.MoveSpikes2Neuron(spikeis, neuron) # if neuron was None, it isn't any more
-        #else:
-        #    print("can't add spike %d to neuron because its data isn't accessible" % spike.id)
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
             self.UpdateItemsInPlot(['n'+str(neuron.id)]) # update its plot
 
