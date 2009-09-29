@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import TW, SPIKEDTYPE, get_wave
+from spyke.detect import TW, SPIKEDTYPE
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -94,30 +94,22 @@ class Sort(object):
     def __getstate__(self):
         """Get object state for pickling"""
         t0 = time.clock()
-        d = self.__dict__.copy() # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
-        del d['_stream'] # don't pickle the stream, cuz it relies on an open .srf file
-        for attr in ['st', 'ris_by_time', 'uris', 'Xcols']:
-            # all are temporary, and can be regenerated from .spikes or extracted params
+        # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
+        d = self.__dict__.copy()
+        # don't pickle the stream, cuz it relies on an open .srf file
+        # spikes and wavedata arrays are (potentially) saved separately
+        # all the others can be regenerated from the spikes array
+        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'Xcols', 'spikes', 'wavedata']:
             try: del d[attr]
             except KeyError: pass
-        tcopy = time.clock()
-        spikes = self.spikes.copy() # copies entire array, but not any objects it points to
-        print('sort.spikes.copy() took %.3f sec' % (time.clock()-tcopy))
-        #if not self.SAVEWAVES:
-        #    spikes.wavedata = None # remove wavedata
-        # these 3 are only necessary for plotting:
-        spikes.wave = None
-        spikes.itemID = None
-        spikes.plt = None
-        d['spikes'] = spikes # update
-        print('sort.__getstate__ took %.3f sec' % (time.clock()-t0))
         return d
 
     def __setstate__(self, d):
         """Restore self on unpickle per usual, but also restore
         .st, .ris_by_time, and .uris"""
         self.__dict__ = d
-        self.update_spike_lists()
+        #self.spikes = np.recarray(10, dtype=SPIKEDTYPE)
+        #self.update_spike_lists()
 
     def append_spikes(self, spikes):
         """Append spikes recarray to self.spikes recarray, update associated
@@ -159,10 +151,11 @@ class Sort(object):
     def update_uris(self):
         """Update uris, which is an array of recarray indices of unsorted spikes,
         used by spike virtual listctrl"""
-        neurons = self.spikes.neuron
+        nids = self.spikes.nid
         # neurons == None doesn't work as expected, see
         # http://www.mail-archive.com/numpy-discussion@scipy.org/msg02919.html
-        self.uris, = np.where(np.equal(neurons, None))
+        #self.uris, = np.where(np.equal(neurons, None))
+        self.uris, = np.where(nids == -1)
         # order it by .uris_sorted_by and .uris_reversed
         if self.uris_sorted_by != 't': self.sort_uris()
         if self.uris_reversed: self.reverse_uris()
@@ -194,15 +187,28 @@ class Sort(object):
         return spikes
 
     def get_wave(self, ri):
-        """Return waveform corresponding to spikes recarray row ri,
-        taken from self.stream"""
+        """Return WaveForm corresponding to spikes recarray row ri"""
         spikes = self.spikes
-        wave = spikes[ri].wave
+        wave = spikes.wave[ri]
         if wave != None: return wave
+
+        # try self.wavedata ndarray
+        det = spikes.detection[ri].detector
+        chans = det.chans[spikes.chanis[ri]] # dereference
+        try:
+            wavedata = self.wavedata[ri]
+            t0 = spikes.t0[ri]
+            tend = spikes.tend[ri]
+            ts = np.arange(t0, tend, self.tres) # build them up
+            # only include data relevant to this spike
+            wavedata = wavedata[0:len(chans), 0:len(ts)]
+            return WaveForm(data=wavedata, ts=ts, chans=chans)
+        except IndexError: pass
+
+        # try getting it from the stream
         if self.stream == None:
             raise RuntimeError("No stream open, can't get wave for %s %d" %
                                (spikes[ri], spikes[ri].id))
-        det = self.spikes[ri].detection.detector
         if det.srffname != self.stream.srffname:
             msg = ("Spike %d was extracted from .srf file %s.\n"
                    "The currently opened .srf file is %s.\n"
@@ -210,11 +216,7 @@ class Sort(object):
                    (spikes[ri].id, det.srffname, self.stream.srffname, spikes[ri].id))
             wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
             raise RuntimeError(msg)
-        #tres = s.detection.sort.tres
-        #ts = np.arange(s.t0, s.tend, tres) # build them up
-        chans = det.chans[spikes[ri].chanis] # dereference
-        wave = self.stream[spikes[ri].t0 : spikes[ri].tend]
-        # can't do this cuz chanis indexes only into enabled chans,
+        wave = self.stream[spikes.t0[ri] : spikes.tend[ri]]
         return wave[chans]
 
     def get_param_matrix(self, dims=None):

@@ -4,18 +4,26 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+import numpy as np
+# allocate the biggest contiguous wavedata array possible ASAP,
+# before memory fragments
+# TODO: reshape this later once max num chans and timepoints per spike is known
+nspikes = 1.2e6
+while True:
+    try:
+        wavedata = np.empty((nspikes, 13, 50), dtype=np.int16)
+        break
+    except MemoryError:
+        nspikes -= 1e5
+print('len(wavedata) == %d spikes, %d bytes' % (len(wavedata), wavedata.nbytes))
+
 import wx
 import wx.html
 import wx.py
-import cPickle
 import os
 import sys
 import time
 import datetime
-import gzip
-from copy import copy
-
-import numpy as np
 
 import spyke
 from spyke import core, surf, detect, extract
@@ -65,7 +73,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = None # Surf File object
         self.srffname = '' # used for setting title caption
         self.sortfname = '' # used for setting title caption
-        self.defaultdir = os.path.abspath('/data/ptc18')
+        self.defaultdir = os.path.abspath('/data/ptc15')
         self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
         self.spiketw = DEFSPIKETW # spike frame temporal window (us)
         self.charttw = DEFCHARTTW # chart frame temporal window (us)
@@ -105,9 +113,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        #srffname = os.path.join(self.defaultdir, '87 - track 7c spontaneous craziness.srf')
+        srffname = os.path.join(self.defaultdir, '87 - track 7c spontaneous craziness.srf')
         #sortfname = self.defaultdir + '/87 testing.sort'
-        #self.OpenSurfFile(srffname)
+        self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_defaults(self):
@@ -775,7 +783,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in OnDetect
                          stream=self.hpstream)
-        #self.sort.detector = self.get_detector() # creating a detector depends on a self.sort
+        self.sort.wavedata = wavedata
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.EnableSortWidgets(True)
 
@@ -909,19 +917,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort file, restore the stream"""
         self.DeleteSort() # delete any existing Sort
-        # gzip.read() is reaaaallly slow for some reason, even if file is at compresslevel=1
-        #pf = gzip.open(fname, 'rb')
-        pf = open(fname, 'rb')
-        print('unpickling sort file %r' % fname)
+        print('opening sort file %r' % fname)
         t0 = time.clock()
+        f = open(fname, 'rb')
+        npzfile = np.load(f)
+        sort = npzfile['sort'].item() # this line calls sort.__setstate__?
+        sort.spikes = npzfile['spikes']
+        # convert from ndarray to recarray with attrib access
+        sort.spikes = sort.spikes.view(np.recarray)
+        sort.update_spike_lists()
         #import cProfile
         #import pickle
-        #cProfile.runctx('sort = cPickle.load(pf)', globals(), locals())
-        #cProfile.runctx('sort = pickle.load(pf)', globals(), locals())
-        sort = cPickle.load(pf)
+        #cProfile.runctx('sort = cPickle.load(f)', globals(), locals())
+        #cProfile.runctx('sort = pickle.load(f)', globals(), locals())
         self.sort = sort
-        print('done unpickling sort file, took %.3f sec' % (time.clock()-t0))
-        pf.close()
+        f.close()
+        print('done opening sort file, took %.3f sec' % (time.clock()-t0))
         sortProbeType = type(sort.probe)
         if self.hpstream != None:
             streamProbeType = type(self.hpstream.probe)
@@ -975,16 +986,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         any changes you make to detector at the command line will be saved,
         regardless of when you searched, so you better know what you're doing
         when at the command line"""
-        self.sort.SAVEWAVES = self.menubar.IsChecked(wx.ID_SAVEWAVES) # update from menu
+        sort = self.sort
+        sort.SAVEWAVES = self.menubar.IsChecked(wx.ID_SAVEWAVES) # update from menu
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
-        #pf = gzip.open(fname, 'wb', compresslevel=1) # compress pickle with gzip, can also control compression level
-        pf = open(fname, 'wb')
-        print('pickling sort file')
+        print('saving sort file')
         t0 = time.clock()
-        cPickle.dump(self.sort, pf, protocol=-1) # use most efficient (least human readable) protocol
-        print('done pickling sort file, took %.3f sec' % (time.clock()-t0))
-        pf.close()
+        f = open(fname, 'wb')
+        core.savez(f, compress=True, sort=sort, spikes=sort.spikes)
+        #cPickle.dump(sort, f, protocol=-1) # use most efficient (least human readable) protocol
+        f.close()
+        print('done saving sort file, took %.3f sec' % (time.clock()-t0))
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
         print('done saving sort file')

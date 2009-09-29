@@ -68,10 +68,9 @@ class Extractor(object):
         chans, and sometimes they're very delayed or advanced in time. Maybe just try finding
         max and min vals for each chan in some trange phase1ti-dt to phase2ti+dt for some dt
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
-        #if wavedata == None:
-        #    wave = get_wave(spike, self.sort.stream)
-        #    wavedata = wave.data
+
         # phase2 - phase1 on all chans, should be mostly +ve
+        # int16 data isn't centered around V=0, but that doesn't matter since we want Vpp
         weights = wavedata[:, phase2ti] - wavedata[:, phase1ti]
         # convert to float before normalization, take abs of all weights
         weights = np.abs(np.float32(weights))

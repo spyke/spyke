@@ -843,6 +843,46 @@ class SetList(set):
         self.add(item)
 '''
 
+def savez(file, *args, **kwargs):
+    """Save several arrays into a single, possibly compressed, binary file.
+    Taken from numpy.io.lib.savez. Added a compress=False|True keyword, and
+    allow for any file extension. For full docs, see numpy.savez()"""
+
+    # Import is postponed to here since zipfile depends on gzip, an optional
+    # component of the so-called standard library.
+    import zipfile
+    import tempfile
+    import numpy.lib.format as format
+
+    compress = kwargs.pop('compress', False) # defaults to False
+    assert type(compress) == bool
+    namedict = kwargs
+    for i, val in enumerate(args):
+        key = 'arr_%d' % i
+        if key in namedict.keys():
+            raise ValueError, "Cannot use un-named variables and keyword %s" % key
+        namedict[key] = val
+
+    compression = zipfile.ZIP_STORED # no compression
+    if compress:
+        compression = zipfile.ZIP_DEFLATED # compression
+    zip = zipfile.ZipFile(file, mode="w", compression=compression)
+    # place to write temporary .npy files before storing them in the zip
+    direc = tempfile.gettempdir()
+    todel = []
+    for key, val in namedict.iteritems():
+        fname = key + '.npy'
+        filename = os.path.join(direc, fname)
+        todel.append(filename)
+        fid = open(filename,'wb')
+        format.write_array(fid, np.asanyarray(val))
+        fid.close()
+        zip.write(filename, arcname=fname)
+    zip.close()
+    for name in todel:
+        os.remove(name)
+
+
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of fname (with full path)"""
     m = hashlib.sha1()

@@ -28,14 +28,10 @@ from text import SimpleTable
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
-#MAXNSAVEDWAVEFORMS = 250000 # prevents MemoryErrors
-
-SPIKEDTYPE = [('id', np.uint32),
-              ('chani', np.uint8), ('chanis', np.ndarray),
+SPIKEDTYPE = [('id', np.uint32), ('nid', np.int8), ('detid', np.int8),
+              ('chani', np.uint8), # TODO: maybe simplify: store chan instead of chani
               ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
               ('phase1ti', np.uint8), ('phase2ti', np.uint8),
-              ('detection', object), ('neuron', object),
-              ('wave', object), ('plt', object),
               ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
 '''
@@ -216,9 +212,8 @@ def get_edges(wave, thresh):
     #line 149 "detect.py"
     int nd = 2; // num dimensions of output edgeis array
     npy_intp dimsarr[nd];
-    int leninc = 16384; // 2**14
-    dimsarr[0] = 4*leninc; // nrows
-    dimsarr[1] = 2;        // ncols
+    dimsarr[0] = 65536; // nrows, 2**16
+    dimsarr[1] = 2;     // ncols
     PyArrayObject *edgeis = (PyArrayObject *) PyArray_SimpleNew(nd, dimsarr, NPY_INT);
 
     PyArray_Dims dims; // stores current dimension info of edgeis array
@@ -236,7 +231,7 @@ def get_edges(wave, thresh):
                 // abs(voltage) has crossed threshold
                 if (nedges == PyArray_DIM(edgeis, 0)) { // allocate more rows to edgeis array
                     printf("allocating more memory!\n");
-                    dims.ptr[0] += leninc; // add leninc more rows to edgeis
+                    dims.ptr[0] *= 2; // double num rows in edgeis
                     OK = PyArray_Resize(edgeis, &dims, 0, NPY_ANYORDER); // 0 arg means don't check refcount or edgeis
                     if (OK == NULL) {
                         PyErr_Format(PyExc_TypeError, "can't resize edgeis");
@@ -639,7 +634,7 @@ class Detector(object):
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between spike phases, us
     DEFRANDOMSAMPLE = False
-    #DEFKEEPSPIKEWAVESONDETECT = False # only reason to turn this off is to save memory during detection
+    DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
     DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
@@ -652,7 +647,7 @@ class Detector(object):
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
                  slock=None, dt=None, randomsample=None,
-                 #keepspikewavesondetect=None,
+                 keepspikewavesondetect=None,
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
@@ -671,7 +666,7 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
-        #self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
+        self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
         self.extractparamsondetect = extractparamsondetect or self.DEFEXTRACTPARAMSONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
@@ -730,6 +725,9 @@ class Detector(object):
         #spikets = [ s.t for s in spikes ]
         #spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
         #spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
+        # default -1 indicates no nid or detid is set as of yet, reserve 0 for actual ids
+        spikes.nid = -1
+        spikes.detid = -1
         info('\nfound %d spikes in total' % len(spikes))
         info('inside .detect() took %.3f sec' % (time.clock()-t0))
         return spikes
@@ -742,8 +740,6 @@ class Detector(object):
              (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
-        #if self.nspikes > MAXNSAVEDWAVEFORMS:
-        #    self.keepspikewavesondetect = False
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
@@ -840,8 +836,9 @@ class Detector(object):
 
         TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide. Should be counted though
         """
-        AD2uV = self.sort.converter.AD2uV
-        extractXY = self.sort.extractor.extractXY
+        sort = self.sort
+        AD2uV = sort.converter.AD2uV
+        extractXY = sort.extractor.extractXY
         lockouts = self.lockouts
         twi = self.twi
         nspikes = 0
@@ -967,12 +964,16 @@ class Detector(object):
             s.Vpp = AD2uV(np.float32(V2) - np.float32(V1))
             #chans = np.asarray(self.chans)[chanis] # dereference
             # chanis as a list is less efficient than as an array
-            s.chani, s.chanis = chani, chanis
+            s.chani = chani
             #s.chan, s.chans = chan, chans # instead, use s.detection.detector.chans[s.chanis]
-            #if self.keepspikewavesondetect: # keep spike waveform for later use
-            #    s.wavedata = wave.data[chanis, t0i:tendi]
+            wavedata = wave.data[chanis, t0i:tendi]
+            if self.keepspikewavesondetect: # keep spike waveform for later use
+                try: sort.wavedata[self.nspikes+nspikes, 0:len(chanis), 0:len(ts)] = wavedata
+                # wavedata array isn't big enough to add more waveforms to, or doesn't exist
+                except (IndexError, AttributeError): pass
+                # something bad happened
+                except: import pdb; pdb.set_trace()
             if self.extractparamsondetect:
-                wavedata = wave.data[chanis, t0i:tendi]
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
@@ -1267,6 +1268,6 @@ class Detection(object):
         nspikes = len(spikes)
         spikei0 = self.sort._sid
         spikes.id = np.arange(spikei0, spikei0+nspikes) # assign IDs in one shot
-        spikes.detection = self
+        spikes.detid = self.id
         self.sort._sid += nspikes # inc for next unique Detection
         self.spikeis = spikes.id # save for future reference
