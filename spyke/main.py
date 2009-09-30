@@ -24,6 +24,7 @@ import os
 import sys
 import time
 import datetime
+import gc
 
 import spyke
 from spyke import core, surf, detect, extract
@@ -73,7 +74,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = None # Surf File object
         self.srffname = '' # used for setting title caption
         self.sortfname = '' # used for setting title caption
-        self.defaultdir = os.path.abspath('/data/ptc15')
+        self.defaultdir = os.path.abspath('/data/ptc18')
         self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
         self.spiketw = DEFSPIKETW # spike frame temporal window (us)
         self.charttw = DEFCHARTTW # chart frame temporal window (us)
@@ -113,9 +114,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        srffname = os.path.join(self.defaultdir, '87 - track 7c spontaneous craziness.srf')
+        #srffname = os.path.join(self.defaultdir, '87 - track 7c spontaneous craziness.srf')
         #sortfname = self.defaultdir + '/87 testing.sort'
-        self.OpenSurfFile(srffname)
+        #self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_defaults(self):
@@ -792,8 +793,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try:
             # TODO: if Save button is enabled, check if Sort is saved,
             # if not, prompt to save
-            print 'deleting existing Sort and entries in list controls'
+            print('deleting existing Sort and entries in list controls')
             clusters = self.sort.clusters # need it below
+            #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
             del self.sort
         except AttributeError:
             pass
@@ -821,6 +823,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             while True: self.cluster_list_box.Delete(0) # delete cluster list entries
         except wx.PyAssertionError: pass # no entries left to delete
         self.total_nspikes_label.SetLabel(str(0))
+        # make sure self.sort and especially self.sort.spikes is really gone
+        # TODO: check if this is necessary once everything works with new streamlined
+        # (no objects) spikes recarray
+        gc.collect()
 
     def get_chans_enabled(self):
         return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ])
@@ -922,15 +928,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f = open(fname, 'rb')
         npzfile = np.load(f)
         sort = npzfile['sort'].item() # this line calls sort.__setstate__?
-        sort.spikes = npzfile['spikes']
+        self.sort = sort
         # convert from ndarray to recarray with attrib access
-        sort.spikes = sort.spikes.view(np.recarray)
+        sort.spikes = npzfile['spikes'].view(np.recarray)
         sort.update_spike_lists()
         #import cProfile
         #import pickle
         #cProfile.runctx('sort = cPickle.load(f)', globals(), locals())
         #cProfile.runctx('sort = pickle.load(f)', globals(), locals())
-        self.sort = sort
         f.close()
         print('done opening sort file, took %.3f sec' % (time.clock()-t0))
         sortProbeType = type(sort.probe)
