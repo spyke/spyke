@@ -726,7 +726,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OpenSurfFile(self, fname):
         """Open a .srf file, and update display accordingly"""
-        self.CloseSurfFile() # in case a .srf file and frames are already open
+        if self.srff != None:
+            self.CloseSurfFile() # in case a .srf file and frames are already open
         self.srff = surf.File(fname)
         # TODO: parsing progress dialog
         self.srff.parse()
@@ -829,7 +830,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         gc.collect()
 
     def get_chans_enabled(self):
-        return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ])
+        return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ], dtype=np.uint8)
 
     def set_chans_enabled(self, chans, enable=None):
         """Updates which chans are enabled in ._chans_enabled dict and in the

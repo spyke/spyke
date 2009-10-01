@@ -229,21 +229,21 @@ class File(object):
 
     def pickle(self):
         """Pickle self to a .parse file"""
-        print 'Saving parse info to %r' % self.parsefname
+        print('Saving parse info to %r' % self.parsefname)
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
         cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
         pf.close()
-        print 'Saved parse info to %r' % self.parsefname
+        print('Saved parse info to %r' % self.parsefname)
 
     def unpickle(self):
         """Unpickle self from a .parse file"""
-        print 'Trying to recover parse info from %r' % self.parsefname
+        print('Trying to recover parse info from %r' % self.parsefname)
         pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
         self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         pf.close()
-        print 'Recovered parse info from %r' % self.parsefname
+        print('Recovered parse info from %r' % self.parsefname)
 
     def __getstate__(self):
         """Don't pickle open .srf file on pickle"""
