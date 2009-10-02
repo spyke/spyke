@@ -845,7 +845,7 @@ class SetList(set):
 
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.
-    Taken from numpy.io.lib.savez. Added a compress=False|True keyword, and
+    Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
     allow for any file extension. For full docs, see numpy.savez()"""
 
     # Import is postponed to here since zipfile depends on gzip, an optional

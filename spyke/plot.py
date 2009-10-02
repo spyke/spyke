@@ -240,10 +240,10 @@ class Raster(Plot):
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
 
     def update(self, spike, tref):
-        """Update lines data from spike.t and spike.chans"""
+        """Update lines data from spike.t and spike's chans"""
         self.spike = spike
-        spikechan = spike.detection.detector.chans[spike.chani] # dereference
-        spikechans = spike.detection.detector.chans[spike.chanis] # dereference
+        sort = self.panel.spykeframe.sort
+        spikechans = sort.detections[spike.detid].detector.nbhd[spike.chan]
         for chan in spikechans:
             try:
                 line = self.lines[chan]
@@ -254,7 +254,7 @@ class Raster(Plot):
             chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
             ylims = ypos - chanheight/2, ypos + chanheight/2
             line.set_data([x, x], ylims) # update the line's x and y data
-            line.set_color(self.panel.vcolours[spikechan]) # colour according to max chan
+            line.set_color(self.panel.vcolours[spike.chan]) # colour according to max chan
             line.set_visible(True) # enable this chan for this spike
         notchans = self.chans.difference(spikechans)
         for notchan in notchans: # disable all chans not in this spike
@@ -262,8 +262,10 @@ class Raster(Plot):
 
     def show(self, enable=True):
         """Show/hide lines on all of spike's chans"""
+        sort = self.panel.spykeframe.sort
         try:
-            chans = self.spike.detection.detector.chans[self.spike.chanis] # dereference
+            spike = self.spike
+            chans = sort.detections[spike.detid].detector.nbhd[spike.chan]
         except AttributeError: # no spike
             if enable == False:
                 chans = self.lines.keys() # disable all lines

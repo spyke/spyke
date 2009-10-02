@@ -145,26 +145,16 @@ class Sort(object):
         self.ris_by_time = st.argsort() # recarray indices of all spikes, sorted by time
         self.st = st[self.ris_by_time] # array of current spike times
         self.update_uris() # uris is an array of recarray indices of unsorted spikes
-        # (re)create a si2ri mapping here
-        #self.si2ri = dict(zip(sids, np.arange(nspikes)))
 
     def update_uris(self):
         """Update uris, which is an array of recarray indices of unsorted spikes,
         used by spike virtual listctrl"""
         nids = self.spikes.nid
-        # neurons == None doesn't work as expected, see
-        # http://www.mail-archive.com/numpy-discussion@scipy.org/msg02919.html
-        #self.uris, = np.where(np.equal(neurons, None))
-        self.uris, = np.where(nids == -1)
+        self.uris, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
         # order it by .uris_sorted_by and .uris_reversed
         if self.uris_sorted_by != 't': self.sort_uris()
         if self.uris_reversed: self.reverse_uris()
-    '''
-    def si2spikes(self, spikeis):
-        """Return array of spike records, given spike indices"""
-        ris = [ self.si2ri[spikei] for spikei in spikeis ]
-        return self.spikes[ris]
-    '''
+
     def sort_uris(self, sort_by):
         """Sort recarray row indices of unsorted spikes according to
         sort_by"""
@@ -1078,6 +1068,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.SetItemText(neuron.itemID, 'n'+str(neuron.id)) # update its entry in the tree
         self.sort.neurons = neurons # overwrite the dict
         self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
+        print('TODO: relabel all nids in sort.spikes recarray as well!')
 
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
