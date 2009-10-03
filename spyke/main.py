@@ -654,34 +654,31 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for det in selectedDetections:
             # check if any of this detection's spikes belong to a neuron
             result = None
-            # FIXME: I really don't like doing this copy here!!!
-            # need to create new contig copy to prevent mysterious segfaults (due to previous resizing of sort.spikes?)
-            neurons = sort.spikes.neuron.copy()
-            if neurons.any():
+            allspikeis = sort.spikes.id
+            #allspikeis.sort() # spikes recarray is always sorted by id
+            delris = allspikeis.searchsorted(det.spikeis) # row indices into sort.spikes of detection's spikes to delete
+            if (allspikeis[delris] != -1).any():
                 dlg = wx.MessageDialog(self,
                                        "Spikes in detection %d are neuron members.\n"
                                        "Delete detection %d and all its spikes anyway?" % (det.id, det.id),
-                                       'Remove spikes from neurons?', wx.YES_NO | wx.ICON_QUESTION)
+                                       "Remove spikes from neurons?", wx.YES_NO | wx.ICON_QUESTION)
                 result = dlg.ShowModal()
                 dlg.Destroy()
             if result == wx.ID_NO:
                 continue # to next selectedDetection
 
             # rebuild sort.spikes, excluding detection's spikes
-            allspikeis = sort.spikes.id
-            #allspikeis.sort() # spikes recarray is always sorted by id
             keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
-            delris = allspikeis.searchsorted(det.spikeis)
             keepris = allspikeis.searchsorted(keepspikeis)
-            delspikes = sort.spikes[delris]
+            delspikes = sort.spikes[delris] # returns a recarray, doesn't generate a bunch of records I think, so not slow?
             # which about-to-be-deleted spikes belong to a neuron?
-            delriis, = np.where(delspikes.neuron != [None])
+            delriis, = np.where(delspikes.nid != -1)
             for delrii in delriis:
-                neuron = delspikes[delrii].neuron
-                try: neuron.spikeis.remove(delspikes[delrii].id) # remove spike from its Neuron
+                nid = delspikes.nid[delrii]
+                neuron = sort.neurons[nid]
+                try:
+                    neuron.spikeis.remove(delspikes.id[delrii]) # remove spike from its Neuron
                 except KeyError: import pdb; pdb.set_trace()
-                try: sf.tree.Delete(delspikes[delrii].itemID) # remove spike from tree
-                except: import pdb; pdb.set_trace()
             # overwrite sort.spikes
             sort.spikes = sort.spikes[keepris].copy()
             # remove from sort's detections dict
@@ -692,6 +689,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # refresh spike virtual listctrl
         sf.list.SetItemCount(len(sort.uris))
         sf.list.RefreshItems()
+        sf.tree.RefreshItems()
         self.plot() # update rasters
         try:
             cf = self.frames['cluster']

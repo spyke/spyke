@@ -1130,7 +1130,7 @@ class SortFrame(wxglade_gui.SortFrame):
             #self.AddNeuron2Tree(neuron)
             #createdNeuron = True
         neuron.spikeis.update(spikeis) # update the set
-        spikes.neuron[ris] = neuron
+        spikes.nid[ris] = neuron.id
         self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
@@ -1174,7 +1174,7 @@ class SortFrame(wxglade_gui.SortFrame):
         spikes = self.sort.spikes
         neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
         ris = spikes.id.searchsorted(spikeis)
-        spikes.neuron[ris] = None # unbind neuron of spikeis in recarray
+        spikes.nid[ris] = -1 # unbind neuron id of spikeis in recarray
         #itemIDs = spikes.itemID[ris]
         #for itemID in itemIDs:
         #    self.tree.Delete(itemID) # update tree
@@ -1207,7 +1207,8 @@ class SortFrame(wxglade_gui.SortFrame):
                 if item[0] == 's': # it's a spike
                     ri, = np.where(sort.spikes.id == id) # returns an array
                     ri = int(ri)
-                    neuron = sort.spikes.neuron[ri]
+                    nid = sort.spikes.nid[ri]
+                    neuron = sort.neurons[nid]
                     self.MoveSpikes2List(neuron, id)
                     if len(neuron.spikeis) == 0:
                         self.RemoveNeuron(neuron) # remove empty Neuron
@@ -1226,7 +1227,8 @@ class SortFrame(wxglade_gui.SortFrame):
             if item[0] == 's': # it's a spike, get its neuron
                 ri, = np.where(sort.spikes.id == id) # returns an array
                 ri = int(ri)
-                return sort.spikes.neuron[ri]
+                nid = sort.spikes.nid[ri]
+                return sort.neurons[nid]
             else: # it's a neuron
                 return sort.neurons[id]
         return None
