@@ -19,7 +19,7 @@ import numpy as np
 
 from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import TW, SPIKEDTYPE
+from spyke.detect import TW
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -56,10 +56,6 @@ class Sort(object):
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
 
-        # recarray of all spikes detected in this Sort across all Detection runs,
-        # whether sorted or not. Each record has a unique .id field
-        # Sorted spike IDs also go in their respective Neuron's .spikeis dict
-        self.spikes = np.recarray(0, SPIKEDTYPE)
         # most neurons will have an associated cluster, but not necessarily all -
         # some neurons may be purely hand sorted, one spike at a time
         self.neurons = {}
@@ -114,10 +110,13 @@ class Sort(object):
     def append_spikes(self, spikes):
         """Append spikes recarray to self.spikes recarray, update associated
         spike lists, and lock down sampfreq and shcorrect attribs"""
-        nspikes = len(self.spikes)
-        nnewspikes = len(spikes)
-        self.spikes.resize(nspikes+nnewspikes, refcheck=False) # resize in-place
-        self.spikes[nspikes:] = spikes # append
+        if not hasattr(self, 'spikes'): # init
+            self.spikes = spikes
+        else: # append
+            nspikes = len(self.spikes)
+            nnewspikes = len(spikes)
+            self.spikes.resize(nspikes+nnewspikes, refcheck=False) # resize in-place
+            self.spikes[nspikes:] = spikes # append
         self.update_spike_lists()
         try:
             if self.sampfreq != self.stream.sampfreq:
@@ -179,16 +178,16 @@ class Sort(object):
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes recarray row ri"""
         spikes = self.spikes
-        wave = spikes.wave[ri]
-        if wave != None: return wave
+        ri = int(ri) # make sure it isn't stuck in a numpy scalar
 
         # try self.wavedata ndarray
-        det = spikes.detection[ri].detector
-        chans = det.chans[spikes.chanis[ri]] # dereference
+        chan = spikes.chan[ri]
+        nchans = spikes.nchans[ri]
+        chans = spikes.chans[ri, :nchans]
+        t0 = spikes.t0[ri]
+        tend = spikes.tend[ri]
         try:
             wavedata = self.wavedata[ri]
-            t0 = spikes.t0[ri]
-            tend = spikes.tend[ri]
             ts = np.arange(t0, tend, self.tres) # build them up
             # only include data relevant to this spike
             wavedata = wavedata[0:len(chans), 0:len(ts)]
@@ -199,6 +198,8 @@ class Sort(object):
         if self.stream == None:
             raise RuntimeError("No stream open, can't get wave for %s %d" %
                                (spikes[ri], spikes[ri].id))
+        detid = spikes.detid[ri]
+        det = self.detections[detid].detector
         if det.srffname != self.stream.srffname:
             msg = ("Spike %d was extracted from .srf file %s.\n"
                    "The currently opened .srf file is %s.\n"
@@ -206,7 +207,7 @@ class Sort(object):
                    (spikes[ri].id, det.srffname, self.stream.srffname, spikes[ri].id))
             wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
             raise RuntimeError(msg)
-        wave = self.stream[spikes.t0[ri] : spikes.tend[ri]]
+        wave = self.stream[t0:tend]
         return wave[chans]
 
     def get_param_matrix(self, dims=None):
@@ -437,7 +438,7 @@ class Sort(object):
         cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
         n2sids, s2nids = self.get_ids(cids, spikes)
         return n2sids
-
+    '''
     def export2Charlie(self, fname='spike_data', onlymaxchan=False, nchans=3, npoints=32):
         """Export spike data to a text file, one spike per row.
         Columns are x0, y0, followed by most prominent npoints datapoints
@@ -491,7 +492,6 @@ class Sort(object):
         fname += '.' + dt + '.txt'
         np.savetxt(fname, output, fmt='%.1f', delimiter=' ')
 
-    '''
     def match(self, templates=None, weighting='signal', sort=True):
         """Match templates to all .spikes with nearby maxchans,
         save error values to respective templates.
@@ -571,7 +571,7 @@ class Neuron(object):
 
     spikes = property(get_spikes)
     '''
-    def update_wave(self, stream):
+    def update_wave(self):
         """Update mean waveform, should call this every time .spikes are modified.
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
@@ -1139,7 +1139,7 @@ class SortFrame(wxglade_gui.SortFrame):
         #self.AddSpikes2Tree(neuron.itemID, spikeis) # disable for huge cluster creation
         self.tree.RefreshItems()
         neuron.wave.data = None # signify it needs an update when it's actually needed
-        #neuron.update_wave(self.sort.stream) # update mean neuron waveform
+        #neuron.update_wave() # update mean neuron waveform
         '''
         if createdNeuron:
             #self.tree.Expand(root) # make sure root is expanded

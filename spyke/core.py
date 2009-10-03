@@ -79,7 +79,7 @@ class WaveForm(object):
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
 
     def __getitem__(self, key):
-        """Make waveform data sliceable in time, and directly indexable by channel id.
+        """Make waveform data sliceable in time, and directly indexable by channel id(s).
         Return a new WaveForm"""
         if type(key) == slice: # slice self in time
             if self.ts == None:
@@ -93,11 +93,17 @@ class WaveForm(object):
                 return WaveForm(data=data, ts=ts, chans=self.chans) # return a new WaveForm
         else: # index into self by channel id(s)
             keys = toiter(key)
-            chans = np.asarray(self.chans)
-            keys = [ key for key in keys if key in chans ] # ignore keys outside of chans while preserving order in keys
-            # using a set changes the order within keys
-            #keys = list(set(chans).intersection(keys)) # ignore keys outside of chans
-            i = [ int(np.where(chan == chans)[0]) for chan in keys ] # list of appropriate indices into the rows of self.data
+            #try: assert (self.chans == np.sort(self.chans)).all() # testing code
+            #except AssertionError: import pdb; pdb.set_trace() # testing code
+            try:
+                assert set(keys).issubset(self.chans), "requested channels outside of channels in waveform"
+                #assert len(set(keys)) == len(keys), "same channel specified more than once" # this is fine
+            except AssertionError:
+                raise IndexError('invalid index %r' % key)
+            #i1 = np.asarray([ int(np.where(chan == chans)[0]) for chan in keys ]) # testing code
+            i = self.chans.searchsorted(keys) # appropriate indices into the rows of self.data
+            #try: assert (i1 == i).all() # testing code
+            #except AssertionError: import pdb; pdb.set_trace() # testing code
             # TODO: should probably use .take here for speed:
             data = self.data[i] # grab the appropriate rows of data
             return WaveForm(data=data, ts=self.ts, chans=keys) # return a new WaveForm

@@ -170,7 +170,8 @@ class Plot(object):
         AD2uV = self.panel.AD2uV
         for chan, line in self.lines.iteritems():
             # convert AD wave data to uV, remove any singleton dimensions
-            data = AD2uV(wave[chan].data.squeeze())
+            try: data = AD2uV(wave[chan].data.squeeze())
+            except IndexError: continue # chan isn't in wave
             xpos, ypos = self.panel.pos[chan]
             if wave.ts == None:
                 xdata = []
@@ -242,8 +243,7 @@ class Raster(Plot):
     def update(self, spike, tref):
         """Update lines data from spike.t and spike's chans"""
         self.spike = spike
-        sort = self.panel.spykeframe.sort
-        spikechans = sort.detections[spike.detid].detector.nbhd[spike.chan]
+        spikechans = spike.chans[:spike.nchans]
         for chan in spikechans:
             try:
                 line = self.lines[chan]
@@ -265,7 +265,7 @@ class Raster(Plot):
         sort = self.panel.spykeframe.sort
         try:
             spike = self.spike
-            chans = sort.detections[spike.detid].detector.nbhd[spike.chan]
+            chans = spike.chans[:spike.nchans]
         except AttributeError: # no spike
             if enable == False:
                 chans = self.lines.keys() # disable all lines
@@ -1014,15 +1014,16 @@ class SortPanel(PlotPanel):
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
+            obj.plt = plt # bind plot to neuron
         else: # it's a spike
             ri, = np.where(sort.spikes.id == id) # returns an array
             ri = int(ri)
             obj = sort.spikes[ri]
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
-            if obj.neuron != None: # it's a member spike of a neuron, colour it the same as its neuron
+            if obj.nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                try: colours = [COLOURDICT[obj.neuron.id]]
+                try: colours = [COLOURDICT[obj.nid]]
                 except: import pdb; pdb.set_trace()
             else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
@@ -1031,12 +1032,11 @@ class SortPanel(PlotPanel):
         plt.set_alpha(alpha)
         plt.set_stylewidth(style, width)
         plt.obj = obj # bind object to plot
-        obj.plt = plt # bind plot to object
-        obj.wave = get_wave(obj, stream=self.spykeframe.hpstream) # update from stream
+        wave = get_wave(obj, sort=self.spykeframe.sort) # get from sort.wavedata or sort.stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
-        wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
+        wave = wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, obj.t)
-        plt.show_chans(obj.wave.chans) # unhide object's enabled chans
+        plt.show_chans(wave.chans) # unhide object's enabled chans
         plt.draw()
         return plt
 
@@ -1075,7 +1075,8 @@ class SortPanel(PlotPanel):
         plt = self.used_plots.pop(item)
         # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
-        plt.obj.plt = None # unbind plot from object
+        if item[0] == 'n': # it's a neuron
+            plt.obj.plt = None # unbind plot from neuron
         plt.obj = None # unbind object from plot
         plt.hide() # hide all chan lines
         self.available_plots.append(plt)
