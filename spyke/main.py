@@ -928,8 +928,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         npzfile = np.load(f)
         sort = npzfile['sort'].item() # this line calls sort.__setstate__?
         self.sort = sort
-        # convert from ndarray to recarray with attrib access
-        sort.spikes = npzfile['spikes'].view(np.recarray)
+        spikes = npzfile['spikes']
+        # convert spikes from ndarray to recarray that returns records with attrib access
+        sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
         sort.update_spike_lists()
         #import cProfile
         #import pickle
