@@ -110,7 +110,7 @@ class Sort(object):
     def append_spikes(self, spikes):
         """Append spikes recarray to self.spikes recarray, update associated
         spike lists, and lock down sampfreq and shcorrect attribs"""
-        if not hasattr(self, 'spikes'): # init
+        if not hasattr(self, 'spikes') or len(self.spikes) == 0: # (re)init
             self.spikes = spikes
         else: # append
             nspikes = len(self.spikes)
@@ -192,7 +192,7 @@ class Sort(object):
             # only include data relevant to this spike
             wavedata = wavedata[0:len(chans), 0:len(ts)]
             return WaveForm(data=wavedata, ts=ts, chans=chans)
-        except IndexError: pass
+        except (IndexError, AttributeError): pass
 
         # try getting it from the stream
         if self.stream == None:

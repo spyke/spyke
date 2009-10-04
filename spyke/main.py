@@ -5,17 +5,16 @@ from __future__ import division
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
-# allocate the biggest contiguous wavedata array possible ASAP,
-# before memory fragments
-# TODO: reshape this later once max num chans and timepoints per spike is known
-nspikes = 1.2e6
+# allocate the biggest contiguous array possible to use
+# for wavedata later on. Do it ASAP before memory fragments
+nbytes = 1.5e9
 while True:
     try:
-        wavedata = np.empty((nspikes, 13, 50), dtype=np.int16)
+        wavedata = np.empty(nbytes/2, dtype=np.int16)
         break
     except MemoryError:
-        nspikes -= 1e5
-print('len(wavedata) == %d spikes, %d bytes' % (len(wavedata), wavedata.nbytes))
+        nbytes -= 100e6
+print('wavedata.nbytes == %d' % wavedata.nbytes)
 
 import wx
 import wx.html
@@ -138,6 +137,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
+        self.maxnchansperspike_spin_ctrl.SetValue(detect.Detector.DEFMAXNCHANSPERSPIKE)
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def OnNew(self, evt):
@@ -1209,6 +1209,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.maxnspikes = self.nspikes_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
         det.blocksize = int(self.blocksize_combo_box.GetValue())
         det.slock = self.slock_spin_ctrl.GetValue()
+        det.maxnchansperspike = self.maxnchansperspike_spin_ctrl.GetValue()
         det.randomsample = self.random_sample_checkbox.GetValue()
 
     def update_from_detector(self, det):
@@ -1226,6 +1227,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.nspikes_spin_ctrl.SetValue(det.maxnspikes)
         self.blocksize_combo_box.SetValue(str(det.blocksize))
         self.slock_spin_ctrl.SetValue(det.slock)
+        self.maxnchansperspike_spin_ctrl.SetValue(det.maxnchansperspike)
         self.random_sample_checkbox.SetValue(det.randomsample)
 
     def set_detectorthresh(self, det):

@@ -576,7 +576,7 @@ class Detector(object):
     DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
-    DEFDT = 350 # max time between spike phases, us
+    DEFDT = 350 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
     DEFEXTRACTPARAMSONDETECT = True
@@ -633,41 +633,14 @@ class Detector(object):
         TODO: remove any spikes that happen right at the first or last timepoint in the file,
         since we can't say when an interrupted falling or rising edge would've reached peak
         """
-        self.enabledSiteLoc = {}
-        stream = self.sort.stream
-        for chan in self.chans: # for all enabled chans
-            self.enabledSiteLoc[chan] = stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
-        self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search, sorted by chans
-        #self.nbhd = {} # dict of neighbourhood of chans for each chan, as defined by self.slock, each sorted by ascending distance
-        self.nbhdi = {} # corresponding dict of neighbourhood of chanis for each chani
-        maxnchansperspike = 0
-        for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
-            chanis, = np.uint8(np.where(distances <= self.slock)) # at what col indices does the returned row fall within slock?
-            if len(chanis) > self.maxnchansperspike: # exceeds the hard upper limit
-                ds = distances[chanis] # pick out relevant distances
-                chaniis = ds.argsort() # indices that sort chanis by distance
-                chanis = chanis[chaniis] # chanis sorted by distance
-                chanis = chanis[:self.maxnchansperspike] # pick out closest self.maxnchansperspike chanis
-                chanis.sort() # sorted numerical order assumed later on!
-            maxnchansperspike = max(maxnchansperspike, len(chanis))
-            self.nbhdi[chani] = chanis
-            #chan = self.dm.chans[chani]
-            #chans = self.dm.chans[chanis]
-            #self.nbhd[chan] = chans
-
-        self.maxnchansperspike = min(self.maxnchansperspike, maxnchansperspike)
-        self.SPIKEDTYPE = [('id', np.uint32), ('nid', np.int16), ('detid', np.uint8),
-                           ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
-                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
-                           ('phase1ti', np.uint8), ('phase2ti', np.uint8),
-                           ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
-
-        self.dti = int(self.dt // stream.tres) # convert from numpy.int64 to normal int for inline C
+        self.calc_chans()
 
         t0 = time.clock()
+        sort = self.sort
+        self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
         self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
-        AD2uV = self.sort.converter.AD2uV
+        AD2uV = sort.converter.AD2uV
         info('thresh calcs took %.3f sec' % (time.clock()-t0))
         info('thresh   = %s' % AD2uV(self.thresh))
         info('ppthresh = %s' % AD2uV(self.ppthresh))
@@ -701,6 +674,49 @@ class Detector(object):
         info('\nfound %d spikes in total' % len(spikes))
         info('inside .detect() took %.3f sec' % (time.clock()-t0))
         return spikes
+
+    def calc_chans(self):
+        """Calculate max number of chans to use, and related stuff"""
+        sort = self.sort
+        self.enabledSiteLoc = {}
+        for chan in self.chans: # for all enabled chans
+            self.enabledSiteLoc[chan] = sort.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
+        self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search, sorted by chans
+        #self.nbhd = {} # dict of neighbourhood of chans for each chan, as defined by self.slock, each sorted by ascending distance
+        self.nbhdi = {} # corresponding dict of neighbourhood of chanis for each chani
+        maxnchansperspike = 0
+        for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
+            chanis, = np.uint8(np.where(distances <= self.slock)) # at what col indices does the returned row fall within slock?
+            if len(chanis) > self.maxnchansperspike: # exceeds the hard upper limit
+                ds = distances[chanis] # pick out relevant distances
+                chaniis = ds.argsort() # indices that sort chanis by distance
+                chanis = chanis[chaniis] # chanis sorted by distance
+                chanis = chanis[:self.maxnchansperspike] # pick out closest self.maxnchansperspike chanis
+                chanis.sort() # sorted numerical order assumed later on!
+            maxnchansperspike = max(maxnchansperspike, len(chanis))
+            self.nbhdi[chani] = chanis
+            #chan = self.dm.chans[chani]
+            #chans = self.dm.chans[chanis]
+            #self.nbhd[chan] = chans
+
+        self.maxnchansperspike = min(self.maxnchansperspike, maxnchansperspike)
+        for detection in sort.detections.values():
+            det = detection.detector
+            if self.maxnchansperspike != det.maxnchansperspike:
+                raise RuntimeError("Can't have multiple detections generating spikes recarrays with "
+                                   "different width 'chans' fields")
+
+        self.SPIKEDTYPE = [('id', np.uint32), ('nid', np.int16), ('detid', np.uint8),
+                           ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
+                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
+                           ('phase1ti', np.uint8), ('phase2ti', np.uint8),
+                           ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
+
+        if sort.wavedata.ndim == 1: # hasn't been reshaped yet
+            spikewidth = (self.tw[1] - self.tw[0]) / 1000000 # sec
+            nt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
+            nspikes = len(sort.wavedata) // (self.maxnchansperspike * nt) # div, so we resize to something slightly smaller
+            sort.wavedata.resize((nspikes, self.maxnchansperspike, nt), refcheck=False)
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid Spikes"""
