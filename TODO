@@ -17,11 +17,7 @@ RECENT:
     - use single 3D wavedata array - 1GB is enough for 1e6 spikes
         - optionally save it to .sort npz file
 
-    - unhandled exception when you generate detections 0 and 1, and then go and try and delete detection 0
-        - any error like this might have to do with setting refcheck == False in various places
-
-    - unhandled exception when you generate 2 detections and then try and save them to a .sort file
-        - this has to do with pickling the Sort - noticed that detections[0].spikeis is set to garbage data, while detections[1] looks like normal consecutive integers - related?
+    - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
 
     - do 2 detections, save, open .sort with no .srf delete 1st detection, waveforms of the remaining one seem to be a bit messed - at the very least, some chans show up as flatline - this is obviously an indexing problem - I suppose the corresponding rows in .wavedata need to be deleted as well, or something has to deal with the fact that the effective rows in wavedata no longer match the rows in the .spikes recarray
 
