@@ -1,3 +1,73 @@
+RECENT:
+
+
+    - ptc15.81 not contiguous at record timestamps number 3309 and 3310
+        np.where((np.diff(s.stream.rts, n=2) == 0) == False)
+        (array([3309, 3310]),)
+        - when stream is asked for gap in data, fill the gap with zeros
+        - fill the same gap with zeros in .resample file
+            - find ctsrecord duration that's the most frequent
+
+    - remove itemID spike and neuron attrib, stop checking for it in __getitem__
+        - delete unnecessary tree handling code that's been commented out
+
+    - speed up neuron.update_wave
+        - tough to do, think big problem is that it's loading wave data for all spikes from disk - solution is to implement more efficient way of keeping all spike wavedata in memory
+
+    - use single 3D wavedata array - 1GB is enough for 1e6 spikes
+        - optionally save it to .sort npz file
+
+    - unhandled exception when you generate detections 0 and 1, and then go and try and delete detection 0
+        - any error like this might have to do with setting refcheck == False in various places
+
+    - unhandled exception when you generate 2 detections and then try and save them to a .sort file
+        - this has to do with pickling the Sort - noticed that detections[0].spikeis is set to garbage data, while detections[1] looks like normal consecutive integers - related?
+
+    - do 2 detections, save, open .sort with no .srf delete 1st detection, waveforms of the remaining one seem to be a bit messed - at the very least, some chans show up as flatline - this is obviously an indexing problem - I suppose the corresponding rows in .wavedata need to be deleted as well, or something has to deal with the fact that the effective rows in wavedata no longer match the rows in the .spikes recarray
+
+    - consider saving .resample as array to npy file to disk (would have to do this in increments somehow), and then memmapping it back with np.load() - can you open a .npy file in memmap mode for writing, and then keep appending to it, as in calling its resize method and filling it in with the new values?
+        - I think memmapping requires a large contig address space, so max of 1GB on winxp, which isn't enough for a .resample file
+
+    - detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
+
+    - maybe leave neurons set as tree ItemPyData, since there aren't many of them - makes some things simpler, like tree.OnCompareItems
+
+    - deleting a detection doesn't clear neurons' waveforms, but maybe that's not such a bad thing?
+
+    - creating a separate chanis ndarray for each spike is inefficient - maybe use a separate chanis 2d array that's the same nrows as the spikes recarray, and enough columns for the max number of possible chans a spike could have, given the spatial lockout. For spikes that don't use that max number of chans, leave the extra chanis as -1 or something
+
+    - ditto for wavedata arrays - as a field in each recarray, wavedata uses about 2X as much memory as it should
+        - reduce the number of unnecessary chans per spike
+        - ultimate sol'n is more difficult than for chanis: can't allocate one giant 3D contig array that holds all wavedata for all spikes - windows only lets you allocate about 1 GB of contig memory
+            - could maybe split up wavedata array into multiple smaller pieces, but not as small as the single spike level - maybe divide them up at the searchblock level - but that would then start causing indexing headaches
+            - or, could split up wavedata by channel - each channel could be its own 2D array - one dim would be spikes, other would be time - collecting data across chans for a single spike would have to traverse big gaps in memory though, that would be slower than dividing it up at the searchblock level and leaving each spike wave contiguous with itself
+            - also, this would waste much more memory than searchblock approach - no spike takes up all 54 chans - no, but you could assume all of them take up no more than 9 at a time, say
+        - what if I gave each neuron its own wavedata 3D array? That would get around the 1GB allocation problem, and you'd only ever reload a spike wave once from the disk (at least as long as it remains a member of that neuron), and wouldn't need to keep reloading each one every time you added or removed a few from the neuron
+
+    - maybe set spike.wave = None when you stop plotting it - I think plotting is the only situation where you really need a true WaveForm to keep things simple
+
+    - maybe do the same for digitalsvalrecords, highpassrecords, lowpassrecords, or any other list of anything that's really long - that way you go from having 100s of thousands of objects down to just a couple of record arrays - might be faster to pickle and unpickle too!
+    - make detector.spikes just be detector.spikeis, whose values are simply indices to sort.spikes
+
+    - selecting a block of spikes in list doesn't plot them - might be due to bugfixes in latest wx, might not need my hack workarounds anymore?
+
+    - when deleting a detection, if ndetections == 0, reset _detid = 0
+
+    - clear/update neuron mean waveform and replot it immediately (if currently plotted), when updating its cluster members, ie moving/modifying the cluster and then hitting "c"
+        - close .srf file, open test.sort with no waves in it, modify cluster, apply it, yet mean neuron waveform remains unchanged from when it was last calculated when the .srf file was open
+
+    - fix LFP
+
+    - check speed of spike.wave restoration on hitting re-extracting params after restoring from a .sort with no waves in it
+        - it's super fast now! at least when using a .resample file
+
+    - maybe before saving a .sort, check if it has detections/spikes from another .srf, if so, ask user if that's the intention
+
+    - overplotting speed
+
+
+
+
 GENERAL:
 
 - for spike in self.sort.spikes.values():

@@ -5,17 +5,6 @@ from __future__ import division
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
-# allocate the biggest contiguous array possible to use
-# for wavedata later on. Do it ASAP before memory fragments
-nbytes = 1.5e9
-while True:
-    try:
-        wavedata = np.empty(nbytes/2, dtype=np.int16)
-        break
-    except MemoryError:
-        nbytes -= 100e6
-print('wavedata.nbytes == %d' % wavedata.nbytes)
-
 import wx
 import wx.html
 import wx.py
@@ -73,7 +62,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = None # Surf File object
         self.srffname = '' # used for setting title caption
         self.sortfname = '' # used for setting title caption
-        self.defaultdir = os.path.abspath('/data/ptc18')
+        self.defaultdir = os.path.abspath('/data')
         self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
         self.spiketw = DEFSPIKETW # spike frame temporal window (us)
         self.charttw = DEFCHARTTW # chart frame temporal window (us)
@@ -295,11 +284,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                   oldtrange[0] < trange[1] < oldtrange[1]):
                 raise RuntimeError("New detection ignored for overlapping "
                                    "in time with existing detection")
-        #import cProfile
-        #cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
         spikes = sort.detector.detect() # recarray of spikes
+        #import cProfile; cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
         detection = Detection(sort, sort.detector, # create a new Detection run
                               id=sort._detid,
                               datetime=datetime.datetime.now())
@@ -701,7 +689,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         if len(sort.detections) == 0: # if no detection runs are left
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
-        self.total_nspikes_label.SetLabel(str(len(sort.spikes))) # update
+        self.total_nspikes_label.SetLabel(str(sort.nspikes)) # update
         self.EnableSpikeWidgets(True) # call in case nspikes has dropped to 0
 
     def listRow2Detection(self, row):
@@ -783,7 +771,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in OnDetect
                          stream=self.hpstream)
-        self.sort.wavedata = wavedata
         self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.EnableSortWidgets(True)
 
@@ -932,10 +919,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # convert spikes from ndarray to recarray that returns records with attrib access
         sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
         sort.update_spike_lists()
-        #import cProfile
-        #import pickle
-        #cProfile.runctx('sort = cPickle.load(f)', globals(), locals())
-        #cProfile.runctx('sort = pickle.load(f)', globals(), locals())
+        try: sort.wavedata = npzfile['wavedata'] # load wavedata if it's there
+        except KeyError: pass
         f.close()
         print('done opening sort file, took %.3f sec' % (time.clock()-t0))
         sortProbeType = type(sort.probe)
@@ -966,7 +951,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # some neurons don't have clusters
         for neuron in sort.neurons.values():
             sf.AddNeuron2Tree(neuron)
-            sf.AddSpikes2Tree(neuron.itemID, neuron.spikeis)
+            #sf.AddSpikes2Tree(neuron.itemID, neuron.spikeis) # no longer needed with VirtualTree
             try: cluster = neuron.cluster
             except AttributeError: continue
             self.AddCluster(cluster)
@@ -992,19 +977,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         regardless of when you searched, so you better know what you're doing
         when at the command line"""
         sort = self.sort
+        try: sort.spikes
+        except AttributeError: raise RuntimeError("Sort has no spikes to save")
         sort.SAVEWAVES = self.menubar.IsChecked(wx.ID_SAVEWAVES) # update from menu
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         print('saving sort file')
         t0 = time.clock()
         f = open(fname, 'wb')
-        core.savez(f, compress=True, sort=sort, spikes=sort.spikes)
-        #cPickle.dump(sort, f, protocol=-1) # use most efficient (least human readable) protocol
+        objs = {'sort': sort, 'spikes': sort.spikes}
+        if sort.SAVEWAVES:
+            objs['wavedata'] = sort.wavedata[:sort.nspikes]
+        core.savez(f, compress=True, **objs)
         f.close()
         print('done saving sort file, took %.3f sec' % (time.clock()-t0))
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
-        print('done saving sort file')
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""

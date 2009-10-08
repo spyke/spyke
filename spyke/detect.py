@@ -574,6 +574,7 @@ class Detector(object):
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
     DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout
+    DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array to
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between phases of a single spike, us
@@ -589,8 +590,8 @@ class Detector(object):
     def __init__(self, sort, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
-                 trange=None, maxnspikes=None, maxnchansperspike=None, blocksize=None,
-                 slock=None, dt=None, randomsample=None,
+                 trange=None, maxnspikes=None, maxnchansperspike=None, wavedatanspikes=None,
+                 blocksize=None, slock=None, dt=None, randomsample=None,
                  keepspikewavesondetect=None,
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
@@ -607,6 +608,7 @@ class Detector(object):
         self.trange = trange or (sort.stream.t0, sort.stream.tend)
         self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes
         self.maxnchansperspike = maxnchansperspike or self.DEFMAXNCHANSPERSPIKE
+        self.wavedatanspikes = wavedatanspikes or self.DEFWAVEDATANSPIKES
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
         self.dt = dt or self.DEFDT
@@ -634,9 +636,14 @@ class Detector(object):
         since we can't say when an interrupted falling or rising edge would've reached peak
         """
         self.calc_chans()
+        sort = self.sort
+        try: sort.wavedata
+        except AttributeError: # init it
+            spikewidth = (self.tw[1] - self.tw[0]) / 1000000 # sec
+            nt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
+            sort.wavedata = np.empty((self.wavedatanspikes, self.maxnchansperspike, nt), dtype=np.int16)
 
         t0 = time.clock()
-        sort = self.sort
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
         self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
@@ -662,7 +669,9 @@ class Detector(object):
             except FoundEnoughSpikesError:
                 break
             nblockspikes = len(blockspikes)
-            spikes.resize(self.nspikes + nblockspikes, refcheck=False)
+            shape = list(spikes.shape)
+            shape[0] += nblockspikes
+            spikes.resize(shape, refcheck=False)
             spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
             self.nspikes += nblockspikes
         #spikets = [ s.t for s in spikes ]
@@ -711,12 +720,6 @@ class Detector(object):
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
                            ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
-
-        if sort.wavedata.ndim == 1: # hasn't been reshaped yet
-            spikewidth = (self.tw[1] - self.tw[0]) / 1000000 # sec
-            nt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
-            nspikes = len(sort.wavedata) // (self.maxnchansperspike * nt) # div, so we resize to something slightly smaller
-            sort.wavedata.resize((nspikes, self.maxnchansperspike, nt), refcheck=False)
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid Spikes"""
@@ -942,10 +945,13 @@ class Detector(object):
             # since that ignores potentially locked out chans
             wavedata = wave.data[chanis, t0i:tendi]
             if self.keepspikewavesondetect: # keep spike waveform for later use
-                try: sort.wavedata[self.nspikes+nspikes, 0:nchans, 0:len(ts)] = wavedata
-                # wavedata array isn't big enough to add more waveforms to, or doesn't exist
-                except (IndexError, AttributeError): pass
-                except: import pdb; pdb.set_trace()
+                totalnspikes = sort.nspikes + self.nspikes + nspikes
+                if totalnspikes > len(sort.wavedata)-1: # expand sort.wavedata
+                    shape = list(sort.wavedata.shape) # allows assignment
+                    shape[0] += self.wavedatanspikes
+                    print('resizing wavedata to %r' % shape)
+                    sort.wavedata.resize(shape, refcheck=False)
+                sort.wavedata[totalnspikes, 0:nchans, 0:len(ts)] = wavedata
             if self.extractparamsondetect:
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
@@ -965,7 +971,7 @@ class Detector(object):
 
             nspikes += 1
 
-        spikes.resize(nspikes, refcheck=False)
+        spikes.resize(nspikes, refcheck=False) # shrink down to actual needed size
         return spikes
 
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
@@ -1122,7 +1128,7 @@ class Detection(object):
         # a bunch of record objects, which is slow
         nspikes = len(spikes)
         spikei0 = self.sort._sid
-        spikes.id = np.arange(spikei0, spikei0+nspikes) # assign IDs in one shot
+        self.spikeis = np.arange(spikei0, spikei0+nspikes) # generate IDs in one shot
+        spikes.id = self.spikeis # assign them to spikes recarray
         spikes.detid = self.id
         self.sort._sid += nspikes # inc for next unique Detection
-        self.spikeis = spikes.id # save for future reference

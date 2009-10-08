@@ -8,7 +8,6 @@ import itertools
 import numpy as np
 import os
 import cPickle
-#import gzip
 from struct import unpack
 import unittest
 from copy import copy
@@ -55,7 +54,7 @@ class File(object):
         """Parse the Surf file header"""
         self.fileheader = FileHeader()
         self.fileheader.parse(self.f)
-        #print 'Parsed fileheader'
+        #print('Parsed fileheader')
 
     def _parseDRDBS(self):
         """Parse the DRDBs (Data Record Descriptor Blocks)"""
@@ -81,14 +80,14 @@ class File(object):
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
             self.unpickle()
-            print 'unpickling took %f sec' % (time.clock()-t0)
+            print('unpickling took %f sec' % (time.clock()-t0))
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it. Parse the .srf file
         except IOError:
-            print 'Parsing %r' % self.fname
+            print('Parsing %r' % self.fname)
             self._parseDRDBS()
             self._parseRecords()
-            print 'Done parsing %r' % self.fname
+            print('Done parsing %r' % self.fname)
             self._connectRecords()
             self._verifyParsing()
 
@@ -101,11 +100,11 @@ class File(object):
             #except AttributeError:
             #    self.lpstream = None
 
-            print 'parsing took %f sec' % (time.clock()-t0)
+            print('parsing took %f sec' % (time.clock()-t0))
             if save:
                 tsave = time.clock()
                 self.pickle()
-                print 'pickling took %f sec' % (time.clock()-tsave)
+                print('pickling took %f sec' % (time.clock()-tsave))
 
     def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
@@ -150,7 +149,7 @@ class File(object):
 
     def _connectRecords(self):
         """Connect the appropriate probe layout to each high and lowpass record"""
-        #print 'Connecting probe layouts to waveform records'
+        #print('Connecting probe layouts to waveform records')
         for record in self.highpassrecords:
             record.layout = self.layoutrecords[record.Probe]
 
@@ -164,7 +163,7 @@ class File(object):
 
         # Rearrange single channel lowpass records into
         # multichannel lowpass records
-        #print 'Rearranging single lowpass records into multichannel lowpass records'
+        #print('Rearranging single lowpass records into multichannel lowpass records')
         # get array of lowpass record timestamps
         rts = np.asarray([record.TimeStamp for record in self.lowpassrecords])
         # find at which records the timestamps change
@@ -191,7 +190,7 @@ class File(object):
     def _verifyParsing(self):
         """Make sure timestamps of all records are in causal (increasing)
         order. If not, sort them I guess?"""
-        #print 'Asserting increasing record order'
+        #print('Asserting increasing record order')
         for item in self.__dict__:
             if item.endswith('records'):
                 #print('Asserting %s are in causal order' % item)

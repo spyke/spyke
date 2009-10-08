@@ -47,7 +47,7 @@ class Sort(object):
     to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single pickled Sort object"""
-    SAVEWAVES = False # save each spike's .wave to .sort file?
+    SAVEWAVES = True # save each spike's .wave to .sort file?
     def __init__(self, detector=None, stream=None):
         self.__version__ = 0.1
         self.detector = detector # this Sort's current Detector object
@@ -89,7 +89,6 @@ class Sort(object):
 
     def __getstate__(self):
         """Get object state for pickling"""
-        t0 = time.clock()
         # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
         d = self.__dict__.copy()
         # don't pickle the stream, cuz it relies on an open .srf file
@@ -107,16 +106,23 @@ class Sort(object):
         #self.spikes = np.recarray(10, dtype=SPIKEDTYPE)
         #self.update_spike_lists()
 
+    def get_nspikes(self):
+        try: return len(self.spikes)
+        except AttributeError: return 0
+
+    nspikes = property(get_nspikes)
+
     def append_spikes(self, spikes):
         """Append spikes recarray to self.spikes recarray, update associated
         spike lists, and lock down sampfreq and shcorrect attribs"""
-        if not hasattr(self, 'spikes') or len(self.spikes) == 0: # (re)init
+        if self.nspikes == 0: # (re)init
             self.spikes = spikes
         else: # append
-            nspikes = len(self.spikes)
-            nnewspikes = len(spikes)
-            self.spikes.resize(nspikes+nnewspikes, refcheck=False) # resize in-place
-            self.spikes[nspikes:] = spikes # append
+            oldnspikes = self.nspikes # save
+            shape = list(self.spikes.shape)
+            shape[0] += len(spikes)
+            self.spikes.resize(shape, refcheck=False) # resize in-place
+            self.spikes[oldnspikes:] = spikes # append
         self.update_spike_lists()
         try:
             if self.sampfreq != self.stream.sampfreq:
@@ -133,9 +139,6 @@ class Sort(object):
     def update_spike_lists(self):
         """Update self.st sorted array of all spike times, ris_by_time array,
         and self.uris list containing row indices of unsorted spikes"""
-        #spikes = self.spikes.values() # pull list out of dict
-        nspikes = len(self.spikes)
-        #self.spikes.ri = np.arange(nspikes, dtype=np.uint32) # spike recarray row indices
         st = self.spikes.t # all spike times
         sids = self.spikes.id # all spike ids
         # self.st and self.ris_by_time are required for quick raster plotting
@@ -214,11 +217,10 @@ class Sort(object):
         """Organize parameters in dims from all spikes into a
         data matrix for clustering"""
         t0 = time.clock()
-        nspikes = len(self.spikes)
         nparams = len(dims)
         try:
             # self.Xcols stores all currently created columns of any potential param matrix X
-            assert len(self.Xcols.values()[0]) == nspikes
+            assert len(self.Xcols.values()[0]) == self.nspikes
         except (AttributeError, AssertionError):
             # not created yet, or change in number of spikes
             self.Xcols = {}
@@ -450,7 +452,7 @@ class Sort(object):
         # get ti - time index each spike is assumed to be centered on
         self.spikes[0].update_wave(self.stream) # make sure it has a wave
         ti = int(round(self.spikes[0].wave.data.shape[-1] / 4)) # 13 for 50 kHz, 6 for 25 kHz
-        dims = len(self.spikes), 2+nchans*npoints
+        dims = self.nspikes, 2+nchans*npoints
         output = np.empty(dims, dtype=np.float32)
         dm = self.detector.dm
         chanis = np.arange(len(dm.data))
@@ -1136,7 +1138,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.list.RefreshItems() # refresh the list
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.list.Select(row) # automatically select the new item at that position
-        #self.AddSpikes2Tree(neuron.itemID, spikeis) # disable for huge cluster creation
+        #self.AddSpikes2Tree(neuron.itemID, spikeis) # no longer needed with VirtualTree
         self.tree.RefreshItems()
         neuron.wave.data = None # signify it needs an update when it's actually needed
         #neuron.update_wave() # update mean neuron waveform
@@ -1150,6 +1152,7 @@ class SortFrame(wxglade_gui.SortFrame):
         '''
         return neuron
     '''
+    # no longer needed with VirtualTree
     def AddSpikes2Tree(self, parent, spikeis):
         """Add spikes to the tree, where parent is a tree itemID"""
         spikeis = toiter(spikeis)
