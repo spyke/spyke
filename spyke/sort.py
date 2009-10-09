@@ -880,19 +880,19 @@ class SortFrame(wxglade_gui.SortFrame):
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
         sid = self.sort.spikes.id[self.sort.uris[row]]
-        print('spikeID is %r' % id)
+        print('spikeID is %r' % sid)
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
         #selected = not self.list.IsSelected(row)
         #self.list.Select(row, on=int(not selected))
         # here is a yucky workaround:
         try:
-            self.spikesortpanel.used_plots['s'+str(id)] # is it plotted?
+            self.spikesortpanel.used_plots['s'+str(sid)] # is it plotted?
             selected = True # if so, item must be selected
-            print('spike %d in used_plots' % id)
+            print('spike %d in used_plots' % sid)
         except KeyError:
             selected = False # item is not selected
-            print('spike %d not in used_plots' % id)
+            print('spike %d not in used_plots' % sid)
         self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
 
     def OnListColClick(self, evt):

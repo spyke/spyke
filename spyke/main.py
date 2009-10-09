@@ -18,7 +18,7 @@ import spyke
 from spyke import core, surf, detect, extract
 from spyke.detect import Detection
 from spyke.sort import Sort
-from spyke.core import toiter, MU
+from spyke.core import toiter, MICRO
 from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
 from spyke.sort import SortFrame
 import wxglade_gui
@@ -35,7 +35,6 @@ PYSHELLSIZE = CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2
 CLUSTERFRAMESIZE = 530, 530
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
-
 PYSHELLCFGFNAME = 'pyshell_cfg'
 
 
@@ -62,7 +61,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = None # Surf File object
         self.srffname = '' # used for setting title caption
         self.sortfname = '' # used for setting title caption
-        self.defaultdir = os.path.abspath('/data')
+        for d in ('/data', '/media/WinXP/data'):
+            self.defaultdir = os.path.abspath(d)
+            if os.path.isdir(d): break # use first existing path
         self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
         self.spiketw = DEFSPIKETW # spike frame temporal window (us)
         self.charttw = DEFCHARTTW # chart frame temporal window (us)
@@ -88,12 +89,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.set_detect_pane_defaults()
 
-        self.file_pos_combo_box_units_label.SetLabel(MU+'s') # can't seem to set mu symbol from within wxGlade
-        self.fixedthresh_units_label.SetLabel(MU+'V')
-        self.dt_units_label.SetLabel(MU+'s')
-        self.range_units_label.SetLabel(MU+'s')
-        self.blocksize_units_label.SetLabel(MU+'s')
-        self.spatial_units_label.SetLabel(MU+'m')
+        self.file_pos_combo_box_units_label.SetLabel(MICRO+'s') # can't seem to set mu symbol from within wxGlade
+        self.fixedthresh_units_label.SetLabel(MICRO+'V')
+        self.dt_units_label.SetLabel(MICRO+'s')
+        self.range_units_label.SetLabel(MICRO+'s')
+        self.blocksize_units_label.SetLabel(MICRO+'s')
+        self.spatial_units_label.SetLabel(MICRO+'m')
 
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -805,9 +806,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 cf.glyph.remove() # from pipeline
                 del cf.glyph # cluster frame hangs around, so del its glyph
             except AttributeError: pass
-        try:
-            while True: self.cluster_list_box.Delete(0) # delete cluster list entries
-        except wx.PyAssertionError: pass # no entries left to delete
+        nclusterentries = self.cluster_list_box.GetCount()
+        for i in range(nclusterentries):
+            self.cluster_list_box.Delete(0) # delete cluster list entries
         self.total_nspikes_label.SetLabel(str(0))
         # make sure self.sort and especially self.sort.spikes is really gone
         # TODO: check if this is necessary once everything works with new streamlined

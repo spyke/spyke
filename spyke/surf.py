@@ -43,7 +43,6 @@ class File(object):
         self.fileSize = os.stat(fname)[6]
         self.f = open(fname, 'rb')
         self._parseFileHeader()
-        # TODO: maybe the extension should be .srf.parse
         self.parsefname = fname + '.parse'
 
     def close(self):
@@ -240,8 +239,11 @@ class File(object):
         pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
-        self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         pf.close()
+        other.fname = self.fname # overwrite
+        other.parsefname = self.parsefname # overwrite
+        other.f = self.f # restore open .srf file on unpickle
+        self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         print('Recovered parse info from %r' % self.parsefname)
 
     def __getstate__(self):
@@ -249,12 +251,6 @@ class File(object):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         del d['f'] # exclude open .srf file
         return d
-
-    def __setstate__(self, d):
-        """Restore open .srf file on unpickle"""
-        self.__dict__ = d
-        self.f = open(self.fname, 'rb')
-
 
 class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file

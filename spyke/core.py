@@ -33,6 +33,7 @@ from matplotlib.colors import hex2color
 from spyke import probes
 
 MU = '\xb5' # greek mu symbol
+MICRO = 'u'
 
 DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample frequency, in Hz
 DEFHIGHPASSSHCORRECT = True

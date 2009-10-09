@@ -27,7 +27,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MU, hex2cmap
+from spyke.core import MICRO, hex2cmap
 from spyke.detect import TW, get_wave
 
 SPIKELINEWIDTH = 1 # in points
@@ -762,8 +762,8 @@ class PlotPanel(FigureCanvasWxAgg):
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                 t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d\n' % chan + \
-                      't=%d %s\n' % (t, MU+'s') + \
-                      'V=%.1f %s\n' % (v, MU+'V') + \
+                      't=%d %s\n' % (t, MICRO+'s') + \
+                      'V=%.1f %s\n' % (v, MICRO+'V') + \
                       'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
@@ -786,9 +786,9 @@ class PlotPanel(FigureCanvasWxAgg):
                 v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
-                    tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
-                          't=%d %s\n' % (t, MU+'s') + \
-                          'V=%.1f %s\n' % (v, MU+'V') + \
+                    tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
+                          't=%d %s\n' % (t, MICRO+'s') + \
+                          'V=%.1f %s\n' % (v, MICRO+'V') + \
                           'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                     tooltip.SetTip(tip)
                     tooltip.Enable(True)
@@ -1152,9 +1152,9 @@ class SortPanel(PlotPanel):
                 t = evt.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
                 v = (evt.ydata - ypos) / self.gain
                 t = int(round(t / tres)) * tres # round to nearest (possibly interpolated) sample
-                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
-                      't=%d %s\n' % (t, MU+'s') + \
-                      'V=%.1f %s\n' % (v, MU+'V') + \
+                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
+                      't=%d %s\n' % (t, MICRO+'s') + \
+                      'V=%.1f %s\n' % (v, MICRO+'V') + \
                       'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
