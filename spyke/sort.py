@@ -589,10 +589,10 @@ class Neuron(object):
         # build up union of chans and relative timepoints of all member spikes
         chans, ts = set(), set()
         for ri in ris:
-            det = spikes[ri].detection.detector
-            chans.update(det.chans[spikes[ri].chanis])
-            spikets = np.arange(spikes[ri].t0, spikes[ri].tend, self.sort.tres) # build them up
-            ts.update(spikets - spikes[ri].t) # timepoints wrt spike time, not absolute
+            nchans = spikes.nchans[ri]
+            chans.update(spikes.chans[ri, :nchans])
+            spikets = np.arange(spikes.t0[ri], spikes.tend[ri], self.sort.tres) # build them up
+            ts.update(spikets - spikes.t[ri]) # timepoints wrt spike time, not absolute
         chans = np.asarray(list(chans))
         ts = np.asarray(list(ts))
         chans.sort() # Neuron's chans are a sorted union of chans of all its member spikes
@@ -605,15 +605,14 @@ class Neuron(object):
         nspikes = np.zeros(shape, dtype=np.uint32) # nspikes that have contributed to each point in data
         for ri in ris:
             wave = self.sort.get_wave(ri)
-            #spikes[ri].wave = wave # bind to spike
             wavedata = wave.data
-            det = spikes[ri].detection.detector
-            spikechans = det.chans[spikes[ri].chanis]
-            spikets = np.arange(spikes[ri].t0, spikes[ri].tend, self.sort.tres)
+            nchans = spikes.nchans[ri]
+            spikechans = spikes.chans[ri, :nchans]
+            spikets = np.arange(spikes.t0[ri], spikes.tend[ri], self.sort.tres)
             # get chan indices into chans corresponding to spikechans, chans is a superset of spikechans
             chanis = chans.searchsorted(spikechans)
             # get timepoint indices into ts corresponding to wave.ts timepoints relative to their spike time
-            tis = ts.searchsorted(spikets - spikes[ri].t)
+            tis = ts.searchsorted(spikets - spikes.t[ri])
             # there must be an easier way of doing the following:
             rowis = np.tile(False, len(chans))
             rowis[chanis] = True

@@ -958,6 +958,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             except AttributeError: continue
             self.AddCluster(cluster)
             cluster.spikeis = sort.apply_cluster(cluster)
+        sf.tree.RefreshItems() # make children of each neuron show up in tree
         if cluster:
             self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
             self.notebook.SetSelection(2) # switch to the cluster pane
