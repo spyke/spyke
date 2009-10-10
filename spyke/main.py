@@ -646,7 +646,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             allspikeis = sort.spikes.id
             #allspikeis.sort() # spikes recarray is always sorted by id
             delris = allspikeis.searchsorted(det.spikeis) # row indices into sort.spikes of detection's spikes to delete
-            if (allspikeis[delris] != -1).any():
+            if (sort.spikes.nid[delris] != -1).any():
                 dlg = wx.MessageDialog(self,
                                        "Spikes in detection %d are neuron members.\n"
                                        "Delete detection %d and all its spikes anyway?" % (det.id, det.id),
@@ -668,8 +668,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 try:
                     neuron.spikeis.remove(delspikes.id[delrii]) # remove spike from its Neuron
                 except KeyError: import pdb; pdb.set_trace()
-            # overwrite sort.spikes
-            sort.spikes = sort.spikes[keepris].copy()
+            # overwrite sort.spikes and sort.wavedata
+            sort.spikes = sort.spikes[keepris]
+            sort.wavedata = sort.wavedata[keepris]
             # remove from sort's detections dict
             del sort.detections[det.id]
             # remove from detection listctrl

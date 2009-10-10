@@ -14,15 +14,7 @@ RECENT:
     - speed up neuron.update_wave
         - tough to do, think big problem is that it's loading wave data for all spikes from disk - solution is to implement more efficient way of keeping all spike wavedata in memory
 
-    - use single 3D wavedata array - 1GB is enough for 1e6 spikes
-        - optionally save it to .sort npz file
-
     - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
-
-    - do 2 detections, save, open .sort with no .srf delete 1st detection, waveforms of the remaining one seem to be a bit messed - at the very least, some chans show up as flatline - this is obviously an indexing problem - I suppose the corresponding rows in .wavedata need to be deleted as well, or something has to deal with the fact that the effective rows in wavedata no longer match the rows in the .spikes recarray
-
-    - consider saving .resample as array to npy file to disk (would have to do this in increments somehow), and then memmapping it back with np.load() - can you open a .npy file in memmap mode for writing, and then keep appending to it, as in calling its resize method and filling it in with the new values?
-        - I think memmapping requires a large contig address space, so max of 1GB on winxp, which isn't enough for a .resample file
 
     - detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
 
