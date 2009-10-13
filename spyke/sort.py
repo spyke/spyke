@@ -95,7 +95,7 @@ class Sort(object):
         # don't pickle the stream, cuz it relies on an open .srf file
         # spikes and wavedata arrays are (potentially) saved separately
         # all the others can be regenerated from the spikes array
-        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'Xcols', 'spikes', 'wavedata']:
+        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'Xcols', 'spikes', 'wavedatas', 'wavedatascumsum']:
             try: del d[attr]
             except KeyError: pass
         return d

@@ -917,6 +917,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         npzfile = np.load(f)
         sort = npzfile['sort'].item() # this line calls sort.__setstate__?
         self.sort = sort
+        sortProbeType = type(sort.probe)
+        if self.hpstream != None:
+            streamProbeType = type(self.hpstream.probe)
+            if sortProbeType != streamProbeType:
+                self.CreateNewSort() # overwrite the failed Sort
+                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
+                                   % (sortProbeType, streamProbeType))
         spikes = npzfile['spikes']
         # convert spikes from ndarray to recarray that returns records with attrib access
         sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
@@ -928,15 +935,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 sort.wavedatas.append(npzfile['wavedata%d' % wavedatai]) # load i'th wavedata array if it's there
                 wavedatai += 1 # inc for next loop
             except KeyError: break
+        sort.update_wavedatacumsum()
         f.close()
         print('done opening sort file, took %.3f sec' % (time.clock()-t0))
-        sortProbeType = type(sort.probe)
-        if self.hpstream != None:
-            streamProbeType = type(self.hpstream.probe)
-            if sortProbeType != streamProbeType:
-                self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
-                                   % (sortProbeType, streamProbeType))
         sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
