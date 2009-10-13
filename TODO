@@ -1,5 +1,9 @@
 RECENT:
 
+    - test mem usage for huge detections
+        - if run out of contig space for resizing wavedata, create another one, store them both in a list called sort.wavedatas, create a method called sort.get_wavedata(ris) that checks each ri to see if it falls within the first, if not, subtract len(wavedatas[0]) from it and try indexing again into the 2nd, if not, subtract len(wavedatas[1]) from it and try again into the 3rd...
+        - then you have to replace all calls to sort.wavedata with sort.get_wavedata (don't think there are too many), and replace all setting of sort.wavedata with setting of sort.wavedatas (or appending to them)
+        - deleting a detection could be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)
@@ -8,10 +12,8 @@ RECENT:
         - fill the same gap with zeros in .resample file
             - find ctsrecord duration that's the most frequent
 
-    - delete unnecessary tree handling code that's been commented out
-
     - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
-        - maybe soln is to turn off rasters every time you delete a sort, and then enable them every time you restore from a .sort?
+        - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
 
     - detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
 
@@ -24,7 +26,7 @@ RECENT:
 
     - selecting a block of spikes in list doesn't plot them - might be due to bugfixes in latest wx, might not need my hack workarounds anymore?
 
-    - when deleting a detection, if ndetections == 0, reset _detid = 0
+    - when deleting a detection, if ndetections == 0, reset _detid = 0. Maybe do same for nids and sids as well?
 
     - clear/update neuron mean waveform and replot it immediately (if currently plotted), when updating its cluster members, ie moving/modifying the cluster and then hitting "c"
         - close .srf file, open test.sort with no waves in it, modify cluster, apply it, yet mean neuron waveform remains unchanged from when it was last calculated when the .srf file was open

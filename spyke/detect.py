@@ -32,7 +32,7 @@ TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st pha
 
 def get_wave(obj, sort=None):
     """Return object's waveform, whether a spike record or a neuron,
-    taken from sort.wavedata or sort.stream"""
+    taken from sort.wavedatas or sort.stream"""
     assert sort != None
     if type(obj) != np.rec.record: # it's a Neuron
         n = obj
@@ -574,7 +574,6 @@ class Detector(object):
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
     DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout
-    DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array to
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between phases of a single spike, us
@@ -590,7 +589,7 @@ class Detector(object):
     def __init__(self, sort, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
-                 trange=None, maxnspikes=None, maxnchansperspike=None, wavedatanspikes=None,
+                 trange=None, maxnspikes=None, maxnchansperspike=None,
                  blocksize=None, slock=None, dt=None, randomsample=None,
                  keepspikewavesondetect=None,
                  extractparamsondetect=None):
@@ -608,7 +607,6 @@ class Detector(object):
         self.trange = trange or (sort.stream.t0, sort.stream.tend)
         self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes
         self.maxnchansperspike = maxnchansperspike or self.DEFMAXNCHANSPERSPIKE
-        self.wavedatanspikes = wavedatanspikes or self.DEFWAVEDATANSPIKES
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.slock = slock or self.DEFSLOCK
         self.dt = dt or self.DEFDT
@@ -637,11 +635,10 @@ class Detector(object):
         """
         self.calc_chans()
         sort = self.sort
-        try: sort.wavedata
-        except AttributeError: # init it
-            spikewidth = (self.tw[1] - self.tw[0]) / 1000000 # sec
-            nt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
-            sort.wavedata = np.empty((self.wavedatanspikes, self.maxnchansperspike, nt), dtype=np.int16)
+        spikewidth = (self.tw[1] - self.tw[0]) / 1000000 # sec
+        nt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
+        try: sort.wavedatas
+        except AttributeError: sort.init_wavedata(nchans=self.maxnchansperspike, nt=nt)
 
         t0 = time.clock()
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
@@ -946,12 +943,7 @@ class Detector(object):
             wavedata = wave.data[chanis, t0i:tendi]
             if self.keepspikewavesondetect: # keep spike waveform for later use
                 totalnspikes = sort.nspikes + self.nspikes + nspikes
-                if totalnspikes > len(sort.wavedata)-1: # expand sort.wavedata
-                    shape = list(sort.wavedata.shape) # allows assignment
-                    shape[0] += self.wavedatanspikes
-                    print('resizing wavedata to %r' % shape)
-                    sort.wavedata.resize(shape, refcheck=False)
-                sort.wavedata[totalnspikes, 0:nchans, 0:len(ts)] = wavedata
+                sort.save_wavedata(totalnspikes, wavedata)
             if self.extractparamsondetect:
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)

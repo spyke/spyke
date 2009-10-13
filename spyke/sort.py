@@ -48,6 +48,7 @@ class Sort(object):
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single pickled Sort object"""
     SAVEWAVES = True # save each spike's .wave to .sort file?
+    DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
     def __init__(self, detector=None, stream=None):
         self.__version__ = 0.1
         self.detector = detector # this Sort's current Detector object
@@ -178,6 +179,59 @@ class Sort(object):
         spikes = self.spikes[ris]
         return spikes
 
+    def init_wavedata(self, nchans=None, nt=None):
+        self.wavedatas = []
+        self.wavedatanchans = nchans
+        self.wavedatant = nt
+        self.append_wavedata()
+        self.update_wavedatacumsum()
+
+    def append_wavedata(self):
+        nspikes = self.DEFWAVEDATANSPIKES
+        nchans = self.wavedatanchans
+        nt = self.wavedatant
+        self.wavedatas.append(np.empty((nspikes, nchans, nt), dtype=np.int16))
+
+    def update_wavedatacumsum(self):
+        """Call this every time self.wavedatas changes length, or any of its contained
+        wavedata arrays changes length"""
+        self.wavedatascumsum = np.asarray([ len(wd) for wd in self.wavedatas ]).cumsum() # update
+
+    def get_wavedata(self, ris):
+        # first figure out which array in wavedatas the row index ri corresponds to
+        ris = toiter(ris)
+        wavedatais = self.wavedatascumsum.searchsorted(ris, side='right')
+        nchans = self.wavedatanchans
+        nt = self.wavedatant
+        returnwavedata = np.empty((len(wavedatais), nchans, nt), dtype=np.int16)
+        for i, (ri, wavedatai) in enumerate(zip(ris, wavedatais)):
+            wd = self.wavedatas[wavedatai]
+            ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
+            returnwavedata[i] = wd[ri]
+        return returnwavedata.squeeze() # remove potential singleton 3rd dimension
+
+    def save_wavedata(self, ri, wavedata):
+        # first figure out which array in wavedatas the row index ri corresponds to
+        wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
+        if wavedatai > len(self.wavedatas)-1: # out of range of all wavedata arrays
+            try:
+                # resize last one
+                wd = self.wavedatas[-1]
+                shape = list(wd.shape) # allows assignment
+                shape[0] += self.DEFWAVEDATANSPIKES
+                print('resizing wavedata to %r' % shape)
+                wd.resize(shape, refcheck=False)
+            except MemoryError: # not enough contig memory to resize that one
+                # append new wavedata array
+                self.append_wavedata()
+            self.update_wavedatacumsum()
+            wavedatai = self.wavedatascumsum.searchsorted(ri, side='right') # update
+        # now do the actual assignment
+        wd = self.wavedatas[wavedatai]
+        ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
+        savenchans, savent = wavedata.shape
+        wd[ri, 0:savenchans, 0:savent] = wavedata
+
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes recarray row ri"""
         spikes = self.spikes
@@ -190,7 +244,7 @@ class Sort(object):
         t0 = spikes.t0[ri]
         tend = spikes.tend[ri]
         try:
-            wavedata = self.wavedata[ri]
+            wavedata = self.get_wavedata(ri)
             ts = np.arange(t0, tend, self.tres) # build them up
             # only include data relevant to this spike
             wavedata = wavedata[0:len(chans), 0:len(ts)]

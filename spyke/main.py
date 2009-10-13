@@ -670,7 +670,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 except KeyError: import pdb; pdb.set_trace()
             # overwrite sort.spikes and sort.wavedata
             sort.spikes = sort.spikes[keepris]
-            sort.wavedata = sort.wavedata[keepris]
+            sort.wavedata = sort.get_wavedata(keepris)
             # remove from sort's detections dict
             del sort.detections[det.id]
             # remove from detection listctrl
@@ -921,8 +921,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # convert spikes from ndarray to recarray that returns records with attrib access
         sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
         sort.update_spike_lists()
-        try: sort.wavedata = npzfile['wavedata'] # load wavedata if it's there
-        except KeyError: pass
+        sort.wavedatas = []
+        wavedatai = 0
+        while True:
+            try:
+                sort.wavedatas.append(npzfile['wavedata%d' % wavedatai]) # load i'th wavedata array if it's there
+                wavedatai += 1 # inc for next loop
+            except KeyError: break
         f.close()
         print('done opening sort file, took %.3f sec' % (time.clock()-t0))
         sortProbeType = type(sort.probe)
@@ -990,7 +995,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f = open(fname, 'wb')
         objs = {'sort': sort, 'spikes': sort.spikes}
         if sort.SAVEWAVES:
-            objs['wavedata'] = sort.wavedata[:sort.nspikes]
+            nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
+            for i, wavedata in enumerate(sort.wavedatas):
+                objs['wavedata%d' % i] = wavedata[:nspikes]
+                nspikes -= len(wavedata)
         core.savez(f, compress=True, **objs)
         f.close()
         print('done saving sort file, took %.3f sec' % (time.clock()-t0))
