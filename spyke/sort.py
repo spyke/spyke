@@ -206,7 +206,8 @@ class Sort(object):
             ri = ris[0]
             wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
             wd = self.wavedatas[wavedatai]
-            ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
+            if wavedatai > 0:
+                ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
             return wd[ri]
         # len(ris) > 1
         # first figure out which arrays in wavedatas the row indices ris correspond to
@@ -220,8 +221,10 @@ class Sort(object):
         endis = wavedatais.searchsorted(uniquewavedatais, side='right')
         slicedwavedatas = []
         for wavedatai, starti, endi in zip(uniquewavedatais, startis, endis):
-            localris = ris[starti:endi] - self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
+            localris = ris[starti:endi]
             wd = self.wavedatas[wavedatai]
+            if wavedatai > 0:
+                 localris -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
             slicedwavedatas.append(wd[localris])
         return np.concatenate(slicedwavedatas)
         # TODO:  potentially remove singleton 3rd dimension????
@@ -267,7 +270,7 @@ class Sort(object):
             # only include data relevant to this spike
             wavedata = wavedata[0:len(chans), 0:len(ts)]
             return WaveForm(data=wavedata, ts=ts, chans=chans)
-        except (IndexError, AttributeError): pass
+        except AttributeError: pass
 
         # try getting it from the stream
         if self.stream == None:
