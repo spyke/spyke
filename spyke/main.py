@@ -915,8 +915,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('opening sort file %r' % fname)
         t0 = time.clock()
         f = open(fname, 'rb')
-        npzfile = np.load(f)
-        sort = npzfile['sort'].item() # this line calls sort.__setstate__?
+        sort, spikes, wavedatas = self.read_sort_file(f)
         self.sort = sort
         sortProbeType = type(sort.probe)
         if self.hpstream != None:
@@ -925,18 +924,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.CreateNewSort() # overwrite the failed Sort
                 raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
                                    % (sortProbeType, streamProbeType))
-        spikes = npzfile['spikes']
         # convert spikes from ndarray to recarray that returns records with attrib access
         sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
         sort.update_spike_lists()
-        sort.wavedatas = []
-        wavedatai = 0
-        while True:
-            try:
-                sort.wavedatas.append(npzfile['wavedata%d' % wavedatai]) # load i'th wavedata array if it's there
-                wavedatai += 1 # inc for next loop
-            except KeyError: break
-        sort.update_wavedatacumsum()
+        if wavedatas != []:
+            sort.wavedatas = wavedatas
+            sort.update_wavedatacumsum()
         f.close()
         print('done opening sort file, took %.3f sec' % (time.clock()-t0))
         sort.stream = self.hpstream # restore missing stream object to Sort
@@ -978,14 +971,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('done opening sort file')
 
     def SaveSortFile(self, fname):
-        """Save sort to a .sort file.
-        Don't bother calling update_detector() on save,
-        only really needed and useful right after a search, plus any inadvertent
-        changes to detector via the GUI would mislead one to conclude those
-        were the settings used that resulted in the detected spikes. However,
-        any changes you make to detector at the command line will be saved,
-        regardless of when you searched, so you better know what you're doing
-        when at the command line"""
+        """Save sort to a .sort file"""
         sort = self.sort
         try: sort.spikes
         except AttributeError: raise RuntimeError("Sort has no spikes to save")
@@ -997,15 +983,40 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         f = open(fname, 'wb')
         objs = {'sort': sort, 'spikes': sort.spikes}
         if sort.SAVEWAVES:
+            wavedatas = []
             nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
-            for i, wavedata in enumerate(sort.wavedatas):
-                objs['wavedata%d' % i] = wavedata[:nspikes]
+            for wavedata in sort.wavedatas:
+                wavedatas.append(wavedata[:nspikes])
                 nspikes -= len(wavedata)
-        core.savez(f, compress=True, **objs)
+            objs['wavedatas'] = wavedatas
+        self.write_sort_file(f, **objs)
         f.close()
         print('done saving sort file, took %.3f sec' % (time.clock()-t0))
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
+
+    def read_sort_file(self, f):
+        """Read Sort object, and spike and wavedata arrays from a .sort file,
+        in that order. Each is read in using the .npy format.
+        A .sort file can have any number of wavedata arrays"""
+        sort = np.load(f).item() # pull sort object out of array
+        spikes = np.load(f)
+        wavedatas = []
+        while True:
+            try: wavedatas.append(np.load(f))
+            except IOError: break # reached EOF, or maybe ValueError?
+        return sort, spikes, wavedatas
+
+    def write_sort_file(self, f, sort=None, spikes=None, wavedatas=[]):
+        """Write Sort object, and spike and wavedata arrays to a .sort file,
+        in that order.  Each is written out using the .npy format.
+        A .sort file can have any number of wavedata arrays"""
+        assert sort != None
+        assert spikes != None
+        np.save(f, sort)
+        np.save(f, spikes)
+        for wavedata in wavedatas:
+            np.save(f, wavedata)
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""
