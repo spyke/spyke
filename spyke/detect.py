@@ -573,7 +573,7 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout
+    DEFMAXNCHANSPERSPIKE = 9 # overrides spatial lockout
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between phases of a single spike, us
@@ -704,8 +704,8 @@ class Detector(object):
             #chan = self.dm.chans[chani]
             #chans = self.dm.chans[chanis]
             #self.nbhd[chan] = chans
-
         self.maxnchansperspike = min(self.maxnchansperspike, maxnchansperspike)
+
         for detection in sort.detections.values():
             det = detection.detector
             if self.maxnchansperspike != det.maxnchansperspike:

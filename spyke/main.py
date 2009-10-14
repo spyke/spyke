@@ -4,7 +4,6 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
-import numpy as np
 import wx
 import wx.html
 import wx.py
@@ -13,6 +12,8 @@ import sys
 import time
 import datetime
 import gc
+
+import numpy as np
 
 import spyke
 from spyke import core, surf, detect, extract

@@ -12,6 +12,11 @@ RECENT:
         - fill the same gap with zeros in .resample file
             - find ctsrecord duration that's the most frequent
 
+    - replace unnecesary use of list(set(array)) with np.unique(array)
+
+    - add some Sort method that restores the .wavedatas given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
+        - something like Sort.restore_wavedatas()
+
     - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
         - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
 

@@ -198,22 +198,39 @@ class Sort(object):
         self.wavedatascumsum = np.asarray([ len(wd) for wd in self.wavedatas ]).cumsum() # update
 
     def get_wavedata(self, ris):
-        # first figure out which array in wavedatas the row index ri corresponds to
+        """Get wave data, potentially spread across multiple wavedata 3D arrays
+        in .wavedatas list, corresponding to ris. Returns wavedatas in order of
+        sorted ris, not necessarily in original ris order"""
         ris = toiter(ris)
-        wavedatais = self.wavedatascumsum.searchsorted(ris, side='right')
-        nchans = self.wavedatanchans
-        nt = self.wavedatant
-        returnwavedata = np.empty((len(wavedatais), nchans, nt), dtype=np.int16)
-        for i, (ri, wavedatai) in enumerate(zip(ris, wavedatais)):
+        if len(ris) == 1: # optimize for this special case
+            ri = ris[0]
+            wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
             wd = self.wavedatas[wavedatai]
             ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
-            returnwavedata[i] = wd[ri]
-        return returnwavedata.squeeze() # remove potential singleton 3rd dimension
+            return wd[ri]
+        # len(ris) > 1
+        # first figure out which arrays in wavedatas the row indices ris correspond to
+        ris.sort() # make sure they're sorted, no guarantee the results come out in the original order
+        wavedatais = self.wavedatascumsum.searchsorted(ris, side='right') # these are in sorted order
+        #nchans = self.wavedatanchans
+        #nt = self.wavedatant
+        #returnwavedata = np.empty((len(wavedatais), nchans, nt), dtype=np.int16) # TODO: this is quite slow and unnecesary?
+        uniquewavedatais = np.unique(wavedatais) # also sorted
+        startis = wavedatais.searchsorted(uniquewavedatais, side='left')
+        endis = wavedatais.searchsorted(uniquewavedatais, side='right')
+        slicedwavedatas = []
+        for wavedatai, starti, endi in zip(uniquewavedatais, startis, endis):
+            localris = ris[starti:endi] - self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
+            wd = self.wavedatas[wavedatai]
+            slicedwavedatas.append(wd[localris])
+        return np.concatenate(slicedwavedatas)
+        # TODO:  potentially remove singleton 3rd dimension????
 
     def save_wavedata(self, ri, wavedata):
         # first figure out which array in wavedatas the row index ri corresponds to
         wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
         if wavedatai > len(self.wavedatas)-1: # out of range of all wavedata arrays
+            '''
             try:
                 # resize last one
                 wd = self.wavedatas[-1]
@@ -222,8 +239,9 @@ class Sort(object):
                 print('resizing wavedata to %r' % shape)
                 wd.resize(shape, refcheck=False)
             except MemoryError: # not enough contig memory to resize that one
-                # append new wavedata array
-                self.append_wavedata()
+            '''
+            # append new wavedata array
+            self.append_wavedata()
             self.update_wavedatacumsum()
             wavedatai = self.wavedatascumsum.searchsorted(ri, side='right') # update
         # now do the actual assignment
