@@ -455,7 +455,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         clusters = toiter(clusters)
         cf = self.frames['cluster']
         for cluster in clusters:
-            ris = self.sort.spikes.id.searchsorted(cluster.spikeis)
+            ris = self.sort.spikes['id'].searchsorted(cluster.spikeis)
             neuron = cluster.neuron
             cf.glyph.mlab_source.scalars[ris] = neuron.id % len(CMAP)
         t0 = time.clock()
@@ -467,7 +467,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
         Don't forget to call cf.glyph.mlab_source.update() after calling this"""
         cf = self.frames['cluster']
-        ris = self.sort.spikes.id.searchsorted(spikeis)
+        ris = self.sort.spikes['id'].searchsorted(spikeis)
         cf.glyph.mlab_source.scalars[ris] = np.tile(TRANSWHITEI, len(ris))
 
     def GetClusterIndex(self):
@@ -644,10 +644,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for det in selectedDetections:
             # check if any of this detection's spikes belong to a neuron
             result = None
-            allspikeis = sort.spikes.id
+            allspikeis = sort.spikes['id']
             #allspikeis.sort() # spikes recarray is always sorted by id
             delris = allspikeis.searchsorted(det.spikeis) # row indices into sort.spikes of detection's spikes to delete
-            if (sort.spikes.nid[delris] != -1).any():
+            if (sort.spikes['nid'][delris] != -1).any():
                 dlg = wx.MessageDialog(self,
                                        "Spikes in detection %d are neuron members.\n"
                                        "Delete detection %d and all its spikes anyway?" % (det.id, det.id),
@@ -662,12 +662,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             keepris = allspikeis.searchsorted(keepspikeis)
             delspikes = sort.spikes[delris] # returns a recarray, doesn't generate a bunch of records I think, so not slow?
             # which about-to-be-deleted spikes belong to a neuron?
-            delriis, = np.where(delspikes.nid != -1)
+            delriis, = np.where(delspikes['nid'] != -1)
             for delrii in delriis:
-                nid = delspikes.nid[delrii]
+                nid = delspikes['nid'][delrii]
                 neuron = sort.neurons[nid]
                 try:
-                    neuron.spikeis.remove(delspikes.id[delrii]) # remove spike from its Neuron
+                    neuron.spikeis.remove(delspikes['id'][delrii]) # remove spike from its Neuron
                 except KeyError: import pdb; pdb.set_trace()
             # overwrite sort.spikes and sort.wavedata
             sort.spikes = sort.spikes[keepris]

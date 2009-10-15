@@ -140,8 +140,8 @@ class Sort(object):
     def update_spike_lists(self):
         """Update self.st sorted array of all spike times, ris_by_time array,
         and self.uris list containing row indices of unsorted spikes"""
-        st = self.spikes.t # all spike times
-        sids = self.spikes.id # all spike ids
+        st = self.spikes['t'] # all spike times
+        sids = self.spikes['id'] # all spike ids
         # self.st and self.ris_by_time are required for quick raster plotting
         # can't assume spikes come out of recarray sorted in time
         # (detections may not be in temporal order)
@@ -152,7 +152,7 @@ class Sort(object):
     def update_uris(self):
         """Update uris, which is an array of recarray indices of unsorted spikes,
         used by spike virtual listctrl"""
-        nids = self.spikes.nid
+        nids = self.spikes['nid']
         self.uris, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
         # order it by .uris_sorted_by and .uris_reversed
         if self.uris_sorted_by != 't': self.sort_uris()
@@ -259,11 +259,11 @@ class Sort(object):
         ri = int(ri) # make sure it isn't stuck in a numpy scalar
 
         # try self.wavedata ndarray
-        chan = spikes.chan[ri]
-        nchans = spikes.nchans[ri]
-        chans = spikes.chans[ri, :nchans]
-        t0 = spikes.t0[ri]
-        tend = spikes.tend[ri]
+        chan = spikes['chan'][ri]
+        nchans = spikes['nchans'][ri]
+        chans = spikes['chans'][ri, :nchans]
+        t0 = spikes['t0'][ri]
+        tend = spikes['tend'][ri]
         try:
             wavedata = self.get_wavedata(ri)
             ts = np.arange(t0, tend, self.tres) # build them up
@@ -276,7 +276,7 @@ class Sort(object):
         if self.stream == None:
             raise RuntimeError("No stream open, can't get wave for %s %d" %
                                (spikes[ri], spikes[ri].id))
-        detid = spikes.detid[ri]
+        detid = spikes['detid'][ri]
         det = self.detections[detid].detector
         if det.srffname != self.stream.srffname:
             msg = ("Spike %d was extracted from .srf file %s.\n"
@@ -395,7 +395,7 @@ class Sort(object):
         #assert len(i) > 0, "no points fall within the ellipsoid"
         #Xin = X[i] # pick out those points
         #spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
-        spikeis = self.spikes.id[ris]
+        spikeis = self.spikes['id'][ris]
         return spikeis
     '''
     def get_component_matrix(self, dims=None, weighting=None):
@@ -659,16 +659,16 @@ class Neuron(object):
             #self.wave = WaveForm() # empty waveform
             #return self.wave
         spikeis = np.asarray(list(self.spikeis))
-        ris = spikes.id.searchsorted(spikeis)
+        ris = spikes['id'].searchsorted(spikeis)
 
         t0 = time.clock()
         # build up union of chans and relative timepoints of all member spikes
         chans, ts = set(), set()
         for ri in ris:
-            nchans = spikes.nchans[ri]
-            chans.update(spikes.chans[ri, :nchans])
-            spikets = np.arange(spikes.t0[ri], spikes.tend[ri], self.sort.tres) # build them up
-            ts.update(spikets - spikes.t[ri]) # timepoints wrt spike time, not absolute
+            nchans = spikes['nchans'][ri]
+            chans.update(spikes['chans'][ri, :nchans])
+            spikets = np.arange(spikes['t0'][ri], spikes['tend'][ri], self.sort.tres) # build them up
+            ts.update(spikets - spikes['t'][ri]) # timepoints wrt spike time, not absolute
         chans = np.asarray(list(chans))
         ts = np.asarray(list(ts))
         chans.sort() # Neuron's chans are a sorted union of chans of all its member spikes
@@ -684,13 +684,13 @@ class Neuron(object):
         for ri in ris:
             wave = self.sort.get_wave(ri)
             wavedata = wave.data
-            nchans = spikes.nchans[ri]
-            spikechans = spikes.chans[ri, :nchans]
-            spikets = np.arange(spikes.t0[ri], spikes.tend[ri], self.sort.tres)
+            nchans = spikes['nchans'][ri]
+            spikechans = spikes['chans'][ri, :nchans]
+            spikets = np.arange(spikes['t0'][ri], spikes['tend'][ri], self.sort.tres)
             # get chan indices into chans corresponding to spikechans, chans is a superset of spikechans
             chanis = chans.searchsorted(spikechans)
             # get timepoint indices into ts corresponding to wave.ts timepoints relative to their spike time
-            tis = ts.searchsorted(spikets - spikes.t[ri])
+            tis = ts.searchsorted(spikets - spikes['t'][ri])
             # there must be an easier way of doing the following:
             rowis = np.tile(False, len(chans))
             rowis[chanis] = True
@@ -945,7 +945,7 @@ class SortFrame(wxglade_gui.SortFrame):
         sort = self.sort
         selectedRows = self.list.GetSelections()
         ris = sort.uris[selectedRows]
-        sids = sort.spikes.id[ris]
+        sids = sort.spikes['id'][ris]
         remove_sids = [ sid for sid in self.list.lastSelectedIDs if sid not in sids ]
         add_sids = [ sid for sid in sids if sid not in self.list.lastSelectedIDs ]
         self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
@@ -959,7 +959,7 @@ class SortFrame(wxglade_gui.SortFrame):
         print('in OnListRightDown')
         pt = evt.GetPosition()
         row, flags = self.list.HitTest(pt)
-        sid = self.sort.spikes.id[self.sort.uris[row]]
+        sid = self.sort.spikes['id'][self.sort.uris[row]]
         print('spikeID is %r' % sid)
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
@@ -1205,14 +1205,14 @@ class SortFrame(wxglade_gui.SortFrame):
         If neuron is None, create a new one"""
         spikeis = toiter(spikeis)
         spikes = self.sort.spikes
-        ris = spikes.id.searchsorted(spikeis)
+        ris = spikes['id'].searchsorted(spikeis)
         createdNeuron = False
         if neuron == None:
             neuron = self.sort.create_neuron()
             #self.AddNeuron2Tree(neuron)
             #createdNeuron = True
         neuron.spikeis.update(spikeis) # update the set
-        spikes.nid[ris] = neuron.id
+        spikes['nid'][ris] = neuron.id
         self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
@@ -1239,7 +1239,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if type(spikeis) == set:
             spikeis = np.asarray(list(spikeis))
         spikes = self.sort.spikes
-        ris = spikes.id.searchsorted(spikeis)
+        ris = spikes['id'].searchsorted(spikeis)
         for ri, si in zip(ris, spikeis):
             # add spike to tree, save its itemID
             itemID = self.tree.AppendItem(parent, 's'+str(si))
@@ -1256,12 +1256,8 @@ class SortFrame(wxglade_gui.SortFrame):
             return # nothing to do
         spikes = self.sort.spikes
         neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
-        ris = spikes.id.searchsorted(spikeis)
-        spikes.nid[ris] = -1 # unbind neuron id of spikeis in recarray
-        #itemIDs = spikes.itemID[ris]
-        #for itemID in itemIDs:
-        #    self.tree.Delete(itemID) # update tree
-        #spikes.itemID[ris] = None # no longer applicable
+        ris = spikes['id'].searchsorted(spikeis)
+        spikes['nid'][ris] = -1 # unbind neuron id of spikeis in recarray
         self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
@@ -1276,7 +1272,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         selected_uris = self.sort.uris[selected_rows]
-        spikeis = self.sort.spikes.id[selected_uris]
+        spikeis = self.sort.spikes['id'][selected_uris]
         neuron = self.MoveSpikes2Neuron(spikeis, neuron) # if neuron was None, it isn't any more
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
             self.UpdateItemsInPlot(['n'+str(neuron.id)]) # update its plot
@@ -1288,9 +1284,9 @@ class SortFrame(wxglade_gui.SortFrame):
                 id = int(item[1:])
                 sort = self.sort
                 if item[0] == 's': # it's a spike
-                    ri, = np.where(sort.spikes.id == id) # returns an array
+                    ri, = np.where(sort.spikes['id'] == id) # returns an array
                     ri = int(ri)
-                    nid = sort.spikes.nid[ri]
+                    nid = sort.spikes['nid'][ri]
                     neuron = sort.neurons[nid]
                     self.MoveSpikes2List(neuron, id)
                     if len(neuron.spikeis) == 0:
@@ -1308,9 +1304,9 @@ class SortFrame(wxglade_gui.SortFrame):
             id = int(item[1:])
             sort = self.sort
             if item[0] == 's': # it's a spike, get its neuron
-                ri, = np.where(sort.spikes.id == id) # returns an array
+                ri, = np.where(sort.spikes['id'] == id) # returns an array
                 ri = int(ri)
-                nid = sort.spikes.nid[ri]
+                nid = sort.spikes['nid'][ri]
                 return sort.neurons[nid]
             else: # it's a neuron
                 return sort.neurons[id]

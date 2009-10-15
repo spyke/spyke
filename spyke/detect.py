@@ -43,7 +43,7 @@ def get_wave(obj, sort=None):
             return n.wave # return existing neuron waveform
     # it's a spike record
     s = obj
-    ri, = np.where(sort.spikes.id == s.id)
+    ri, = np.where(sort.spikes['id'] == s['id'])
     wave = sort.get_wave(ri)
     return wave
 
@@ -675,8 +675,8 @@ class Detector(object):
         #spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
         #spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
         # default -1 indicates no nid or detid is set as of yet, reserve 0 for actual ids
-        spikes.nid = -1
-        spikes.detid = -1
+        spikes['nid'] = -1
+        spikes['detid'] = -1
         info('\nfound %d spikes in total' % len(spikes))
         info('inside .detect() took %.3f sec' % (time.clock()-t0))
         return spikes
@@ -919,9 +919,9 @@ class Detector(object):
             # attribs as possible with the most compact representation possible.
             # Saving numpy scalars is less efficient than using basic Python types
             s = spikes[nspikes]
-            s.t = wave.ts[ti]
+            s['t'] = wave.ts[ti]
             try:
-                assert cutrange[0] <= s.t <= cutrange[1], 'spike time %r falls outside cutrange for this searchblock call, discarding' % s.t # use %r since s.t is np.int64 and %d gives TypeError if > 2**31
+                assert cutrange[0] <= s['t'] <= cutrange[1], 'spike time %r falls outside cutrange for this searchblock call, discarding' % s['t'] # use %r since s.t is np.int64 and %d gives TypeError if > 2**31
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
                 if DEBUG: debug(message)
                 continue # skip to next event
@@ -929,15 +929,15 @@ class Detector(object):
             # assumption used later on, like in sort.get_wave() and Neuron.update_wave()
             ts = wave.ts[t0i:tendi]
             # use ts = np.arange(s.t0, s.tend, stream.tres) to reconstruct
-            s.t0, s.tend, s.nt = wave.ts[t0i], wave.ts[tendi], len(ts)
-            s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
-            s.dphase = ts[phase2ti] - ts[phase1ti] # in us
+            s['t0'], s['tend'], s['nt'] = wave.ts[t0i], wave.ts[tendi], len(ts)
+            s['phase1ti'], s['phase2ti'] = phase1ti, phase2ti # wrt t0i
+            s['dphase'] = ts[phase2ti] - ts[phase1ti] # in us
             #s.V1, s.V2 = V1, V2
             # maintain polarity, first convert from int16 to float to prevent overflow
-            s.Vpp = AD2uV(np.float32(V2) - np.float32(V1))
+            s['Vpp'] = AD2uV(np.float32(V2) - np.float32(V1))
             chans = self.chans[chanis]
             nchans = len(chans)
-            s.chan, s.chans[:nchans], s.nchans = chan, chans, nchans
+            s['chan'], s['chans'][:nchans], s['nchans'] = chan, chans, nchans
             # can't use chans = sort.detections[s.detid].detector.nbhd[s.chan]
             # since that ignores potentially locked out chans
             wavedata = wave.data[chanis, t0i:tendi]
@@ -948,9 +948,9 @@ class Detector(object):
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
-                s.x0, s.y0 = extractXY(wavedata, x, y, phase1ti, phase2ti)
+                s['x0'], s['y0'] = extractXY(wavedata, x, y, phase1ti, phase2ti)
 
-            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s.t, self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to 2nd phase of this spike
             #dphaseti = phase2ti - phase1ti
@@ -1121,6 +1121,6 @@ class Detection(object):
         nspikes = len(spikes)
         spikei0 = self.sort._sid
         self.spikeis = np.arange(spikei0, spikei0+nspikes) # generate IDs in one shot
-        spikes.id = self.spikeis # assign them to spikes recarray
-        spikes.detid = self.id
+        spikes['id'] = self.spikeis # assign them to spikes recarray
+        spikes['detid'] = self.id
         self.sort._sid += nspikes # inc for next unique Detection

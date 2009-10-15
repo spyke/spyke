@@ -2,7 +2,14 @@ RECENT:
 
     - plotting spikes is very slow in big detections - big delay between clicking and display
 
+    - switch from recarray to structured ndarray - think I've mostly switched from attrib access to dict style indexing anyway for speed
+        - would no longer need to do the change of view on sort.spikes restoration from .sort file
+        - numpy people recommend structured ndarrays over recarrays, especially for long-term support
+
     - Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
+        - first loop took 9.417 sec, 2nd loop took 48.399 sec for a cluster with 92358 spikes - this is way too slow
+
+    - tree is still really slow when expanding a neuron with 10s of 1000s of spikes - this is because it's not a true virtual tree like the virtual list is truly virtual - the tree populates all the children of all the currently expanded nodes, not just the currently visible children - that's cuz VirtualTree is implemented in Python - wx needs to do this at a lower level in C
 
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU limited operation
 

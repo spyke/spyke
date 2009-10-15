@@ -53,24 +53,24 @@ class Extractor(object):
         t0 = time.clock()
         for ri in np.arange(nspikes):
             wavedata = self.sort.get_wavedata(ri)
-            detid = spikes.detid[ri]
+            detid = spikes['detid'][ri]
             det = sort.detections[detid].detector
-            nchans = spikes.nchans[ri]
+            nchans = spikes['nchans'][ri]
             #nt = (spikes.tend[ri] - spikes.t0[ri]) // sort.tres
-            nt = spikes.nt[ri]
+            nt = spikes['nt'][ri]
             #try: assert len(np.arange(spikes.t0[ri], spikes.tend[ri], sort.tres)) == nt
             #except AssertionError: import pdb; pdb.set_trace()
             wavedata = wavedata[0:nchans, 0:nt]
-            chans = spikes.chans[ri, :nchans]
+            chans = spikes['chans'][ri, :nchans]
             chanis = det.chans.searchsorted(chans) # det.chans are always sorted
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
-            phase1ti = spikes.phase1ti[ri]
-            phase2ti = spikes.phase2ti[ri]
+            phase1ti = spikes['phase1ti'][ri]
+            phase2ti = spikes['phase2ti'][ri]
             # just x and y params for now
             x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti)
-            spikes.x0[ri] = x0
-            spikes.y0[ri] = y0
+            spikes['x0'][ri] = x0
+            spikes['y0'][ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
               (nspikes, self.XYmethod.lower(), time.clock()-t0))
 

@@ -1016,14 +1016,14 @@ class SortPanel(PlotPanel):
             width = NEURONLINEWIDTH
             obj.plt = plt # bind plot to neuron
         else: # it's a spike
-            ri, = np.where(sort.spikes.id == id) # returns an array
+            ri, = np.where(sort.spikes['id'] == id) # returns an array
             ri = int(ri)
             obj = sort.spikes[ri]
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
-            if obj.nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
+            if obj['nid'] != -1: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                try: colours = [COLOURDICT[obj.nid]]
+                try: colours = [COLOURDICT[obj['nid']]]
                 except: import pdb; pdb.set_trace()
             else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
@@ -1105,6 +1105,7 @@ class SortPanel(PlotPanel):
         """Update and draw a spike's/neuron's plot"""
         plt = self.used_plots[item]
         obj = plt.obj
+        # TODO: this line really only applies to Neurons - spike entries have no .wave field
         wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, obj.t)
         plt.show_chans(obj.wave.chans) # ensure all of obj's chans are visible
