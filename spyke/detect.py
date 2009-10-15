@@ -573,7 +573,7 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFMAXNCHANSPERSPIKE = 9 # overrides spatial lockout
+    DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between phases of a single spike, us
@@ -714,7 +714,7 @@ class Detector(object):
 
         self.SPIKEDTYPE = [('id', np.uint32), ('nid', np.int16), ('detid', np.uint8),
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
-                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
+                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64), ('nt', np.uint8),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
                            ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
@@ -929,7 +929,7 @@ class Detector(object):
             # assumption used later on, like in sort.get_wave() and Neuron.update_wave()
             ts = wave.ts[t0i:tendi]
             # use ts = np.arange(s.t0, s.tend, stream.tres) to reconstruct
-            s.t0, s.tend = wave.ts[t0i], wave.ts[tendi]
+            s.t0, s.tend, s.nt = wave.ts[t0i], wave.ts[tendi], len(ts)
             s.phase1ti, s.phase2ti = phase1ti, phase2ti # wrt t0i
             s.dphase = ts[phase2ti] - ts[phase1ti] # in us
             #s.V1, s.V2 = V1, V2

@@ -4,6 +4,8 @@ RECENT:
 
     - Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
 
+    - parameter extraction should be relatively easy to parallelize - it's a purely CPU limited operation
+
     - deleting a detection might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310

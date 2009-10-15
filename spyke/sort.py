@@ -268,7 +268,7 @@ class Sort(object):
             wavedata = self.get_wavedata(ri)
             ts = np.arange(t0, tend, self.tres) # build them up
             # only include data relevant to this spike
-            wavedata = wavedata[0:len(chans), 0:len(ts)]
+            wavedata = wavedata[0:nchans, 0:len(ts)]
             return WaveForm(data=wavedata, ts=ts, chans=chans)
         except AttributeError: pass
 

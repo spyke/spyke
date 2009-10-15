@@ -41,21 +41,38 @@ class Extractor(object):
         """Extract spike parameters, store them as spike attribs. Every time
         you do a new extraction, (re)create a new .params recarray with the right
         set of params in it"""
-        spikes = self.sort.spikes # recarray
-        if len(spikes) == 0:
+        sort = self.sort
+        spikes = sort.spikes # recarray
+        nspikes = len(spikes)
+        if nspikes == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
+        try: sort.wavedatas
+        except AttributeError:
+            raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
         print("Extracting parameters from spikes")
         t0 = time.clock()
-        for s in spikes:
-            wave = get_wave(s, self.sort.stream)
-            wavedata = wave.data
-            det = s.detection.detector
-            x = det.siteloc[s.chanis, 0] # 1D array (row)
-            y = det.siteloc[s.chanis, 1]
+        for ri in np.arange(nspikes):
+            wavedata = self.sort.get_wavedata(ri)
+            detid = spikes.detid[ri]
+            det = sort.detections[detid].detector
+            nchans = spikes.nchans[ri]
+            #nt = (spikes.tend[ri] - spikes.t0[ri]) // sort.tres
+            nt = spikes.nt[ri]
+            #try: assert len(np.arange(spikes.t0[ri], spikes.tend[ri], sort.tres)) == nt
+            #except AssertionError: import pdb; pdb.set_trace()
+            wavedata = wavedata[0:nchans, 0:nt]
+            chans = spikes.chans[ri, :nchans]
+            chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+            x = det.siteloc[chanis, 0] # 1D array (row)
+            y = det.siteloc[chanis, 1]
+            phase1ti = spikes.phase1ti[ri]
+            phase2ti = spikes.phase2ti[ri]
             # just x and y params for now
-            s.x0, s.y0 = self.extractXY(wavedata, x, y, s.phase1ti, s.phase2ti) # save as spike attribs
+            x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti)
+            spikes.x0[ri] = x0
+            spikes.y0[ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
-              (len(spikes), self.XYmethod.lower(), time.clock()-t0))
+              (nspikes, self.XYmethod.lower(), time.clock()-t0))
 
     def get_spatial_mean(self, wavedata, x, y, phase1ti, phase2ti):
         """Return weighted spatial mean of chans in spike according to their
