@@ -1,9 +1,10 @@
 RECENT:
 
-    - test mem usage for huge detections
-        - if run out of contig space for resizing wavedata, create another one, store them both in a list called sort.wavedatas, create a method called sort.get_wavedata(ris) that checks each ri to see if it falls within the first, if not, subtract len(wavedatas[0]) from it and try indexing again into the 2nd, if not, subtract len(wavedatas[1]) from it and try again into the 3rd...
-        - then you have to replace all calls to sort.wavedata with sort.get_wavedata (don't think there are too many), and replace all setting of sort.wavedata with setting of sort.wavedatas (or appending to them)
-        - deleting a detection could be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
+    - plotting spikes is very slow in big detections - big delay between clicking and display
+
+    - Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
+
+    - deleting a detection might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)
@@ -50,18 +51,7 @@ RECENT:
 
 GENERAL:
 
-- for spike in self.sort.spikes.values():
-     spike.update_waveform()
-
-    t = timeit.Timer('for spike in s.sorted_spikes: spike.update_wave(s.stream)', 'from __main__ import s')
-    t.timeit(1)
-    424.21932110020794
-
-    ... is really slow, I think because for each spike it loads 100 ms of data, interpolates it, grabs the spike's 1 ms x 9 chan window, throws the rest away, and repeats it for all 10s of thousands of spikes. Need to retain highpass records (and their interpolated data) at least for a while, so they can be reused when loading data from multiple spikes consecutively in time. Maybe use weakref somehow, so when too many are loaded, the gc cleans up the least used ones?
-    - this happens when extracting param values from detected spikes after restoring a .sort session that didn't have waveforms saved in it
-    - with "del record.data" commented out in core.Stream:243, timeit drops only very slightly to 412.45705476673595.
-    - related: add a File/Restore waveforms to the menu, leave it greyed out when not applicable
-    - realted: reduce number of chans included in a spike according to amount of signal on that signal, maybe based on median signal for that chan for entire file, or randomly sampled subset of the file
+- reduce number of chans included in a spike according to amount of signal on that signal, maybe based on median signal for that chan for entire file, or randomly sampled subset of the file
 
 - order colours consecutively according to cluster mean y location, to make neighbouring clusters in X-Y space less likely to be assigned the same colour
 

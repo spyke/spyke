@@ -661,6 +661,7 @@ class Neuron(object):
         spikeis = np.asarray(list(self.spikeis))
         ris = spikes.id.searchsorted(spikeis)
 
+        t0 = time.clock()
         # build up union of chans and relative timepoints of all member spikes
         chans, ts = set(), set()
         for ri in ris:
@@ -672,7 +673,9 @@ class Neuron(object):
         ts = np.asarray(list(ts))
         chans.sort() # Neuron's chans are a sorted union of chans of all its member spikes
         ts.sort() # ditto for timepoints
+        print('first loop took %.3f sec' % (time.clock()-t0))
 
+        t0 = time.clock()
         # take mean of chans of data from spikes with potentially different
         # chans and time windows wrt their spike
         shape = len(chans), len(ts)
@@ -703,6 +706,8 @@ class Neuron(object):
             # accumulate appropriate data points (add int16 to float32, keep as AD units)
             data[i] += wavedata.ravel()
             nspikes[i] += 1 # increment spike counts at appropriate data points
+        print('2nd loop took %.3f sec' % (time.clock()-t0))
+        t0 = time.clock()
         # some entries in nspikes can be 0 - this raises an 'invalid' error instead
         # of a div by 0 error because those same entries in data are also 0, so we
         # get 0/0. This can be dealt with by temporarily ignoring invalid errors
@@ -717,6 +722,7 @@ class Neuron(object):
         self.wave.ts = ts
         #print('neuron[%d].wave.chans = %r' % (self.id, chans))
         #print('neuron[%d].wave.ts = %r' % (self.id, ts))
+        print('mean calc took %.3f sec' % (time.clock()-t0))
         return self.wave
     '''
     def get_stdev(self):
