@@ -1279,8 +1279,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
         try: # if a spike was found
             spike = spikes[0]
-            self.seek(spike.t) # seek to it
-            print '%r' % spike
+            self.seek(spike['t']) # seek to it
+            print('%r' % spike)
         except IndexError: # if not, do nothing
             pass
 

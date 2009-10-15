@@ -73,7 +73,7 @@ class WaveForm(object):
     """Just a container for data, timestamps, and channels.
     Sliceable in time, and indexable in channel space. Only
     really used for convenient plotting. Everything else uses
-    the plain spike.wavedata 2D array, and related spike attribs"""
+    the sort.wavedatas 2D arrays, and related sort.spikes fields"""
     def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in AD, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
@@ -758,8 +758,8 @@ class SpykeTreeCtrl(wx.TreeCtrl):
         try: # make sure they're both neurons by checking for .spikes attrib
             obj1.spikes
             obj2.spikes
-            y01 = np.asarray([ spike.y0 for spike in obj1.spikes.values() ]).mean()
-            y02 = np.asarray([ spike.y0 for spike in obj2.spikes.values() ]).mean()
+            y01 = np.asarray([ spike['y0'] for spike in obj1.spikes.values() ]).mean()
+            y02 = np.asarray([ spike['y0'] for spike in obj2.spikes.values() ]).mean()
             '''
             # if we want to use maxchan instead of y0, need to work on neuron's mean waveform
             ycoord1 = self.SiteLoc[obj1.maxchan][1]

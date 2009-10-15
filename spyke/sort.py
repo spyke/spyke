@@ -249,7 +249,7 @@ class Sort(object):
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes struct array row ri"""
         spikes = self.spikes
-        ri = int(ri) # make sure it isn't stuck in a numpy scalar
+        #ri = int(ri) # make sure it isn't stuck in a numpy scalar
 
         # try self.wavedata ndarray
         chan = spikes['chan'][ri]
@@ -429,8 +429,8 @@ class Sort(object):
         n2sids = dict(zip(uniquecids, [ [] for i in range(nclusters) ]))
         s2nids = {} # spike ID to neuron ID mapping
         for spike, nid in zip(spikes, cids):
-            s2nids[spike.id] = nid
-            n2sids[nid].append(spike.id)
+            s2nids[spike['id']] = nid
+            n2sids[nid].append(spike['id'])
         return n2sids, s2nids
 
     def write_spc_input(self):
@@ -484,7 +484,7 @@ class Sort(object):
         f = open(r'C:\home\mspacek\Desktop\Work\SPC\Weizmann\spc_app\spc_app_input.txt', 'w')
         f.write('AFFX\tNAME\t')
         for spike in spikes:
-            f.write('s%d\t' % spike.id)
+            f.write('s%d\t' % spike['id'])
         f.write('\n')
         for parami, param in enumerate(['Vpp', 'dphase', 'x0', 'y0', 'sx', 'sy', 'theta']):
             f.write(param+'\t'+param+'\t')
@@ -942,7 +942,7 @@ class SortFrame(wxglade_gui.SortFrame):
         remove_sids = [ sid for sid in self.list.lastSelectedIDs if sid not in sids ]
         add_sids = [ sid for sid in sids if sid not in self.list.lastSelectedIDs ]
         self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
-        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
+        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ], ris=ris)
         self.list.lastSelectedIDs = sids # save for next time
 
     def OnListRightDown(self, evt):
@@ -1150,8 +1150,8 @@ class SortFrame(wxglade_gui.SortFrame):
         self.spikesortpanel.draw_refs()
         #self.chartsortpanel.draw_refs()
 
-    def AddItems2Plot(self, items):
-        self.spikesortpanel.addItems(items)
+    def AddItems2Plot(self, items, ris=None):
+        self.spikesortpanel.addItems(items, ris=ris)
         #self.chartsortpanel.addItems(items)
 
     def RemoveItemsFromPlot(self, items):

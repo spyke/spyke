@@ -27,7 +27,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MICRO, hex2cmap
+from spyke.core import MICRO, hex2cmap, toiter
 from spyke.detect import TW, get_wave
 
 SPIKELINEWIDTH = 1 # in points
@@ -241,20 +241,21 @@ class Raster(Plot):
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
 
     def update(self, spike, tref):
-        """Update lines data from spike.t and spike's chans"""
+        """Update lines data from spike['t'] and spike's chans"""
         self.spike = spike
-        spikechans = spike.chans[:spike.nchans]
+        nchans = spike['nchans']
+        spikechans = spike['chans'][:nchans]
         for chan in spikechans:
             try:
                 line = self.lines[chan]
             except KeyError:
                 continue # chan doesn't exist for this panel
             xpos, ypos = self.panel.pos[chan]
-            x = spike.t - tref + xpos
+            x = spike['t'] - tref + xpos
             chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
             ylims = ypos - chanheight/2, ypos + chanheight/2
             line.set_data([x, x], ylims) # update the line's x and y data
-            line.set_color(self.panel.vcolours[spike.chan]) # colour according to max chan
+            line.set_color(self.panel.vcolours[spike['chan']]) # colour according to max chan
             line.set_visible(True) # enable this chan for this spike
         notchans = self.chans.difference(spikechans)
         for notchan in notchans: # disable all chans not in this spike
@@ -265,7 +266,8 @@ class Raster(Plot):
         sort = self.panel.spykeframe.sort
         try:
             spike = self.spike
-            chans = spike.chans[:spike.nchans]
+            nchans = spike['nchans']
+            chans = spike['chans'][:nchans]
         except AttributeError: # no spike
             if enable == False:
                 chans = self.lines.keys() # disable all lines
@@ -984,7 +986,7 @@ class SortPanel(PlotPanel):
         self.qrplt = None
         self.background = None
 
-    def addItems(self, items):
+    def addItems(self, items, ris=None):
         """Add items (spikes/neurons) to self"""
         if items == []:
             return # do nothing
@@ -992,15 +994,21 @@ class SortPanel(PlotPanel):
             # before blitting this single item to screen, grab current buffer,
             # save as new background for quick restore if the next action is removal of this very same item
             self.background = self.copy_from_bbox(self.ax.bbox)
-            self.qrplt = self.addItem(items[0]) # add the single item, save reference to its plot
+            ris = toiter(ris)
+            self.qrplt = self.addItem(items[0], ri=ris[0]) # add the single item, save reference to its plot
             #print 'saved quick remove plot %r' % self.qrplt
         else:
             self.background = None
-            for item in items: # add all items
-                self.addItem(item)
+            # add all items
+            if ris != None:
+                for item, ri in zip(items, ris):
+                    self.addItem(item, ri=ri)
+            else:
+                for item in items:
+                    self.addItem(item)
         self.blit(self.ax.bbox)
 
-    def addItem(self, item):
+    def addItem(self, item, ri=None):
         """Put item in an available Plot, return the Plot"""
         if len(self.available_plots) == 0: # if we've run out of plots for additional items
             self.init_plots() # init another batch of plots
@@ -1017,30 +1025,30 @@ class SortPanel(PlotPanel):
             width = NEURONLINEWIDTH
             n.plt = plt # bind plot to neuron
             plt.n = n # bind neuron to plot
-            obj = n
+            wave = get_wave(n, sort=self.spykeframe.sort) # calls n.update_wave() if necessary
         else: # it's a spike
-            ri, = np.where(sort.spikes['id'] == id) # returns an array
-            ri = int(ri)
-            obj = sort.spikes[ri]
-            t = obj['t']
-            nid = obj['nid']
+            if ri == None: # it's probably a spike in the tree, not in the list
+                #ri, = np.where(sort.spikes['id'] == id) # returns an array
+                ri = sort.spikes['id'].searchsorted(id) # returns an array
+                ri = int(ri)
+            t = sort.spikes['t'][ri]
+            nid = sort.spikes['nid'][ri]
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             if nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                try: colours = [COLOURDICT[nid]]
-                except: import pdb; pdb.set_trace()
+                colours = [COLOURDICT[nid]]
             else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
                 colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
+            wave = sort.get_wave(ri)
         plt.set_colours(colours)
         plt.set_alpha(alpha)
         plt.set_stylewidth(style, width)
-        wave = get_wave(obj, sort=self.spykeframe.sort) # get from sort.wavedata or sort.stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = wave[t+self.tw[0] : t+self.tw[1]] # slice wave according to time window of this panel
         plt.update(wave, t)
-        plt.show_chans(wave.chans) # unhide object's enabled chans
+        plt.show_chans(wave.chans) # unhide neuron's/spike's enabled chans
         plt.draw()
         return plt
 

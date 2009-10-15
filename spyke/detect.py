@@ -43,7 +43,8 @@ def get_wave(obj, sort=None):
             return n.wave # return existing neuron waveform
     # it's a spike record
     s = obj
-    ri, = np.where(sort.spikes['id'] == s['id'])
+    ri = sort.spikes['id'].searchsorted(s['id']) # returns an array
+    ri = int(ri)
     wave = sort.get_wave(ri)
     return wave
 
