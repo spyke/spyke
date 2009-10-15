@@ -181,10 +181,10 @@ class File(object):
         for lpmcr in self.lowpassmultichanrecords:
             lpmcr.layout = lpmclayout # overwrite each lpmc record's layout attrib
 
-        # Rearrange digitalsvalsrecords list into a more memory efficient recarray
+        # Rearrange digitalsvalsrecords list into a more memory efficient struct array
         if hasattr(self, 'digitalsvalrecords'):
             DTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
-            self.digitalsvalrecords = np.rec.array(self.digitalsvalrecords, dtype=DTYPE)
+            self.digitalsvalrecords = np.asarray(self.digitalsvalrecords, dtype=DTYPE)
 
     def _verifyParsing(self):
         """Make sure timestamps of all records are in causal (increasing)

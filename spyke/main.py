@@ -288,7 +288,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                                    "in time with existing detection")
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
-        spikes = sort.detector.detect() # recarray of spikes
+        spikes = sort.detector.detect() # struct array of spikes
         #import cProfile; cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
         detection = Detection(sort, sort.detector, # create a new Detection run
                               id=sort._detid,
@@ -645,7 +645,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # check if any of this detection's spikes belong to a neuron
             result = None
             allspikeis = sort.spikes['id']
-            #allspikeis.sort() # spikes recarray is always sorted by id
+            #allspikeis.sort() # spikes struct array is always sorted by id
             delris = allspikeis.searchsorted(det.spikeis) # row indices into sort.spikes of detection's spikes to delete
             if (sort.spikes['nid'][delris] != -1).any():
                 dlg = wx.MessageDialog(self,
@@ -660,7 +660,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # rebuild sort.spikes, excluding detection's spikes
             keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
             keepris = allspikeis.searchsorted(keepspikeis)
-            delspikes = sort.spikes[delris] # returns a recarray, doesn't generate a bunch of records I think, so not slow?
+            delspikes = sort.spikes[delris] # returns a struct array, doesn't generate a bunch of records I think, so not slow?
             # which about-to-be-deleted spikes belong to a neuron?
             delriis, = np.where(delspikes['nid'] != -1)
             for delrii in delriis:
@@ -814,7 +814,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.total_nspikes_label.SetLabel(str(0))
         # make sure self.sort and especially self.sort.spikes is really gone
         # TODO: check if this is necessary once everything works with new streamlined
-        # (no objects) spikes recarray
+        # (no objects) spikes struct array
         gc.collect()
 
     def get_chans_enabled(self):
@@ -925,7 +925,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
                                    % (sortProbeType, streamProbeType))
         # convert spikes from ndarray to recarray that returns records with attrib access
-        sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
+        #sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
+        sort.spikes = spikes # leave it as simpler structured ndarray that returns np.voids
         sort.update_spike_lists()
         if wavedatas != []:
             sort.wavedatas = wavedatas

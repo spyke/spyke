@@ -1,6 +1,8 @@
 RECENT:
 
     - plotting spikes is very slow in big detections - big delay between clicking and display
+        - maybe this is because I'm doing searchsorted on the spike IDs on a much bigger array, probably unavoidable
+        - wait, can't I just get the row index from the virtual list control directly? this should be 1 to 1 with the ri I need to index into spikes array
 
     - switch from recarray to structured ndarray - think I've mostly switched from attrib access to dict style indexing anyway for speed
         - would no longer need to do the change of view on sort.spikes restoration from .sort file
@@ -8,12 +10,17 @@ RECENT:
 
     - Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
         - first loop took 9.417 sec, 2nd loop took 48.399 sec for a cluster with 92358 spikes - this is way too slow
+        - consider aligning spikes in time in wavedata arrays, wrt their phase1 timepoint - can figure out which timepoint the spike starts at (go back phase1ti points from the reference point) and when it ends (count nt points from the start of the spike)
+        - take intersection of chans of all spikes in neuron, and only consider those that are common to all spikes
+            - while you're going through and taking chans intersection, calculate the appropriate chanis to use for each spike? maybe call searchsorted with a 2D arg?
 
     - tree is still really slow when expanding a neuron with 10s of 1000s of spikes - this is because it's not a true virtual tree like the virtual list is truly virtual - the tree populates all the children of all the currently expanded nodes, not just the currently visible children - that's cuz VirtualTree is implemented in Python - wx needs to do this at a lower level in C
+        - maybe add a button that simply plots a couple of dozen spikes at random from the currently selected neuron(s), plus the mean of each
+            - ah, make a choice widget that controls whether just a neuron's mean or just a random selection of its spikes or both its mean and a random selection are plotted when you select it
 
-    - parameter extraction should be relatively easy to parallelize - it's a purely CPU limited operation
+    - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
-    - deleting a detection might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
+    - deleting a detection doesn't work right now, and might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)

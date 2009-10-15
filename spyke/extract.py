@@ -38,11 +38,12 @@ class Extractor(object):
         self.choose_XY_fun() # restore instance method
 
     def extract(self):
-        """Extract spike parameters, store them as spike attribs. Every time
-        you do a new extraction, (re)create a new .params recarray with the right
-        set of params in it"""
+        """Extract spike parameters, store them as spike attribs.
+        TODO?: Every time you do a new extraction, (re)create a new
+        .params struct array with the right set of params in it - not
+        sure what I meant by this"""
         sort = self.sort
-        spikes = sort.spikes # recarray
+        spikes = sort.spikes # struct array
         nspikes = len(spikes)
         if nspikes == 0:
             raise RuntimeError("No spikes to extract XY parameters from")

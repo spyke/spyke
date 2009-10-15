@@ -129,7 +129,7 @@ class Plot(object):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
-        self.obj = None # Spike or Neuron associated with this plot
+        self.n = None # Neuron associated with this plot
         self.id = None # string id that indexes into SortPanel.used_plots, starts with 's' or 'n' for spike or neuron
 
     def show(self, enable=True):
@@ -1009,21 +1009,26 @@ class SortPanel(PlotPanel):
         id = int(item[1:])
         sort = self.spykeframe.sort
         if item[0] == 'n': # it's a neuron
-            obj = sort.neurons[id]
+            n = sort.neurons[id]
+            t = n.t
             colours = [COLOURDICT[id]]
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
-            obj.plt = plt # bind plot to neuron
+            n.plt = plt # bind plot to neuron
+            plt.n = n # bind neuron to plot
+            obj = n
         else: # it's a spike
             ri, = np.where(sort.spikes['id'] == id) # returns an array
             ri = int(ri)
             obj = sort.spikes[ri]
+            t = obj['t']
+            nid = obj['nid']
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
-            if obj['nid'] != -1: # it's a member spike of a neuron, colour it the same as its neuron
+            if nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                try: colours = [COLOURDICT[obj['nid']]]
+                try: colours = [COLOURDICT[nid]]
                 except: import pdb; pdb.set_trace()
             else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
@@ -1031,11 +1036,10 @@ class SortPanel(PlotPanel):
         plt.set_colours(colours)
         plt.set_alpha(alpha)
         plt.set_stylewidth(style, width)
-        plt.obj = obj # bind object to plot
         wave = get_wave(obj, sort=self.spykeframe.sort) # get from sort.wavedata or sort.stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
-        wave = wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
-        plt.update(wave, obj.t)
+        wave = wave[t+self.tw[0] : t+self.tw[1]] # slice wave according to time window of this panel
+        plt.update(wave, t)
         plt.show_chans(wave.chans) # unhide object's enabled chans
         plt.draw()
         return plt
@@ -1076,8 +1080,7 @@ class SortPanel(PlotPanel):
         # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
         if item[0] == 'n': # it's a neuron
-            plt.obj.plt = None # unbind plot from neuron
-        plt.obj = None # unbind object from plot
+            plt.n.plt = None # unbind plot from neuron
         plt.hide() # hide all chan lines
         self.available_plots.append(plt)
         return plt
@@ -1090,7 +1093,7 @@ class SortPanel(PlotPanel):
         if len(items) == 1:
             plt = self.used_plots[items[0]]
             if plt != None and plt == self.qrplt and self.background != None:
-                print 'quick removing and replotting plot %r' % self.qrplt
+                print('quick removing and replotting plot %r' % self.qrplt)
                 self.restore_region(self.background) # restore saved bg
                 self.updateItem(items[0])
         else: # update and redraw all items
@@ -1102,13 +1105,12 @@ class SortPanel(PlotPanel):
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateItem(self, item):
-        """Update and draw a spike's/neuron's plot"""
+        """Update and draw a neuron's plot"""
         plt = self.used_plots[item]
-        obj = plt.obj
-        # TODO: this line really only applies to Neurons - spike entries have no .wave field
-        wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
-        plt.update(wave, obj.t)
-        plt.show_chans(obj.wave.chans) # ensure all of obj's chans are visible
+        n = plt.n
+        wave = n.wave[n.t+self.tw[0] : n.t+self.tw[1]] # slice wave according to time window of this panel
+        plt.update(wave, n.t)
+        plt.show_chans(n.wave.chans) # ensure all of neuron's chans are visible
         plt.draw()
 
     def get_closestline(self, evt):

@@ -34,7 +34,7 @@ def get_wave(obj, sort=None):
     """Return object's waveform, whether a spike record or a neuron,
     taken from sort.wavedatas or sort.stream"""
     assert sort != None
-    if type(obj) != np.rec.record: # it's a Neuron
+    if type(obj) != np.void: # it's a Neuron
         n = obj
         if n.wave == None or n.wave.data == None:
             wave = n.update_wave() # call Neuron method
@@ -280,7 +280,7 @@ class DistanceMatrix(object):
         self.data = eucd(self.coords)
 
 '''
-# no longer necessary, now that spikes recarray is being used
+# no longer necessary, now that spikes struct array is being used
 class Spike(object):
     """A Spike"""
     def __eq__(self, other):
@@ -573,7 +573,8 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout
+    DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout, setting this lower than 12 gives artificially
+                              # segregated clusters in space, at least when using spatial mean extraction
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 350 # max time between phases of a single spike, us
@@ -657,7 +658,7 @@ class Detector(object):
         self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
         self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
-        spikes = np.recarray(0, self.SPIKEDTYPE) # init
+        spikes = np.zeros(0, self.SPIKEDTYPE) # init
 
         t0 = time.clock()
         for wavetrange in wavetranges:
@@ -709,7 +710,7 @@ class Detector(object):
         for detection in sort.detections.values():
             det = detection.detector
             if self.maxnchansperspike != det.maxnchansperspike:
-                raise RuntimeError("Can't have multiple detections generating spikes recarrays with "
+                raise RuntimeError("Can't have multiple detections generating spikes struct arrays with "
                                    "different width 'chans' fields")
 
         self.SPIKEDTYPE = [('id', np.uint32), ('nid', np.int16), ('detid', np.uint8),
@@ -828,7 +829,7 @@ class Detector(object):
         lockouts = self.lockouts
         twi = self.twi
         nspikes = 0
-        spikes = np.recarray(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
+        spikes = np.zeros(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
             chan = self.chans[chani]
@@ -1116,11 +1117,11 @@ class Detection(object):
     def set_spikeids(self, spikes):
         """Give each spike an ID, inc sort's _sid spike ID counter, and save
         array of spikeis to self"""
-        # don't iterate over spikes recarray, since that generates
-        # a bunch of record objects, which is slow
+        # don't iterate over spikes struct array, since that generates
+        # a bunch of np.void objects, which is slow?
         nspikes = len(spikes)
         spikei0 = self.sort._sid
         self.spikeis = np.arange(spikei0, spikei0+nspikes) # generate IDs in one shot
-        spikes['id'] = self.spikeis # assign them to spikes recarray
+        spikes['id'] = self.spikeis # assign them to spikes struct array
         spikes['detid'] = self.id
         self.sort._sid += nspikes # inc for next unique Detection

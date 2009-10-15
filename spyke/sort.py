@@ -100,13 +100,6 @@ class Sort(object):
             except KeyError: pass
         return d
 
-    def __setstate__(self, d):
-        """Restore self on unpickle per usual, but also restore
-        .st, .ris_by_time, and .uris"""
-        self.__dict__ = d
-        #self.spikes = np.recarray(10, dtype=SPIKEDTYPE)
-        #self.update_spike_lists()
-
     def get_nspikes(self):
         try: return len(self.spikes)
         except AttributeError: return 0
@@ -114,8 +107,8 @@ class Sort(object):
     nspikes = property(get_nspikes)
 
     def append_spikes(self, spikes):
-        """Append spikes recarray to self.spikes recarray, update associated
-        spike lists, and lock down sampfreq and shcorrect attribs"""
+        """Append spikes struct array to self.spikes struct array, update
+        associated spike lists, and lock down sampfreq and shcorrect attribs"""
         if self.nspikes == 0: # (re)init
             self.spikes = spikes
         else: # append
@@ -143,14 +136,14 @@ class Sort(object):
         st = self.spikes['t'] # all spike times
         sids = self.spikes['id'] # all spike ids
         # self.st and self.ris_by_time are required for quick raster plotting
-        # can't assume spikes come out of recarray sorted in time
+        # can't assume spikes come out of struct array sorted in time
         # (detections may not be in temporal order)
-        self.ris_by_time = st.argsort() # recarray indices of all spikes, sorted by time
+        self.ris_by_time = st.argsort() # struct array row indices of all spikes, sorted by time
         self.st = st[self.ris_by_time] # array of current spike times
-        self.update_uris() # uris is an array of recarray indices of unsorted spikes
+        self.update_uris() # uris is an array of struct array indices of unsorted spikes
 
     def update_uris(self):
-        """Update uris, which is an array of recarray indices of unsorted spikes,
+        """Update uris, which is an array of struct array indices of unsorted spikes,
         used by spike virtual listctrl"""
         nids = self.spikes['nid']
         self.uris, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
@@ -159,7 +152,7 @@ class Sort(object):
         if self.uris_reversed: self.reverse_uris()
 
     def sort_uris(self, sort_by):
-        """Sort recarray row indices of unsorted spikes according to
+        """Sort struct array row indices of unsorted spikes according to
         sort_by"""
         vals = self.spikes[self.uris][sort_by] # vals from just the unsorted rows and the desired column
         urisis = vals.argsort() # indices into uris, sorted by sort_by
@@ -254,7 +247,7 @@ class Sort(object):
         wd[ri, 0:savenchans, 0:savent] = wavedata
 
     def get_wave(self, ri):
-        """Return WaveForm corresponding to spikes recarray row ri"""
+        """Return WaveForm corresponding to spikes struct array row ri"""
         spikes = self.spikes
         ri = int(ri) # make sure it isn't stuck in a numpy scalar
 
@@ -321,7 +314,7 @@ class Sort(object):
 
     def apply_cluster(self, cluster):
         """Apply cluster to spike data - calculate which spikes fall within the
-        cluster's multidimensional ellipsoid. Return spikes recarray row indices"""
+        cluster's multidimensional ellipsoid. Return spikes struct array row indices"""
 
         # consider all the dimensions in this cluster that have non-zero scale
         dims = [ dim for dim, val in cluster.scale.items() if val != 0 ]
@@ -1150,7 +1143,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.tree.SetItemText(neuron.itemID, 'n'+str(neuron.id)) # update its entry in the tree
         self.sort.neurons = neurons # overwrite the dict
         self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
-        print('TODO: relabel all nids in sort.spikes recarray as well!')
+        print('TODO: relabel all nids in sort.spikes struct array as well!')
 
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
@@ -1257,7 +1250,7 @@ class SortFrame(wxglade_gui.SortFrame):
         spikes = self.sort.spikes
         neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
         ris = spikes['id'].searchsorted(spikeis)
-        spikes['nid'][ris] = -1 # unbind neuron id of spikeis in recarray
+        spikes['nid'][ris] = -1 # unbind neuron id of spikeis in struct array
         self.sort.update_uris()
         self.list.SetItemCount(len(self.sort.uris))
         self.list.RefreshItems() # refresh the list
@@ -1292,7 +1285,7 @@ class SortFrame(wxglade_gui.SortFrame):
                     if len(neuron.spikeis) == 0:
                         self.RemoveNeuron(neuron) # remove empty Neuron
                     else:
-                        neuron.update_wave(sort.stream) # update mean neuron waveform
+                        neuron.update_wave() # update mean neuron waveform
                 else: # it's a neuron
                     neuron = sort.neurons[id]
                     self.RemoveNeuron(neuron) # remove Neuron and all its Spikes
