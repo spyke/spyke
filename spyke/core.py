@@ -41,6 +41,8 @@ KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems 
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
+TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
+
 MAXLONGLONG = 2**63-1
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
@@ -849,7 +851,7 @@ class SetList(set):
     def append(self, item):
         self.add(item)
 '''
-
+'''
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.
     Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
@@ -888,7 +890,7 @@ def savez(file, *args, **kwargs):
     zip.close()
     for name in todel:
         os.remove(name)
-
+'''
 
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of fname (with full path)"""
@@ -1076,6 +1078,7 @@ class Poo(object):
         """Called when self is indexed into"""
         return self(x)
 
+
 def hamming(t, N):
     """Return y values of Hamming window at sample points t"""
     #if N == None:
@@ -1121,3 +1124,22 @@ def R(tx, ty, tz):
     """
     # convert to radians, then take matrix product
     return Rz(tz*pi/180)*Rx(tx*pi/180)*Ry(ty*pi/180)
+'''
+def intersect1d(arrays, assume_unique=False):
+    """Find the intersection of any number of 1D arrays.
+    Return the sorted, unique values that are in all of the input arrays.
+    Adapted from numpy.lib.arraysetops.intersect1d"""
+    N = len(arrays)
+    if N == 0:
+        return np.asarray(arrays)
+    arrays = list(arrays) # allow assignment
+    if not assume_unique:
+        for i, arr in enumerate(arrays):
+            arrays[i] = np.unique(arr)
+    aux = np.concatenate(arrays) # one long 1D array
+    aux.sort() # sorted
+    if N == 1:
+        return aux
+    shift = N-1
+    return aux[aux[shift:] == aux[:-shift]]
+'''

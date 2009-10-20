@@ -17,9 +17,8 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from spyke.core import WaveForm, Gaussian, MAXLONGLONG, R, toiter
+from spyke.core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter
 from spyke import wxglade_gui
-from spyke.detect import TW
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -49,6 +48,7 @@ class Sort(object):
     A .sort file is a single pickled Sort object"""
     SAVEWAVES = True # save each spike's .wave to .sort file?
     DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
+    TW = TW # save a reference
     def __init__(self, detector=None, stream=None):
         self.__version__ = 0.1
         self.detector = detector # this Sort's current Detector object
@@ -85,6 +85,13 @@ class Sort(object):
         except AttributeError:
             pass # either stream is None or self.sampfreq/shcorrect aren't bound
         self._stream = stream
+        tres = stream.tres
+        twts = np.arange(self.TW[0], self.TW[1], tres) # temporal window timepoints wrt thresh xing or phase1t
+        twts += twts[0] % tres # get rid of mod, so twts go through zero
+        self.twts = twts
+        # time window indices wrt thresh xing or 1st phase:
+        self.twi = int(round(twts[0] / tres)), int(round(twts[-1] / tres))
+        #info('twi = %s' % (self.twi,))
 
     stream = property(get_stream, set_stream)
 
@@ -183,7 +190,7 @@ class Sort(object):
         nspikes = self.DEFWAVEDATANSPIKES
         nchans = self.wavedatanchans
         nt = self.wavedatant
-        self.wavedatas.append(np.empty((nspikes, nchans, nt), dtype=np.int16))
+        self.wavedatas.append(np.zeros((nspikes, nchans, nt), dtype=np.int16))
 
     def update_wavedatacumsum(self):
         """Call this every time self.wavedatas changes length, or any of its contained
@@ -220,9 +227,11 @@ class Sort(object):
                  localris -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
             slicedwavedatas.append(wd[localris])
         return np.concatenate(slicedwavedatas)
-        # TODO:  potentially remove singleton 3rd dimension????
 
-    def save_wavedata(self, ri, wavedata):
+    def save_wavedata(self, ri, wavedata, phase1ti):
+        """Save 2D array wavedata to row index ri, in appropriate 3D wavedata
+        array in self.wavedatas, and align it in time with all the rest according
+        to phase1ti"""
         # first figure out which array in wavedatas the row index ri corresponds to
         wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
         if wavedatai > len(self.wavedatas)-1: # out of range of all wavedata arrays
@@ -243,8 +252,10 @@ class Sort(object):
         # now do the actual assignment
         wd = self.wavedatas[wavedatai]
         ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
-        savenchans, savent = wavedata.shape
-        wd[ri, 0:savenchans, 0:savent] = wavedata
+        # TODO: ri comes out -ve when wavedatai == 0, but happens to be exactly right. Does it come out -ve for all wavedatai?
+        nchans = len(wavedata)
+        startti = -self.twi[0] - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
+        wd[ri, 0:nchans, startti:] = wavedata
 
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes struct array row ri"""
@@ -257,11 +268,13 @@ class Sort(object):
         chans = spikes['chans'][ri, :nchans]
         t0 = spikes['t0'][ri]
         tend = spikes['tend'][ri]
+        phase1ti = spikes['phase1ti'][ri]
+        startti = -self.twi[0] - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
         try:
             wavedata = self.get_wavedata(ri)
             ts = np.arange(t0, tend, self.tres) # build them up
             # only include data relevant to this spike
-            wavedata = wavedata[0:nchans, 0:len(ts)]
+            wavedata = wavedata[0:nchans, startti:]
             return WaveForm(data=wavedata, ts=ts, chans=chans)
         except AttributeError: pass
 
@@ -646,7 +659,8 @@ class Neuron(object):
         Setting .spikes as a property to do so automatically doesn't work, because
         properties only catch name binding of spikes, not modification of an object
         that's already been bound"""
-        spikes = self.sort.spikes
+        sort = self.sort
+        spikes = sort.spikes
         if len(self.spikeis) == 0: # no member spikes, perhaps I should be deleted?
             raise RuntimeError("neuron %d has no spikes and its waveform can't be updated" % self.id)
             #self.wave = WaveForm() # empty waveform
@@ -655,64 +669,40 @@ class Neuron(object):
         ris = spikes['id'].searchsorted(spikeis)
 
         t0 = time.clock()
-        # build up union of chans and relative timepoints of all member spikes
-        chans, ts = set(), set()
-        for ri in ris:
-            nchans = spikes['nchans'][ri]
-            chans.update(spikes['chans'][ri, :nchans])
-            spikets = np.arange(spikes['t0'][ri], spikes['tend'][ri], self.sort.tres) # build them up
-            ts.update(spikets - spikes['t'][ri]) # timepoints wrt spike time, not absolute
-        chans = np.asarray(list(chans))
-        ts = np.asarray(list(ts))
-        chans.sort() # Neuron's chans are a sorted union of chans of all its member spikes
-        ts.sort() # ditto for timepoints
+        chanss = spikes['chans'][ris]
+        nchanss = spikes['nchans'][ris]
+        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
+        chanpopulation = np.concatenate(chanslist)
+        neuronchans = np.unique(chanpopulation)
         print('first loop took %.3f sec' % (time.clock()-t0))
 
         t0 = time.clock()
-        # take mean of chans of data from spikes with potentially different
-        # chans and time windows wrt their spike
-        shape = len(chans), len(ts)
-        data = np.zeros(shape, dtype=np.float32) # collect data that corresponds to chans and ts
-        nspikes = np.zeros(shape, dtype=np.uint32) # nspikes that have contributed to each point in data
-        for ri in ris:
-            wave = self.sort.get_wave(ri)
-            wavedata = wave.data
-            nchans = spikes['nchans'][ri]
-            spikechans = spikes['chans'][ri, :nchans]
-            spikets = np.arange(spikes['t0'][ri], spikes['tend'][ri], self.sort.tres)
-            # get chan indices into chans corresponding to spikechans, chans is a superset of spikechans
-            chanis = chans.searchsorted(spikechans)
-            # get timepoint indices into ts corresponding to wave.ts timepoints relative to their spike time
-            tis = ts.searchsorted(spikets - spikes['t'][ri])
-            # there must be an easier way of doing the following:
-            rowis = np.tile(False, len(chans))
-            rowis[chanis] = True
-            colis = np.tile(False, len(ts))
-            colis[tis] = True
-            i = np.outer(rowis, colis) # 2D boolean array for indexing into data
-            # this method doesn't work, destination indices are assigned to in the wrong order:
-            '''
-            rowis = np.tile(chanis, len(tis))
-            colis = np.tile(tis, len(chanis))
-            i = rowis, colis
-            '''
-            # accumulate appropriate data points (add int16 to float32, keep as AD units)
-            data[i] += wavedata.ravel()
-            nspikes[i] += 1 # increment spike counts at appropriate data points
+        wavedatas = sort.get_wavedata(ris)
+        if wavedatas.ndim == 2: # should be 3, get only 2 if len(ris) == 1
+            wavedatas.shape = 1, wavedatas.shape[0], wavedatas.shape[1] # give it a singleton 3rd dim
+        maxnt = wavedatas.shape[-1]
+        shape = len(neuronchans), maxnt
+        data = np.zeros(shape, dtype=np.float32)
+        nspikes = np.zeros(maxnt, dtype=np.int32)
+        twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
+        phase1tis = spikes['phase1ti'][ris]
+        starttis = twi0 - phase1tis # always +ve, usually 0 unless spike had some lockout near its start
+        for chans, wavedata, startti in zip(chanslist, wavedatas, starttis):
+            chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
+            data[chanis] += wavedata[:len(chans)] # accumulate
+            nspikes[startti:] += 1 # inc spike count for timepoints for this spike
         print('2nd loop took %.3f sec' % (time.clock()-t0))
         t0 = time.clock()
-        # some entries in nspikes can be 0 - this raises an 'invalid' error instead
-        # of a div by 0 error because those same entries in data are also 0, so we
-        # get 0/0. This can be dealt with by temporarily ignoring invalid errors
-        # from numpy, using np.seterr. Or instead, we can replace all the zeros in
-        # nspikes with 1s, and get 0/1 which wouldn't raise any errors
-        nspikes = np.maximum(nspikes, np.ones(shape, dtype=np.float32)) # element-wise max
+        #nspikes = np.maximum(nspikes, np.ones(shape, dtype=np.float32)) # element-wise max, avoids div by 0
         #np.seterr(invalid='ignore')
         data /= nspikes # normalize each data point appropriately
         #np.seterr(invalid='raise') # restore error level
-        self.wave.data = data
-        self.wave.chans = chans
-        self.wave.ts = ts
+        hist, bins = np.histogram(chanpopulation, bins=neuronchans)
+        newneuronchans = neuronchans[hist >= len(ris)/2]
+        chanis = neuronchans.searchsorted(newneuronchans)
+        self.wave.data = data[chanis]
+        self.wave.chans = newneuronchans
+        self.wave.ts = sort.twts
         #print('neuron[%d].wave.chans = %r' % (self.id, chans))
         #print('neuron[%d].wave.ts = %r' % (self.id, ts))
         print('mean calc took %.3f sec' % (time.clock()-t0))
@@ -728,7 +718,6 @@ class Neuron(object):
         stdev = np.asarray(data).std(axis=0)
         return stdev
     '''
-
     def get_chans(self):
         return self.wave.chans # self.chans just refers to self.wave.chans
 

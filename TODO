@@ -1,23 +1,26 @@
 RECENT:
 
-    - plotting spikes is very slow in big detections - big delay between clicking and display
-        - maybe this is because I'm doing searchsorted on the spike IDs on a much bigger array, probably unavoidable
-        - wait, can't I just get the row index from the virtual list control directly? this should be 1 to 1 with the ri I need to index into spikes array
-
-    - Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
-        - first loop took 9.417 sec, 2nd loop took 48.399 sec for a cluster with 92358 spikes - this is way too slow
-        - consider aligning spikes in time in wavedata arrays, wrt their phase1 timepoint - can figure out which timepoint the spike starts at (go back phase1ti points from the reference point) and when it ends (count nt points from the start of the spike)
-        - take intersection of chans of all spikes in neuron, and only consider those that are common to all spikes
-            - while you're going through and taking chans intersection, calculate the appropriate chanis to use for each spike? maybe call searchsorted with a 2D arg?
-
     - tree is still really slow when expanding a neuron with 10s of 1000s of spikes - this is because it's not a true virtual tree like the virtual list is truly virtual - the tree populates all the children of all the currently expanded nodes, not just the currently visible children - that's cuz VirtualTree is implemented in Python - wx needs to do this at a lower level in C
         - maybe add a button that simply plots a couple of dozen spikes at random from the currently selected neuron(s), plus the mean of each
             - ah, make a choice widget that controls whether just a neuron's mean or just a random selection of its spikes or both its mean and a random selection are plotted when you select it
         - or add something that lets you cycle through plotted spikes a couple dozen at a time, in order
+        - best soln is probably to replace tree with 2 more virtual list ctrls: one listing all the neurons (clicking neurons displays their mean), and one listing the currently selected neuron's spikes (clicking selects that spike)
+            - only downfall is you could no longer directly compare overplots of spikes of one neuron vs another, but this is already quite difficult to do with the multiselect tree
+            - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
+            - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
+
 
     - overplotting speed
 
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
+
+    - might be good to finally implement proper simultaneous spatiotemporal detection
+        - search through 2D array representing window of data, look for all extrema
+        - sort extrema by amplitude
+        - for extremum in extrema: # biggest to smallest
+            - check lockout
+            - if this next biggest extremum is locked out, break out of loop?
+            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
 
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
@@ -35,8 +38,8 @@ RECENT:
 
     - replace unnecesary use of list(set(array)) with np.unique(array)
 
-    - add some Sort method that restores the .wavedatas given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
-        - something like Sort.restore_wavedatas()
+    - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
+        - something like Sort.restore_wavedata()
 
     - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
         - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
@@ -55,9 +58,6 @@ RECENT:
         - close .srf file, open test.sort with no waves in it, modify cluster, apply it, yet mean neuron waveform remains unchanged from when it was last calculated when the .srf file was open
 
     - fix LFP
-
-    - check speed of spike.wave restoration on hitting re-extracting params after restoring from a .sort with no waves in it
-        - it's super fast now! at least when using a .resample file
 
     - maybe before saving a .sort, check if it has detections/spikes from another .srf, if so, ask user if that's the intention
 
@@ -522,6 +522,12 @@ DONE:
     - I think I decided to stick to float32's because during Nyquist interpolation, I have to switch to them anyways, and I'm always doing interpolation
 - does disabling a channel really prevent it from being searched on? yes
 - just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
+- when searching for maxchan, new one should exceed current in Vpp, not just in Vp at phase1t. See ptc15.87.35040. Best to use Vpp instead of just size of a single phase when deciding on maxchan
+- Another problem at ptc15.87.35040 is that it did actually detect the original teal chan 5 as a spike, but then when it went to look for phase2 on the new purple maxchan 6 and couldn't find it, it gave up completely instead of reverting back to the previous maxchan. Maybe I should save things that are definitely spike-like before looking for new maxchan, and revert to those if a PeakError is raised
+- Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
+    - first loop took 9.417 sec, 2nd loop took 48.399 sec for a cluster with 92358 spikes - this is way too slow
+    - consider aligning spikes in time in wavedata arrays, wrt their phase1 timepoint - can figure out which timepoint the spike starts at (go back phase1ti points from the reference point) and when it ends (count nt points from the start of the spike)
+- better strategy for neuron chan selection: at least 1/2 the spikes have to contribute to a channel for it to be considered a neuron chan. Why are some obviously important chans being left out of some spikes? this is due to a full channel lockout due to a near simultaneous spike nearby
 
 
 

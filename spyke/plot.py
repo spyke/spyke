@@ -27,8 +27,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MICRO, hex2cmap, toiter
-from spyke.detect import TW, get_wave
+from spyke.core import MICRO, TW, hex2cmap, toiter
+from spyke.detect import get_wave
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -1116,7 +1116,10 @@ class SortPanel(PlotPanel):
         """Update and draw a neuron's plot"""
         plt = self.used_plots[item]
         n = plt.n
-        wave = n.wave[n.t+self.tw[0] : n.t+self.tw[1]] # slice wave according to time window of this panel
+        #if n.wave.data == None:
+        #    n.update_wave()
+        try: wave = n.wave[n.t+self.tw[0] : n.t+self.tw[1]] # slice wave according to time window of this panel
+        except: import pdb; pdb.set_trace()
         plt.update(wave, n.t)
         plt.show_chans(n.wave.chans) # ensure all of neuron's chans are visible
         plt.draw()
