@@ -697,7 +697,8 @@ class Neuron(object):
         #np.seterr(invalid='ignore')
         data /= nspikes # normalize each data point appropriately
         #np.seterr(invalid='raise') # restore error level
-        hist, bins = np.histogram(chanpopulation, bins=neuronchans)
+        bins = list(neuronchans) + [sys.maxint]
+        hist, bins = np.histogram(chanpopulation, bins=bins)
         newneuronchans = neuronchans[hist >= len(ris)/2]
         chanis = neuronchans.searchsorted(newneuronchans)
         self.wave.data = data[chanis]

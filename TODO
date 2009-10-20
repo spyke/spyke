@@ -9,8 +9,9 @@ RECENT:
             - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
             - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
 
-
     - overplotting speed
+
+    - manual sorting is broken again
 
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
 
