@@ -27,8 +27,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MU, hex2cmap
-from spyke.detect import TW # default time window relative to spike time
+from spyke.core import MICRO, TW, hex2cmap, toiter
+from spyke.detect import get_wave
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -129,7 +129,7 @@ class Plot(object):
             #line.set_picker(PICKTHRESH)
             self.lines[chan] = line
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
-        self.obj = None # Spike or Neuron associated with this plot
+        self.n = None # Neuron associated with this plot
         self.id = None # string id that indexes into SortPanel.used_plots, starts with 's' or 'n' for spike or neuron
 
     def show(self, enable=True):
@@ -170,7 +170,8 @@ class Plot(object):
         AD2uV = self.panel.AD2uV
         for chan, line in self.lines.iteritems():
             # convert AD wave data to uV, remove any singleton dimensions
-            data = AD2uV(wave[chan].data.squeeze())
+            try: data = AD2uV(wave[chan].data.squeeze())
+            except IndexError: continue # chan isn't in wave
             xpos, ypos = self.panel.pos[chan]
             if wave.ts == None:
                 xdata = []
@@ -240,21 +241,21 @@ class Raster(Plot):
             self.panel.ax.add_line(line) # add to panel's axes' pool of lines
 
     def update(self, spike, tref):
-        """Update lines data from spike.t and spike.chans"""
+        """Update lines data from spike['t'] and spike's chans"""
         self.spike = spike
-        spikechan = spike.detection.detector.chans[spike.chani] # dereference
-        spikechans = spike.detection.detector.chans[spike.chanis] # dereference
+        nchans = spike['nchans']
+        spikechans = spike['chans'][:nchans]
         for chan in spikechans:
             try:
                 line = self.lines[chan]
             except KeyError:
                 continue # chan doesn't exist for this panel
             xpos, ypos = self.panel.pos[chan]
-            x = spike.t - tref + xpos
+            x = spike['t'] - tref + xpos
             chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
             ylims = ypos - chanheight/2, ypos + chanheight/2
             line.set_data([x, x], ylims) # update the line's x and y data
-            line.set_color(self.panel.vcolours[spikechan]) # colour according to max chan
+            line.set_color(self.panel.vcolours[spike['chan']]) # colour according to max chan
             line.set_visible(True) # enable this chan for this spike
         notchans = self.chans.difference(spikechans)
         for notchan in notchans: # disable all chans not in this spike
@@ -262,8 +263,11 @@ class Raster(Plot):
 
     def show(self, enable=True):
         """Show/hide lines on all of spike's chans"""
+        sort = self.panel.spykeframe.sort
         try:
-            chans = self.spike.detection.detector.chans[self.spike.chanis] # dereference
+            spike = self.spike
+            nchans = spike['nchans']
+            chans = spike['chans'][:nchans]
         except AttributeError: # no spike
             if enable == False:
                 chans = self.lines.keys() # disable all lines
@@ -637,8 +641,9 @@ class PlotPanel(FigureCanvasWxAgg):
         """Update spike raster positions and visibility wrt tref"""
         # find out which spikes are within time window
         sort = self.spykeframe.sort
-        lo, hi = sort._st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
-        spikes = sort._spikes_by_time[lo:hi] # spikes within range of current time window
+        lo, hi = sort.st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
+        ris = sort.ris_by_time[lo:hi]
+        spikes = sort.spikes[ris] # spikes within range of current time window
         while len(spikes) > len(self.rasters):
             self.init_rasters() # append another batch to self.rasters
         rasteriter = iter(self.rasters) # iterator over rasters
@@ -759,8 +764,8 @@ class PlotPanel(FigureCanvasWxAgg):
             if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                 t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d\n' % chan + \
-                      't=%d %s\n' % (t, MU+'s') + \
-                      'V=%.1f %s\n' % (v, MU+'V') + \
+                      't=%d %s\n' % (t, MICRO+'s') + \
+                      'V=%.1f %s\n' % (v, MICRO+'V') + \
                       'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
@@ -783,9 +788,9 @@ class PlotPanel(FigureCanvasWxAgg):
                 v = (evt.ydata - ypos) / self.gain
                 if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
                     t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
-                    tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
-                          't=%d %s\n' % (t, MU+'s') + \
-                          'V=%.1f %s\n' % (v, MU+'V') + \
+                    tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
+                          't=%d %s\n' % (t, MICRO+'s') + \
+                          'V=%.1f %s\n' % (v, MICRO+'V') + \
                           'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                     tooltip.SetTip(tip)
                     tooltip.Enable(True)
@@ -981,124 +986,143 @@ class SortPanel(PlotPanel):
         self.qrplt = None
         self.background = None
 
-    def addObjects(self, objects):
-        """Add spikes/neurons to self"""
-        if objects == []:
+    def addItems(self, items, ris=None):
+        """Add items (spikes/neurons) to self"""
+        if items == []:
             return # do nothing
-        if len(objects) == 1:
-            # before blitting this single object to screen, grab current buffer,
-            # save as new background for quick restore if the next action is removal of this very same object
+        if len(items) == 1:
+            # before blitting this single item to screen, grab current buffer,
+            # save as new background for quick restore if the next action is removal of this very same item
             self.background = self.copy_from_bbox(self.ax.bbox)
-            self.qrplt = self.addObject(objects[0]) # add the single object, save reference to its plot
+            ris = toiter(ris)
+            self.qrplt = self.addItem(items[0], ri=ris[0]) # add the single item, save reference to its plot
             #print 'saved quick remove plot %r' % self.qrplt
         else:
             self.background = None
-            for obj in objects: # add all objects
-                self.addObject(obj)
+            # add all items
+            if ris != None:
+                for item, ri in zip(items, ris):
+                    self.addItem(item, ri=ri)
+            else:
+                for item in items:
+                    self.addItem(item)
         self.blit(self.ax.bbox)
 
-    def addObject(self, obj):
-        """Put object in an available Plot, return the Plot"""
-        if len(self.available_plots) == 0: # if we've run out of plots for additional objects
+    def addItem(self, item, ri=None):
+        """Put item in an available Plot, return the Plot"""
+        if len(self.available_plots) == 0: # if we've run out of plots for additional items
             self.init_plots() # init another batch of plots
-        plt = self.available_plots.pop() # pop a Plot to assign this object to
-        try:
-            obj.spikes # it's a neuron
-            plt.id = 'n' + str(obj.id)
-            colours = [COLOURDICT[obj.id]]
+        plt = self.available_plots.pop() # pop a Plot to assign this item to
+        plt.id = item
+        id = int(item[1:])
+        sort = self.spykeframe.sort
+        if item[0] == 'n': # it's a neuron
+            n = sort.neurons[id]
+            t = n.t
+            colours = [COLOURDICT[id]]
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
-        except AttributeError: # it's a spike
-            plt.id = 's' + str(obj.id)
+            n.plt = plt # bind plot to neuron
+            plt.n = n # bind neuron to plot
+            wave = get_wave(n, sort=self.spykeframe.sort) # calls n.update_wave() if necessary
+        else: # it's a spike
+            if ri == None: # it's probably a spike in the tree, not in the list
+                #ri, = np.where(sort.spikes['id'] == id) # returns an array
+                ri = sort.spikes['id'].searchsorted(id) # returns an array
+                ri = int(ri)
+            t = sort.spikes['t'][ri]
+            nid = sort.spikes['nid'][ri]
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
-            try:
-                obj.neuron # it's a member spike of a neuron. colour it the same as its neuron
+            if nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                colours = [COLOURDICT[obj.neuron.id]]
-            except AttributeError: # it's an unsorted spike, colour each chan separately
+                colours = [COLOURDICT[nid]]
+            else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
                 colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
+            wave = sort.get_wave(ri)
         plt.set_colours(colours)
         plt.set_alpha(alpha)
         plt.set_stylewidth(style, width)
-        plt.obj = obj # bind object to plot
-        obj.plt = plt # bind plot to object
-        if not hasattr(obj, 'wave') or obj.wave == None or obj.wave.data == None: # if it hasn't already been loaded
-            obj.update_wave(stream=self.spykeframe.hpstream) # update from stream
         self.used_plots[plt.id] = plt # push it to the used plot stack
-        wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
-        plt.update(wave, obj.t)
-        plt.show_chans(obj.chans) # unhide object's enabled chans
+        wave = wave[t+self.tw[0] : t+self.tw[1]] # slice wave according to time window of this panel
+        plt.update(wave, t)
+        plt.show_chans(wave.chans) # unhide neuron's/spike's enabled chans
         plt.draw()
         return plt
 
-    def removeObjects(self, objects):
-        """Remove objects from plots"""
-        if objects == []: # do nothing
+    def removeItems(self, items):
+        """Remove items from plots
+        TODO: set obj.wave = None when no longer plotting?"""
+        if items == []: # do nothing
             return
-        for obj in objects:
-            # remove specified objects from .used_plots, use contents of
+        for item in items:
+            # remove items from .used_plots, use contents of
             # .used_plots to decide how to do the actual plot removal
-            plt = self.removeObject(obj)
-        # remove all objects
+            plt = self.removeItem(item)
+        # now remove items from actual plot
         if self.used_plots == {}:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
         # remove the last added plot if a saved bg is available
-        elif len(objects) == 1 and plt == self.qrplt and self.background != None:
+        elif len(items) == 1 and plt == self.qrplt and self.background != None:
             #print 'quick removing plot %r' % self.qrplt
             self.restore_region(self.background) # restore saved bg
-        # remove more than one, but not all objects
+        # remove more than one, but not all items
         else:
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
             for plt in self.used_plots.values():
                 plt.draw() # redraw the remaining plots in .used_plots
-        self.background = None # what was background is no longer useful for quick restoration on any other object removal
-        self.qrplt = None # qrplt set in addObjects is no longer quickly removable
+        self.background = None # what was background is no longer useful for quick restoration on any other item removal
+        self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
-    def removeAllObjects(self):
-        """Shortcut for removing all object from plots"""
-        objects = [ plt.obj for plt in self.used_plots.values() ]
-        self.removeObjects(objects)
+    def removeAllItems(self):
+        """Shortcut for removing all items from plots"""
+        items = [ plt.id for plt in self.used_plots.values() ]
+        self.removeItems(items)
 
-    def removeObject(self, obj):
-        """Restore object's Plot from used to available plot pool, return the Plot"""
-        if obj.plt == None:
-            return
-        plt = self.used_plots.pop(obj.plt.id)
-        # TODO: reset plot colour and line style here, or just set them each time in addObject?
+    def removeItem(self, item):
+        """Restore item's Plot from used to available plot pool, return the Plot"""
+        plt = self.used_plots.pop(item)
+        # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
-        plt.obj = None # unbind object from plot
-        obj.plt = None # unbind plot from object
+        if item[0] == 'n': # it's a neuron
+            plt.n.plt = None # unbind plot from neuron
         plt.hide() # hide all chan lines
         self.available_plots.append(plt)
         return plt
 
-    def updateObjects(self, objects):
-        """Re-plot objects, potentially because their WaveForms have changed.
+    def updateItems(self, items):
+        """Re-plot items, potentially because their WaveForms have changed.
         Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""
-        if objects == []: # do nothing
+        if items == []: # do nothing
             return
-        if len(objects) == 1 and objects[0].plt != None and objects[0].plt == self.qrplt and self.background != None:
-            print 'quick removing and replotting plot %r' % self.qrplt
-            self.restore_region(self.background) # restore saved bg
-            self.updateObject(objects[0])
-        else: # update and redraw all objects
+        if len(items) == 1:
+            plt = self.used_plots[items[0]]
+            if plt != None and plt == self.qrplt and self.background != None:
+                print('quick removing and replotting plot %r' % self.qrplt)
+                self.restore_region(self.background) # restore saved bg
+                self.updateItem(items[0])
+        else: # update and redraw all items
             self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-            for obj in objects:
-                self.updateObject(obj)
-            self.background = None # what was background is no longer useful for quick restoration on any other object removal
-            self.qrplt = None # qrplt set in addObjects is no longer quickly removable
+            for item in items:
+                self.updateItem(item)
+            self.background = None # what was background is no longer useful for quick restoration on any other item removal
+            self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
-    def updateObject(self, obj):
-        """Update and draw a spike's/neuron's plot"""
-        wave = obj.wave[obj.t+self.tw[0] : obj.t+self.tw[1]] # slice wave according to time window of this panel
-        obj.plt.update(wave, obj.t)
-        obj.plt.show_chans(obj.chans) # ensure all of obj's chans are visible
-        obj.plt.draw()
+    def updateItem(self, item):
+        """Update and draw a neuron's plot"""
+        plt = self.used_plots[item]
+        n = plt.n
+        #if n.wave.data == None:
+        #    n.update_wave()
+        try: wave = n.wave[n.t+self.tw[0] : n.t+self.tw[1]] # slice wave according to time window of this panel
+        except: import pdb; pdb.set_trace()
+        plt.update(wave, n.t)
+        plt.show_chans(n.wave.chans) # ensure all of neuron's chans are visible
+        plt.draw()
 
     def get_closestline(self, evt):
         """Return line that's closest to mouse event coords
@@ -1142,9 +1166,9 @@ class SortPanel(PlotPanel):
                 t = evt.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
                 v = (evt.ydata - ypos) / self.gain
                 t = int(round(t / tres)) * tres # round to nearest (possibly interpolated) sample
-                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MU+'m') + \
-                      't=%d %s\n' % (t, MU+'s') + \
-                      'V=%.1f %s\n' % (v, MU+'V') + \
+                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
+                      't=%d %s\n' % (t, MICRO+'s') + \
+                      'V=%.1f %s\n' % (v, MICRO+'V') + \
                       'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)

@@ -13,6 +13,7 @@ import os
 import sys
 
 import wx
+from wx.lib.mixins.treemixin import VirtualTree
 
 import numpy as np
 from numpy import pi
@@ -32,12 +33,15 @@ from matplotlib.colors import hex2color
 from spyke import probes
 
 MU = '\xb5' # greek mu symbol
+MICRO = 'u'
 
 DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample frequency, in Hz
 DEFHIGHPASSSHCORRECT = True
 KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems to depend on the phase of the kernel, some have one less. Anyway, total number of points in the kernel is this plus 1 (for the middle point) - see Blanche2006
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
+
+TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
 
 MAXLONGLONG = 2**63-1
 
@@ -69,14 +73,16 @@ class Converter(object):
 
 class WaveForm(object):
     """Just a container for data, timestamps, and channels.
-    Sliceable in time, and indexable in channel space"""
+    Sliceable in time, and indexable in channel space. Only
+    really used for convenient plotting. Everything else uses
+    the sort.wavedatas 2D arrays, and related sort.spikes fields"""
     def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in AD, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
 
     def __getitem__(self, key):
-        """Make waveform data sliceable in time, and directly indexable by channel id.
+        """Make waveform data sliceable in time, and directly indexable by channel id(s).
         Return a new WaveForm"""
         if type(key) == slice: # slice self in time
             if self.ts == None:
@@ -90,11 +96,17 @@ class WaveForm(object):
                 return WaveForm(data=data, ts=ts, chans=self.chans) # return a new WaveForm
         else: # index into self by channel id(s)
             keys = toiter(key)
-            chans = np.asarray(self.chans)
-            keys = [ key for key in keys if key in chans ] # ignore keys outside of chans while preserving order in keys
-            # using a set changes the order within keys
-            #keys = list(set(chans).intersection(keys)) # ignore keys outside of chans
-            i = [ int(np.where(chan == chans)[0]) for chan in keys ] # list of appropriate indices into the rows of self.data
+            #try: assert (self.chans == np.sort(self.chans)).all() # testing code
+            #except AssertionError: import pdb; pdb.set_trace() # testing code
+            try:
+                assert set(keys).issubset(self.chans), "requested channels outside of channels in waveform"
+                #assert len(set(keys)) == len(keys), "same channel specified more than once" # this is fine
+            except AssertionError:
+                raise IndexError('invalid index %r' % key)
+            #i1 = np.asarray([ int(np.where(chan == chans)[0]) for chan in keys ]) # testing code
+            i = self.chans.searchsorted(keys) # appropriate indices into the rows of self.data
+            #try: assert (i1 == i).all() # testing code
+            #except AssertionError: import pdb; pdb.set_trace() # testing code
             # TODO: should probably use .take here for speed:
             data = self.data[i] # grab the appropriate rows of data
             return WaveForm(data=data, ts=self.ts, chans=keys) # return a new WaveForm
@@ -689,7 +701,6 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
     - every time sort.spikes is modified, need to call SetItemCount and maybe RefreshItems
         - make info flow from listctrl to sort.spikes, and manually update the listctrl
           when need be after some manual change to sort.spikes
-    - Spike deletion should move spikes from sort.spikes to sort.trash, and vice versa.
     - bug: selecting multiple items over a range with shift+mouse or shift+arrows doesn't
     update the plots - probably some selection event that was happening in normal listctrl
     isn't happening in virtual listctrl. Doing a ctrl+click or ctrl+space will make whatever's
@@ -697,19 +708,21 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
     """
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.COL2ATTR = {0:'id', 1:'x0', 2:'y0', 3:'t'}
+        self.COL2FIELD = {0:'id', 1:'x0', 2:'y0', 3:'t'}
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
-        # index into _uspikes list, in whatever order it was last sorted
-        spike = self.GetTopLevelParent().sort._uspikes[row]
-        attr = self.COL2ATTR[col]
+        # index into uris list, in whatever order it was last sorted
+        sort = self.GetTopLevelParent().sort
+        ri = sort.uris[row]
+        spike = sort.spikes[ri]
+        field = self.COL2FIELD[col]
         try:
-            val = spike.__dict__[attr]
-        except KeyError: # attrib isn't currently available
+            val = spike[field]
+        except IndexError: # field isn't currently available
             return ''
         # this formatting step doesn't seem to have a performance cost:
-        if type(val) == float:
+        if type(val) == np.float32:
             val = '%.1f' % val
         return val
 
@@ -747,8 +760,8 @@ class SpykeTreeCtrl(wx.TreeCtrl):
         try: # make sure they're both neurons by checking for .spikes attrib
             obj1.spikes
             obj2.spikes
-            y01 = np.asarray([ spike.y0 for spike in obj1.spikes.values() ]).mean()
-            y02 = np.asarray([ spike.y0 for spike in obj2.spikes.values() ]).mean()
+            y01 = np.asarray([ spike['y0'] for spike in obj1.spikes.values() ]).mean()
+            y02 = np.asarray([ spike['y0'] for spike in obj2.spikes.values() ]).mean()
             '''
             # if we want to use maxchan instead of y0, need to work on neuron's mean waveform
             ycoord1 = self.SiteLoc[obj1.maxchan][1]
@@ -802,11 +815,81 @@ class SpykeTreeCtrl(wx.TreeCtrl):
         self.SelectItem(item, select)
         #print 'SpykeTreeCtrl.ToggleFocusedItem() not implemented yet, use Ctrl+Space instead'
 
+
+class SpykeVirtualTreeCtrl(VirtualTree, SpykeTreeCtrl):
+    """Virtual tree control"""
+    def OnGetItemText(self, index):
+        """index is tuple of 0-based (root, child, child, ...) indices.
+        An empty tuple () represents the hidden root item"""
+        sort = self.GetTopLevelParent().sort
+        if len(index) == 0:
+            return ''
+        elif len(index) == 1:
+            nid = list(sort.neurons)[index[0]]
+            return 'n'+str(nid)
+        else: # len(index) == 2
+            nid = list(sort.neurons)[index[0]]
+            sid = list(sort.neurons[nid].spikeis)[index[1]]
+            return 's'+str(sid)
+
+    def OnGetChildrenCount(self, index):
+        """index is tuple of 0-based (root, child, child, ...) indices.
+        An empty tuple () represents the hidden root item"""
+        sort = self.GetTopLevelParent().sort
+        if len(index) == 0: # hidden root has nneurons children
+            return len(sort.neurons)
+        elif len(index) == 1: # each neuron has spike children
+            nid = list(sort.neurons)[index[0]]
+            return len(sort.neurons[nid].spikeis)
+        else: # len(index) == 2
+            return 0 # spikes have no children
+
+
 '''
 class SetList(set):
     """A set with an append() method like a list"""
     def append(self, item):
         self.add(item)
+'''
+'''
+def savez(file, *args, **kwargs):
+    """Save several arrays into a single, possibly compressed, binary file.
+    Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
+    allow for any file extension. For full docs, see numpy.savez()"""
+
+    # Import is postponed to here since zipfile depends on gzip, an optional
+    # component of the so-called standard library.
+    import zipfile
+    import tempfile
+    import numpy.lib.format as format
+
+    compress = kwargs.pop('compress', False) # defaults to False
+    assert type(compress) == bool
+    namedict = kwargs
+    for i, val in enumerate(args):
+        key = 'arr_%d' % i
+        if key in namedict.keys():
+            raise ValueError, "Cannot use un-named variables and keyword %s" % key
+        namedict[key] = val
+
+    compression = zipfile.ZIP_STORED # no compression
+    if compress:
+        compression = zipfile.ZIP_DEFLATED # compression
+    zip = zipfile.ZipFile(file, mode="w", compression=compression)
+    # place to write temporary .npy files before storing them in the zip
+    direc = tempfile.gettempdir()
+    todel = []
+    for key, val in namedict.iteritems():
+        fname = key + '.npy'
+        filename = os.path.join(direc, fname)
+        todel.append(filename)
+        fid = open(filename,'wb')
+        format.write_array(fid, np.asanyarray(val))
+        fid.close()
+        zip.write(filename, arcname=fname)
+    zip.close()
+    for name in todel:
+        os.remove(name)
 '''
 
 def get_sha1(fname, blocksize=2**20):
@@ -995,6 +1078,7 @@ class Poo(object):
         """Called when self is indexed into"""
         return self(x)
 
+
 def hamming(t, N):
     """Return y values of Hamming window at sample points t"""
     #if N == None:
@@ -1040,3 +1124,22 @@ def R(tx, ty, tz):
     """
     # convert to radians, then take matrix product
     return Rz(tz*pi/180)*Rx(tx*pi/180)*Ry(ty*pi/180)
+'''
+def intersect1d(arrays, assume_unique=False):
+    """Find the intersection of any number of 1D arrays.
+    Return the sorted, unique values that are in all of the input arrays.
+    Adapted from numpy.lib.arraysetops.intersect1d"""
+    N = len(arrays)
+    if N == 0:
+        return np.asarray(arrays)
+    arrays = list(arrays) # allow assignment
+    if not assume_unique:
+        for i, arr in enumerate(arrays):
+            arrays[i] = np.unique(arr)
+    aux = np.concatenate(arrays) # one long 1D array
+    aux.sort() # sorted
+    if N == 1:
+        return aux
+    shift = N-1
+    return aux[aux[shift:] == aux[:-shift]]
+'''

@@ -8,7 +8,6 @@ import itertools
 import numpy as np
 import os
 import cPickle
-#import gzip
 from struct import unpack
 import unittest
 from copy import copy
@@ -44,7 +43,6 @@ class File(object):
         self.fileSize = os.stat(fname)[6]
         self.f = open(fname, 'rb')
         self._parseFileHeader()
-        # TODO: maybe the extension should be .srf.parse
         self.parsefname = fname + '.parse'
 
     def close(self):
@@ -55,7 +53,7 @@ class File(object):
         """Parse the Surf file header"""
         self.fileheader = FileHeader()
         self.fileheader.parse(self.f)
-        #print 'Parsed fileheader'
+        #print('Parsed fileheader')
 
     def _parseDRDBS(self):
         """Parse the DRDBs (Data Record Descriptor Blocks)"""
@@ -72,15 +70,6 @@ class File(object):
                 f.seek(drdb.offset)
                 break
 
-    def _verifyParsing(self):
-        """Make sure timestamps of all records are in causal (increasing)
-        order. If not, sort them I guess?"""
-        #print 'Asserting increasing record order'
-        for item in self.__dict__:
-            if item.endswith('records'):
-                #print('Asserting %s are in causal order' % item)
-                assert causalorder(self.__dict__[item])
-
     def parse(self, force=False, save=True):
         """Parse the .srf file, potentially unpickling parse info from
         a .parse file. If doing a new parsing, optionally save parse info
@@ -90,16 +79,16 @@ class File(object):
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
             self.unpickle()
-            print 'unpickling took %f sec' % (time.clock()-t0)
+            print('unpickling took %f sec' % (time.clock()-t0))
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it. Parse the .srf file
         except IOError:
-            print 'Parsing %r' % self.fname
+            print('Parsing %r' % self.fname)
             self._parseDRDBS()
-            self._parserecords()
-            print 'Done parsing %r' % self.fname
-            self._verifyParsing()
+            self._parseRecords()
+            print('Done parsing %r' % self.fname)
             self._connectRecords()
+            self._verifyParsing()
 
             #try: # check if highpassrecords are present
             self.hpstream = Stream(self, kind='highpass') # highpass record (spike) stream
@@ -110,13 +99,13 @@ class File(object):
             #except AttributeError:
             #    self.lpstream = None
 
-            print 'parsing took %f sec' % (time.clock()-t0)
+            print('parsing took %f sec' % (time.clock()-t0))
             if save:
                 tsave = time.clock()
                 self.pickle()
-                print 'pickling took %f sec' % (time.clock()-tsave)
+                print('pickling took %f sec' % (time.clock()-tsave))
 
-    def _parserecords(self):
+    def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
         # dict of (record type, listname to store it in) tuples
         FLAG2REC = {'L'  : (LayoutRecord, 'layoutrecords'),
@@ -128,6 +117,7 @@ class File(object):
                     'D'  : (DisplayRecord, 'displayrecords'),
                     'VD' : (DigitalSValRecord, 'digitalsvalrecords'),
                     'VA' : (AnalogSValRecord, 'analogsvalrecords')}
+        digitalsvalrecord = DigitalSValRecord() # instantiate just one, use it over and over
         f = self.f
         while True:
             # returns an empty string when EOF is reached
@@ -138,8 +128,12 @@ class File(object):
             f.seek(-2, 1)
             if flag in FLAG2REC:
                 rectype, reclistname = FLAG2REC[flag]
-                rec = rectype()
-                rec.parse(f)
+                # save time and memory by not instantiating hordes of unnecessary DigitalSValRecords
+                if rectype == DigitalSValRecord:
+                    rec = digitalsvalrecord.parse(f) # rec is just a tuple, not a DigitalSValRecord object
+                else:
+                    rec = rectype()
+                    rec.parse(f)
                 wx.Yield() # allow wx GUI event processing during parsing
                 self._appendRecord(rec, reclistname)
             else:
@@ -154,7 +148,7 @@ class File(object):
 
     def _connectRecords(self):
         """Connect the appropriate probe layout to each high and lowpass record"""
-        #print 'Connecting probe layouts to waveform records'
+        #print('Connecting probe layouts to waveform records')
         for record in self.highpassrecords:
             record.layout = self.layoutrecords[record.Probe]
 
@@ -168,7 +162,7 @@ class File(object):
 
         # Rearrange single channel lowpass records into
         # multichannel lowpass records
-        #print 'Rearranging single lowpass records into multichannel lowpass records'
+        #print('Rearranging single lowpass records into multichannel lowpass records')
         # get array of lowpass record timestamps
         rts = np.asarray([record.TimeStamp for record in self.lowpassrecords])
         # find at which records the timestamps change
@@ -186,6 +180,20 @@ class File(object):
         lpmclayout = self.get_LowPassMultiChanLayout()
         for lpmcr in self.lowpassmultichanrecords:
             lpmcr.layout = lpmclayout # overwrite each lpmc record's layout attrib
+
+        # Rearrange digitalsvalsrecords list into a more memory efficient struct array
+        if hasattr(self, 'digitalsvalrecords'):
+            DTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
+            self.digitalsvalrecords = np.asarray(self.digitalsvalrecords, dtype=DTYPE)
+
+    def _verifyParsing(self):
+        """Make sure timestamps of all records are in causal (increasing)
+        order. If not, sort them I guess?"""
+        #print('Asserting increasing record order')
+        for item in self.__dict__:
+            if item.endswith('records'):
+                #print('Asserting %s are in causal order' % item)
+                assert causalorder(self.__dict__[item])
 
     def get_LowPassMultiChanLayout(self):
         """Creates sort of a fake lowpassmultichan layout record, based on
@@ -219,33 +227,30 @@ class File(object):
 
     def pickle(self):
         """Pickle self to a .parse file"""
-        print 'Saving parse info to %r' % self.parsefname
+        print('Saving parse info to %r' % self.parsefname)
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
         cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
         pf.close()
-        print 'Saved parse info to %r' % self.parsefname
+        print('Saved parse info to %r' % self.parsefname)
 
     def unpickle(self):
         """Unpickle self from a .parse file"""
-        print 'Trying to recover parse info from %r' % self.parsefname
+        print('Trying to recover parse info from %r' % self.parsefname)
         pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
-        self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         pf.close()
-        print 'Recovered parse info from %r' % self.parsefname
+        other.fname = self.fname # overwrite
+        other.parsefname = self.parsefname # overwrite
+        other.f = self.f # restore open .srf file on unpickle
+        self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
+        print('Recovered parse info from %r' % self.parsefname)
 
     def __getstate__(self):
         """Don't pickle open .srf file on pickle"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         del d['f'] # exclude open .srf file
         return d
-
-    def __setstate__(self, d):
-        """Restore open .srf file on unpickle"""
-        self.__dict__ = d
-        self.f = open(self.fname, 'rb')
-
 
 class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file
@@ -782,7 +787,9 @@ class DigitalSValRecord(object):
         # NOTE: skipping over first 8 junk bytes and last 4 or even 6 junk bytes only
         # slows down parsing, or seems to during hardware caching from > 1 tests w/o reboot.
         # Read the whole 24 bytes in one go, including the junk
-        junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
+        #junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
+        junk, TimeStamp, SVal, junk, junk = unpack('QQHHI', f.read(24))
+        return TimeStamp, SVal
 
 
 def causalorder(records):

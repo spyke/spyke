@@ -1,45 +1,87 @@
+RECENT:
+
+    - tree is still really slow when expanding a neuron with 10s of 1000s of spikes - this is because it's not a true virtual tree like the virtual list is truly virtual - the tree populates all the children of all the currently expanded nodes, not just the currently visible children - that's cuz VirtualTree is implemented in Python - wx needs to do this at a lower level in C
+        - maybe add a button that simply plots a couple of dozen spikes at random from the currently selected neuron(s), plus the mean of each
+            - ah, make a choice widget that controls whether just a neuron's mean or just a random selection of its spikes or both its mean and a random selection are plotted when you select it
+        - or add something that lets you cycle through plotted spikes a couple dozen at a time, in order
+        - best soln is probably to replace tree with 2 more virtual list ctrls: one listing all the neurons (clicking neurons displays their mean), and one listing the currently selected neuron's spikes (clicking selects that spike)
+            - only downfall is you could no longer directly compare overplots of spikes of one neuron vs another, but this is already quite difficult to do with the multiselect tree
+            - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
+            - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
+
+
+    - overplotting speed
+
+    - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
+
+    - might be good to finally implement proper simultaneous spatiotemporal detection
+        - search through 2D array representing window of data, look for all extrema
+        - sort extrema by amplitude
+        - for extremum in extrema: # biggest to smallest
+            - check lockout
+            - if this next biggest extremum is locked out, break out of loop?
+            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
+
+    - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
+
+    - deleting a detection doesn't work right now, and might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
+
+    - repeat what was done for digitalsvalrecords (convert from huge list of objects to single recarray with fields) for highpassrecords, lowpassrecords, or any other list of anything that's really long - that way you go from having 100s of thousands of objects down to just a couple of record arrays - faster to pickle and unpickle too!
+        - maybe do it slightly better: instead of starting off with a huge list of objects, and then convert them to recarray, init a recarray of some initial size (say 50,000) when you first encounter a surf record of that type, and then manually keep resizing the recarray as need be to add more, and finally downsize it to just the size needed when you're done - again, this would save on initing such a huge number of objects which are then thrown away anyway upon conversion to recarray
+
+    - ptc15.81 not contiguous at record timestamps number 3309 and 3310
+        np.where((np.diff(s.stream.rts, n=2) == 0) == False)
+        (array([3309, 3310]),)
+        - when stream is asked for gap in data, fill the gap with zeros
+        - fill the same gap with zeros in .resample file
+            - find ctsrecord duration that's the most frequent
+
+    - replace unnecesary use of list(set(array)) with np.unique(array)
+
+    - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
+        - something like Sort.restore_wavedata()
+
+    - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
+        - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
+
+    - detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
+
+    - maybe leave neurons set as tree ItemPyData, since there aren't many of them - makes some things simpler, like tree.OnCompareItems
+
+    - deleting a detection doesn't clear neurons' waveforms, but maybe that's not such a bad thing?
+
+    - selecting a block of spikes in list doesn't plot them - might be due to bugfixes in latest wx, might not need my hack workarounds anymore?
+
+    - when deleting a detection, if ndetections == 0, reset _detid = 0. Maybe do same for nids and sids as well?
+
+    - clear/update neuron mean waveform and replot it immediately (if currently plotted), when updating its cluster members, ie moving/modifying the cluster and then hitting "c"
+        - close .srf file, open test.sort with no waves in it, modify cluster, apply it, yet mean neuron waveform remains unchanged from when it was last calculated when the .srf file was open
+
+    - fix LFP
+
+    - maybe before saving a .sort, check if it has detections/spikes from another .srf, if so, ask user if that's the intention
+
+
+
+
 GENERAL:
 
-- for spike in self.sort.spikes.values():
-     spike.update_waveform()
-
-    t = timeit.Timer('for spike in s.sorted_spikes: spike.update_wave(s.stream)', 'from __main__ import s')
-    t.timeit(1)
-    424.21932110020794
-
-    ... is really slow, I think because for each spike it loads 100 ms of data, interpolates it, grabs the spike's 1 ms x 9 chan window, throws the rest away, and repeats it for all 10s of thousands of spikes. Need to retain highpass records (and their interpolated data) at least for a while, so they can be reused when loading data from multiple spikes consecutively in time. Maybe use weakref somehow, so when too many are loaded, the gc cleans up the least used ones?
-    - this happens when extracting param values from detected spikes after restoring a .sort session that didn't have waveforms saved in it
-    - with "del record.data" commented out in core.Stream:243, timeit drops only very slightly to 412.45705476673595.
-    - related: add a File/Restore waveforms to the menu, leave it greyed out when not applicable
-    - realted: reduce number of chans included in a spike according to amount of signal on that signal, maybe based on median signal for that chan for entire file, or randomly sampled subset of the file
-
-- profile pickling and unpickling of both .parse and .sort files by temporarily using the Python pickle module instead of the cPickle module, to hopefully figure out why the surf.File and sort.Sort objects take so damned long to process - too many references?
-
-- assigning 64 bit range values to the wx slider on startup overflows if they're outside 32 bit values - this is a problem for 7 GB .srf files. Might have to use the slider as a rougher metric - instead of us, have it represent 10us steps? Or interpolated Xus steps? This then needs translation between slider values and actual time values...
+- reduce number of chans included in a spike according to amount of signal on that signal, maybe based on median signal for that chan for entire file, or randomly sampled subset of the file
 
 - order colours consecutively according to cluster mean y location, to make neighbouring clusters in X-Y space less likely to be assigned the same colour
 
 - WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
 
-- abstract out spike detection and obvious rejection from spike modelling, do all detection first in its own loop, followed by all modelling later in its own loop
-
 - add NVS's one pixel row per channel display window, with greyscale of colour hue indicating voltage - see more recognizable patterns, can see spikes over the span of just a few pixels (look like gabors over space and time), yet can also look across a wide swath of time to find similar looking gabors elsewhere - interesting
-
-- Nick's suggestion: consider leaving voltages in AD units, as signed 16 bit integers (centered around 0 instead of 2048 as in the .srf files) instead of float32's. This would use half the memory, and might also speed up computation: integer math should be faster than float math. Whenever you actually need uV, just convert on the fly
-    - I think I decided to stick to float32's because during Nyquist interpolation, I have to switch to them anyways, and I'm always doing interpolation
 
 - Nick's suggestion: try smoothing across channels. For each timepoint, for each chan, weight the signal at that timepoint with 1, and all the others for other channels as a function of a gaussian. Then normalize to get the smoothed signal value for that channel for that timepoint. Then, repeat, centered on each of the channels, and repeat for all timepoints. This preserves signal they have in common, and gets rid of channel-independent noise. Drawback is that you lose spatial resolution for your spike: a spike will appear to spread across more channels than it did before smoothing. This tradeoff can be tweaked by changing the sigma of the 2D spatial smotthing gaussian. Looks pretty good in his implementation.
     - might be a bit slow, but could just be implemented as an extra step before or after interpolation. is equivalent to convolving with some kind of spatial filter? maybe this is already implemented somewhere in numpy or scipy
 
 - for convenience in neuropy, copy all stimulus data from .srf to .sort file
 
-- does disabling a channel really prevent it from being searched on?
-
 - think there's an issue with the cursor width not updating when the window it represents (the one to the left) changes its zoom level
 
 - add CSD calculation and display
-
-- just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
 
 - get tooltips to work on main spyke frame widgets
 
@@ -473,6 +515,22 @@ DONE:
     - no, they're MS and MU, for Surf and User generated messages. At least, there shouldn't be any .srf files out there that have only M as the record flag
 
 - instead of simply searching for max and min V within window, search in window forward from thresh for a peak, then in either from that peak for up to another 200us for another one of opposite sign. If you don't find a 2nd one, it ain't a spike. How to find peaks? Look for change in diff? Nah, use inline C.
+- profile pickling and unpickling of both .parse and .sort files by temporarily using the Python pickle module instead of the cPickle module, to hopefully figure out why the surf.File and sort.Sort objects take so damned long to process - too many references?
+- assigning 64 bit range values to the wx slider on startup overflows if they're outside 32 bit values - this is a problem for 7 GB .srf files. Might have to use the slider as a rougher metric - instead of us, have it represent 10us steps? Or interpolated Xus steps? This then needs translation between slider values and actual time values...
+- abstract out spike detection and obvious rejection from spike modelling, do all detection first in its own loop, followed by all modelling later in its own loop
+- Nick's suggestion: consider leaving voltages in AD units, as signed 16 bit integers (centered around 0 instead of 2048 as in the .srf files) instead of float32's. This would use half the memory, and might also speed up computation: integer math should be faster than float math. Whenever you actually need uV, just convert on the fly
+    - I think I decided to stick to float32's because during Nyquist interpolation, I have to switch to them anyways, and I'm always doing interpolation
+- does disabling a channel really prevent it from being searched on? yes
+- just a note: user should probably disable any grounded out chans in the dataframes, before beginning detection/sorting/matching. Any disabled chans in the dataframes should propagate through the whole process as disabled by default (not sure if this is the case right now)
+- when searching for maxchan, new one should exceed current in Vpp, not just in Vp at phase1t. See ptc15.87.35040. Best to use Vpp instead of just size of a single phase when deciding on maxchan
+- Another problem at ptc15.87.35040 is that it did actually detect the original teal chan 5 as a spike, but then when it went to look for phase2 on the new purple maxchan 6 and couldn't find it, it gave up completely instead of reverting back to the previous maxchan. Maybe I should save things that are definitely spike-like before looking for new maxchan, and revert to those if a PeakError is raised
+- Neuron.update_wave() could be optimized by not looping over each ri separately, instead dealing with all ris at once
+    - first loop took 9.417 sec, 2nd loop took 48.399 sec for a cluster with 92358 spikes - this is way too slow
+    - consider aligning spikes in time in wavedata arrays, wrt their phase1 timepoint - can figure out which timepoint the spike starts at (go back phase1ti points from the reference point) and when it ends (count nt points from the start of the spike)
+- better strategy for neuron chan selection: at least 1/2 the spikes have to contribute to a channel for it to be considered a neuron chan. Why are some obviously important chans being left out of some spikes? this is due to a full channel lockout due to a near simultaneous spike nearby
+
+
+
 
 
 
