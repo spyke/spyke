@@ -697,7 +697,7 @@ class Neuron(object):
         #np.seterr(invalid='ignore')
         data /= nspikes # normalize each data point appropriately
         #np.seterr(invalid='raise') # restore error level
-        bins = list(neuronchans) + [sys.maxint]
+        bins = list(neuronchans) + [sys.maxint] # concatenate rightmost bin edge
         hist, bins = np.histogram(chanpopulation, bins=bins)
         newneuronchans = neuronchans[hist >= len(ris)/2]
         chanis = neuronchans.searchsorted(newneuronchans)

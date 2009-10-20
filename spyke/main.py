@@ -15,6 +15,9 @@ import gc
 
 import numpy as np
 
+spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
+sys.path.insert(0, spykepath)
+
 import spyke
 from spyke import core, surf, detect, extract
 from spyke.detect import Detection
