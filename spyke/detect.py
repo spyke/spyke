@@ -641,12 +641,12 @@ class Detector(object):
             try: sort.wavedatas
             except AttributeError: sort.init_wavedata(nchans=self.maxnchansperspike, nt=nt)
 
-        t0 = time.clock()
+        t0 = time.time()
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
         self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
         AD2uV = sort.converter.AD2uV
-        info('thresh calcs took %.3f sec' % (time.clock()-t0))
+        info('thresh calcs took %.3f sec' % (time.time()-t0))
         info('thresh   = %s' % AD2uV(self.thresh))
         info('ppthresh = %s' % AD2uV(self.ppthresh))
 
@@ -660,7 +660,7 @@ class Detector(object):
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
         spikes = np.zeros(0, self.SPIKEDTYPE) # init
 
-        t0 = time.clock()
+        t0 = time.time()
         for wavetrange in wavetranges:
             try:
                 blockspikes = self.searchblock(wavetrange, direction)
@@ -679,7 +679,7 @@ class Detector(object):
         spikes['nid'] = -1
         spikes['detid'] = -1
         info('\nfound %d spikes in total' % len(spikes))
-        info('inside .detect() took %.3f sec' % (time.clock()-t0))
+        info('inside .detect() took %.3f sec' % (time.time()-t0))
         return spikes
 
     def calc_chans(self):
@@ -731,9 +731,9 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
         info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
-        tslice = time.clock()
+        tslice = time.time()
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
-        print('Stream slice took %.3f sec' % (time.clock()-tslice))
+        print('Stream slice took %.3f sec' % (time.time()-tslice))
         # TODO: simplify the whole channel deselection and indexing approach, maybe
         # make all chanis always index into the full probe chan layout instead of the self.chans
         # that represent which chans are enabled for this detector. Also, maybe do away with
@@ -756,12 +756,12 @@ class Detector(object):
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
-        tget_edges = time.clock()
+        tget_edges = time.time()
         edgeis = get_edges(wave, self.thresh)
-        info('get_edges() took %.3f sec' % (time.clock()-tget_edges))
-        tcheck_edges = time.clock()
+        info('get_edges() took %.3f sec' % (time.time()-tget_edges))
+        tcheck_edges = time.time()
         spikes = self.check_edges(wave, edgeis, cutrange)
-        info('checking edges took %.3f sec' % (time.clock()-tcheck_edges))
+        info('checking edges took %.3f sec' % (time.time()-tcheck_edges))
         print('found %d spikes' % len(spikes))
         #import cProfile
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())

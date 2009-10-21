@@ -74,12 +74,12 @@ class File(object):
         """Parse the .srf file, potentially unpickling parse info from
         a .parse file. If doing a new parsing, optionally save parse info
         to a .parse file"""
-        t0 = time.clock()
+        t0 = time.time()
         try: # recover self pickled in .parse file
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
             self.unpickle()
-            print('unpickling took %f sec' % (time.clock()-t0))
+            print('unpickling took %.3f sec' % (time.time()-t0))
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it. Parse the .srf file
         except IOError:
@@ -99,11 +99,11 @@ class File(object):
             #except AttributeError:
             #    self.lpstream = None
 
-            print('parsing took %f sec' % (time.clock()-t0))
+            print('parsing took %.3f sec' % (time.time()-t0))
             if save:
-                tsave = time.clock()
+                tsave = time.time()
                 self.pickle()
-                print('pickling took %f sec' % (time.clock()-tsave))
+                print('pickling took %.3f sec' % (time.time()-tsave))
 
     def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""

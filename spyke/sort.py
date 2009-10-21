@@ -297,7 +297,7 @@ class Sort(object):
     def get_param_matrix(self, dims=None):
         """Organize parameters in dims from all spikes into a
         data matrix for clustering"""
-        t0 = time.clock()
+        t0 = time.time()
         nparams = len(dims)
         try:
             # self.Xcols stores all currently created columns of any potential param matrix X
@@ -322,7 +322,7 @@ class Sort(object):
                         self.Xcols[dim] = np.float32(self.spikes[dim])
 
         X = np.column_stack([ self.Xcols[dim] for dim in dims ])
-        print("Getting param matrix took %.3f sec" % (time.clock()-t0))
+        print("Getting param matrix took %.3f sec" % (time.time()-t0))
         return X
 
     def apply_cluster(self, cluster):
@@ -600,7 +600,7 @@ class Sort(object):
         """
         templates = templates or self.templates.values() # None defaults to matching all templates
         sys.stdout.write('matching')
-        t0 = time.clock()
+        t0 = time.time()
         nspikes = len(self.spikes)
         dm = self.detector.dm
         for template in templates:
@@ -631,7 +631,7 @@ class Sort(object):
                 i = template.err[:, 1].argsort() # row indices that sort by error
                 template.err = template.err[i]
             sys.stdout.write('.')
-        print '\nmatch took %.3f sec' % (time.clock()-t0)
+        print '\nmatch took %.3f sec' % (time.time()-t0)
     '''
 
 class Neuron(object):
@@ -668,15 +668,15 @@ class Neuron(object):
         spikeis = np.asarray(list(self.spikeis))
         ris = spikes['id'].searchsorted(spikeis)
 
-        t0 = time.clock()
+        t0 = time.time()
         chanss = spikes['chans'][ris]
         nchanss = spikes['nchans'][ris]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
         chanpopulation = np.concatenate(chanslist)
         neuronchans = np.unique(chanpopulation)
-        print('first loop took %.3f sec' % (time.clock()-t0))
+        print('first loop took %.3f sec' % (time.time()-t0))
 
-        t0 = time.clock()
+        t0 = time.time()
         wavedatas = sort.get_wavedata(ris)
         if wavedatas.ndim == 2: # should be 3, get only 2 if len(ris) == 1
             wavedatas.shape = 1, wavedatas.shape[0], wavedatas.shape[1] # give it a singleton 3rd dim
@@ -691,8 +691,8 @@ class Neuron(object):
             chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
             data[chanis] += wavedata[:len(chans)] # accumulate
             nspikes[startti:] += 1 # inc spike count for timepoints for this spike
-        print('2nd loop took %.3f sec' % (time.clock()-t0))
-        t0 = time.clock()
+        print('2nd loop took %.3f sec' % (time.time()-t0))
+        t0 = time.time()
         #nspikes = np.maximum(nspikes, np.ones(shape, dtype=np.float32)) # element-wise max, avoids div by 0
         #np.seterr(invalid='ignore')
         data /= nspikes # normalize each data point appropriately
@@ -706,7 +706,7 @@ class Neuron(object):
         self.wave.ts = sort.twts
         #print('neuron[%d].wave.chans = %r' % (self.id, chans))
         #print('neuron[%d].wave.ts = %r' % (self.id, ts))
-        print('mean calc took %.3f sec' % (time.clock()-t0))
+        print('mean calc took %.3f sec' % (time.time()-t0))
         return self.wave
     '''
     def get_stdev(self):

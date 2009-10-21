@@ -266,7 +266,7 @@ class Stream(object):
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
-        #tslice = time.clock()
+        #tslice = time.time()
         # for now, accept only slice objects as keys
         #assert type(key) == slice
         # key.step == -1 indicates we want the returned Waveform reversed in time
@@ -289,15 +289,15 @@ class Stream(object):
         # matches a record's timestamp, start with that record. If the end of the slice matches a record's
         # timestamp, end with that record (even though you'll only potentially use the one timepoint from
         # that record, depending on the value of 'endinclusive')"""
-        #trts = time.clock()
+        #trts = time.time()
         lorec, hirec = self.rts.searchsorted([start-xs, stop+xs], side='right') # TODO: this might need to be 'left' for step=-1
-        #print('rts.searchsorted() took %.3f sec' % (time.clock()-trts)) # this takes 0 sec
+        #print('rts.searchsorted() took %.3f sec' % (time.time()-trts)) # this takes 0 sec
 
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
         recorddatas = []
-        tload = time.clock()
+        tload = time.time()
         for record in cutrecords:
             recorddatas.append(record.load(self.srff.f))
         '''
@@ -311,23 +311,23 @@ class Stream(object):
         '''
         nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
         totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
-        #print('record.load() took %.3f sec' % (time.clock()-tload))
+        #print('record.load() took %.3f sec' % (time.time()-tload))
 
-        tcat = time.clock()
+        tcat = time.time()
         #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1) # slow
         # init as int32 so we have space to rescale and zero, then convert back to int16
         data = np.empty((nchans, totalnt), dtype=np.int32)
         for recordi, recorddata in enumerate(recorddatas):
             i = recordi * nt
             data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
-        #print('concatenate took %.3f sec' % (time.clock()-tcat))
+        #print('concatenate took %.3f sec' % (time.time()-tcat))
         tres = self.layout.tres # actual tres of record data may not match self.tres due to interpolation
 
         # build up waveform timepoints, taking into account any time gaps in
         # between records due to pauses in recording, assumes all records
         # are the same length, except for maybe the last
         # TODO: if self.contiguous, do this the easy way instead!
-        ttsbuild = time.clock()
+        ttsbuild = time.time()
         ts = np.empty(totalnt, dtype=np.int64) # init
         for recordi, (record, recorddata) in enumerate(zip(cutrecords, recorddatas)):
             i = recordi * nt
@@ -339,58 +339,58 @@ class Stream(object):
         tstart = cutrecords[0].TimeStamp
         ts = np.arange(tstart, tstart + totalnt*tres, tres, dtype=np.int64)
         '''
-        #print('ts building took %.3f sec' % (time.clock()-ttsbuild))
-        #ttrim = time.clock()
+        #print('ts building took %.3f sec' % (time.time()-ttsbuild))
+        #ttrim = time.time()
         lo, hi = ts.searchsorted([start-xs, stop+xs])
         data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
         ts = ts[lo:hi+self.endinclusive] # .take doesn't seem to be any faster
         if data.size == 0:
             raise RuntimeError("no data to return, check slice key: %r" % key)
-        #print('record data trimming took %.3f sec' % (time.clock()-ttrim)) # this takes 0 sec
+        #print('record data trimming took %.3f sec' % (time.time()-ttrim)) # this takes 0 sec
 
         # reverse data if need be
         if key.step == -1:
             data = data[:, ::key.step]
             ts = ts[::key.step]
 
-        tscaleandoffset = time.clock()
+        tscaleandoffset = time.time()
         #data *= 2**(16-12) # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
         # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as * 2**(16-12) == 16
         # this provides more fidelity for interpolation, reduces uV per AD to about 0.02
         data <<= 4
         data -= 2**15 # offset values to center them around 0 AD == 0 V
         # data is still int32 at this point
-        #print('scaling and offsetting data took %.3f sec' % (time.clock()-tscaleandoffset))
+        #print('scaling and offsetting data took %.3f sec' % (time.time()-tscaleandoffset))
         #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary, returning only self.chans data
         if resample:
-            tresample = time.clock()
+            tresample = time.time()
             data, ts = self.resample(data, ts)
-            #print('resample took %.3f sec' % (time.clock()-tresample))
+            #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
             if range(nchans) != list(self.chans): # some chans are disabled
                 # TODO: BUG: this doesn't work right for lowpass Streams, because their ADchans and probe chans don't map 1 to 1
                 data = data[self.chans]
         # now get rid of any excess
         if xs:
-            #txs = time.clock()
+            #txs = time.time()
             lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted really necessary?
             data = data[:, lo:hi+self.endinclusive]
             ts = ts[lo:hi+self.endinclusive]
-            #print('xs took %.3f sec' % (time.clock()-txs)) # this takes 0 sec
+            #print('xs took %.3f sec' % (time.time()-txs)) # this takes 0 sec
 
         #datamax = data.max()
         #datamin = data.min()
         #print('data max=%d and min=%d' % (datamax, datamin))
         #assert datamax < 2**15 - 1
         #assert datamin > -2**15
-        tint16 = time.clock()
+        tint16 = time.time()
         data = np.int16(data) # should be safe to convert back down to int16 now
-        #print('int16() took %.3f sec' % (time.clock()-tint16))
+        #print('int16() took %.3f sec' % (time.time()-tint16))
 
         #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
-        #print('Stream slice took %.3f sec' % (time.clock()-tslice))
+        #print('Stream slice took %.3f sec' % (time.time()-tslice))
 
         # return a WaveForm object
         assert len(data) == len(self.chans), "self.chans doesn't seem to correspond to rows in data"
@@ -436,7 +436,7 @@ class Stream(object):
         assert len(ts) == nt
         data = np.empty((self.nchans, nt), dtype=np.int32) # resampled data, leave as int32 for convolution, then convert to int16
         #print 'data.shape = %r' % (data.shape,)
-        tconvolve = time.clock()
+        tconvolve = time.time()
         tconvolvesum = 0
         # assume chans map onto ADchans 1 to 1, ie chan 0 taps off of ADchan 0
         # this way, only the chans that are actually needed are resampled and returned
@@ -446,9 +446,9 @@ class Stream(object):
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 where K = len(a)-1 and M = len(v) - 1 and K >= M
                 for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
-                #tconvolveonce = time.clock()
+                #tconvolveonce = time.time()
                 row = np.convolve(rawdata[chan], kernel, mode='same')
-                #tconvolvesum += (time.clock()-tconvolveonce)
+                #tconvolvesum += (time.time()-tconvolveonce)
                 #print 'len(rawdata[ADchani]) = %r' % len(rawdata[ADchani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
@@ -456,11 +456,11 @@ class Stream(object):
                 ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
                 rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
                 data[chani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions, since interpolated values have to be bounded on both sides by raw values?
-        #print('convolve loop took %.3f sec' % (time.clock()-tconvolve))
+        #print('convolve loop took %.3f sec' % (time.time()-tconvolve))
         #print('convolve calls took %.3f sec total' % (tconvolvesum))
-        #tundoscaling = time.clock()
+        #tundoscaling = time.time()
         data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
-        #print('undo kernel scaling took %.3f sec total' % (time.clock()-tundoscaling))
+        #print('undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
         return data, ts
 
     def get_kernels(self, ADchans, resamplex, N):
@@ -517,7 +517,7 @@ class Stream(object):
         nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
         fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
         print('saving resampled data to %r' % fname)
-        tsave = time.clock()
+        tsave = time.time()
         f = open(fname, 'wb')
 
         # for speed, allocate the full file size by writing a NULL byte to the very end:
@@ -547,7 +547,7 @@ class Stream(object):
                     chandata.tofile(f) # write in row order
             sys.stdout.write('.')
         f.close()
-        print('saving resampled data to disk took %.3f sec' % (time.clock()-tsave))
+        print('saving resampled data to disk took %.3f sec' % (time.time()-tsave))
         self.try_switch() # switch to the .resample file, now that it's there
 
     def switch(self, to=None):
@@ -612,7 +612,7 @@ class ResampleFileStream(Stream):
 
     """
     def __getitem__(self, key):
-        #tslice = time.clock()
+        #tslice = time.time()
         if key.step in [None, 1]:
             start, stop = key.start, key.stop
         elif key.step == -1:
@@ -631,7 +631,7 @@ class ResampleFileStream(Stream):
         # transpose it, just gets you a new view, but remember it won't be C-contiguous until you copy it!
         data = data.T
         ts = np.arange(start, stop, self.tres, dtype=np.int64)
-        #print('ResampleFileStream slice took %.3f sec' % (time.clock()-tslice))
+        #print('ResampleFileStream slice took %.3f sec' % (time.time()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
     def __getstate__(self):

@@ -51,7 +51,7 @@ class Extractor(object):
         except AttributeError:
             raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
         print("Extracting parameters from spikes")
-        t0 = time.clock()
+        t0 = time.time()
         for ri in np.arange(nspikes):
             wavedata = self.sort.get_wavedata(ri)
             detid = spikes['detid'][ri]
@@ -73,7 +73,7 @@ class Extractor(object):
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
-              (nspikes, self.XYmethod.lower(), time.clock()-t0))
+              (nspikes, self.XYmethod.lower(), time.time()-t0))
 
     def get_spatial_mean(self, wavedata, x, y, phase1ti, phase2ti):
         """Return weighted spatial mean of chans in spike according to their

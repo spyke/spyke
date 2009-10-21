@@ -188,7 +188,7 @@ class ClusterFrame(wx.MiniFrame):
         z = X[:, 2]
         cmap = CMAPPLUSTRANSWHITE
         if nids: # figure out scalar value to assign to each spike to colour it correctly
-            t0 = time.clock()
+            t0 = time.time()
             nids = np.asarray(nids)
             sortednidis = nids.argsort() # indices to get nids in sorted order
             unsortednidis = sortednidis.argsort() # indices that unsort nids back to original spike id order
@@ -236,7 +236,7 @@ class ClusterFrame(wx.MiniFrame):
             # unsort, so mayavi pick indices match spike indices
             nids = nids[unsortednidis] # unsort nids back to its original spike id order
             s = s[unsortednidis] # do the same for the colourmap indices
-            print("Figuring out colours took %.3f sec" % (time.clock()-t0))
+            print("Figuring out colours took %.3f sec" % (time.time()-t0))
             # TODO: order colours consecutively according to cluster mean y location, to
             # make neighbouring clusters in X-Y space less likely to be assigned the same colour
         else:
@@ -245,7 +245,7 @@ class ClusterFrame(wx.MiniFrame):
         if envisage == True:
             mlab.options.backend = 'envisage' # full GUI instead of just simple window
         # plot it
-        t0 = time.clock()
+        t0 = time.time()
         f = self.f
         f.scene.disable_render = True # for speed
         # clear just the plotted glyph representing the points, not the whole scene including the ellipsoids
@@ -268,7 +268,7 @@ class ClusterFrame(wx.MiniFrame):
         glyph.module_manager.scalar_lut_manager.data_range = np.array([0, len(cmap)-1]) # need to force it again for some reason
         if scale: glyph.actor.actor.scale = scale
         f.scene.disable_render = False
-        print("Plotting took %.3f sec" % (time.clock()-t0))
+        print("Plotting took %.3f sec" % (time.time()-t0))
         return glyph
 
     def add_ellipsoid(self, cluster, dims, alpha=0.5):

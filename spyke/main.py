@@ -461,10 +461,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             ris = self.sort.spikes['id'].searchsorted(cluster.spikeis)
             neuron = cluster.neuron
             cf.glyph.mlab_source.scalars[ris] = neuron.id % len(CMAP)
-        t0 = time.clock()
+        t0 = time.time()
         print('calling glyph.mlab_source.update()')
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
-        print('glyph.mlab_source.update() call took %.3f sec' % ((time.clock()-t0)))
+        print('glyph.mlab_source.update() call took %.3f sec' % ((time.time()-t0)))
 
     def DeColourPoints(self, spikeis):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
@@ -916,7 +916,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Open a Sort from a .sort file, restore the stream"""
         self.DeleteSort() # delete any existing Sort
         print('opening sort file %r' % fname)
-        t0 = time.clock()
+        t0 = time.time()
         f = open(fname, 'rb')
         sort, spikes, wavedatas = self.read_sort_file(f)
         self.sort = sort
@@ -935,7 +935,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sort.wavedatas = wavedatas
             sort.update_wavedatacumsum()
         f.close()
-        print('done opening sort file, took %.3f sec' % (time.clock()-t0))
+        print('done opening sort file, took %.3f sec' % (time.time()-t0))
         sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
@@ -983,7 +983,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         print('saving sort file')
-        t0 = time.clock()
+        t0 = time.time()
         f = open(fname, 'wb')
         objs = {'sort': sort, 'spikes': sort.spikes}
         if sort.SAVEWAVES:
@@ -995,7 +995,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             objs['wavedatas'] = wavedatas
         self.write_sort_file(f, **objs)
         f.close()
-        print('done saving sort file, took %.3f sec' % (time.clock()-t0))
+        print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
 
