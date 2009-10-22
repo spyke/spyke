@@ -9,11 +9,14 @@ RECENT:
         - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
         - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
 
-    - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability
+    - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability - this would lump backprop spikes with their normal versions
+
+    - change .parse file format to sort of mimic the new .sort format - a pickle, followed by a few contiguous numpy arrays - only the pickle would have to undergo a copy in memory when saving/restoring - the arrays (which make up the vast majority of the data) would not - they'd stream straight from disk into their final destination in memory - this would be really really fast
+        - also, instead of starting off with a huge list of objects, save record info straight into the ndarray - this will speed up initial parsing
 
     - overplotting speed
 
-    - need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses
+    - need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses (especially in the white ellipses) - maybe make their points greyish red and pink (respectively) instead?
 
     - manual sorting is broken again
 
@@ -34,11 +37,6 @@ RECENT:
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
     - deleting a detection doesn't work right now, and might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
-
-    - repeat what was done for digitalsvalrecords (convert from huge list of objects to single recarray with fields) for highpassrecords, lowpassrecords, or any other list of anything that's really long - that way you go from having 100s of thousands of objects down to just a couple of record arrays - faster to pickle and unpickle too!
-        - maybe do it slightly better: instead of starting off with a huge list of objects, and then convert them to recarray, init a recarray of some initial size (say 50,000) when you first encounter a surf record of that type, and then manually keep resizing the recarray as need be to add more, and finally downsize it to just the size needed when you're done - again, this would save on initing such a huge number of objects which are then thrown away anyway upon conversion to recarray
-
-    - or, might be good to change .parse file format to sort of mimic the new .sort format - a pickle, followed by a few contiguous numpy arrays - only the pickle would have to undergo a copy in memory when saving/restoring - the arrays (which make up the vast majority of the data) would not - they'd stream straight from disk into their final destination in memory - this would be really really fast
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)

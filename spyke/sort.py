@@ -228,8 +228,8 @@ class Sort(object):
             slicedwavedatas.append(wd[localris])
         return np.concatenate(slicedwavedatas)
 
-    def save_wavedata(self, ri, wavedata, phase1ti):
-        """Save 2D array wavedata to row index ri, in appropriate 3D wavedata
+    def set_wavedata(self, ri, wavedata, phase1ti):
+        """Set 2D array wavedata to row index ri, in appropriate 3D wavedata
         array in self.wavedatas, and align it in time with all the rest according
         to phase1ti"""
         # first figure out which array in wavedatas the row index ri corresponds to

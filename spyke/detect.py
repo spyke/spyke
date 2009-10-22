@@ -929,7 +929,7 @@ class Detector(object):
             wavedata = wave.data[chanis, t0i:tendi]
             if self.keepspikewavesondetect: # keep spike waveform for later use
                 totalnspikes = sort.nspikes + self.nspikes + nspikes
-                sort.save_wavedata(totalnspikes, wavedata, phase1ti)
+                sort.set_wavedata(totalnspikes, wavedata, phase1ti)
             if self.extractparamsondetect:
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
