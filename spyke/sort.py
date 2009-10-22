@@ -294,6 +294,73 @@ class Sort(object):
         wave = self.stream[t0:tend]
         return wave[chans]
 
+    def export(self, path=''):
+        """Export stimulus textheader, din and/or spike data to binary files in path in
+        the classic way for use in neuropy"""
+        # first export the din to path, using the source .srf fname of first
+        # detection as its name
+        print('Exporting data to %r' % path)
+        if hasattr(self, 'stream'):
+            allsrffnames = set([ detection.detector.srffname for detection in self.detections.values() ])
+            srffname = allsrffnames.pop()
+            srffnameroot = srffname.partition('.srf')[0]
+            if len(allsrffnames) != 0:
+                print("Just to be safe, not exporting stimulus info because detections come from "
+                      "different .srf files")
+                return
+            if srffname != self.stream.srffname:
+                print("Just to be safe, not exporting stimulus info because currently open .srf "
+                      "file doesn't match the one in the detections")
+                return
+            if hasattr(self.stream.srff, 'displayrecords'):
+                self.exporttextheader(srffnameroot, path)
+            if hasattr(self.stream.srff, 'digitalsvalrecords'):
+                self.exportdin(srffnameroot, path)
+        if len(self.neurons) != 0:
+            self.exportspikes(path)
+
+    def exporttextheader(self, srffnameroot, path=''):
+        """Export stimulus text header to path"""
+        displayrecords = self.stream.srff.displayrecords
+        if len(displayrecords) != 1:
+            print("Can't figure out which display record to export stimulus text header from")
+            return
+        textheader = displayrecords[0].Header.python_tbl
+        textheaderfname = srffnameroot + '.textheader'
+        print(textheaderfname)
+        f = open(os.path.join(path, textheaderfname), 'w')
+        f.write(textheader) # save it
+        f.close()
+
+    def exportdin(self, srffnameroot, path=''):
+        """Export stimulus din to binary file in path"""
+        dinfname = srffnameroot + '.din'
+        print(dinfname)
+        dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
+        # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
+        digitalsvalrecords = self.stream.srff.digitalsvalrecords.astype(dinfiledtype)
+        digitalsvalrecords.tofile(os.path.join(path, dinfname)) # save it
+
+    def exportspikes(self, path=''):
+        """Export spike data to binary files in path, one file per neuron"""
+        spikes = self.spikes
+        dt = str(datetime.datetime.now()) # get an export timestamp
+        dt = dt.split('.')[0] # ditch the us
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        spikefoldername = dt + '.best.sort'
+        path = os.path.join(path, spikefoldername)
+        os.mkdir(path)
+        for nid, neuron in self.neurons.items():
+            spikeis = list(neuron.spikeis) # convert from set
+            spikeis.sort() # make sure they're sorted
+            ris = spikes['id'].searchsorted(spikeis)
+            spikets = spikes['t'][ris]
+            # pad filename with leading zero to always make template (t) ID at least 2 digits long
+            neuronfname = '%s_t%02d.spk' % (dt, nid)
+            print(neuronfname)
+            spikets.tofile(os.path.join(path, neuronfname)) # save it
+
     def get_param_matrix(self, dims=None):
         """Organize parameters in dims from all spikes into a
         data matrix for clustering"""
@@ -723,6 +790,11 @@ class Neuron(object):
         return self.wave.chans # self.chans just refers to self.wave.chans
 
     chans = property(get_chans)
+
+    def get_nspikes(self):
+        return len(self.spikeis)
+
+    nspikes = property(get_nspikes)
 
     def __getstate__(self):
         """Get object state for pickling"""

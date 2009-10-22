@@ -4,16 +4,22 @@ RECENT:
         - maybe add a button that simply plots a couple of dozen spikes at random from the currently selected neuron(s), plus the mean of each
             - ah, make a choice widget that controls whether just a neuron's mean or just a random selection of its spikes or both its mean and a random selection are plotted when you select it
         - or add something that lets you cycle through plotted spikes a couple dozen at a time, in order
-        - best soln is probably to replace tree with 2 more virtual list ctrls: one listing all the neurons (clicking neurons displays their mean), and one listing the currently selected neuron's spikes (clicking selects that spike)
-            - only downfall is you could no longer directly compare overplots of spikes of one neuron vs another, but this is already quite difficult to do with the multiselect tree
-            - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
-            - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
+    - best soln is probably to replace tree with 2 more virtual list ctrls: one listing all the neurons (clicking neurons displays their mean), and one listing the currently selected neuron's spikes (clicking selects that spike)
+        - only downfall is you could no longer directly compare overplots of spikes of one neuron vs another, but this is already quite difficult to do with the multiselect tree
+        - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
+        - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
+
+    - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability
 
     - overplotting speed
+
+    - need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses
 
     - manual sorting is broken again
 
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
+
+    - looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
 
     - might be good to finally implement proper simultaneous spatiotemporal detection
         - search through 2D array representing window of data, look for all extrema
@@ -22,6 +28,8 @@ RECENT:
             - check lockout
             - if this next biggest extremum is locked out, break out of loop?
             - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
+        - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
+        - might also be faster than current approach of search across time, then across chans, then across time...
 
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
@@ -29,6 +37,8 @@ RECENT:
 
     - repeat what was done for digitalsvalrecords (convert from huge list of objects to single recarray with fields) for highpassrecords, lowpassrecords, or any other list of anything that's really long - that way you go from having 100s of thousands of objects down to just a couple of record arrays - faster to pickle and unpickle too!
         - maybe do it slightly better: instead of starting off with a huge list of objects, and then convert them to recarray, init a recarray of some initial size (say 50,000) when you first encounter a surf record of that type, and then manually keep resizing the recarray as need be to add more, and finally downsize it to just the size needed when you're done - again, this would save on initing such a huge number of objects which are then thrown away anyway upon conversion to recarray
+
+    - or, might be good to change .parse file format to sort of mimic the new .sort format - a pickle, followed by a few contiguous numpy arrays - only the pickle would have to undergo a copy in memory when saving/restoring - the arrays (which make up the vast majority of the data) would not - they'd stream straight from disk into their final destination in memory - this would be really really fast
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)
@@ -529,7 +539,7 @@ DONE:
     - first loop took 9.417 sec, 2nd loop took 48.399 sec for a cluster with 92358 spikes - this is way too slow
     - consider aligning spikes in time in wavedata arrays, wrt their phase1 timepoint - can figure out which timepoint the spike starts at (go back phase1ti points from the reference point) and when it ends (count nt points from the start of the spike)
 - better strategy for neuron chan selection: at least 1/2 the spikes have to contribute to a channel for it to be considered a neuron chan. Why are some obviously important chans being left out of some spikes? this is due to a full channel lockout due to a near simultaneous spike nearby
-
+- add binary export of spike times and din for quick interoperation with neuropy
 
 
 

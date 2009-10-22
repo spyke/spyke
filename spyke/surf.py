@@ -802,6 +802,11 @@ def causalorder(records):
     return True
     '''
     # more straightforward using numpy:
-    ts = np.asarray([ record.TimeStamp for record in records ])
+    try:
+        # won't need this one once all records of each type are stored in
+        # contiguous struct arrays instead of lists of objects
+        ts = np.asarray([ record.TimeStamp for record in records ])
+    except AttributeError:
+        ts = np.asarray([ record['TimeStamp'] for record in records ])
     # is ts in increasing order, ie is difference between subsequent entries >= 0?
     return (np.diff(ts) >= 0).all()

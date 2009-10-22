@@ -573,7 +573,7 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFMAXNCHANSPERSPIKE = 12 # overrides spatial lockout, setting this lower than 12 gives artificially
+    DEFMAXNCHANSPERSPIKE = 10 # overrides spatial lockout, setting this lower than 12 can give artificially
                               # segregated clusters in space, at least when using spatial mean extraction
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um

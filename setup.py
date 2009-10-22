@@ -1,5 +1,8 @@
 """spyke installation script
 
+to do a normal installation:
+>> python setup.py install
+
 to build extensions in-place for development:
 >>> python setup.py build_ext --inplace
 (you might need to add --compiler=mingw32 if you're in win32 and mingw isn't your default compiler in Python)
@@ -14,11 +17,11 @@ NOTE: Make sure there's a MANIFEST.in that includes all the files you want to pl
 in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 """
 
-from distutils.core import setup, Extension
-import os
-import sys
-from Cython.Distutils import build_ext
+from distutils.core import setup#, Extension
+#import sys
+#from Cython.Distutils import build_ext
 
+'''
 
 # modify this to point to your numpy/core/include
 if sys.platform == 'win32':
@@ -27,14 +30,12 @@ elif sys.platform == 'linux2':
     include_dirs=['/usr/lib/python2.5/site-packages/numpy/core/include']
 else:
     raise RuntimeError
-'''
 simple_detect_cy = Extension('spyke.simple_detect_cy',
                              sources=['spyke/simple_detect_cy.pyx'],
                              include_dirs=include_dirs,
                              #extra_compile_args=["-g"], # debug
                              #extra_link_args=["-g"],
                              )
-'''
 detect_cy = Extension('spyke.detect_cy',
                       sources=['spyke/detect_cy.pyx'],
                       include_dirs=include_dirs,
@@ -55,7 +56,7 @@ cy_thread_test = Extension('demo.cy_thread_test',
                         #extra_compile_args=["-g"], # debug
                         #extra_link_args=["-g"],
                         )
-
+'''
 spyke_files = ["res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
 
 setup(name='spyke',
@@ -68,10 +69,10 @@ setup(name='spyke',
       #long_description='',
       packages=['spyke'], # have to explicitly include subfolders with code as additional packages
       package_data={'spyke' : spyke_files},
-      cmdclass={'build_ext': build_ext},
-      ext_modules=[#simple_detect_cy,
-                   detect_cy,
-                   cython_test,
-                   cy_thread_test
-                   ],
+      #cmdclass={'build_ext': build_ext},
+      #ext_modules=[#simple_detect_cy,
+      #             detect_cy,
+      #             cython_test,
+      #             cy_thread_test
+      #             ],
       )
