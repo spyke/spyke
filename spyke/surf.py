@@ -111,12 +111,14 @@ class File(object):
         FLAG2REC = {'L'  : (LayoutRecord, 'layoutrecords'),
                     'MS' : (SurfMessageRecord, 'messagerecords'),
                     'MU' : (UserMessageRecord, 'messagerecords'),
-                    'PS' : (HighPassRecord, 'highpassrecords'),
-                    'PC' : (LowPassRecord, 'lowpassrecords'),
                     'PE' : (EpochRecord, 'epochrecords'),
                     'D'  : (DisplayRecord, 'displayrecords'),
-                    'VD' : (DigitalSValRecord, 'digitalsvalrecords'),
                     'VA' : (AnalogSValRecord, 'analogsvalrecords')}
+        # dict of (record type, array name to store it in) tuples
+        FLAG2ARR = {'PS' : (HighPassRecord, 'highpassrecords'),
+                    'PC' : (LowPassRecord, 'lowpassrecords'),
+                    'VD' : (DigitalSValRecord, 'digitalsvalrecords')}
+
         digitalsvalrecord = DigitalSValRecord() # instantiate just one, use it over and over
         f = self.f
         while True:
@@ -125,19 +127,20 @@ class File(object):
             if flag == '':
                 break
             # put file pointer back to start of flag
-            f.seek(-2, 1)
-            if flag in FLAG2REC:
+            #f.seek(-2, 1)
+            if flag in FLAG2ARR:
+
+            elif flag in FLAG2REC:
                 rectype, reclistname = FLAG2REC[flag]
-                # save time and memory by not instantiating hordes of unnecessary DigitalSValRecords
-                if rectype == DigitalSValRecord:
-                    rec = digitalsvalrecord.parse(f) # rec is just a tuple, not a DigitalSValRecord object
-                else:
                     rec = rectype()
                     rec.parse(f)
-                wx.Yield() # allow wx GUI event processing during parsing
+                #wx.Yield() # allow wx GUI event processing during parsing
                 self._appendRecord(rec, reclistname)
+
+
+
             else:
-                raise ValueError, 'Unexpected flag %r at offset %d' % (flag, f.tell())
+                raise ValueError('Unexpected flag %r at offset %d' % (flag, f.tell()-2))
             #self.percentParsed = f.tell() / self.fileSize * 100
 
     def _appendRecord(self, rec, reclistname):
@@ -611,8 +614,6 @@ class ContinuousRecord(object):
         return 28 + self.NumSamples*2
 
     def parse(self, f):
-        # not really necessary, comment out to save memory
-        #self.offset = f.tell()
         # for speed and memory, read all 28 bytes at a time, skip reading
         # UffType, SubType, and CRC32 (which is always 0 anyway?)
         '''
@@ -624,7 +625,7 @@ class ContinuousRecord(object):
         # no, that's about 25% slower when thrashing from uncached disk, below is better:
         '''
         junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = unpack('qqhhii', f.read(28))
-        self.dataoffset = int(f.tell()) # try and keep it more compact if possible
+        self.dataoffset = f.tell()
         # skip the waveform data for now
         f.seek(self.NumSamples*2, 1)
 
