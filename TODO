@@ -11,9 +11,6 @@ RECENT:
 
     - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability - this would lump backprop spikes with their normal versions
 
-    - change .parse file format to sort of mimic the new .sort format - a pickle, followed by a few contiguous numpy arrays - only the pickle would have to undergo a copy in memory when saving/restoring - the arrays (which make up the vast majority of the data) would not - they'd stream straight from disk into their final destination in memory - this would be really really fast
-        - also, instead of starting off with a huge list of objects, save record info straight into the ndarray - this will speed up initial parsing
-
     - overplotting speed
 
     - need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses (especially in the white ellipses) - maybe make their points greyish red and pink (respectively) instead?
@@ -538,6 +535,7 @@ DONE:
     - consider aligning spikes in time in wavedata arrays, wrt their phase1 timepoint - can figure out which timepoint the spike starts at (go back phase1ti points from the reference point) and when it ends (count nt points from the start of the spike)
 - better strategy for neuron chan selection: at least 1/2 the spikes have to contribute to a channel for it to be considered a neuron chan. Why are some obviously important chans being left out of some spikes? this is due to a full channel lockout due to a near simultaneous spike nearby
 - add binary export of spike times and din for quick interoperation with neuropy
+- store common surf record types (highpass, lowpass, and digitalsval) in structured ndarrays instead of long lists of Python objects
 
 
 

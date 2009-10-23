@@ -174,7 +174,8 @@ class Stream(object):
             self.ctsrecords = srff.lowpassmultichanrecords
         else:
             raise ValueError('Unknown stream kind %r' % kind)
-        self.layout = self.ctsrecords[0].layout
+        # assume layout for all ctsrecords of type "kind" are the same as the 1st one:
+        self.layout = self.srff.layoutrecords[self.ctsrecords['Probe'][0]]
         intgain = self.layout.intgain
         extgain = int(self.layout.extgain[0]) # assume extgain is the same for all chans in this layout
         self.converter = Converter(intgain, extgain)
@@ -196,7 +197,7 @@ class Stream(object):
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
         self.endinclusive = endinclusive
-        self.rts = np.asarray([ctsrecord.TimeStamp for ctsrecord in self.ctsrecords]) # array of ctsrecord timestamps
+        self.rts = self.ctsrecords['TimeStamp'] # array of ctsrecord timestamps
         # check whether self.rts values are all equally spaced,
         # indicating there were no pauses in recording. Then, set a flag
         self.contiguous = (np.diff(self.rts, n=2) == 0).all()
@@ -209,7 +210,7 @@ class Stream(object):
         self.probe = probetype() # instantiate it
 
         self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
-        lastctsrecordnt = int(round(self.ctsrecords[-1].NumSamples / self.probe.nchans)) # nsamples in last record
+        lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.probe.nchans)) # nsamples in last record
         self.tend = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
 
     def get_chans(self):
@@ -299,7 +300,8 @@ class Stream(object):
         recorddatas = []
         #tload = time.time()
         for record in cutrecords:
-            recorddatas.append(record.load(self.srff.f))
+            recorddata = self.srff.loadContinuousRecord(record)
+            recorddatas.append(recorddata)
         '''
         # don't really feel like dealing with this right now:
         if not self.contiguous: # fill in gaps with zeros
@@ -331,12 +333,12 @@ class Stream(object):
         ts = np.empty(totalnt, dtype=np.int64) # init
         for recordi, (record, recorddata) in enumerate(zip(cutrecords, recorddatas)):
             i = recordi * nt
-            tstart = record.TimeStamp
+            tstart = record['TimeStamp']
             tend = tstart + min(nt, totalnt-i)*tres # last record may be shorter
             ts[i:i+nt] = np.arange(tstart, tend, tres, dtype=np.int64)
         '''
         # assumes no gaps between records, negligibly faster:
-        tstart = cutrecords[0].TimeStamp
+        tstart = cutrecords['TimeStamp'][0]
         ts = np.arange(tstart, tstart + totalnt*tres, tres, dtype=np.int64)
         '''
         #print('ts building took %.3f sec' % (time.time()-ttsbuild))
@@ -918,7 +920,7 @@ def iterable(x):
     try:
         iter(x)
         return True
-    except:
+    except TypeError:
         return False
 
 def toiter(x):
