@@ -297,7 +297,7 @@ class Stream(object):
         # lower bounds checking (don't go less than 0), but not upper bounds checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
         recorddatas = []
-        tload = time.time()
+        #tload = time.time()
         for record in cutrecords:
             recorddatas.append(record.load(self.srff.f))
         '''
@@ -313,7 +313,7 @@ class Stream(object):
         totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
         #print('record.load() took %.3f sec' % (time.time()-tload))
 
-        tcat = time.time()
+        #tcat = time.time()
         #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1) # slow
         # init as int32 so we have space to rescale and zero, then convert back to int16
         data = np.empty((nchans, totalnt), dtype=np.int32)
@@ -327,7 +327,7 @@ class Stream(object):
         # between records due to pauses in recording, assumes all records
         # are the same length, except for maybe the last
         # TODO: if self.contiguous, do this the easy way instead!
-        ttsbuild = time.time()
+        #ttsbuild = time.time()
         ts = np.empty(totalnt, dtype=np.int64) # init
         for recordi, (record, recorddata) in enumerate(zip(cutrecords, recorddatas)):
             i = recordi * nt
@@ -353,7 +353,7 @@ class Stream(object):
             data = data[:, ::key.step]
             ts = ts[::key.step]
 
-        tscaleandoffset = time.time()
+        #tscaleandoffset = time.time()
         #data *= 2**(16-12) # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
         # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as * 2**(16-12) == 16
         # this provides more fidelity for interpolation, reduces uV per AD to about 0.02
@@ -365,7 +365,7 @@ class Stream(object):
 
         # do any resampling if necessary, returning only self.chans data
         if resample:
-            tresample = time.time()
+            #tresample = time.time()
             data, ts = self.resample(data, ts)
             #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
@@ -385,7 +385,7 @@ class Stream(object):
         #print('data max=%d and min=%d' % (datamax, datamin))
         #assert datamax < 2**15 - 1
         #assert datamin > -2**15
-        tint16 = time.time()
+        #tint16 = time.time()
         data = np.int16(data) # should be safe to convert back down to int16 now
         #print('int16() took %.3f sec' % (time.time()-tint16))
 
@@ -436,7 +436,7 @@ class Stream(object):
         assert len(ts) == nt
         data = np.empty((self.nchans, nt), dtype=np.int32) # resampled data, leave as int32 for convolution, then convert to int16
         #print 'data.shape = %r' % (data.shape,)
-        tconvolve = time.time()
+        #tconvolve = time.time()
         tconvolvesum = 0
         # assume chans map onto ADchans 1 to 1, ie chan 0 taps off of ADchan 0
         # this way, only the chans that are actually needed are resampled and returned

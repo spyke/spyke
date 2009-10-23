@@ -8,7 +8,8 @@ import itertools
 import numpy as np
 import os
 import cPickle
-from struct import unpack
+import cProfile
+from struct import Struct, unpack
 import unittest
 from copy import copy
 import re
@@ -20,6 +21,20 @@ import wx
 from spyke.core import Stream, toiter
 
 NULL = '\x00'
+
+DEFNHIGHPASSRECORDS = 100000
+DEFNLOWPASSRECORDS = 100000
+DEFNDIGITALSVALRECORDS = 100000
+CTSRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('dataoffset', '<i8')]
+DIGITALSVALDTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
+
+# create a couple of Struct objects with compiled format strings
+# and call them as needed for the most common record types.
+# little endian < symbol req'd, otherwise it uses 4 byte native size and alignment
+ctsstruct = Struct('<hiqhhii')
+dsvalstruct = Struct('<hiqhhi')
+unpackctsrec = ctsstruct.unpack
+unpackdsvalrec = dsvalstruct.unpack
 
 
 class DRDBError(ValueError):
@@ -44,6 +59,14 @@ class File(object):
         self.f = open(fname, 'rb')
         self._parseFileHeader()
         self.parsefname = fname + '.parse'
+
+        # init struct ndarrays for high volume record types
+        self.highpassrecords = np.empty(DEFNHIGHPASSRECORDS, dtype=CTSRECORDDTYPE)
+        self.lowpassrecords = np.empty(DEFNLOWPASSRECORDS, dtype=CTSRECORDDTYPE)
+        self.nhighpassrecords = 0
+        self.nlowpassrecords = 0
+        self.digitalsvalrecords = np.empty(DEFNDIGITALSVALRECORDS, dtype=DIGITALSVALDTYPE)
+        self.ndigitalsvalrecords = 0
 
     def close(self):
         """Close the .srf file"""
@@ -85,8 +108,10 @@ class File(object):
         except IOError:
             print('Parsing %r' % self.fname)
             self._parseDRDBS()
+            #cProfile.runctx('self._parseRecords()', globals(), locals())
             self._parseRecords()
             print('Done parsing %r' % self.fname)
+            print('parsing took %.3f sec' % (time.time()-t0))
             self._connectRecords()
             self._verifyParsing()
 
@@ -107,6 +132,10 @@ class File(object):
 
     def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
+        # dict of parse methods for most common records that will be stored in structured arrays
+        FLAG2METHOD = {'PS' : self.parseHighPassRecord,
+                       'PC' : self.parseLowPassRecord,
+                       'VD' : self.parseDigitalSValRecord}
         # dict of (record type, listname to store it in) tuples
         FLAG2REC = {'L'  : (LayoutRecord, 'layoutrecords'),
                     'MS' : (SurfMessageRecord, 'messagerecords'),
@@ -114,34 +143,128 @@ class File(object):
                     'PE' : (EpochRecord, 'epochrecords'),
                     'D'  : (DisplayRecord, 'displayrecords'),
                     'VA' : (AnalogSValRecord, 'analogsvalrecords')}
-        # dict of (record type, array name to store it in) tuples
-        FLAG2ARR = {'PS' : (HighPassRecord, 'highpassrecords'),
-                    'PC' : (LowPassRecord, 'lowpassrecords'),
-                    'VD' : (DigitalSValRecord, 'digitalsvalrecords')}
-
-        digitalsvalrecord = DigitalSValRecord() # instantiate just one, use it over and over
         f = self.f
         while True:
             # returns an empty string when EOF is reached
-            flag = f.read(2).strip('\0')
+            flag = f.read(2).rstrip('\0') # TODO: should this strip NULL as defined above?
             if flag == '':
                 break
-            # put file pointer back to start of flag
-            #f.seek(-2, 1)
-            if flag in FLAG2ARR:
-
+            if flag in FLAG2METHOD: # these are the most common
+                # for speed, don't bother moving file pointer back to start of flag
+                FLAG2METHOD[flag](f) # call it
             elif flag in FLAG2REC:
+                # put file pointer back to start of flag
+                f.seek(-2, 1)
                 rectype, reclistname = FLAG2REC[flag]
-                    rec = rectype()
-                    rec.parse(f)
+                rec = rectype()
+                rec.parse(f)
                 #wx.Yield() # allow wx GUI event processing during parsing
                 self._appendRecord(rec, reclistname)
-
-
-
             else:
                 raise ValueError('Unexpected flag %r at offset %d' % (flag, f.tell()-2))
             #self.percentParsed = f.tell() / self.fileSize * 100
+
+    def parseContinuousRecord(self, f, r):
+        """Parse a continuous record (high or low pass).
+        Its length in the file in bytes is 26 + self.NumSamples*2, not including the
+        2 byte flag at the beginning"""
+        #junk, junk, r['TimeStamp'], r['Probe'], junk, junk, NumSamples = unpackctsrec(f.read(26))
+        junk, junk, r['TimeStamp'], r['Probe'], junk, junk, NumSamples = unpack('<hiqhhii', f.read(26))
+        r['NumSamples'] = NumSamples
+        r['dataoffset'] = f.tell()
+        # skip the waveform data for now
+        f.seek(NumSamples*2, 1) # each sample is 2 bytes long
+
+    def parseHighPassRecord(self, f):
+        try:
+            r = self.highpassrecords[self.nhighpassrecords] # gives a np.void with named fields
+        except IndexError:
+            newsize = len(self.highpassrecords) + DEFNHIGHPASSRECORDS
+            self.highpassrecords.resize(newsize, refcheck=False)
+            r = self.highpassrecords[self.nhighpassrecords] # gives a np.void with named fields
+        self.parseContinuousRecord(f, r) # writes to the np.void, and therefore to the struct array
+        self.nhighpassrecords += 1
+
+    def parseLowPassRecord(self, f):
+        try:
+            r = self.lowpassrecords[self.nlowpassrecords] # gives a np.void with named fields
+        except IndexError:
+            newsize = len(self.lowpassrecords) + DEFNLOWPASSRECORDS
+            self.lowpassrecords.resize(newsize, refcheck=False)
+            r = self.lowpassrecords[self.nlowpassrecords] # gives a np.void with named fields
+        self.parseContinuousRecord(f, r) # writes to the np.void, and therefore to the struct array
+        self.nlowpassrecords += 1
+
+    def parseDigitalSValRecord(self, f):
+        """Parse a digital SVal record. Its length in the file in bytes is 22,
+        not including the 2 byte flag at the beginning"""
+        try:
+            r = self.digitalsvalrecords[self.ndigitalsvalrecords] # gives a np.void with named fields
+        except IndexError:
+            newsize = len(self.digitalsvalrecords) + DEFNDIGITALSVALRECORDS
+            self.digitalsvalrecords.resize(newsize, refcheck=False)
+            r = self.digitalsvalrecords[self.ndigitalsvalrecords] # gives a np.void with named fields
+        junk, junk, r['TimeStamp'], r['SVal'], junk, junk = unpack('<hiqhhi', f.read(22))
+        self.ndigitalsvalrecords += 1
+
+    '''
+    class ContinuousRecord(object):
+        """Continuous waveform record"""
+
+        def load(self, f):
+            """Load waveform data for this continuous record, assume that the
+            appropriate probe layout record has been assigned as a .layout attrib"""
+            # TODO: add chans arg to pull out only certain chans, and maybe a ti arg
+            # to pull out less than the full set of sample points for this record
+            f.seek(self.dataoffset)
+            # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
+            # Using stuct.unpack for this is very slow:
+            #self.data = np.asarray(unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
+            data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
+            data.shape = (self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
+            return data
+
+    class LowPassMultiChanRecord(object):
+        """Low-pass multichannel (usually 10) continuous waveform record"""
+        def __init__(self, lowpassrecords):
+            """Takes several low pass records, all at the same timestamp"""
+            self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
+            self.TimeStamp = self.lowpassrecords[0].TimeStamp
+            self.layout = self.lowpassrecords[0].layout
+            self.NumSamples = self.lowpassrecords[0].NumSamples
+            # why is this commented out? I guess because the checks it does are somewhat redundant
+            # and slow things down a little...
+            """
+            self.tres = self.lowpassrecords[0].layout.tres
+            self.chanis = []
+            self.dataoffsets = []
+            for recordi, record in enumerate(self.lowpassrecords): # typically 10 of these records
+                # make sure all passed lowpassrecords have the same timestamp
+                assert record.TimeStamp == self.TimeStamp
+                assert record.layout.tres == self.tres # ditto
+                # make sure each lowpassrecord in this batch of them at this timestamp all have unique channels
+                newchanis = [ chani for chani in record.layout.ADchanlist if chani not in self.chanis ]
+                assert newchanis != []
+                # assigning this to each and every record might be taking up a lot of space,
+                # better to assign it higher up, say to the stream?
+                self.chanis.extend(newchanis)
+            """
+
+        def load(self, f):
+            """Load waveform data for each lowpass record, appending it as
+            channel(s) to a single 2D data array"""
+            data = []
+            for record in self.lowpassrecords:
+                try:
+                    recorddata = record.data
+                except AttributeError:
+                    recorddata = record.load(f) # to save time, only load the waveform if it's not already loaded
+                # shouldn't matter if record.data is one channel (row) or several
+                data.append(recorddata)
+            # save as array, removing singleton dimensions
+            data = np.squeeze(data)
+            return data
+    '''
 
     def _appendRecord(self, rec, reclistname):
         """Append record to reclistname"""
@@ -152,6 +275,15 @@ class File(object):
     def _connectRecords(self):
         """Connect the appropriate probe layout to each high and lowpass record"""
         #print('Connecting probe layouts to waveform records')
+        # trim struct ndarrays to their final size
+        self.highpassrecords.resize(self.nhighpassrecords, refcheck=False)
+        self.lowpassrecords.resize(self.nlowpassrecords, refcheck=False)
+        self.digitalsvalrecords.resize(self.ndigitalsvalrecords, refcheck=False)
+        # cleanup by deleting any struct arrays of len 0
+        for recname in ('highpassrecords', 'lowpassrecords', 'digitalsvalrecords'):
+            if len(self.__getattribute__[recname]) == 0
+                self.__delattr__[recname]
+
         for record in self.highpassrecords:
             record.layout = self.layoutrecords[record.Probe]
 
@@ -183,11 +315,6 @@ class File(object):
         lpmclayout = self.get_LowPassMultiChanLayout()
         for lpmcr in self.lowpassmultichanrecords:
             lpmcr.layout = lpmclayout # overwrite each lpmc record's layout attrib
-
-        # Rearrange digitalsvalsrecords list into a more memory efficient struct array
-        if hasattr(self, 'digitalsvalrecords'):
-            DTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
-            self.digitalsvalrecords = np.asarray(self.digitalsvalrecords, dtype=DTYPE)
 
     def _verifyParsing(self):
         """Make sure timestamps of all records are in causal (increasing)
@@ -608,109 +735,6 @@ class UserMessageRecord(MessageRecord):
     """User generated message record"""
 
 
-class ContinuousRecord(object):
-    """Continuous waveform record"""
-    def __len__(self):
-        return 28 + self.NumSamples*2
-
-    def parse(self, f):
-        # for speed and memory, read all 28 bytes at a time, skip reading
-        # UffType, SubType, and CRC32 (which is always 0 anyway?)
-        '''
-        instead of reading the junk values, skip them using seek, like this?:
-        f.seek(8, 1)
-        self.TimeStamp, self.Probe = unpack('qh', f.read(10))
-        f.seek(6, 1)
-        self.NumSamples, = unpack('i', f.read(4))
-        # no, that's about 25% slower when thrashing from uncached disk, below is better:
-        '''
-        junk, self.TimeStamp, self.Probe, junk, junk, self.NumSamples = unpack('qqhhii', f.read(28))
-        self.dataoffset = f.tell()
-        # skip the waveform data for now
-        f.seek(self.NumSamples*2, 1)
-
-    def load(self, f):
-        """Load waveform data for this continuous record, assume that the
-        appropriate probe layout record has been assigned as a .layout attrib"""
-        # TODO: add chans arg to pull out only certain chans, and maybe a ti arg
-        # to pull out less than the full set of sample points for this record
-        f.seek(self.dataoffset)
-        # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
-        # Using stuct.unpack for this is very slow:
-        #self.data = np.asarray(unpack(str(self.NumSamples)+'h', f.read(2*self.NumSamples)), dtype=np.int16)
-        data = np.fromfile(f, dtype=np.int16, count=self.NumSamples) # load directly using numpy
-        data.shape = (self.layout.nchans, -1) # reshape to have nchans rows, as indicated in layout
-        return data
-    '''
-    def get_data(self):
-        data = self.weakref_data() # try the weakref to the data
-        if data == None:
-            raise AttributeError("record data has been garbage collected")
-        return data
-
-    data = property(get_data)
-    '''
-    '''
-    # not sure why record.data never seems to get pickled in spite of this being commented out
-    # Oh, I think it's because the .parse file is saved before any data is even loaded for display
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        d.pop('data', None) # don't pickle the data, that can always be reloaded after unpickling
-        d.pop('weakref_data', None) # don't pickle the data, that can always be reloaded after unpickling
-        return d
-    '''
-
-class HighPassRecord(ContinuousRecord):
-    """High-pass continuous waveform record"""
-
-
-class LowPassRecord(ContinuousRecord):
-    """Low-pass continuous waveform record"""
-
-
-class LowPassMultiChanRecord(object):
-    """Low-pass multichannel (usually 10) continuous waveform record"""
-    def __init__(self, lowpassrecords):
-        """Takes several low pass records, all at the same timestamp"""
-        self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
-        self.TimeStamp = self.lowpassrecords[0].TimeStamp
-        self.layout = self.lowpassrecords[0].layout
-        self.NumSamples = self.lowpassrecords[0].NumSamples
-        # why is this commented out? I guess because the checks it does are somewhat redundant
-        # and slow things down a little...
-        '''
-        self.tres = self.lowpassrecords[0].layout.tres
-        self.chanis = []
-        self.dataoffsets = []
-        for recordi, record in enumerate(self.lowpassrecords): # typically 10 of these records
-            # make sure all passed lowpassrecords have the same timestamp
-            assert record.TimeStamp == self.TimeStamp
-            assert record.layout.tres == self.tres # ditto
-            # make sure each lowpassrecord in this batch of them at this timestamp all have unique channels
-            newchanis = [ chani for chani in record.layout.ADchanlist if chani not in self.chanis ]
-            assert newchanis != []
-            # assigning this to each and every record might be taking up a lot of space,
-            # better to assign it higher up, say to the stream?
-            self.chanis.extend(newchanis)
-        '''
-
-    def load(self, f):
-        """Load waveform data for each lowpass record, appending it as
-        channel(s) to a single 2D data array"""
-        data = []
-        for record in self.lowpassrecords:
-            try:
-                recorddata = record.data
-            except AttributeError:
-                recorddata = record.load(f) # to save time, only load the waveform if it's not already loaded
-            # shouldn't matter if record.data is one channel (row) or several
-            data.append(recorddata)
-        # save as array, removing singleton dimensions
-        data = np.squeeze(data)
-        return data
-
-
 class DisplayRecord(object):
     """Stimulus display header record"""
     def __len__(self):
@@ -775,22 +799,6 @@ class StimulusHeader(object):
         self.gamma_offset, = unpack('f', f.read(4))
         self.est_runtime, = unpack('H', f.read(2)) # in seconds
         self.checksum, = unpack('H', f.read(2))
-
-
-class DigitalSValRecord(object):
-    """Digital single value record"""
-    def __len__(self):
-        return 24
-
-    def parse(self, f):
-        # for speed and memory, read all 24 bytes at a time, skip UffType and SubType
-        # Cardinal, 64 bit signed int; 16 bit single value
-        # NOTE: skipping over first 8 junk bytes and last 4 or even 6 junk bytes only
-        # slows down parsing, or seems to during hardware caching from > 1 tests w/o reboot.
-        # Read the whole 24 bytes in one go, including the junk
-        #junk, self.TimeStamp, self.SVal, junk, junk = unpack('QQHHI', f.read(24))
-        junk, TimeStamp, SVal, junk, junk = unpack('QQHHI', f.read(24))
-        return TimeStamp, SVal
 
 
 def causalorder(records):
