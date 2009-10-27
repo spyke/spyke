@@ -293,6 +293,21 @@ class Sort(object):
         wave = self.stream[t0:tend]
         return wave[chans]
 
+    def get_srffnameroot(self):
+        """Return root name (without extension) of .srf file, checking to make
+        sure that all detections come from the same .srf file, and match the
+        currently opened one"""
+        allsrffnames = set([ detection.detector.srffname for detection in self.detections.values() ])
+        srffname = allsrffnames.pop()
+        srffnameroot = srffname.partition('.srf')[0]
+        if len(allsrffnames) != 0:
+            raise ValueError("Can't figure out srffnameroot, because detections come from "
+                             "different .srf files")
+        if srffname != self.stream.srffname:
+            raise ValueError("Can't figure out srffnameroot, because currently open .srf "
+                             "file doesn't match the one in the detections")
+        return srffnameroot
+
     def export(self, path=''):
         """Export stimulus textheader, din and/or spike data to binary files in path in
         the classic way for use in neuropy"""
@@ -300,17 +315,7 @@ class Sort(object):
         # detection as its name
         print('Exporting data to %r' % path)
         if hasattr(self, 'stream'):
-            allsrffnames = set([ detection.detector.srffname for detection in self.detections.values() ])
-            srffname = allsrffnames.pop()
-            srffnameroot = srffname.partition('.srf')[0]
-            if len(allsrffnames) != 0:
-                print("Just to be safe, not exporting stimulus info because detections come from "
-                      "different .srf files")
-                return
-            if srffname != self.stream.srffname:
-                print("Just to be safe, not exporting stimulus info because currently open .srf "
-                      "file doesn't match the one in the detections")
-                return
+            self.get_srffnameroot()
             if hasattr(self.stream.srff, 'displayrecords'):
                 self.exporttextheader(srffnameroot, path)
             if hasattr(self.stream.srff, 'digitalsvalrecords'):

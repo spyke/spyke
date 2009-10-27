@@ -1,7 +1,6 @@
 RECENT:
 
-    - add file export item for exporting spikes and din and textheader, with a directory chooser
-        - should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
+    - should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
 
     - rethink the whole "best" thing for marking which sort to use - maybe just leave it be with no best marker any more, and add a sort level to the command line neuropy interface - nevermind, its already there, but the sorts are only numbered, not named
         - also, you can't go sortN.e0.sta(), since sort is below exp in the hierarchy - this is awkward - rethink the hierarchy?
@@ -561,6 +560,7 @@ DONE:
         - this would make it easier to import a Sort and its clusters and apply them to a new set of spikes with their own wavedata
         - this would also make it more efficient to save multiple .sort files when testing various sorting methods (although not various detection methods) - each one wouldn't also have its huge associated wavedata duplicated unnecessarily
         - saving repeatedly while sorting would be much faster
+- add file export item for exporting spikes and din and textheader, with a directory chooser
 
 
 

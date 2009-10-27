@@ -185,6 +185,40 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSaveResample(self, evt):
         self.hpstream.save_resampled()
 
+    def OnExportSpikes(self, evt):
+        dlg = wx.DirDialog(self, message="Export spikes to",
+                           defaultPath=self.defaultdir)
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.sort.exportspikes(path=path)
+            self.defaultdir = path # update default dir
+
+    def OnExportDIN(self, evt):
+        srffnameroot = self.sort.get_srffnameroot()
+        dlg = wx.DirDialog(self, message="Export DIN to",
+                           defaultPath=self.defaultdir)
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.sort.exportdin(srffnameroot=srffnameroot, path=path)
+            self.defaultdir = path # update default dir
+
+    def OnExportTextheader(self, evt):
+        srffnameroot = self.sort.get_srffnameroot()
+        dlg = wx.DirDialog(self, message="Export textheader to",
+                           defaultPath=self.defaultdir)
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.sort.exporttextheader(srffnameroot=srffnameroot, path=path)
+            self.defaultdir = path # update default dir
+
+    def OnExportAll(self, evt):
+        dlg = wx.DirDialog(self, message="Export spikes, DIN and textheader to",
+                           defaultPath=self.defaultdir)
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.sort.export(path=path)
+            self.defaultdir = path # update default dir
+
     def OnClose(self, evt):
         # TODO: add confirmation dialog if Sort not saved
         self.CloseSurfFile()
