@@ -726,7 +726,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         elif ext == '.sort':
             self.OpenSortFile(fname)
         elif ext == '.wave':
-            self.OpenWaveFile(fname)
+            self.sort.wavedatas = self.OpenWaveFile(fname)
         else:
             wx.MessageBox("%s is not a .srf, .sort or .wave file" % fname,
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
@@ -1006,6 +1006,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wavedatas = []
         try: fwave = open(fname, 'rb')
         except IOError: return wavedatas
+        try: del self.sort.wavedatas
+        except AttributeError: pass
         nspikes = 0
         while True:
             try:
