@@ -46,7 +46,6 @@ class Sort(object):
     to sort Spikes.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single pickled Sort object"""
-    SAVEWAVES = True # save each spike's .wave to .sort file?
     DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
     TW = TW # save a reference
     def __init__(self, detector=None, stream=None):
@@ -394,7 +393,7 @@ class Sort(object):
 
     def apply_cluster(self, cluster):
         """Apply cluster to spike data - calculate which spikes fall within the
-        cluster's multidimensional ellipsoid. Return spikes struct array row indices"""
+        cluster's multidimensional ellipsoid. Return spike indices in an array view"""
 
         # consider all the dimensions in this cluster that have non-zero scale
         dims = [ dim for dim, val in cluster.scale.items() if val != 0 ]

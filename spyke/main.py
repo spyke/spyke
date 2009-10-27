@@ -166,6 +166,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.defaultdir = os.path.split(fname)[0] # update default dir
         dlg.Destroy()
 
+    def OnSaveWave(self, evt):
+        """Save waveforms to a .wave file"""
+        defaultFile = os.path.splitext(self.sortfname)[0] + '.wave'
+        dlg = wx.FileDialog(self, message="Save waveforms as",
+                            defaultDir=self.defaultdir, defaultFile=defaultFile,
+                            wildcard="Sort files (*.wave)|*.wave|All files (*.*)|*.*",
+                            style=wx.SAVE | wx.OVERWRITE_PROMPT)
+        if dlg.ShowModal() == wx.ID_OK:
+            fname = dlg.GetPath()
+            self.SaveWaveFile(fname)
+            self.defaultdir = os.path.split(fname)[0] # update default dir
+        dlg.Destroy()
+
     def OnSaveParse(self, evt):
         self.srff.pickle()
 
@@ -297,7 +310,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               id=sort._detid,
                               datetime=datetime.datetime.now())
         sort._detid += 1 # inc for next unique Detection run
-        detection.set_spikeids(spikes) # now that we know this detection isn't redundant, assign IDs to spikes
+        detection.spikeis = spikes # now that we know this detection isn't redundant, assign IDs to spikes
         sort.detections[detection.id] = detection
         sort.append_spikes(spikes)
         self.append_detection_list(detection)
@@ -443,7 +456,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # reset scalar values for cluster's existing points
             try: self.DeColourPoints(cluster.spikeis)
             except AttributeError: pass
-            cluster.spikeis = self.sort.apply_cluster(cluster)
+            # convert spikeis to list of Python ints for better efficiency when pickling
+            cluster.spikeis = self.sort.apply_cluster(cluster).tolist()
             if len(cluster.spikeis) == 0: # remove from tree and make this neuron have 0 spikes
                 sf.RemoveNeuronFromTree(neuron)
                 return
@@ -622,11 +636,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
-        row = [str(detection.id), # 0:detID
-               detection.detector.threshmethod, # 1:class
-               str(detection.detector.fixedthresh or detection.det.noisemult), # 2:thresh
-               str(detection.detector.trange), # 3:trange
-               str(len(detection.spikeis)), # 4: nspikes
+        row = [str(detection.id), # 0: detID
+               detection.detector.threshmethod, # 1: class
+               str(detection.detector.fixedthresh or detection.det.noisemult), # 2: thresh
+               str(detection.detector.trange), # 3: trange
+               str(detection.nspikes), # 4: nspikes
                str(detection.detector.slock), # 5: slock
                str(detection.datetime).rpartition('.')[0], # 6: datetime
                detection.detector.srffname] # 7: file
@@ -705,14 +719,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         return detection
 
     def OpenFile(self, fname):
-        """Open either .srf or .sort file"""
+        """Open a .srf, .sort or .wave file"""
         ext = os.path.splitext(fname)[1]
         if ext == '.srf':
             self.OpenSurfFile(fname)
         elif ext == '.sort':
             self.OpenSortFile(fname)
+        elif ext == '.wave':
+            self.OpenWaveFile(fname)
         else:
-            wx.MessageBox("%s is not a .srf or .sort file" % fname,
+            wx.MessageBox("%s is not a .srf, .sort or .wave file" % fname,
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
             return
 
@@ -777,7 +793,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in OnDetect
                          stream=self.hpstream)
-        self.menubar.Check(wx.ID_SAVEWAVES, self.sort.SAVEWAVES) # update menu option from sort
         self.EnableSortWidgets(True)
 
     def DeleteSort(self):
@@ -913,12 +928,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sortfname = '' # forces a SaveAs on next Save event
 
     def OpenSortFile(self, fname):
-        """Open a Sort from a .sort file, restore the stream"""
+        """Open a Sort from a .sort file, try and open a .wave file
+        with the same name, restore the stream"""
         self.DeleteSort() # delete any existing Sort
         print('opening sort file %r' % fname)
         t0 = time.time()
         f = open(fname, 'rb')
-        sort, spikes, wavedatas = self.read_sort_file(f)
+
+        print('loading Sort')
+        sort = np.load(f)
+        print('sort was %d bytes long' % f.tell())
+        print('pulling Sort out of array')
+        sort = sort.item() # pull sort object out of array
         self.sort = sort
         sortProbeType = type(sort.probe)
         if self.hpstream != None:
@@ -927,19 +948,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.CreateNewSort() # overwrite the failed Sort
                 raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
                                    % (sortProbeType, streamProbeType))
-        # convert spikes from ndarray to recarray that returns records with attrib access
-        #sort.spikes = spikes.view(dtype=(np.record, spikes.dtype), type=np.recarray)
-        sort.spikes = spikes # leave it as simpler structured ndarray that returns np.voids
+
+        print('loading spikes')
+        spikes = np.load(f)
+        sort.spikes = spikes
         sort.update_spike_lists()
+
+        f.close()
+        print('done opening sort file, took %.3f sec' % (time.time()-t0))
+
+        wavefname = os.path.splitext(fname)[0] + '.wave'
+        wavedatas = self.OpenWaveFile(wavefname)
         if wavedatas != []:
             sort.wavedatas = wavedatas
             sort.update_wavedatacumsum()
-        f.close()
-        print('done opening sort file, took %.3f sec' % (time.time()-t0))
         sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
-        self.menubar.Check(wx.ID_SAVEWAVES, sort.SAVEWAVES) # update menu option from sort
         self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
@@ -974,53 +999,64 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.EnableSortWidgets(True)
         print('done opening sort file')
 
+    def OpenWaveFile(self, fname):
+        """Open a .wave file and return wavedata arrays"""
+        print('opening wave file %r' % fname)
+        t0 = time.time()
+        wavedatas = []
+        try: fwave = open(fname, 'rb')
+        except IOError: return wavedatas
+        nspikes = 0
+        while True:
+            try:
+                wavedata = np.load(fwave)
+                wavedatas.append(wavedata)
+                nspikes += len(wavedata)
+            except IOError: break # reached EOF
+        fwave.close()
+        print('done opening wave file, took %.3f sec' % (time.time()-t0))
+        if nspikes != self.sort.nspikes:
+            wx.MessageBox('.wave file has a different number of spikes from the current Sort',
+                          caption="Beware", style=wx.OK|wx.ICON_EXCLAMATION)
+            raise RuntimeError
+        return wavedatas
+
     def SaveSortFile(self, fname):
         """Save sort to a .sort file"""
         sort = self.sort
         try: sort.spikes
         except AttributeError: raise RuntimeError("Sort has no spikes to save")
-        sort.SAVEWAVES = self.menubar.IsChecked(wx.ID_SAVEWAVES) # update from menu
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         print('saving sort file')
         t0 = time.time()
         f = open(fname, 'wb')
-        objs = {'sort': sort, 'spikes': sort.spikes}
-        if sort.SAVEWAVES:
-            wavedatas = []
-            nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
-            for wavedata in sort.wavedatas:
-                wavedatas.append(wavedata[:nspikes])
-                nspikes -= len(wavedata)
-            objs['wavedatas'] = wavedatas
-        self.write_sort_file(f, **objs)
+        np.save(f, sort)
+        np.save(f, sort.spikes)
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.sortfname = fname # bind it now that it's been successfully saved
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
 
-    def read_sort_file(self, f):
-        """Read Sort object, and spike and wavedata arrays from a .sort file,
-        in that order. Each is read in using the .npy format.
-        A .sort file can have any number of wavedata arrays"""
-        sort = np.load(f).item() # pull sort object out of array
-        spikes = np.load(f)
+    def SaveWaveFile(self, fname=None):
+        """Save waveform data to a .wave file"""
+        if fname == None:
+            fname = os.path.splitext(self.sortfname)[0] # grab the base name of the current .sort fname
+        if not os.path.splitext(fname)[1]: # if it doesn't have an extension
+            fname = fname + '.wave'
+        print('saving wave file')
+        t0 = time.time()
+        f = open(fname, 'wb')
         wavedatas = []
-        while True:
-            try: wavedatas.append(np.load(f))
-            except IOError: break # reached EOF, or maybe ValueError?
-        return sort, spikes, wavedatas
-
-    def write_sort_file(self, f, sort=None, spikes=None, wavedatas=[]):
-        """Write Sort object, and spike and wavedata arrays to a .sort file,
-        in that order.  Each is written out using the .npy format.
-        A .sort file can have any number of wavedata arrays"""
-        assert sort != None
-        assert spikes != None
-        np.save(f, sort)
-        np.save(f, spikes)
+        sort = self.sort
+        nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
+        for wavedata in sort.wavedatas:
+            wavedatas.append(wavedata[:nspikes])
+            nspikes -= len(wavedata)
         for wavedata in wavedatas:
             np.save(f, wavedata)
+        f.close()
+        print('done saving wave file, took %.3f sec' % (time.time()-t0))
 
     def OpenFrame(self, frametype):
         """Create and bind a frame, show it, plot its data if applicable"""

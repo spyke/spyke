@@ -1,13 +1,5 @@
 RECENT:
 
-    - when saving a .sort, and the only changes you've made are to the Sort itself (and maybe the nids in the spikes array), and no changes have been made to the spikes that have been detected and therefore to the wavedata, then just save the Sort object and the spikes array
-        - this means you have to put the wavedata in the .sort file first?
-        - might be best to split .sort file up into a .sort file (with spikes and Sort in it) and a .wave file (with wavedata in it)
-            - make save .wave normal menu item, instead of the weird check box thing I have right now
-            - this would make it easier to import a Sort and its clusters and apply them to a new set of spikes with their own wavedata
-            - this would also make it more efficient to save multiple .sort files when testing various sorting methods - each one wouldn't also have its huge associated wavedata duplicated unnecessarily
-            - saving repeatedly while sorting would be much faster
-
     - add file export item for exporting spikes and din and textheader, with a directory chooser
         - should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
 
@@ -40,6 +32,8 @@ RECENT:
     - actually, not so bad: need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses (especially in the white ellipses) - maybe make their points greyish red and pink (respectively) instead?
 
     - manual sorting is broken again
+
+    - restoring from .sort with no .srf open is broken again
 
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
 
@@ -560,6 +554,14 @@ DONE:
 - better strategy for neuron chan selection: at least 1/2 the spikes have to contribute to a channel for it to be considered a neuron chan. Why are some obviously important chans being left out of some spikes? this is due to a full channel lockout due to a near simultaneous spike nearby
 - add binary export of spike times and din for quick interoperation with neuropy
 - store common surf record types (highpass, lowpass, and digitalsval) in structured ndarrays instead of long lists of Python objects
+- when saving a .sort, and the only changes you've made are to the Sort itself (and maybe the nids in the spikes array), and no changes have been made to the spikes that have been detected and therefore to the wavedata, then just save the Sort object and the spikes array
+    - this means you have to put the wavedata in the .sort file first?
+    - might be best to split .sort file up into a .sort file (with spikes and Sort in it) and a .wave file (with wavedata in it)
+        - make save .wave normal menu item, instead of the weird check box thing I have right now
+        - this would make it easier to import a Sort and its clusters and apply them to a new set of spikes with their own wavedata
+        - this would also make it more efficient to save multiple .sort files when testing various sorting methods (although not various detection methods) - each one wouldn't also have its huge associated wavedata duplicated unnecessarily
+        - saving repeatedly while sorting would be much faster
+
 
 
 

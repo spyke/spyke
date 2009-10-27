@@ -713,7 +713,7 @@ class Detector(object):
                 raise RuntimeError("Can't have multiple detections generating spikes struct arrays with "
                                    "different width 'chans' fields")
 
-        self.SPIKEDTYPE = [('id', np.uint32), ('nid', np.int16), ('detid', np.uint8),
+        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('detid', np.uint8),
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64), ('nt', np.uint8),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
@@ -1097,16 +1097,21 @@ class Detection(object):
         self.detector = detector # Detector object used in this Detection run
         self.id = id
         self.datetime = datetime
-        #self.spikeis # array of spike IDs that came from this detection
 
-    def set_spikeids(self, spikes):
+    def get_spikeis(self):
+        return np.arange(self.spikei0, self.spikei0+self.nspikes)
+
+    def set_spikeis(self, spikes):
         """Give each spike an ID, inc sort's _sid spike ID counter, and save
         array of spikeis to self"""
         # don't iterate over spikes struct array, since that generates
         # a bunch of np.void objects, which is slow?
-        nspikes = len(spikes)
-        spikei0 = self.sort._sid
-        self.spikeis = np.arange(spikei0, spikei0+nspikes) # generate IDs in one shot
-        spikes['id'] = self.spikeis # assign them to spikes struct array
+        self.spikei0 = self.sort._sid
+        self.nspikes = len(spikes)
+        # generate IDs in one shot and assign them to spikes struct array
+        spikes['id'] = np.arange(self.spikei0, self.spikei0+self.nspikes)
         spikes['detid'] = self.id
-        self.sort._sid += nspikes # inc for next unique Detection
+        self.sort._sid += self.nspikes # inc for next unique Detection
+
+    # array of spike IDs that came from this detection
+    spikeis = property(get_spikeis, set_spikeis)
