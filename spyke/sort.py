@@ -298,7 +298,10 @@ class Sort(object):
         sure that all detections come from the same .srf file, and match the
         currently opened one"""
         allsrffnames = set([ detection.detector.srffname for detection in self.detections.values() ])
-        srffname = allsrffnames.pop()
+        if len(allsrffnames) == 0:
+            srffname = self.stream.srffname
+        else:
+            srffname = allsrffnames.pop()
         srffnameroot = srffname.partition('.srf')[0]
         if len(allsrffnames) != 0:
             raise ValueError("Can't figure out srffnameroot, because detections come from "
