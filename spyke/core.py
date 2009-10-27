@@ -740,6 +740,30 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
         raise RuntimeError("DeleteItemByData is N/A on a virtual listctrl")
 
 
+class NListCtrl(wx.ListCtrl):
+    """A virtual ListCtrl for holding neurons.
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    def __init__(self, *args, **kwargs):
+        wx.ListCtrl.__init__(self, *args, **kwargs)
+        self.InsertColumn(0, 'nID')
+        self.SetColumnWidth(0, 55)
+
+    def OnGetItemText(self, row, col):
+        return 69
+
+
+class NSListCtrl(wx.ListCtrl):
+    """A virtual ListCtrl for holding a neuron's spikes.
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    def __init__(self, *args, **kwargs):
+        wx.ListCtrl.__init__(self, *args, **kwargs)
+        self.InsertColumn(0, 'sID')
+        self.SetColumnWidth(0, 55)
+
+    def OnGetItemText(self, row, col):
+        return 96
+
+
 class SpykeTreeCtrl(wx.TreeCtrl):
     """TreeCtrl with overridden OnCompareItems().
     Also has a couple of helper functions"""
