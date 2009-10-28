@@ -24,6 +24,7 @@ MAXCHANTOLERANCE = 100 # um
 
 SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
+NSSPLITTERSASH = 30
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
 
@@ -931,6 +932,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.SetSize(size)
         self.splitter.SetSashPosition(SPLITTERSASH) # do this here because wxGlade keeps messing this up
         self.sort_splitter.SetSashPosition(SORTSPLITTERSASH)
+        self.ns_splitter.SetSashPosition(NSSPLITTERSASH)
 
         self.listTimer = wx.Timer(owner=self.list)
 

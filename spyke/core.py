@@ -746,7 +746,7 @@ class NListCtrl(wx.ListCtrl):
     def __init__(self, *args, **kwargs):
         wx.ListCtrl.__init__(self, *args, **kwargs)
         self.InsertColumn(0, 'nID')
-        self.SetColumnWidth(0, 55)
+        self.SetColumnWidth(0, 30)
 
     def OnGetItemText(self, row, col):
         return 69
@@ -758,7 +758,7 @@ class NSListCtrl(wx.ListCtrl):
     def __init__(self, *args, **kwargs):
         wx.ListCtrl.__init__(self, *args, **kwargs)
         self.InsertColumn(0, 'sID')
-        self.SetColumnWidth(0, 55)
+        self.SetColumnWidth(0, 60)
 
     def OnGetItemText(self, row, col):
         return 96
