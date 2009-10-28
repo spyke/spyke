@@ -16,6 +16,7 @@ RECENT:
         - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
         - another benefit is that listctrls can colour their items, to match neuron colour - declare OnGetItemAttr method (see wx demos)
         - could also use a grid, which can act as a virtual control
+        - get rid of neuron.itemID
 
     - add a feature where you renumber the neurons according to their vertical spatial order - this would make STA plots come out vertically ordered, which would be nice for deducing layers and where you get lots of simple fields and complex fields
 
