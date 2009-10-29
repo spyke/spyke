@@ -494,9 +494,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # convert spikeis to list of Python ints for better efficiency when pickling
             #cluster.spikeis = self.sort.apply_cluster(cluster).tolist()
             cluster.spikeis = self.sort.apply_cluster(cluster)
-            if len(cluster.spikeis) == 0: # remove from tree and make this neuron have 0 spikes
-                sf.RemoveNeuronFromTree(neuron)
-                return
             sf.MoveSpikes2Neuron(cluster.spikeis, neuron)
         # TODO: colour only those points that have been added
         self.ColourPoints(clusters)
@@ -745,9 +742,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.detection_list.DeleteItemByData(det.id)
         sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
+        sf.nlist.SetItemCount(len(sort.uris))
+        sf.nlist.RefreshItems()
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
-        sf.tree.RefreshItems()
         self.plot() # update rasters
         try:
             cf = self.frames['cluster']
@@ -859,12 +857,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.detection_list.DeleteAllItems()
         if 'sort' in self.frames:
             sf = self.frames['sort']
+            sf.nlist.DeleteAllItems()
+            sf.nslist.DeleteAllItems()
             sf.slist.DeleteAllItems()
-            sf.tree.DeleteAllItems()
-            sf.slist.lastSelectedIDs = []
-            sf.tree.lastSelectedItems = []
-            sf.tree.selectedItemIDs = []
-            sf.tree.selectedItems = []
+            sf.nlist.lastSelectedIDs = set()
+            sf.nslist.lastSelectedIDs = set()
+            sf.slist.lastSelectedIDs = set()
             sf.spikesortpanel.removeAllItems()
             #sf.chartsortpanel.removeAllItems()
         if 'cluster' in self.frames:
@@ -1026,21 +1024,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # refresh spike virtual listctrl
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
-        # restore neurons and their sorted spikes to tree, restore cluster plot too
+        # restore neurons and their sorted spike listctrls, restore cluster plot too
         cluster = None
         # don't use self.ApplyClusters() to do all the following, since it's possible that
         # some neurons don't have clusters
+        clusters = []
         for neuron in sort.neurons.values():
-            sf.AddNeuron2Tree(neuron)
-            #sf.AddSpikes2Tree(neuron.itemID, neuron.spikeis) # no longer needed with VirtualTree
-            try: cluster = neuron.cluster
-            except AttributeError: continue
-            self.AddCluster(cluster)
-            cluster.spikeis = sort.apply_cluster(cluster)
-        sf.tree.RefreshItems() # make children of each neuron show up in tree
-        if cluster:
-            self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
-            self.notebook.SetSelection(2) # switch to the cluster pane
+            if type(neuron.spikeis) == set: # TODO: this can be removed once old .sort files are converted
+                neuron.spikeis = np.unique(list(neuron.spikeis))
+                print('neuron %d had type(spikeis) == set' % neuron.id)
+            self.AddCluster(neuron.cluster)
+            clusters.append(neuron.cluster)
+        self.ApplyClusters(clusters)
+        sf.nlist.SetItemCount(len(sort.neurons))
+        sf.nlist.RefreshItems()
+        self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
+        self.notebook.SetSelection(2) # switch to the cluster pane
 
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
