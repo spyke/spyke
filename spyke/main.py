@@ -138,9 +138,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.CreateNewSort()
 
     def OnOpen(self, evt):
-        dlg = wx.FileDialog(self, message="Open surf or sort file",
+        dlg = wx.FileDialog(self, message="Open .srf, .sort or .wave file",
                             defaultDir=self.defaultdir, defaultFile='',
-                            wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort",
+                            wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort|Wave files (*.wave)|*.wave",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
@@ -412,8 +412,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.cluster_list_box.GetClientData(i)
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
-        try: self.DeColourPoints(cluster.spikeis)
-        except AttributeError: pass
+        self.DeColourPoints(cluster.neuron.spikeis)
         self.frames['cluster'].glyph.mlab_source.update()
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.cluster_list_box.Delete(i)
@@ -466,17 +465,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf.glyph = cf.plot(X)
         # update all ellipsoids
         for cluster in self.sort.clusters.values():
-            try: del cluster.spikeis # no longer relevant, coloured points are now all white
-            except AttributeError: pass
             cluster.update_ellipsoid(dims=dims)
 
     def OnApplyCluster(self, evt=None):
-        """Apply (cluster) button press in cluster_pane, Don't need the evt"""
+        """Apply (cluster) button press in cluster_pane. Don't need the evt"""
         cluster = self.GetCluster()
         self.ApplyClusters(cluster)
 
     def OnApplyAllClusters(self, evt=None):
-        """Apply all (cluster) button press in cluster_pane, Don't need the evt"""
+        """Apply all (cluster) button press in cluster_pane. Don't need the evt"""
         self.ApplyClusters(self.sort.clusters.values())
 
     def ApplyClusters(self, clusters):
@@ -485,26 +482,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.frames['sort']
         for cluster in toiter(clusters):
             neuron = cluster.neuron
-            # remove any existing spikes from neuron and restore them to spike listctrl:
-            sf.MoveSpikes2List(neuron, neuron.spikeis)
             # reset scalar values for cluster's existing points
             # TODO: decolour only those points that are being removed
-            try: self.DeColourPoints(cluster.spikeis)
-            except AttributeError: pass
-            # convert spikeis to list of Python ints for better efficiency when pickling
-            #cluster.spikeis = self.sort.apply_cluster(cluster).tolist()
-            cluster.spikeis = self.sort.apply_cluster(cluster)
-            sf.MoveSpikes2Neuron(cluster.spikeis, neuron)
+            self.DeColourPoints(neuron.spikeis)
+            # remove any existing spikes from neuron and restore them to spike listctrl:
+            sf.MoveSpikes2List(neuron, neuron.spikeis)
+            spikeis = self.sort.apply_cluster(cluster)
+            sf.MoveSpikes2Neuron(spikeis, neuron)
         # TODO: colour only those points that have been added
         self.ColourPoints(clusters)
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
-        by cluster.spikeis) the same colour as the cluster itself"""
+        by cluster.neuron.spikeis) the same colour as the cluster itself"""
         clusters = toiter(clusters)
         cf = self.frames['cluster']
         for cluster in clusters:
-            ris = self.sort.spikes['id'].searchsorted(cluster.spikeis)
+            ris = self.sort.spikes['id'].searchsorted(cluster.neuron.spikeis)
             neuron = cluster.neuron
             cf.glyph.mlab_source.scalars[ris] = neuron.id % len(CMAP)
         t0 = time.time()
@@ -707,14 +701,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 continue # to next selectedDetection
 
             # rebuild sort.spikes, excluding detection's spikes
-            #keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
             keepspikeis = np.diff1d(allspikeis, det.spikeis) # return what's in first arr and not in the 2nd
             keepris = allspikeis.searchsorted(keepspikeis)
             delspikes = sort.spikes[delris] # returns a struct array, doesn't generate a bunch of records I think, so not slow?
             # which about-to-be-deleted spikes belong to a neuron?
             delriis, = np.where(delspikes['nid'] != -1)
 
-            # new unfinished code needed now that neuron.spikeis is an array:
+            # new unfinished code, needed now that neuron.spikeis is an array:
             raise RuntimeError('this code is unfinished')
             nids = delspikes['nid'][delriis]
             nidsis = nids.argsort()
@@ -1021,21 +1014,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.append_detection_list(detection)
 
         sf = self.OpenFrame('sort') # ensure it's open
-        # refresh spike virtual listctrl
+        # restore unsorted spike virtual listctrl
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
-        # restore neurons and their sorted spike listctrls, restore cluster plot too
-        cluster = None
-        # don't use self.ApplyClusters() to do all the following, since it's possible that
-        # some neurons don't have clusters
-        clusters = []
-        for neuron in sort.neurons.values():
-            self.AddCluster(neuron.cluster)
-            clusters.append(neuron.cluster)
-        self.ApplyClusters(clusters)
+        # restore neuron clusters and the neuron listctrl
+        for cluster in sort.clusters.values():
+            self.AddCluster(cluster)
+        self.ColourPoints(sort.clusters.values()) # colour points for all clusters in one shot
         sf.nlist.SetItemCount(len(sort.neurons))
         sf.nlist.RefreshItems()
-        self.ColourPoints(sort.clusters.values()) # to save time, colour points for all clusters in one shot
         self.notebook.SetSelection(2) # switch to the cluster pane
 
         self.sortfname = fname # bind it now that it's been successfully loaded

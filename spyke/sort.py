@@ -317,7 +317,7 @@ class Sort(object):
         # detection as its name
         print('Exporting data to %r' % path)
         if hasattr(self, 'stream'):
-            self.get_srffnameroot()
+            srffnameroot = self.get_srffnameroot()
             if hasattr(self.stream.srff, 'displayrecords'):
                 self.exporttextheader(srffnameroot, path)
             if hasattr(self.stream.srff, 'digitalsvalrecords'):
@@ -752,7 +752,9 @@ class Neuron(object):
             wavedatas = sort.get_wavedata(ris)
         except MemoryError:
             # grab a random subset of spikes to use to calculate the mean
-            ris = random.sample(ris, k=200) # ris is now a list, not array, but that doesn't matter
+            k = 200
+            print('Taking random sample of %d spikes instead of all of them' % k)
+            ris = random.sample(ris, k=k) # ris is now a list, not array, but that doesn't matter
             wavedatas = sort.get_wavedata(ris)
         if wavedatas.ndim == 2: # should be 3, get only 2 if len(ris) == 1
             wavedatas.shape = 1, wavedatas.shape[0], wavedatas.shape[1] # give it a singleton 3rd dim
@@ -1261,7 +1263,6 @@ class SortFrame(wxglade_gui.SortFrame):
         if neuron == None:
             neuron = self.sort.create_neuron()
         neuron.spikeis = np.union1d(neuron.spikeis, spikeis) # update
-        #neuron.spikeis.update(spikeis) # update the set
         spikes['nid'][ris] = neuron.id
         self.sort.update_uris()
         self.slist.SetItemCount(len(self.sort.uris))

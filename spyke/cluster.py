@@ -70,7 +70,6 @@ class Cluster(object):
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        d.pop('spikeis', None) # exclude spikeis which hold indices of currently coloured points
         del d['ellipsoid'] # remove Mayavi ellipsoid surface, recreate on unpickle
         return d
 
