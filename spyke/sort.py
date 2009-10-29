@@ -10,6 +10,7 @@ import time
 import datetime
 from copy import copy
 import operator
+import random
 
 import wx
 
@@ -213,9 +214,6 @@ class Sort(object):
         # first figure out which arrays in wavedatas the row indices ris correspond to
         ris.sort() # make sure they're sorted, no guarantee the results come out in the original order
         wavedatais = self.wavedatascumsum.searchsorted(ris, side='right') # these are in sorted order
-        #nchans = self.wavedatanchans
-        #nt = self.wavedatant
-        #returnwavedata = np.empty((len(wavedatais), nchans, nt), dtype=np.int16) # TODO: this is quite slow and unnecesary?
         uniquewavedatais = np.unique(wavedatais) # also sorted
         startis = wavedatais.searchsorted(uniquewavedatais, side='left')
         endis = wavedatais.searchsorted(uniquewavedatais, side='right')
@@ -750,7 +748,12 @@ class Neuron(object):
         print('first loop took %.3f sec' % (time.time()-t0))
 
         t0 = time.time()
-        wavedatas = sort.get_wavedata(ris)
+        try:
+            wavedatas = sort.get_wavedata(ris)
+        except MemoryError:
+            # grab a random subset of spikes to use to calculate the mean
+            ris = random.sample(ris, k=200) # ris is now a list, not array, but that doesn't matter
+            wavedatas = sort.get_wavedata(ris)
         if wavedatas.ndim == 2: # should be 3, get only 2 if len(ris) == 1
             wavedatas.shape = 1, wavedatas.shape[0], wavedatas.shape[1] # give it a singleton 3rd dim
         maxnt = wavedatas.shape[-1]
