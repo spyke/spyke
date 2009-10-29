@@ -1030,9 +1030,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # some neurons don't have clusters
         clusters = []
         for neuron in sort.neurons.values():
-            if type(neuron.spikeis) == set: # TODO: this can be removed once old .sort files are converted
-                neuron.spikeis = np.unique(list(neuron.spikeis))
-                print('neuron %d had type(spikeis) == set' % neuron.id)
             self.AddCluster(neuron.cluster)
             clusters.append(neuron.cluster)
         self.ApplyClusters(clusters)
@@ -1055,7 +1052,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wavedatas = []
         try: fwave = open(fname, 'rb')
         except IOError: return wavedatas
-        try: del self.sort.wavedatas
+        try:
+            del self.sort.wavedatas
+            gc.collect() # make sure memory is freed up to prepare for new wavedata
+            # TODO: figure out what's holding a reference to wavedatas and its contents - doesn't seem to be getting freed?
         except AttributeError: pass
         nspikes = 0
         while True:
