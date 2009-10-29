@@ -1,21 +1,14 @@
 RECENT:
 
+    - mean neuron waveforms aren't being saved to .sort after switching to extra virtual listctrls - or if they are, they're being ignored on restore
+
     - should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
 
     - rethink the whole "best" thing for marking which sort to use - maybe just leave it be with no best marker any more, and add a sort level to the command line neuropy interface - nevermind, its already there, but the sorts are only numbered, not named
         - also, you can't go sortN.e0.sta(), since sort is below exp in the hierarchy - this is awkward - rethink the hierarchy?
         - tree printout should show the sorts and experiments?
 
-    - tree is still really slow when expanding a neuron with 10s of 1000s of spikes - this is because it's not a true virtual tree like the virtual list is truly virtual - the tree populates all the children of all the currently expanded nodes, not just the currently visible children - that's cuz VirtualTree is implemented in Python - wx needs to do this at a lower level in C
-        - maybe add a button that simply plots a couple of dozen spikes at random from the currently selected neuron(s), plus the mean of each
-            - ah, make a choice widget that controls whether just a neuron's mean or just a random selection of its spikes or both its mean and a random selection are plotted when you select it
-        - or add something that lets you cycle through plotted spikes a couple dozen at a time, in order
-    - best soln is probably to replace tree with 2 more virtual list ctrls: one listing all the neurons (clicking neurons displays their mean), and one listing the currently selected neuron's spikes (clicking selects that spike)
-        - only downfall is you could no longer directly compare overplots of spikes of one neuron vs another, but this is already quite difficult to do with the multiselect tree
-        - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
-        - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
-        - another benefit is that listctrls can colour their items, to match neuron colour - declare OnGetItemAttr method (see wx demos)
-        - could also use a grid, which can act as a virtual control
+    - colour items in nlist - declare OnGetItemAttr method (see wx demos)
 
     - add a feature where you renumber the neurons according to their vertical spatial order - this would make STA plots come out vertically ordered, which would be nice for deducing layers and where you get lots of simple fields and complex fields
 
@@ -25,12 +18,11 @@ RECENT:
 
     - MAYBE: add ability to turn on/off a cluster (and its coloured points) temporarily, so you can see the uncoloured density of points within it, and maybe better decide how to adjust the cluster to match
 
-
     - overplotting speed
 
     - actually, not so bad: need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses (especially in the white ellipses) - maybe make their points greyish red and pink (respectively) instead?
 
-    - manual sorting is broken again
+    - manual sorting is disabled, and maybe it should stay that way
 
     - restoring from .sort with no .srf open is broken again
 
@@ -561,6 +553,13 @@ DONE:
         - this would also make it more efficient to save multiple .sort files when testing various sorting methods (although not various detection methods) - each one wouldn't also have its huge associated wavedata duplicated unnecessarily
         - saving repeatedly while sorting would be much faster
 - add file export item for exporting spikes and din and textheader, with a directory chooser
+- tree is still really slow when expanding a neuron with 10s of 1000s of spikes - this is because it's not a true virtual tree like the virtual list is truly virtual - the tree populates all the children of all the currently expanded nodes, not just the currently visible children - that's cuz VirtualTree is implemented in Python - wx needs to do this at a lower level in C
+    - best soln is probably to replace tree with 2 more virtual list ctrls: one listing all the neurons (clicking neurons displays their mean), and one listing the currently selected neuron's spikes (clicking selects that spike)
+        - only downfall is you could no longer directly compare overplots of spikes of one neuron vs another, but this is already quite difficult to do with the multiselect tree
+        - benefit would be doing away with the complexity of bugs in the tree, and most of all, speed!
+        - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
+        - another benefit is that listctrls can colour their items, to match neuron colour
+
 
 
 

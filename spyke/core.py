@@ -13,7 +13,8 @@ import os
 import sys
 
 import wx
-from wx.lib.mixins.treemixin import VirtualTree
+#from wx.lib.mixins.treemixin import VirtualTree
+from wx.lib.mixins.listctrl import ListCtrlSelectionManagerMix
 
 import numpy as np
 from numpy import pi
@@ -651,24 +652,18 @@ class ResampleFileStream(Stream):
             self.switch(to='normal')
 
 
-class SpykeListCtrl(wx.ListCtrl):
+class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
     """ListCtrl with a couple of extra methods defined"""
-    def GetSelections(self):
-        """Return row indices of selected list items.
-        wx.ListCtrl lacks something like this as a method"""
-        selected_rows = []
-        first = self.GetFirstSelected()
-        if first == -1: # no more selected rows
-            return selected_rows
-        selected_rows.append(first)
-        last = first
-        while True:
-            next = self.GetNextSelected(last)
-            if next == -1: # no more selected rows
-                return selected_rows
-            selected_rows.append(next)
-            last = next
+    def __init__(self, *args, **kwargs):
+        wx.ListCtrl.__init__(self, *args, **kwargs)
+        self.lastSelectedIDs = set()
 
+    def RefreshItems(self):
+        """Convenience function - only applicable if self has its wx.LC_VIRTUAL
+        flag set"""
+        wx.ListCtrl.RefreshItems(self, 0, sys.maxint) # refresh all possible items
+        self.Refresh() # repaint the listctrl
+    '''
     def InsertRow(self, row, data):
         """Insert data in list at row position.
         data is a list of strings or numbers, one per column.
@@ -676,7 +671,7 @@ class SpykeListCtrl(wx.ListCtrl):
         row = self.InsertStringItem(row, str(data[0])) # inserts data's first column
         for coli, val in enumerate(data[1:]): # insert the rest of data's columns
             self.SetStringItem(row, coli+1, str(val))
-
+    '''
     def DeleteItemByData(self, data):
         """Delete first item whose first column matches data"""
         row = self.FindItem(0, str(data)) # start search from row 0
@@ -689,28 +684,73 @@ class SpykeListCtrl(wx.ListCtrl):
         itemID = self.GetFocusedItem()
         if itemID == -1: # no item focused
             return
-        selectedIDs = self.GetSelections()
+        selectedIDs = self.getSelection()
         if itemID in selectedIDs: # is already selected
             self.Select(itemID, on=0) # deselect it
         else: # isn't selected
             self.Select(itemID, on=1)
 
 
-class SpykeVirtualListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl. The wx.LC_VIRTUAL flag is set in wxglade_gui.py
-
-    TODO:
-    - every time sort.spikes is modified, need to call SetItemCount and maybe RefreshItems
-        - make info flow from listctrl to sort.spikes, and manually update the listctrl
-          when need be after some manual change to sort.spikes
-    - bug: selecting multiple items over a range with shift+mouse or shift+arrows doesn't
-    update the plots - probably some selection event that was happening in normal listctrl
-    isn't happening in virtual listctrl. Doing a ctrl+click or ctrl+space will make whatever's
-    already selected be plotted
-    """
+class NListCtrl(SpykeListCtrl):
+    """A virtual ListCtrl for displaying neurons.
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.COL2FIELD = {0:'id', 1:'x0', 2:'y0', 3:'t'}
+        self.InsertColumn(0, 'nID')
+        self.SetColumnWidth(0, 30)
+
+    def OnGetItemText(self, row, col):
+        sort = self.GetTopLevelParent().sort
+        # TODO: could almost assume sort.neurons dict is ordered, since it always seems to be
+        nids = list(sort.neurons)
+        nids.sort()
+        return nids[row]
+
+
+class NSListCtrl(SpykeListCtrl):
+    """A virtual ListCtrl for displaying a neuron's spikes.
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    def __init__(self, *args, **kwargs):
+        SpykeListCtrl.__init__(self, *args, **kwargs)
+        self.InsertColumn(0, 'sID')
+        self.SetColumnWidth(0, 60)
+        self._neuron = None
+
+    def OnGetItemText(self, row, col):
+        if self.neuron == None:
+            return
+        return self.neuron.spikeis[row]
+
+    def get_neuron(self):
+        return self._neuron
+
+    def set_neuron(self, neuron):
+        """Automatically refresh when neuron is bound"""
+        self._neuron = neuron
+        if neuron == None:
+            self.SetItemCount(0)
+        else:
+            self.SetItemCount(neuron.nspikes)
+        self.RefreshItems()
+
+    neuron = property(get_neuron, set_neuron)
+
+
+class SListCtrl(SpykeListCtrl):
+    """A virtual ListCtrl for displaying unsorted spikes.
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    def __init__(self, *args, **kwargs):
+        SpykeListCtrl.__init__(self, *args, **kwargs)
+        self.COL2FIELD = {0:'id', 1:'x0', 2:'y0', 3:'t'} # col num to spikes field mapping
+
+        columnlabels = ['sID', 'x0', 'y0', 'time'] # spike list column labels
+        for coli, label in enumerate(columnlabels):
+            self.InsertColumn(coli, label)
+        #for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
+        #    self.slist.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
+        # hard code column widths for precise control, autosize seems buggy
+        for coli, width in {0:40, 1:40, 2:60, 3:80}.items(): # (sid, x0, y0, time)
+            self.SetColumnWidth(coli, width)
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
@@ -728,131 +768,6 @@ class SpykeVirtualListCtrl(SpykeListCtrl):
             val = '%.1f' % val
         return val
 
-    def RefreshItems(self):
-        """Convenience function"""
-        SpykeListCtrl.RefreshItems(self, 0, sys.maxint) # refresh all possible items
-        self.Refresh() # repaint the listctrl
-
-    def InsertRow(self, row, data):
-        raise RuntimeError("InsertRow is N/A on a virtual listctrl")
-
-    def DeleteItemByData(self, data):
-        raise RuntimeError("DeleteItemByData is N/A on a virtual listctrl")
-
-
-class SpykeTreeCtrl(wx.TreeCtrl):
-    """TreeCtrl with overridden OnCompareItems().
-    Also has a couple of helper functions"""
-    def OnCompareItems(self, item1, item2):
-        """Compare neurons in tree according to the average
-        y0 value of their member spikes, for sorting purposes.
-        Called by self.SortChildren
-
-        TODO: sort member spikes by spike times
-        """
-        obj1 = self.GetItemPyData(item1)
-        obj2 = self.GetItemPyData(item2)
-        '''
-        try:
-            self.SiteLoc
-        except AttributeError:
-            sortframe = self.GetTopLevelParent()
-            self.SiteLoc = sortframe.sort.probe.SiteLoc # do this here and not in __init__ due to binding order
-        '''
-        try: # make sure they're both neurons by checking for .spikes attrib
-            obj1.spikes
-            obj2.spikes
-            y01 = np.asarray([ spike['y0'] for spike in obj1.spikes.values() ]).mean()
-            y02 = np.asarray([ spike['y0'] for spike in obj2.spikes.values() ]).mean()
-            '''
-            # if we want to use maxchan instead of y0, need to work on neuron's mean waveform
-            ycoord1 = self.SiteLoc[obj1.maxchan][1]
-            ycoord2 = self.SiteLoc[obj2.maxchan][1]
-            return cmp(ycoord1, ycoord2)
-            '''
-            return cmp(y01, y02)
-        except AttributeError:
-            raise RuntimeError, "can't yet deal with sorting spikes in tree"
-
-    def GetTreeChildrenPyData(self, itemID):
-        """Returns PyData of all children of item in
-        order from top to bottom in a list"""
-        children = []
-        childID, cookie = self.GetFirstChild(itemID)
-        while childID:
-            child = self.GetItemPyData(childID)
-            children.append(child)
-            childID, cookie = self.GetNextChild(itemID, cookie)
-        return children
-
-    def GetTreeChildren(self, itemID):
-        """Returns list of itemIDs of all children of item in
-        order from top to bottom of the tree"""
-        childrenIDs = []
-        childID, cookie = self.GetFirstChild(itemID)
-        while childID:
-            childrenIDs.append(child)
-            childID = self.GetNextChild(itemId, cookie)
-        return childrenIDs
-
-    def GetFocusedItem(self):
-        """This relies on _focusedItem being set externally by handling
-        tree spikes appropriately"""
-        return self._focusedItem
-    '''
-    def GetSelectedItems(self):
-        """This relies on _selectedItems being set externally by handling
-        tree spikes appropriately. I think this differs from .GetSelections()
-        in that the currently focused item isn't incorrectly assumed to
-        also be a selected item"""
-        return self._selectedItems
-    '''
-    def ToggleFocusedItem(self):
-        """Toggles selection of focused tree item"""
-        item = self.GetFocusedItem()
-        if item in self.GetSelections(): # already selected
-            select = False # deselect
-        else: # not selected
-            select = True # select it
-        self.SelectItem(item, select)
-        #print 'SpykeTreeCtrl.ToggleFocusedItem() not implemented yet, use Ctrl+Space instead'
-
-
-class SpykeVirtualTreeCtrl(VirtualTree, SpykeTreeCtrl):
-    """Virtual tree control"""
-    def OnGetItemText(self, index):
-        """index is tuple of 0-based (root, child, child, ...) indices.
-        An empty tuple () represents the hidden root item"""
-        sort = self.GetTopLevelParent().sort
-        if len(index) == 0:
-            return ''
-        elif len(index) == 1:
-            nid = list(sort.neurons)[index[0]]
-            return 'n'+str(nid)
-        else: # len(index) == 2
-            nid = list(sort.neurons)[index[0]]
-            sid = list(sort.neurons[nid].spikeis)[index[1]]
-            return 's'+str(sid)
-
-    def OnGetChildrenCount(self, index):
-        """index is tuple of 0-based (root, child, child, ...) indices.
-        An empty tuple () represents the hidden root item"""
-        sort = self.GetTopLevelParent().sort
-        if len(index) == 0: # hidden root has nneurons children
-            return len(sort.neurons)
-        elif len(index) == 1: # each neuron has spike children
-            nid = list(sort.neurons)[index[0]]
-            return len(sort.neurons[nid].spikeis)
-        else: # len(index) == 2
-            return 0 # spikes have no children
-
-
-'''
-class SetList(set):
-    """A set with an append() method like a list"""
-    def append(self, item):
-        self.add(item)
-'''
 '''
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.

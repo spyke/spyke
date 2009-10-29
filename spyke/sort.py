@@ -24,6 +24,7 @@ MAXCHANTOLERANCE = 100 # um
 
 SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
+NSSPLITTERSASH = 30
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
 
@@ -359,8 +360,7 @@ class Sort(object):
         path = os.path.join(path, spikefoldername)
         os.mkdir(path)
         for nid, neuron in self.neurons.items():
-            spikeis = list(neuron.spikeis) # convert from set
-            spikeis.sort() # make sure they're sorted
+            spikeis = neuron.spikeis # should be sorted
             ris = spikes['id'].searchsorted(spikeis)
             spikets = spikes['t'][ris]
             # pad filename with leading zero to always make template (t) ID at least 2 digits long
@@ -716,10 +716,9 @@ class Neuron(object):
         self.sort = sort
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
-        self.spikeis = set() # indices of spikes that make up this neuron
+        self.spikeis = np.array([], dtype=int) # indices of spikes that make up this neuron
         self.t = 0 # relative reference timestamp, here for symmetry with fellow spike rec (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
-        #self.itemID = None # tree item ID, set when self is displayed as an entry in the TreeCtrl
         self.cluster = None
         #self.srffname # not here, let's allow neurons to have spikes from different files?
     '''
@@ -739,7 +738,7 @@ class Neuron(object):
             raise RuntimeError("neuron %d has no spikes and its waveform can't be updated" % self.id)
             #self.wave = WaveForm() # empty waveform
             #return self.wave
-        spikeis = np.asarray(list(self.spikeis))
+        spikeis = self.spikeis
         ris = spikes['id'].searchsorted(spikeis)
 
         t0 = time.time()
@@ -807,7 +806,6 @@ class Neuron(object):
         """Get object state for pickling"""
         d = self.__dict__.copy()
         d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        d.pop('itemID', None) # remove tree item ID, if any, since that'll have changed anyway on unpickle
         return d
 
     '''
@@ -933,32 +931,10 @@ class SortFrame(wxglade_gui.SortFrame):
         self.SetSize(size)
         self.splitter.SetSashPosition(SPLITTERSASH) # do this here because wxGlade keeps messing this up
         self.sort_splitter.SetSashPosition(SORTSPLITTERSASH)
+        self.ns_splitter.SetSashPosition(NSSPLITTERSASH)
 
-        self.listTimer = wx.Timer(owner=self.list)
-
-        self.list.lastSelectedIDs = []
-        self.tree.lastSelectedItems = []
-        self.tree.selectedItemIDs = []
-        self.tree.selectedItems = []
-
-        columnlabels = ['sID', 'x0', 'y0', 'time'] # spike list column labels
-        for coli, label in enumerate(columnlabels):
-            self.list.InsertColumn(coli, label)
-        #for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
-        #    self.list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:60, 3:80}.items(): # (sid, x0, y0, time)
-            self.list.SetColumnWidth(coli, width)
-
-        self.list.Bind(wx.EVT_TIMER, self.OnListTimer)
-        self.list.Bind(wx.EVT_RIGHT_DOWN, self.OnListRightDown)
-        self.list.Bind(wx.EVT_KEY_DOWN, self.OnListKeyDown)
-        #self.tree.Bind(wx.EVT_LEFT_DOWN, self.OnTreeLeftDown) # doesn't fire when clicking on non focused item, bug #4448
-        self.tree.Bind(wx.EVT_LEFT_UP, self.OnTreeLeftUp) # need this to catch clicking on non focused item, bug #4448
-        self.tree.Bind(wx.EVT_RIGHT_DOWN, self.OnTreeRightDown)
-        self.tree.Bind(wx.EVT_KEY_DOWN, self.OnTreeKeyDown)
-        self.tree.Bind(wx.EVT_KEY_UP, self.OnTreeKeyUp)
-        self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChanged)
+        #self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
+        #self.slist.Bind(wx.EVT_KEY_DOWN, self.OnSListKeyDown)
 
         self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -989,44 +965,54 @@ class SortFrame(wxglade_gui.SortFrame):
         frametype = self.__class__.__name__.lower().replace('frame', '')
         self.spykeframe.HideFrame(frametype)
 
-    def OnListSelect(self, evt):
-        """Restart list selection timer
-        listTimer explanation: on any selection event, start or restart the timer for say
-        1 msec. Then, when timer runs down, run self.list.GetSelections() and compare to
-        previous list of selections, and execute your plots accordingly. This makes all
-        the sel event handling fast"""
-        self.listTimer.Stop()
-        # only fire one timer event after specified interval
-        self.listTimer.Start(milliseconds=1, oneShot=True)
+    def OnNListSelect(self, evt):
+        selectedRows = self.nlist.getSelection()
+        nids = set(np.asarray(list(self.sort.neurons))[selectedRows])
+        remove_nids = self.nlist.lastSelectedIDs.difference(nids)
+        add_nids = nids.difference(self.nlist.lastSelectedIDs)
+        self.RemoveItemsFromPlot([ 'n'+str(nid) for nid in remove_nids ])
+        self.AddItems2Plot([ 'n'+str(nid) for nid in add_nids ])
+        self.nlist.lastSelectedIDs = nids # save for next time
+        if self.nslist.neuron != None and self.nslist.neuron.id in remove_nids:
+            self.nslist.neuron = None
+        elif len(nids) == 1:
+            nid = list(nids)[0]
+            self.nslist.neuron = self.sort.neurons[nid]
 
-    def OnListDeselect(self, evt):
-        self.OnListSelect(evt)
-
-    def OnListTimer(self, evt):
-        """Run when started timer runs out and triggers a TimerEvent"""
+    def OnNSListSelect(self, evt):
         sort = self.sort
-        selectedRows = self.list.GetSelections()
+        selectedRows = self.nslist.getSelection()
+        sids = set(self.nslist.neuron.spikeis[selectedRows])
+        remove_sids = self.nslist.lastSelectedIDs.difference(sids)
+        add_sids = sids.difference(self.nslist.lastSelectedIDs)
+        self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
+        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
+        self.nslist.lastSelectedIDs = sids # save for next time
+
+    def OnSListSelect(self, evt):
+        sort = self.sort
+        selectedRows = self.slist.getSelection()
         ris = sort.uris[selectedRows]
-        sids = sort.spikes['id'][ris]
-        remove_sids = [ sid for sid in self.list.lastSelectedIDs if sid not in sids ]
-        add_sids = [ sid for sid in sids if sid not in self.list.lastSelectedIDs ]
+        sids = set(sort.spikes['id'][ris])
+        remove_sids = self.slist.lastSelectedIDs.difference(sids)
+        add_sids = sids.difference(self.slist.lastSelectedIDs)
         self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
         self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ], ris=ris)
-        self.list.lastSelectedIDs = sids # save for next time
-
-    def OnListRightDown(self, evt):
+        self.slist.lastSelectedIDs = sids # save for next time
+    '''
+    def OnSListRightDown(self, evt):
         """Toggle selection of the clicked list item, without changing selection
         status of any other items. This is a nasty hack required to get around
         the selection ListEvent happening before the MouseEvent, or something"""
-        print('in OnListRightDown')
+        print('in OnSListRightDown')
         pt = evt.GetPosition()
-        row, flags = self.list.HitTest(pt)
+        row, flags = self.slist.HitTest(pt)
         sid = self.sort.spikes['id'][self.sort.uris[row]]
         print('spikeID is %r' % sid)
         # this would be nice, but doesn't work (?) cuz apparently somehow the
         # selection ListEvent happens before MouseEvent that caused it:
-        #selected = not self.list.IsSelected(row)
-        #self.list.Select(row, on=int(not selected))
+        #selected = not self.slist.IsSelected(row)
+        #self.slist.Select(row, on=int(not selected))
         # here is a yucky workaround:
         try:
             self.spikesortpanel.used_plots['s'+str(sid)] # is it plotted?
@@ -1035,9 +1021,9 @@ class SortFrame(wxglade_gui.SortFrame):
         except KeyError:
             selected = False # item is not selected
             print('spike %d not in used_plots' % sid)
-        self.list.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
-
-    def OnListColClick(self, evt):
+        self.slist.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
+    '''
+    def OnSListColClick(self, evt):
         """Sort .uris according to column clicked.
 
         TODO: keep track of currently selected spikes and currently focused spike,
@@ -1046,7 +1032,7 @@ class SortFrame(wxglade_gui.SortFrame):
         that happens automatically). Right now, the selection remains in the list
         as-is, regardless of the entries that change beneath it"""
         col = evt.GetColumn()
-        field = self.list.COL2FIELD[col]
+        field = self.slist.COL2FIELD[col]
         s = self.sort
         # for speed, check if already sorted by field
         if s.uris_sorted_by == field: # already sorted, reverse the order
@@ -1056,15 +1042,15 @@ class SortFrame(wxglade_gui.SortFrame):
             s.sort_uris(field)
             s.uris_sorted_by = field # update
             s.uris_reversed = False # update
-        self.list.RefreshItems()
-
-    def OnListKeyDown(self, evt):
+        self.slist.RefreshItems()
+    '''
+    def OnSListKeyDown(self, evt):
         """Spike list key down evt"""
         key = evt.GetKeyCode()
         if key == wx.WXK_TAB:
-            self.tree.SetFocus() # change focus to tree
+            pass #self.tree.SetFocus() # change focus to tree
         elif key in [wx.WXK_SPACE, wx.WXK_RETURN]:
-            self.list.ToggleFocusedItem()
+            self.slist.ToggleFocusedItem()
             return # evt.Skip() seems to prevent toggling, or maybe it untoggles
         elif key in [ord('A'), wx.WXK_LEFT]:
             self.MoveCurrentSpikes2Neuron(which='selected')
@@ -1156,7 +1142,7 @@ class SortFrame(wxglade_gui.SortFrame):
         key = evt.GetKeyCode()
         #print 'key down: %r' % key
         if key == wx.WXK_TAB:
-            self.list.SetFocus() # change focus to list
+            self.slist.SetFocus() # change focus to list
         elif key == wx.WXK_RETURN: # space only triggered on key up, see bug #4448
             self.tree.ToggleFocusedItem()
             #wx.CallAfter(self.OnTreeSelectChanged)
@@ -1213,7 +1199,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.sort.neurons = neurons # overwrite the dict
         self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
         print('TODO: relabel all nids in sort.spikes struct array as well!')
-
+    '''
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
         self.spikesortpanel.draw_refs()
@@ -1230,9 +1216,7 @@ class SortFrame(wxglade_gui.SortFrame):
     def UpdateItemsInPlot(self, items):
         self.spikesortpanel.updateItems(items)
         #self.chartsortpanel.updateItems(items)
-
-    # TODO: should self.OnTreeSelectChanged() (update plot) be called more often at the end of many of the following methods?:
-
+    '''
     def AddNeuron2Tree(self, neuron):
         """Add a neuron to the tree control"""
         root = self.tree.GetRootItem()
@@ -1240,7 +1224,7 @@ class SortFrame(wxglade_gui.SortFrame):
             root = self.tree.AddRoot('Neurons')
         neuron.itemID = self.tree.AppendItem(root, 'n'+str(neuron.id)) # add neuron to tree
         #self.tree.SetItemPyData(neuron.itemID, neuron) # associate neuron tree item with neuron
-    '''
+
     def RemoveNeuronFromTree(self, neuron):
         """Remove neuron and all its spikes from the tree"""
         self.MoveSpikes2List(neuron, neuron.spikeis)
@@ -1259,11 +1243,13 @@ class SortFrame(wxglade_gui.SortFrame):
             del self.sort.clusters[neuron.id] # may or may not exist
         except KeyError:
             pass
-        self.tree.RefreshItems()
+        self.nlist.SetItemCount(len(self.sort.neurons))
+        self.nlist.RefreshItems()
+        if neuron == self.nslist.neuron:
+            self.nslist.neuron = None
 
     def MoveSpikes2Neuron(self, spikeis, neuron=None):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.
-        Also, move spikes from the spike list control to a neuron in the tree.
         If neuron is None, create a new one"""
         spikeis = toiter(spikeis)
         spikes = self.sort.spikes
@@ -1271,66 +1257,44 @@ class SortFrame(wxglade_gui.SortFrame):
         createdNeuron = False
         if neuron == None:
             neuron = self.sort.create_neuron()
-            #self.AddNeuron2Tree(neuron)
-            #createdNeuron = True
-        neuron.spikeis.update(spikeis) # update the set
+        neuron.spikeis = np.union1d(neuron.spikeis, spikeis) # update
+        #neuron.spikeis.update(spikeis) # update the set
         spikes['nid'][ris] = neuron.id
         self.sort.update_uris()
-        self.list.SetItemCount(len(self.sort.uris))
-        self.list.RefreshItems() # refresh the list
+        self.slist.SetItemCount(len(self.sort.uris))
+        self.slist.RefreshItems() # refresh the list
+        if neuron == self.nslist.neuron:
+            self.nslist.neuron = neuron # this triggers a refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list
-        #self.list.Select(row) # automatically select the new item at that position
-        #self.AddSpikes2Tree(neuron.itemID, spikeis) # no longer needed with VirtualTree
-        self.tree.RefreshItems()
+        #self.slist.Select(row) # automatically select the new item at that position
         neuron.wave.data = None # signify it needs an update when it's actually needed
         #neuron.update_wave() # update mean neuron waveform
-        '''
-        if createdNeuron:
-            #self.tree.Expand(root) # make sure root is expanded
-            self.tree.Expand(neuron.itemID) # expand neuron
-            self.tree.UnselectAll() # unselect all items in tree
-            self.tree.SelectItem(neuron.itemID) # select the newly created neuron
-            self.OnTreeSelectChanged() # now plot accordingly
-        '''
         return neuron
-    '''
-    # no longer needed with VirtualTree
-    def AddSpikes2Tree(self, parent, spikeis):
-        """Add spikes to the tree, where parent is a tree itemID"""
-        spikeis = toiter(spikeis)
-        if type(spikeis) == set:
-            spikeis = np.asarray(list(spikeis))
-        spikes = self.sort.spikes
-        ris = spikes['id'].searchsorted(spikeis)
-        for ri, si in zip(ris, spikeis):
-            # add spike to tree, save its itemID
-            itemID = self.tree.AppendItem(parent, 's'+str(si))
-            self.sort.spikes[ri].itemID = itemID
-    '''
+
     def MoveSpikes2List(self, neuron, spikeis):
-        """Move spikes from a neuron in the tree back to the list control.
+        """Move spikes from a neuron back to the unsorted spike list control.
         Make sure to call neuron.update_wave() at some appropriate time after
         calling this method"""
         spikeis = toiter(spikeis)
-        if type(spikeis) == set:
-            spikeis = np.asarray(list(spikeis))
         if len(spikeis) == 0:
             return # nothing to do
         spikes = self.sort.spikes
-        neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
+        neuron.spikeis = np.setdiff1d(neuron.spikeis, spikeis) # return what's in first arr and not in the 2nd
         ris = spikes['id'].searchsorted(spikeis)
         spikes['nid'][ris] = -1 # unbind neuron id of spikeis in struct array
         self.sort.update_uris()
-        self.list.SetItemCount(len(self.sort.uris))
-        self.list.RefreshItems() # refresh the list
-        self.tree.RefreshItems()
+        self.slist.SetItemCount(len(self.sort.uris))
+        self.slist.RefreshItems() # refresh the spike list
+        # this only makes sense if the neuron is currently selected in the nlist:
+        if neuron == self.nslist.neuron:
+            self.nslist.neuron = neuron # this triggers a refresh
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
         if which == 'selected':
             neuron = self.GetFirstSelectedNeuron()
         elif which == 'new':
             neuron = None # indicates we want a new neuron
-        selected_rows = self.list.GetSelections()
+        selected_rows = self.slist.getSelection()
         # remove from the bottom to top, so each removal doesn't affect the row index of the remaining selections
         selected_rows.reverse()
         selected_uris = self.sort.uris[selected_rows]
@@ -1338,7 +1302,7 @@ class SortFrame(wxglade_gui.SortFrame):
         neuron = self.MoveSpikes2Neuron(spikeis, neuron) # if neuron was None, it isn't any more
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
             self.UpdateItemsInPlot(['n'+str(neuron.id)]) # update its plot
-
+    '''
     def MoveCurrentItems2List(self):
         for itemID in self.tree.GetSelections():
             if itemID: # check if spike's tree parent (neuron) has already been deleted
@@ -1373,3 +1337,4 @@ class SortFrame(wxglade_gui.SortFrame):
             else: # it's a neuron
                 return sort.neurons[id]
         return None
+    '''
