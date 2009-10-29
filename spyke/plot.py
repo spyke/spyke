@@ -360,7 +360,7 @@ class PlotPanel(FigureCanvasWxAgg):
         self.do_layout() # defined by subclasses, sets self.pos
         self.xy_um = self.get_xy_um()
         x = self.xy_um[0]
-        self.colxs = np.asarray(list(set(x))) # unique x values that demarcate columns
+        self.colxs = np.unique(x) # unique x values that demarcate columns
         self.colxs.sort() # guarantee they're in order from left to right
         self.ax.set_axis_off() # turn off the x and y axis
         self.ax.set_visible(True)

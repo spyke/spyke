@@ -492,7 +492,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             try: self.DeColourPoints(cluster.spikeis)
             except AttributeError: pass
             # convert spikeis to list of Python ints for better efficiency when pickling
-            cluster.spikeis = self.sort.apply_cluster(cluster).tolist()
+            #cluster.spikeis = self.sort.apply_cluster(cluster).tolist()
+            cluster.spikeis = self.sort.apply_cluster(cluster)
             if len(cluster.spikeis) == 0: # remove from tree and make this neuron have 0 spikes
                 sf.RemoveNeuronFromTree(neuron)
                 return
@@ -709,17 +710,32 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 continue # to next selectedDetection
 
             # rebuild sort.spikes, excluding detection's spikes
-            keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
+            #keepspikeis = np.asarray(list(set(allspikeis).difference(det.spikeis)))
+            keepspikeis = np.diff1d(allspikeis, det.spikeis) # return what's in first arr and not in the 2nd
             keepris = allspikeis.searchsorted(keepspikeis)
             delspikes = sort.spikes[delris] # returns a struct array, doesn't generate a bunch of records I think, so not slow?
             # which about-to-be-deleted spikes belong to a neuron?
             delriis, = np.where(delspikes['nid'] != -1)
-            for delrii in delriis:
-                nid = delspikes['nid'][delrii]
+
+            # new unfinished code needed now that neuron.spikeis is an array:
+            raise RuntimeError('this code is unfinished')
+            nids = delspikes['nid'][delriis]
+            nidsis = nids.argsort()
+            nids = nids[nidsis]
+            delspikeis = delspikes[nidsis]['id']
+            for nid in np.unique(nids):
+                i = np.searchsorted(something)
                 neuron = sort.neurons[nid]
-                try:
-                    neuron.spikeis.remove(delspikes['id'][delrii]) # remove spike from its Neuron
-                except KeyError: import pdb; pdb.set_trace()
+                neuron.spikeis = np.diff1d(neuron.spikeis, blahblah)
+
+            # old code from when neuron.spikeis was a set:
+            #for delrii in delriis:
+            #    nid = delspikes['nid'][delrii]
+            #    neuron = sort.neurons[nid]
+            #    try:
+            #        neuron.spikeis.remove(delspikes['id'][delrii]) # remove spike from its Neuron
+            #    except KeyError: import pdb; pdb.set_trace()
+
             # overwrite sort.spikes and sort.wavedata
             sort.spikes = sort.spikes[keepris]
             sort.wavedata = sort.get_wavedata(keepris)

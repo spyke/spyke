@@ -360,8 +360,7 @@ class Sort(object):
         path = os.path.join(path, spikefoldername)
         os.mkdir(path)
         for nid, neuron in self.neurons.items():
-            spikeis = list(neuron.spikeis) # convert from set
-            spikeis.sort() # make sure they're sorted
+            spikeis = neuron.spikeis # should be sorted
             ris = spikes['id'].searchsorted(spikeis)
             spikets = spikes['t'][ris]
             # pad filename with leading zero to always make template (t) ID at least 2 digits long
@@ -717,7 +716,7 @@ class Neuron(object):
         self.sort = sort
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
-        self.spikeis = set() # indices of spikes that make up this neuron
+        self.spikeis = np.array([], dtype=int) # indices of spikes that make up this neuron
         self.t = 0 # relative reference timestamp, here for symmetry with fellow spike rec (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         self.cluster = None
@@ -739,7 +738,7 @@ class Neuron(object):
             raise RuntimeError("neuron %d has no spikes and its waveform can't be updated" % self.id)
             #self.wave = WaveForm() # empty waveform
             #return self.wave
-        spikeis = np.asarray(list(self.spikeis))
+        spikeis = self.spikeis
         ris = spikes['id'].searchsorted(spikeis)
 
         t0 = time.time()
@@ -934,8 +933,8 @@ class SortFrame(wxglade_gui.SortFrame):
         self.sort_splitter.SetSashPosition(SORTSPLITTERSASH)
         self.ns_splitter.SetSashPosition(NSSPLITTERSASH)
 
-        self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
-        self.slist.Bind(wx.EVT_KEY_DOWN, self.OnSListKeyDown)
+        #self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
+        #self.slist.Bind(wx.EVT_KEY_DOWN, self.OnSListKeyDown)
 
         self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -974,6 +973,21 @@ class SortFrame(wxglade_gui.SortFrame):
         self.RemoveItemsFromPlot([ 'n'+str(nid) for nid in remove_nids ])
         self.AddItems2Plot([ 'n'+str(nid) for nid in add_nids ])
         self.nlist.lastSelectedIDs = nids # save for next time
+        if self.nslist.neuron != None and self.nslist.neuron.id in remove_nids:
+            self.nslist.neuron = None
+        elif len(nids) == 1:
+            nid = list(nids)[0]
+            self.nslist.neuron = self.sort.neurons[nid]
+
+    def OnNSListSelect(self, evt):
+        sort = self.sort
+        selectedRows = self.nslist.getSelection()
+        sids = set(self.nslist.neuron.spikeis[selectedRows])
+        remove_sids = self.nslist.lastSelectedIDs.difference(sids)
+        add_sids = sids.difference(self.nslist.lastSelectedIDs)
+        self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
+        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
+        self.nslist.lastSelectedIDs = sids # save for next time
 
     def OnSListSelect(self, evt):
         sort = self.sort
@@ -985,7 +999,7 @@ class SortFrame(wxglade_gui.SortFrame):
         self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
         self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ], ris=ris)
         self.slist.lastSelectedIDs = sids # save for next time
-
+    '''
     def OnSListRightDown(self, evt):
         """Toggle selection of the clicked list item, without changing selection
         status of any other items. This is a nasty hack required to get around
@@ -1008,7 +1022,7 @@ class SortFrame(wxglade_gui.SortFrame):
             selected = False # item is not selected
             print('spike %d not in used_plots' % sid)
         self.slist.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
-
+    '''
     def OnSListColClick(self, evt):
         """Sort .uris according to column clicked.
 
@@ -1029,7 +1043,7 @@ class SortFrame(wxglade_gui.SortFrame):
             s.uris_sorted_by = field # update
             s.uris_reversed = False # update
         self.slist.RefreshItems()
-
+    '''
     def OnSListKeyDown(self, evt):
         """Spike list key down evt"""
         key = evt.GetKeyCode()
@@ -1048,7 +1062,7 @@ class SortFrame(wxglade_gui.SortFrame):
         elif evt.ControlDown() and key == ord('S'):
             self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
         evt.Skip()
-    '''
+
     def OnTreeSelectChanged(self, evt=None):
         """Due to bugs #2307 and #626, a SEL_CHANGED event isn't fired when
         (de)selecting the currently focused item in a tree with the wx.TR_MULTIPLE
@@ -1243,7 +1257,8 @@ class SortFrame(wxglade_gui.SortFrame):
         createdNeuron = False
         if neuron == None:
             neuron = self.sort.create_neuron()
-        neuron.spikeis.update(spikeis) # update the set
+        neuron.spikeis = np.union1d(neuron.spikeis, spikeis) # update
+        #neuron.spikeis.update(spikeis) # update the set
         spikes['nid'][ris] = neuron.id
         self.sort.update_uris()
         self.slist.SetItemCount(len(self.sort.uris))
@@ -1255,31 +1270,16 @@ class SortFrame(wxglade_gui.SortFrame):
         neuron.wave.data = None # signify it needs an update when it's actually needed
         #neuron.update_wave() # update mean neuron waveform
         return neuron
-    '''
-    # no longer needed with VirtualTree
-    def AddSpikes2Tree(self, parent, spikeis):
-        """Add spikes to the tree, where parent is a tree itemID"""
-        spikeis = toiter(spikeis)
-        if type(spikeis) == set:
-            spikeis = np.asarray(list(spikeis))
-        spikes = self.sort.spikes
-        ris = spikes['id'].searchsorted(spikeis)
-        for ri, si in zip(ris, spikeis):
-            # add spike to tree, save its itemID
-            itemID = self.tree.AppendItem(parent, 's'+str(si))
-            self.sort.spikes[ri].itemID = itemID
-    '''
+
     def MoveSpikes2List(self, neuron, spikeis):
         """Move spikes from a neuron back to the unsorted spike list control.
         Make sure to call neuron.update_wave() at some appropriate time after
         calling this method"""
         spikeis = toiter(spikeis)
-        if type(spikeis) == set:
-            spikeis = np.asarray(list(spikeis))
         if len(spikeis) == 0:
             return # nothing to do
         spikes = self.sort.spikes
-        neuron.spikeis.difference_update(spikeis) # remove spikeis from their neuron
+        neuron.spikeis = np.setdiff1d(neuron.spikeis, spikeis) # return what's in first arr and not in the 2nd
         ris = spikes['id'].searchsorted(spikeis)
         spikes['nid'][ris] = -1 # unbind neuron id of spikeis in struct array
         self.sort.update_uris()

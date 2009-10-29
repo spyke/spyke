@@ -719,17 +719,18 @@ class NSListCtrl(SpykeListCtrl):
     def OnGetItemText(self, row, col):
         if self.neuron == None:
             return
-        return list(self.neuron.spikeis)[row]
+        return self.neuron.spikeis[row]
 
     def get_neuron(self):
         return self._neuron
 
     def set_neuron(self, neuron):
+        """Automatically refresh when neuron is bound"""
         self._neuron = neuron
         if neuron == None:
             self.SetItemCount(0)
         else:
-            self.SetItemCount(len(neuron.spikeis))
+            self.SetItemCount(neuron.nspikes)
         self.RefreshItems()
 
     neuron = property(get_neuron, set_neuron)
