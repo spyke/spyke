@@ -1,20 +1,39 @@
 RECENT:
 
+    - apply a .sort file's neurons/clusters to the current sort
+        - make this a File-Import neurons item?
+
+    - nid tooltips are a bit slow and not always reliable
+
     - colour items in nlist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
+        - this would require a black background for the listctrl, otherwise white wouldn't show up
+
+    - bug: clicking on a spike-less neuron in the nlist raises an error, which is fine, but then you can't plot any other neuron, which is bad - here's the traceback:
+        Traceback (most recent call last):
+          File "C:\bzr\spyke\dev\spyke\sort.py", line 978, in OnNListSelect
+            self.RemoveItemsFromPlot([ 'n'+str(nid) for nid in remove_nids ])
+          File "C:\bzr\spyke\dev\spyke\sort.py", line 1218, in RemoveItemsFromPlot
+            self.spikesortpanel.removeItems(items)
+          File "C:\bzr\spyke\dev\spyke\plot.py", line 1063, in removeItems
+            plt = self.removeItem(item)
+          File "C:\bzr\spyke\dev\spyke\plot.py", line 1087, in removeItem
+            plt = self.used_plots.pop(item)
+        KeyError: 'pop(): dictionary is empty'
+
+    - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability - this would lump backprop spikes with their normal versions
+
+    - maybe keep rendering disabled during the whole .sort restore process - it's currently disabled when calling mlab.points3d
 
     - should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
 
     - rethink the whole "best" thing for marking which sort to use - maybe just leave it be with no best marker any more, and add a sort level to the command line neuropy interface - nevermind, its already there, but the sorts are only numbered, not named
         - also, you can't go sortN.e0.sta(), since sort is below exp in the hierarchy - this is awkward - rethink the hierarchy?
         - tree printout should show the sorts and experiments?
+    - get neuropy+dimstim working in Python 2.6
 
     - make neuron renumbering (to get rid of gaps in IDs) work again
         - add a feature where you renumber the neurons according to their vertical spatial order - this would make STA plots come out vertically ordered, which would be nice for deducing layers and where you get lots of simple fields and complex fields
-
-    - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability - this would lump backprop spikes with their normal versions
-
-    - make cluster list a listctrl instead of a listbox - this lets you colour the items
 
     - load a huge .sort with a huge .wave, then loading it again seems to run out of memory, even though I'm doing my best to delete the wavedata and garbage collect before loading from a .wave - must be some stray references to the wavedata hanging around somewhere
 
@@ -62,8 +81,6 @@ RECENT:
         - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
 
     - detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
-
-    - maybe leave neurons set as tree ItemPyData, since there aren't many of them - makes some things simpler, like tree.OnCompareItems
 
     - deleting a detection doesn't clear neurons' waveforms, but maybe that's not such a bad thing?
 
@@ -562,6 +579,11 @@ DONE:
         - another benefit is you could then sort neurons, and the spikes in each neuron, however you like by clicking appropriate columns in the appropriate virtual listctrl
         - another benefit is that listctrls can colour their items, to match neuron colour
 - bug: mean neuron waveforms are being ignored on restore
+- add a tooltip that displays nid, nspikes, etc when you hover over an ellipsoid
+    - see https://svn.enthought.com/enthought/browser/Mayavi/trunk/examples/mayavi/data_interaction/select_points.py
+        - also shows how to outline a selected point
+    - easiest would be to use the picker and retrieve the scalar value for each ellipsoid. Need to set the value to something other than the default (1.0) when you generate it, make its value match nid (it's not being used for color or size or anything, so it won't affect the visualization) - problem is, dunno how to set it - really, you need to set the scalar value for all the 100s of points that make up the ellipsoid surface, because its any single one of those that you actually end up picking
+
 
 
 

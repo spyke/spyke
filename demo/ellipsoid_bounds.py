@@ -4,9 +4,9 @@ position, orientation, and scaling"""
 
 import numpy as np
 from enthought.mayavi import mlab
-from enthought.mayavi.sources.api import ParametricSurface
-from enthought.mayavi.modules.api import Surface
-
+#from enthought.mayavi.sources.api import ParametricSurface
+#from enthought.mayavi.modules.api import Surface
+from enthought.tvtk.api import tvtk
 
 c = np.cos
 s = np.sin
@@ -69,12 +69,26 @@ f = mlab.figure(bgcolor=(0, 0, 0))
 # draw an ellipsoid
 engine = f.parent
 f.scene.disable_render = True # for speed
-source = ParametricSurface()
-source.function = 'ellipsoid'
-engine.add_source(source)
-surface = Surface()
-source.add_module(surface)
-actor = surface.actor # mayavi actor, actor.actor is tvtk actor
+#source = ParametricSurface()
+#source.function = 'ellipsoid'
+#engine.add_source(source)
+#surface = Surface()
+#source.add_module(surface)
+point = np.array([0, 0, 0])
+# tensor seems to require 20 along the diagonal for the glyph to be the expected size
+tensor = np.array([20, 0, 0,
+                   0, 20, 0,
+                   0, 0, 20])
+data = tvtk.PolyData(points=[point])
+data.point_data.tensors = [tensor]
+data.point_data.tensors.name = 'some_name'
+data.point_data.scalars = [12]
+glyph = mlab.pipeline.tensor_glyph(data)
+glyph.glyph.glyph_source.glyph_source.theta_resolution = 50
+glyph.glyph.glyph_source.glyph_source.phi_resolution = 50
+
+#actor = surface.actor # mayavi actor, actor.actor is tvtk actor
+actor = glyph.actor # mayavi actor, actor.actor is tvtk actor
 actor.property.opacity = 0.5
 actor.property.color = 1, 0, 0
 # don't colour ellipses by their scalar indices into builtin colour map,

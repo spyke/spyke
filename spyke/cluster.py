@@ -79,21 +79,54 @@ class Cluster(object):
 
 
 class SpykeMayaviScene(MayaviScene):
+    def __init__(self, *args, **kwargs):
+        MayaviScene.__init__(self, *args, **kwargs)
+        tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
+        tooltip.Enable(False) # leave disabled for now
+        tooltip.SetDelay(0) # set popup delay in ms
+        self._vtk_control.SetToolTip(tooltip) # connect it to self
+
+        self._vtk_control.Bind(wx.EVT_MOTION, self.OnMotion)
+
+    def OnMotion(self, event):
+        """Pop up a nid tooltip on mouse movement"""
+        if event.LeftIsDown() or event.MiddleIsDown() or event.RightIsDown():
+            event.Skip() # leave button down cases for navigation
+
+        pos = event.GetPosition()
+        x = pos.x
+        y = self._vtk_control.GetSize()[1] - pos.y
+        #x = event.GetX()
+        #y = self._vtk_control.GetSize()[1] - event.GetY()
+        data = self.picker.pick_point(x, y)
+        tooltip = self._vtk_control.GetToolTip()
+        if data.data != None:
+            scalar = data.data.scalars[0] # just grab the first value
+            if scalar < 0:
+                nid = -(scalar + 1)
+                tip = 'nid: %d' % nid
+                tooltip.SetTip(tip)
+                tooltip.Enable(True)
+            return
+        tooltip.Enable(False)
+
     def OnKeyDown(self, event):
         """Set camera focus point and move current cluster to
         that point in one step, with a single keypress"""
         key = event.GetKeyCode()
-        modifiers = event.HasModifiers()
-        if key in [ord('a'), ord('d'), ord('x'), ord('c')]:
+        #modifiers = event.HasModifiers()
+        if key in [ord('a'), ord('d'), ord('x'), ord('c'), ord('i')]:
             # can't call spykeframe from here, do it in on_vtkkeypress
-            if key == ord('x'): # x marks the spot
-                # set camera focal point. Copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
-                if not modifiers:
-                    if sys.platform == 'darwin':
-                        x, y = self._interactor.event_position
-                    else:
-                        x = event.GetX()
-                        y = self._vtk_control.GetSize()[1] - event.GetY()
+            if key in [ord('x'), ord('i')]:
+                # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
+                #if not modifiers:
+                #    if sys.platform == 'darwin':
+                #        x, y = self._interactor.event_position
+                #    else:
+                x = event.GetX()
+                y = self._vtk_control.GetSize()[1] - event.GetY()
+                if key == ord('x'):
+                    # set camera focal point
                     data = self.picker.pick_world(x, y)
                     coord = data.coordinate
                     if coord is not None:
@@ -101,8 +134,32 @@ class SpykeMayaviScene(MayaviScene):
                         self.render()
                         self._record_methods('camera.focal_point = %r\n'\
                                              'render()'%list(coord))
-                # then, set current cluster position to == camera focal point
-                # can't call spykeframe from here, do it in on_vtkkeypress
+                        # then, set current cluster position to == camera focal point
+                        # can't call spykeframe from here, do it in on_vtkkeypress
+                else: # key == ord('i')
+                    # print out ellipsoid ID
+                    '''
+                    data = self.picker.pick_point(x, y)
+                    if data.data != None:
+                        scalar = data.data.scalars[0] # just grab the first one
+                        if scalar < 0:
+                            nid = -(scalar + 1)
+                            print('nid: %d' % nid)
+                    '''
+                    tooltip = self._vtk_control.GetToolTip()
+                    data = self.picker.pick_point(x, y)
+                    if data.data != None:
+                        scalar = data.data.scalars[0] # just grab the first value
+                        if scalar < 0:
+                            nid = -(scalar + 1)
+                            tip = 'nid: %d' % nid
+                            tooltip.SetTip(tip)
+                            tooltip.Enable(True)
+                        return
+                    tooltip.Enable(False)
+
+
+
             self._vtk_control.OnKeyDown(event)
         else: # propagate event to parent class
             MayaviScene.OnKeyDown(self, event)
@@ -139,6 +196,7 @@ class ClusterFrame(wx.MiniFrame):
 
         self.f = get_engine().current_scene
         self.f.scene.background = 0, 0, 0 # set it to black
+        self.f.scene.picker.tolerance = 0.0025
 
     def OnClose(self, evt):
         frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
@@ -164,7 +222,7 @@ class ClusterFrame(wx.MiniFrame):
              mask_points=None, resolution=8, line_width=2.0, envisage=False):
         """Plot 3D projection of (possibly clustered) spike params in X. scale
         each dimension in X by scale. nids is a sequence of neuron ids
-        corresponding to a sorted sequence of spike ids. "Neurons" with than
+        corresponding to a sorted sequence of spike ids. "Neurons" with <
         minspikes will all be coloured the same dark grey.
         Mode can be '2darrow', '2dcircle', '2dcross',
         '2ddash', '2ddiamond', '2dhooked_arrow', '2dsquare', '2dthick_arrow',
@@ -274,32 +332,49 @@ class ClusterFrame(wx.MiniFrame):
         """Add an ellipsoid to figure self.f, given its corresponding cluster
         TODO: turn on 4th light source - looks great!
         """
-        from enthought.mayavi.sources.api import ParametricSurface
-        from enthought.mayavi.modules.api import Surface
+        #from enthought.mayavi.sources.api import ParametricSurface
+        #from enthought.mayavi.modules.api import Surface
+        from enthought.tvtk.api import tvtk
 
         f = self.f # the current scene
-        x, y, z = dims # dimension names
-        engine = f.parent
+        #x, y, z = dims # dimension names
+        #engine = f.parent
         f.scene.disable_render = True # for speed
-        source = ParametricSurface()
-        source.function = 'ellipsoid'
-        engine.add_source(source)
-        ellipsoid = Surface() # the surface is the ellipsoid
-        source.add_module(ellipsoid)
-        actor = ellipsoid.actor # mayavi actor, actor.actor is tvtk actor
+
+        #source = ParametricSurface()
+        #source.function = 'ellipsoid'
+        #engine.add_source(source)
+        #ellipsoid = Surface() # the surface is the ellipsoid
+        #source.add_module(ellipsoid)
+        point = np.array([0, 0, 0])
+        # tensor seems to require 20 along the diagonal for the glyph to be the expected size
+        tensor = np.array([20, 0, 0,
+                           0, 20, 0,
+                           0, 0, 20])
+        data = tvtk.PolyData(points=[point])
+        data.point_data.tensors = [tensor]
+        data.point_data.tensors.name = 'some_name'
+        data.point_data.scalars = [-cluster.id-1] # make them all -ve to distinguish them from plotted points
+        glyph = mlab.pipeline.tensor_glyph(data)
+        glyph.glyph.glyph_source.glyph_source.theta_resolution = 50
+        glyph.glyph.glyph_source.glyph_source.phi_resolution = 50
+
+        #actor = ellipsoid.actor # mayavi actor, actor.actor is tvtk actor
+        actor = glyph.actor # mayavi actor, actor.actor is tvtk actor
         actor.property.opacity = alpha
         # use cluster id (from associated neuron) as index into CMAP to colour the ellipse
         actor.property.color = tuple(CMAP[cluster.id % len(CMAP)][0:3]) # leave out alpha
-        # don't colour ellipsoids by their scalar indices into builtin colour map,
-        # since I can't figure out how to set the scalar value of an ellipsoid anyway
+        # don't colour ellipsoids by their scalar indices into builtin colour map
         actor.mapper.scalar_visibility = False
         # get rid of weird rendering artifact when opacity is < 1:
         actor.property.backface_culling = True
         #actor.property.frontface_culling = True
         #actor.actor.origin = 0, 0, 0
-        cluster.ellipsoid = ellipsoid
+        cluster.ellipsoid = glyph
         cluster.update_ellipsoid(dims=dims) # update all params
         f.scene.disable_render = False
+
+
     '''
     # unnecessary, just use ellipsoid.remove()
     def remove_ellipsoid(self, cluster):

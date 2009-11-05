@@ -979,7 +979,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('loading Sort')
         sort = np.load(f)
         print('sort was %d bytes long' % f.tell())
-        print('pulling Sort out of array')
         sort = sort.item() # pull sort object out of array
         self.sort = sort
         sortProbeType = type(sort.probe)
