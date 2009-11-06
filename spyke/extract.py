@@ -50,6 +50,7 @@ class Extractor(object):
         try: sort.wavedatas
         except AttributeError:
             raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
+        twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
         print("Extracting parameters from spikes")
         t0 = time.time()
         for ri in np.arange(nspikes):
@@ -61,13 +62,14 @@ class Extractor(object):
             nt = spikes['nt'][ri]
             #try: assert len(np.arange(spikes.t0[ri], spikes.tend[ri], sort.tres)) == nt
             #except AssertionError: import pdb; pdb.set_trace()
-            wavedata = wavedata[0:nchans, 0:nt]
+            phase1ti = spikes['phase1ti'][ri]
+            phase2ti = spikes['phase2ti'][ri]
+            startti = twi0 - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
+            wavedata = wavedata[0:nchans, startti:]
             chans = spikes['chans'][ri, :nchans]
             chanis = det.chans.searchsorted(chans) # det.chans are always sorted
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
-            phase1ti = spikes['phase1ti'][ri]
-            phase2ti = spikes['phase2ti'][ri]
             # just x and y params for now
             x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti)
             spikes['x0'][ri] = x0
