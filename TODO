@@ -21,7 +21,7 @@ RECENT:
             plt = self.used_plots.pop(item)
         KeyError: 'pop(): dictionary is empty'
 
-    - try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability - this would lump backprop spikes with their normal versions
+    - always assuming the first peak is -ve, and the 2nd is +ve - is this really a safe assumption all the time? Seemed to be for ptc15, but for the other cats?
 
     - maybe keep rendering disabled during the whole .sort restore process - it's currently disabled when calling mlab.points3d
 
@@ -583,6 +583,9 @@ DONE:
     - see https://svn.enthought.com/enthought/browser/Mayavi/trunk/examples/mayavi/data_interaction/select_points.py
         - also shows how to outline a selected point
     - easiest would be to use the picker and retrieve the scalar value for each ellipsoid. Need to set the value to something other than the default (1.0) when you generate it, make its value match nid (it's not being used for color or size or anything, so it won't affect the visualization) - problem is, dunno how to set it - really, you need to set the scalar value for all the 100s of points that make up the ellipsoid surface, because its any single one of those that you actually end up picking
+- try if making get_spatial_mean take the peaks on each chan separately (but close in time to the peak on the max chan) improves clusterability - this would lump backprop spikes with their normal versions
+    - yes, this seems to improve clusterability, in both ptc15 and ptc18
+
 
 
 

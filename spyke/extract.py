@@ -81,16 +81,25 @@ class Extractor(object):
         spatial origin of spike. x and y are spatial coords of chans in wavedata.
         phase1ti and phase2ti are timepoint indices in wavedata at which the max chan
         hits its 1st and 2nd spike phases.
-        TODO: maybe you get better clustering if you allow phase1ti and phase2ti to
+        NOTE: you get better clustering if you allow phase1ti and phase2ti to
         vary at least slightly for each chan, since they're never simultaneous across
-        chans, and sometimes they're very delayed or advanced in time. Maybe just try finding
-        max and min vals for each chan in some trange phase1ti-dt to phase2ti+dt for some dt
+        chans, and sometimes they're very delayed or advanced in time
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
 
-        # phase2 - phase1 on all chans, should be mostly +ve
+        # find min on each chan around phase1ti, and max on each chan around phase2ti
+        # dividing dti by 2 might seem safer, since not looking for other phase, just
+        # looking for same phase maybe slightly shifted, but clusterability seems
+        # a bit better when you leave dti be
+        dti = self.sort.detector.dti
+        V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
+        V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
+        weights = V2 - V1
+        # old method: # phase2 - phase1 on all chans:
         # int16 data isn't centered around V=0, but that doesn't matter since we want Vpp
-        weights = wavedata[:, phase2ti] - wavedata[:, phase1ti]
+        #weights = wavedata[:, phase2ti] - wavedata[:, phase1ti]
+
         # convert to float before normalization, take abs of all weights
+        # taking abs doesn't seem to affect clusterability
         weights = np.abs(np.float32(weights))
         weights /= weights.sum() # normalized
         # alternative approach: replace -ve weights with 0
