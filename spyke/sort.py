@@ -310,6 +310,9 @@ class Sort(object):
                              "file doesn't match the one in the detections")
         return srffnameroot
 
+    def importneurons(self, sortfname):
+        pass
+
     def export(self, path=''):
         """Export stimulus textheader, din and/or spike data to binary files in path in
         the classic way for use in neuropy"""

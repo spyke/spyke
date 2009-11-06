@@ -1016,6 +1016,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # restore unsorted spike virtual listctrl
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
+        # do this here first in case no clusters exist and hence self.AddCluster
+        # is never called, yet you want spikes to be plotted in the cluster frame
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
         # restore neuron clusters and the neuron listctrl
         for cluster in sort.clusters.values():
             self.AddCluster(cluster)
