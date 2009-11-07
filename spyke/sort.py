@@ -310,9 +310,6 @@ class Sort(object):
                              "file doesn't match the one in the detections")
         return srffnameroot
 
-    def importneurons(self, sortfname):
-        pass
-
     def export(self, path=''):
         """Export stimulus textheader, din and/or spike data to binary files in path in
         the classic way for use in neuropy"""
@@ -1243,7 +1240,7 @@ class SortFrame(wxglade_gui.SortFrame):
             pass # neuron.itemID already deleted due to recursive call
     '''
     def RemoveNeuron(self, neuron):
-        """Remove neuron and all its spikes from the tree and the Sort"""
+        """Remove neuron and all its spikes from the GUI and the Sort"""
         #self.RemoveNeuronFromTree(neuron)
         self.MoveSpikes2List(neuron, neuron.spikeis)
         try:

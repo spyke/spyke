@@ -185,6 +185,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSaveResample(self, evt):
         self.hpstream.save_resampled()
 
+    def OnImportNeurons(self, evt):
+        dlg = wx.FileDialog(self, message="Import neurons from .sort file",
+                            defaultDir=self.defaultdir, defaultFile='',
+                            wildcard="Sort files (*.sort)|*.sort",
+                            style=wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            fname = dlg.GetPath()
+            self.ImportNeurons(fname)
+            self.defaultdir = os.path.split(fname)[0] # update default dir
+        dlg.Destroy()
+
     def OnExportSpikes(self, evt):
         dlg = wx.DirDialog(self, message="Export spikes to",
                            defaultPath=self.defaultdir)
@@ -396,39 +407,57 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError: self.OnClusterPlot() # create glyph on first open
         dims = self.GetDimNames()
         cf.add_ellipsoid(cluster, dims)
-        i = self.cluster_list_box.Append(str(cluster.id), clientData=cluster)
-        self.SelectClusterItem(i) # select newly created item
+        self.clist.SetItemCount(len(self.sort.neurons))
+        self.clist.RefreshItems()
+        self.clist.DeSelectAll()
+        self.clist.Select(len(self.sort.neurons) - 1) # select newly created item
         self.cluster_params_pane.Enable(True)
 
-    def SelectClusterItem(self, i):
-        """Programmatically select a cluster list box item"""
-        self.cluster_list_box.Select(i) # this doesn't seem to trigger a selection event
-        cluster = self.cluster_list_box.GetClientData(i)
-        self.OnClusterListBox(None, cluster) # manually call the selection event
+    def GetClusters(self):
+        """Return currently selected clusters"""
+        rows = self.clist.getSelection()
+        cids = np.asarray(sorted(self.sort.clusters))[rows]
+        clusters = [ self.sort.clusters[cid] for cid in cids ]
+        return clusters
+
+    def GetCluster(self):
+        """Return just one selected cluster"""
+        clusters = self.GetClusters()
+        nselected = len(clusters)
+        if nselected != 1:
+            raise RuntimeError("can't figure out which of the %d selected clusters you want"
+                               % nselected)
+        return clusters[0]
+
+    def DelCluster(self, cluster):
+        """Delete a cluster from the GUI, and delete the cluster
+        and its neuron from the Sort"""
+        cluster.ellipsoid.remove() # from pipeline
+        cluster.ellipsoid = None
+        self.frames['sort'].RemoveNeuron(cluster.neuron)
+        self.clist.SetItemCount(len(self.sort.clusters))
+        self.clist.RefreshItems()
 
     def OnDelCluster(self, evt=None):
         """Cluster pane Del button click"""
-        i = self.GetClusterIndex() # need both the index and the cluster
-        cluster = self.cluster_list_box.GetClientData(i)
-        cluster.ellipsoid.remove() # from pipeline
-        cluster.ellipsoid = None
-        self.DeColourPoints(cluster.neuron.spikeis)
+        clusters = self.GetClusters()
+        for cluster in clusters:
+            self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
+            self.DelCluster(cluster)
         self.frames['cluster'].glyph.mlab_source.update()
-        self.frames['sort'].RemoveNeuron(cluster.neuron)
-        self.cluster_list_box.Delete(i)
-        nitems = self.cluster_list_box.Count
-        if nitems == 0:
+        if len(self.sort.clusters) == 0:
             self.cluster_params_pane.Enable(False)
         else:
-            self.SelectClusterItem(min(i, (nitems-1)))
+            self.clist.Select(len(self.sort.clusters)-1) # select last one
 
-    def OnClusterListBox(self, evt, cluster=None):
+    def OnCListSelect(self, evt, cluster=None):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
-        if evt != None:
-            cluster = evt.GetClientData()
+        # TODO: handle multiple selection by disabling the param widgets,
+        # and only reenabling them once only a single item is selected
+        # in the clist
+        cluster = self.GetCluster()
         self.UpdateParamWidgets(cluster)
-        # TODO: draw a selection box around the the ellipsoid
 
     def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,
@@ -513,17 +542,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         ris = self.sort.spikes['id'].searchsorted(spikeis)
         cf.glyph.mlab_source.scalars[ris] = np.tile(TRANSWHITEI, len(ris))
 
-    def GetClusterIndex(self):
-        """Return index of currently selected cluster in cluster listbox"""
-        i = self.cluster_list_box.GetSelection() # listbox index
-        if i == -1: # nothing selected
-            raise RuntimeError("no cluster selected")
-        return i
-
-    def GetCluster(self):
-        i = self.GetClusterIndex()
-        cluster = self.cluster_list_box.GetClientData(i)
-        return cluster
+    def DeColourAllPoints(self):
+        """Restore all spike points in cluster plot to unclustered WHITE.
+        Don't forget to call cf.glyph.mlab_source.update() after calling this"""
+        cf = self.frames['cluster']
+        cf.glyph.mlab_source.scalars = np.tile(TRANSWHITEI, self.sort.nspikes)
 
     def GetDimNames(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
@@ -867,9 +890,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 cf.glyph.remove() # from pipeline
                 del cf.glyph # cluster frame hangs around, so del its glyph
             except AttributeError: pass
-        nclusterentries = self.cluster_list_box.GetCount()
-        for i in range(nclusterentries):
-            self.cluster_list_box.Delete(0) # delete cluster list entries
+        self.clist.SetItemCount(0)
+        self.clist.RefreshItems()
         self.total_nspikes_label.SetLabel(str(0))
         # make sure self.sort and especially self.sort.spikes is really gone
         # TODO: check if this is necessary once everything works with new streamlined
@@ -975,7 +997,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('opening sort file %r' % fname)
         t0 = time.time()
         f = open(fname, 'rb')
-
         print('loading Sort')
         sort = np.load(f)
         print('sort was %d bytes long' % f.tell())
@@ -993,7 +1014,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         spikes = np.load(f)
         sort.spikes = spikes
         sort.update_spike_lists()
-
         f.close()
         print('done opening sort file, took %.3f sec' % (time.time()-t0))
 
@@ -1016,18 +1036,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # restore unsorted spike virtual listctrl
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
-        # do this here first in case no clusters exist and hence self.AddCluster
-        # is never called, yet you want spikes to be plotted in the cluster frame
-        cf = self.OpenFrame('cluster')
-        try: cf.glyph # glyph already plotted
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
-        # restore neuron clusters and the neuron listctrl
-        for cluster in sort.clusters.values():
-            self.AddCluster(cluster)
-        self.ColourPoints(sort.clusters.values()) # colour points for all clusters in one shot
-        sf.nlist.SetItemCount(len(sort.neurons))
-        sf.nlist.RefreshItems()
-        self.notebook.SetSelection(2) # switch to the cluster pane
+
+        self.RestoreClusters2GUI()
 
         self.sortfname = fname # bind it now that it's been successfully loaded
         self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
@@ -1035,6 +1045,45 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
         print('done opening sort file')
+
+    def RestoreClusters2GUI(self):
+        """Stuff that needs to be done to synch the GUI with newly imported clusters"""
+        # do this here first in case no clusters exist and hence self.AddCluster
+        # is never called, yet you want spikes to be plotted in the cluster frame:
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
+        # restore neuron clusters and the neuron listctrl
+        for cluster in self.sort.clusters.values():
+            self.AddCluster(cluster)
+        self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
+        sf = self.OpenFrame('sort')
+        sf.nlist.SetItemCount(len(self.sort.neurons))
+        sf.nlist.RefreshItems()
+        self.notebook.SetSelection(2) # switch to the cluster pane
+
+    def ImportNeurons(self, fname):
+        print('opening sort file %r to import neurons' % fname)
+        t0 = time.time()
+        f = open(fname, 'rb')
+        print('loading Sort')
+        sort = np.load(f)
+        print('sort was %d bytes long' % f.tell())
+        sort = sort.item() # pull sort object out of array
+        f.close()
+        print('done opening sort file, took %.3f sec' % (time.time()-t0))
+        # delete any existing clusters from GUI
+        for cluster in self.sort.clusters.values():
+            self.DelCluster(cluster)
+        # reset all plotted spike points to white
+        self.DeColourAllPoints()
+        self.frames['cluster'].glyph.mlab_source.update()
+        for neuron in sort.neurons.values():
+            neuron.spikeis = np.array([], dtype=int) # clear spike indices of all imported neurons
+            neuron.sort = self.sort # overwrite sort neurons came from with current sort
+        self.sort.neurons = sort.neurons
+        self.sort.clusters = sort.clusters
+        self.RestoreClusters2GUI()
 
     def OpenWaveFile(self, fname):
         """Open a .wave file and return wavedata arrays"""

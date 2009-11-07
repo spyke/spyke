@@ -690,6 +690,13 @@ class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
         else: # isn't selected
             self.Select(itemID, on=1)
 
+    def DeSelectAll(self):
+        """De-select all items"""
+        #rows = self.getSelection()
+        #for row in rows:
+        #    self.Select(row, on=False)
+        self.Select(-1, on=False) # -1 signifies all
+
 
 class NListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for displaying neurons.
@@ -705,6 +712,23 @@ class NListCtrl(SpykeListCtrl):
         nids = list(sort.neurons)
         nids.sort()
         return nids[row]
+
+
+class CListCtrl(SpykeListCtrl):
+    """A virtual ListCtrl for displaying clusters.
+    (Clusters map 1 to 1 with neurons.)
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    def __init__(self, *args, **kwargs):
+        SpykeListCtrl.__init__(self, *args, **kwargs)
+        #self.InsertColumn(0, 'nID')
+        self.SetColumnWidth(0, 20)
+
+    def OnGetItemText(self, row, col):
+        sort = self.GetTopLevelParent().sort
+        # TODO: could almost assume sort.clusters dict is ordered, since it always seems to be
+        cids = list(sort.clusters)
+        cids.sort()
+        return cids[row]
 
 
 class NSListCtrl(SpykeListCtrl):
