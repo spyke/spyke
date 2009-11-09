@@ -23,10 +23,8 @@ from spyke.plot import CMAP, CMAPPLUSJUNK, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 class Cluster(object):
     """Just a simple container for multidim ellipsoid parameters. A
-    Cluster will always correspond to a Neuron, but not all Neurons
-    will necessarily have a cluster. It's possible to create a Neuron
-    purely by manually sorting individual spikes, without using a
-    multidim ellipsoid at all"""
+    Cluster will always correspond to a Neuron. But, If manual sorting is enabled
+    (which it isn't), not all Neurons will necessarily have a cluster."""
     def __init__(self, neuron, ellipsoid=None):
         self.neuron = neuron
         self.ellipsoid = ellipsoid

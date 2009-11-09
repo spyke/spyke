@@ -368,7 +368,8 @@ class Sort(object):
 
     def get_param_matrix(self, dims=None):
         """Organize parameters in dims from all spikes into a
-        data matrix for clustering"""
+        data matrix for visualization and clustering. Dims in self.SCALE
+        are scaled appropriately to make them easier to see when plotted"""
         t0 = time.time()
         nparams = len(dims)
         try:
@@ -378,20 +379,12 @@ class Sort(object):
             # not created yet, or change in number of spikes
             self.Xcols = {}
 
-        try:
-            for dim in dims:
-                #print('asserting dim %r is in Xcols' % dim)
-                assert dim in self.Xcols
-        except AssertionError: # column is missing
-            #spikes = self.get_spikes_sortedby('id')
-            for dim in dims:
-                if dim not in self.Xcols: # add missing column
-                    #self.Xcols[dim] = np.asarray([ s[dim] for s in spikes ], dtype=np.float32)
-                    if dim in self.SCALE:
-                        # scale this dim appropriately
-                        self.Xcols[dim] = self.SCALE[dim] * np.float32(self.spikes[dim])
-                    else:
-                        self.Xcols[dim] = np.float32(self.spikes[dim])
+        for dim in dims:
+            if dim not in self.Xcols: # add missing column
+                if dim in self.SCALE: # scale this dim appropriately
+                    self.Xcols[dim] = self.SCALE[dim] * np.float32(self.spikes[dim])
+                else:
+                    self.Xcols[dim] = np.float32(self.spikes[dim])
 
         X = np.column_stack([ self.Xcols[dim] for dim in dims ])
         print("Getting param matrix took %.3f sec" % (time.time()-t0))
