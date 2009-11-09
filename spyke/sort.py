@@ -1211,11 +1211,17 @@ class SortFrame(wxglade_gui.SortFrame):
         #self.chartsortpanel.draw_refs()
 
     def AddItems2Plot(self, items, ris=None):
-        self.spikesortpanel.addItems(items, ris=ris)
+        try: self.spikesortpanel.addItems(items, ris=ris)
+        except RuntimeError: # probably a neuron with no spikes
+            pass
         #self.chartsortpanel.addItems(items)
 
     def RemoveItemsFromPlot(self, items):
-        self.spikesortpanel.removeItems(items)
+        try: self.spikesortpanel.removeItems(items)
+        except KeyError:
+            # probably a neuron with no spikes that was never added to plot.
+            # catching this might risk hiding deeper flaws, but seems to work for now
+            pass
         #self.chartsortpanel.removeItems(items)
 
     def UpdateItemsInPlot(self, items):

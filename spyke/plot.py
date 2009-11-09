@@ -1026,8 +1026,8 @@ class SortPanel(PlotPanel):
             n.plt = plt # bind plot to neuron
             plt.n = n # bind neuron to plot
             wave = get_wave(n, sort=self.spykeframe.sort) # calls n.update_wave() if necessary
-        else: # it's a spike
-            if ri == None: # it's probably a spike in the tree, not in the list
+        else: # item[0] == 's' # it's a spike
+            if ri == None: # it's probably a spike in the nslist, not in the slist
                 #ri, = np.where(sort.spikes['id'] == id) # returns an array
                 ri = sort.spikes['id'].searchsorted(id) # returns an array
                 ri = int(ri)

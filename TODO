@@ -2,21 +2,9 @@ RECENT:
 
     - stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
 
-    - colour items in nlist - declare OnGetItemAttr method (see wx demos)
+    - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
         - this would require a black background for the listctrl, otherwise white wouldn't show up
-
-    - bug: clicking on a spike-less neuron in the nlist raises an error, which is fine, but then you can't plot any other neuron, which is bad - here's the traceback:
-        Traceback (most recent call last):
-          File "C:\bzr\spyke\dev\spyke\sort.py", line 978, in OnNListSelect
-            self.RemoveItemsFromPlot([ 'n'+str(nid) for nid in remove_nids ])
-          File "C:\bzr\spyke\dev\spyke\sort.py", line 1218, in RemoveItemsFromPlot
-            self.spikesortpanel.removeItems(items)
-          File "C:\bzr\spyke\dev\spyke\plot.py", line 1063, in removeItems
-            plt = self.removeItem(item)
-          File "C:\bzr\spyke\dev\spyke\plot.py", line 1087, in removeItem
-            plt = self.used_plots.pop(item)
-        KeyError: 'pop(): dictionary is empty'
 
     - always assuming the first peak is -ve, and the 2nd is +ve - is this really a safe assumption all the time? Seemed to be for ptc15, but for the other cats?
 
@@ -586,6 +574,8 @@ DONE:
     - yes, this seems to improve clusterability, in both ptc15 and ptc18
 - apply a .sort file's neurons/clusters to the current sort
     - make this a File-Import neurons item?
+- bug: clicking on a spike-less neuron in the nlist raises an error, which is fine, but then you can't plot any other neuron, which is bad - here's the traceback:
+
 
 
 
