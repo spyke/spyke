@@ -1181,16 +1181,3 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         kwargs['tw'] = TW
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
-
-''' nice idea, unimplemented
-class ChartSortPanel(SortPanel, ChartPanel):
-    def __init__(self, *args, **kwargs):
-        kwargs['tw'] = TW
-        kwargs['cw'] = TW # caret width
-        SortPanel.__init__(self, *args, **kwargs)
-        self.gain = 1.5
-
-    def _add_vref(self):
-        """Override ChartPanel, use vrefs for tooltips"""
-        SortPanel._add_vref(self)
-'''

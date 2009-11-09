@@ -1,5 +1,9 @@
 """Define the cluster frame, with methods for dealing with ellipsoids"""
 
+from __future__ import division
+
+__authors__ = ['Martin Spacek']
+
 import sys
 import time
 import numpy as np
@@ -373,11 +377,3 @@ class ClusterFrame(wx.MiniFrame):
         cluster.ellipsoid = glyph
         cluster.update_ellipsoid(dims=dims) # update all params
         f.scene.disable_render = False
-
-
-    '''
-    # unnecessary, just use ellipsoid.remove()
-    def remove_ellipsoid(self, cluster):
-        """Remove ellipsoid from scene, given its corresponding cluster"""
-        self.f.scene.remove_actor(cluster.ellipsoid.actor.actor)
-    '''

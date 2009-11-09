@@ -2,6 +2,23 @@ RECENT:
 
     - stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
 
+    - add keyboard controls for cluster parameters in cluster window
+        - xpos: left/right
+        - ypos: up/down
+        - zpos: ,/.
+        - xscale: 1/q
+        - yscale: 2/w
+        - zscale: 3/e
+
+    - cluster button: hide unselected clusters
+        - or just a hide/show button, which toggles the visibility of each of the selected clusters
+        - or best: separate show and hide buttons that set the visibility of each of the selected clusters
+            - should this leave point colours unchanged? probably, otherwise toggling would get really slow
+        - this would also prevent distracting tooltips from popping up
+
+    - might be useful to hide clustered points, so you can focus on just the unclustered ones that are left
+        - not sure if this can even be done, given that all points are part of the same single glyph
+
     - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
         - this would require a black background for the listctrl, otherwise white wouldn't show up
