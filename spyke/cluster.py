@@ -23,18 +23,20 @@ from spyke.plot import CMAP, CMAPPLUSJUNK, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 class Cluster(object):
     """Just a simple container for multidim ellipsoid parameters. A
-    Cluster will always correspond to a Neuron. But, If manual sorting is enabled
+    Cluster will always correspond to a Neuron. But, if manual sorting is enabled
     (which it isn't), not all Neurons will necessarily have a cluster."""
     def __init__(self, neuron, ellipsoid=None):
         self.neuron = neuron
         self.ellipsoid = ellipsoid
+        # cluster attribs store true values of each dim, unscaled by the
+        # visualization sort.SCALE factor
         self.pos =   {'x0':0,  'y0':0,  'Vpp':100, 'dphase':200}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
         self.ori =   {'x0':{}, 'y0':{}, 'Vpp':{},  'dphase':{}}
         # set scale to 0 to exclude dphase from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':20, 'y0':20, 'Vpp':50,  'dphase':0}
+        self.scale = {'x0':4,  'y0':20, 'Vpp':50,  'dphase':0}
 
     def get_id(self):
         return self.neuron.id
@@ -46,12 +48,13 @@ class Cluster(object):
 
     def update_ellipsoid(self, params=None, dims=None):
         ellipsoid = self.ellipsoid
+        SCALE = self.neuron.sort.SCALE
         if ellipsoid == None:
             return
         if params == None:
             params = ['pos', 'ori', 'scale']
         if 'pos' in params:
-            ellipsoid.actor.actor.position = [ self.pos[dim] for dim in dims ]
+            ellipsoid.actor.actor.position = [ self.pos[dim]*SCALE.get(dim, 1) for dim in dims ]
         if 'ori' in params:
             oris = []
             for dimi, dim in enumerate(dims):
@@ -68,7 +71,7 @@ class Cluster(object):
                     oris.append(0)
             ellipsoid.actor.actor.orientation = oris
         if 'scale' in params:
-            ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
+            ellipsoid.actor.actor.scale = [ self.scale[dim]*SCALE.get(dim, 1) for dim in dims ]
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes

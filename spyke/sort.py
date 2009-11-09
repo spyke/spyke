@@ -44,8 +44,7 @@ and align the channel to that. That gives you some confidence about reslilience 
 
 class Sort(object):
     """A spike sorting session, in which you can do multiple Detection runs,
-    build Neurons up from spikes in those Detection runs, and then use Neurons
-    to sort Spikes.
+    and sort spikes into Neurons.
     Formerly known as a Session, and before that, a Collection.
     A .sort file is a single pickled Sort object"""
     DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
@@ -68,7 +67,7 @@ class Sort(object):
         self.uris_reversed = False
 
         # how much to scale each dim for better viewing in cluster plots
-        self.SCALE = {'x0': 3}
+        self.SCALE = {'x0': 5}
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs
