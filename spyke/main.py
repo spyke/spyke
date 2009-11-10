@@ -487,11 +487,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Plot button press in cluster_pane. Don't need the evt"""
         dims = self.GetDimNames()
         cf = self.OpenFrame('cluster') # in case it isn't already open
-        X = self.sort.get_param_matrix(dims=dims)
-        # scale select columns for better visualization
-        for dim, col in zip(dims, X.T): # iterate over columns
-            if dim in self.sort.SCALE:
-                col *= self.sort.SCALE[dim]
+        X = self.sort.get_param_matrix(dims=dims, viz_scaled=True)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot

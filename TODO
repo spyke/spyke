@@ -1,7 +1,5 @@
 RECENT:
 
-    - big bug: using sort.SCALE only in the visualization of the ellipsoid seems to have messed up sort.apply_cluster for clusters with nonzero orientations
-
     - stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
 
     - cluster button: hide unselected clusters
@@ -587,6 +585,8 @@ DONE:
     - make this a File-Import neurons item?
 - bug: clicking on a spike-less neuron in the nlist raises an error, which is fine, but then you can't plot any other neuron, which is bad - here's the traceback:
 - add keyboard controls for cluster parameters in cluster window
+- big bug: using sort.SCALE only in the visualization of the ellipsoid seems to have messed up sort.apply_cluster for clusters with nonzero orientations
+
 
 
 

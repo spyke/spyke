@@ -365,10 +365,16 @@ class Sort(object):
             print(neuronfname)
             spikets.tofile(os.path.join(path, neuronfname)) # save it
 
-    def get_param_matrix(self, dims=None):
+    def get_param_matrix(self, dims=None, viz_scaled=False):
         """Organize parameters in dims from all spikes into a
         data matrix, each column corresponds to a dim"""
+        # np.column_stack returns a copy, not modifying the original array
         X = np.column_stack([ np.float32(self.spikes[dim]) for dim in dims ])
+        if viz_scaled:
+            # scale select columns for better visualization
+            for dim, col in zip(dims, X.T): # iterate over columns
+                if dim in self.SCALE:
+                    col *= self.SCALE[dim]
         return X
 
     def apply_cluster(self, cluster):
@@ -377,7 +383,8 @@ class Sort(object):
 
         # consider all the dimensions in this cluster that have non-zero scale
         dims = [ dim for dim, val in cluster.scale.items() if val != 0 ]
-        X = self.get_param_matrix(dims=dims)
+        # get same X that was used for visualization
+        X = self.get_param_matrix(dims=dims, viz_scaled=True)
 
         # To find which points fall within the ellipsoid, need to do the inverse of all
         # the operations that translate and rotate the ellipsoid, in the correct order.
@@ -386,9 +393,10 @@ class Sort(object):
         # pick them out of the original set of unmodified points
 
         # undo the translation, in place
+        SCALE = self.SCALE
         dim2coli = {}
         for i, dim in enumerate(dims):
-            X[:, i] -= cluster.pos[dim]
+            X[:, i] -= cluster.pos[dim] * SCALE.get(dim, 1)
             dim2coli[dim] = i # build up dim to X column index mapping while we're at it
 
         # build up dict of groups of rotations which not only have the same set of 3 dims,
@@ -426,7 +434,7 @@ class Sort(object):
         sumterms = np.zeros(len(X)) # ellipsoid eq'n sum of terms over non-rotated dimensions
         for dim in nonrotdims:
             x = X[:, dim2coli[dim]] # pull correct column out of X for this non-rotated dim
-            A = cluster.scale[dim]
+            A = cluster.scale[dim] * SCALE.get(dim, 1)
             sumterms += x**2/A**2
         trutharray = (sumterms <= 1) # which points in nonrotdims space fall inside the ellipsoid?
 
@@ -437,9 +445,9 @@ class Sort(object):
             Xrot = (R(oris[0], oris[1], oris[2]).T * Xrot.T).T
             Xrot = np.asarray(Xrot) # convert from np.matrix back to np.array to prevent from taking matrix power
             # which points are inside the ellipsoid?
-            x = Xrot[:, 0]; A = cluster.scale[rotdims[0]]
-            y = Xrot[:, 1]; B = cluster.scale[rotdims[1]]
-            z = Xrot[:, 2]; C = cluster.scale[rotdims[2]]
+            x = Xrot[:, 0]; A = cluster.scale[rotdims[0]] * SCALE.get(rotdims[0], 1)
+            y = Xrot[:, 1]; B = cluster.scale[rotdims[1]] * SCALE.get(rotdims[1], 1)
+            z = Xrot[:, 2]; C = cluster.scale[rotdims[2]] * SCALE.get(rotdims[2], 1)
             trutharray *= (x**2/A**2 + y**2/B**2 + z**2/C**2 <= 1) # AND with interior points from any previous rotgroups
 
         # spikes row indices of points that fall within ellipsoids of all rotgroups
