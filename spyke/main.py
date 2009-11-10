@@ -1081,6 +1081,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for cluster in self.sort.clusters.values():
             self.DelCluster(cluster)
         # reset all plotted spike points to white
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
         self.DeColourAllPoints()
         self.frames['cluster'].glyph.mlab_source.update()
         for neuron in sort.neurons.values():

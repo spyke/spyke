@@ -135,7 +135,10 @@ class SpykeMayaviScene(MayaviScene):
             self._vtk_control.OnKeyDown(event)
             return
         spykeframe = self._vtk_control.TopLevelParent.Parent
-        cluster = spykeframe.GetCluster() # could also adjust multiple clusters simult
+        try: cluster = spykeframe.GetCluster() # could also adjust multiple clusters simult
+        except RuntimeError:
+            # pass event to parent class
+            MayaviScene.OnKeyDown(self, event)
         x, y, z = spykeframe.GetDimNames()
         dim, sign = None, None
         SCALE = spykeframe.sort.SCALE
