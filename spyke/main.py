@@ -479,7 +479,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         dims = self.GetDimNames()
         for dim, fp in zip(dims, fps):
-            cluster.pos[dim] = fp
+            cluster.pos[dim] = fp / self.sort.SCALE.get(dim, 1)
         cluster.update_ellipsoid('pos', dims=dims)
         self.UpdateParamWidgets(cluster)
 
@@ -488,6 +488,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dims = self.GetDimNames()
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
+        # scale select columns for better visualization
+        for dim, col in zip(dims, X.T): # iterate over columns
+            if dim in self.sort.SCALE:
+                col *= self.sort.SCALE[dim]
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot
@@ -560,8 +564,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         x, y, z = self.GetDimNames() # tuple of dim names, in (x, y, z) order
         SCALE = self.sort.SCALE
         self.xpos.SetValue(cluster.pos[x]*SCALE.get(x, 1))
-        self.ypos.SetValue(cluster.pos[y]*SCALE.get(x, 1))
-        self.zpos.SetValue(cluster.pos[z]*SCALE.get(x, 1))
+        self.ypos.SetValue(cluster.pos[y]*SCALE.get(y, 1))
+        self.zpos.SetValue(cluster.pos[z]*SCALE.get(z, 1))
         if (y, z) in cluster.ori[x]: self.xori.SetValue(cluster.ori[x][(y, z)])
         elif (z, y) in cluster.ori[x]: self.xori.SetValue(-cluster.ori[x][(z, y)])
         else: self.xori.SetValue(0)
@@ -572,8 +576,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         elif (y, x) in cluster.ori[z]: self.zori.SetValue(-cluster.ori[z][(y, x)])
         else: self.zori.SetValue(0)
         self.xscale.SetValue(cluster.scale[x]*SCALE.get(x, 1))
-        self.yscale.SetValue(cluster.scale[y]*SCALE.get(x, 1))
-        self.zscale.SetValue(cluster.scale[z]*SCALE.get(x, 1))
+        self.yscale.SetValue(cluster.scale[y]*SCALE.get(y, 1))
+        self.zscale.SetValue(cluster.scale[z]*SCALE.get(z, 1))
 
     """Update parameters for currently selected cluster, and associated ellipsoid"""
     def OnXPos(self, evt):
@@ -587,14 +591,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.pos[y] = val / self.sort.SCALE.get(x, 1)
+        cluster.pos[y] = val / self.sort.SCALE.get(y, 1)
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnZPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.pos[z] = val / self.sort.SCALE.get(x, 1)
+        cluster.pos[z] = val / self.sort.SCALE.get(z, 1)
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnXOri(self, evt):
@@ -638,14 +642,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.scale[y] = val / self.sort.SCALE.get(x, 1)
+        cluster.scale[y] = val / self.sort.SCALE.get(y, 1)
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnZScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.scale[z] = val / self.sort.SCALE.get(x, 1)
+        cluster.scale[z] = val / self.sort.SCALE.get(z, 1)
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnKeyDown(self, evt):

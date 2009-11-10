@@ -116,58 +116,76 @@ class SpykeMayaviScene(MayaviScene):
         tooltip.Enable(False)
 
     def OnKeyDown(self, event):
-        """Set camera focus point and move current cluster to
-        that point in one step, with a single keypress"""
         key = event.GetKeyCode()
         #modifiers = event.HasModifiers()
-        if key in [ord('a'), ord('d'), ord('x'), ord('c'), ord('i')]:
+        if key in [ord('a'), ord('d'), ord('x'), ord('c')]:
             # can't call spykeframe from here, do it in on_vtkkeypress
-            if key in [ord('x'), ord('i')]:
+            if key == ord('x'):
                 # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
-                #if not modifiers:
-                #    if sys.platform == 'darwin':
-                #        x, y = self._interactor.event_position
-                #    else:
                 x = event.GetX()
                 y = self._vtk_control.GetSize()[1] - event.GetY()
-                if key == ord('x'):
-                    # set camera focal point
-                    data = self.picker.pick_world(x, y)
-                    coord = data.coordinate
-                    if coord is not None:
-                        self.camera.focal_point = coord
-                        self.render()
-                        self._record_methods('camera.focal_point = %r\n'\
-                                             'render()'%list(coord))
-                        # then, set current cluster position to == camera focal point
-                        # can't call spykeframe from here, do it in on_vtkkeypress
-                else: # key == ord('i')
-                    # print out ellipsoid ID
-                    '''
-                    data = self.picker.pick_point(x, y)
-                    if data.data != None:
-                        scalar = data.data.scalars[0] # just grab the first one
-                        if scalar < 0:
-                            nid = -(scalar + 1)
-                            print('nid: %d' % nid)
-                    '''
-                    tooltip = self._vtk_control.GetToolTip()
-                    data = self.picker.pick_point(x, y)
-                    if data.data != None:
-                        scalar = data.data.scalars[0] # just grab the first value
-                        if scalar < 0:
-                            nid = -(scalar + 1)
-                            tip = 'nid: %d' % nid
-                            tooltip.SetTip(tip)
-                            tooltip.Enable(True)
-                        return
-                    tooltip.Enable(False)
-
-
-
+                # set camera focal point and move current cluster to that point
+                data = self.picker.pick_world(x, y)
+                coord = data.coordinate
+                if coord is not None:
+                    self.camera.focal_point = coord
+                    self.render()
+                    self._record_methods('camera.focal_point = %r\n'\
+                                         'render()'%list(coord))
             self._vtk_control.OnKeyDown(event)
-        else: # propagate event to parent class
+            return
+        spykeframe = self._vtk_control.TopLevelParent.Parent
+        cluster = spykeframe.GetCluster() # could also adjust multiple clusters simult
+        x, y, z = spykeframe.GetDimNames()
+        dim, sign = None, None
+        SCALE = spykeframe.sort.SCALE
+        modifiers = event.GetModifiers()
+        if key == wx.WXK_PAGEDOWN: # inc xdim pos or scale
+            dim, sign = x, 1
+        elif key == wx.WXK_DELETE: # dec xdim pos or scale
+            dim, sign = x, -1
+        elif key == wx.WXK_HOME: # inc ydim pos or scale
+            dim, sign = y, 1
+        elif key == wx.WXK_END: # dec ydim pos or scale
+            dim, sign = y, -1
+        elif key == wx.WXK_PAGEUP: # inc zdim pos or scale
+            dim, sign = z, 1
+        elif key == wx.WXK_INSERT: # dec zdim pos or scale
+            dim, sign = z, -1
+
+        if dim != None and sign != None:
+            if modifiers == wx.MOD_NONE: # adjust pos quickly
+                cluster.pos[dim] += sign * 5 / SCALE.get(dim, 1)
+                cluster.update_ellipsoid('pos', dims=(x, y, z))
+            elif modifiers == wx.MOD_ALT: # adjust pos slowly
+                cluster.pos[dim] += sign * 1 / SCALE.get(dim, 1)
+                cluster.update_ellipsoid('pos', dims=(x, y, z))
+            elif modifiers == wx.MOD_CONTROL: # adjust scale quickly
+                cluster.scale[dim] += sign * 5 / SCALE.get(dim, 1)
+                cluster.update_ellipsoid('scale', dims=(x, y, z))
+            elif modifiers == wx.MOD_SHIFT: # adjust scale
+                cluster.scale[dim] += sign * 1 / SCALE.get(dim, 1)
+                cluster.update_ellipsoid('scale', dims=(x, y, z))
+            # NOTE: wx.MOD_CONTROL in combination with a numeric key press
+            # doesn't seem to trigger a KeyDown event - maybe it triggers
+            # some other kind of event?
+        else:
+            # pass event to parent class
             MayaviScene.OnKeyDown(self, event)
+
+    def OnKeyUp(self, event):
+        """Update param widgets when param modifying key is released,
+        don't bother updating them when a param modification
+        key is being held down"""
+        key = event.GetKeyCode()
+        if key in [wx.WXK_PAGEDOWN, wx.WXK_DELETE,
+                   wx.WXK_HOME, wx.WXK_END,
+                   wx.WXK_PAGEUP, wx.WXK_INSERT]:
+            spykeframe = self._vtk_control.TopLevelParent.Parent
+            cluster = spykeframe.GetCluster()
+            spykeframe.UpdateParamWidgets(cluster)
+        # pass event to parent class
+        MayaviScene.OnKeyUp(self, event)
 
 
 class Visualization(HasTraits):

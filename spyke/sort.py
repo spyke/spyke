@@ -102,7 +102,7 @@ class Sort(object):
         # don't pickle the stream, cuz it relies on an open .srf file
         # spikes and wavedata arrays are (potentially) saved separately
         # all the others can be regenerated from the spikes array
-        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'Xcols', 'spikes', 'wavedatas', 'wavedatascumsum']:
+        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'spikes', 'wavedatas', 'wavedatascumsum']:
             try: del d[attr]
             except KeyError: pass
         return d
@@ -367,26 +367,8 @@ class Sort(object):
 
     def get_param_matrix(self, dims=None):
         """Organize parameters in dims from all spikes into a
-        data matrix for visualization and clustering. Dims in self.SCALE
-        are scaled appropriately to make them easier to see when plotted"""
-        t0 = time.time()
-        nparams = len(dims)
-        try:
-            # self.Xcols stores all currently created columns of any potential param matrix X
-            assert len(self.Xcols.values()[0]) == self.nspikes
-        except (AttributeError, AssertionError):
-            # not created yet, or change in number of spikes
-            self.Xcols = {}
-
-        for dim in dims:
-            if dim not in self.Xcols: # add missing column
-                if dim in self.SCALE: # scale this dim appropriately
-                    self.Xcols[dim] = self.SCALE[dim] * np.float32(self.spikes[dim])
-                else:
-                    self.Xcols[dim] = np.float32(self.spikes[dim])
-
-        X = np.column_stack([ self.Xcols[dim] for dim in dims ])
-        print("Getting param matrix took %.3f sec" % (time.time()-t0))
+        data matrix, each column corresponds to a dim"""
+        X = np.column_stack([ np.float32(self.spikes[dim]) for dim in dims ])
         return X
 
     def apply_cluster(self, cluster):
