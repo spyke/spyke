@@ -135,7 +135,7 @@ class SpykeMayaviScene(MayaviScene):
             self._vtk_control.OnKeyDown(event)
             return
         spykeframe = self._vtk_control.TopLevelParent.Parent
-        try: cluster = spykeframe.GetCluster() # could also adjust multiple clusters simult
+        try: cluster = spykeframe.GetCluster() # TODO: adjust multiple clusters simult?
         except RuntimeError:
             # pass event to parent class
             MayaviScene.OnKeyDown(self, event)
@@ -143,32 +143,47 @@ class SpykeMayaviScene(MayaviScene):
         dim, sign = None, None
         SCALE = spykeframe.sort.SCALE
         modifiers = event.GetModifiers()
-        if key == wx.WXK_PAGEDOWN: # inc xdim pos or scale
+        if key == wx.WXK_PAGEDOWN: # inc xdim
             dim, sign = x, 1
-        elif key == wx.WXK_DELETE: # dec xdim pos or scale
+        elif key == wx.WXK_DELETE: # dec xdim
             dim, sign = x, -1
-        elif key == wx.WXK_HOME: # inc ydim pos or scale
+        elif key == wx.WXK_HOME: # inc ydim
             dim, sign = y, 1
-        elif key == wx.WXK_END: # dec ydim pos or scale
+        elif key == wx.WXK_END: # dec ydim
             dim, sign = y, -1
-        elif key == wx.WXK_PAGEUP: # inc zdim pos or scale
+        elif key == wx.WXK_PAGEUP: # inc zdim
             dim, sign = z, 1
-        elif key == wx.WXK_INSERT: # dec zdim pos or scale
+        elif key == wx.WXK_INSERT: # dec zdim
             dim, sign = z, -1
 
         if dim != None and sign != None:
-            if modifiers == wx.MOD_NONE: # adjust pos quickly
-                cluster.pos[dim] += sign * 5 / SCALE.get(dim, 1)
-                cluster.update_ellipsoid('pos', dims=(x, y, z))
-            elif modifiers == wx.MOD_ALT: # adjust pos slowly
+            if modifiers == wx.MOD_NONE: # adjust pos slowly
                 cluster.pos[dim] += sign * 1 / SCALE.get(dim, 1)
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
-            elif modifiers == wx.MOD_CONTROL: # adjust scale quickly
-                cluster.scale[dim] += sign * 5 / SCALE.get(dim, 1)
-                cluster.update_ellipsoid('scale', dims=(x, y, z))
-            elif modifiers == wx.MOD_SHIFT: # adjust scale
+            elif modifiers == wx.MOD_NONE|wx.MOD_ALT: # adjust pos quickly
+                cluster.pos[dim] += sign * 5 / SCALE.get(dim, 1)
+                cluster.update_ellipsoid('pos', dims=(x, y, z))
+            elif modifiers == wx.MOD_SHIFT: # adjust scale slowly
                 cluster.scale[dim] += sign * 1 / SCALE.get(dim, 1)
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
+            elif modifiers == wx.MOD_SHIFT|wx.MOD_ALT: # adjust scale quickly
+                cluster.scale[dim] += sign * 5 / SCALE.get(dim, 1)
+                cluster.update_ellipsoid('scale', dims=(x, y, z))
+            elif event.ControlDown(): # adjust ori
+                axes    = {x:(y, z), y:(z, x), z:(x, y)}
+                revaxes = {x:(z, y), y:(x, z), z:(y, x)}
+                if modifiers == wx.MOD_CONTROL: # adjust ori slowly
+                    step = 1
+                elif modifiers == wx.MOD_CONTROL|wx.MOD_ALT: # adjust ori quickly
+                    step = 5
+                if revaxes[dim] in cluster.ori[dim]: # reversed axes already used as a key
+                    cluster.ori[dim][revaxes[dim]] -= sign * step # reverse the ori
+                else:
+                    try:
+                        cluster.ori[dim][axes[dim]] += sign * step # update non-reversed axes entry
+                    except KeyError:
+                        cluster.ori[dim][axes[dim]] = sign * step # add non-reversed axes entry
+                cluster.update_ellipsoid('ori', dims=(x, y, z))
             # NOTE: wx.MOD_CONTROL in combination with a numeric key press
             # doesn't seem to trigger a KeyDown event - maybe it triggers
             # some other kind of event?
