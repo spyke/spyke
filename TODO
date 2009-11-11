@@ -16,6 +16,16 @@ RECENT:
     - might be useful to hide clustered points, so you can focus on just the unclustered ones that are left
         - not sure if this can even be done, given that all points are part of the same single glyph
 
+    - might be good to finally implement proper simultaneous spatiotemporal detection
+        - search through 2D array representing window of data, look for all extrema
+        - sort extrema by amplitude
+        - for extremum in extrema: # biggest to smallest
+            - check lockout
+            - if this next biggest extremum is locked out, break out of loop?
+            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
+        - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
+        - might also be faster than current approach of search across time, then across chans, then across time...
+
     - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
         - this would require a black background for the listctrl, otherwise white wouldn't show up
@@ -51,16 +61,6 @@ RECENT:
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
 
     - looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
-
-    - might be good to finally implement proper simultaneous spatiotemporal detection
-        - search through 2D array representing window of data, look for all extrema
-        - sort extrema by amplitude
-        - for extremum in extrema: # biggest to smallest
-            - check lockout
-            - if this next biggest extremum is locked out, break out of loop?
-            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
-        - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
-        - might also be faster than current approach of search across time, then across chans, then across time...
 
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
