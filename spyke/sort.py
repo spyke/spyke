@@ -61,13 +61,12 @@ class Sort(object):
         # some neurons may be purely hand sorted, one spike at a time
         self.neurons = {}
         self.clusters = {} # dict of multidim ellipsoid params
-        #self.trash = {} # discarded spikes, disabled, not very useful, adds complexity
 
         self.uris_sorted_by = 't'
         self.uris_reversed = False
 
         # how much to scale each dim for better viewing in cluster plots
-        self.SCALE = {'x0': 5}
+        self.SCALE = {'x0': 5, 'Vpp': 0.5}
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs

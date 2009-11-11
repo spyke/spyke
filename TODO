@@ -2,6 +2,11 @@ RECENT:
 
     - stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
 
+    - on 'f' down in cluster frame (focus camera), if a neuron is under the mouse, select that neuron in the clist, and maybe in the nlist too
+        - or maybe make it a seperate key, like 's' for select - maybe make 's' focus and select, kind of like how 'x' focuses and moves a cluster
+
+    - save camera view (pos, angle, zoom) in .sort, so you come back to the same spot on restore
+
     - cluster button: hide unselected clusters
         - or just a hide/show button, which toggles the visibility of each of the selected clusters
         - or best: separate show and hide buttons that set the visibility of each of the selected clusters

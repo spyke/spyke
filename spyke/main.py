@@ -398,13 +398,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted?
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
         self.AddCluster(cluster)
 
     def AddCluster(self, cluster):
         """Add cluster to GUI"""
         cf = self.OpenFrame('cluster')
-        try: cf.glyph # glyph already plotted
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
         dims = self.GetDimNames()
         cf.add_ellipsoid(cluster, dims)
         self.clist.SetItemCount(len(self.sort.neurons))
@@ -1038,6 +1039,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
 
+        # do this here first in case no clusters exist and hence self.AddCluster
+        # is never called, yet you want spikes to be plotted in the cluster frame:
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted?
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
         self.RestoreClusters2GUI()
 
         self.sortfname = fname # bind it now that it's been successfully loaded
@@ -1049,15 +1055,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
-        # do this here first in case no clusters exist and hence self.AddCluster
-        # is never called, yet you want spikes to be plotted in the cluster frame:
-        cf = self.OpenFrame('cluster')
-        try: cf.glyph # glyph already plotted
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
         # restore neuron clusters and the neuron listctrl
         for cluster in self.sort.clusters.values():
             self.AddCluster(cluster)
-        self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
+        try:
+            self.sort.spikes
+            self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
+        except AttributeError: pass # no spikes
         sf = self.OpenFrame('sort')
         sf.nlist.SetItemCount(len(self.sort.neurons))
         sf.nlist.RefreshItems()
@@ -1078,15 +1082,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.DelCluster(cluster)
         # reset all plotted spike points to white
         cf = self.OpenFrame('cluster')
-        try: cf.glyph # glyph already plotted
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
-        self.DeColourAllPoints()
-        self.frames['cluster'].glyph.mlab_source.update()
+        try: # decolour any and all spikes
+            cf.glyph # spikes glyph already plotted?
+            self.DeColourAllPoints()
+            self.frames['cluster'].glyph.mlab_source.update()
+        except AttributeError: pass # no spikes glyph to decolour
         for neuron in sort.neurons.values():
             neuron.spikeis = np.array([], dtype=int) # clear spike indices of all imported neurons
             neuron.sort = self.sort # overwrite sort neurons came from with current sort
         self.sort.neurons = sort.neurons
         self.sort.clusters = sort.clusters
+        self.sort._nid = max(self.sort.neurons.keys()) + 1 # reset unique nid counter
         self.RestoreClusters2GUI()
 
     def OpenWaveFile(self, fname):
