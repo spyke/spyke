@@ -2,6 +2,12 @@ RECENT:
 
     - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
 
+    - check if num plot slots has reached some ridiculous value (say 100), and stop adding any more, raise an error - this prevents the user from accidentally selecting 1000s of spikes for plotting, by going shift+end in the nslist
+
+    - add random numbers (up to 1/2 a dphase bin width: 20 us/2 == 10us) to the dphase values to dither them out a bit, and make it more obvious how many fall into each dphase bin, so you can actually tell what the distribution looks like in dphase space, instead of having lots of overlap at each of the discrete dphase values
+
+    - turn off rendering when changing the parameter for a dimension - takes forever to reposition each ellipsoid
+
     - on 'f' down in cluster frame (focus camera), if a neuron is under the mouse, select that neuron in the clist, and maybe in the nlist too
         - or maybe make it a seperate key, like 's' for select - maybe make 's' focus and select, kind of like how 'x' focuses and moves a cluster
 
