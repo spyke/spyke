@@ -1,11 +1,9 @@
 RECENT:
 
-    - stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
+    - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
 
     - on 'f' down in cluster frame (focus camera), if a neuron is under the mouse, select that neuron in the clist, and maybe in the nlist too
         - or maybe make it a seperate key, like 's' for select - maybe make 's' focus and select, kind of like how 'x' focuses and moves a cluster
-
-    - save camera view (pos, angle, zoom) in .sort, so you come back to the same spot on restore
 
     - cluster button: hide unselected clusters
         - or just a hide/show button, which toggles the visibility of each of the selected clusters
@@ -591,6 +589,9 @@ DONE:
 - bug: clicking on a spike-less neuron in the nlist raises an error, which is fine, but then you can't plot any other neuron, which is bad - here's the traceback:
 - add keyboard controls for cluster parameters in cluster window
 - big bug: using sort.SCALE only in the visualization of the ellipsoid seems to have messed up sort.apply_cluster for clusters with nonzero orientations
+- stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
+- save camera view (pos, angle, zoom) in .sort, so you come back to the same spot on restore
+
 
 
 

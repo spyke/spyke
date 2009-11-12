@@ -396,7 +396,11 @@ class ClusterFrame(wx.MiniFrame):
         data.point_data.tensors = [tensor]
         data.point_data.tensors.name = 'some_name'
         data.point_data.scalars = [-cluster.id-1] # make them all -ve to distinguish them from plotted points
-        glyph = mlab.pipeline.tensor_glyph(data)
+        # save camera view and roll
+        view, roll = self.view, self.roll
+        glyph = mlab.pipeline.tensor_glyph(data) # resets camera view and roll unfortunately
+        # restore camera view and roll
+        self.view, self.roll = view, roll
         glyph.glyph.glyph_source.glyph_source.theta_resolution = 50
         glyph.glyph.glyph_source.glyph_source.phi_resolution = 50
 
@@ -414,3 +418,19 @@ class ClusterFrame(wx.MiniFrame):
         cluster.ellipsoid = glyph
         cluster.update_ellipsoid(dims=dims) # update all params
         f.scene.disable_render = False
+
+    def get_view(self):
+        return mlab.view()
+
+    def set_view(self, view):
+        mlab.view(*view)
+
+    view = property(get_view, set_view)
+
+    def get_roll(self):
+        return mlab.roll()
+
+    def set_roll(self, roll):
+        mlab.roll(roll)
+
+    roll = property(get_roll, set_roll)

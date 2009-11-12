@@ -1044,6 +1044,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.OpenFrame('cluster')
         try: cf.glyph # glyph already plotted?
         except AttributeError: self.OnClusterPlot() # create glyph on first open
+        # try and reset camera view and roll to where it was last saved
+        try: cf.view, cf.roll = sort.view, sort.roll
+        except AttributeError: pass
         self.RestoreClusters2GUI()
 
         self.sortfname = fname # bind it now that it's been successfully loaded
@@ -1132,6 +1135,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('saving sort file')
         t0 = time.time()
         f = open(fname, 'wb')
+        try:
+            cf = self.frames['cluster']
+            # save camera view
+            sort.view, sort.roll = cf.view, cf.roll
+        except KeyError: pass # cf hasn't been opened yet, no camera view to save
         np.save(f, sort)
         np.save(f, sort.spikes)
         f.close()
