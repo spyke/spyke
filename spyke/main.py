@@ -1088,7 +1088,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.OpenSpikeFile(sort.spikefname)
 
-        sort.stream = self.hpstream # restore missing stream object to Sort
+        if self.hpstream != None:
+            sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
         self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
@@ -1098,6 +1099,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for detection in sort.detections.values(): # restore detections to detection list
             self.append_detection_list(detection)
 
+        self.SPIKEFRAMEWIDTH = sort.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         sf = self.OpenFrame('sort') # ensure it's open
         # restore unsorted spike virtual listctrl
         sf.slist.SetItemCount(len(sort.uris))
@@ -1255,7 +1257,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #    self.SaveWaveFile(sort.wavefname)
         if os.path.exists(fname):
             dlg = wx.MessageDialog(self, "Spike file %r already exists. Overwrite?" % fname,
-                                   wx.YES_NO | wx.ICON_QUESTION)
+                                   "Overwrite .spike file?", wx.YES_NO | wx.ICON_QUESTION)
             result = dlg.ShowModal()
             dlg.Destroy()
             if result == wx.ID_NO:
@@ -1276,7 +1278,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             fname = fname + '.wave'
         if os.path.exists(fname):
             dlg = wx.MessageDialog(self, "Wave file %r already exists. Overwrite?" % fname,
-                                   wx.YES_NO | wx.ICON_QUESTION)
+                                   "Overwrite .wave file?", wx.YES_NO | wx.ICON_QUESTION)
             result = dlg.ShowModal()
             dlg.Destroy()
             if result == wx.ID_NO:

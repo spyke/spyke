@@ -71,8 +71,6 @@ RECENT:
 
     - manual sorting is disabled, and maybe it should stay that way
 
-    - restoring from .sort with no .srf open is broken again
-
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
 
     - looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
@@ -605,6 +603,7 @@ DONE:
 - big bug: using sort.SCALE only in the visualization of the ellipsoid seems to have messed up sort.apply_cluster for clusters with nonzero orientations
 - stop adding of new ellipsoid (which are now glyphs instead of parametric surfaces) from resetting the camera view
 - save camera view (pos, angle, zoom) in .sort, so you come back to the same spot on restore
+- restoring from .sort with no .srf open is broken again
 
 
 
