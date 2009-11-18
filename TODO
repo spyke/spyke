@@ -603,7 +603,7 @@ DONE:
 - split .sort file one more time into a .sort and a .spike file - this way, you can have multiple clustering variations, and save each one as a separate small .sort file (few MBs), all of which reference the same .spike file - that way you don't have to rely on just the exported .spk files to document your sorting iterations, plus you get to keep all relevant sort data indefinitely for all iterations - you can always go back and see how spikes were sorted at a given point in the sorting history
     - need each .sort file to reference a specifically named .spike file in the same folder - they can't all obviously have the same root name, since multiple .sort files have to have different names
     - .sort, .spike, and .wave files should now all be stored a couple levels down from the .srf file, in the appropriate track/recording/ folder
-
+- make srffname, sortfname, spikefname, and wavefname be pathless (relative to cwd) for portability
 
 
 

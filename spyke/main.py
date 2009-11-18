@@ -66,8 +66,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.srff = None # Surf File object
         self.srffname = '' # used for setting title caption
         for d in ('/data', '/media/WinXP/data'):
-            self.defaultdir = os.path.abspath(d)
-            if os.path.isdir(d): break # use first existing path
+            try: # use first existing path
+                os.chdir(os.path.abspath(d))
+                break
+            except: # path doesn't exist
+                pass
         self.frames = {} # holds spike, chart, lfp, sort, and pyshell frames
         self.spiketw = DEFSPIKETW # spike frame temporal window (us)
         self.charttw = DEFCHARTTW # chart frame temporal window (us)
@@ -107,8 +110,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        #srffname = os.path.join(self.defaultdir, '87 - track 7c spontaneous craziness.srf')
-        #sortfname = self.defaultdir + '/87 testing.sort'
+        #srffname = os.path.join(os.getcwd(), '87 - track 7c spontaneous craziness.srf')
+        #sortfname = os.getcwd() + '/87 testing.sort'
         #self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
@@ -139,13 +142,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnOpen(self, evt):
         dlg = wx.FileDialog(self, message="Open .srf, .sort or .wave file",
-                            defaultDir=self.defaultdir, defaultFile='',
+                            defaultDir=os.getcwd(), defaultFile='',
                             wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort|Wave files (*.wave)|*.wave",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
-            self.OpenFile(fname)
-            self.defaultdir = os.path.split(fname)[0] # update default dir
+            head, tail = os.path.split(fname)
+            os.chdir(head) # update default dir
+            self.OpenFile(tail)
         dlg.Destroy()
 
     def OnSave(self, evt):
@@ -157,7 +161,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSaveAs(self, evt):
         """Save Sort to new .sort file"""
         dlg = wx.FileDialog(self, message="Save sort as",
-                            defaultDir=self.defaultdir, defaultFile='',
+                            defaultDir=os.getcwd(), defaultFile='',
                             wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
@@ -169,22 +173,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             dt = dt.replace(' ', '_')
             dt = dt.replace(':', '.')
             tail = dt + '_' + tail
-            fname = os.path.join(head, tail)
-            self.SaveSortFile(fname)
-            self.defaultdir = os.path.split(fname)[0] # update default dir
+            os.chdir(head) # update default dir
+            self.SaveSortFile(tail)
         dlg.Destroy()
     '''
     def OnSaveWave(self, evt):
         """Save waveforms to a .wave file"""
         defaultFile = os.path.splitext(self.sortfname)[0] + '.wave'
         dlg = wx.FileDialog(self, message="Save waveforms as",
-                            defaultDir=self.defaultdir, defaultFile=defaultFile,
+                            defaultDir=os.getcwd(), defaultFile=defaultFile,
                             wildcard="Sort files (*.wave)|*.wave|All files (*.*)|*.*",
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
             self.SaveWaveFile(fname)
-            self.defaultdir = os.path.split(fname)[0] # update default dir
+            head, tail = os.path.split(fname)
+            os.chdir(head) # update default dir
         dlg.Destroy()
     '''
     def OnSaveParse(self, evt):
@@ -195,48 +199,49 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnImportNeurons(self, evt):
         dlg = wx.FileDialog(self, message="Import neurons from .sort file",
-                            defaultDir=self.defaultdir, defaultFile='',
+                            defaultDir=os.getcwd(), defaultFile='',
                             wildcard="Sort files (*.sort)|*.sort",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
             self.ImportNeurons(fname)
-            self.defaultdir = os.path.split(fname)[0] # update default dir
+            head, tail = os.path.split(fname)
+            os.chdir(head) # update default dir
         dlg.Destroy()
 
     def OnExportSpikes(self, evt):
         dlg = wx.DirDialog(self, message="Export spikes to",
-                           defaultPath=self.defaultdir)
+                           defaultPath=os.getcwd())
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.exportspikes(path=path)
-            self.defaultdir = path # update default dir
+            os.chdir(path) # update default dir
 
     def OnExportDIN(self, evt):
         srffnameroot = self.sort.get_srffnameroot()
         dlg = wx.DirDialog(self, message="Export DIN to",
-                           defaultPath=self.defaultdir)
+                           defaultPath=os.getcwd())
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.exportdin(srffnameroot=srffnameroot, path=path)
-            self.defaultdir = path # update default dir
+            os.chdir(path) # update default dir
 
     def OnExportTextheader(self, evt):
         srffnameroot = self.sort.get_srffnameroot()
         dlg = wx.DirDialog(self, message="Export textheader to",
-                           defaultPath=self.defaultdir)
+                           defaultPath=os.getcwd())
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.exporttextheader(srffnameroot=srffnameroot, path=path)
-            self.defaultdir = path # update default dir
+            os.chdir(path) # update default dir
 
     def OnExportAll(self, evt):
         dlg = wx.DirDialog(self, message="Export spikes, DIN and textheader to",
-                           defaultPath=self.defaultdir)
+                           defaultPath=os.getcwd())
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.export(path=path)
-            self.defaultdir = path # update default dir
+            os.chdir(path) # update default dir
 
     def OnClose(self, evt):
         # TODO: add confirmation dialog if Sort not saved
@@ -825,7 +830,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: parsing progress dialog
         self.srff.parse()
         self.srffname = self.srff.fname # update
-        self.SetTitle(os.path.basename(self.srffname)) # update the caption
+        self.SetTitle(self.srffname) # update the caption
 
         self.hpstream = self.srff.hpstream # highpass record (spike) stream
         self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
@@ -1067,7 +1072,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.RestoreClusters2GUI()
 
         self.sortfname = fname # bind it now that it's been successfully loaded
-        self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
+        self.SetTitle(self.srffname + ' | ' + self.sortfname)
         if sort.detector != None:
             self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
@@ -1123,7 +1128,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError: pass
         self.RestoreClusters2GUI()
 
-        self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sort.sortfname))
+        self.SetTitle(self.srffname + ' | ' + self.sort.sortfname)
         if sort.detector != None:
             self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
@@ -1248,7 +1253,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cPickle.dump(sort, f, protocol=-1) # pickle with most efficient (least human readable) protocol
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
-        self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(sort.sortfname))
+        self.SetTitle(self.srffname + ' | ' + sort.sortfname)
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file"""
