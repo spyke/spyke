@@ -50,7 +50,7 @@ class Sort(object):
     DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
     TW = TW # save a reference
     def __init__(self, detector=None, stream=None):
-        self.__version__ = 0.1
+        self.__version__ = 0.2
         self.detector = detector # this Sort's current Detector object
         self.detections = {} # history of detection runs
         self.stream = stream

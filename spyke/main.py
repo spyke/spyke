@@ -354,9 +354,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # every time a new detection is run, need to clear sort, spike
         # and wave fnames. Want to (re)ask user for sort fname, and that will
         # in turn require regenerating the spike and wave fnames
-        try: del sort.sortfname; except AttributeError: pass
-        try: del sort.spikefname; except AttributeError: pass
-        try: del sort.wavefname; except AttributeError: pass
+        try: del sort.sortfname
+        except AttributeError: pass
+        try: del sort.spikefname
+        except AttributeError: pass
+        try: del sort.wavefname
+        except AttributeError: pass
 
         #import cProfile; cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
         detection = Detection(sort, sort.detector, # create a new Detection run
@@ -998,6 +1001,70 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CloseSortFile(self):
         self.DeleteSort()
         self.EnableSortWidgets(False)
+
+    def OpenSortAndSpikeFile(self, fname):
+        """Open an old .sort file that has both a Sort and spikes in it"""
+        self.DeleteSort() # delete any existing Sort
+        print('opening sort file %r' % fname)
+        t0 = time.time()
+        f = open(fname, 'rb')
+        print('loading Sort')
+        sort = np.load(f)
+        print('sort was %d bytes long' % f.tell())
+        sort = sort.item() # pull sort object out of array
+        self.sort = sort
+        sortProbeType = type(sort.probe)
+        if self.hpstream != None:
+            streamProbeType = type(self.hpstream.probe)
+            if sortProbeType != streamProbeType:
+                self.CreateNewSort() # overwrite the failed Sort
+                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
+                                   % (sortProbeType, streamProbeType))
+
+        print('loading spikes')
+        spikes = np.load(f)
+        sort.spikes = spikes
+        sort.update_spike_lists()
+        f.close()
+        print('done opening sort file, took %.3f sec' % (time.time()-t0))
+
+        wavefname = os.path.splitext(fname)[0] + '.wave'
+        wavedatas = self.OpenWaveFile(wavefname)
+        if wavedatas != []:
+            sort.wavedatas = wavedatas
+            sort.update_wavedatacumsum()
+        sort.stream = self.hpstream # restore missing stream object to Sort
+        self.SetSampfreq(sort.sampfreq)
+        self.SetSHCorrect(sort.shcorrect)
+        self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
+        self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
+        if self.srff == None: # no .srf file is open
+            self.notebook.Show(True) # lets us do stuff with the Sort
+        for detection in sort.detections.values(): # restore detections to detection list
+            self.append_detection_list(detection)
+
+        sf = self.OpenFrame('sort') # ensure it's open
+        # restore unsorted spike virtual listctrl
+        sf.slist.SetItemCount(len(sort.uris))
+        sf.slist.RefreshItems()
+
+        # do this here first in case no clusters exist and hence self.AddCluster
+        # is never called, yet you want spikes to be plotted in the cluster frame:
+        cf = self.OpenFrame('cluster')
+        try: cf.glyph # glyph already plotted?
+        except AttributeError: self.OnClusterPlot() # create glyph on first open
+        # try and reset camera view and roll to where it was last saved
+        try: cf.view, cf.roll = sort.view, sort.roll
+        except AttributeError: pass
+        self.RestoreClusters2GUI()
+
+        self.sortfname = fname # bind it now that it's been successfully loaded
+        self.SetTitle(os.path.basename(self.srffname) + ' | ' + os.path.basename(self.sortfname))
+        if sort.detector != None:
+            self.update_from_detector(sort.detector)
+        self.EnableSortWidgets(True)
+        print('done opening sort file')
+
 
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort file, try and open a .wave file
