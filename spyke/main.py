@@ -162,6 +162,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
+            head, tail = os.path.split(fname)
+            # prepend datetime to tail:
+            dt = str(datetime.datetime.now()) # get an export timestamp
+            dt = dt.split('.')[0] # ditch the us
+            dt = dt.replace(' ', '_')
+            dt = dt.replace(':', '.')
+            tail = dt + '_' + tail
+            fname = os.path.join(head, tail)
             self.SaveSortFile(fname)
             self.defaultdir = os.path.split(fname)[0] # update default dir
         dlg.Destroy()
