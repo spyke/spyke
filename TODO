@@ -4,7 +4,7 @@ RECENT:
 
     - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
 
-    - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
+    - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no .wave file was present
         - something like Sort.restore_wavedata()
 
     - check if num plot slots has reached some ridiculous value (say 100), and stop adding any more, raise an error - this prevents the user from accidentally selecting 1000s of spikes for plotting, by going shift+end in the nslist

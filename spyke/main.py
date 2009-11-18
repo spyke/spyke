@@ -148,7 +148,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
             head, tail = os.path.split(fname)
-            os.chdir(head) # update default dir
+            os.chdir(head) # update cwd
             self.OpenFile(tail)
         dlg.Destroy()
 
@@ -173,10 +173,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             dt = dt.replace(' ', '_')
             dt = dt.replace(':', '.')
             tail = dt + '_' + tail
-            os.chdir(head) # update default dir
+            os.chdir(head) # update cwd
             self.SaveSortFile(tail)
         dlg.Destroy()
-    '''
+
     def OnSaveWave(self, evt):
         """Save waveforms to a .wave file"""
         defaultFile = os.path.splitext(self.sortfname)[0] + '.wave'
@@ -186,11 +186,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
-            self.SaveWaveFile(fname)
             head, tail = os.path.split(fname)
-            os.chdir(head) # update default dir
+            os.chdir(head) # update cwd
+            self.SaveWaveFile(tail)
         dlg.Destroy()
-    '''
+
     def OnSaveParse(self, evt):
         self.srff.pickle()
 
@@ -204,9 +204,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
+            # don't update cwd
             self.ImportNeurons(fname)
-            head, tail = os.path.split(fname)
-            os.chdir(head) # update default dir
         dlg.Destroy()
 
     def OnExportSpikes(self, evt):
@@ -215,7 +214,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.exportspikes(path=path)
-            os.chdir(path) # update default dir
+            # don't update cwd
 
     def OnExportDIN(self, evt):
         srffnameroot = self.sort.get_srffnameroot()
@@ -224,7 +223,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.exportdin(srffnameroot=srffnameroot, path=path)
-            os.chdir(path) # update default dir
+            # don't update cwd
 
     def OnExportTextheader(self, evt):
         srffnameroot = self.sort.get_srffnameroot()
@@ -233,7 +232,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.exporttextheader(srffnameroot=srffnameroot, path=path)
-            os.chdir(path) # update default dir
+            # don't update cwd
 
     def OnExportAll(self, evt):
         dlg = wx.DirDialog(self, message="Export spikes, DIN and textheader to",
@@ -241,7 +240,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.export(path=path)
-            os.chdir(path) # update default dir
+            # don't update cwd
 
     def OnClose(self, evt):
         # TODO: add confirmation dialog if Sort not saved
@@ -1203,12 +1202,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('opening sort file %r to import neurons' % fname)
         t0 = time.time()
         f = open(fname, 'rb')
-        print('loading Sort')
-        sort = np.load(f)
-        print('sort was %d bytes long' % f.tell())
-        sort = sort.item() # pull sort object out of array
-        f.close()
+        sort = cPickle.load(f)
         print('done opening sort file, took %.3f sec' % (time.time()-t0))
+        print('sort was %d bytes long' % f.tell())
+        f.close()
+        if len(sort.neurons) == 0:
+            raise RuntimeError('sort in file %r has no neurons to import' % fname)
         # delete any existing clusters from GUI
         for cluster in self.sort.clusters.values():
             self.DelCluster(cluster)
@@ -1221,7 +1220,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError: pass # no spikes glyph to decolour
         for neuron in sort.neurons.values():
             neuron.spikeis = np.array([], dtype=int) # clear spike indices of all imported neurons
-            neuron.sort = self.sort # overwrite sort neurons came from with current sort
+            neuron.sort = self.sort # overwrite the sort neurons came from with current sort
         self.sort.neurons = sort.neurons
         self.sort.clusters = sort.clusters
         self.sort._nid = max(self.sort.neurons.keys()) + 1 # reset unique nid counter
