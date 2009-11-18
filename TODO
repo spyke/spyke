@@ -1,10 +1,21 @@
 RECENT:
 
+    - split .sort file one more time into a .sort and a .spike file - this way, you can have multiple clustering variations, and save each one as a separate small .sort file (few MBs), all of which reference the same .spike file - that way you don't have to rely on just the exported .spk files to document your sorting iterations, plus you get to keep all relevant sort data indefinitely for all iterations - you can always go back and see how spikes were sorted at a given point in the sorting history
+        - need each .sort file to reference a specifically named .spike file in the same folder - they can't all obviously have the same root name, since multiple .sort files have to have different names
+        - .sort, .spike, and .wave files should now all be stored a couple levels down from the .srf file, in the appropriate track/recording/ folder
+
+    - Nick's idea: represent Vpp on a log scale - this might make things more clusterable in the Vpp dim, especially since some of the spikes can reach really big amplitudes due to instabilities, and those stretch out clusters (maybe non-linearly) in the Vpp direction
+
     - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
+
+    - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
+        - something like Sort.restore_wavedata()
 
     - check if num plot slots has reached some ridiculous value (say 100), and stop adding any more, raise an error - this prevents the user from accidentally selecting 1000s of spikes for plotting, by going shift+end in the nslist
 
     - add random numbers (up to 1/2 a dphase bin width: 20 us/2 == 10us) to the dphase values to dither them out a bit, and make it more obvious how many fall into each dphase bin, so you can actually tell what the distribution looks like in dphase space, instead of having lots of overlap at each of the discrete dphase values
+
+    - consider making V1 and V2 possible plot params to help distinguish a cluster that has two obviously different shaped spike in it, that happen to have the same Vpp
 
     - turn off rendering when changing the parameter for a dimension - takes forever to reposition each ellipsoid
 
@@ -78,9 +89,6 @@ RECENT:
             - find ctsrecord duration that's the most frequent
 
     - replace unnecesary use of list(set(array)) with np.unique(array)
-
-    - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no wavedata were present in a .sort file that was restored from
-        - something like Sort.restore_wavedata()
 
     - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
         - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
