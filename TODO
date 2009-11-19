@@ -1,6 +1,18 @@
 RECENT:
 
+    - stop using fixed thresh, start using chanfixed based on median
+
+    - need dynamic scaling of dimensions for visualization (some sort of GUI for it), and also need to fix problems with changing scaling when a cluster has a non zero ori - could be tricky
+
     - Nick's idea: represent Vpp on a log scale - this might make things more clusterable in the Vpp dim, especially since some of the spikes can reach really big amplitudes due to instabilities, and those stretch out clusters (maybe non-linearly) in the Vpp direction
+
+    - need to finally implement gaussian spatial fitting to get around the artifactual clusters you get (especially in the y dim) from using spatial mean, espcially with a lowish channel count
+        - this would let you lower the channel count, save mem, yet still get good clusters
+        - will be slower, need to make it as optimal as possible
+            - to start, try fitting just the peak and valley (found separately on each channel within reason wrt maxchan, as is currently done for spatial mean method), ie 2 points per chan
+            - or maybe just fit one point per chan: check which is the biggest abs(amplitude) of the peak and valley on the maxchan, and just fit the one that's biggest
+
+    - always assuming the first peak is -ve, and the 2nd is +ve - is this really a safe assumption all the time? Seemed to be for ptc15.tr7c, but not necessarily for other tracks
 
     - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
 
@@ -40,8 +52,6 @@ RECENT:
     - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
         - this would require a black background for the listctrl, otherwise white wouldn't show up
-
-    - always assuming the first peak is -ve, and the 2nd is +ve - is this really a safe assumption all the time? Seemed to be for ptc15, but for the other cats?
 
     - nid tooltips are a bit slow and not always reliable
 
