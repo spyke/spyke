@@ -6,8 +6,9 @@ RECENT:
         - actually, maybe all you have to do is make ori represent ori in real space (unscaled, not visualized), and then when you scale any of the dims, take the arctan of the scaled dims to get the visualized ori, but make sure to always store the real ori in the .sort
 
     - Nick's idea: represent Vpp on a log scale - this might make things more clusterable in the Vpp dim, especially since some of the spikes can reach really big amplitudes due to instabilities, and those stretch out clusters (maybe non-linearly) in the Vpp direction
+        - doesn't seem to improve clusterability
 
-    - need to finally implement gaussian spatial fitting to get around the artifactual clusters you get (especially in the y dim) from using spatial mean, espcially with a lowish channel count
+    - need to finally implement gaussian spatial fitting to get around the artifactual clusters you get (especially in the y dim) from using spatial mean, especially with a lowish channel count
         - this would let you lower the channel count, save mem, yet still get good clusters
         - will be slower, need to make it as optimal as possible
             - to start, try fitting just the peak and valley (found separately on each channel within reason wrt maxchan, as is currently done for spatial mean method), ie 2 points per chan
