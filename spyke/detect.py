@@ -580,7 +580,7 @@ class Detector(object):
     DEFDT = 350 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
-    DEFEXTRACTPARAMSONDETECT = True
+    DEFEXTRACTPARAMSONDETECT = False
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -809,7 +809,8 @@ class Detector(object):
         """
         sort = self.sort
         AD2uV = sort.converter.AD2uV
-        extractXY = sort.extractor.extractXY
+        if self.extractparamsondetect:
+            extractXY = sort.extractor.extractXY
         lockouts = self.lockouts
         twi = sort.twi
         nspikes = 0
@@ -934,7 +935,7 @@ class Detector(object):
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
-                s['x0'], s['y0'] = extractXY(wavedata, x, y, phase1ti, phase2ti)
+                s['x0'], s['y0'] = extractXY(wavedata, x, y, phase1ti, phase2ti, chani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 

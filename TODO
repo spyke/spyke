@@ -6,13 +6,30 @@ RECENT:
         - actually, maybe all you have to do is make ori represent ori in real space (unscaled, not visualized), and then when you scale any of the dims, take the arctan of the scaled dims to get the visualized ori, but make sure to always store the real ori in the .sort
 
     - Nick's idea: represent Vpp on a log scale - this might make things more clusterable in the Vpp dim, especially since some of the spikes can reach really big amplitudes due to instabilities, and those stretch out clusters (maybe non-linearly) in the Vpp direction
-        - doesn't seem to improve clusterability
+        - doesn't seem to improve clusterability, although Nick says it does for him
 
     - need to finally implement gaussian spatial fitting to get around the artifactual clusters you get (especially in the y dim) from using spatial mean, especially with a lowish channel count
         - this would let you lower the channel count, save mem, yet still get good clusters
         - will be slower, need to make it as optimal as possible
             - to start, try fitting just the peak and valley (found separately on each channel within reason wrt maxchan, as is currently done for spatial mean method), ie 2 points per chan
             - or maybe just fit one point per chan: check which is the biggest abs(amplitude) of the peak and valley on the maxchan, and just fit the one that's biggest
+        - not working due to some spike distribs not being very gaussian (sometimes chans go from big at maxchan, to small, then to big again as you move away from maxchan, end up with solution way far out in x dimension)
+            - try removing those chans (usu just one) that violate a 2D gaussian distrib, and fit only the remaining chans
+                - how best to automate removal of bad chan(s)
+            - instead of fitting a gaussian, try fitting something peakier, like an exponential?
+                - or, instead of fitting the voltages, fit the squared voltages? prolly wouldn't help, already using squared errors
+            - or, just go back to using openopt, and use constraints
+                - slower, but seemed much more reliable
+                    - won't be modelling nearly as many points this time, speed might not be an issue
+                - constraining sigma might be good enough
+                - nope, doesn't seem to help
+        - go back to spatial mean, but only use subset of chans for each spike to localize - say only the biggest 5 chans (or less if there aren't that many chans in the spike) - would this get rid of the artefactual clustering?
+            - weight the chans nonlinearly - maybe do squared weights? Have I tried this already?
+                - maybe weight each chan according to its squared distance from the maxchan?
+        - build up a set of eigenvectors for each chan separately, get eigenvals for each chan, then use those in combination for each set of chans in a given spike to cluster - problem is you're still in a fairly high dimensional space, something like 3*nchansperspike
+            - what about ICA instead
+        - Nick: model gaussian spike sources in 2D space, generate voltages at site locations, then add some noise. Now you know exactly where your "spikes" are in space, and you can test various methods against them to figure out which method works best to localize them, or which works best in certain situations
+
 
     - always assuming the first peak is -ve, and the 2nd is +ve - is this really a safe assumption all the time? Seemed to be for ptc15.tr7c, but not necessarily for other tracks
 

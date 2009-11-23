@@ -7,8 +7,40 @@ __authors__ = ['Martin Spacek']
 import time
 
 import numpy as np
+from scipy.optimize import leastsq
 
 from spyke.detect import get_wave
+from spyke.core import g2
+
+class LeastSquares(object):
+    """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
+    def calc(self, x, y, V):
+        t0 = time.clock()
+        result = leastsq(self.cost, self.p0, args=(x, y, V), full_output=True)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
+        print('iters took %.3f sec' % (time.clock()-t0))
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        print('p0 = %r' % self.p0)
+        print('p = %r' % self.p)
+        print('%d iterations' % self.infodict['nfev'])
+        print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+
+    def model(self, p, x, y):
+        """2D Gaussian"""
+        try: return p[0] * g2(p[1], p[2], p[3], p[3], x, y) # circularly symmetric Gaussian
+        except Exception as err:
+            print(err)
+            import pdb; pdb.set_trace()
+
+    def cost(self, p, x, y, V):
+        """Distance of each point to the 2D target function
+        Returns a matrix of errors, channels in rows, timepoints in columns.
+        Seems the resulting matrix has to be flattened into an array"""
+        return self.model(p, x, y) - V
+
+
 
 
 class Extractor(object):
@@ -25,6 +57,7 @@ class Extractor(object):
             self.extractXY = self.get_spatial_mean
         elif self.XYmethod.lower() == 'gaussian fit':
             self.extractXY = self.get_gaussian_fit
+            self.ls = LeastSquares()
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % method)
 
@@ -71,6 +104,7 @@ class Extractor(object):
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             # just x and y params for now
+            print('ri = %d' % ri)
             x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
@@ -112,5 +146,19 @@ class Extractor(object):
         y0 = (weights * y).sum()
         return x0, y0
 
-    def get_gaussian_fit(self, spike, wavedata=None, siteloc=None):
-        raise NotImplementedError
+    def get_gaussian_fit(self, wavedata, x, y, phase1ti, phase2ti):
+        if len(wavedata) < 4: # can't fit Gaussian for spikes with low nchans
+            print('\n\nspike has only %d chans\n\n' % len(wavedata))
+            return self.get_spatial_mean(wavedata, x, y, phase1ti, phase2ti)
+        dti = self.sort.detector.dti / 2
+        V = wavedata[:, phase1ti]
+        #V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
+        #V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
+        #Vpp = V2 - V1
+        i = np.abs(V).argmax()
+        ls = self.ls
+        ls.p0 = [ V[i], x[i], y[i], 60 ]
+        ls.calc(x, y, V)
+        #except: import pdb; pdb.set_trace()
+        # TODO: return modelled amplitude and sigma as well!
+        return ls.p[1], ls.p[2]
