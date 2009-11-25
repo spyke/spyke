@@ -4,6 +4,7 @@ import time
 
 import spyke
 #from spyke.core import g2
+from pylab import hist
 
 def g2(x0, y0, sx, sy, x, y):
     """2-D Gaussian"""
@@ -36,7 +37,7 @@ class LeastSquares(object):
 
     def model2(self, p, x, y):
         """2D Gaussian"""
-        return p[0] * g2(p[1], p[2], p[3], p[4], x, y) # elliptical Gaussian
+        return p[0] * g2(p[1], p[2], p[3], p[3]*2, x, y) # elliptical Gaussian
 
     def model_both_peaks(self, p, x, y):
         """2D Gaussian"""
@@ -106,24 +107,86 @@ ls.model = ls.model_both_peaks
 ls.p0 = [-6916, 3818, 25, 550, 60]
 ls.calc(x, y, V)
 
-# maybe give it two sets of points, one for each peak, and give it an additional amplitude param for the 2nd peak
+
+
+sf = spyke.surf.File('/data/ptc18/14-tr1-mseq32_40ms_7deg.srf')
+sf.parse()
+
+t0 =   19241520
+tend = 19242520
+phase1ti = 12
+phase2ti = 21
+#chans = [41, 11, 42, 10, 43, 9, 44, 8, 45, 7]
+chans = [41, 11, 42, 10, 43, 9, 8, 45, 7]
+i = chans.index(43) #V.argmax() # index of maxchan
+
+t0 = 7252960
+tend = 7253960
+phase1ti = 12
+phase2ti = 22
+#chans = [ 7,  8,  9, 10, 11, 41, 42, 43, 44, 45]
+chans = [ 7,  9, 10, 11, 41, 42, 43, 44]
+# might need to add the 2nd sigma back for a spike like this...
+i = chans.index(9) #V.argmax() # index of maxchan
+
+dti = 340 / 2
+wavedata = np.float64(sf.hpstream[t0:tend][chans].data)
+V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
+V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
+V = V2 - V1
+V = V ** 2
+maxchan = chans[i]
+x = np.array([ sf.hpstream.probe.SiteLoc[chan][0] for chan in chans ])
+y = np.array([ sf.hpstream.probe.SiteLoc[chan][1] for chan in chans ])
+d2 = (x-x[i])**2 + (y-y[i])**2
+d2is = d2.argsort() # indices that sort chans by increasing d2 from maxchan
+Vis = V.argsort() # indices that sort chans by increasing V
+Vis = Vis[-1:0:-1] # sort chans by decreasing V
+#if d2is != Vis:
+#    import pdb; pdb.set_trace()
+#V = V[d2is]; x = x[d2is]; y = y[d2is]
+ls = LeastSquares()
+ls.model = ls.model2
+ls.p0 = [V[i], x[i], y[i], 60]
+ls.calc(x, y, V)
+
+err = np.sqrt(np.abs(ls.cost(ls.p, x, y, V)))
+errsortis = err.argsort() # indices into err and chans, lowest err to highest
+errsortis = errsortis[-1:0:-1] # highest to lowest
+for erri in errsortis:
+    if chans[erri] == maxchan:
+        continue
+    otheris = list(errsortis) # creates a copy
+    otheris.remove(erri) # maybe be careful about removing one with a lot of signal
+    otheris.remove(i)
+    others = err[otheris]
+    hist(others)
+    hist(err[[erri]])
+    print('mean err: %.3f' % others.mean())
+    print('stdev err: %.3f' % others.std())
+    print('deviant chan %d had err: %.3f' % (chans[erri], err[erri]))
+    break
 
 
 '''
-- instead of fitting a gaussian, try fitting something peakier, like an exponential?
-    - or, instead of fitting the voltages, fit the squared voltages? prolly wouldn't help, already using squared errors
+if abs(x) > 28*2, or maybe abs(sigma) > 60:
+    while True:
+        # get rid of severe outlying channels that don't match gaussian model
+        find chan with most error (excluding maxchan)
+        if its abs(error) is > 3*stdev from the mean abs(error) (of all the other chans?):
+            remove it, redo the fitting
+            # alternative test is to see if refitting with newly removed
+            # chan significantly changes any of the parameter values, by say > 15%
+            # Or, maybe check distance from next highest err, since mean doesn't
+            # mean too much for such a small population
+        else:
+            break
 
-- go back to spatial mean, but only use subset of chans for each spike to localize - say only the biggest 5 chans (or less if there aren't that many chans in the spike)
-- or, weight the chans nonlinearly - maybe do squared weights? Have I tried this already?
-    - maybe weight each chan according to its squared distance from the maxchan?
+        #if cost per chan (err per chan included) has dropped by at least x:
+        #    continue
+        #else:
+        #    revert to previous set of chans
+        #    break
 
-- build up a set of eigenvectors for each chan separately, get eigenvals for each chan, then use those in combination for each set of chans in a given spike to cluster - problem is you're still in a fairly high dimensional space, something like 3*nchansperspike
-    - what about ICA instead
-
-- or, just go back to using openopt, and use constraints
-    - slower, but seemed much more reliable
-        - won't be modelling nearly as many points this time, speed might not be an issue
-    - constraining sigma might be good enough
-
-- Nick: model gaussian spike sources in 2D space, generate voltages at site locations, then add some noise. Now you know exactly where your "spikes" are in space, and you can test various methods against them to figure out which method works best to localize them, or which works best in certain situations
+    print out which chans were removed as a warning for debugging
 '''

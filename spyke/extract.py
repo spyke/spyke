@@ -7,19 +7,25 @@ __authors__ = ['Martin Spacek']
 import time
 
 import numpy as np
+np.seterr(under='ignore')
 from scipy.optimize import leastsq
 
 from spyke.detect import get_wave
 from spyke.core import g2
 
+
 class LeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
+    def __init__(self):
+        self.anisotropy = 2 # y vs x anisotropy in sigma of gaussian fit
+
     def calc(self, x, y, V):
         t0 = time.clock()
-        result = leastsq(self.cost, self.p0, args=(x, y, V), full_output=True)
+        try: result = leastsq(self.cost, self.p0, args=(x, y, V), full_output=True)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
+        except: import pdb; pdb.set_trace()
         print('iters took %.3f sec' % (time.clock()-t0))
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         print('p0 = %r' % self.p0)
@@ -28,8 +34,13 @@ class LeastSquares(object):
         print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def model(self, p, x, y):
-        """2D Gaussian"""
-        try: return p[0] * g2(p[1], p[2], p[3], p[3], x, y) # circularly symmetric Gaussian
+        """2D circularly symmetric Gaussian"""
+        return p[0] * g2(p[1], p[2], p[3], p[3], x, y)
+
+    def model2(self, p, x, y):
+        """2D elliptical Gaussian"""
+        try:
+            return p[0] * g2(p[1], p[2], p[3], p[3]*self.anisotropy, x, y)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
@@ -38,9 +49,7 @@ class LeastSquares(object):
         """Distance of each point to the 2D target function
         Returns a matrix of errors, channels in rows, timepoints in columns.
         Seems the resulting matrix has to be flattened into an array"""
-        return self.model(p, x, y) - V
-
-
+        return self.model2(p, x, y) - V
 
 
 class Extractor(object):
@@ -92,7 +101,7 @@ class Extractor(object):
             det = sort.detections[detid].detector
             nchans = spikes['nchans'][ri]
             #nt = (spikes.tend[ri] - spikes.t0[ri]) // sort.tres
-            nt = spikes['nt'][ri]
+            #nt = spikes['nt'][ri]
             #try: assert len(np.arange(spikes.t0[ri], spikes.tend[ri], sort.tres)) == nt
             #except AssertionError: import pdb; pdb.set_trace()
             phase1ti = spikes['phase1ti'][ri]
@@ -100,18 +109,20 @@ class Extractor(object):
             startti = twi0 - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
             wavedata = wavedata[0:nchans, startti:]
             chans = spikes['chans'][ri, :nchans]
+            maxchan = spikes['chan'][ri]
+            maxchani = int(np.where(chans == maxchan)[0])
             chanis = det.chans.searchsorted(chans) # det.chans are always sorted
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             # just x and y params for now
             print('ri = %d' % ri)
-            x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti)
+            x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
               (nspikes, self.XYmethod.lower(), time.time()-t0))
 
-    def get_spatial_mean(self, wavedata, x, y, phase1ti, phase2ti):
+    def get_spatial_mean(self, wavedata, x, y, phase1ti, phase2ti, maxchani):
         """Return weighted spatial mean of chans in spike according to their
         Vpp at the same timepoints as on the max chan, to use as rough
         spatial origin of spike. x and y are spatial coords of chans in wavedata.
@@ -146,19 +157,61 @@ class Extractor(object):
         y0 = (weights * y).sum()
         return x0, y0
 
-    def get_gaussian_fit(self, wavedata, x, y, phase1ti, phase2ti):
-        if len(wavedata) < 4: # can't fit Gaussian for spikes with low nchans
-            print('\n\nspike has only %d chans\n\n' % len(wavedata))
-            return self.get_spatial_mean(wavedata, x, y, phase1ti, phase2ti)
+    def get_gaussian_fit(self, wavedata, x, y, phase1ti, phase2ti, maxchani):
+        """Can't seem to prevent from getting a stupidly wide range of modelled
+        x locations. Tried fitting V**2 instead of V (to give big chans more weight),
+        tried removing chans that don't fit spatial Gaussian model very well, and
+        tried fitting with a fixed sy to sx ratio (1.5 or 2). They all may have helped
+        a bit, but the results are still way too scattered, and look far less clusterable
+        than results from spatial mean. Plus, the LM algorithm keeps generating underflow
+        errors for some reason. These can be turned off and ignored, but it's strange that
+        it's choosing to explore the fit at such extreme values of sx (say 0.6 instead of 60)"""
+        self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to get_spatial_mean()
         dti = self.sort.detector.dti / 2
-        V = wavedata[:, phase1ti]
-        #V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
-        #V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
-        #Vpp = V2 - V1
-        i = np.abs(V).argmax()
+        wavedata = np.float64(wavedata)
+        V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
+        V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
+        V = V2 - V1
+        #V /= 1000
+        V = V**2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
         ls = self.ls
-        ls.p0 = [ V[i], x[i], y[i], 60 ]
-        ls.calc(x, y, V)
-        #except: import pdb; pdb.set_trace()
+        ls.p0 = np.asarray([ V[maxchani], x[maxchani], y[maxchani], 60 ])
+
+        while True:
+            if len(V) < 4: # can't fit Gaussian for spikes with low nchans
+                print('\n\nonly %d fittable chans in spike \n\n' % len(V))
+                return self.get_spatial_mean(wavedata, self.x, self.y, phase1ti, phase2ti, self.maxchani)
+            ls.calc(x, y, V)
+            if ls.ier == 2: # essentially perfect fit between data and model
+                break
+            err = np.sqrt(np.abs(ls.cost(ls.p, x, y, V)))
+            errsortis = err.argsort() # indices into err and chans, that sort err from lowest to highest
+            #errsortis = errsortis[-1:0:-1] # highest to lowest
+            otheris = list(errsortis) # creates a copy, used for mean & std calc
+            erri = errsortis[-1] # index of biggest error
+            if erri == maxchani: # maxchan has the biggest error
+                erri = errsortis[-2] # index of biggest error excluding that of maxchan
+                otheris.remove(maxchani) # remove maxchan from mean & std calc
+            otheris.remove(erri) # remove biggest error from mean & std calc
+            others = err[otheris] # dereference
+            #hist(others)
+            #hist(err[[erri]])
+            meanerr, meanstd = others.mean(), others.std()
+            maxerr = err[erri]
+            print('mean err: %.0f' % meanerr)
+            print('stdev err: %.0f' % meanstd)
+            print('deviant chani %d had err: %.0f' % (erri, maxerr))
+            if maxerr > meanerr+3*meanstd: # it's a big outlier, probably messing up Gaussian fit a lot
+                # remove the erri'th entry from x, y and V
+                # allow calc to happen again
+                print('removing deviant chani %d' % erri)
+                x = np.delete(x, erri)
+                y = np.delete(y, erri)
+                V = np.delete(V, erri)
+                if erri < maxchani:
+                    maxchani -= 1 # decr maxchani appropriately
+            else:
+                break
+
         # TODO: return modelled amplitude and sigma as well!
         return ls.p[1], ls.p[2]

@@ -935,7 +935,8 @@ class Detector(object):
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
-                s['x0'], s['y0'] = extractXY(wavedata, x, y, phase1ti, phase2ti, chani)
+                maxchani = int(np.where(chans == chan))
+                s['x0'], s['y0'] = extractXY(wavedata, x, y, phase1ti, phase2ti, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
