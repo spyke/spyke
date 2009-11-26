@@ -767,6 +767,53 @@ class Neuron(object):
         #print('neuron[%d].wave.ts = %r' % (self.id, ts))
         print('mean calc took %.3f sec' % (time.time()-t0))
         return self.wave
+
+    def remove_chans(self, remchans, reextract=True):
+        """Remove remchans from all member spikes, re-extract their params.
+        This is to get rid of spurious clustering using spatial mean
+        when the maxchan alternates between two chans"""
+        #import pdb; pdb.set_trace()
+        sort = self.sort
+        spikes = sort.spikes
+        spikeis = self.spikeis
+        ris = spikes['id'].searchsorted(spikeis)
+        twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
+        for ri in ris:
+            s = spikes[ri]
+            wavedata = sort.get_wavedata(ri)
+            nchans = s['nchans']
+            startti = twi0 - s['phase1ti'] # always +ve, usually 0 unless spike had some lockout near its start
+            wavedata = wavedata[0:nchans, startti:]
+            chans = s['chans'][:nchans]
+            for remchan in remchans:
+                chani, = np.where(chans == remchan)
+                if chani: # delete it
+                    wavedata = np.delete(wavedata, chani, axis=0)
+                    sort.set_wavedata(ri, wavedata, s['phase1ti'])
+                    chans = np.delete(chans, chani)
+                    nchans = len(chans)
+                    s['nchans'] = nchans
+                    s['chans'][:nchans] = chans
+                    if reextract:
+                        detid = s['detid']
+                        det = sort.detections[detid].detector
+                        chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+                        x = det.siteloc[chanis, 0] # 1D array (row)
+                        y = det.siteloc[chanis, 1]
+                        maxchani = int(np.where(chans == s['chan'])[0])
+                        s['x0'], s['y0'] = sort.extractor.extractXY(wavedata, x, y,
+                                                                    s['phase1ti'], s['phase2ti'],
+                                                                    maxchani)
+        # TODO: replot only the spikes whose params have changed, and keep their scalar params intact
+        # so you can see that they moved
+        self.wave = WaveForm() # reset to empty waveform so mean is recalculated
+        # trigger resaving of .spike and .wave files next time .sort is saved,
+        # since their associated array contents have changed
+        try: del sort.spikefname
+        except AttributeError: pass
+        try: del sort.wavefname
+        except AttributeError: pass
+
     '''
     def get_stdev(self):
         """Return 2D array of stddev of each timepoint of each chan of member spikes.

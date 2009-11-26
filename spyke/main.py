@@ -110,7 +110,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        srffname = '/data/ptc18/14-tr1-mseq32_40ms_7deg.srf'
+        os.chdir('/data/ptc18')
+        srffname = '14-tr1-mseq32_40ms_7deg.srf'
         #sortfname = os.getcwd() + '/87 testing.sort'
         self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)

@@ -115,7 +115,7 @@ class Extractor(object):
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             # just x and y params for now
-            print('ri = %d' % ri)
+            #print('ri = %d' % ri)
             x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
@@ -137,7 +137,7 @@ class Extractor(object):
         # dividing dti by 2 might seem safer, since not looking for other phase, just
         # looking for same phase maybe slightly shifted, but clusterability seems
         # a bit better when you leave dti be
-        dti = self.sort.detector.dti
+        dti = self.sort.detector.dti / 2
         V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
         V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
         weights = V2 - V1
