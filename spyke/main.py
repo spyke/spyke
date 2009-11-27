@@ -110,10 +110,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        os.chdir('/data/ptc18')
-        srffname = '14-tr1-mseq32_40ms_7deg.srf'
+        #os.chdir('/data/ptc18')
+        #srffname = '14-tr1-mseq32_40ms_7deg.srf'
         #sortfname = os.getcwd() + '/87 testing.sort'
-        self.OpenSurfFile(srffname)
+        #self.OpenSurfFile(srffname)
         #self.OpenSortFile(sortfname)
 
     def set_detect_pane_defaults(self):
@@ -750,42 +750,39 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 continue # to next selectedDetection
 
             # rebuild sort.spikes, excluding detection's spikes
-            keepspikeis = np.diff1d(allspikeis, det.spikeis) # return what's in first arr and not in the 2nd
+            keepspikeis = np.setdiff1d(allspikeis, det.spikeis) # return what's in first arr and not in the 2nd
             keepris = allspikeis.searchsorted(keepspikeis)
             delspikes = sort.spikes[delris] # returns a struct array, doesn't generate a bunch of records I think, so not slow?
             # which about-to-be-deleted spikes belong to a neuron?
             delriis, = np.where(delspikes['nid'] != -1)
-
-            # new unfinished code, needed now that neuron.spikeis is an array:
-            raise RuntimeError('this code is unfinished')
-            nids = delspikes['nid'][delriis]
-            nidsis = nids.argsort()
-            nids = nids[nidsis]
-            delspikeis = delspikes[nidsis]['id']
-            for nid in np.unique(nids):
-                i = np.searchsorted(something)
+            nids = np.unique(delspikes['nid'][delriis])
+            for nid in nids:
                 neuron = sort.neurons[nid]
-                neuron.spikeis = np.diff1d(neuron.spikeis, blahblah)
+                neuron.spikeis = np.setdiff1d(neuron.spikeis, det.spikeis)
 
-            # old code from when neuron.spikeis was a set:
-            #for delrii in delriis:
-            #    nid = delspikes['nid'][delrii]
-            #    neuron = sort.neurons[nid]
-            #    try:
-            #        neuron.spikeis.remove(delspikes['id'][delrii]) # remove spike from its Neuron
-            #    except KeyError: import pdb; pdb.set_trace()
-
-            # overwrite sort.spikes and sort.wavedata
+            # overwrite sort.spikes and sort.wavedatas
             sort.spikes = sort.spikes[keepris]
-            sort.wavedata = sort.get_wavedata(keepris)
+            if len(keepris) == 0:
+                del sort.wavedatas
+            else:
+                raise RuntimeError('the following code for deleting one of multiple '
+                                   'detections might not be very reliable, disabling for now')
+                wavedata = sort.get_wavedata(keepris)
+                for ri in range(len(wavedata)):
+                    phase1ti = sort.spikes['phase1ti'][ri]
+                    sort.set_wavedata(ri, wavedata[ri], phase1ti)
             # remove from sort's detections dict
             del sort.detections[det.id]
             # remove from detection listctrl
             self.detection_list.DeleteItemByData(det.id)
         sort.update_spike_lists() # update spike lists with new spikes dict contents
         # refresh spike virtual listctrl
-        sf.nlist.SetItemCount(len(sort.uris))
+        sf.nlist.SetItemCount(len(sort.neurons))
         sf.nlist.RefreshItems()
+        try:
+            sf.nslist.SetItemCount(sf.nslist.neuron.nspikes)
+            sf.nslist.RefreshItems()
+        except AttributeError: pass # no neuron selected
         sf.slist.SetItemCount(len(sort.uris))
         sf.slist.RefreshItems()
         self.plot() # update rasters
@@ -798,7 +795,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except(KeyError, AttributeError): pass
 
         if len(sort.detections) == 0: # if no detection runs are left
+            sort._detid = 0 # reset
             self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
+        if sort.nspikes == 0:
+            sort._sid = 0 # reset
         self.total_nspikes_label.SetLabel(str(sort.nspikes)) # update
         self.EnableSpikeWidgets(True) # call in case nspikes has dropped to 0
 

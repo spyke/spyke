@@ -109,7 +109,7 @@ RECENT:
 
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
-    - deleting a detection doesn't work right now, and might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
+    - deleting one of multiple detections doesn't work right now, and might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)
