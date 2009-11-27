@@ -2,6 +2,8 @@ RECENT:
 
     - stop using fixed thresh, start using chanfixed based on median
 
+    - keyboard doesn't work in fullscreen cluster window any more for some reason - this means you can't even exit fullscreen anymore, since ESC doesn't work
+
     - need dynamic scaling of dimensions for visualization (some sort of GUI for it), and also need to fix problems with changing scaling when a cluster has a non zero ori - could be tricky
         - actually, maybe all you have to do is make ori represent ori in real space (unscaled, not visualized), and then when you scale any of the dims, take the arctan of the scaled dims to get the visualized ori, but make sure to always store the real ori in the .sort
 

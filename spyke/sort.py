@@ -787,7 +787,7 @@ class Neuron(object):
             chans = s['chans'][:nchans]
             for remchan in remchans:
                 chani, = np.where(chans == remchan)
-                if chani: # delete it
+                if len(chani) != 0: # delete it
                     wavedata = np.delete(wavedata, chani, axis=0)
                     sort.set_wavedata(ri, wavedata, s['phase1ti'])
                     chans = np.delete(chans, chani)

@@ -570,7 +570,7 @@ class Stream(object):
                 return
             self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
             self.f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
-            # first CHANFIELDLEN bytes are a 'nchans = [0, 1, 2, ...]' string indicating channels in the file
+            # first CHANFIELDLEN bytes are a 'chans = [0, 1, 2, ...]' string indicating channels in the file
             chanstr = self.f.read(CHANFIELDLEN).rstrip('\x00') # strip any null bytes off the end
             if eval(chanstr.split('= ')[-1]) != list(self.chans):
                 raise IOError("file %r doesn't have the right channels in it" % self.fname)
