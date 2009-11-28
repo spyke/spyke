@@ -9,6 +9,7 @@ import sys
 import time
 import string
 import logging
+import datetime
 
 import wx
 import pylab
@@ -56,11 +57,15 @@ shandler.setLevel(logging.INFO) # log info level and higher to screen
 logger.addHandler(shandler)
 info = logger.info
 
-DEBUG = False # print detection debug messages to log file? slows down detection
+DEBUG = True # print detection debug messages to log file? slows down detection
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
-    logfname = r'C:\data\ptc15\detection.log' # TODO: stop hard coding the folder
+    dt = str(datetime.datetime.now()) # get a timestamp
+    dt = dt.split('.')[0] # ditch the us
+    dt = dt.replace(' ', '_')
+    dt = dt.replace(':', '.')
+    logfname = dt + '_detection.log'
     logf = open(logfname, 'w')
     fhandler = logging.StreamHandler(strm=logf) # prints to file
     fhandler.setFormatter(formatter)
@@ -68,6 +73,12 @@ if DEBUG:
     logger.addHandler(fhandler)
     debug = logger.debug
 
+
+def find_extrema(x, width=3):
+    """An alternative to arglocalextrema, works on 2D arrays"""
+    maxi = x == scipy.ndimage.maximum_filter(x, size=(1,width), mode='constant', cval=100000)
+    mini = x == scipy.ndimage.minimum_filter(x, size=(1,width), mode='constant', cval=-100000)
+    return maxi+mini
 
 def arglocalextrema(signal):
     """Return indices of all local extrema in 1D signal"""
@@ -967,8 +978,10 @@ class Detector(object):
             raise NoPeakError("can't find any extrema within window")
         if reftype == 'trigger':
             dir1 = 'right'
+            dir2 = 'both'
         elif reftype == 'phase':
             dir1 = 'nearest'
+            dir2 = 'right' # assume the tiw given for reftype='phase' is for the 1st phase
         else:
             raise ValueError('unknown reftype %r' % reftype)
         '''
@@ -979,24 +992,32 @@ class Detector(object):
                 raise NoPeakError("can't find 1st peak within window")'''
         if dir1 == 'right':
             try:
-                peak1i = exti[(exti >= tiw)][0] # index of first extremum right of tiw, wrt window
+                #peak1i = exti[(exti >= tiw)][0] # index of first extremum right of tiw, wrt window
+                rightexti = exti[(exti >= tiw)]
+                peak1i = exti[abs(window[rightexti]).argmax()]
             except IndexError:
                 raise NoPeakError("can't find 1st peak within window")
         else: # dir1 == 'nearest'
-            peak1i = exti[abs(exti - tiw).argmin()]
+            # find not just the nearest peak, but the nearest of the
+            # same phase as at tiw (on the previous maxchan)
+            if window[tiw] < 0:
+                samephaseexti = exti[window[exti] < 0]
+            else: # window[tiw] >= 0:
+                samephaseexti = exti[window[exti] >= 0]
+            if len(samephaseexti) == 0:
+                raise NoPeakError("can't find 1st peak of matching phase within window")
+            peak1i = samephaseexti[abs(samephaseexti - tiw).argmin()]
         peak1i = int(peak1i)
-        if window[peak1i] < 0: # peak1i is -ve, look right for corresponding +ve peak
-            dir2 = 'right'
-        else: # peak1i is +ve, look left for corresponding -ve peak
-            dir2 = 'left'
+        #if window[peak1i] < 0: # peak1i is -ve, look right for corresponding +ve peak
+        #    dir2 = 'right'
+        #else: # peak1i is +ve, look left for corresponding -ve peak
+        #    dir2 = 'left'
         # find biggest 2nd extremum of opposite sign in dir2 within self.dti
         peak2i = arg2ndpeak(window, exti, peak1i, dir2, self.dti, ppthresh)
         # check which comes first
-        if dir2 == 'right':
-            #assert peak1i < peak2i
+        if peak1i < peak2i:
             return peak1i, peak2i
-        else: # dir2 == 'left'
-            #assert peak2i < peak1i
+        else: # peak2i < peak1i
             return peak2i, peak1i
 
     def get_blockranges(self, bs, bx):
