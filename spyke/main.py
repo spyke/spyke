@@ -730,6 +730,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def delete_selected_detections(self):
         """Delete selected rows in detection list"""
         sort = self.sort
+        if len(sort.detections) > 1:
+            raise RuntimeError('deleting one of multiple '
+                               'detections might not be very reliable, disabling for now')
         sf = self.frames['sort']
         selectedRows = self.detection_list.getSelection()
         selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
