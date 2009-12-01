@@ -1,5 +1,26 @@
 RECENT:
 
+    - implement proper simultaneous spatiotemporal detection
+        - search through 2D array representing window of data, look for all extrema
+        - sort extrema by amplitude, keep only the ones that exceed threshold?
+        - for extremum in extrema: # biggest to smallest
+            - check lockout
+            - if this next biggest extremum is locked out, break out of loop? maybe not
+            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
+        - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
+        - might also be faster than current approach of search across time, then across chans, then across time...
+        - might be simpler code too
+        - PROBLEMS:
+            - maybe use normal window params around max extremum instead of +/- dti?
+                - or just increase dti
+            - need to decide on a per spike basis if you're dealing with bi or triphasic
+                - this dictates which phase to choose as phase1
+                - if it's triphasic, always align to middle phase, if biphasic, align to first phase (as is the case)
+                - add a phase3ti spike param, and set it for triphasic spikes? which of the two phases should be used for calculating Vpp? The two most extreme ones?
+                - detect triphasic: find biggest phase as usual, should be middle phase, prolly -ve, check in both directions for biggest phases within dti that are +ve sign (or at least opposite of the middle phase). Need to evaluate somehow if those other 2 phases are big enough to make it triphasic, and hence whether to keep the big middle phase as phase1, or to use the first phase as phase1
+                    - maybe require that both side phases exceed thresh?
+            - wrong channel selection at ptc18.r14.7286780
+
     - stop using fixed thresh, start using chanfixed based on median
         - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data
             - can't even load data in piece by piece
@@ -66,17 +87,6 @@ RECENT:
 
     - might be useful to hide clustered points, so you can focus on just the unclustered ones that are left
         - not sure if this can even be done, given that all points are part of the same single glyph
-
-    - might be good to finally implement proper simultaneous spatiotemporal detection
-        - search through 2D array representing window of data, look for all extrema
-        - sort extrema by amplitude, keep only the ones that exceed threshold?
-        - for extremum in extrema: # biggest to smallest
-            - check lockout
-            - if this next biggest extremum is locked out, break out of loop? maybe not
-            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
-        - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
-        - might also be faster than current approach of search across time, then across chans, then across time...
-        - might be simpler code too
 
     - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
