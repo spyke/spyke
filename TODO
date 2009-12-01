@@ -1,6 +1,8 @@
 RECENT:
 
     - stop using fixed thresh, start using chanfixed based on median
+        - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data
+            - can't even load data in piece by piece
 
     - add ability to add notes to a .sort file, where you can mention sorting details, like problems encountered, or where the set of neurons were imported from (if at all)
 
@@ -67,13 +69,14 @@ RECENT:
 
     - might be good to finally implement proper simultaneous spatiotemporal detection
         - search through 2D array representing window of data, look for all extrema
-        - sort extrema by amplitude
+        - sort extrema by amplitude, keep only the ones that exceed threshold?
         - for extremum in extrema: # biggest to smallest
             - check lockout
-            - if this next biggest extremum is locked out, break out of loop?
+            - if this next biggest extremum is locked out, break out of loop? maybe not
             - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
         - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
         - might also be faster than current approach of search across time, then across chans, then across time...
+        - might be simpler code too
 
     - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
         - do it in the cluster list as well - maybe make that a proper listctrl
