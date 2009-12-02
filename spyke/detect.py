@@ -947,6 +947,8 @@ class Detector(object):
             chans = self.chans[chanis]
             nchans = len(chans)
             s['chan'], s['chans'][:nchans], s['nchans'] = chan, chans, nchans
+            # get new window corresponding to new chans
+            window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
             if self.keepspikewavesondetect: # keep spike waveform for later use
                 totalnspikes = sort.nspikes + self.nspikes + nspikes
                 sort.set_wavedata(totalnspikes, window, phase1ti)

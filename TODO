@@ -19,7 +19,6 @@ RECENT:
                 - add a phase3ti spike param, and set it for triphasic spikes? which of the two phases should be used for calculating Vpp? The two most extreme ones?
                 - detect triphasic: find biggest phase as usual, should be middle phase, prolly -ve, check in both directions for biggest phases within dti that are +ve sign (or at least opposite of the middle phase). Need to evaluate somehow if those other 2 phases are big enough to make it triphasic, and hence whether to keep the big middle phase as phase1, or to use the first phase as phase1
                     - maybe require that both side phases exceed thresh?
-            - wrong channel selection at ptc18.r14.7286780
 
     - stop using fixed thresh, start using chanfixed based on median
         - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data
