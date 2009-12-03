@@ -878,7 +878,7 @@ class Detector(object):
             tendi = min(ti+dti+1, len(wave.ts)-1) # don't go further than last wave timepoint
             window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             # find spike phases
-            tiw = dti+1 # time index where ti falls wrt the window
+            tiw = ti - t0i # time index where ti falls wrt the window
             exti = arglocalextrema(window)
             if window[tiw] >= 0: # got a +ve peak, keep only -ve extrema as potential matching peaks
                 exti = exti[window[exti] < 0]
