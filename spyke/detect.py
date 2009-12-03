@@ -58,7 +58,7 @@ shandler.setLevel(logging.INFO) # log info level and higher to screen
 logger.addHandler(shandler)
 info = logger.info
 
-DEBUG = True # print detection debug messages to log file? slows down detection
+DEBUG = False # print detection debug messages to log file? slows down detection
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
@@ -889,10 +889,34 @@ class Detector(object):
                                 "chani, ti = %d, %d" % (chani, ti))
                 continue # skip to next event
 
-            # looks like a spike
-            exti = exti[abs(window[exti]).argmax()] # exti is now a scalar
+            # looks like a spike, now decide if it's biphasic or triphasic
+            # split exti up into those before and after the main phase
+            preexti  = exti[exti < tiw] # vector
+            postexti = exti[exti > tiw] # vector
+            # exti will become a scalar denoting the index into window of the spike
+            # phase that's the companion to the main phase at tiw
+            if len(preexti) == 0 or len(postexti) == 0:
+                # it's definitely biphasic
+                exti = exti[abs(window[exti]).argmax()]
+            else:
+                # it's potentially triphasic
+                # check if either phase is 2X or more than the other
+                preexti = preexti[abs(window[preexti]).argmax()] # now a scalar
+                postexti = postexti[abs(window[postexti]).argmax()] # now a scalar
+                prepostext = np.abs([window[preexti], window[postexti]])
+                smallexti, bigexti = np.argsort(prepostext)
+                if prepostext[bigexti] > 2*prepostext[smallexti]:
+                    # it's biphasic
+                    if bigexti == 0: exti = preexti
+                    else: exti = postexti # bigexti == 1
+                else: # the two phases on either side of the main one are close in amplitude
+                    # it's triphasic
+                    if window[tiw] < 0: # main phase is -ve
+                        exti = postexti # choose last phase as the companion
+                    else: # window[tiw] > 0 # main phase is +ve
+                        exti = preexti # choose first phase as the companion
             assert exti != tiw # debugging
-            if exti < tiw:
+            if exti < tiw: # label the phases according to their temporal order
                 phase1ti, phase2ti = exti, tiw
             else: # tiw < exti
                 phase1ti, phase2ti = tiw, exti
