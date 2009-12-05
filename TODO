@@ -21,7 +21,9 @@ RECENT:
                     - maybe require that both side phases exceed thresh?
                     - how bout if one is >= 2*voltage of the other, it's biphasic, otherwise it's triphasic
                     - always save only phase1ti and phase2ti - for biphasic, phase1ti is the first phase, for triphasic, it's the 2nd phase, but it's considered to be the 1st, since it's the 1st important phase. Then you're left with assigning the last phase as phase2ti. That way you're always taking Vpp between the same 2 phases of a triphasic spike, which should maximize consistency
-                    - see spikes 30 vs 44
+                    - see spikes at ptc18.14.29578220, 29639400, 7577620, 7133840, 7142980, 7181980, 29923300 is a double spike, 29640180 just tiny blip at start, 29270660 too small and should be ignored
+                    - 7087520 needs a longer lockout - add dphase//2 back to lockout?
+                    - search from 29578060 to 29579080
 
     - stop using fixed thresh, start using chanfixed based on median
         - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data

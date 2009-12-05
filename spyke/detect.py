@@ -261,18 +261,32 @@ class RandomWaveTranges(object):
     """Iterator that spits out time ranges of width bs with
     excess bx that begin randomly from within the given trange.
     Optionally spits out no more than maxntranges tranges"""
-    def __init__(self, trange, bs, bx=0, maxntranges=None):
+    def __init__(self, trange, bs, bx=0, maxntranges=None, replacement=True):
         self.trange = trange
         self.bs = bs
         self.bx = bx
         self.maxntranges = maxntranges
         self.ntranges = 0
+        self.replacement = replacement
+        # pool of possible start values of time ranges, all aligned to start of overall trange
+        if not replacement:
+            self.t0pool = np.arange(self.trange[0], self.trange[1], bs)
 
     def next(self):
+        # on each iter, need to remove intpool values from t0-width to t0+width
+        # use searchsorted to find out indices of these values in intpool, then use
+        # those indices to remove the values: intpool = np.delete(intpool, indices)
         if self.maxntranges != None and self.ntranges >= self.maxntranges:
             raise StopIteration
-        # random int within trange
-        t0 = np.random.randint(low=self.trange[0], high=self.trange[1])
+        if not self.replacement and len(self.t0pool) == 0:
+            raise StopIteration
+        if self.replacement: # sample with replacement
+            # start from random int within trange
+            t0 = np.random.randint(low=self.trange[0], high=self.trange[1]-self.bs)
+        else: # sample without replacement
+            t0i = np.random.randint(low=0, high=len(self.t0pool)) # returns value < high
+            t0 = self.t0pool[t0i]
+            self.t0pool = np.delete(self.t0pool, t0i) # remove from pool
         tend = t0 + self.bs
         self.ntranges += 1
         return (t0-self.bx, tend+self.bx)
@@ -578,12 +592,12 @@ class NLLSPSpikeModel(SpikeModel):
 
 class Detector(object):
     """Spike detector base class"""
-    DEFTHRESHMETHOD = 'GlobalFixed' # GlobalFixed, ChanFixed, or Dynamic
+    DEFTHRESHMETHOD = 'ChanFixed' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
-    DEFNOISEMULT = 4.0
-    DEFFIXEDTHRESH = 60 # uV, used by GlobalFixed
+    DEFNOISEMULT = 4.5
+    DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
-    DEFFIXEDNOISEWIN = 10000000 # 10s, used by ChanFixed - this should really be a % of self.trange
+    DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
     DEFMAXNCHANSPERSPIKE = 9 # overrides spatial lockout, 9 seems to give greatest clusterability for uMap54_2b probe.
@@ -591,7 +605,7 @@ class Detector(object):
                              # can give artificially segregated clusters in space
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFSLOCK = 150 # spatial lockout radius, um
-    DEFDT = 350 # max time between phases of a single spike, us
+    DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
     DEFEXTRACTPARAMSONDETECT = False
@@ -828,13 +842,19 @@ class Detector(object):
         lockouts = self.lockouts
         dti = self.dti
         twi = sort.twi
+        maxti = len(wave.ts)-1
         nspikes = 0
         spikes = np.zeros(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
             chan = self.chans[chani]
             if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
-            if ti <= lockouts[chani]: # is this thresh crossing timepoint locked out?
+            # is this thresh crossing timepoint locked out?
+            # make sure there's enough non-locked out signal before thresh crossing to give
+            # at least twi[0]//2 datapoints before the peak - this avoids "spikes" that only
+            # constitute a tiny blip right at the left edge of your data window, and then simply
+            # decay slowly over the course of the window
+            if lockouts[chani] >= ti+twi[0]//2:
                 if DEBUG: debug('thresh event is locked out')
                 continue # skip to next event
 
@@ -844,13 +864,20 @@ class Detector(object):
 
             # get data window wrt threshold crossing
             t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tendi = min(ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            tendi = min(ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window
             exti = np.tile(False, window.shape)
             for rowi, row in enumerate(window):
                 exti[rowi, arglocalextrema(row)] = True
+
+            # can't really do this because then you get fake peaks at the start/end of
+            # each chan, since they're all effectively flattened into a single chan
+            #flatwindow = window.ravel()
+            #exti = np.tile(False, flatwindow.shape)
+            #exti[arglocalextrema(flatwindow)] = True
+            #exti = exti.reshape(window.shape)
 
             # sort extrema by decreasing abs(amplitude)
             ext = np.zeros(window.shape, dtype=int)
@@ -875,9 +902,13 @@ class Detector(object):
 
             # get window +/- dti+1 around ti on chani, look for the other spike phase
             t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tendi = min(ti+dti+1, len(wave.ts)-1) # don't go further than last wave timepoint
+            tendi = min(ti+dti+1, maxti) # don't go further than last wave timepoint
             window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
-            # find spike phases
+            # check if window has global max or min at end of window,
+            # if so, extend by dti/2 before searching for extrema
+            if len(window)-1 in [window.argmax(), window.argmin()]:
+                tendi = min(ti+dti+1+dti//2, maxti) # don't go further than last wave timepoint
+                window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             tiw = ti - t0i # time index where ti falls wrt the window
             exti = arglocalextrema(window)
             if window[tiw] >= 0: # got a +ve peak, keep only -ve extrema as potential matching peaks
@@ -900,26 +931,24 @@ class Detector(object):
                 exti = exti[abs(window[exti]).argmax()]
             else:
                 # it's potentially triphasic
-                # check if either phase is 2X or more than the other
                 preexti = preexti[abs(window[preexti]).argmax()] # now a scalar
                 postexti = postexti[abs(window[postexti]).argmax()] # now a scalar
                 prepostext = np.abs([window[preexti], window[postexti]])
                 smallexti, bigexti = np.argsort(prepostext)
-                if prepostext[bigexti] > 2*prepostext[smallexti]:
+                smallext, bigext = prepostext[smallexti], prepostext[bigexti]
+                # check if both side phases exceed 1/2 thresh for this chan, and
+                # if smaller side phase is at least 1/2 amplitude of the bigger side phase
+                if (prepostext > self.thresh[chani]//2).all() and 2*smallext > bigext:
+                    # it's triphasic, choose last phase as companion, this makes main phase the 1st one
+                    exti = postexti
+                else:
                     # it's biphasic
                     if bigexti == 0: exti = preexti
                     else: exti = postexti # bigexti == 1
-                else: # the two phases on either side of the main one are close in amplitude
-                    # it's triphasic
-                    if window[tiw] < 0: # main phase is -ve
-                        exti = postexti # choose last phase as the companion
-                    else: # window[tiw] > 0 # main phase is +ve
-                        exti = preexti # choose first phase as the companion
-            assert exti != tiw # debugging
-            if exti < tiw: # label the phases according to their temporal order
-                phase1ti, phase2ti = exti, tiw
-            else: # tiw < exti
+            if tiw < exti: # label the phases by their temporal order
                 phase1ti, phase2ti = tiw, exti
+            else: # exti < tiw:
+                phase1ti, phase2ti = exti, tiw
             V1, V2 = window[phase1ti], window[phase2ti]
 
             # make phase1ti and phase2ti absolute indices into wave
@@ -928,7 +957,7 @@ class Detector(object):
 
             # get full-sized window wrt phase1ti
             t0i = max(phase1ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
-            tendi = min(phase1ti+twi[1]+1, len(wave.ts)-1) # +1 makes it end inclusive, don't go further than last wave timepoint
+            tendi = min(phase1ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # make phase1ti and phase2ti relative to new t0i
@@ -985,13 +1014,12 @@ class Detector(object):
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
-            # update lockouts to 2nd phase of this spike
-            #dphaseti = phase2ti - phase1ti
-            lockout = t0i + phase2ti #+ dphaseti / 2
+            # update lockouts to just past 2nd phase of this spike
+            dphaseti = phase2ti - phase1ti
+            lockout = t0i + phase2ti + dphaseti // 2
             lockouts[chanis] = lockout # same for all chans in this spike
             if DEBUG:
                 lockoutt = wave.ts[lockout]
-                #lockoutt = wave.ts[max(lockout, len(wave.ts)-1)] # stay inbounds
                 debug('lockout = %d for chans = %s' % (lockoutt, chans))
 
             nspikes += 1
@@ -1099,21 +1127,19 @@ class Detector(object):
     def get_thresh(self):
         """Return array of thresholds in AD units, one per chan in self.chans,
         according to threshmethod and noisemethod"""
+        fixedthresh = self.sort.converter.uV2AD(self.fixedthresh) # convert to AD units
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            fixedthresh = self.sort.converter.uV2AD(self.fixedthresh) # convert to AD units
             thresh = np.tile(fixedthresh, len(self.chans))
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
-            """randomly sample self.fixednoisewin's worth of data from self.trange in
-            blocks of self.blocksize. NOTE: this samples with replacement, so it's
-            possible, though unlikely, that some parts of the data will contribute
-            more than once to the noise calculation
-            """
+            # randomly sample self.fixednoisewin's worth of data from self.trange in
+            # blocks of self.blocksize, without replacement
             print('loading data to calculate noise')
             if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
                 wavetranges = [self.trange] # use a single block of data, as defined by trange
             else:
                 nblocks = int(round(self.fixednoisewin / self.blocksize))
-                wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0, maxntranges=nblocks)
+                wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0,
+                                                maxntranges=nblocks, replacement=False)
             data = []
             for wavetrange in wavetranges:
                 wave = self.sort.stream[wavetrange[0]:wavetrange[1]]
@@ -1123,6 +1149,7 @@ class Detector(object):
             noise = self.get_noise(data) # float AD units
             thresh = noise * self.noisemult # float AD units
             thresh = np.int16(np.round(thresh)) # int16 AD units
+            thresh = thresh.clip(fixedthresh, thresh.max()) # clip so that all threshes are at least fixedthresh
         elif self.threshmethod == 'Dynamic':
             # dynamic threshes are calculated on the fly during the search, so leave as zero for now
             # or at least they were, in the Cython code

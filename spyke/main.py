@@ -129,9 +129,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.dt_spin_ctrl.SetValue(detect.Detector.DEFDT)
         self.nspikes_spin_ctrl.SetValue(detect.Detector.DEFMAXNSPIKES)
 
-        # temporary, for faster testing
+        # TODO: this is just temporary, for faster testing
         #self.range_start_combo_box.SetValue('0')
-        self.range_end_combo_box.SetValue('10e6')
+        self.range_end_combo_box.SetValue('30e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
