@@ -909,8 +909,11 @@ class Detector(object):
             if len(window)-1 in [window.argmax(), window.argmin()]:
                 tendi = min(ti+dti+1+dti//2, maxti) # don't go further than last wave timepoint
                 window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
-            tiw = ti - t0i # time index where ti falls wrt the window
+            tiw = int(ti - t0i) # time index where ti falls wrt the window
             exti = arglocalextrema(window)
+            # TODO:
+            # instead of choosing exti based on sign, choose based on max or min-ness.
+            # if tiw is a max, choose only exti that are min, and vice versa
             if window[tiw] >= 0: # got a +ve peak, keep only -ve extrema as potential matching peaks
                 exti = exti[window[exti] < 0]
             else: # window[tiw] < 0, got a -ve peak, keep only +ve extrema as potential matching peaks
@@ -931,20 +934,30 @@ class Detector(object):
                 exti = exti[abs(window[exti]).argmax()]
             else:
                 # it's potentially triphasic
-                preexti = preexti[abs(window[preexti]).argmax()] # now a scalar
-                postexti = postexti[abs(window[postexti]).argmax()] # now a scalar
+                #preexti = int(preexti[abs(window[preexti]).argmax()]) # now a scalar
+                #postexti = int(postexti[abs(window[postexti]).argmax()]) # now a scalar
+                # alternate strategy: pick preexti and postexti closets to tiw, instead of biggest ones
+                preexti = int(preexti[-1]) # now a scalar, last one before tiw
+                postexti = int(postexti[0]) # now a scalar, first one after tiw
+                abspreext = abs(window[preexti])
+                abspostext = abs(window[postexti])
                 prepostext = np.abs([window[preexti], window[postexti]])
+                '''
                 smallexti, bigexti = np.argsort(prepostext)
                 smallext, bigext = prepostext[smallexti], prepostext[bigexti]
                 # check if both side phases exceed 1/2 thresh for this chan, and
                 # if smaller side phase is at least 1/2 amplitude of the bigger side phase
                 if (prepostext > self.thresh[chani]//2).all() and 2*smallext > bigext:
+                '''
+                # check for decent temporal symmetry of side phases, and
+                # if smaller side phase is at least 1/2 amplitude of the bigger side phase
+                if 0.5 <= (tiw-preexti)/(postexti-tiw) <= 2 and 0.5 <= abspreext/abspostext <= 2:
                     # it's triphasic, choose last phase as companion, this makes main phase the 1st one
                     exti = postexti
                 else:
                     # it's biphasic
-                    if bigexti == 0: exti = preexti
-                    else: exti = postexti # bigexti == 1
+                    if abspreext > abspostext: exti = preexti
+                    else: exti = postexti
             if tiw < exti: # label the phases by their temporal order
                 phase1ti, phase2ti = tiw, exti
             else: # exti < tiw:

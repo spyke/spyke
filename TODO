@@ -21,9 +21,15 @@ RECENT:
                     - maybe require that both side phases exceed thresh?
                     - how bout if one is >= 2*voltage of the other, it's biphasic, otherwise it's triphasic
                     - always save only phase1ti and phase2ti - for biphasic, phase1ti is the first phase, for triphasic, it's the 2nd phase, but it's considered to be the 1st, since it's the 1st important phase. Then you're left with assigning the last phase as phase2ti. That way you're always taking Vpp between the same 2 phases of a triphasic spike, which should maximize consistency
-                    - see spikes at ptc18.14.29578220, 29639400, 7577620, 7133840, 7142980, 7181980, 29923300 is a double spike, 29640180 just tiny blip at start, 29270660 too small and should be ignored
+                    - see spikes at ptc18.14.7577620, 7133840 (maybe take first extremum on either side of main phase, not the biggest on either side), 7142980, 7181980, 29923300 is a double spike, 29640180 just tiny blip at start, 29270660 too small and should be ignored, 7336160 just a tiny blip at start
                     - 7087520 needs a longer lockout - add dphase//2 back to lockout?
                     - search from 29578060 to 29579080
+                    - formerly problematic: 29578220, 29639400, [7139180, 7285400]
+            - consider going back to fitting 2 (or 3?) gaussians in time to just the maxchan window (no spatial gaussian), ignore the resulting fit params, just use the smooth f'n to make detection of spike phases and hence spike alignment more reliable
+                - extract phase1ti, phase2ti, V1, V2 from modelled f'n
+                - only use it if LM fits a nice f'n to it reliably each and every time
+                - or could use something simpler like a spline or polynomial fit that you only allow three peaks at most
+                - or just smooth the signal a bit to get rid of the tiny blips that really shouldn't qualify as extrema
 
     - stop using fixed thresh, start using chanfixed based on median
         - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data
