@@ -83,10 +83,12 @@ def minmax_filter(x, width=3):
     return maxi+mini
 
 def arglocalextrema(signal):
-    """Return indices of all local extrema in 1D int signal"""
+    """Return indices of all local extrema in 1D int signal
+    TODO: also return array designating the type of each extremum: max or min"""
     nt = len(signal) # it's possible to have a local extremum at every point
     stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
-    exti = np.zeros(nt, dtype=int)
+    exti    = np.empty(nt, dtype=int)
+    exttype = np.empty(nt, dtype=int) # 1 designates max, 0 designates min
     code = ("""
     #line 91 "detect.py"
     int n_ext = 0;
@@ -96,14 +98,16 @@ def arglocalextrema(signal):
     last2 = signal[0]; // signal[(2-2)*stride] // signal 2 timepoints ago
     for (int ti=2; ti<nt; ti++) {
         now = signal[ti*stride]; // signal at current timepoint
-        // Two methods, equally fast. First one isn't quite correct, 2nd one is.
-        // Test with signal = np.array([0, -5, -5, -5, -2]) and signal = -signal
-        // should get 3 as an answer in both cases
-        // Method 1: not quite right
-        // if ((last2 < last) == (last > now)) {
-        // Method 2: gives correct answer for consecutive identical points, both +ve and -ve:
-        if ((last2 <= last && last > now) || (last2 >= last && last < now)) {
+        if (last2 <= last && last > now) {
+            // last is a max
             exti[n_ext] = ti-1; // save previous time index
+            exttype[n_ext] = 1;
+            n_ext++;
+            }
+        else if (last2 >= last && last < now) {
+            // last is a min
+            exti[n_ext] = ti-1; // save previous time index
+            exttype[n_ext] = 0;
             n_ext++;
         }
         // update for next loop, reuse 'now' value instead of constantly indexing into signal
@@ -111,8 +115,8 @@ def arglocalextrema(signal):
         last = now;
     }
     return_val = n_ext;""")
-    n_ext = inline(code, ['signal', 'nt', 'stride', 'exti'], compiler='gcc')
-    return exti[:n_ext]
+    n_ext = inline(code, ['signal', 'nt', 'stride', 'exti', 'exttype'], compiler='gcc')
+    return exti[:n_ext], exttype[:n_ext]
 
 def arg2ndpeak(signal, exti, peak1i, dir2, dti, ppthresh):
     """Return signal's biggest local extremum of opposite sign,
@@ -870,7 +874,7 @@ class Detector(object):
             # do spatiotemporal search for all local extrema in window
             exti = np.tile(False, window.shape)
             for rowi, row in enumerate(window):
-                exti[rowi, arglocalextrema(row)] = True
+                exti[rowi, arglocalextrema(row)[0]] = True
 
             # can't really do this because then you get fake peaks at the start/end of
             # each chan, since they're all effectively flattened into a single chan
@@ -910,14 +914,23 @@ class Detector(object):
                 tendi = min(ti+dti+1+dti//2, maxti) # don't go further than last wave timepoint
                 window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             tiw = int(ti - t0i) # time index where ti falls wrt the window
-            exti = arglocalextrema(window)
+
+            exti, exttype = arglocalextrema(window)
             # TODO:
             # instead of choosing exti based on sign, choose based on max or min-ness.
             # if tiw is a max, choose only exti that are min, and vice versa
+            if window[tiw-1] >= window[tiw] < window[tiw+1]: # main phase is a min
+                exti = exti[exttype == 1] # choose max exti's
+            else: # main phase is a max
+                exti = exti[exttype == 0] # choose min exti's
+
+            '''
             if window[tiw] >= 0: # got a +ve peak, keep only -ve extrema as potential matching peaks
                 exti = exti[window[exti] < 0]
             else: # window[tiw] < 0, got a -ve peak, keep only +ve extrema as potential matching peaks
                 exti = exti[window[exti] >= 0]
+            '''
+
             if len(exti) == 0:
                 if DEBUG: debug("couldn't find a matching peak to extremum at "
                                 "chani, ti = %d, %d" % (chani, ti))
@@ -951,7 +964,7 @@ class Detector(object):
                 '''
                 # check for decent temporal symmetry of side phases, and
                 # if smaller side phase is at least 1/2 amplitude of the bigger side phase
-                if 0.5 <= (tiw-preexti)/(postexti-tiw) <= 2 and 0.5 <= abspreext/abspostext <= 2:
+                if 0.5 <= (tiw-preexti)/(postexti-tiw) <= 2 and 0.5 <= abspreext/max(abspostext, 1) <= 2:
                     # it's triphasic, choose last phase as companion, this makes main phase the 1st one
                     exti = postexti
                 else:
@@ -1039,7 +1052,7 @@ class Detector(object):
 
         spikes.resize(nspikes, refcheck=False) # shrink down to actual needed size
         return spikes
-
+    '''
     def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
         """Find spike phases within window of data: search from tiw in direction
         (which might be, say, a threshold xing point) for 1st peak, then within
@@ -1058,12 +1071,13 @@ class Detector(object):
             dir2 = 'right' # assume the tiw given for reftype='phase' is for the 1st phase
         else:
             raise ValueError('unknown reftype %r' % reftype)
-        '''
+        """
         if dir1 == 'left':
             try:
                 peak1i = exti[(exti <= tiw)][-1] # index of first extremum left of tiw, wrt window
             except IndexError:
-                raise NoPeakError("can't find 1st peak within window")'''
+                raise NoPeakError("can't find 1st peak within window")
+        """
         if dir1 == 'right':
             try:
                 #peak1i = exti[(exti >= tiw)][0] # index of first extremum right of tiw, wrt window
@@ -1093,7 +1107,7 @@ class Detector(object):
             return peak1i, peak2i
         else: # peak2i < peak1i
             return peak2i, peak1i
-
+    '''
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
         given blocksize and blockexcess"""
