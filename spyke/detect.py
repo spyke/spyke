@@ -975,7 +975,8 @@ class Detector(object):
                 phase1ti, phase2ti = tiw, exti
             else: # exti < tiw:
                 phase1ti, phase2ti = exti, tiw
-            V1, V2 = window[phase1ti], window[phase2ti]
+            # convert from int16 to int to prevent overflow later
+            V1, V2 = int(window[phase1ti]), int(window[phase2ti])
 
             # make phase1ti and phase2ti absolute indices into wave
             phase1ti += t0i
@@ -994,7 +995,8 @@ class Detector(object):
                             % (wave.ts[t0i], wave.ts[tendi],
                                wave.ts[ti], wave.ts[t0i+phase2ti],
                                V1, V2))
-            if abs(V2-V1) < self.ppthresh[chani]:
+            Vpp = V2 - V1
+            if abs(Vpp) < self.ppthresh[chani]:
                 if DEBUG: debug("matched peak to extremum at "
                                 "chani, ti = %d, %d gives only %d Vpp" % (chani, ti, AD2uV(abs(V2-V1))))
                 continue # skip to next event
@@ -1015,8 +1017,8 @@ class Detector(object):
             s['phase1ti'], s['phase2ti'] = phase1ti, phase2ti # wrt t0i
             s['dphase'] = ts[phase2ti] - ts[phase1ti] # in us
             #s.V1, s.V2 = V1, V2
-            # maintain polarity, first convert from int16 to float to prevent overflow
-            s['Vpp'] = AD2uV(np.float32(V2) - np.float32(V1))
+            # maintain polarity
+            s['Vpp'] = AD2uV(Vpp)
 
             # update channel neighbourhood
             # find all enabled chanis within nbhd of chani, exclude those locked-out at threshold xing

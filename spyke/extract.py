@@ -133,21 +133,30 @@ class Extractor(object):
         chans, and sometimes they're very delayed or advanced in time
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
 
-        # find min on each chan around phase1ti, and max on each chan around phase2ti
+        # find peaks on each chan around phase1ti and phase2ti
         # dividing dti by 2 might seem safer, since not looking for other phase, just
         # looking for same phase maybe slightly shifted, but clusterability seems
         # a bit better when you leave dti be
-        dti = self.sort.detector.dti / 2
-        V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
-        V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
-        weights = V2 - V1
-        # old method: # phase2 - phase1 on all chans:
-        # int16 data isn't centered around V=0, but that doesn't matter since we want Vpp
-        #weights = wavedata[:, phase2ti] - wavedata[:, phase1ti]
+        #dti = self.sort.detector.dti // 2 # constant
+        dti = abs(phase2ti - phase1ti) // 2 # varies from spike to spike
+        V1 = wavedata[maxchani, phase1ti]
+        V2 = wavedata[maxchani, phase2ti]
+        window1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti]
+        window2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti]
+        if V1 < V2: # phase1ti is a min on maxchan, phase2ti is a max
+            #weights = np.float32(window1.min(axis=1))
+            V1s = np.float32(window1.min(axis=1))
+            V2s = np.float32(window2.max(axis=1))
+            weights = V2s - V1s
+        else: # phase1ti is a max on maxchan, phase2ti is a min
+            #weights = np.float32(window1.max(axis=1))
+            V1s = np.float32(window1.max(axis=1))
+            V2s = np.float32(window2.min(axis=1))
+            weights = V1s - V2s
 
         # convert to float before normalization, take abs of all weights
         # taking abs doesn't seem to affect clusterability
-        weights = np.abs(np.float32(weights))
+        weights = np.abs(weights)
         weights /= weights.sum() # normalized
         # alternative approach: replace -ve weights with 0
         #weights = np.float32(np.where(weights >= 0, weights, 0))

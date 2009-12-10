@@ -92,6 +92,7 @@ class SpykeMayaviScene(MayaviScene):
         self._vtk_control.SetToolTip(tooltip) # connect it to self
 
         self._vtk_control.Bind(wx.EVT_MOTION, self.OnMotion)
+        self._spykeframe = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
 
     def OnMotion(self, event):
         """Pop up a nid tooltip on mouse movement"""
@@ -134,7 +135,7 @@ class SpykeMayaviScene(MayaviScene):
                                          'render()'%list(coord))
             self._vtk_control.OnKeyDown(event)
             return
-        spykeframe = self._vtk_control.TopLevelParent.Parent
+        spykeframe = self._spykeframe
         try: cluster = spykeframe.GetCluster() # TODO: adjust multiple clusters simult?
         except RuntimeError:
             # pass event to parent class
@@ -199,7 +200,7 @@ class SpykeMayaviScene(MayaviScene):
         if key in [wx.WXK_PAGEDOWN, wx.WXK_DELETE,
                    wx.WXK_HOME, wx.WXK_END,
                    wx.WXK_PAGEUP, wx.WXK_INSERT]:
-            spykeframe = self._vtk_control.TopLevelParent.Parent
+            spykeframe = self._spykeframe
             cluster = spykeframe.GetCluster()
             spykeframe.UpdateParamWidgets(cluster)
         # pass event to parent class
