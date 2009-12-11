@@ -74,6 +74,7 @@ RECENT:
     - always assuming the first peak is -ve, and the 2nd is +ve - is this really a safe assumption all the time? Seemed to be for ptc15.tr7c, but not necessarily for other tracks
 
     - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
+        - hangs whenever you call clist.RefreshItems(). If you change clist from a normal wxLC_list style to wxLC_report style, the problem goes away. Maybe RefreshItems() doesn't need to be called at all for a non-report style?
 
     - add some Sort method that restores the .wavedatas list given the current set of .spikes and an open .srf, if no .wave file was present
         - something like Sort.restore_wavedata()
