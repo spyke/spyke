@@ -42,7 +42,7 @@ KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems 
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
-TW = -250, 750 # spike time window range, us, centered on thresh xing or 1st phase of spike
+TW = -500, 500 # spike time window range, us, centered on thresh xing or main phase of spike
 
 MAXLONGLONG = 2**63-1
 
