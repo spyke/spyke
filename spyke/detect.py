@@ -85,11 +85,11 @@ def minmax_filter(x, width=3):
 def arglocalextrema(signal):
     """Return indices of all local extrema in 1D int signal
     Also return array designating each extremum's type (max or min)
-    and its sharpness"""
+    and its amplitude relative to local baseline"""
     nt = len(signal) # it's possible to have a local extremum at every point
     stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
     extiw = np.empty(nt, dtype=int)
-    sharpness = np.empty(nt, dtype=float) # +ve: max, -ve: min, abs: sharpness
+    ampl = np.empty(nt, dtype=float) # +ve: max, -ve: min, abs: amplitude relative to baseline
     code = ("""
     #line 94 "detect.py"
     int n_ext = 0;
@@ -108,7 +108,8 @@ def arglocalextrema(signal):
             t2i = extiw[n_ext]+halfwidth <? nt-1; // prevent indexing too high
             baseline = signal[t1i*stride] + signal[t2i*stride]; // take sum, assign to make sure it's float
             baseline /= 2; // now take mean
-            sharpness[n_ext] = fabs((last - baseline) / (t2i - t1i)); // height above baseline / width, leave as +ve
+            baseline = baseline >? 0; // don't let baseline get below 0
+            ampl[n_ext] = (last - baseline) >? 0; // height above baseline, +ve or 0
             n_ext++;
             }
         else if (last2 >= last && last < now) {
@@ -118,7 +119,8 @@ def arglocalextrema(signal):
             t2i = extiw[n_ext]+halfwidth <? nt-1; // prevent indexing too high
             baseline = signal[t1i*stride] + signal[t2i*stride]; // take sum, assign to make sure it's float
             baseline /= 2; // now take mean
-            sharpness[n_ext] = -fabs((last - baseline) / (t2i - t1i)); // height above baseline / width, leave as -ve
+            baseline = baseline <? 0; // don't let baseline get above 0
+            ampl[n_ext] = (last - baseline) <? 0; // height below baseline, -ve or 0
             n_ext++;
         }
         // update for next loop, reuse 'now' value instead of constantly indexing into signal
@@ -126,8 +128,8 @@ def arglocalextrema(signal):
         last = now;
     }
     return_val = n_ext;""")
-    n_ext = inline(code, ['signal', 'nt', 'stride', 'extiw', 'sharpness'], compiler='gcc')
-    return extiw[:n_ext], sharpness[:n_ext]
+    n_ext = inline(code, ['signal', 'nt', 'stride', 'extiw', 'ampl'], compiler='gcc')
+    return extiw[:n_ext], ampl[:n_ext]
 
 def arg2ndpeak(signal, extiw, peak1i, dir2, dti, ppthresh):
     """Return signal's biggest local extremum of opposite sign,
@@ -894,17 +896,15 @@ class Detector(object):
             # amplitude. Local neighbourhood should be on order of +/- dphase/2
 
             extiw = np.tile(False, window.shape)
-            sharpness = np.tile(0.0, window.shape)
+            ampl = np.tile(0.0, window.shape) # amplitude relative to baseline
             for rowi, row in enumerate(window):
                 # TODO: this is probably slow, too many calls to weave.inline()
-                # TODO: make arglocalextremum return full length (but still 1D) extiw and sharpness arrays
-                thisextiw, thissharpness = arglocalextrema(row)
+                # TODO: make arglocalextremum return full length (but still 1D) extiw and ampl arrays
+                thisextiw, thisampl = arglocalextrema(row)
                 extiw[rowi, thisextiw] = True
-                sharpness[rowi, thisextiw] = thissharpness
+                ampl[rowi, thisextiw] = thisampl
             # find max abs(amplitude) that isn't locked out
-            ampl = np.zeros(window.shape, dtype=int)
-            ampl[extiw] = abs(window[extiw]) # dereference
-            amplis = ampl.ravel().argsort() # to get chani and ti of each sort index, reshape to ampl.shape
+            amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
             amplis = amplis[::-1] # reverse for highest to lowest abs(amplitude)
             ncols = window.shape[1]
             for ampli in amplis:
@@ -912,39 +912,14 @@ class Detector(object):
                 coli = ampli % ncols
                 chani = chanis[rowi]
                 ti = t0i + coli
-                if ti > lockouts[chani]: # extremum is not locked out
-                    break # found the biggest non-locked out extremum
+                if ti > lockouts[chani] and abs(window[rowi, coli]) > self.thresh[chani]:
+                    # extremum is not locked out and absolute (not relative) amplitude exceeds thresh
+                    break # found valid extremum with biggest relative amplitude
                 else: # extremum is locked out (rare)
                     if DEBUG: debug('extremum at chani, ti = %d, %d is locked out' % (chani, ti))
             else:
                 if DEBUG: debug('all extrema are locked out')
                 continue # skip to next event
-
-            # find max abs(sharpness) that isn't locked out
-            sharpis = abs(sharpness.ravel()).argsort() # to get chani and ti of each sort index, reshape to sharpness.shape
-            sharpis = sharpis[::-1] # reverse for highest to lowest abs(sharpness)
-            # find sharpest extremum that isn't locked out
-            for sharpi in sharpis:
-                rowi = sharpi // ncols
-                coli = sharpi % ncols
-                sharpchani = chanis[rowi]
-                sharpti = t0i + coli
-                if sharpti > lockouts[sharpchani]: # extremum is not locked out
-                    break # found the sharpest non-locked out extremum
-                else: # extremum is locked out (rare)
-                    if DEBUG: debug('extremum at chani, ti = %d, %d is locked out' % (sharpchani, sharpti))
-            else:
-                if DEBUG: debug('all extrema are locked out')
-                continue # skip to next event
-
-            if ampli != sharpi: # compare amplitude to sharpness ratios of the two competing extrema
-                amplratio  = float(ampl.ravel()[ampli]) / float(ampl.ravel()[sharpi])
-                sharpratio = sharpness.ravel()[sharpi] / sharpness.ravel()[ampli]
-                if sharpratio > amplratio: # sharpness beat amplitude
-                    ti = sharpti
-                    chani = sharpchani
-                # else sharpness beat amplitude, leave the ti and chani values set
-                # as they were in the amplitude loop
 
             # get window +/- dti+1 around ti on chani, look for the other spike phase
             t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
@@ -958,32 +933,21 @@ class Detector(object):
                 window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
             tiw = int(ti - t0i) # time index where ti falls wrt the window
-            extiw, sharpness = arglocalextrema(window)
+            extiw, ampl = arglocalextrema(window)
             # if tiw is a max, choose only extiw that are min, and vice versa
             if window[tiw-1] >= window[tiw] < window[tiw+1]: # main phase is a min
-                keepis = sharpness >= 0 # choose max entries in extiw and sharpness
+                keepis = ampl > 0 # choose max entries in extiw and ampl
             else: # main phase is a max
-                keepis = sharpness < 0 # choose min entries in extiw and sharpness
+                keepis = ampl < 0 # choose min entries in extiw and ampl
             extiw = extiw[keepis]
-            sharpness = sharpness[keepis]
+            ampl = ampl[keepis]
             if len(extiw) == 0:
                 if DEBUG: debug("couldn't find a matching peak to extremum at "
                                 "chani, ti = %d, %d" % (chani, ti))
                 continue # skip to next event
 
             # decide which is the companion phase to the main phase
-            ampl = abs(window[extiw]) # dereference
-            amplii = ampl.argmax()
-            sharpii = abs(sharpness).argmax()
-            if amplii == sharpii: # biggest is also the sharpest
-                extiw = extiw[amplii]
-            else: # compare amplitude to sharpness ratios of the two competing extrema
-                amplratio  = float(ampl[amplii]) / float(max(ampl[sharpii], 1)) # prevent div by zero
-                sharpratio = sharpness[sharpii] / sharpness[amplii]
-                if amplratio > sharpratio: # amplitude beat sharpness
-                    extiw = extiw[amplii]
-                else: # sharpness beat amplitude
-                    extiw = extiw[sharpii]
+            extiw = extiw[abs(ampl).argmax()]
 
             phase1ti, phase2ti = tiw, extiw
             V1, V2 = int(window[phase1ti]), int(window[phase2ti])

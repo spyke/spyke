@@ -24,12 +24,15 @@ RECENT:
                     - see spikes at ptc18.14.7577620, 7142980, 475875940
                     - 7087520 needs a longer lockout - add dphase//2 back to lockout?
                     - search from 29578060 to 29579080
+                    - search 7506760 to 7507880
                     - formerly problematic: 29578220, 29639400, [7139180, 7285400], 7133840, 7181980, 29923300, 29640180, 29270660
             - consider going back to fitting 2 (or 3?) gaussians in time to just the maxchan window (no spatial gaussian), ignore the resulting fit params, just use the smooth f'n to make detection of spike phases and hence spike alignment more reliable
                 - extract phase1ti, phase2ti, V1, V2 from modelled f'n
                 - only use it if LM fits a nice f'n to it reliably each and every time
                 - or could use something simpler like a spline or polynomial fit that you only allow three peaks at most
                 - or just smooth the signal a bit to get rid of the tiny blips that really shouldn't qualify as extrema
+
+    - to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike
 
     - stop using fixed thresh, start using chanfixed based on median
         - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data
