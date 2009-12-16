@@ -802,11 +802,11 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
         tget_edges = time.time()
-        edgeis = get_edges(wave, self.thresh)
-        info('get_edges() took %.3f sec' % (time.time()-tget_edges))
-        tcheck_edges = time.time()
-        spikes = self.check_edges(wave, edgeis, cutrange)
-        info('checking edges took %.3f sec' % (time.time()-tcheck_edges))
+        peaks = get_peaks(wave, self.thresh)
+        info('get_peaks() took %.3f sec' % (time.time()-tget_peaks))
+        tcheck_peaks = time.time()
+        spikes = self.check_peaks(wave, peaks, cutrange)
+        info('checking peaks took %.3f sec' % (time.time()-tcheck_peaks))
         print('found %d spikes' % len(spikes))
         #import cProfile
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
@@ -816,13 +816,10 @@ class Detector(object):
         #     (self.lockouts, self.lockouts_us))
         return spikes
 
-    def check_edges(self, wave, edgeis, cutrange):
-        """Check which edges (threshold crossings) in wave data look like spikes
-        and return only events that fall within cutrange. Search in window
-        forward from thresh for a peak, then in appropriate direction from
-        that peak (based on sign of signal) for up to self.dt for another
-        one of opposite sign. If you don't find a 2nd one that meets these
-        criteria, it ain't a spike.
+    def check_peaks(self, wave, peaks, cutrange):
+        """Check which peaks in wave data look like spikes
+        and return only events that fall within cutrange. Search around peak for
+        companion spike phase.
 
         TODO: would be nice to use some multichannel thresholding, instead
         of just single independent channel
@@ -861,9 +858,11 @@ class Detector(object):
         twi = sort.twi
         maxti = len(wave.ts)-1
         nspikes = 0
-        spikes = np.zeros(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
-        # check each edge for validity
-        for ti, chani in edgeis: # ti begins life as the threshold xing time index
+        spikes = np.zeros(len(peaks), self.SPIKEDTYPE) # nspikes will always be far less than npeaks
+        peak_tis = peaks[:, 0]
+        peak_chanis = peaks[:, 1]
+        # check each peak for validity
+        for ti, chani, ampl in peaks:
             chan = self.chans[chani]
             if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
             # is this thresh crossing timepoint locked out?
@@ -871,17 +870,24 @@ class Detector(object):
             # at least twi[0]//2 datapoints before the peak - this avoids "spikes" that only
             # constitute a tiny blip right at the left edge of your data window, and then simply
             # decay slowly over the course of the window
-            if lockouts[chani] >= ti+twi[0]//2:
-                if DEBUG: debug('thresh event is locked out')
-                continue # skip to next event
+            if lockouts[chani] >= ti:
+            #if lockouts[chani] >= ti+twi[0]//2:
+                if DEBUG: debug('peak is locked out')
+                continue # skip to next peak
 
-            # find all enabled chanis within nbhd of chani, exclude those locked-out at threshold xing
+            # find all enabled chanis within nbhd of chani, exclude those locked-out at peak
             nbhdchanis = self.nbhdi[chani]
             chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
 
-            # get data window wrt threshold crossing
-            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            # do local spatiotemporal search for all threshold-exceeding peaks
+            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any peaks included prior to ti aren't locked out
             tendi = min(ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
+            peakis = peak_tis.searchsorted([t0i, tendi])
+            peakis = np.arange(peakis[0], peakis[1])
+            peak_chanis.
+            localpeaks =
+
+
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window,
