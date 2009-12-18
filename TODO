@@ -2,37 +2,40 @@ RECENT:
 
     - implement proper simultaneous spatiotemporal detection
         - search through 2D array representing window of data, look for all extrema
-        - sort extrema by amplitude, keep only the ones that exceed threshold?
+        - sort extrema by an abs(amplitude) measure of some kind (sum(rise**2/run) on each side of each extremum)
         - for extremum in extrema: # biggest to smallest
-            - check lockout
-            - if this next biggest extremum is locked out, break out of loop? maybe not
-            - find corresponding phase of this extremum on the same chan, update spatiotemporal lockout
+            - if not locked out, you've found the best available main phase of the spike
+        - repeat for 2ndary phase
         - would be more reliable for multiple spikes in close proximity, by always giving the biggest one precedence
         - might also be faster than current approach of search across time, then across chans, then across time...
         - might be simpler code too
-        - PROBLEMS:
-            - maybe use normal window params around max extremum instead of +/- dti?
-                - or just increase dti
+        - NOPE:
             - need to decide on a per spike basis if you're dealing with bi or triphasic
-                - this dictates which phase to choose as phase1
-                - if it's triphasic, always align to middle phase, if biphasic, align to first phase (as is the case)
-                - add a phase3ti spike param, and set it for triphasic spikes? which of the two phases should be used for calculating Vpp? The two most extreme ones?
-                - detect triphasic: find biggest phase as usual, should be middle phase, prolly -ve, check in both directions for biggest phases within dti that are +ve sign (or at least opposite of the middle phase). Need to evaluate somehow if those other 2 phases are big enough to make it triphasic, and hence whether to keep the big middle phase as phase1, or to use the first phase as phase1
-                    - maybe require that both side phases exceed thresh?
-                    - how bout if one is >= 2*voltage of the other, it's biphasic, otherwise it's triphasic
-                    - always save only phase1ti and phase2ti - for biphasic, phase1ti is the first phase, for triphasic, it's the 2nd phase, but it's considered to be the 1st, since it's the 1st important phase. Then you're left with assigning the last phase as phase2ti. That way you're always taking Vpp between the same 2 phases of a triphasic spike, which should maximize consistency
-                    - see spikes at ptc18.14.7577620, 7142980, 475875940
-                    - 7087520 needs a longer lockout - add dphase//2 back to lockout?
-                    - search from 29578060 to 29579080
-                    - search 7506760 to 7507880
-                    - formerly problematic: 29578220, 29639400, [7139180, 7285400], 7133840, 7181980, 29923300, 29640180, 29270660
-            - consider going back to fitting 2 (or 3?) gaussians in time to just the maxchan window (no spatial gaussian), ignore the resulting fit params, just use the smooth f'n to make detection of spike phases and hence spike alignment more reliable
-                - extract phase1ti, phase2ti, V1, V2 from modelled f'n
-                - only use it if LM fits a nice f'n to it reliably each and every time
-                - or could use something simpler like a spline or polynomial fit that you only allow three peaks at most
-                - or just smooth the signal a bit to get rid of the tiny blips that really shouldn't qualify as extrema
+            - this dictates which phase to choose as phase1
+            - if it's triphasic, always align to middle phase, if biphasic, align to first phase
+            - detect triphasic: find biggest phase as usual, should be middle phase, prolly -ve, check in both directions for biggest phases within dti that are +ve sign (or at least opposite of the middle phase). Need to evaluate somehow if those other 2 phases are big enough to make it triphasic, and hence whether to keep the big middle phase as phase1, or to use the first phase as phase1
+                - maybe require that both side phases exceed thresh?
+                - how bout if one is >= 2*voltage of the other, it's biphasic, otherwise it's triphasic
+                - always save only phase1ti and phase2ti - for biphasic, phase1ti is the first phase, for triphasic, it's the 2nd phase, but it's considered to be the 1st, since it's the 1st important phase. Then you're left with assigning the last phase as phase2ti. That way you're always taking Vpp between the same 2 phases of a triphasic spike, which should maximize consistency
+        - NOPE:
+            - here's yet another new strategy: finding a local baseline (by going a fixed dt in either direction) and subtracting against it gives you sharpness and to some degree amplitude of a phase, but small amplitude phases still dominate too much. Try this instead: go in one direction from peak until you find the next peak (obviously of opposite sign), take the amplitude difference (=rise), and weight it by the slope (rise/run). So for each side of the phase, take abs(rise**2/run), sum them, and compare the value (call it peakiness) to all other peaks
+        - PROBLEMS:
+            - see spikes at ptc18.14.7577620, 7142980, 475875940
+            - 7087520 needs a longer lockout - add dphase//2 back to lockout?
+            - search from 29578060 to 29579080
+            - search 7506760 to 7507880
+            - search 7213820 to 7214660
+            - double trigger at 7238960
+            - formerly problematic: 29578220, 29639400, [7139180, 7285400], 7133840, 7181980, 29923300, 29640180, 29270660
+        - consider going back to fitting 2 (or 3?) gaussians in time to just the maxchan window (no spatial gaussian), ignore the resulting fit params, just use the smooth f'n to make detection of spike phases and hence spike alignment more reliable
+            - extract phase1ti, phase2ti, V1, V2 from modelled f'n
+            - only use it if LM fits a nice f'n to it reliably each and every time
+            - or could use something simpler like a spline or polynomial fit that you only allow three peaks at most
+            - or just smooth the signal a bit to get rid of the tiny blips that really shouldn't qualify as extrema
+        - for speed, incorporate peak finding into get_edges (rename to get_peaks), and save only those peaks that exceed thresh - ah, but then the peakiest peak, which might be below thresh, might not be captured
 
-    - to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike
+
+    - to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike - that way you could lower the median noise multiplier a bit and catch smaller spikes, while ignoring bigger ripple
 
     - stop using fixed thresh, start using chanfixed based on median
         - this leads to variability across detection runs, because noise is calculated from only a random sampling of data, not all of the data

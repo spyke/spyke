@@ -88,14 +88,13 @@ def arglocalextrema(signal):
     and its amplitude relative to local baseline"""
     nt = len(signal) # it's possible to have a local extremum at every point
     stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
-    extiw = np.empty(nt, dtype=int)
-    ampl = np.empty(nt, dtype=float) # +ve: max, -ve: min, abs: amplitude relative to baseline
-    code = ("""
-    #line 94 "detect.py"
+    extiw = np.empty(nt, dtype=np.int32)
+    ampl = np.empty(nt, dtype=np.float64) # +ve: max, -ve: min, abs: amplitude relative to baseline
+    code = (r"""
+    #line 95 "detect.py"
     int n_ext = 0;
-    int halfwidth = 4; // how far to look on either side of peak to calculate baseline
-    int now, last, last2, t1i, t2i;
-    float baseline;
+    int now, last, last2, thisi, lasti, nexti;
+    double rise1, rise2, run1, run2;
     // let's start from timepoint 2 (0-based)
     last = signal[stride]; // signal[(2-1)*stride] // signal 1 timepoint ago
     last2 = signal[0]; // signal[(2-2)*stride] // signal 2 timepoints ago
@@ -104,75 +103,43 @@ def arglocalextrema(signal):
         if (last2 <= last && last > now) {
             // last is a max
             extiw[n_ext] = ti-1; // save previous time index
-            t1i = extiw[n_ext]-halfwidth >? 0; // prevent indexing too low
-            t2i = extiw[n_ext]+halfwidth <? nt-1; // prevent indexing too high
-            baseline = signal[t1i*stride] + signal[t2i*stride]; // take sum, assign to make sure it's float
-            baseline /= 2; // now take mean
-            baseline = baseline >? 0; // don't let baseline get below 0
-            ampl[n_ext] = (last - baseline) >? 0; // height above baseline, +ve or 0
+            ampl[n_ext] = 1;
             n_ext++;
-            }
+        }
         else if (last2 >= last && last < now) {
             // last is a min
             extiw[n_ext] = ti-1; // save previous time index
-            t1i = extiw[n_ext]-halfwidth >? 0; // prevent indexing too low
-            t2i = extiw[n_ext]+halfwidth <? nt-1; // prevent indexing too high
-            baseline = signal[t1i*stride] + signal[t2i*stride]; // take sum, assign to make sure it's float
-            baseline /= 2; // now take mean
-            baseline = baseline <? 0; // don't let baseline get above 0
-            ampl[n_ext] = (last - baseline) <? 0; // height below baseline, -ve or 0
+            ampl[n_ext] = -1;
             n_ext++;
         }
         // update for next loop, reuse 'now' value instead of constantly indexing into signal
         last2 = last;
         last = now;
     }
+    for (int ei=0; ei<n_ext; ei++) { // iterate over extremum indices, calc rise**2/run for each extremum
+        thisi = extiw[ei];
+        lasti = 0;
+        nexti = nt-1;
+        if (ei > 0) {
+            lasti = extiw[ei-1]; }
+        if (ei < n_ext-1) {
+            nexti = extiw[ei+1]; }
+        // get total rise and run of both sides of this extremum
+        rise1 = (double)signal[thisi*stride] - (double)signal[lasti*stride];
+        rise2 = (double)signal[thisi*stride] - (double)signal[nexti*stride];
+        run1 = (double)(thisi - lasti);
+        run2 = (double)(nexti - thisi);
+        //if (ei == 5) {
+        //    printf("thisi %d;\n", thisi);
+        //    printf("lasti %d;\n", lasti);
+        //    printf("signal[%d] == %d\n", thisi, signal[thisi*stride]);
+        //    printf("signal[%d] == %d\n", lasti, signal[lasti*stride]);
+        //    printf("%f, %f, %f, %f;\n", rise1, rise1*rise1, run1, rise1*rise1/run1); }
+        ampl[ei] *= rise1*rise1/run1 + rise2*rise2/run2; // preserve existing sign in ampl
+    }
     return_val = n_ext;""")
     n_ext = inline(code, ['signal', 'nt', 'stride', 'extiw', 'ampl'], compiler='gcc')
     return extiw[:n_ext], ampl[:n_ext]
-
-def arg2ndpeak(signal, extiw, peak1i, dir2, dti, ppthresh):
-    """Return signal's biggest local extremum of opposite sign,
-    in direction dir2, and within dti indices of signal at peak1i"""
-    #assert type(peak1i) == int
-    #assert type(dti) == int
-    stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
-    if dir2 == 'left':
-        extiw = extiw[extiw < peak1i] # keep only left half of extiw
-    elif dir2 == 'right':
-        extiw = extiw[extiw > peak1i] # keep only right half of extiw
-    elif dir2 == 'both':
-        pass # keep all of extiw
-    else:
-        raise ValueError('unknown dir2 %r' % dir2)
-    # abs(now - peak1) converts to Python int, so ppthresh has to be same type for >= comparison
-    ppthresh = int(ppthresh) # convert from np.int16 type to Python int
-    n_ext = len(extiw)
-    code = ("""
-    #line 103 "detect.py"
-    // index into signal to get voltages
-    int peak1 = signal[peak1i*stride]; // int or short, doesn't matter
-    int peak2i = -1; // 2nd peak index, -1 indicates suitable 2nd peak not yet found
-    int peak2 = 0; // 2nd peak value
-    int i, now;
-    // test all extrema in extiw
-    for (int ei=0; ei<n_ext; ei++) {
-        i = extiw[ei]; // ei'th extremum's index into signal
-        now = signal[i*stride]; // signal value at i
-        if ((abs(i-peak1i) <= dti) && // if extremum's index is within dti of peak1i
-            (now * peak1 < 0) && // and is of opposite sign
-            (abs(now) > abs(peak2)) && // and is bigger than last one found
-            (abs(now - peak1) >= ppthresh)) { // and resulting Vpp exceeds ppthresh
-                peak2i = i; // save it
-                peak2 = now;
-        }
-    }
-    return_val = peak2i;""")
-    peak2i = inline(code, ['signal', 'stride', 'extiw', 'n_ext', 'peak1i', 'dti', 'ppthresh'],
-                    compiler='gcc')
-    if peak2i == -1:
-        raise NoPeakError("can't find suitable 2nd peak")
-    return peak2i
 
 def get_edges(wave, thresh):
     """Return n x 2 array (ti, chani) of indices of all threshold crossings
@@ -761,8 +728,9 @@ class Detector(object):
         self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('detid', np.uint8),
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64), ('nt', np.uint8),
+                           ('V1', np.float32), ('V2', np.float32), ('Vpp', np.float32),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
-                           ('Vpp', np.float32), ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
+                           ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid Spikes"""
@@ -802,11 +770,11 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
         tget_edges = time.time()
-        peaks = get_peaks(wave, self.thresh)
-        info('get_peaks() took %.3f sec' % (time.time()-tget_peaks))
-        tcheck_peaks = time.time()
-        spikes = self.check_peaks(wave, peaks, cutrange)
-        info('checking peaks took %.3f sec' % (time.time()-tcheck_peaks))
+        edgeis = get_edges(wave, self.thresh)
+        info('get_edges() took %.3f sec' % (time.time()-tget_edges))
+        tcheck_edges = time.time()
+        spikes = self.check_edges(wave, edgeis, cutrange)
+        info('checking edges took %.3f sec' % (time.time()-tcheck_edges))
         print('found %d spikes' % len(spikes))
         #import cProfile
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
@@ -816,10 +784,13 @@ class Detector(object):
         #     (self.lockouts, self.lockouts_us))
         return spikes
 
-    def check_peaks(self, wave, peaks, cutrange):
-        """Check which peaks in wave data look like spikes
-        and return only events that fall within cutrange. Search around peak for
-        companion spike phase.
+    def check_edges(self, wave, edgeis, cutrange):
+        """Check which edges (threshold crossings) in wave data look like spikes
+        and return only events that fall within cutrange. Search in window
+        forward from thresh for a peak, then in appropriate direction from
+        that peak (based on sign of signal) for up to self.dt for another
+        one of opposite sign. If you don't find a 2nd one that meets these
+        criteria, it ain't a spike.
 
         TODO: would be nice to use some multichannel thresholding, instead
         of just single independent channel
@@ -858,11 +829,9 @@ class Detector(object):
         twi = sort.twi
         maxti = len(wave.ts)-1
         nspikes = 0
-        spikes = np.zeros(len(peaks), self.SPIKEDTYPE) # nspikes will always be far less than npeaks
-        peak_tis = peaks[:, 0]
-        peak_chanis = peaks[:, 1]
-        # check each peak for validity
-        for ti, chani, ampl in peaks:
+        spikes = np.zeros(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
+        # check each edge for validity
+        for ti, chani in edgeis: # ti begins life as the threshold xing time index
             chan = self.chans[chani]
             if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
             # is this thresh crossing timepoint locked out?
@@ -870,24 +839,17 @@ class Detector(object):
             # at least twi[0]//2 datapoints before the peak - this avoids "spikes" that only
             # constitute a tiny blip right at the left edge of your data window, and then simply
             # decay slowly over the course of the window
-            if lockouts[chani] >= ti:
-            #if lockouts[chani] >= ti+twi[0]//2:
-                if DEBUG: debug('peak is locked out')
-                continue # skip to next peak
+            if lockouts[chani] >= ti+twi[0]//2:
+                if DEBUG: debug('thresh event is locked out')
+                continue # skip to next event
 
-            # find all enabled chanis within nbhd of chani, exclude those locked-out at peak
+            # find all enabled chanis within nbhd of chani, exclude those locked-out at threshold xing
             nbhdchanis = self.nbhdi[chani]
             chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
 
-            # do local spatiotemporal search for all threshold-exceeding peaks
-            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any peaks included prior to ti aren't locked out
+            # get data window wrt threshold crossing
+            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
             tendi = min(ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
-            peakis = peak_tis.searchsorted([t0i, tendi])
-            peakis = np.arange(peakis[0], peakis[1])
-            peak_chanis.
-            localpeaks =
-
-
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window,
@@ -906,6 +868,8 @@ class Detector(object):
             for rowi, row in enumerate(window):
                 # TODO: this is probably slow, too many calls to weave.inline()
                 # TODO: make arglocalextremum return full length (but still 1D) extiw and ampl arrays
+                #if chani == 41 and rowi == 6:
+                #    import pdb; pdb.set_trace()
                 thisextiw, thisampl = arglocalextrema(row)
                 extiw[rowi, thisextiw] = True
                 ampl[rowi, thisextiw] = thisampl
@@ -918,7 +882,7 @@ class Detector(object):
                 coli = ampli % ncols
                 chani = chanis[rowi]
                 ti = t0i + coli
-                if ti > lockouts[chani] and abs(window[rowi, coli]) > self.thresh[chani]:
+                if ti > lockouts[chani]:# and abs(window[rowi, coli]) > self.thresh[chani]:
                     # extremum is not locked out and absolute (not relative) amplitude exceeds thresh
                     break # found valid extremum with biggest relative amplitude
                 else: # extremum is locked out (rare)
@@ -996,7 +960,7 @@ class Detector(object):
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
             s['phase1ti'], s['phase2ti'] = phase1ti, phase2ti # wrt t0i
             s['dphase'] = ts[phase2ti] - ts[phase1ti] # in us
-            #s['V1'], s['V2'] = V1, V2
+            s['V1'], s['V2'] = AD2uV(V1), AD2uV(V2)
             # maintain polarity
             s['Vpp'] = AD2uV(Vpp)
 
@@ -1034,62 +998,7 @@ class Detector(object):
 
         spikes.resize(nspikes, refcheck=False) # shrink down to actual needed size
         return spikes
-    '''
-    def find_spike_phases(self, window, tiw, ppthresh, reftype='trigger'):
-        """Find spike phases within window of data: search from tiw in direction
-        (which might be, say, a threshold xing point) for 1st peak, then within
-        self.dti of that for a 2nd peak of opposite phase. Decide which peak
-        comes first, return window indices of 1st and 2nd spike phases. reftype
-        describes what tiw represents: a 'trigger' point or previously found
-        spike 'phase'"""
-        extiw = arglocalextrema(window) # indices of local extrema, wrt window
-        if len(extiw) == 0:
-            raise NoPeakError("can't find any extrema within window")
-        if reftype == 'trigger':
-            dir1 = 'right'
-            dir2 = 'both'
-        elif reftype == 'phase':
-            dir1 = 'nearest'
-            dir2 = 'right' # assume the tiw given for reftype='phase' is for the 1st phase
-        else:
-            raise ValueError('unknown reftype %r' % reftype)
-        """
-        if dir1 == 'left':
-            try:
-                peak1i = extiw[(extiw <= tiw)][-1] # index of first extremum left of tiw, wrt window
-            except IndexError:
-                raise NoPeakError("can't find 1st peak within window")
-        """
-        if dir1 == 'right':
-            try:
-                #peak1i = extiw[(extiw >= tiw)][0] # index of first extremum right of tiw, wrt window
-                rightextiw = extiw[(extiw >= tiw)]
-                peak1i = extiw[abs(window[rightextiw]).argmax()]
-            except IndexError:
-                raise NoPeakError("can't find 1st peak within window")
-        else: # dir1 == 'nearest'
-            # find not just the nearest peak, but the nearest of the
-            # same phase as at tiw (on the previous maxchan)
-            if window[tiw] < 0:
-                samephaseextiw = extiw[window[extiw] < 0]
-            else: # window[tiw] >= 0:
-                samephaseextiw = extiw[window[extiw] >= 0]
-            if len(samephaseextiw) == 0:
-                raise NoPeakError("can't find 1st peak of matching phase within window")
-            peak1i = samephaseextiw[abs(samephaseextiw - tiw).argmin()]
-        peak1i = int(peak1i)
-        #if window[peak1i] < 0: # peak1i is -ve, look right for corresponding +ve peak
-        #    dir2 = 'right'
-        #else: # peak1i is +ve, look left for corresponding -ve peak
-        #    dir2 = 'left'
-        # find biggest 2nd extremum of opposite sign in dir2 within self.dti
-        peak2i = arg2ndpeak(window, extiw, peak1i, dir2, self.dti, ppthresh)
-        # check which comes first
-        if peak1i < peak2i:
-            return peak1i, peak2i
-        else: # peak2i < peak1i
-            return peak2i, peak1i
-    '''
+
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,
         given blocksize and blockexcess"""
