@@ -34,9 +34,9 @@ class Cluster(object):
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
         self.ori =   {'x0':{}, 'y0':{}, 'V1':{}, 'V2':{}, 'Vpp':{},  'dphase':{}}
-        # set scale to 0 to exclude dphase from consideration as a
+        # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':4,  'y0':20, 'V1':25, 'V2':25, 'Vpp':50,  'dphase':0}
+        self.scale = {'x0':4,  'y0':20, 'V1':0, 'V2':0,  'Vpp':50,   'dphase':0}
 
     def get_id(self):
         return self.neuron.id

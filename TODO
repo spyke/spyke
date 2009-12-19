@@ -34,6 +34,8 @@ RECENT:
             - or just smooth the signal a bit to get rid of the tiny blips that really shouldn't qualify as extrema
         - for speed, incorporate peak finding into get_edges (rename to get_peaks), and save only those peaks that exceed thresh - ah, but then the peakiest peak, which might be below thresh, might not be captured
 
+    - Nick - use infomax ICA to pull out most informative features across a multitude of spikes (get a couple of mother spikes), and then apply them to all spikes you encounter, pull out the weights of those features, and cluster on those - make sure they come out independent, and also try and compare the ICA features to PCA features. Any difference/improvement?
+        - could also try different kinds of ICA (see mdp)
 
     - to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike - that way you could lower the median noise multiplier a bit and catch smaller spikes, while ignoring bigger ripple
 

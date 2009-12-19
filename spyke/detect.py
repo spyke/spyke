@@ -960,9 +960,9 @@ class Detector(object):
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
             s['phase1ti'], s['phase2ti'] = phase1ti, phase2ti # wrt t0i
             s['dphase'] = ts[phase2ti] - ts[phase1ti] # in us
-            s['V1'], s['V2'] = AD2uV(V1), AD2uV(V2)
-            # maintain polarity
-            s['Vpp'] = AD2uV(Vpp)
+            s['V1'], s['V2'] = AD2uV(V1), AD2uV(V2) # maintain sign
+            s['Vpp'] = abs(AD2uV(Vpp)) # don't maintain sign
+
 
             # update channel neighbourhood
             # find all enabled chanis within nbhd of chani, exclude those locked-out at phase1ti
