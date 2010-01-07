@@ -95,11 +95,26 @@ class Extractor(object):
         twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
         print("Extracting parameters from spikes")
         t0 = time.time()
+        ''' # comment out ICA stuff
+        ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
+        invICs = ICs.I # not a square matrix, think it must do pseudoinverse
+        '''
         for ri in np.arange(nspikes):
             wavedata = self.sort.get_wavedata(ri)
             detid = spikes['detid'][ri]
             det = sort.detections[detid].detector
             nchans = spikes['nchans'][ri]
+            chans = spikes['chans'][ri, :nchans]
+            maxchan = spikes['chan'][ri]
+            maxchani = int(np.where(chans == maxchan)[0])
+            chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+            wavedata = wavedata[0:nchans]
+            ''' # comment out ICA stuff
+            maxchanwavedata = wavedata[maxchani]
+            weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
+            spikes['IC1'][ri] = weights[0, 0]
+            spikes['IC2'][ri] = weights[0, 1]
+            '''
             #nt = (spikes.tend[ri] - spikes.t0[ri]) // sort.tres
             #nt = spikes['nt'][ri]
             #try: assert len(np.arange(spikes.t0[ri], spikes.tend[ri], sort.tres)) == nt
@@ -107,16 +122,12 @@ class Extractor(object):
             phase1ti = spikes['phase1ti'][ri]
             phase2ti = spikes['phase2ti'][ri]
             startti = twi0 - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
-            wavedata = wavedata[0:nchans, startti:]
-            chans = spikes['chans'][ri, :nchans]
-            maxchan = spikes['chan'][ri]
-            maxchani = int(np.where(chans == maxchan)[0])
-            chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+            tightwavedata = wavedata[:, startti:]
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             # just x and y params for now
             #print('ri = %d' % ri)
-            x0, y0 = self.extractXY(wavedata, x, y, phase1ti, phase2ti, maxchani)
+            x0, y0 = self.extractXY(tightwavedata, x, y, phase1ti, phase2ti, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %

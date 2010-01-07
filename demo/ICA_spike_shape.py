@@ -1,4 +1,4 @@
-totalnspikes = 1000
+totalnspikes = 2000
 data = np.zeros((totalnspikes, 50), np.float64)
 
 #for spikei, spike in enumerate(s.spikes[:nspikes]): # s is the Sort object
@@ -21,7 +21,18 @@ import py_ica
 
 # sometimes this goes into an infinite loop for some reason, try setting
 # maxsteps to something other than None
-act, weights, resid = py_ica.ExtendedInfomax(maxsteps=100, verbose=1).run(data, nfac=2)
+# Ah, endless loop only happens when running in spyke's Pyshell for some reason
+# Saving the data to a .npy, and loading it into a normal Pyshell session works fine
+#components, weights, resid = py_ica.ExtendedInfomax(maxsteps=50, verbose=1).run(data[0:10], nfac=2)
+components, weights, resid = py_ica.ExtendedInfomax().run(data[0:10], nfac=2)
+
+components = np.matrix(components)
+
+# we have: weights * components ~= data
+# so given a set of mother components, to get the activations of any new set of data
+# multiply your new data matrix (of however many n rows, but exactly m columns)
+# by the inverse of the component matrix (2 by m):
+# newweights = newdata * components.I
 
 
 data = np.array([[ -270.,  -550.,  -795.,  -845.,  -667.,  -333.,   129.,   667.,  1118.,  1344.,  1394.,  1303.,   988.,   344.,  -372.,  -862., -1010.,

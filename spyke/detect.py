@@ -85,7 +85,8 @@ def minmax_filter(x, width=3):
 def arglocalextrema(signal):
     """Return indices of all local extrema in 1D int signal
     Also return array designating each extremum's type (max or min)
-    and its amplitude relative to local baseline"""
+    and its "amplitude", which is actually its sharpness defined as
+    rise**2/run"""
     nt = len(signal) # it's possible to have a local extremum at every point
     stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
     extiw = np.empty(nt, dtype=np.int32)
@@ -118,8 +119,8 @@ def arglocalextrema(signal):
     }
     for (int ei=0; ei<n_ext; ei++) { // iterate over extremum indices, calc rise**2/run for each extremum
         thisi = extiw[ei];
-        lasti = 0;
-        nexti = nt-1;
+        lasti = 0;    // use first data point as previous reference for 1st extremum
+        nexti = nt-1; // use last data point as next reference for last extremum
         if (ei > 0) {
             lasti = extiw[ei-1]; }
         if (ei < n_ext-1) {
@@ -730,7 +731,9 @@ class Detector(object):
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64), ('nt', np.uint8),
                            ('V1', np.float32), ('V2', np.float32), ('Vpp', np.float32),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
-                           ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16)]
+                           ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16),
+                           #('IC1', np.float32), ('IC2', np.float32)]
+                           ]
 
     def searchblock(self, wavetrange, direction):
         """Search a block of data, return a list of valid Spikes"""
