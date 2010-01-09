@@ -456,6 +456,40 @@ class Sort(object):
         #spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
         spikeis = self.spikes['id'][ris]
         return spikeis
+
+    def align_neuron(self, nid, to):
+        """Align all neuron nid's spikes by their max or min"""
+        neuron = self.neurons[nid]
+        spikes = self.spikes
+        nris = spikes['id'].searchsorted(neuron.spikeis) # row indices of spikes that belong to this neuron
+        V1s = spikes['V1'][nris]
+        V2s = spikes['V2'][nris]
+        if to == 'max':
+            nriis = V1s < 0 # indices into nris of spikes aligned to the min phase
+        elif to == 'min':
+            nriis = V1s > 0 # indices into nris of spikes aligned to the max phase
+        else: raise ValueError()
+        ris = nris[nriis] # row indices of spikes that need realigning
+        dphasetis = spikes['phase2ti'][ris] - spikes['phase1ti'][ris]
+        dphases = spikes['dphase'][ris]
+        # shift values
+        spikes['phase1ti'][ris] -= dphasetis
+        spikes['phase2ti'][ris] -= dphasetis
+        spikes['t0'][ris] += dphases
+        spikes['t'][ris] += dphases
+        spikes['tend'][ris] += dphases
+        # now swap names
+        spikes['phase1ti'][ris], spikes['phase2ti'][ris] = spikes['phase2ti'][ris], spikes['phase1ti'][ris]
+        spikes['V1'][ris], spikes['V2'][ris] = spikes['V2'][ris], spikes['V1'][ris]
+        spikes['dphase'][ris] = -spikes['dphase'][ris]
+        # update wavedata for each shifted spike
+        for ri, spike in zip(ris, spikes[ris]):
+            wave = self.stream[spike['t0']:spike['tend']]
+            chans = spike['chans'][:spike['nchans']]
+            wave = wave[chans]
+            self.set_wavedata(ri, wave.data, spike['phase1ti'])
+        neuron.update_wave() # update mean waveform
+        # TODO: trigger a redraw for all of this neuron's plotted spikes
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -1045,48 +1079,21 @@ class SortFrame(wxglade_gui.SortFrame):
             s.uris_sorted_by = field # update
             s.uris_reversed = False # update
         self.slist.RefreshItems()
-    '''
-    def OnSListKeyDown(self, evt):
-        """Spike list key down evt"""
-        key = evt.GetKeyCode()
-        if key == wx.WXK_TAB:
-            pass #self.tree.SetFocus() # change focus to tree
-        elif key in [wx.WXK_SPACE, wx.WXK_RETURN]:
-            self.slist.ToggleFocusedItem()
-            return # evt.Skip() seems to prevent toggling, or maybe it untoggles
-        elif key in [ord('A'), wx.WXK_LEFT]:
-            self.MoveCurrentSpikes2Neuron(which='selected')
-        elif key in [ord('C'), ord('N')]: # wx.WXK_SPACE doesn't seem to work
-            self.MoveCurrentSpikes2Neuron(which='new')
-        elif key in [wx.WXK_DELETE, ord('D')]:
-            #self.MoveCurrentSpikes2Trash()
-            print('individual spike deletion disabled, not very useful feature')
-        elif evt.ControlDown() and key == ord('S'):
-            self.spykeframe.OnSave(evt) # give it any old event, doesn't matter
-        evt.Skip()
 
-    def OnSortTree(self, evt):
-        root = self.tree.GetRootItem()
-        if root: # tree isn't empty
-            self.tree.SortChildren(root)
-            self.RelabelNeurons(root)
+    def OnAlignMax(self, evt):
+        self.Align('max')
 
-    def RelabelNeurons(self, root):
-        """Consecutively relabel neurons according to their vertical order in the TreeCtrl.
-        Relabeling happens both in the TreeCtrl and in the .sort.neurons dict"""
-        itemIDs = self.tree.GetTreeChildren(root) # get all children of root in order from top to bottom
-        items = [ self.tree.GetItemText(itemID) for itemID in itemIDs ]
-        neurons = {} # build up a new neurons dict
-        for neuroni, item in enumerate(items):
-            assert item[0] == 'n'
-            neuron = self.sort.neurons[int(item[1:])]
-            neuron.id = neuroni # update its id
-            neurons[neuron.id] = neuron # add it to its key in neuron dict
-            self.tree.SetItemText(neuron.itemID, 'n'+str(neuron.id)) # update its entry in the tree
-        self.sort.neurons = neurons # overwrite the dict
-        self.sort._nid = neuroni + 1 # reset unique Neuron ID counter to make next added neuron consecutive
-        print('TODO: relabel all nids in sort.spikes struct array as well!')
-    '''
+    def OnAlignMin(self, evt):
+        self.Align('min')
+
+    def Align(self, to):
+        selectedRows = self.nlist.getSelection()
+        if len(selectedRows) != 1:
+            raise RuntimeError("Exactly 1 neuron must be selected for spike alignment")
+        row = selectedRows[0]
+        nid = list(self.sort.neurons)[row]
+        self.sort.align_neuron(nid, to)
+
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
         self.spikesortpanel.draw_refs()
