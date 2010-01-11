@@ -835,8 +835,7 @@ class Detector(object):
         spikes = np.zeros(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
-            chan = self.chans[chani]
-            if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], chan))
+            if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
             # is this thresh crossing timepoint locked out?
             # make sure there's enough non-locked out signal before thresh crossing to give
             # at least twi[0]//2 datapoints before the peak - this avoids "spikes" that only
@@ -856,25 +855,15 @@ class Detector(object):
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window,
-            # decide which extremum is the biggest and/or sharpest
-            # find biggest nonlocked out peak, and sharpest nonlocked out peak.
-            # if theyre not the same peak, compare the ratios of amplitudes and sharpness. Pick the
-            # the peak with the biggest ratio
+            # decide which extremum is the sharpest
 
-            # TODO: maybe better strategy: combine amplitude and sharpness tests into
-            # one by checking local neighbourhood in time on each channel for the baseline,
-            # and take peak value vs that local baseline (as opposed to 0) to determine
-            # amplitude. Local neighbourhood should be on order of +/- dphase/2
-
-            extiw = np.tile(False, window.shape)
-            ampl = np.tile(0.0, window.shape) # amplitude relative to baseline
+            ampl = np.zeros(window.shape) # this is actually sharpness
             for rowi, row in enumerate(window):
                 # TODO: this is probably slow, too many calls to weave.inline()
                 # TODO: make arglocalextremum return full length (but still 1D) extiw and ampl arrays
                 #if chani == 41 and rowi == 6:
                 #    import pdb; pdb.set_trace()
                 thisextiw, thisampl = arglocalextrema(row)
-                extiw[rowi, thisextiw] = True
                 ampl[rowi, thisextiw] = thisampl
             # find max abs(amplitude) that isn't locked out
             amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
