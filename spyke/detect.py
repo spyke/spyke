@@ -87,60 +87,84 @@ def arglocalextrema(signal):
     Also return array designating each extremum's type (max or min)
     and its "amplitude", which is actually its sharpness defined as
     rise**2/run"""
-    nt = len(signal) # it's possible to have a local extremum at every point
-    stride = signal.strides[0] // signal.dtype.itemsize # signal might not be contiguous
-    extiw = np.empty(nt, dtype=np.int32)
-    ampl = np.empty(nt, dtype=np.float64) # +ve: max, -ve: min, abs: amplitude relative to baseline
+
+    # it's possible to have a local extremum at every timepoint on every chan
+    ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak "sharpness"
+    itemsize = signal.dtype.itemsize
+    aitemsize = ampl.dtype.itemsize
+    try:
+        nchans, nt = signal.shape
+        stride0 = signal.strides[0] // itemsize
+        stride1 = signal.strides[1] // itemsize
+        astride0 = ampl.strides[0] // aitemsize
+        astride1 = ampl.strides[1] // aitemsize
+    except ValueError: # signal is 1D
+        nchans, nt = 1, len(signal)
+        stride0 = 0 # no chans to deal with, it's single chan
+        stride1 = signal.strides[0] // itemsize # just timepoints to deal with
+        astride0 = 0
+        astride1 = ampl.strides[0] // aitemsize
+    extiw = np.empty(nt, dtype=np.int32) # for temp internal use
     code = (r"""
-    #line 95 "detect.py"
-    int n_ext = 0;
-    int now, last, last2, thisi, lasti, nexti;
+    #line 102 "detect.py"
+    int ci, ti, ei, n_ext, cis0, i, ai, alasti, now, last, last2, thisti, lastti, nextti;
     double rise1, rise2, run1, run2;
-    // let's start from timepoint 2 (0-based)
-    last = signal[stride]; // signal[(2-1)*stride] // signal 1 timepoint ago
-    last2 = signal[0]; // signal[(2-2)*stride] // signal 2 timepoints ago
-    for (int ti=2; ti<nt; ti++) {
-        now = signal[ti*stride]; // signal at current timepoint
-        if (last2 <= last && last > now) {
-            // last is a max
-            extiw[n_ext] = ti-1; // save previous time index
-            ampl[n_ext] = 1;
-            n_ext++;
+
+    for (ci=0; ci<nchans; ci++) {
+        n_ext = 0; // reset for each channel
+        cis0 = ci*stride0;
+        // let's start from timepoint 2 (0-based)
+        last = signal[cis0 + stride1]; // signal[cis0 + (2-1)*stride1] // signal 1 timepoint ago
+        last2 = signal[cis0]; // signal[cis0 + (2-2)*stride1] // signal 2 timepoints ago
+        for (ti=2; ti<nt; ti++) {
+            i = cis0 + ti*stride1;
+            alasti = ci*astride0 + (ti-1)*astride1;
+            now = signal[i]; // signal at current timepoint
+            if (last2 <= last && last > now) {
+                // last is a max
+                extiw[n_ext] = ti-1; // save previous time index
+                ampl[alasti] = 1; // +ve peak
+                n_ext++;
+            }
+            else if (last2 >= last && last < now) {
+                // last is a min
+                extiw[n_ext] = ti-1; // save previous time index
+                ampl[alasti] = -1; // -ve peak
+                n_ext++;
+            }
+            // update for next loop
+            last2 = last;
+            last = now;
         }
-        else if (last2 >= last && last < now) {
-            // last is a min
-            extiw[n_ext] = ti-1; // save previous time index
-            ampl[n_ext] = -1;
-            n_ext++;
+        // now calculate sharpness of each peak found on this channel
+        for (ei=0; ei<n_ext; ei++) { // iterate over extremum indices, calc rise**2/run for each extremum
+            thisti = extiw[ei];
+            //lastti = 0;   // use first data point as previous reference for 1st extremum
+            //nextti = nt-1; // use last data point as next reference for last extremum
+            if (ei == 0) { lastti = 0; } // use first data point as previous reference for 1st extremum
+            else { lastti = extiw[ei-1]; }
+            if (ei == n_ext-1) { nextti = nt-1; } // use last data point as next reference for last extremum
+            else { nextti = extiw[ei+1]; }
+            // get total rise and run of both sides of this extremum
+            i = cis0 + thisti*stride1;
+            ai = ci*astride0 + thisti*astride1;
+            rise1 = (double)signal[i] - (double)signal[cis0 + lastti*stride1];
+            rise2 = (double)signal[i] - (double)signal[cis0 + nextti*stride1];
+            run1 = (double)(thisti - lastti);
+            run2 = (double)(nextti - thisti);
+            //if (ei == 5) {
+            //    printf("thisti %d;\n", thisti);
+            //    printf("lastti %d;\n", lastti);
+            //    printf("signal[%d] == %d\n", thisti, signal[i]);
+            //    printf("signal[%d] == %d\n", lastti, signal[cis0 + lastti*stride1]);
+            //    printf("%f, %f, %f, %f;\n", rise1, rise1*rise1, run1, rise1*rise1/run1); }
+            ampl[ai] *= rise1*rise1/run1 + rise2*rise2/run2; // preserve existing sign in ampl
         }
-        // update for next loop, reuse 'now' value instead of constantly indexing into signal
-        last2 = last;
-        last = now;
     }
-    for (int ei=0; ei<n_ext; ei++) { // iterate over extremum indices, calc rise**2/run for each extremum
-        thisi = extiw[ei];
-        lasti = 0;    // use first data point as previous reference for 1st extremum
-        nexti = nt-1; // use last data point as next reference for last extremum
-        if (ei > 0) {
-            lasti = extiw[ei-1]; }
-        if (ei < n_ext-1) {
-            nexti = extiw[ei+1]; }
-        // get total rise and run of both sides of this extremum
-        rise1 = (double)signal[thisi*stride] - (double)signal[lasti*stride];
-        rise2 = (double)signal[thisi*stride] - (double)signal[nexti*stride];
-        run1 = (double)(thisi - lasti);
-        run2 = (double)(nexti - thisi);
-        //if (ei == 5) {
-        //    printf("thisi %d;\n", thisi);
-        //    printf("lasti %d;\n", lasti);
-        //    printf("signal[%d] == %d\n", thisi, signal[thisi*stride]);
-        //    printf("signal[%d] == %d\n", lasti, signal[lasti*stride]);
-        //    printf("%f, %f, %f, %f;\n", rise1, rise1*rise1, run1, rise1*rise1/run1); }
-        ampl[ei] *= rise1*rise1/run1 + rise2*rise2/run2; // preserve existing sign in ampl
-    }
-    return_val = n_ext;""")
-    n_ext = inline(code, ['signal', 'nt', 'stride', 'extiw', 'ampl'], compiler='gcc')
-    return extiw[:n_ext], ampl[:n_ext]
+    """)
+    inline(code, ['signal', 'nchans', 'nt', 'stride0', 'stride1', 'astride0', 'astride1',
+           'extiw', 'ampl'], compiler='gcc')
+    return ampl
 
 def get_edges(wave, thresh):
     """Return n x 2 array (ti, chani) of indices of all threshold crossings
@@ -856,7 +880,7 @@ class Detector(object):
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is the sharpest
-
+            '''
             ampl = np.zeros(window.shape) # this is actually sharpness
             for rowi, row in enumerate(window):
                 # TODO: this is probably slow, too many calls to weave.inline()
@@ -865,6 +889,9 @@ class Detector(object):
                 #    import pdb; pdb.set_trace()
                 thisextiw, thisampl = arglocalextrema(row)
                 ampl[rowi, thisextiw] = thisampl
+            '''
+            #import pdb; pdb.set_trace()
+            ampl = arglocalextrema(window)
             # find max abs(amplitude) that isn't locked out
             amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
             amplis = amplis[::-1] # reverse for highest to lowest abs(amplitude)
@@ -895,23 +922,22 @@ class Detector(object):
                 window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
             tiw = int(ti - t0i) # time index where ti falls wrt the window
-            extiw, ampl = arglocalextrema(window)
-            # if tiw is a max, choose only extiw that are min, and vice versa
+            ampl = arglocalextrema(window) # this is 1D
+            # if tiw is a max, choose only extrema that are min, and vice versa
             if window[tiw-1] >= window[tiw] < window[tiw+1]: # main phase is a min
-                keepis = ampl > 0 # choose max entries in extiw and ampl
+                keepis = ampl > 0 # choose max entries in ampl
             else: # main phase is a max
-                keepis = ampl < 0 # choose min entries in extiw and ampl
-            extiw = extiw[keepis]
+                keepis = ampl < 0 # choose min entries in ampl
             ampl = ampl[keepis]
-            if len(extiw) == 0:
+            if len(ampl) == 0:
                 if DEBUG: debug("couldn't find a matching peak to extremum at "
                                 "chani, ti = %d, %d" % (chani, ti))
                 continue # skip to next event
 
             # decide which is the companion phase to the main phase
-            extiw = extiw[abs(ampl).argmax()]
+            companiontiw = abs(ampl).argmax()
 
-            phase1ti, phase2ti = tiw, extiw
+            phase1ti, phase2ti = tiw, companiontiw
             V1, V2 = int(window[phase1ti]), int(window[phase2ti])
 
             # make phase1ti and phase2ti absolute indices into wave
