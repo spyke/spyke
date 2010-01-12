@@ -925,11 +925,10 @@ class Detector(object):
             ampl = arglocalextrema(window) # this is 1D
             # if tiw is a max, choose only extrema that are min, and vice versa
             if window[tiw-1] >= window[tiw] < window[tiw+1]: # main phase is a min
-                keepis = ampl > 0 # choose max entries in ampl
+                ampl[ampl < 0] = 0 # null all the min entries, leave only max entries
             else: # main phase is a max
-                keepis = ampl < 0 # choose min entries in ampl
-            ampl = ampl[keepis]
-            if len(ampl) == 0:
+                ampl[ampl > 0] = 0 # null all the max entries, leave only min entries
+            if (ampl == 0).all(): # no extrema left
                 if DEBUG: debug("couldn't find a matching peak to extremum at "
                                 "chani, ti = %d, %d" % (chani, ti))
                 continue # skip to next event
