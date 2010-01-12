@@ -92,13 +92,13 @@ def arglocalextrema(signal):
     ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak "sharpness"
     itemsize = signal.dtype.itemsize
     aitemsize = ampl.dtype.itemsize
-    try:
+    if len(signal.shape) == 2: # signal is 2D
         nchans, nt = signal.shape
         stride0 = signal.strides[0] // itemsize
         stride1 = signal.strides[1] // itemsize
         astride0 = ampl.strides[0] // aitemsize
         astride1 = ampl.strides[1] // aitemsize
-    except ValueError: # signal is 1D
+    else: # signal is 1D
         nchans, nt = 1, len(signal)
         stride0 = 0 # no chans to deal with, it's single chan
         stride1 = signal.strides[0] // itemsize # just timepoints to deal with
@@ -880,17 +880,6 @@ class Detector(object):
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is the sharpest
-            '''
-            ampl = np.zeros(window.shape) # this is actually sharpness
-            for rowi, row in enumerate(window):
-                # TODO: this is probably slow, too many calls to weave.inline()
-                # TODO: make arglocalextremum return full length (but still 1D) extiw and ampl arrays
-                #if chani == 41 and rowi == 6:
-                #    import pdb; pdb.set_trace()
-                thisextiw, thisampl = arglocalextrema(row)
-                ampl[rowi, thisextiw] = thisampl
-            '''
-            #import pdb; pdb.set_trace()
             ampl = arglocalextrema(window)
             # find max abs(amplitude) that isn't locked out
             amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
@@ -979,7 +968,6 @@ class Detector(object):
             s['dphase'] = ts[phase2ti] - ts[phase1ti] # in us
             s['V1'], s['V2'] = AD2uV(V1), AD2uV(V2) # maintain sign
             s['Vpp'] = abs(AD2uV(Vpp)) # don't maintain sign
-
 
             # update channel neighbourhood
             # find all enabled chanis within nbhd of chani, exclude those locked-out at phase1ti
