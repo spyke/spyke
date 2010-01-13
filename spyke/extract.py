@@ -149,7 +149,7 @@ class Extractor(object):
         # looking for same phase maybe slightly shifted, but clusterability seems
         # a bit better when you leave dti be
         #dti = self.sort.detector.dti // 2 # constant
-        dti = abs(int(phase1ti) - int(phase2ti)) // 2 # varies from spike to spike
+        dti = max(abs(int(phase1ti) - int(phase2ti)) // 2, 1) # varies from spike to spike
         V1 = wavedata[maxchani, phase1ti]
         V2 = wavedata[maxchani, phase2ti]
         window1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti]

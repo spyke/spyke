@@ -457,6 +457,13 @@ class Sort(object):
         spikeis = self.spikes['id'][ris]
         return spikeis
 
+    def create_neuron(self):
+        """Create and return a new Neuron with a unique ID"""
+        neuron = Neuron(self, self._nid)
+        self._nid += 1 # inc for next unique neuron
+        self.neurons[neuron.id] = neuron # add neuron to self
+        return neuron
+
     def align_neuron(self, nid, to):
         """Align all neuron nid's spikes by their max or min"""
         neuron = self.neurons[nid]
@@ -489,6 +496,11 @@ class Sort(object):
             wave = wave[chans]
             self.set_wavedata(ri, wave.data, spike['phase1ti'])
         neuron.update_wave() # update mean waveform
+        # trigger resaving of .spike and .wave files on next .sort save
+        try: del self.spikefname
+        except AttributeError: pass
+        try: del self.wavefname
+        except AttributeError: pass
         # TODO: trigger a redraw for all of this neuron's plotted spikes
     '''
     def get_component_matrix(self, dims=None, weighting=None):
@@ -510,13 +522,6 @@ class Sort(object):
         #self.weighting = weighting
         #self.features = features
         return features
-    '''
-    def create_neuron(self):
-        """Create and return a new Neuron with a unique ID"""
-        neuron = Neuron(self, self._nid)
-        self._nid += 1 # inc for next unique neuron
-        self.neurons[neuron.id] = neuron # add neuron to self
-        return neuron
 
     def get_ids(self, cids, spikes):
         """Convert a list of cluster ids into 2 dicts: n2sids maps neuron IDs to
@@ -608,7 +613,7 @@ class Sort(object):
         cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
         n2sids, s2nids = self.get_ids(cids, spikes)
         return n2sids
-    '''
+
     def export2Charlie(self, fname='spike_data', onlymaxchan=False, nchans=3, npoints=32):
         """Export spike data to a text file, one spike per row.
         Columns are x0, y0, followed by most prominent npoints datapoints
