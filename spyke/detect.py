@@ -17,7 +17,7 @@ import matplotlib as mpl
 
 import numpy as np
 from scipy.weave import inline
-from scipy import ndimage
+#from scipy import ndimage
 #from scipy.optimize import leastsq, fmin_slsqp
 #import openopt
 #import nmpfit
@@ -93,20 +93,21 @@ def arglocalextrema(signal):
     itemsize = signal.dtype.itemsize
     aitemsize = ampl.dtype.itemsize
     if len(signal.shape) == 2: # signal is 2D
-        nchans, nt = signal.shape
-        stride0 = signal.strides[0] // itemsize
-        stride1 = signal.strides[1] // itemsize
-        astride0 = ampl.strides[0] // aitemsize
-        astride1 = ampl.strides[1] // aitemsize
+        nchans = int(signal.shape[0])
+        nt = int(signal.shape[1])
+        stride0 = int(signal.strides[0] // itemsize)
+        stride1 = int(signal.strides[1] // itemsize)
+        astride0 = int(ampl.strides[0] // aitemsize)
+        astride1 = int(ampl.strides[1] // aitemsize)
     else: # signal is 1D
-        nchans, nt = 1, len(signal)
+        nchans = 1
+        nt = len(signal)
         stride0 = 0 # no chans to deal with, it's single chan
-        stride1 = signal.strides[0] // itemsize # just timepoints to deal with
+        stride1 = int(signal.strides[0] // itemsize) # just timepoints to deal with
         astride0 = 0
-        astride1 = ampl.strides[0] // aitemsize
+        astride1 = int(ampl.strides[0] // aitemsize)
     extiw = np.empty(nt, dtype=np.int32) # for temp internal use
-    code = (r"""
-    #line 102 "detect.py"
+    code = (r"""#line 109 "detect.py"
     int ci, ti, ei, n_ext, cis0, i, ai, alasti, now, last, last2, thisti, lastti, nextti;
     double rise1, rise2, run1, run2;
 
@@ -163,7 +164,7 @@ def arglocalextrema(signal):
     }
     """)
     inline(code, ['signal', 'nchans', 'nt', 'stride0', 'stride1', 'astride0', 'astride1',
-           'extiw', 'ampl'], compiler='gcc')
+           'extiw', 'ampl'], compiler='msvc')
     return ampl
 
 def get_edges(wave, thresh):
@@ -181,18 +182,18 @@ def get_edges(wave, thresh):
     data = wave.data
     assert data.size < 2**31 # we're sticking with signed int32 indices for speed
     itemsize = data.dtype.itemsize
-    stride0 = data.strides[0] // itemsize
-    stride1 = data.strides[1] // itemsize
+    stride0 = int(data.strides[0] // itemsize)
+    stride1 = int(data.strides[1] // itemsize)
     #assert (thresh >= 0).all() # assume it's passed as +ve
     # NOTE: taking abs(data) in advance doesn't seem faster than constantly calling abs() in the loop
-    nchans, nt = data.shape
+    nchans = int(data.shape[0])
+    nt = int(data.shape[1])
     #assert nchans == len(thresh)
     # TODO: this could be sped up by declaring a pointer to data and calculating byte
     # offsets directly in the C code, instead of relying on weave to do it for you
-    code = (r"""
-    #line 149 "detect.py"
+    code = (r"""#line 193 "detect.py"
     int nd = 2; // num dimensions of output edgeis array
-    npy_intp dimsarr[nd];
+    npy_intp dimsarr[2]; // can't use var nd as length, need a constant for msvc
     dimsarr[0] = 65536; // nrows, 2**16
     dimsarr[1] = 2;     // ncols
     PyArrayObject *edgeis = (PyArrayObject *) PyArray_SimpleNew(nd, dimsarr, NPY_INT);
@@ -254,7 +255,7 @@ def get_edges(wave, thresh):
     return_val = PyArray_Return(edgeis); // seem to work
     """)
     edgeis = inline(code, ['data', 'nchans', 'nt', 'stride0', 'stride1', 'thresh'],
-                    compiler='gcc')
+                    compiler='msvc')
     print("found %d edges" % len(edgeis))
     return edgeis
 
