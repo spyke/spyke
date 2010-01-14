@@ -164,7 +164,7 @@ def arglocalextrema(signal):
     }
     """)
     inline(code, ['signal', 'nchans', 'nt', 'stride0', 'stride1', 'astride0', 'astride1',
-           'extiw', 'ampl'], compiler='msvc')
+           'extiw', 'ampl'])
     return ampl
 
 def get_edges(wave, thresh):
@@ -254,8 +254,7 @@ def get_edges(wave, thresh):
     //return_val = (PyObject *) edgeis;  // these two both
     return_val = PyArray_Return(edgeis); // seem to work
     """)
-    edgeis = inline(code, ['data', 'nchans', 'nt', 'stride0', 'stride1', 'thresh'],
-                    compiler='msvc')
+    edgeis = inline(code, ['data', 'nchans', 'nt', 'stride0', 'stride1', 'thresh'])
     print("found %d edges" % len(edgeis))
     return edgeis
 
