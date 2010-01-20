@@ -609,7 +609,7 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFMAXNCHANSPERSPIKE = 9 # overrides spatial lockout, 9 seems to give greatest clusterability for uMap54_2b probe.
+    DEFMAXNCHANSPERSPIKE = 25 # overrides spatial lockout, 9 seems to give greatest clusterability for uMap54_2b probe.
                              # when using spatial mean extraction, setting this to a bad value
                              # can give artificially segregated clusters in space
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size

@@ -9,10 +9,10 @@ import time
 import numpy as np
 #np.seterr(under='ignore') # only enable this if getting underflow during gaussian_fit
 #from scipy.optimize import leastsq
+from scipy.interpolate import UnivariateSpline
 
 from spyke.detect import get_wave
 from spyke.core import g2
-
 
 class LeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
@@ -64,11 +64,13 @@ class Extractor(object):
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'spatial mean':
             self.extractXY = self.get_spatial_mean
+        elif self.XYmethod.lower() == 'splines 1d fit':
+            self.extractXY = self.get_splines_fit
         elif self.XYmethod.lower() == 'gaussian fit':
             self.extractXY = self.get_gaussian_fit
             self.ls = LeastSquares()
         else:
-            raise ValueError("Unknown XY parameter extraction method %r" % method)
+            raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
@@ -127,19 +129,15 @@ class Extractor(object):
             y = det.siteloc[chanis, 1]
             # just x and y params for now
             #print('ri = %d' % ri)
-            x0, y0 = self.extractXY(tightwavedata, x, y, phase1ti, phase2ti, maxchani)
+            weights = self.get_weights(tightwavedata, phase1ti, phase2ti, maxchani)
+            x0, y0 = self.extractXY(weights, x, y, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
               (nspikes, self.XYmethod.lower(), time.time()-t0))
 
-    def get_spatial_mean(self, wavedata, x, y, phase1ti, phase2ti, maxchani):
-        """Return weighted spatial mean of chans in spike according to their
-        Vpp at the same timepoints as on the max chan, to use as rough
-        spatial origin of spike. x and y are spatial coords of chans in wavedata.
-        phase1ti and phase2ti are timepoint indices in wavedata at which the max chan
-        hits its 1st and 2nd spike phases.
-        NOTE: you get better clustering if you allow phase1ti and phase2ti to
+    def get_weights(self, wavedata, phase1ti, phase2ti, maxchani):
+        """NOTE: you get better clustering if you allow phase1ti and phase2ti to
         vary at least slightly for each chan, since they're never simultaneous across
         chans, and sometimes they're very delayed or advanced in time
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
@@ -164,6 +162,18 @@ class Extractor(object):
             V1s = np.float32(window1.max(axis=1))
             V2s = np.float32(window2.min(axis=1))
             weights = V1s - V2s
+        return weights
+
+    def get_spatial_mean(self, weights, x, y, maxchani):
+        """Return weighted spatial mean of chans in spike according to their
+        Vpp at the same timepoints as on the max chan, to use as rough
+        spatial origin of spike. x and y are spatial coords of chans in wavedata.
+        phase1ti and phase2ti are timepoint indices in wavedata at which the max chan
+        hits its 1st and 2nd spike phases.
+        NOTE: you get better clustering if you allow phase1ti and phase2ti to
+        vary at least slightly for each chan, since they're never simultaneous across
+        chans, and sometimes they're very delayed or advanced in time
+        NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
 
         # convert to float before normalization, take abs of all weights
         # taking abs doesn't seem to affect clusterability
@@ -177,7 +187,49 @@ class Extractor(object):
         y0 = (weights * y).sum()
         return x0, y0
 
-    def get_gaussian_fit(self, wavedata, x, y, phase1ti, phase2ti, maxchani):
+    def get_splines_fit(self, V, x, y, maxchani):
+        xi = x.argsort()
+        V, x, y = V[xi], x[xi], y[xi] # sort points by x values
+        x0s = np.unique(x)
+        colweights = np.empty(len(x0s)) # these end up being the extreme interpolated voltage values in each column
+        y0s = np.empty(len(x0s))
+        xis = x.searchsorted(x0s) # start indices of coords with identical x values
+        # iterate over columns:
+        for coli, starti in enumerate(xis):
+            try:
+                endi = xis[coli+1]
+            except IndexError:
+                endi = len(x)
+            ys, Vs = y[starti:endi], V[starti:endi]
+            if len(ys) < 3: # not enough chans in this column to interpolate vertically, just find the max?
+                assert len(ys) > 0
+                yi = ys.argmax()
+                colweights[coli] = Vs[yi]
+                y0s[coli] = ys[yi]
+            else:
+                #k = min(max(3, len(ys)-2), 5)
+                k = min(3, len(ys)-1)
+                yi = ys.argsort() # UnivariateSpline requires monotonically ascending coordinates
+                try:
+                    us = UnivariateSpline(ys[yi], Vs[yi], k=k)
+                except:
+                    import pdb; pdb.set_trace()
+                ynew = np.arange(ys.min(), ys.max(), 1) # span whole y range in steps of 1um
+                Vnew = us(ynew)
+                if V[maxchani] > 0: # look for a max:
+                    vi = Vnew.argmax()
+                else: # look for a min:
+                    vi = Vnew.argmin()
+                colweights[coli] = Vnew[vi]
+                y0s[coli] = ynew[vi]
+        # now do column-wise spatial mean
+        colweights = np.abs(colweights)
+        colweights /= colweights.sum() # normalized
+        x0 = (colweights * x0s).sum()
+        y0 = (colweights * y0s).sum()
+        return x0, y0
+
+    def get_gaussian_fit(self, weights, x, y, maxchani):
         """Can't seem to prevent from getting a stupidly wide range of modelled
         x locations. Tried fitting V**2 instead of V (to give big chans more weight),
         tried removing chans that don't fit spatial Gaussian model very well, and
@@ -186,21 +238,16 @@ class Extractor(object):
         than results from spatial mean. Plus, the LM algorithm keeps generating underflow
         errors for some reason. These can be turned off and ignored, but it's strange that
         it's choosing to explore the fit at such extreme values of sx (say 0.6 instead of 60)"""
+        raise NotImplementedError("untested since the switch to calling self.get_weights()")
         self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to get_spatial_mean()
-        dti = self.sort.detector.dti / 2
-        wavedata = np.float64(wavedata)
-        V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
-        V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
-        V = V2 - V1
-        #V /= 1000
-        V = V**2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
+        V = weights**2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
         ls = self.ls
         ls.p0 = np.asarray([ V[maxchani], x[maxchani], y[maxchani], 60 ])
 
         while True:
             if len(V) < 4: # can't fit Gaussian for spikes with low nchans
                 print('\n\nonly %d fittable chans in spike \n\n' % len(V))
-                return self.get_spatial_mean(wavedata, self.x, self.y, phase1ti, phase2ti, self.maxchani)
+                return self.get_spatial_mean(weights, self.x, self.y, self.maxchani)
             ls.calc(x, y, V)
             if ls.ier == 2: # essentially perfect fit between data and model
                 break
