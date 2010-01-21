@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 #np.seterr(under='ignore') # only enable this if getting underflow during gaussian_fit
-#from scipy.optimize import leastsq
+from scipy.optimize import leastsq
 from scipy.interpolate import UnivariateSpline
 
 from spyke.detect import get_wave
@@ -17,7 +17,10 @@ from spyke.core import g2
 class LeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
     def __init__(self):
-        self.anisotropy = 2 # y vs x anisotropy in sigma of gaussian fit
+        #self.anisotropy = 2 # y vs x anisotropy in sigma of gaussian fit
+        self.A = None
+        self.sx = 30
+        self.sy = 30
 
     def calc(self, x, y, V):
         t0 = time.clock()
@@ -35,12 +38,12 @@ class LeastSquares(object):
 
     def model(self, p, x, y):
         """2D circularly symmetric Gaussian"""
-        return p[0] * g2(p[1], p[2], p[3], p[3], x, y)
+        return self.A * g2(p[0], p[1], self.sx, self.sx, x, y)
 
     def model2(self, p, x, y):
         """2D elliptical Gaussian"""
         try:
-            return p[0] * g2(p[1], p[2], p[3], p[3]*self.anisotropy, x, y)
+            return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
@@ -239,7 +242,7 @@ class Extractor(object):
         y0 = (yw * y0s).sum()
         return x0, y0
 
-    def get_gaussian_fit(self, weights, x, y, maxchani):
+    def get_gaussian_fit(self, w, x, y, maxchani):
         """Can't seem to prevent from getting a stupidly wide range of modelled
         x locations. Tried fitting V**2 instead of V (to give big chans more weight),
         tried removing chans that don't fit spatial Gaussian model very well, and
@@ -248,12 +251,16 @@ class Extractor(object):
         than results from spatial mean. Plus, the LM algorithm keeps generating underflow
         errors for some reason. These can be turned off and ignored, but it's strange that
         it's choosing to explore the fit at such extreme values of sx (say 0.6 instead of 60)"""
-        raise NotImplementedError("untested since the switch to calling self.get_weights()")
-        self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to get_spatial_mean()
-        V = weights**2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
+        #self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to get_spatial_mean()
+        #w **= 2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
         ls = self.ls
-        ls.p0 = np.asarray([ V[maxchani], x[maxchani], y[maxchani], 60 ])
-
+        x0, y0 = self.get_spatial_mean(w, x, y, maxchani)
+        ls.A = w[maxchani]
+        ls.p0 = np.asarray([x0, y0])
+        #ls.p0 = np.asarray([x[maxchani], y[maxchani]])
+        ls.calc(x, y, w)
+        return ls.p[0], ls.p[1]
+        '''
         while True:
             if len(V) < 4: # can't fit Gaussian for spikes with low nchans
                 print('\n\nonly %d fittable chans in spike \n\n' % len(V))
@@ -292,3 +299,4 @@ class Extractor(object):
 
         # TODO: return modelled amplitude and sigma as well!
         return ls.p[1], ls.p[2]
+        '''
