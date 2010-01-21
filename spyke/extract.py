@@ -135,6 +135,9 @@ class Extractor(object):
             spikes['y0'][ri] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
               (nspikes, self.XYmethod.lower(), time.time()-t0))
+        # trigger resaving of .spike file on next .sort save
+        try: del sort.spikefname
+        except AttributeError: pass
 
     def get_weights(self, wavedata, phase1ti, phase2ti, maxchani):
         """NOTE: you get better clustering if you allow phase1ti and phase2ti to
@@ -187,46 +190,53 @@ class Extractor(object):
         y0 = (weights * y).sum()
         return x0, y0
 
-    def get_splines_fit(self, V, x, y, maxchani):
+    def get_splines_fit(self, w, x, y, maxchani):
+        # w stands for weights
         xi = x.argsort()
-        V, x, y = V[xi], x[xi], y[xi] # sort points by x values
-        x0s = np.unique(x)
-        colweights = np.empty(len(x0s)) # these end up being the extreme interpolated voltage values in each column
-        y0s = np.empty(len(x0s))
-        xis = x.searchsorted(x0s) # start indices of coords with identical x values
+        w, x, y = w[xi], x[xi], y[xi] # sort points by x values
+        ux = np.unique(x)
+        yw = np.empty(len(ux)) # these end up being the max interpolated weight values in each column
+        y0s = np.empty(len(ux))
+        xis = x.searchsorted(ux) # start indices of coords with identical x values
         # iterate over columns:
+        import pdb; pdb.set_trace()
         for coli, starti in enumerate(xis):
             try:
                 endi = xis[coli+1]
             except IndexError:
                 endi = len(x)
-            ys, Vs = y[starti:endi], V[starti:endi]
-            if len(ys) < 3: # not enough chans in this column to interpolate vertically, just find the max?
-                assert len(ys) > 0
-                yi = ys.argmax()
-                colweights[coli] = Vs[yi]
-                y0s[coli] = ys[yi]
+            yc, wc = y[starti:endi], w[starti:endi] # y and w values for this column
+            if len(yc) < 3: # not enough chans in this column to interpolate vertically, just find the max?
+                assert len(yc) > 0
+                yi = yc.argmax()
+                yw[coli] = wc[yi]
+                y0s[coli] = yc[yi]
             else:
-                #k = min(max(3, len(ys)-2), 5)
-                k = min(3, len(ys)-1)
-                yi = ys.argsort() # UnivariateSpline requires monotonically ascending coordinates
+                #k = min(max(3, len(yc)-2), 5)
+                k = min(3, len(yc)-1)
+                yi = yc.argsort() # UnivariateSpline requires monotonically ascending coordinates
                 try:
-                    us = UnivariateSpline(ys[yi], Vs[yi], k=k)
+                    us = UnivariateSpline(yc[yi], wc[yi], k=k)
+                except UserWarning:
+                    import pdb; pdb.set_trace()
                 except:
                     import pdb; pdb.set_trace()
-                ynew = np.arange(ys.min(), ys.max(), 1) # span whole y range in steps of 1um
-                Vnew = us(ynew)
-                if V[maxchani] > 0: # look for a max:
-                    vi = Vnew.argmax()
-                else: # look for a min:
-                    vi = Vnew.argmin()
-                colweights[coli] = Vnew[vi]
-                y0s[coli] = ynew[vi]
-        # now do column-wise spatial mean
-        colweights = np.abs(colweights)
-        colweights /= colweights.sum() # normalized
-        x0 = (colweights * x0s).sum()
-        y0 = (colweights * y0s).sum()
+                yc2 = np.arange(yc.min(), yc.max(), 1) # span whole y range in steps of 1um
+                wc2 = us(yc2)
+                # if w[maxchani] > 0: # this is always the case - see get_weights
+                wi = wc2.argmax()
+                #else: # look for a min:
+                #    wi = wc2.argmin()
+                yw[coli] = wc2[wi]
+                y0s[coli] = yc2[wi]
+        # do normal full spatial mean for x values
+        xw = np.abs(w)
+        xw /= xw.sum() # normalized
+        x0 = (xw * x).sum()
+        # do column-wise spatial mean for y values
+        yw = np.abs(yw)
+        yw /= yw.sum() # normalized
+        y0 = (yw * y0s).sum()
         return x0, y0
 
     def get_gaussian_fit(self, weights, x, y, maxchani):

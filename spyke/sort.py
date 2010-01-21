@@ -154,7 +154,7 @@ class Sort(object):
         nids = self.spikes['nid']
         self.uris, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
         # order it by .uris_sorted_by and .uris_reversed
-        if self.uris_sorted_by != 't': self.sort_uris()
+        if self.uris_sorted_by != 't': self.sort_uris('t')
         if self.uris_reversed: self.reverse_uris()
 
     def sort_uris(self, sort_by):
