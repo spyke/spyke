@@ -66,7 +66,7 @@ class Sort(object):
         self.uris_reversed = False
 
         # how much to scale each dim for better viewing in cluster plots
-        self.SCALE = {'x0': 5, 'Vpp': 0.5} #, 'IC1': 0.05, 'IC2': 0.05}
+        self.SCALE = {'x0': 2, 'Vpp': 0.5, 'dphase': 0.5} #, 'IC1': 0.05, 'IC2': 0.05}
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs

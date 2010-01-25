@@ -29,12 +29,12 @@ class LeastSquares(object):
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
         except: import pdb; pdb.set_trace()
-        print('iters took %.3f sec' % (time.clock()-t0))
+        #print('iters took %.3f sec' % (time.clock()-t0))
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        print('p0 = %r' % self.p0)
-        print('p = %r' % self.p)
-        print('%d iterations' % self.infodict['nfev'])
-        print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+        #print('p0 = %r' % self.p0)
+        #print('p = %r' % self.p)
+        #print('%d iterations' % self.infodict['nfev'])
+        #print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def model(self, p, x, y):
         """2D circularly symmetric Gaussian"""
