@@ -1,5 +1,6 @@
 """Demonstrate use of a processing.Pool"""
 
+import multiprocessing
 from multiprocessing import Pool
 import time
 
@@ -11,6 +12,14 @@ def f(x):
     for i in xrange(100000000): # to slow things down a bit
         output = x*x
     return [x, output]
+
+def g(args):
+    x, y = args
+    for i in xrange(100000000): # to slow things down a bit
+        output = x*y
+    return [x, y, output]
+
+
 '''
 def handleOutput(output):
     """This f'n, as a callback, is blocking.
@@ -31,11 +40,12 @@ if __name__ == '__main__':
     #    results.append(result)
     ncpus = multiprocessing.cpu_count()
     t0 = time.clock()
-    results = pool.map(f, range(2*ncpus)) # make it int multiple of ncpus for efficiency
+    args = zip(range(0, 2*ncpus), [10]*(2*ncpus))
+    results = pool.map(g, args) # make it int multiple of ncpus for efficiency
     print('tasks took %.3f sec' % time.clock())
     #print 'done queueing tasks, result objects are: %r' % results
     print(results)
     pool.close()
     pool.join()
     #print 'outputs: %r' % outputs
-    time.sleep(10) # pause so you can watch the parent process in taskman hang around after worker processes exit
+    time.sleep(5) # pause so you can watch the parent process in taskman hang around after worker processes exit

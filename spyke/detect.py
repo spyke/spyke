@@ -10,6 +10,8 @@ import time
 import string
 import logging
 import datetime
+from multiprocessing import Pool
+from copy import copy
 
 import wx
 import pylab
@@ -27,6 +29,7 @@ from spyke.core import eucd
 #from spyke.core import WaveForm, toiter, argcut, intround, g, g2, RM
 #from text import SimpleTable
 
+global globalstream
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 
@@ -73,6 +76,13 @@ if DEBUG:
     fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
     logger.addHandler(fhandler)
     debug = logger.debug
+
+
+def callsearchblock(args):
+    print globalstream
+    detector, wavetrange, direction = args
+    detector.sort.stream = copy(globalstream) # WARNING: setting all processes to use the same detector and same sort with the same attribs might cause weird race conditions
+    return detector.searchblock(wavetrange, direction)
 
 
 def minmax_filter(x, width=3):
@@ -692,12 +702,26 @@ class Detector(object):
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
         nchans = len(self.chans) # number of enabled chans
-        self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
-        self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
+        #self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
+        #self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
-        spikes = np.zeros(0, self.SPIKEDTYPE) # init
+        #spikes = np.zeros(0, self.SPIKEDTYPE) # init
+        globalstream = self.sort.stream
+        import pdb; pdb.set_trace()
+        pool = Pool(1) # create a processing pool with as many processes as there are CPUs/cores
+                      # on this machine, or set arg to n to use exactly n processes
 
         t0 = time.time()
+        detectors = []
+        for i in range(len(wavetranges)):
+            detectors.append(copy(self)) # creating way too many detectors, should really only be one per process
+        #detectors = [self]*len(wavetranges)
+        directions = [direction]*len(wavetranges)
+        args = zip(detectors, wavetranges, directions)
+        results = pool.map(callsearchblock, args)
+        spikes = np.concatenate(results)
+        self.nspikes = len(spikes)
+        '''
         for wavetrange in wavetranges:
             try:
                 blockspikes = self.searchblock(wavetrange, direction)
@@ -709,13 +733,14 @@ class Detector(object):
             spikes.resize(shape, refcheck=False)
             spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
             self.nspikes += nblockspikes
+        '''
         #spikets = [ s.t for s in spikes ]
         #spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
         #spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
         # default -1 indicates no nid or detid is set as of yet, reserve 0 for actual ids
         spikes['nid'] = -1
         spikes['detid'] = -1
-        info('\nfound %d spikes in total' % len(spikes))
+        info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         return spikes
 
@@ -780,8 +805,8 @@ class Detector(object):
         # the whole slicing/indexing into a WaveForm object - just work directly on the .data
         # and .chans and .ts, convenience be damned
         tres = stream.tres
-        self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
-        self.lockouts[self.lockouts < 0] = 0 # don't allow -ve lockout indices
+        #self.lockouts = np.int64((self.lockouts_us - wave.ts[0]) / tres)
+        #self.lockouts[self.lockouts < 0] = 0 # don't allow -ve lockout indices
         #info('at start of searchblock:\n new wave.ts[0, end] = %s\n new lockouts = %s' %
         #     ((wave.ts[0], wave.ts[-1]), self.lockouts))
 
@@ -795,23 +820,23 @@ class Detector(object):
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
+        siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
         tget_edges = time.time()
         edgeis = get_edges(wave, self.thresh)
         info('get_edges() took %.3f sec' % (time.time()-tget_edges))
         tcheck_edges = time.time()
-        spikes = self.check_edges(wave, edgeis, cutrange)
+        spikes = self.check_edges(wave, edgeis, cutrange, siteloc)
         info('checking edges took %.3f sec' % (time.time()-tcheck_edges))
         print('found %d spikes' % len(spikes))
         #import cProfile
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
         #spikes = []
-        self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
+        #self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
         #info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
         #     (self.lockouts, self.lockouts_us))
         return spikes
 
-    def check_edges(self, wave, edgeis, cutrange):
+    def check_edges(self, wave, edgeis, cutrange, siteloc):
         """Check which edges (threshold crossings) in wave data look like spikes
         and return only events that fall within cutrange. Search in window
         forward from thresh for a peak, then in appropriate direction from
@@ -851,7 +876,9 @@ class Detector(object):
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
             extractXY = sort.extractor.extractXY
-        lockouts = self.lockouts
+        #lockouts = self.lockouts
+        lockouts = np.zeros(len(self.nchans), dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
+
         dti = self.dti
         twi = sort.twi
         maxti = len(wave.ts)-1
@@ -984,12 +1011,12 @@ class Detector(object):
                 sort.set_wavedata(totalnspikes, window, phase1ti)
             if self.extractparamsondetect:
                 # just x and y params for now
-                x = self.siteloc[chanis, 0] # 1D array (row)
-                y = self.siteloc[chanis, 1]
+                x = siteloc[chanis, 0] # 1D array (row)
+                y = siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan))
                 s['x0'], s['y0'] = extractXY(window, x, y, phase1ti, phase2ti, maxchani)
 
-            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike
             dphaseti = abs(phase2ti - phase1ti)

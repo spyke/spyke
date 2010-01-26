@@ -98,9 +98,9 @@ class Sort(object):
         """Get object state for pickling"""
         # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
         d = self.__dict__.copy()
-        # don't pickle the stream, cuz it relies on an open .srf file
-        # spikes and wavedata arrays are (potentially) saved separately
-        # all the others can be regenerated from the spikes array
+        # Don't pickle the stream, cuz it relies on an open .srf file.
+        # Spikes and wavedata arrays are (potentially) saved separately.
+        # All the others can be regenerated from the spikes array.
         for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'spikes', 'wavedatas', 'wavedatascumsum']:
             try: del d[attr]
             except KeyError: pass
