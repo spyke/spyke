@@ -28,7 +28,9 @@ class LeastSquares(object):
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
-        except: import pdb; pdb.set_trace()
+        except Exception as err:
+            print(err)
+            import pdb; pdb.set_trace()
         #print('iters took %.3f sec' % (time.clock()-t0))
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         #print('p0 = %r' % self.p0)

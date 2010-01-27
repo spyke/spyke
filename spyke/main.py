@@ -766,7 +766,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # overwrite sort.spikes and sort.wavedatas
             sort.spikes = sort.spikes[keepris]
             if len(keepris) == 0:
-                del sort.wavedatas
+                try: del sort.wavedatas
+                except AttributeError: pass
             else:
                 raise RuntimeError('the following code for deleting one of multiple '
                                    'detections might not be very reliable, disabling for now')

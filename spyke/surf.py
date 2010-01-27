@@ -72,6 +72,10 @@ class File(object):
         """Close the .srf file"""
         self.f.close()
 
+    def reopen(self):
+        """Reopen previously closed .srf file"""
+        self.f = open(self.fname, 'rb')
+
     def _parseFileHeader(self):
         """Parse the Surf file header"""
         self.fileheader = FileHeader()
@@ -150,7 +154,7 @@ class File(object):
             if flag == '':
                 break
             # put file pointer back to start of flag
-            f.seek(-2, 1)
+            f.seek(-2, 1) # TODO: unnecessary - doesn't this slow down parsing quite a bit?
             if flag in FLAG2METHOD: # these are the most common
                 FLAG2METHOD[flag](f) # call the method
             elif flag in FLAG2REC:

@@ -10,6 +10,7 @@ import time
 import string
 import logging
 import datetime
+import multiprocessing
 from multiprocessing import Pool
 from copy import copy
 
@@ -28,8 +29,6 @@ import spyke.surf
 from spyke.core import eucd
 #from spyke.core import WaveForm, toiter, argcut, intround, g, g2, RM
 #from text import SimpleTable
-
-global globalstream
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 
@@ -79,11 +78,14 @@ if DEBUG:
 
 
 def callsearchblock(args):
-    print globalstream
-    detector, wavetrange, direction = args
-    detector.sort.stream = copy(globalstream) # WARNING: setting all processes to use the same detector and same sort with the same attribs might cause weird race conditions
+    wavetrange, direction = args
+    detector = multiprocessing.current_process().detector
     return detector.searchblock(wavetrange, direction)
 
+def initializer(detector, stream):
+    stream.srff.reopen() # reopen the .srf file which was closed to allow pickling
+    detector.sort.stream = stream
+    multiprocessing.current_process().detector = detector
 
 def minmax_filter(x, width=3):
     """An alternative to arglocalextrema, works on 2D arrays. Is about 10X slower
@@ -626,7 +628,7 @@ class Detector(object):
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
-    DEFKEEPSPIKEWAVESONDETECT = True # only reason to turn this off is to save memory during detection
+    DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
     DEFEXTRACTPARAMSONDETECT = False
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
@@ -701,24 +703,26 @@ class Detector(object):
         bx = self.BLOCKEXCESS
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
-        nchans = len(self.chans) # number of enabled chans
+        self.nchans = len(self.chans) # number of enabled chans
         #self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
         #self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
         #spikes = np.zeros(0, self.SPIKEDTYPE) # init
-        globalstream = self.sort.stream
-        import pdb; pdb.set_trace()
-        pool = Pool(1) # create a processing pool with as many processes as there are CPUs/cores
-                      # on this machine, or set arg to n to use exactly n processes
 
+        # create a processing pool with as many processes as there are CPUs/cores
+        # on this machine, or set arg to n to use exactly n processes
+
+        stream = self.sort.stream
+        stream.srff.close() # make it picklable
+        ncpus = multiprocessing.cpu_count()
+        pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process?
+        stream.srff.reopen()
         t0 = time.time()
-        detectors = []
-        for i in range(len(wavetranges)):
-            detectors.append(copy(self)) # creating way too many detectors, should really only be one per process
-        #detectors = [self]*len(wavetranges)
         directions = [direction]*len(wavetranges)
-        args = zip(detectors, wavetranges, directions)
+        args = zip(wavetranges, directions)
         results = pool.map(callsearchblock, args)
+        pool.close()
+        pool.join() # necessary?
         spikes = np.concatenate(results)
         self.nspikes = len(spikes)
         '''
@@ -877,7 +881,7 @@ class Detector(object):
         if self.extractparamsondetect:
             extractXY = sort.extractor.extractXY
         #lockouts = self.lockouts
-        lockouts = np.zeros(len(self.nchans), dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
+        lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
 
         dti = self.dti
         twi = sort.twi
