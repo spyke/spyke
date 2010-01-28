@@ -32,6 +32,7 @@ np.seterr(all='raise')
 from matplotlib.colors import hex2color
 
 from spyke import probes
+from spyke.filelock import FileLock
 
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
@@ -213,6 +214,12 @@ class Stream(object):
         self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
         lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.probe.nchans)) # nsamples in last record
         self.tend = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
+
+    def open(self):
+        self.srff.open()
+
+    def close(self):
+        self.srff.close()
 
     def get_chans(self):
         return self._chans
@@ -569,19 +576,26 @@ class Stream(object):
             except AttributeError: # self isn't fully __init__'d yet
                 return
             self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
-            self.f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
+            f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
             # first CHANFIELDLEN bytes are a 'chans = [0, 1, 2, ...]' string indicating channels in the file
-            chanstr = self.f.read(CHANFIELDLEN).rstrip('\x00') # strip any null bytes off the end
+            chanstr = f.read(CHANFIELDLEN).rstrip('\x00') # strip any null bytes off the end
             if eval(chanstr.split('= ')[-1]) != list(self.chans):
                 raise IOError("file %r doesn't have the right channels in it" % self.fname)
+            f.close()
+            Stream.close(self) # close parent stream.srff file and release its lock
+            # init filelock object for later use in ResampleFileStream
             self.__class__ = ResampleFileStream
+            self.filelock = FileLock(self.fname, timeout=3600, delay=0.01)
+            self.open()
         elif to == 'normal': # use .srf file to get waveform data
             try:
-                self.f.close()
+                self.close()
                 del self.f
+                del self.filelock
                 del self.fname
             except AttributeError:
                 pass
+            Stream.open(self) # open parent stream.srff file and acquire lock
             self.__class__ = Stream
 
     def try_switch(self):
@@ -637,12 +651,20 @@ class ResampleFileStream(Stream):
         #print('ResampleFileStream slice took %.3f sec' % (time.time()-tslice))
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
+    def open(self):
+        self.filelock.acquire()
+        self.f = open(self.fname, 'rb')
+
+    def close(self):
+        self.f.close()
+        self.filelock.release()
+
     def __getstate__(self):
         """Don't pickle open .resample file on pickle"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['f'] # exclude open .resample file
+        self.close()
         return d
-
+    '''
     def __setstate__(self, d):
         """Restore open .resample file (if available) on unpickle"""
         self.__dict__ = d
@@ -650,7 +672,7 @@ class ResampleFileStream(Stream):
             self.f = open(self.fname, 'rb')
         except IOError:
             self.switch(to='normal')
-
+    '''
 
 class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
     """ListCtrl with a couple of extra methods defined"""

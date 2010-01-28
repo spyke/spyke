@@ -83,7 +83,7 @@ def callsearchblock(args):
     return detector.searchblock(wavetrange, direction)
 
 def initializer(detector, stream):
-    stream.srff.reopen() # reopen the .srf file which was closed to allow pickling
+    #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
     detector.sort.stream = stream
     multiprocessing.current_process().detector = detector
 
@@ -713,10 +713,10 @@ class Detector(object):
         # on this machine, or set arg to n to use exactly n processes
 
         stream = self.sort.stream
-        stream.srff.close() # make it picklable
+        stream.close() # make it picklable, also release the file lock
         ncpus = multiprocessing.cpu_count()
         pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process?
-        stream.srff.reopen()
+        stream.srff.open()
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
@@ -801,7 +801,9 @@ class Detector(object):
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
         info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
         tslice = time.time()
+        stream.open() # (re)open file that stream depends on, engage file lock
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
+        stream.close() # release file lock
         print('Stream slice took %.3f sec' % (time.time()-tslice))
         # TODO: simplify the whole channel deselection and indexing approach, maybe
         # make all chanis always index into the full probe chan layout instead of the self.chans

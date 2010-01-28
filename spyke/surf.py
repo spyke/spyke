@@ -19,6 +19,7 @@ import weakref
 import wx
 
 from spyke.core import Stream, iterable, toiter
+from spyke.filelock import FileLock
 
 NULL = '\x00'
 
@@ -44,8 +45,7 @@ class DRDBError(ValueError):
 
 class File(object):
     """Open a .srf file and, after parsing, expose all of its headers and
-    records as attribs.
-    Store as attribs:
+    records as attribs:
         - Surf file header
         - Surf data record descriptor blocks
         - electrode layout records
@@ -56,8 +56,9 @@ class File(object):
     def __init__(self, fname):
         # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
         self.fname = fname
+        self.filelock = FileLock(fname, timeout=3600, delay=0.01)
         self.fileSize = os.stat(fname)[6]
-        self.f = open(fname, 'rb')
+        self.open()
         self._parseFileHeader()
         self.parsefname = fname + '.parse'
         # init struct ndarrays for high volume record types
@@ -68,13 +69,15 @@ class File(object):
         self.digitalsvalrecords = np.empty(DEFNDIGITALSVALRECORDS, dtype=DIGITALSVALDTYPE)
         self.ndigitalsvalrecords = 0
 
+    def open(self):
+        """(Re)open previously closed .srf file"""
+        self.filelock.acquire()
+        self.f = open(self.fname, 'rb')
+
     def close(self):
         """Close the .srf file"""
         self.f.close()
-
-    def reopen(self):
-        """Reopen previously closed .srf file"""
-        self.f = open(self.fname, 'rb')
+        self.filelock.release()
 
     def _parseFileHeader(self):
         """Parse the Surf file header"""
@@ -128,7 +131,6 @@ class File(object):
             else:
                 self.lpstream = None
 
-            print('parsing took %.3f sec' % (time.time()-t0))
             if save:
                 tsave = time.time()
                 self.pickle()
