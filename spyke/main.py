@@ -1291,6 +1291,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Save waveform data to a .wave file"""
         #if fname == None:
         #    fname = os.path.splitext(self.sort.sortfname)[0] # grab the base name of the current .sort fname
+        sort = self.sort
+        try: sort.wavedatas
+        except AttributeError: return # no wavedata to save
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.wave'
         if os.path.exists(fname):
@@ -1304,7 +1307,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         t0 = time.time()
         f = open(fname, 'wb')
         wavedatas = []
-        sort = self.sort
         nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
         for wavedata in sort.wavedatas:
             wavedatas.append(wavedata[:nspikes])

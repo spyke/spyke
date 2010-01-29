@@ -375,6 +375,7 @@ class File(object):
         other.fname = self.fname # overwrite
         other.parsefname = self.parsefname # overwrite
         other.f = self.f # restore open .srf file on unpickle
+        other.filelock = self.filelock # ditto for the filelock object
         self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
         print('Recovered parse info from %r' % self.parsefname)
 
@@ -382,7 +383,14 @@ class File(object):
         """Don't pickle open .srf file on pickle"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         del d['f'] # exclude open .srf file
+        del d['filelock'] # ditto for the filelock object
         return d
+
+    def __setstate__(self, d):
+        """Restore open .srff file (if available) on unpickle"""
+        self.__dict__ = d
+        self.open()
+
 
 class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file

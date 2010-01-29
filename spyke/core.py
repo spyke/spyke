@@ -579,24 +579,25 @@ class Stream(object):
             f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
             # first CHANFIELDLEN bytes are a 'chans = [0, 1, 2, ...]' string indicating channels in the file
             chanstr = f.read(CHANFIELDLEN).rstrip('\x00') # strip any null bytes off the end
+            f.close()
             if eval(chanstr.split('= ')[-1]) != list(self.chans):
                 raise IOError("file %r doesn't have the right channels in it" % self.fname)
-            f.close()
             Stream.close(self) # close parent stream.srff file and release its lock
             # init filelock object for later use in ResampleFileStream
             self.__class__ = ResampleFileStream
             self.filelock = FileLock(self.fname, timeout=3600, delay=0.01)
             self.open()
         elif to == 'normal': # use .srf file to get waveform data
-            try:
+            if type(self) == ResampleFileStream:
                 self.close()
-                del self.f
-                del self.filelock
-                del self.fname
-            except AttributeError:
-                pass
-            Stream.open(self) # open parent stream.srff file and acquire lock
-            self.__class__ = Stream
+                try:
+                    del self.f
+                    del self.filelock
+                    del self.fname
+                except AttributeError:
+                    pass
+                Stream.open(self) # open parent stream.srff file and acquire lock
+                self.__class__ = Stream
 
     def try_switch(self):
         """Try switching to using an appropriate .resample file"""
