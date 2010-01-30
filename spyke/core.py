@@ -221,6 +221,15 @@ class Stream(object):
     def close(self):
         self.srff.close()
 
+    def __getstate__(self):
+        """Don't pickle surf.File object - this prevents situation during pickling of
+        srff, which pickles its srff.stream, which pickles its srff.stream.srff. Then
+        when an existing srff unpickles its previous version from disk, the associated
+        streams reference the wrong srff"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['srff']
+        return d
+
     def get_chans(self):
         return self._chans
 
@@ -265,10 +274,6 @@ class Stream(object):
         self.try_switch()
 
     shcorrect = property(get_shcorrect, set_shcorrect)
-
-    def __len__(self):
-        """Total number of timepoints? Length in time? Interp'd or raw?"""
-        raise NotImplementedError
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating
@@ -661,19 +666,11 @@ class ResampleFileStream(Stream):
         self.filelock.release()
 
     def __getstate__(self):
-        """Don't pickle open .resample file on pickle"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        self.close()
+        """Don't pickle open .resample file"""
+        d = Stream.__getstate__(self) # call parent's version
+        self.close() # close .resample file and its lock
         return d
-    '''
-    def __setstate__(self, d):
-        """Restore open .resample file (if available) on unpickle"""
-        self.__dict__ = d
-        try:
-            self.f = open(self.fname, 'rb')
-        except IOError:
-            self.switch(to='normal')
-    '''
+
 
 class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
     """ListCtrl with a couple of extra methods defined"""

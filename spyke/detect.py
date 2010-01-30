@@ -714,8 +714,8 @@ class Detector(object):
 
         stream = self.sort.stream
         stream.close() # make it picklable, also release the file lock
-        ncpus = multiprocessing.cpu_count()
-        pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process?
+        ncpus = multiprocessing.cpu_count() # 1 per core
+        pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)

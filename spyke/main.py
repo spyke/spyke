@@ -1780,7 +1780,7 @@ class SpykeAbout(wx.Dialog):
         <p><b>spyke</b> is a tool for neuronal waveform visualization and spike sorting.
         </p>
 
-        <p>Copyright &copy; 2008-2009 Martin Spacek, Reza Lotun<br>
+        <p>Copyright &copy; 2008-2010 Martin Spacek, Reza Lotun<br>
            University of British Columbia</p>
         </body>
         </html>'''

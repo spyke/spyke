@@ -56,8 +56,8 @@ class File(object):
     def __init__(self, fname):
         # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
         self.fname = fname
-        self.filelock = FileLock(fname, timeout=3600, delay=0.01)
         self.fileSize = os.stat(fname)[6]
+        self.filelock = FileLock(fname, timeout=3600, delay=0.01)
         self.open()
         self._parseFileHeader()
         self.parsefname = fname + '.parse'
@@ -372,11 +372,13 @@ class File(object):
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
         pf.close()
-        other.fname = self.fname # overwrite
-        other.parsefname = self.parsefname # overwrite
+        #other.fname = self.fname # seems unnecessary
+        #other.parsefname = self.parsefname # ditto
         other.f = self.f # restore open .srf file on unpickle
         other.filelock = self.filelock # ditto for the filelock object
-        self.__dict__ = other.__dict__ # set self's attribs to match unpickled's attribs
+        for stream in [other.hpstream, other.lpstream]:
+            if stream: stream.srff = self # rebind self to other's non-None streams
+        self.__dict__ = other.__dict__ # set other's attribs to self
         print('Recovered parse info from %r' % self.parsefname)
 
     def __getstate__(self):
@@ -384,13 +386,12 @@ class File(object):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         del d['f'] # exclude open .srf file
         del d['filelock'] # ditto for the filelock object
+        # leave the streams be, since you need them for their enabled chans info
         return d
-
+    '''
     def __setstate__(self, d):
-        """Restore open .srff file (if available) on unpickle"""
-        self.__dict__ = d
-        self.open()
-
+        """Do the stuff you might normally do here in self.unpickle() instead"""
+    '''
 
 class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file
