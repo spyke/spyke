@@ -590,7 +590,7 @@ class Stream(object):
             Stream.close(self) # close parent stream.srff file and release its lock
             # init filelock object for later use in ResampleFileStream
             self.__class__ = ResampleFileStream
-            self.filelock = FileLock(self.fname, timeout=3600, delay=0.01)
+            self.filelock = FileLock(self.fname)
             self.open()
         elif to == 'normal': # use .srf file to get waveform data
             if type(self) == ResampleFileStream:

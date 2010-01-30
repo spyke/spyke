@@ -997,6 +997,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for frametype in self.frames.keys():
             if frametype != 'pyshell': # leave pyshell frame alone
                 self.CloseFrame(frametype) # deletes from dict
+        for obj in [self.srff, self.hpstream, self.lpstream]:
+            if obj: obj.close()
         self.hpstream = None
         self.lpstream = None
         self.chans_enabled = []
@@ -1007,10 +1009,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ShowRasters(False) # reset
         self.SetTitle('spyke') # update caption
         self.EnableSurfWidgets(False)
-        try:
-            self.srff.close()
-        except AttributeError: # self.srff is already None, no .close() method
-            pass
         self.srff = None
         self.srffname = ''
         self.CloseSortFile()

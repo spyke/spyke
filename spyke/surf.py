@@ -57,7 +57,7 @@ class File(object):
         # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
         self.fname = fname
         self.fileSize = os.stat(fname)[6]
-        self.filelock = FileLock(fname, timeout=3600, delay=0.01)
+        self.filelock = FileLock(fname)
         self.open()
         self._parseFileHeader()
         self.parsefname = fname + '.parse'
