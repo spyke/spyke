@@ -257,6 +257,8 @@ class Extractor(object):
         #w **= 2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
         ls = self.ls
         x0, y0 = self.get_spatial_mean(w, x, y, maxchani)
+        # or, init with just the coordinates of the max weight, doesn't save time
+        #x0, y0 = x[maxchani], y[maxchani]
         ls.A = w[maxchani]
         ls.p0 = np.asarray([x0, y0])
         #ls.p0 = np.asarray([x[maxchani], y[maxchani]])

@@ -27,6 +27,7 @@ from scipy.weave import inline
 
 import spyke.surf
 from spyke.core import eucd
+from spyke import threadpool
 #from spyke.core import WaveForm, toiter, argcut, intround, g, g2, RM
 #from text import SimpleTable
 
@@ -725,19 +726,23 @@ class Detector(object):
         args = zip(wavetranges, directions)
         results = pool.map(callsearchblock, args)
         pool.close()
-        pool.join() # necessary?
+        #pool.join() # necessary?
         stream.open()
+        tunzip = time.time()
         blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
         spikes = np.concatenate(blockspikes)
         wavedata = np.concatenate(blockwavedata) # along spikei axis, all other dims are identical
+        info('unzipping and concatenating results took %.3f sec' % (time.time()-tunzip))
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         phase1tis = spikes['phase1ti']
         # TODO: simplify:
         #   - always make wave the full 50 points, aligned to middle point
         #   - stop partitioning wavedata, keep it as one big simple 3D array, now that we're 64 bit. This way, on every detection, you can preallocate exactly the amount of memory you need for wavedata in one swoop, no resizing or reinitializing req'd
+        tset = time.time()
         for ri, (wd, phase1ti) in enumerate(zip(wavedata, phase1tis)):
             sort.set_wavedata(ri, wd, phase1ti) # save to sort's wavedata
+        info('setting wavedata took %.3f sec' % (time.time()-tset))
 
         '''
         for wavetrange in wavetranges:
@@ -795,7 +800,9 @@ class Detector(object):
 
         self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('detid', np.uint8),
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
-                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64), ('nt', np.uint8),
+                           # TODO: maybe it would be more efficient to store ti, t0i, and tendi wrt start
+                           # of surf file instead of times in us?
+                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
                            ('V1', np.float32), ('V2', np.float32), ('Vpp', np.float32),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
                            ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16),
@@ -1103,6 +1110,7 @@ class Detector(object):
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
             # randomly sample self.fixednoisewin's worth of data from self.trange in
             # blocks of self.blocksize, without replacement
+            tload = time.time()
             print('loading data to calculate noise')
             if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
                 wavetranges = [self.trange] # use a single block of data, as defined by trange
@@ -1110,13 +1118,17 @@ class Detector(object):
                 nblocks = int(round(self.fixednoisewin / self.blocksize))
                 wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0,
                                                 maxntranges=nblocks, replacement=False)
+            # preallocating memory doesn't seem to help here, all the time is in loading from stream:
             data = []
             for wavetrange in wavetranges:
                 wave = self.sort.stream[wavetrange[0]:wavetrange[1]]
                 wave = wave[self.chans] # keep just the enabled chans
                 data.append(wave.data)
             data = np.concatenate(data, axis=1) # int16 AD units
+            info('loading data to calc noise took %.3f sec' % (time.time()-tload))
+            tnoise = time.time()
             noise = self.get_noise(data) # float AD units
+            info('get_noise took %.3f sec' % (time.time()-tnoise))
             thresh = noise * self.noisemult # float AD units
             thresh = np.int16(np.round(thresh)) # int16 AD units
             thresh = thresh.clip(fixedthresh, thresh.max()) # clip so that all threshes are at least fixedthresh
@@ -1134,12 +1146,29 @@ class Detector(object):
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
         print('calculating noise')
+        ncpus = multiprocessing.cpu_count()
+        pool = threadpool.Pool(ncpus)
         if self.noisemethod == 'median':
-            return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+            noise = pool.map(self.get_median, data) # multithreads over rows in data
+            #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':
-            return np.stdev(data, axis=-1)
+            noise = pool.map(self.get_stdev, data) # multithreads over rows in data
+            #noise = np.stdev(data, axis=-1)
         else:
             raise ValueError
+        pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
+        #pool.join() # unnecessary, hangs
+        return np.asarray(noise)
+
+    def get_median(self, data):
+        """Return median value of multichan data, scaled according to Quiroga2004"""
+        return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+
+    def get_stdev(self, data):
+        """Return stdev of multichan data"""
+        return np.stdev(data, axis=-1)
+
+
 
 
 class Detection(object):
