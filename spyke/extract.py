@@ -7,7 +7,7 @@ __authors__ = ['Martin Spacek']
 import time
 
 import numpy as np
-#np.seterr(under='ignore') # only enable this if getting underflow during gaussian_fit
+np.seterr(under='warn') # don't halt on underflow during gaussian_fit
 from scipy.optimize import leastsq
 from scipy.interpolate import UnivariateSpline
 

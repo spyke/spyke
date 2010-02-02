@@ -983,11 +983,11 @@ def g(x0, sx, x):
 def g2(x0, y0, sx, sy, x, y):
     """2-D Gaussian"""
     arg = -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2)
-    try:
-        return np.exp(arg)
-    except Exception as err:
-        print(err)
-        import pdb; pdb.set_trace()
+    #try:
+    return np.exp(arg)
+    #except Exception as err:
+    #    print(err)
+    #    import pdb; pdb.set_trace()
 
 def g3(x0, y0, z0, sx, sy, sz, x, y, z):
     """3-D Gaussian"""
