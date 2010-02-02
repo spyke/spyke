@@ -628,7 +628,7 @@ class Detector(object):
     DEFSLOCK = 150 # spatial lockout radius, um
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
-    DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
+    #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
     DEFEXTRACTPARAMSONDETECT = False
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
@@ -641,7 +641,7 @@ class Detector(object):
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, maxnchansperspike=None,
                  blocksize=None, slock=None, dt=None, randomsample=None,
-                 keepspikewavesondetect=None,
+                 #keepspikewavesondetect=None,
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
@@ -661,7 +661,7 @@ class Detector(object):
         self.slock = slock or self.DEFSLOCK
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
-        self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
+        #self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
         self.extractparamsondetect = extractparamsondetect or self.DEFEXTRACTPARAMSONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
@@ -685,10 +685,10 @@ class Detector(object):
         self.calc_chans()
         sort = self.sort
         spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
-        nt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
-        if self.keepspikewavesondetect:
-            try: sort.wavedatas
-            except AttributeError: sort.init_wavedata(nchans=self.maxnchansperspike, nt=nt)
+        self.maxnt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
+        #if self.keepspikewavesondetect:
+        try: sort.wavedatas
+        except AttributeError: sort.init_wavedata(nchans=self.maxnchansperspike, nt=self.maxnt)
 
         t0 = time.time()
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
@@ -704,14 +704,18 @@ class Detector(object):
         wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
 
         self.nchans = len(self.chans) # number of enabled chans
-        #self.lockouts = np.zeros(nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
+        #self.lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices until which each enabled chani is locked out, updated on every found spike
         #self.lockouts_us = np.zeros(nchans, dtype=np.int64) # holds times in us until which each enabled chani is locked out, updated only at end of each searchblock call
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
         #spikes = np.zeros(0, self.SPIKEDTYPE) # init
 
-        # create a processing pool with as many processes as there are CPUs/cores
-        # on this machine, or set arg to n to use exactly n processes
+        # want an nchan*2 array of [chani, x/ycoord]
+        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
+        xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
+        ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
+        self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
+        # create a processing pool with as many processes as there are CPUs/cores
         stream = self.sort.stream
         stream.close() # make it picklable, also release the file lock
         ncpus = multiprocessing.cpu_count() # 1 per core
@@ -723,8 +727,18 @@ class Detector(object):
         pool.close()
         pool.join() # necessary?
         stream.open()
-        spikes = np.concatenate(results)
+        blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
+        spikes = np.concatenate(blockspikes)
+        wavedata = np.concatenate(blockwavedata) # along spikei axis, all other dims are identical
         self.nspikes = len(spikes)
+        assert len(wavedata) == self.nspikes
+        phase1tis = spikes['phase1ti']
+        # TODO: simplify:
+        #   - always make wave the full 50 points, aligned to middle point
+        #   - stop partitioning wavedata, keep it as one big simple 3D array, now that we're 64 bit. This way, on every detection, you can preallocate exactly the amount of memory you need for wavedata in one swoop, no resizing or reinitializing req'd
+        for ri, (wd, phase1ti) in enumerate(zip(wavedata, phase1tis)):
+            sort.set_wavedata(ri, wd, phase1ti) # save to sort's wavedata
+
         '''
         for wavetrange in wavetranges:
             try:
@@ -821,17 +835,11 @@ class Detector(object):
         else:
             maxnspikes = self.maxnspikes - self.nspikes
 
-        # want an nchan*2 array of [chani, x/ycoord]
-        # TODO: why is this done on every searchblock call? Doesn't take any noticeable amount of time
-        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
-        xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
-        ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
         tget_edges = time.time()
         edgeis = get_edges(wave, self.thresh)
         info('get_edges() took %.3f sec' % (time.time()-tget_edges))
         tcheck_edges = time.time()
-        spikes = self.check_edges(wave, edgeis, cutrange, siteloc)
+        spikes, wavedata = self.check_edges(wave, edgeis, cutrange)
         info('checking edges took %.3f sec' % (time.time()-tcheck_edges))
         print('found %d spikes' % len(spikes))
         #import cProfile
@@ -840,9 +848,9 @@ class Detector(object):
         #self.lockouts_us = wave.ts[self.lockouts] # lockouts in us, use this to propagate lockouts to next searchblock call
         #info('at end of searchblock:\n lockouts = %s\n new lockouts_us = %s' %
         #     (self.lockouts, self.lockouts_us))
-        return spikes
+        return spikes, wavedata
 
-    def check_edges(self, wave, edgeis, cutrange, siteloc):
+    def check_edges(self, wave, edgeis, cutrange):
         """Check which edges (threshold crossings) in wave data look like spikes
         and return only events that fall within cutrange. Search in window
         forward from thresh for a peak, then in appropriate direction from
@@ -889,7 +897,9 @@ class Detector(object):
         twi = sort.twi
         maxti = len(wave.ts)-1
         nspikes = 0
-        spikes = np.zeros(len(edgeis), self.SPIKEDTYPE) # nspikes will always be far less than nedgeis
+        nedges = len(edgeis)
+        spikes = np.zeros(nedges, self.SPIKEDTYPE) # nspikes will always be << nedgeis
+        wavedata = np.empty((nedges, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
             if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
@@ -1012,13 +1022,15 @@ class Detector(object):
             s['chan'], s['chans'][:nchans], s['nchans'] = chan, chans, nchans
             # get new window corresponding to new chans
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
-            if self.keepspikewavesondetect: # keep spike waveform for later use
-                totalnspikes = sort.nspikes + self.nspikes + nspikes
-                sort.set_wavedata(totalnspikes, window, phase1ti)
+            #if self.keepspikewavesondetect: # keep spike waveform for later use
+            #    totalnspikes = sort.nspikes + self.nspikes + nspikes
+            #    sort.set_wavedata(totalnspikes, window, phase1ti)
+            nt = window.shape[1]
+            wavedata[nspikes, 0:nchans, 0:nt] = window # these aren't aligned in time, that happens later
             if self.extractparamsondetect:
                 # just x and y params for now
-                x = siteloc[chanis, 0] # 1D array (row)
-                y = siteloc[chanis, 1]
+                x = self.siteloc[chanis, 0] # 1D array (row)
+                y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan))
                 s['x0'], s['y0'] = extractXY(window, x, y, phase1ti, phase2ti, maxchani)
 
@@ -1035,7 +1047,9 @@ class Detector(object):
             nspikes += 1
 
         spikes.resize(nspikes, refcheck=False) # shrink down to actual needed size
-        return spikes
+        wds = wavedata.shape
+        wavedata.resize((nspikes, wds[1], wds[2]), refcheck=False) # shrink down to actual needed size
+        return spikes, wavedata
 
     def get_blockranges(self, bs, bx):
         """Generate time ranges for slightly overlapping blocks of data,

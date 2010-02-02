@@ -35,6 +35,9 @@ RECENT:
         - for speed, incorporate peak finding into get_edges (rename to get_peaks), and save only those peaks that exceed thresh - ah, but then the peakiest peak, which might be below thresh, might not be captured
 
     - rework what happens during realignment - you really shouldn't be changing parameter values. phase1ti, phase2ti, V1, V2, they should all stay the same - only the spike time should be changed, and of course the way the wave data is aligned in memory. The 1 and 2 should correspond to the phase temporal order, which will never change with realignment. Maybe add a binary field to spikes array that designates which phase is the one the spike is currently aligned to?
+        - also, rename phase1ti, phase2ti -> phase0ti, phase1ti
+
+    - 'nt' field in spikes array doesn't seem to be needed
 
     - maybe get rid of multiple detection ability - this would greatly simplify indexing into spikes array. All spikes would always be labelled contiguously from 0 according to their row index - wouldn't need to mess with ris stuff anymore - the row index would become the spike index, since you can now never add or delete spikes
         - or actually, only need to enforce inability to delete spikes, can still add spikes to the end

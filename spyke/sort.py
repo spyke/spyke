@@ -251,7 +251,8 @@ class Sort(object):
         # TODO: ri comes out -ve when wavedatai == 0, but happens to be exactly right. Does it come out -ve for all wavedatai?
         nchans = len(wavedata)
         startti = -self.twi[0] - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
-        wd[ri, 0:nchans, startti:] = wavedata
+        nt = wd.shape[2] - startti
+        wd[ri, 0:nchans, startti:] = wavedata[:, 0:nt]
 
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes struct array row ri"""

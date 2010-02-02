@@ -668,13 +668,8 @@ class ResampleFileStream(Stream):
     def __getstate__(self):
         """Don't pickle open .resample file"""
         d = Stream.__getstate__(self) # call parent's version
-        del d['f'] # exclude open .resample file
-        del d['filelock'] # ditto for its filelock object
+        self.close() # close .resample file and its lock
         return d
-
-    def __setstate__(self, d):
-        self.__dict__ = d
-        self.filelock = FileLock(self.fname)
 
 
 class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
