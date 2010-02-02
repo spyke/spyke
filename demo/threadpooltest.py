@@ -4,6 +4,8 @@ Hmm, unsure about this. Seem to be able to get a numpy call to multithread nicel
 (100% of a 2 core machine), but calls to my own C code (compiled from Cython code)
 doesn't multithread. This suggests that my Cython code is calling the interpreter
 somewhere/somehow and touching some Python objects, which engages the GIL???
+
+update: probably need to use "with nogil" in cython code, see cython docs
 """
 
 from threadpool import ThreadPool, WorkRequest
