@@ -36,7 +36,7 @@ class Cluster(object):
         self.ori =   {'x0':{}, 'y0':{}, 'Vpp':{}, 'V1':{}, 'V2':{}, 'dphase':{}} #, 'IC1':{}, 'IC2':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':4,  'y0':20, 'Vpp':50, 'V1':0,  'V2':0,  'dphase':0} #, 'IC1':0,  'IC2':0}
+        self.scale = {'x0':10,  'y0':20, 'Vpp':50, 'V1':0,  'V2':0,  'dphase':0} #, 'IC1':0,  'IC2':0}
 
     def get_id(self):
         return self.neuron.id

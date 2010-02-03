@@ -771,10 +771,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             else:
                 raise RuntimeError('the following code for deleting one of multiple '
                                    'detections might not be very reliable, disabling for now')
-                wavedata = sort.get_wavedata(keepris)
-                for ri in range(len(wavedata)):
-                    phase1ti = sort.spikes['phase1ti'][ri]
-                    sort.set_wavedata(ri, wavedata[ri], phase1ti)
+                sort.wavedata = sort.wavedata[keepris] # TODO: is this right?
             # remove from sort's detections dict
             del sort.detections[det.id]
             # remove from detection listctrl

@@ -11,8 +11,8 @@ np.seterr(under='warn') # don't halt on underflow during gaussian_fit
 from scipy.optimize import leastsq
 from scipy.interpolate import UnivariateSpline
 
-from spyke.detect import get_wave
 from spyke.core import g2
+
 
 class LeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
@@ -87,19 +87,15 @@ class Extractor(object):
         self.choose_XY_fun() # restore instance method
 
     def extract(self):
-        """Extract spike parameters, store them as spike attribs.
-        TODO?: Every time you do a new extraction, (re)create a new
-        .params struct array with the right set of params in it - not
-        sure what I meant by this"""
+        """Extract spike parameters, store them as spike attribs"""
         sort = self.sort
         spikes = sort.spikes # struct array
         nspikes = len(spikes)
         if nspikes == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
-        try: sort.wavedatas
+        try: sort.wavedata
         except AttributeError:
             raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
-        twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
         print("Extracting parameters from spikes")
         t0 = time.time()
         ''' # comment out ICA stuff
@@ -107,7 +103,7 @@ class Extractor(object):
         invICs = ICs.I # not a square matrix, think it must do pseudoinverse
         '''
         for ri in np.arange(nspikes):
-            wavedata = self.sort.get_wavedata(ri)
+            wavedata = self.sort.wavedata[ri]
             detid = spikes['detid'][ri]
             det = sort.detections[detid].detector
             nchans = spikes['nchans'][ri]
@@ -122,19 +118,13 @@ class Extractor(object):
             spikes['IC1'][ri] = weights[0, 0]
             spikes['IC2'][ri] = weights[0, 1]
             '''
-            #nt = (spikes.tend[ri] - spikes.t0[ri]) // sort.tres
-            #nt = spikes['nt'][ri]
-            #try: assert len(np.arange(spikes.t0[ri], spikes.tend[ri], sort.tres)) == nt
-            #except AssertionError: import pdb; pdb.set_trace()
             phase1ti = spikes['phase1ti'][ri]
             phase2ti = spikes['phase2ti'][ri]
-            startti = twi0 - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
-            tightwavedata = wavedata[:, startti:]
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             # just x and y params for now
             #print('ri = %d' % ri)
-            weights = self.get_weights(tightwavedata, phase1ti, phase2ti, maxchani)
+            weights = self.get_weights(wavedata, phase1ti, phase2ti, maxchani)
             x0, y0 = self.extractXY(weights, x, y, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0

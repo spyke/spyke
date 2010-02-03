@@ -178,6 +178,7 @@ class Sort(object):
         spikes = self.spikes[ris]
         return spikes
 
+    '''
     def init_wavedata(self, nchans=None, nt=None):
         self.wavedatas = []
         self.wavedatanchans = nchans
@@ -231,16 +232,14 @@ class Sort(object):
         # first figure out which array in wavedatas the row index ri corresponds to
         wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
         if wavedatai > len(self.wavedatas)-1: # out of range of all wavedata arrays
-            '''
-            try:
+            #try:
                 # resize last one
-                wd = self.wavedatas[-1]
-                shape = list(wd.shape) # allows assignment
-                shape[0] += self.DEFWAVEDATANSPIKES
-                print('resizing wavedata to %r' % shape)
-                wd.resize(shape, refcheck=False)
-            except MemoryError: # not enough contig memory to resize that one
-            '''
+                #wd = self.wavedatas[-1]
+                #shape = list(wd.shape) # allows assignment
+                #shape[0] += self.DEFWAVEDATANSPIKES
+                #print('resizing wavedata to %r' % shape)
+                #wd.resize(shape, refcheck=False)
+            #except MemoryError: # not enough contig memory to resize that one
             # append new wavedata array
             self.append_wavedata()
             self.update_wavedatacumsum()
@@ -253,25 +252,20 @@ class Sort(object):
         startti = -self.twi[0] - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
         nt = wd.shape[2] - startti
         wd[ri, 0:nchans, startti:] = wavedata[:, 0:nt]
-
+    '''
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes struct array row ri"""
         spikes = self.spikes
         #ri = int(ri) # make sure it isn't stuck in a numpy scalar
 
         # try self.wavedata ndarray
-        chan = spikes['chan'][ri]
         nchans = spikes['nchans'][ri]
         chans = spikes['chans'][ri, :nchans]
         t0 = spikes['t0'][ri]
         tend = spikes['tend'][ri]
-        phase1ti = spikes['phase1ti'][ri]
-        startti = -self.twi[0] - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
         try:
-            wavedata = self.get_wavedata(ri)
+            wavedata = self.wavedata[ri, 0:nchans]
             ts = np.arange(t0, tend, self.tres) # build them up
-            # only include data relevant to this spike
-            wavedata = wavedata[0:nchans, startti:]
             return WaveForm(data=wavedata, ts=ts, chans=chans)
         except AttributeError: pass
 
@@ -466,7 +460,7 @@ class Sort(object):
         return neuron
 
     def align_neuron(self, nid, to):
-        """Align all neuron nid's spikes by their max or min"""
+        """Align all of a neuron's spikes by their max or min"""
         neuron = self.neurons[nid]
         spikes = self.spikes
         nris = spikes['id'].searchsorted(neuron.spikeis) # row indices of spikes that belong to this neuron
@@ -480,6 +474,7 @@ class Sort(object):
         ris = nris[nriis] # row indices of spikes that need realigning
         dphasetis = spikes['phase2ti'][ris] - spikes['phase1ti'][ris]
         dphases = spikes['dphase'][ris]
+        # TODO: stop changing cluster param values, makes clustering confusing!
         # shift values
         spikes['phase1ti'][ris] -= dphasetis
         spikes['phase2ti'][ris] -= dphasetis
@@ -493,9 +488,10 @@ class Sort(object):
         # update wavedata for each shifted spike
         for ri, spike in zip(ris, spikes[ris]):
             wave = self.stream[spike['t0']:spike['tend']]
-            chans = spike['chans'][:spike['nchans']]
+            nchans = spike['nchans']
+            chans = spike['chans'][:nchans]
             wave = wave[chans]
-            self.set_wavedata(ri, wave.data, spike['phase1ti'])
+            self.wavedata[ri, 0:nchans] = wave.data
         neuron.update_wave() # update mean waveform
         # trigger resaving of .spike and .wave files on next .sort save
         try: del self.spikefname
@@ -770,36 +766,34 @@ class Neuron(object):
 
         t0 = time.time()
         try:
-            wavedatas = sort.get_wavedata(ris)
+            wavedata = sort.wavedata[ris]
         except MemoryError:
             # grab a random subset of spikes to use to calculate the mean
             k = 200
             print('Taking random sample of %d spikes instead of all of them' % k)
             ris = random.sample(ris, k=k) # ris is now a list, not array, but that doesn't matter
-            wavedatas = sort.get_wavedata(ris)
-        if wavedatas.ndim == 2: # should be 3, get only 2 if len(ris) == 1
-            wavedatas.shape = 1, wavedatas.shape[0], wavedatas.shape[1] # give it a singleton 3rd dim
-        maxnt = wavedatas.shape[-1]
-        shape = len(neuronchans), maxnt
-        data = np.zeros(shape, dtype=np.float32)
-        nspikes = np.zeros(maxnt, dtype=np.int32)
-        twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
-        phase1tis = spikes['phase1ti'][ris]
-        starttis = twi0 - phase1tis # always +ve, usually 0 unless spike had some lockout near its start
-        for chans, wavedata, startti in zip(chanslist, wavedatas, starttis):
+            wavedata = sort.wavedata[ris]
+        if wavedata.ndim == 2: # should be 3, get only 2 if len(ris) == 1
+            wavedata.shape = 1, wavedata.shape[0], wavedata.shape[1] # give it a singleton 3rd dim
+        maxnt = wavedata.shape[-1]
+        maxnchans = len(neuronchans)
+        data = np.zeros((maxnchans, maxnt))
+        # all spike have same nt, but not necessarily nchans, keep track of
+        # how many spikes contributed to each of neuron's chans
+        nspikes = np.zeros((maxnchans, 1), dtype=int)
+        for chans, wd in zip(chanslist, wavedata):
             chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
-            data[chanis] += wavedata[:len(chans)] # accumulate
-            nspikes[startti:] += 1 # inc spike count for timepoints for this spike
+            data[chanis] += wd[:len(chans)] # accumulate
+            nspikes[chanis] += 1 # inc spike count for this spike's chans
         print('2nd loop took %.3f sec' % (time.time()-t0))
         t0 = time.time()
-        #nspikes = np.maximum(nspikes, np.ones(shape, dtype=np.float32)) # element-wise max, avoids div by 0
-        #np.seterr(invalid='ignore')
-        data /= nspikes # normalize each data point appropriately
-        #np.seterr(invalid='raise') # restore error level
+        data /= nspikes # normalize all data points appropriately
+        # keep only those chans that at least 1/2 the spikes contributed to
         bins = list(neuronchans) + [sys.maxint] # concatenate rightmost bin edge
         hist, bins = np.histogram(chanpopulation, bins=bins)
         newneuronchans = neuronchans[hist >= len(ris)/2]
         chanis = neuronchans.searchsorted(newneuronchans)
+        # update this Neuron's Waveform object
         self.wave.data = data[chanis]
         self.wave.chans = newneuronchans
         self.wave.ts = sort.twts
@@ -813,28 +807,28 @@ class Neuron(object):
         This is to get rid of spurious clustering using spatial mean
         when the maxchan alternates between two chans"""
         #import pdb; pdb.set_trace()
+        print("this code hasn't been used in a while, and untested changes have been made")
         sort = self.sort
         spikes = sort.spikes
         spikeis = self.spikeis
         ris = spikes['id'].searchsorted(spikeis)
-        twi0 = -sort.twi[0] # num points from tref backwards to first timepoint in window
+        # TODO: these nested loops must be really slow
         for ri in ris:
             s = spikes[ri]
-            wavedata = sort.get_wavedata(ri)
+            wavedata = sort.wavedata[ri]
             nchans = s['nchans']
-            startti = twi0 - s['phase1ti'] # always +ve, usually 0 unless spike had some lockout near its start
-            wavedata = wavedata[0:nchans, startti:]
+            wavedata = wavedata[0:nchans]
             chans = s['chans'][:nchans]
             for remchan in remchans:
                 chani, = np.where(chans == remchan)
                 if len(chani) != 0: # delete it
                     wavedata = np.delete(wavedata, chani, axis=0)
-                    sort.set_wavedata(ri, wavedata, s['phase1ti'])
                     chans = np.delete(chans, chani)
                     nchans = len(chans)
                     s['nchans'] = nchans
                     s['chans'][:nchans] = chans
-                    if reextract:
+                    sort.wavedata[ri, 0:nchans] = wavedata # untested
+                    if reextract: # not sure why this is happening within the remchans loop
                         detid = s['detid']
                         det = sort.detections[detid].detector
                         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
@@ -844,8 +838,8 @@ class Neuron(object):
                         s['x0'], s['y0'] = sort.extractor.extractXY(wavedata, x, y,
                                                                     s['phase1ti'], s['phase2ti'],
                                                                     maxchani)
-        # TODO: replot only the spikes whose params have changed, and keep their scalar params intact
-        # so you can see that they moved
+        # TODO: replot only the spikes whose params have changed, and keep their
+        # scalar params intact so you can see that they moved
         self.wave = WaveForm() # reset to empty waveform so mean is recalculated
         # trigger resaving of .spike and .wave files next time .sort is saved,
         # since their associated array contents have changed

@@ -687,9 +687,6 @@ class Detector(object):
         sort = self.sort
         spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
         self.maxnt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
-        #if self.keepspikewavesondetect:
-        try: sort.wavedatas
-        except AttributeError: sort.init_wavedata(nchans=self.maxnchansperspike, nt=self.maxnt)
 
         t0 = time.time()
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
@@ -732,18 +729,13 @@ class Detector(object):
         blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
         spikes = np.concatenate(blockspikes)
         wavedata = np.concatenate(blockwavedata) # along spikei axis, all other dims are identical
+        sort.wavedata = wavedata
         info('unzipping and concatenating results took %.3f sec' % (time.time()-tunzip))
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
-        phase1tis = spikes['phase1ti']
-        # TODO: simplify:
-        #   - always make wave the full 50 points, aligned to middle point
-        #   - stop partitioning wavedata, keep it as one big simple 3D array, now that we're 64 bit. This way, on every detection, you can preallocate exactly the amount of memory you need for wavedata in one swoop, no resizing or reinitializing req'd
-        tset = time.time()
-        for ri, (wd, phase1ti) in enumerate(zip(wavedata, phase1tis)):
-            sort.set_wavedata(ri, wd, phase1ti) # save to sort's wavedata
-        info('setting wavedata took %.3f sec' % (time.time()-tset))
 
+        # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
+        # old single-process code:
         '''
         for wavetrange in wavetranges:
             try:
@@ -902,10 +894,10 @@ class Detector(object):
 
         dti = self.dti
         twi = sort.twi
-        maxti = len(wave.ts)-1
         nspikes = 0
         nedges = len(edgeis)
         spikes = np.zeros(nedges, self.SPIKEDTYPE) # nspikes will always be << nedgeis
+        # TODO: test whether np.empty or np.zeros is faster overall in this case
         wavedata = np.empty((nedges, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each edge for validity
         for ti, chani in edgeis: # ti begins life as the threshold xing time index
@@ -920,16 +912,18 @@ class Detector(object):
                 continue # skip to next event
 
             # find all enabled chanis within nbhd of chani, exclude those locked-out at threshold xing
-            nbhdchanis = self.nbhdi[chani]
-            chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
+            #nbhdchanis = self.nbhdi[chani]
+            #chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
+            # no need to check lockouts, lockouts are checked in amplis loop below
+            chanis = self.nbhdi[chani]
 
             # get data window wrt threshold crossing
-            t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tendi = min(ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
+            t0i = ti+twi[0] # check for lockouts in amplis loop below
+            tendi = ti+twi[1]+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window,
-            # decide which extremum is the sharpest
+            # decide which extremum is sharpest
             ampl = arglocalextrema(window)
             # find max abs(amplitude) that isn't locked out
             amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
@@ -941,7 +935,7 @@ class Detector(object):
                 chani = chanis[rowi]
                 ti = t0i + coli
                 if ti > lockouts[chani]:# and abs(window[rowi, coli]) > self.thresh[chani]:
-                    # extremum is not locked out and absolute (not relative) amplitude exceeds thresh
+                    # extremum is not locked out
                     break # found valid extremum with biggest relative amplitude
                 else: # extremum is locked out (rare)
                     if DEBUG: debug('extremum at chani, ti = %d, %d is locked out' % (chani, ti))
@@ -950,8 +944,9 @@ class Detector(object):
                 continue # skip to next event
 
             # get window +/- dti+1 around ti on chani, look for the other spike phase
-            t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            tendi = min(ti+dti+1, maxti) # don't go further than last wave timepoint
+            #t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            t0i = ti-dti-1 # screw it, don't worry about lockout for companion phase?
+            tendi = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
             # check if window has global max or min at end of window,
@@ -982,9 +977,12 @@ class Detector(object):
             phase1ti += t0i
             phase2ti += t0i
 
-            # get full-sized window wrt phase1ti
-            t0i = max(phase1ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
-            tendi = min(phase1ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
+            # get full-sized window wrt phase1ti, finalized in time,
+            # but not necessarily in chans
+            #t0i = max(phase1ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
+            t0i = phase1ti+twi[0] # make final window always be full width, lockouts be damned
+            #tendi = min(phase1ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
+            tendi = phase1ti+twi[1]+1 # make window always be full width, lockouts be damned
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # make phase1ti and phase2ti relative to new t0i
@@ -1021,19 +1019,18 @@ class Detector(object):
 
             # update channel neighbourhood
             # find all enabled chanis within nbhd of chani, exclude those locked-out at phase1ti
+            oldchanis = chanis
             nbhdchanis = self.nbhdi[chani]
             chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
             chan = self.chans[chani]
             chans = self.chans[chanis]
             nchans = len(chans)
             s['chan'], s['chans'][:nchans], s['nchans'] = chan, chans, nchans
-            # get new window corresponding to new chans
-            window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
-            #if self.keepspikewavesondetect: # keep spike waveform for later use
-            #    totalnspikes = sort.nspikes + self.nspikes + nspikes
-            #    sort.set_wavedata(totalnspikes, window, phase1ti)
-            nt = window.shape[1]
-            wavedata[nspikes, 0:nchans, 0:nt] = window # these aren't aligned in time, that happens later
+            # get new window corresponding to new chans, if they're any different.
+            # Otherwise, to save time, don't get new window
+            if len(chanis) != len(oldchanis) or not (chanis == oldchanis).all():
+                window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
+            wavedata[nspikes, 0:nchans] = window # aligned in time due to all having same nt
             if self.extractparamsondetect:
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
@@ -1053,9 +1050,10 @@ class Detector(object):
 
             nspikes += 1
 
-        spikes.resize(nspikes, refcheck=False) # shrink down to actual needed size
+        # shrink spikes and wavedata down to actual needed size
+        spikes.resize(nspikes, refcheck=False)
         wds = wavedata.shape
-        wavedata.resize((nspikes, wds[1], wds[2]), refcheck=False) # shrink down to actual needed size
+        wavedata.resize((nspikes, wds[1], wds[2]), refcheck=False)
         return spikes, wavedata
 
     def get_blockranges(self, bs, bx):
