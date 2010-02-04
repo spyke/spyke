@@ -36,7 +36,7 @@ from spyke import threadpool
 
 def get_wave(obj, sort=None):
     """Return object's waveform, whether a spike record or a neuron,
-    taken from sort.wavedatas or sort.stream"""
+    taken from sort.wavedata or sort.stream"""
     assert sort != None
     if type(obj) != np.void: # it's a Neuron
         n = obj

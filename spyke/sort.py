@@ -101,7 +101,7 @@ class Sort(object):
         # Don't pickle the stream, cuz it relies on an open .srf file.
         # Spikes and wavedata arrays are (potentially) saved separately.
         # All the others can be regenerated from the spikes array.
-        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'spikes', 'wavedatas', 'wavedatascumsum']:
+        for attr in ['_stream', 'st', 'ris_by_time', 'uris', 'spikes', 'wavedata']:
             try: del d[attr]
             except KeyError: pass
         return d
@@ -178,81 +178,6 @@ class Sort(object):
         spikes = self.spikes[ris]
         return spikes
 
-    '''
-    def init_wavedata(self, nchans=None, nt=None):
-        self.wavedatas = []
-        self.wavedatanchans = nchans
-        self.wavedatant = nt
-        self.append_wavedata()
-        self.update_wavedatacumsum()
-
-    def append_wavedata(self):
-        nspikes = self.DEFWAVEDATANSPIKES
-        nchans = self.wavedatanchans
-        nt = self.wavedatant
-        self.wavedatas.append(np.zeros((nspikes, nchans, nt), dtype=np.int16))
-
-    def update_wavedatacumsum(self):
-        """Call this every time self.wavedatas changes length, or any of its contained
-        wavedata arrays changes length"""
-        self.wavedatascumsum = np.asarray([ len(wd) for wd in self.wavedatas ]).cumsum() # update
-
-    def get_wavedata(self, ris):
-        """Get wave data, potentially spread across multiple wavedata 3D arrays
-        in .wavedatas list, corresponding to ris. Returns wavedatas in order of
-        sorted ris, not necessarily in original ris order"""
-        ris = toiter(ris)
-        if len(ris) == 1: # optimize for this special case
-            ri = ris[0]
-            wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
-            wd = self.wavedatas[wavedatai]
-            if wavedatai > 0:
-                ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
-            return wd[ri]
-        # len(ris) > 1
-        # first figure out which arrays in wavedatas the row indices ris correspond to
-        ris.sort() # make sure they're sorted, no guarantee the results come out in the original order
-        wavedatais = self.wavedatascumsum.searchsorted(ris, side='right') # these are in sorted order
-        uniquewavedatais = np.unique(wavedatais) # also sorted
-        startis = wavedatais.searchsorted(uniquewavedatais, side='left')
-        endis = wavedatais.searchsorted(uniquewavedatais, side='right')
-        slicedwavedatas = []
-        for wavedatai, starti, endi in zip(uniquewavedatais, startis, endis):
-            localris = ris[starti:endi]
-            wd = self.wavedatas[wavedatai]
-            if wavedatai > 0:
-                 localris -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
-            slicedwavedatas.append(wd[localris])
-        return np.concatenate(slicedwavedatas)
-
-    def set_wavedata(self, ri, wavedata, phase1ti):
-        """Set 2D array wavedata to row index ri, in appropriate 3D wavedata
-        array in self.wavedatas, and align it in time with all the rest according
-        to phase1ti"""
-        # first figure out which array in wavedatas the row index ri corresponds to
-        wavedatai = self.wavedatascumsum.searchsorted(ri, side='right')
-        if wavedatai > len(self.wavedatas)-1: # out of range of all wavedata arrays
-            #try:
-                # resize last one
-                #wd = self.wavedatas[-1]
-                #shape = list(wd.shape) # allows assignment
-                #shape[0] += self.DEFWAVEDATANSPIKES
-                #print('resizing wavedata to %r' % shape)
-                #wd.resize(shape, refcheck=False)
-            #except MemoryError: # not enough contig memory to resize that one
-            # append new wavedata array
-            self.append_wavedata()
-            self.update_wavedatacumsum()
-            wavedatai = self.wavedatascumsum.searchsorted(ri, side='right') # update
-        # now do the actual assignment
-        wd = self.wavedatas[wavedatai]
-        ri -= self.wavedatascumsum[wavedatai-1] # decr by nspikes in all previous wavedata arrays
-        # TODO: ri comes out -ve when wavedatai == 0, but happens to be exactly right. Does it come out -ve for all wavedatai?
-        nchans = len(wavedata)
-        startti = -self.twi[0] - phase1ti # always +ve, usually 0 unless spike had some lockout near its start
-        nt = wd.shape[2] - startti
-        wd[ri, 0:nchans, startti:] = wavedata[:, 0:nt]
-    '''
     def get_wave(self, ri):
         """Return WaveForm corresponding to spikes struct array row ri"""
         spikes = self.spikes

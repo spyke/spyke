@@ -77,7 +77,7 @@ class WaveForm(object):
     """Just a container for data, timestamps, and channels.
     Sliceable in time, and indexable in channel space. Only
     really used for convenient plotting. Everything else uses
-    the sort.wavedatas 2D arrays, and related sort.spikes fields"""
+    the sort.wavedata array, and related sort.spikes fields"""
     def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in AD, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data

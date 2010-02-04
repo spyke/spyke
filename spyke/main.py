@@ -763,10 +763,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 neuron = sort.neurons[nid]
                 neuron.spikeis = np.setdiff1d(neuron.spikeis, det.spikeis)
 
-            # overwrite sort.spikes and sort.wavedatas
+            # overwrite sort.spikes and sort.wavedata
             sort.spikes = sort.spikes[keepris]
             if len(keepris) == 0:
-                try: del sort.wavedatas
+                try: del sort.wavedata
                 except AttributeError: pass
             else:
                 raise RuntimeError('the following code for deleting one of multiple '
@@ -817,7 +817,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         elif ext == '.sort':
             self.OpenSortFile(fname)
         elif ext == '.wave':
-            self.sort.wavedatas = self.OpenWaveFile(fname)
+            self.sort.wavedata = self.OpenWaveFile(fname)
         else:
             wx.MessageBox("%s is not a .srf, .sort or .wave file" % fname,
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
@@ -1041,10 +1041,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('done opening sort file, took %.3f sec' % (time.time()-t0))
 
         wavefname = os.path.splitext(fname)[0] + '.wave'
-        wavedatas = self.OpenWaveFile(wavefname)
-        if wavedatas != []:
-            sort.wavedatas = wavedatas
-            sort.update_wavedatacumsum()
+        sort.wavedata = self.OpenWaveFile(wavefname)
         sort.stream = self.hpstream # restore missing stream object to Sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
@@ -1150,39 +1147,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sort.update_spike_lists()
         # try loading .wave file of the same name
         wavefname = os.path.splitext(fname)[0] + '.wave'
-        wavedatas = self.OpenWaveFile(wavefname)
-        if wavedatas != []:
-            sort.wavedatas = wavedatas
-            sort.update_wavedatacumsum()
+        sort.wavedata = self.OpenWaveFile(wavefname)
 
     def OpenWaveFile(self, fname):
-        """Open a .wave file and return wavedata arrays"""
+        """Open a .wave file and return wavedata array"""
         sort = self.sort
         print('opening wave file %r' % fname)
         t0 = time.time()
-        wavedatas = []
         try: f = open(fname, 'rb')
-        except IOError: return wavedatas
+        except IOError:
+            print("can't find file %r" % fname)
+            return
         try:
-            del sort.wavedatas
-            gc.collect() # make sure memory is freed up to prepare for new wavedata
-            # TODO: figure out what's holding a reference to wavedatas and its contents - doesn't seem to be getting freed?
+            del sort.wavedata
+            #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
         except AttributeError: pass
-        nspikes = 0
-        while True:
-            try:
-                wavedata = np.load(f)
-                wavedatas.append(wavedata)
-                nspikes += len(wavedata)
-            except IOError: break # reached EOF
+        wavedata = np.load(f)
         print('done opening wave file, took %.3f sec' % (time.time()-t0))
         print('wave file was %d bytes long' % f.tell())
         f.close()
-        if nspikes != sort.nspikes:
+        if len(wavedata) != sort.nspikes:
             wx.MessageBox('.wave file has a different number of spikes from the current Sort',
                           caption="Beware", style=wx.OK|wx.ICON_EXCLAMATION)
             raise RuntimeError
-        return wavedatas
+        return wavedata
 
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
@@ -1287,7 +1275,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #if fname == None:
         #    fname = os.path.splitext(self.sort.sortfname)[0] # grab the base name of the current .sort fname
         sort = self.sort
-        try: sort.wavedatas
+        try: sort.wavedata
         except AttributeError: return # no wavedata to save
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.wave'
@@ -1299,15 +1287,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             if result == wx.ID_NO:
                 return
         print('saving wave file %r' % fname)
+        nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
         t0 = time.time()
         f = open(fname, 'wb')
-        wavedatas = []
-        nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
-        for wavedata in sort.wavedatas:
-            wavedatas.append(wavedata[:nspikes])
-            nspikes -= len(wavedata)
-        for wavedata in wavedatas:
-            np.save(f, wavedata)
+        np.save(f, sort.wavedata[:nspikes])
         f.close()
         print('done saving wave file, took %.3f sec' % (time.time()-t0))
         sort.wavefname = fname
