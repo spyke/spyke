@@ -83,11 +83,10 @@ def callsearchblock(args):
     detector = multiprocessing.current_process().detector
     return detector.searchblock(wavetrange, direction)
 
-def initializer(detector, stream, lock):
+def initializer(detector, stream):
     #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
     detector.sort.stream = stream
     multiprocessing.current_process().detector = detector
-    multiprocessing.current_process().lock = lock
 
 def minmax_filter(x, width=3):
     """An alternative to arglocalextrema, works on 2D arrays. Is about 10X slower
@@ -718,15 +717,16 @@ class Detector(object):
         stream = self.sort.stream
         stream.close() # make it picklable, also release the file lock
         ncpus = multiprocessing.cpu_count() # 1 per core
-        from multiprocessing import Lock
-        lock = Lock()
-        pool = Pool(ncpus, initializer, (self, stream, lock)) # sends pickled copies to each process
+        pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
         results = pool.map(callsearchblock, args)
+        # single process method, useful for debugging:
+        #for wavetrange in wavetranges:
+        #    blockspikes = self.searchblock(wavetrange, direction)
         pool.close()
-        #pool.join() # necessary?
+        #pool.join() # unnecessary, I think
         stream.open()
         tunzip = time.time()
         blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
@@ -1039,11 +1039,8 @@ class Detector(object):
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
-                multiprocessing.current_process().lock.acquire()
-                import pdb; pdb.set_trace()
-                print(np.where(chans == chan))
                 maxchani = int(np.where(chans == chan)[0])
-                weights = get_weights(wavedata, phase1ti, phase2ti, maxchani)
+                weights = get_weights(window, phase1ti, phase2ti, maxchani)
                 s['x0'], s['y0'] = extractXY(weights, x, y, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
