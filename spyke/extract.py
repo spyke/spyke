@@ -102,8 +102,16 @@ class Extractor(object):
         ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
         invICs = ICs.I # not a square matrix, think it must do pseudoinverse
         '''
-        for ri in np.arange(nspikes):
-            wavedata = self.sort.wavedata[ri]
+        import multiprocessing
+        from spyke import threadpool
+        ncpus = multiprocessing.cpu_count()
+        pool = threadpool.Pool(ncpus)
+        x0y0s = pool.map(self.extractspike, range(nspikes))
+        pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
+        #pool.join() # unnecessary, hangs
+        """
+        for ri in xrange(nspikes):
+            wavedata = sort.wavedata[ri]
             detid = spikes['detid'][ri]
             det = sort.detections[detid].detector
             nchans = spikes['nchans'][ri]
@@ -128,11 +136,45 @@ class Extractor(object):
             x0, y0 = self.extractXY(weights, x, y, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
+        """
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
               (nspikes, self.XYmethod.lower(), time.time()-t0))
         # trigger resaving of .spike file on next .sort save
         try: del sort.spikefname
         except AttributeError: pass
+
+    # give each process a detector, then pass one spike record and one waveform to each
+    # this assumes all spikes come from the same detector with the same siteloc and chans,
+    # which is safe to assume anyway
+
+    def callextractspike(spike, wavedata):
+        det = multiprocessing.current_process().detector
+        return extractspike(spike, wavedata, det)
+
+    def extractspike(spike, wavedata, det):
+        nchans = spike['nchans']
+        chans = spike['chans'][:nchans]
+        maxchan = spike['chan']
+        maxchani = int(np.where(chans == maxchan)[0])
+        chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+        wavedata = wavedata[0:nchans]
+        ''' # comment out ICA stuff
+        maxchanwavedata = wavedata[maxchani]
+        weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
+        spikes['IC1'][ri] = weights[0, 0]
+        spikes['IC2'][ri] = weights[0, 1]
+        '''
+        phase1ti = spike['phase1ti']
+        phase2ti = spike['phase2ti']
+        x = det.siteloc[chanis, 0] # 1D array (row)
+        y = det.siteloc[chanis, 1]
+        # just x and y params for now
+        #print('ri = %d' % ri)
+        weights = self.get_weights(wavedata, phase1ti, phase2ti, maxchani)
+        x0, y0 = self.extractXY(weights, x, y, maxchani)
+        return x0, y0
+        #spikes['x0'][ri] = x0
+        #spikes['y0'][ri] = y0
 
     def get_weights(self, wavedata, phase1ti, phase2ti, maxchani):
         """NOTE: you get better clustering if you allow phase1ti and phase2ti to

@@ -83,10 +83,11 @@ def callsearchblock(args):
     detector = multiprocessing.current_process().detector
     return detector.searchblock(wavetrange, direction)
 
-def initializer(detector, stream):
+def initializer(detector, stream, lock):
     #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
     detector.sort.stream = stream
     multiprocessing.current_process().detector = detector
+    multiprocessing.current_process().lock = lock
 
 def minmax_filter(x, width=3):
     """An alternative to arglocalextrema, works on 2D arrays. Is about 10X slower
@@ -630,7 +631,7 @@ class Detector(object):
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
-    DEFEXTRACTPARAMSONDETECT = False
+    DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -717,7 +718,9 @@ class Detector(object):
         stream = self.sort.stream
         stream.close() # make it picklable, also release the file lock
         ncpus = multiprocessing.cpu_count() # 1 per core
-        pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process
+        from multiprocessing import Lock
+        lock = Lock()
+        pool = Pool(ncpus, initializer, (self, stream, lock)) # sends pickled copies to each process
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
@@ -888,6 +891,7 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
+            get_weights = sort.extractor.get_weights
             extractXY = sort.extractor.extractXY
         #lockouts = self.lockouts
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
@@ -1035,8 +1039,12 @@ class Detector(object):
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
-                maxchani = int(np.where(chans == chan))
-                s['x0'], s['y0'] = extractXY(window, x, y, phase1ti, phase2ti, maxchani)
+                multiprocessing.current_process().lock.acquire()
+                import pdb; pdb.set_trace()
+                print(np.where(chans == chan))
+                maxchani = int(np.where(chans == chan)[0])
+                weights = get_weights(wavedata, phase1ti, phase2ti, maxchani)
+                s['x0'], s['y0'] = extractXY(weights, x, y, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
 

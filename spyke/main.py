@@ -408,6 +408,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         overwrites) spike parameters from all sort.spikes, and stores
         them as spike attribs"""
         self.init_extractor()
+
+        #import cProfile
+        #cProfile.runctx('self.sort.extractor.extract()', globals(), locals())
+
         self.sort.extractor.extract() # adds extracted params to sort.spikes
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
