@@ -131,7 +131,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # TODO: this is just temporary, for faster testing
         #self.range_start_combo_box.SetValue('0')
-        self.range_end_combo_box.SetValue('30e6')
+        self.range_end_combo_box.SetValue('200e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
@@ -410,9 +410,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.init_extractor()
 
         #import cProfile
-        #cProfile.runctx('self.sort.extractor.extract()', globals(), locals())
+        #cProfile.runctx('self.sort.extractor.extract_all()', globals(), locals())
 
-        self.sort.extractor.extract() # adds extracted params to sort.spikes
+        self.sort.extractor.extract_all() # adds extracted params to sort.spikes
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 

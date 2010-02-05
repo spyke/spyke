@@ -86,7 +86,7 @@ class Extractor(object):
         self.__dict__ = d
         self.choose_XY_fun() # restore instance method
 
-    def extract(self):
+    def extract_all(self):
         """Extract spike parameters, store them as spike attribs"""
         sort = self.sort
         spikes = sort.spikes # struct array
@@ -132,8 +132,7 @@ class Extractor(object):
             y = det.siteloc[chanis, 1]
             # just x and y params for now
             #print('ri = %d' % ri)
-            weights = self.get_weights(wavedata, phase1ti, phase2ti, maxchani)
-            x0, y0 = self.extractXY(weights, x, y, maxchani)
+            x0, y0 = self.extract(wavedata, phase1ti, phase2ti, x, y, maxchani)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
         """
@@ -146,6 +145,12 @@ class Extractor(object):
     # give each process a detector, then pass one spike record and one waveform to each
     # this assumes all spikes come from the same detector with the same siteloc and chans,
     # which is safe to assume anyway
+
+    def extract(self, wavedata, phase1ti, phase2ti, x, y, maxchani):
+        if len(wavedata) == 1: # only one chan, return its coords
+            return int(x), int(y)
+        weights = self.get_weights(wavedata, phase1ti, phase2ti, maxchani)
+        return self.extractXY(weights, x, y, maxchani)
 
     def callextractspike(spike, wavedata):
         det = multiprocessing.current_process().detector
@@ -170,8 +175,7 @@ class Extractor(object):
         y = det.siteloc[chanis, 1]
         # just x and y params for now
         #print('ri = %d' % ri)
-        weights = self.get_weights(wavedata, phase1ti, phase2ti, maxchani)
-        x0, y0 = self.extractXY(weights, x, y, maxchani)
+        x0, y0 = self.extract(wavedata, phase1ti, phase2ti, x, y, maxchani)
         return x0, y0
         #spikes['x0'][ri] = x0
         #spikes['y0'][ri] = y0

@@ -10,8 +10,7 @@ import time
 import string
 import logging
 import datetime
-import multiprocessing
-from multiprocessing import Pool
+import multiprocessing as mp
 from copy import copy
 
 import wx
@@ -80,13 +79,13 @@ if DEBUG:
 
 def callsearchblock(args):
     wavetrange, direction = args
-    detector = multiprocessing.current_process().detector
+    detector = mp.current_process().detector
     return detector.searchblock(wavetrange, direction)
 
 def initializer(detector, stream):
     #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
     detector.sort.stream = stream
-    multiprocessing.current_process().detector = detector
+    mp.current_process().detector = detector
 
 def minmax_filter(x, width=3):
     """An alternative to arglocalextrema, works on 2D arrays. Is about 10X slower
@@ -630,7 +629,7 @@ class Detector(object):
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
-    DEFEXTRACTPARAMSONDETECT = True
+    DEFEXTRACTPARAMSONDETECT = False
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -716,12 +715,12 @@ class Detector(object):
         # create a processing pool with as many processes as there are CPUs/cores
         stream = self.sort.stream
         stream.close() # make it picklable, also release the file lock
-        ncpus = multiprocessing.cpu_count() # 1 per core
-        pool = Pool(ncpus, initializer, (self, stream)) # sends pickled copies to each process
+        ncpus = mp.cpu_count() # 1 per core
+        pool = mp.Pool(1, initializer, (self, stream)) # sends pickled copies to each process
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
-        results = pool.map(callsearchblock, args)
+        results = pool.map(callsearchblock, args, chunksize=1)
         # single process method, useful for debugging:
         #for wavetrange in wavetranges:
         #    blockspikes = self.searchblock(wavetrange, direction)
@@ -795,8 +794,8 @@ class Detector(object):
 
         self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('detid', np.uint8),
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
-                           # TODO: maybe it would be more efficient to store ti, t0i, and tendi wrt start
-                           # of surf file instead of times in us?
+                           # TODO: maybe it would be more efficient to store ti, t0i,
+                           # and tendi wrt start of surf file instead of times in us?
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
                            ('V1', np.float32), ('V2', np.float32), ('Vpp', np.float32),
                            ('phase1ti', np.uint8), ('phase2ti', np.uint8),
@@ -808,19 +807,21 @@ class Detector(object):
         """Search a block of data, return a list of valid Spikes"""
         #info('searchblock():')
         stream = self.sort.stream
-        info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
-             (self.nspikes, self.maxnspikes, wavetrange, direction))
+        #info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
+        #     (self.nspikes, self.maxnspikes, wavetrange, direction))
         if self.nspikes >= self.maxnspikes:
             raise FoundEnoughSpikesError # skip this iteration
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
-        info('wavetrange: %s, cutrange: %s' % (wavetrange, cutrange))
-        tslice = time.time()
         stream.open() # (re)open file that stream depends on, engage file lock
+        info('%s: wavetrange: %s, cutrange: %s' %
+            (mp.current_process().name, wavetrange, cutrange))
+        tslice = time.time()
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
+        print('%s: Stream slice took %.3f sec' %
+            (mp.current_process().name, time.time()-tslice))
         stream.close() # release file lock
-        print('Stream slice took %.3f sec' % (time.time()-tslice))
         # TODO: simplify the whole channel deselection and indexing approach, maybe
         # make all chanis always index into the full probe chan layout instead of the self.chans
         # that represent which chans are enabled for this detector. Also, maybe do away with
@@ -839,11 +840,13 @@ class Detector(object):
 
         tget_edges = time.time()
         edgeis = get_edges(wave, self.thresh)
-        info('get_edges() took %.3f sec' % (time.time()-tget_edges))
+        info('%s: get_edges() took %.3f sec' %
+            (mp.current_process().name, time.time()-tget_edges))
         tcheck_edges = time.time()
         spikes, wavedata = self.check_edges(wave, edgeis, cutrange)
-        info('checking edges took %.3f sec' % (time.time()-tcheck_edges))
-        print('found %d spikes' % len(spikes))
+        info('%s: checking edges took %.3f sec' %
+            (mp.current_process().name, time.time()-tcheck_edges))
+        print('%s: found %d spikes' % (mp.current_process().name, len(spikes)))
         #import cProfile
         #cProfile.runctx('spikes = self.check_edges(wave, edgeis, cutrange)', globals(), locals())
         #spikes = []
@@ -891,8 +894,7 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
-            get_weights = sort.extractor.get_weights
-            extractXY = sort.extractor.extractXY
+            extract = sort.extractor.extract
         #lockouts = self.lockouts
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
 
@@ -1040,9 +1042,7 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0])
-                weights = get_weights(window, phase1ti, phase2ti, maxchani)
-                s['x0'], s['y0'] = extractXY(weights, x, y, maxchani)
-
+                s['x0'], s['y0'] = extract(window, phase1ti, phase2ti, x, y, maxchani)
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike
@@ -1149,7 +1149,7 @@ class Detector(object):
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
         print('calculating noise')
-        ncpus = multiprocessing.cpu_count()
+        ncpus = mp.cpu_count()
         pool = threadpool.Pool(ncpus)
         if self.noisemethod == 'median':
             noise = pool.map(self.get_median, data) # multithreads over rows in data
