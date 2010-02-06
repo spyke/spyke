@@ -82,9 +82,10 @@ def callsearchblock(args):
     detector = mp.current_process().detector
     return detector.searchblock(wavetrange, direction)
 
-def initializer(detector, stream):
+def initializer(detector, stream, srff):
     #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
     detector.sort.stream = stream
+    detector.sort.stream.srff = srff # restore .srff that was deleted from stream on pickling
     mp.current_process().detector = detector
 
 def minmax_filter(x, width=3):
@@ -267,7 +268,7 @@ def get_edges(wave, thresh):
     return_val = PyArray_Return(edgeis); // seem to work
     """)
     edgeis = inline(code, ['data', 'nchans', 'nt', 'stride0', 'stride1', 'thresh'])
-    print("found %d edges" % len(edgeis))
+    print("%s: found %d edges" % (mp.current_process().name, len(edgeis)))
     return edgeis
 
 
@@ -714,9 +715,9 @@ class Detector(object):
 
         # create a processing pool with as many processes as there are CPUs/cores
         stream = self.sort.stream
-        stream.close() # make it picklable, also release the file lock
+        stream.close() # make it picklable: close .srff, maybe .resample, and any file locks
         ncpus = mp.cpu_count() # 1 per core
-        pool = mp.Pool(1, initializer, (self, stream)) # sends pickled copies to each process
+        pool = mp.Pool(1, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
@@ -814,14 +815,14 @@ class Detector(object):
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
-        stream.open() # (re)open file that stream depends on, engage file lock
+        stream.open() # (re)open file that stream depends on (.resample or .srf), engage file lock
         info('%s: wavetrange: %s, cutrange: %s' %
             (mp.current_process().name, wavetrange, cutrange))
         tslice = time.time()
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
         print('%s: Stream slice took %.3f sec' %
-            (mp.current_process().name, time.time()-tslice))
-        stream.close() # release file lock
+             (mp.current_process().name, time.time()-tslice))
+        stream.close() # close file that stream depends on (.resample or .srf), release file lock
         # TODO: simplify the whole channel deselection and indexing approach, maybe
         # make all chanis always index into the full probe chan layout instead of the self.chans
         # that represent which chans are enabled for this detector. Also, maybe do away with

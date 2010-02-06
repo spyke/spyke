@@ -79,6 +79,20 @@ class File(object):
         self.f.close()
         self.filelock.release()
 
+    def is_open(self):
+        return self.filelock.is_locked
+    '''
+    def __getstate__(self):
+        """Don't pickle open .srf file on pickle"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        #del d['f'] # exclude open .srf file
+        #del d['filelock'] # ditto for the filelock object
+        # leave the streams be, since you need them for their enabled chans info
+        return d
+
+    def __setstate__(self, d):
+        """Do the stuff you might normally do here in self.unpickle() instead"""
+    '''
     def _parseFileHeader(self):
         """Parse the Surf file header"""
         self.fileheader = FileHeader()
@@ -361,8 +375,11 @@ class File(object):
         """Pickle self to a .parse file"""
         print('Saving parse info to %r' % self.parsefname)
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
+        wasopen = self.is_open()
+        if wasopen: self.close()
         cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
         pf.close()
+        if wasopen: self.open()
         print('Saved parse info to %r' % self.parsefname)
 
     def unpickle(self):
@@ -381,17 +398,6 @@ class File(object):
         self.__dict__ = other.__dict__ # set other's attribs to self
         print('Recovered parse info from %r' % self.parsefname)
 
-    def __getstate__(self):
-        """Don't pickle open .srf file on pickle"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['f'] # exclude open .srf file
-        del d['filelock'] # ditto for the filelock object
-        # leave the streams be, since you need them for their enabled chans info
-        return d
-    '''
-    def __setstate__(self, d):
-        """Do the stuff you might normally do here in self.unpickle() instead"""
-    '''
 
 class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file
