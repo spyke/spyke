@@ -630,7 +630,7 @@ class Detector(object):
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
-    DEFEXTRACTPARAMSONDETECT = False
+    DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -721,10 +721,23 @@ class Detector(object):
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
+        # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
         results = pool.map(callsearchblock, args, chunksize=1)
+        '''
         # single process method, useful for debugging:
-        #for wavetrange in wavetranges:
-        #    blockspikes = self.searchblock(wavetrange, direction)
+        spikes = np.zeros(0, self.SPIKEDTYPE) # init
+        for wavetrange in wavetranges:
+            try:
+                blockspikes, blockwavedata = self.searchblock(wavetrange, direction)
+            except FoundEnoughSpikesError:
+                break
+            nblockspikes = len(blockspikes)
+            shape = list(spikes.shape)
+            shape[0] += nblockspikes
+            spikes.resize(shape, refcheck=False)
+            spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
+            self.nspikes += nblockspikes
+        '''
         pool.close()
         #pool.join() # unnecessary, I think
         stream.open()
@@ -736,25 +749,6 @@ class Detector(object):
         info('unzipping and concatenating results took %.3f sec' % (time.time()-tunzip))
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
-
-        # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
-        # old single-process code:
-        '''
-        for wavetrange in wavetranges:
-            try:
-                blockspikes = self.searchblock(wavetrange, direction)
-            except FoundEnoughSpikesError:
-                break
-            nblockspikes = len(blockspikes)
-            shape = list(spikes.shape)
-            shape[0] += nblockspikes
-            spikes.resize(shape, refcheck=False)
-            spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
-            self.nspikes += nblockspikes
-        '''
-        #spikets = [ s.t for s in spikes ]
-        #spikeis = np.argsort(spikets, kind='mergesort') # indices into spikes, ordered by spike time
-        #spikes = [ spikes[si] for si in spikeis ] # now guaranteed to be in temporal order
         # default -1 indicates no nid or detid is set as of yet, reserve 0 for actual ids
         spikes['nid'] = -1
         spikes['detid'] = -1
@@ -925,7 +919,8 @@ class Detector(object):
             chanis = self.nbhdi[chani]
 
             # get data window wrt threshold crossing
-            t0i = ti+twi[0] # check for lockouts in amplis loop below
+            # clip t0i to 0 since don't need full width wave just yet
+            t0i = max(ti+twi[0], 0) # check for lockouts in amplis loop below,
             tendi = ti+twi[1]+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
@@ -952,7 +947,9 @@ class Detector(object):
 
             # get window +/- dti+1 around ti on chani, look for the other spike phase
             #t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            t0i = ti-dti-1 # screw it, don't worry about lockout for companion phase?
+            t0i = ti-dti-1 # don't worry about lockout for companion phase
+            if t0i < 0:
+                continue # too close to start of wave to get full width window, abort
             tendi = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
