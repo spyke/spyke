@@ -85,7 +85,7 @@ class Sort(object):
             pass # either stream is None or self.sampfreq/shcorrect aren't bound
         self._stream = stream
         tres = stream.tres
-        twts = np.arange(self.TW[0], self.TW[1], tres) # temporal window timepoints wrt thresh xing or phase1t
+        twts = np.arange(self.TW[0], self.TW[1], tres) # temporal window timepoints wrt thresh xing or spike time
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twts = twts
         # time window indices wrt thresh xing or 1st phase:
@@ -389,27 +389,28 @@ class Sort(object):
         neuron = self.neurons[nid]
         spikes = self.spikes
         nris = spikes['id'].searchsorted(neuron.spikeis) # row indices of spikes that belong to this neuron
-        V1s = spikes['V1'][nris]
-        V2s = spikes['V2'][nris]
+        Vss = spikes['Vs'][nris] # 2 x nris array
+        alignis = spikes['aligni'][nris]
         if to == 'max':
-            nriis = V1s < 0 # indices into nris of spikes aligned to the min phase
+            nriis = Vss[:, alignis] < 0 # indices into nris of spikes aligned to the min phase
         elif to == 'min':
-            nriis = V1s > 0 # indices into nris of spikes aligned to the max phase
+            nriis = Vss[:, alignis] > 0 # indices into nris of spikes aligned to the max phase
         else: raise ValueError()
         ris = nris[nriis] # row indices of spikes that need realigning
-        dphasetis = spikes['phase2ti'][ris] - spikes['phase1ti'][ris]
+        phasetis = spikes['phasetis'][ris]
+        dphasetis = phasetis[:, 1] - phasetis[:, 0]
         dphases = spikes['dphase'][ris]
-        # TODO: stop changing cluster param values, makes clustering confusing!
+        # for those spikes that are being realigned, translate aligni from
+        # [0, 1] to [1, -1] and use as multipliers of dphases and dphasetis to adjust
+        # spike time values and phasetis values
+        dphasesx = -spikes['aligni'][ris]*2 + 1
+        dts = dphasesx * dphases
+        dtis = dphasesx * dphasetis
         # shift values
-        spikes['phase1ti'][ris] -= dphasetis
-        spikes['phase2ti'][ris] -= dphasetis
-        spikes['t0'][ris] += dphases
-        spikes['t'][ris] += dphases
-        spikes['tend'][ris] += dphases
-        # now swap names
-        spikes['phase1ti'][ris], spikes['phase2ti'][ris] = spikes['phase2ti'][ris], spikes['phase1ti'][ris]
-        spikes['V1'][ris], spikes['V2'][ris] = spikes['V2'][ris], spikes['V1'][ris]
-        spikes['dphase'][ris] = -spikes['dphase'][ris]
+        spikes['t0'][ris] += dt
+        spikes['t'][ris] += dt
+        spikes['tend'][ris] += dt
+        spikes['phasetis'] += dtis # update wrt new t0i
         # update wavedata for each shifted spike
         for ri, spike in zip(ris, spikes[ris]):
             wave = self.stream[spike['t0']:spike['tend']]
@@ -761,8 +762,7 @@ class Neuron(object):
                         y = det.siteloc[chanis, 1]
                         maxchani = int(np.where(chans == s['chan'])[0])
                         s['x0'], s['y0'] = sort.extractor.extractXY(wavedata, x, y,
-                                                                    s['phase1ti'], s['phase2ti'],
-                                                                    maxchani)
+                                                                    s['phasetis'], maxchani)
         # TODO: replot only the spikes whose params have changed, and keep their
         # scalar params intact so you can see that they moved
         self.wave = WaveForm() # reset to empty waveform so mean is recalculated

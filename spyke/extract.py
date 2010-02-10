@@ -146,10 +146,10 @@ class Extractor(object):
     # this assumes all spikes come from the same detector with the same siteloc and chans,
     # which is safe to assume anyway
 
-    def extract(self, wavedata, phase1ti, phase2ti, x, y, maxchani):
+    def extract(self, wavedata, phasetis, x, y, maxchani):
         if len(wavedata) == 1: # only one chan, return its coords
             return int(x), int(y)
-        weights = self.get_weights(wavedata, phase1ti, phase2ti, maxchani)
+        weights = self.get_weights(wavedata, phasetis, maxchani)
         return self.extractXY(weights, x, y, maxchani)
 
     def callextractspike(spike, wavedata):
@@ -169,55 +169,46 @@ class Extractor(object):
         spikes['IC1'][ri] = weights[0, 0]
         spikes['IC2'][ri] = weights[0, 1]
         '''
-        phase1ti = spike['phase1ti']
-        phase2ti = spike['phase2ti']
+        phasetis = spike['phasetis']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
         #print('ri = %d' % ri)
-        x0, y0 = self.extract(wavedata, phase1ti, phase2ti, x, y, maxchani)
+        x0, y0 = self.extract(wavedata, phasetis, x, y, maxchani)
         return x0, y0
         #spikes['x0'][ri] = x0
         #spikes['y0'][ri] = y0
 
-    def get_weights(self, wavedata, phase1ti, phase2ti, maxchani):
-        """NOTE: you get better clustering if you allow phase1ti and phase2ti to
+    def get_weights(self, wavedata, phasetis, maxchani):
+        """NOTE: you get better clustering if you allow phasetis to
         vary at least slightly for each chan, since they're never simultaneous across
         chans, and sometimes they're very delayed or advanced in time
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
 
-        # find peaks on each chan around phase1ti and phase2ti
-        # dividing dti by 2 might seem safer, since not looking for other phase, just
-        # looking for same phase maybe slightly shifted, but clusterability seems
-        # a bit better when you leave dti be
+        # find peaks on each chan around phasetis, assign weights by Vpp.
+        # Dividing dti by 2 seems safer, since not looking for other phase, just
+        # looking for same phase maybe slightly shifted
         #dti = self.sort.detector.dti // 2 # constant
-        dti = max(abs(int(phase1ti) - int(phase2ti)) // 2, 1) # varies from spike to spike
-        V1 = wavedata[maxchani, phase1ti]
-        V2 = wavedata[maxchani, phase2ti]
-        window1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti]
-        window2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti]
-        if V1 < V2: # phase1ti is a min on maxchan, phase2ti is a max
-            #weights = np.float32(window1.min(axis=1))
-            V1s = np.float32(window1.min(axis=1))
-            V2s = np.float32(window2.max(axis=1))
-            weights = V2s - V1s
-        else: # phase1ti is a max on maxchan, phase2ti is a min
-            #weights = np.float32(window1.max(axis=1))
+        dti = max((phasetis[1]-phasetis[0]) // 2, 1) # varies from spike to spike
+        Vs = wavedata[maxchani, phasetis]
+        window0 = wavedata[:, max(phasetis[0]-dti,0):phasetis[0]+dti]
+        window1 = wavedata[:, max(phasetis[1]-dti,0):phasetis[1]+dti]
+        if Vs[0] < Vs[1]: # 1st phase is a min on maxchan, 2nd phase is a max
+            #weights = np.float32(window0.min(axis=1))
+            V0s = np.float32(window0.min(axis=1))
             V1s = np.float32(window1.max(axis=1))
-            V2s = np.float32(window2.min(axis=1))
-            weights = V1s - V2s
+            weights = V1s - V0s
+        else: # 1st phase is a max on maxchan, 2nd phase is a min
+            #weights = np.float32(window0.max(axis=1))
+            V0s = np.float32(window0.max(axis=1))
+            V1s = np.float32(window1.min(axis=1))
+            weights = V0s - V1s
         return weights
 
     def get_spatial_mean(self, weights, x, y, maxchani):
         """Return weighted spatial mean of chans in spike according to their
         Vpp at the same timepoints as on the max chan, to use as rough
-        spatial origin of spike. x and y are spatial coords of chans in wavedata.
-        phase1ti and phase2ti are timepoint indices in wavedata at which the max chan
-        hits its 1st and 2nd spike phases.
-        NOTE: you get better clustering if you allow phase1ti and phase2ti to
-        vary at least slightly for each chan, since they're never simultaneous across
-        chans, and sometimes they're very delayed or advanced in time
-        NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
+        spatial origin of spike. x and y are spatial coords of chans in wavedata"""
 
         # convert to float before normalization, take abs of all weights
         # taking abs doesn't seem to affect clusterability

@@ -36,6 +36,8 @@ RECENT:
 
     - rework what happens during realignment - you really shouldn't be changing parameter values. phase1ti, phase2ti, V1, V2, they should all stay the same - only the spike time should be changed, and of course the way the wave data is aligned in memory. The 1 and 2 should correspond to the phase temporal order, which will never change with realignment. Maybe add a binary field to spikes array that designates which phase is the one the spike is currently aligned to?
         - also, rename phase1ti, phase2ti -> phase0ti, phase1ti
+        - every time you realign, you should really re-extract params for the realigned spikes, and then re-plot. Then you can see where the previously coloured points fall, and then you should hit cluster again
+        - vast majority of the time, I'm realigning to the min, so that should be the default
 
     - 'nt' field in spikes array doesn't seem to be needed
 

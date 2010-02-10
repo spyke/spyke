@@ -792,9 +792,9 @@ class Detector(object):
                            # TODO: maybe it would be more efficient to store ti, t0i,
                            # and tendi wrt start of surf file instead of times in us?
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
-                           ('V1', np.float32), ('V2', np.float32), ('Vpp', np.float32),
-                           ('phase1ti', np.uint8), ('phase2ti', np.uint8),
-                           ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16),
+                           ('Vs', np.float32, 2), ('Vpp', np.float32),
+                           ('phasetis', np.uint8, 2), ('aligni', np.uint8),
+                           ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16), # in us
                            #('IC1', np.float32), ('IC2', np.float32)]
                            ]
 
@@ -946,10 +946,10 @@ class Detector(object):
                 continue # skip to next event
 
             # get window +/- dti+1 around ti on chani, look for the other spike phase
-            #t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            t0i = ti-dti-1 # don't worry about lockout for companion phase
-            if t0i < 0:
-                continue # too close to start of wave to get full width window, abort
+            t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            #t0i = ti-dti-1 # don't worry about lockout for companion phase
+            #if t0i < 0:
+            #    continue # too close to start of wave to get full width window, abort
             tendi = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
@@ -973,35 +973,36 @@ class Detector(object):
 
             # decide which is the companion phase to the main phase
             companiontiw = abs(ampl).argmax()
+            phasetis = np.sort([tiw, companiontiw])
+            Vs = window[phasetis] # maintain sign
+            # temporarily make phasetis absolute indices into wave
+            phasetis += t0i
+            # align spikes by their min phase by default
+            aligni = Vs.argmin()
+            ti = phasetis[aligni] # overwrite ti, absolute time index to align to
+            if lockouts[chani] >= ti:
+                continue # this event is locked out when aligned to min
 
-            phase1ti, phase2ti = tiw, companiontiw
-            V1, V2 = int(window[phase1ti]), int(window[phase2ti])
-
-            # make phase1ti and phase2ti absolute indices into wave
-            phase1ti += t0i
-            phase2ti += t0i
-
-            # get full-sized window wrt phase1ti, finalized in time,
-            # but not necessarily in chans
-            #t0i = max(phase1ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to phase1ti aren't locked out
-            t0i = phase1ti+twi[0] # make final window always be full width, lockouts be damned
-            #tendi = min(phase1ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
-            tendi = phase1ti+twi[1]+1 # make window always be full width, lockouts be damned
+            # get full-sized window wrt ti, finalized in time and in chans
+            #t0i = max(ti+twi[0], lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
+            t0i = ti+twi[0] # make final window always be full width, lockouts be damned
+            #tendi = min(ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
+            tendi = ti+twi[1]+1 # make window always be full width, lockouts be damned
+            # update channel neighbourhood
+            # find all enabled chanis within nbhd of chani, exclude those locked-out at ti
+            nbhdchanis = self.nbhdi[chani]
+            chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
-            # make phase1ti and phase2ti relative to new t0i
-            phase1ti -= t0i
-            phase2ti -= t0i
+            # make phasetis relative to new t0i
+            phasetis -= t0i
 
-            ti = t0i + phase1ti # overwrite ti, make it phase1ti wrt 0th time index
-            if DEBUG: debug('final window params: t0=%d, tend=%d, phase1t=%d, phase2t=%d, V1=%d, V2=%d'
-                            % (wave.ts[t0i], wave.ts[tendi],
-                               wave.ts[ti], wave.ts[t0i+phase2ti],
-                               V1, V2))
-            Vpp = V2 - V1
-            if abs(Vpp) < self.ppthresh[chani]:
+            if DEBUG: debug('final window params: t0=%d, tend=%d, phasets=%r, Vs=%r'
+                            % (wave.ts[t0i], wave.ts[tendi], wave.ts[phasetis], AD2uV(Vs)))
+            Vpp = abs(Vs[1]-Vs[0]) # don't maintain sign
+            if Vpp < self.ppthresh[chani]:
                 if DEBUG: debug("matched peak to extremum at "
-                                "chani, ti = %d, %d gives only %d Vpp" % (chani, ti, AD2uV(abs(V2-V1))))
+                                "chani, ti = %d, %d gives only %d Vpp" % (chani, ti, AD2uV(Vpp)))
                 continue # skip to next event
 
             s = spikes[nspikes]
@@ -1016,36 +1017,27 @@ class Detector(object):
             ts = wave.ts[t0i:tendi]
             # use ts = np.arange(s['t0'], s['tend'], stream.tres) to reconstruct
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
-            s['phase1ti'], s['phase2ti'] = phase1ti, phase2ti # wrt t0i
-            s['dphase'] = ts[phase2ti] - ts[phase1ti] # in us
-            s['V1'], s['V2'] = AD2uV(V1), AD2uV(V2) # maintain sign
-            s['Vpp'] = abs(AD2uV(Vpp)) # don't maintain sign
-
-            # update channel neighbourhood
-            # find all enabled chanis within nbhd of chani, exclude those locked-out at phase1ti
-            oldchanis = chanis
-            nbhdchanis = self.nbhdi[chani]
-            chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
+            s['phasetis'][:] = phasetis # wrt t0i, not sure why the [:] is necessary
+            s['aligni'] = aligni # 0 or 1
+            s['dphase'] = ts[phasetis[1]] - ts[phasetis[0]] # in us
+            s['Vs'][:] = AD2uV(Vs) # in uV, not sure why the [:] is necessary
+            s['Vpp'] = AD2uV(Vpp) # in uV
             chan = self.chans[chani]
             chans = self.chans[chanis]
             nchans = len(chans)
             s['chan'], s['chans'][:nchans], s['nchans'] = chan, chans, nchans
-            # get new window corresponding to new chans, if they're any different.
-            # Otherwise, to save time, don't get new window
-            if len(chanis) != len(oldchanis) or not (chanis == oldchanis).all():
-                window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
             wavedata[nspikes, 0:nchans] = window # aligned in time due to all having same nt
             if self.extractparamsondetect:
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0])
-                s['x0'], s['y0'] = extract(window, phase1ti, phase2ti, x, y, maxchani)
+                s['x0'], s['y0'] = extract(window, phasetis, x, y, maxchani)
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike
-            dphaseti = abs(phase2ti - phase1ti)
-            lockout = t0i + max(phase1ti, phase2ti) + dphaseti
+            dphaseti = phasetis[1] - phasetis[0]
+            lockout = t0i + phasetis[1] + dphaseti
             lockouts[chanis] = lockout # same for all chans in this spike
             if DEBUG:
                 lockoutt = wave.ts[lockout]
