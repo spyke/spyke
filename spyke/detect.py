@@ -616,7 +616,7 @@ class Detector(object):
     """Spike detector base class"""
     DEFTHRESHMETHOD = 'ChanFixed' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
-    DEFNOISEMULT = 4.5
+    DEFNOISEMULT = 5
     DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
     DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
@@ -717,7 +717,7 @@ class Detector(object):
         stream = self.sort.stream
         stream.close() # make it picklable: close .srff, maybe .resample, and any file locks
         ncpus = mp.cpu_count() # 1 per core
-        pool = mp.Pool(1, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
+        pool = mp.Pool(ncpus, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
         t0 = time.time()
         directions = [direction]*len(wavetranges)
         args = zip(wavetranges, directions)
@@ -972,15 +972,23 @@ class Detector(object):
                 continue # skip to next event
 
             # decide which is the companion phase to the main phase
-            companiontiw = abs(ampl).argmax()
-            phasetis = np.sort([tiw, companiontiw])
+            #companiontiw = abs(ampl).argmax()
+            companiontiws = abs(ampl).argsort()[::-1] # decreasing order
+            companiontiws = companiontiws[0:2] # biggest two (or one)
+            # calc updated absolute lockout wrt start of wave while we're at it,
+            # don't apply it until the very end
+            lockoutti = np.concatenate([[tiw], companiontiws]).max()
+            lockout = t0i + lockoutti
+            phasetis = np.sort([tiw, companiontiws[0]]) # keep them in temporal order
             Vs = window[phasetis] # maintain sign
             # temporarily make phasetis absolute indices into wave
             phasetis += t0i
+
             # align spikes by their min phase by default
             aligni = Vs.argmin()
             ti = phasetis[aligni] # overwrite ti, absolute time index to align to
             if lockouts[chani] >= ti:
+                import pdb; pdb.set_trace() # this shouldn't happen, since t0i should respect lockout
                 continue # this event is locked out when aligned to min
 
             # get full-sized window wrt ti, finalized in time and in chans
@@ -990,8 +998,9 @@ class Detector(object):
             tendi = ti+twi[1]+1 # make window always be full width, lockouts be damned
             # update channel neighbourhood
             # find all enabled chanis within nbhd of chani, exclude those locked-out at ti
-            nbhdchanis = self.nbhdi[chani]
-            chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
+            #nbhdchanis = self.nbhdi[chani]
+            #chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
+            chanis = self.nbhdi[chani] # give final waveform full suite of chans, lockouts be damned
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # make phasetis relative to new t0i
@@ -1036,8 +1045,17 @@ class Detector(object):
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike
-            dphaseti = phasetis[1] - phasetis[0]
-            lockout = t0i + phasetis[1] + dphaseti
+            # TODO: lock out to the latest of the 3 sharpest extrema. Some spikes are more
+            # than biphasic, with a significant 3rd phase (see ptc18.14.24570980),
+            # but never more than 3 significant phases
+            #import pdb; pdb.set_trace()
+            '''
+            for chani, row in zip(chanis, window):
+                i = np.where(abs(row) > self.thresh[chani])[0]
+                if i.any(): lockouts[chani] = t0i + i.max()
+            '''
+            #dphaseti = phasetis[1] - phasetis[0]
+            #lockout = t0i + phasetis[1] + dphaseti
             lockouts[chanis] = lockout # same for all chans in this spike
             if DEBUG:
                 lockoutt = wave.ts[lockout]
