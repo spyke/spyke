@@ -60,7 +60,7 @@ shandler.setLevel(logging.INFO) # log info level and higher to screen
 logger.addHandler(shandler)
 info = logger.info
 
-DEBUG = False # print detection debug messages to log file? slows down detection
+DEBUG = True # print detection debug messages to log file? slows down detection
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
@@ -713,40 +713,50 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-        # create a processing pool with as many processes as there are CPUs/cores
         stream = self.sort.stream
         stream.close() # make it picklable: close .srff, maybe .resample, and any file locks
-        ncpus = mp.cpu_count() # 1 per core
-        pool = mp.Pool(ncpus, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
         t0 = time.time()
-        directions = [direction]*len(wavetranges)
-        args = zip(wavetranges, directions)
-        # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
-        results = pool.map(callsearchblock, args, chunksize=1)
-        '''
-        # single process method, useful for debugging:
-        spikes = np.zeros(0, self.SPIKEDTYPE) # init
-        for wavetrange in wavetranges:
-            try:
-                blockspikes, blockwavedata = self.searchblock(wavetrange, direction)
-            except FoundEnoughSpikesError:
-                break
-            nblockspikes = len(blockspikes)
-            shape = list(spikes.shape)
-            shape[0] += nblockspikes
-            spikes.resize(shape, refcheck=False)
-            spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
-            self.nspikes += nblockspikes
-        '''
-        pool.close()
-        #pool.join() # unnecessary, I think
+
+        if not DEBUG:
+            # create a processing pool with as many processes as there are CPUs/cores
+            ncpus = mp.cpu_count() # 1 per core
+            pool = mp.Pool(ncpus, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
+            directions = [direction]*len(wavetranges)
+            args = zip(wavetranges, directions)
+            # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
+            results = pool.map(callsearchblock, args, chunksize=1)
+            pool.close()
+            #pool.join() # unnecessary, I think
+            blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
+            spikes = np.concatenate(blockspikes)
+            wavedata = np.concatenate(blockwavedata) # along spikei axis, all other dims are identical
+        else:
+            # single process method, useful for debugging:
+            spikes = np.zeros(0, self.SPIKEDTYPE) # init
+            wavedata = np.zeros((0, 0, 0), np.int16) # init 3D array
+            for wavetrange in wavetranges:
+                try:
+                    blockspikes, blockwavedata = self.searchblock(wavetrange, direction)
+                except FoundEnoughSpikesError:
+                    break
+                nblockspikes = len(blockspikes)
+                sshape = list(spikes.shape)
+                sshape[0] += nblockspikes
+                spikes.resize(sshape, refcheck=False)
+                spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
+
+                wshape = list(wavedata.shape)
+                if wshape == [0, 0, 0]:
+                    wshape = blockwavedata.shape # init shape
+                else:
+                    wshape[0] += nblockspikes # just inc length
+                wavedata.resize(wshape, refcheck=False)
+                wavedata[self.nspikes:self.nspikes+nblockspikes] = blockwavedata
+
+                self.nspikes += nblockspikes
+
         stream.open()
-        tunzip = time.time()
-        blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
-        spikes = np.concatenate(blockspikes)
-        wavedata = np.concatenate(blockwavedata) # along spikei axis, all other dims are identical
         sort.wavedata = wavedata
-        info('unzipping and concatenating results took %.3f sec' % (time.time()-tunzip))
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid or detid is set as of yet, reserve 0 for actual ids
@@ -908,7 +918,8 @@ class Detector(object):
             # at least twi[0]//2 datapoints before the peak - this avoids "spikes" that only
             # constitute a tiny blip right at the left edge of your data window, and then simply
             # decay slowly over the course of the window
-            if lockouts[chani] >= ti+twi[0]//2:
+            #if lockouts[chani] >= ti+twi[0]//2:
+            if ti <= lockouts[chani]:
                 if DEBUG: debug('thresh event is locked out')
                 continue # skip to next event
 
@@ -920,7 +931,9 @@ class Detector(object):
 
             # get data window wrt threshold crossing
             # clip t0i to 0 since don't need full width wave just yet
-            t0i = max(ti+twi[0], 0) # check for lockouts in amplis loop below,
+            #t0i = max(ti+twi[0], 0) # check for lockouts in amplis loop below,
+            # only need to search forward from thresh xing for the peak
+            t0i = ti # check for lockouts in amplis loop below
             tendi = ti+twi[1]+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
@@ -938,9 +951,10 @@ class Detector(object):
                 ti = t0i + coli
                 if ti > lockouts[chani]:# and abs(window[rowi, coli]) > self.thresh[chani]:
                     # extremum is not locked out
+                    if DEBUG: debug('found peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
                     break # found valid extremum with biggest relative amplitude
                 else: # extremum is locked out (rare)
-                    if DEBUG: debug('extremum at chani, ti = %d, %d is locked out' % (chani, ti))
+                    if DEBUG: debug('extremum at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
             else:
                 if DEBUG: debug('all extrema are locked out')
                 continue # skip to next event
@@ -968,7 +982,7 @@ class Detector(object):
                 ampl[ampl > 0] = 0 # null all the max entries, leave only min entries
             if (ampl == 0).all(): # no extrema left
                 if DEBUG: debug("couldn't find a matching peak to extremum at "
-                                "chani, ti = %d, %d" % (chani, ti))
+                                "t=%d chan=%d" % (wave.ts[ti], self.chans[chani]))
                 continue # skip to next event
 
             # decide which is the companion phase to the main phase
@@ -1010,8 +1024,8 @@ class Detector(object):
                             % (wave.ts[t0i], wave.ts[tendi], wave.ts[phasetis], AD2uV(Vs)))
             Vpp = abs(Vs[1]-Vs[0]) # don't maintain sign
             if Vpp < self.ppthresh[chani]:
-                if DEBUG: debug("matched peak to extremum at "
-                                "chani, ti = %d, %d gives only %d Vpp" % (chani, ti, AD2uV(Vpp)))
+                if DEBUG: debug("matched companion peak to extremum at "
+                                "t=%d chan=%d gives only %d Vpp" % (wave.ts[ti], self.chans[chani], AD2uV(Vpp)))
                 continue # skip to next event
 
             s = spikes[nspikes]
@@ -1042,7 +1056,7 @@ class Detector(object):
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0])
                 s['x0'], s['y0'] = extract(window, phasetis, x, y, maxchani)
-            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], siteloc[chani, 0], siteloc[chani, 1]))
+            if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike
             # TODO: lock out to the latest of the 3 sharpest extrema. Some spikes are more
@@ -1059,7 +1073,7 @@ class Detector(object):
             lockouts[chanis] = lockout # same for all chans in this spike
             if DEBUG:
                 lockoutt = wave.ts[lockout]
-                debug('lockout = %d for chans = %s' % (lockoutt, chans))
+                debug('lockout=%d for chans=%s' % (lockoutt, chans))
 
             nspikes += 1
 
