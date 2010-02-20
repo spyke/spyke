@@ -95,32 +95,59 @@ def minmax_filter(x, width=3):
     mini = x == ndimage.minimum_filter(x, size=(1,width), mode='constant', cval=-100000)
     return maxi+mini
 
-def arglocalextrema(signal):
+def argextrema1Damplitude(signal):
     """Return indices of all local extrema in 1D int signal
+    Also return array designating each extremum's type (max or min)
+    and its amplitude."""
+    assert len(signal.shape) == 1
+    # it's possible to have a local extremum at every timepoint on every chan
+    ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak amplitude
+    itemsize = signal.dtype.itemsize
+    aitemsize = ampl.dtype.itemsize
+    nt = len(signal)
+    stride = int(signal.strides[0] // itemsize) # just timepoints to deal with
+    astride = int(ampl.strides[0] // aitemsize)
+    code = (r"""#line 110 "detect.py"
+    int ti, n_ext, now, last, last2;
+
+    n_ext = 0;
+    // let's start from timepoint 2 (0-based)
+    last = signal[stride]; // signal[(2-1)*stride] // signal 1 timepoint ago
+    last2 = signal[0]; // signal[(2-2)*stride] // signal 2 timepoints ago
+    for (ti=2; ti<nt; ti++) {
+        now = signal[ti*stride]; // signal at current timepoint
+        if ((last2 <= last && last > now) || (last2 >= last && last < now)) {
+            // last is a max or min
+            // alasti = (ti-1)*astride;
+            ampl[(ti-1)*astride] = last; // save last amplitude at last index
+            n_ext++;
+        }
+        // update for next loop
+        last2 = last;
+        last = now;
+    }
+    """)
+    inline(code, ['signal', 'nt', 'stride', 'astride', 'ampl'])
+    return ampl
+
+def argextrema2Dsharpness(signal):
+    """Return indices of all local extrema in 2D int signal
     Also return array designating each extremum's type (max or min)
     and its "amplitude", which is actually its sharpness defined as
     rise**2/run"""
-
+    assert len(signal.shape) == 2
     # it's possible to have a local extremum at every timepoint on every chan
-    ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak "sharpness"
+    ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak sharpness
     itemsize = signal.dtype.itemsize
     aitemsize = ampl.dtype.itemsize
-    if len(signal.shape) == 2: # signal is 2D
-        nchans = int(signal.shape[0])
-        nt = int(signal.shape[1])
-        stride0 = int(signal.strides[0] // itemsize)
-        stride1 = int(signal.strides[1] // itemsize)
-        astride0 = int(ampl.strides[0] // aitemsize)
-        astride1 = int(ampl.strides[1] // aitemsize)
-    else: # signal is 1D
-        nchans = 1
-        nt = len(signal)
-        stride0 = 0 # no chans to deal with, it's single chan
-        stride1 = int(signal.strides[0] // itemsize) # just timepoints to deal with
-        astride0 = 0
-        astride1 = int(ampl.strides[0] // aitemsize)
+    nchans = int(signal.shape[0])
+    nt = int(signal.shape[1])
+    stride0 = int(signal.strides[0] // itemsize)
+    stride1 = int(signal.strides[1] // itemsize)
+    astride0 = int(ampl.strides[0] // aitemsize)
+    astride1 = int(ampl.strides[1] // aitemsize)
     extiw = np.empty(nt, dtype=np.int32) # for temp internal use
-    code = (r"""#line 109 "detect.py"
+    code = (r"""#line 152 "detect.py"
     int ci, ti, ei, n_ext, cis0, i, ai, alasti, now, last, last2, thisti, lastti, nextti;
     double rise1, rise2, run1, run2;
 
@@ -132,17 +159,18 @@ def arglocalextrema(signal):
         last2 = signal[cis0]; // signal[cis0 + (2-2)*stride1] // signal 2 timepoints ago
         for (ti=2; ti<nt; ti++) {
             i = cis0 + ti*stride1;
-            alasti = ci*astride0 + (ti-1)*astride1;
             now = signal[i]; // signal at current timepoint
             if (last2 <= last && last > now) {
                 // last is a max
                 extiw[n_ext] = ti-1; // save previous time index
+                alasti = ci*astride0 + (ti-1)*astride1;
                 ampl[alasti] = 1; // +ve peak
                 n_ext++;
             }
             else if (last2 >= last && last < now) {
                 // last is a min
                 extiw[n_ext] = ti-1; // save previous time index
+                alasti = ci*astride0 + (ti-1)*astride1;
                 ampl[alasti] = -1; // -ve peak
                 n_ext++;
             }
@@ -931,15 +959,16 @@ class Detector(object):
 
             # get data window wrt threshold crossing
             # clip t0i to 0 since don't need full width wave just yet
-            #t0i = max(ti+twi[0], 0) # check for lockouts in amplis loop below,
-            # only need to search forward from thresh xing for the peak
-            t0i = ti # check for lockouts in amplis loop below
+            t0i = max(ti+twi[0], 0) # check for lockouts in amplis loop below,
+            # not true: only need to search forward from thresh xing for the peak
+            # actually: need to search forward and backward for sharpest peak, not biggest
+            #t0i = ti # check for lockouts in amplis loop below
             tendi = ti+twi[1]+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is sharpest
-            ampl = arglocalextrema(window)
+            ampl = argextrema2Dsharpness(window)
             # find max abs(amplitude) that isn't locked out
             amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
             amplis = amplis[::-1] # reverse for highest to lowest abs(amplitude)
@@ -974,7 +1003,7 @@ class Detector(object):
                 window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
             tiw = int(ti - t0i) # time index where ti falls wrt the window
-            ampl = arglocalextrema(window) # this is 1D
+            ampl = argextrema1Damplitude(window) # this is 1D
             # if tiw is a max, choose only extrema that are min, and vice versa
             if window[tiw-1] >= window[tiw] < window[tiw+1]: # main phase is a min
                 ampl[ampl < 0] = 0 # null all the min entries, leave only max entries
