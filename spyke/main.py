@@ -549,6 +549,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf.MoveSpikes2Neuron(spikeis, neuron)
         # TODO: colour only those points that have been added
         self.ColourPoints(clusters)
+        try: del self.sort.spikefname # need to update .spike file on next .sort save
+        except AttributeError: pass
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
