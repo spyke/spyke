@@ -18,7 +18,7 @@ import weakref
 
 import wx
 
-from spyke.core import Stream, iterable, toiter
+from spyke.core import Stream, iterable, toiter, win2posixpath
 from spyke.filelock import FileLock
 
 NULL = '\x00'
@@ -55,6 +55,7 @@ class File(object):
         - stimulus digital single val records"""
     def __init__(self, fname):
         # TODO: ensure fname is a full path name, so that there won't be issues finding the file if self is ever unpickled
+        fname = win2posixpath(os.path.abspath(fname)) # make this an absolute posix style path
         self.fname = fname
         self.fileSize = os.stat(fname)[6]
         self.filelock = FileLock(fname)

@@ -825,7 +825,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             wx.MessageBox("%s is not a .srf, .sort or .wave file" % fname,
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
-            return
 
     def OpenSurfFile(self, fname):
         """Open a .srf file, and update display accordingly"""

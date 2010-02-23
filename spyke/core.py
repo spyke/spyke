@@ -1090,6 +1090,12 @@ def R(tx, ty, tz):
     """
     # convert to radians, then take matrix product
     return Rz(tz*pi/180)*Rx(tx*pi/180)*Ry(ty*pi/180)
+
+def win2posixpath(path):
+    path = path.replace('\\', '/')
+    path = os.path.splitdrive(path)[-1] # remove drive name from start
+    return path
+
 '''
 def intersect1d(arrays, assume_unique=False):
     """Find the intersection of any number of 1D arrays.
