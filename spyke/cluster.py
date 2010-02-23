@@ -30,13 +30,13 @@ class Cluster(object):
         self.ellipsoid = ellipsoid
         # cluster attribs store true values of each dim, unscaled by the
         # visualization sort.SCALE factor
-        self.pos =   {'x0':0,  'y0':0,  'Vpp':100, 'V1':50, 'V2':50, 'dphase':200} #, 'IC1':0,  'IC2':0}
+        self.pos = {'x0':0, 'y0':0, 'Vpp':100, 'V0':50, 'V1':50, 'IC0':0, 'IC1':0, 'dphase':200}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
-        self.ori =   {'x0':{}, 'y0':{}, 'Vpp':{}, 'V1':{}, 'V2':{}, 'dphase':{}} #, 'IC1':{}, 'IC2':{}}
+        self.ori = {'x0':{}, 'y0':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'IC0':{}, 'IC1':{}, 'dphase':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':10,  'y0':20, 'Vpp':50, 'V1':0,  'V2':0,  'dphase':0} #, 'IC1':0,  'IC2':0}
+        self.scale = {'x0':10, 'y0':20, 'Vpp':50, 'V0':0, 'V1':0, 'IC0':0, 'IC1':0, 'dphase':0}
 
     def get_id(self):
         return self.neuron.id

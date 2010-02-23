@@ -288,7 +288,15 @@ class Sort(object):
         """Organize parameters in dims from all spikes into a
         data matrix, each column corresponds to a dim"""
         # np.column_stack returns a copy, not modifying the original array
-        X = np.column_stack([ np.float32(self.spikes[dim]) for dim in dims ])
+        params = []
+        for dim in dims:
+            if dim == 'V0':
+                params.append( np.float32(self.spikes['Vs'][:, 0]) )
+            elif dim == 'V1':
+                params.append( np.float32(self.spikes['Vs'][:, 1]) )
+            else:
+                params.append( np.float32(self.spikes[dim]) )
+        X = np.column_stack(params)
         if viz_scaled:
             # scale select columns for better visualization
             for dim, col in zip(dims, X.T): # iterate over columns
