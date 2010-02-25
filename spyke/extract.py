@@ -22,11 +22,10 @@ class LeastSquares(object):
         TODO: try and improve clusterability:
             - try making A a free variable again, and plot that in cluster
               space instead of Vp or Vpp of maxchan
-            - try making sy a free variable again, but leave sx fixed at 30
         """
         self.A = None
         self.sx = 30
-        #self.sy = 30
+        self.sy = 30
 
     def calc(self, x, y, V):
         t0 = time.clock()
@@ -53,7 +52,7 @@ class LeastSquares(object):
         """2D elliptical Gaussian"""
         try:
             #return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
-            return self.A * g2(p[0], p[1], self.sx, p[2], x, y)
+            return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
@@ -220,7 +219,8 @@ class Extractor(object):
 
         # TODO: try using dphase instead of dphase/2, check clusterability
 
-        dti = max((phasetis[1]-phasetis[0]) // 2, 1) # varies from spike to spike
+        phasetis = np.int32(phasetis) # prevent over/underflow of uint8
+        dti = max((phasetis[1]-phasetis[0]), 1) # varies from spike to spike
         Vs = wavedata[maxchani, phasetis]
         window0 = wavedata[:, max(phasetis[0]-dti,0):phasetis[0]+dti]
         window1 = wavedata[:, max(phasetis[1]-dti,0):phasetis[1]+dti]
@@ -315,11 +315,10 @@ class Extractor(object):
         #w **= 2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
         ls = self.ls
         x0, y0 = self.get_spatial_mean(w, x, y, maxchani)
-        sy = 60
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
         ls.A = w[maxchani]
-        ls.p0 = np.asarray([x0, y0, sy])
+        ls.p0 = np.asarray([x0, y0])
         #ls.p0 = np.asarray([x[maxchani], y[maxchani]])
         ls.calc(x, y, w)
         return ls.p[0], ls.p[1]
