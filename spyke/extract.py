@@ -70,10 +70,10 @@ class Extractor(object):
     #DEFXYMETHOD = 'spatial mean'
     def __init__(self, sort, XYmethod):
         """Takes a parent Sort session and sets various parameters"""
+        self.debug = False
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
-        self.debug = False
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'spatial mean':
@@ -160,8 +160,9 @@ class Extractor(object):
     def extract(self, wavedata, maxchani, phasetis, aligni, x, y):
         if len(wavedata) == 1: # only one chan, return its coords
             return int(x), int(y)
-        #weights = self.get_Vpp_weights(wavedata, maxchani, phasetis)
-        weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
+        # Vpp weights seem more clusterable than Vp weights
+        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis)
+        #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
         return self.extractXY(weights, x, y, maxchani)
 
     def callextractspike(spike, wavedata):
@@ -200,12 +201,10 @@ class Extractor(object):
         window = wavedata[:, max(phaseti-dti,0):phaseti+dti]
         if V < 0:
             weights = np.float32(window.min(axis=1))
-            # TODO: try this
-            #weights = np.fmin(weights, 0) # clip any +ve values to 0
+            weights = np.fmin(weights, 0) # clip any +ve values to 0
         else: # V >= 0
             weights = np.float32(window.max(axis=1))
-            # TODO: try this
-            #weights = np.fmax(weights, 0) # clip any -ve values to 0
+            weights = np.fmax(weights, 0) # clip any -ve values to 0
         return weights
 
     def get_Vpp_weights(self, wavedata, maxchani, phasetis):
