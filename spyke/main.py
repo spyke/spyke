@@ -410,9 +410,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.init_extractor()
 
         #import cProfile
-        #cProfile.runctx('self.sort.extractor.extract_all()', globals(), locals())
+        #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
 
-        self.sort.extractor.extract_all() # adds extracted params to sort.spikes
+        self.sort.extractor.extract_all_XY() # adds extracted XY params to sort.spikes
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 

@@ -60,7 +60,7 @@ shandler.setLevel(logging.INFO) # log info level and higher to screen
 logger.addHandler(shandler)
 info = logger.info
 
-DEBUG = False # print detection debug messages to log file? slows down detection
+DEBUG = True # print detection debug messages to log file? slows down detection
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
@@ -658,7 +658,7 @@ class Detector(object):
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
-    DEFEXTRACTPARAMSONDETECT = True
+    DEFEXTRACTPARAMSONDETECT = False
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -833,7 +833,7 @@ class Detector(object):
                            ('Vs', np.float32, 2), ('Vpp', np.float32),
                            ('phasetis', np.uint8, 2), ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16), # in us
-                           #('IC1', np.float32), ('IC2', np.float32)]
+                           ('IC0', np.float32), ('IC1', np.float32)
                            ]
 
     def searchblock(self, wavetrange, direction):
@@ -1049,8 +1049,13 @@ class Detector(object):
             # make phasetis relative to new t0i
             phasetis -= t0i
 
+            try:
+                assert cutrange[0] <= wave.ts[ti] <= cutrange[1], 'spike time %r falls outside cutrange for this searchblock call, discarding' % wave.ts[ti] # use %r since s['t'] is np.int64 and %d gives TypeError if > 2**31
+            except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
+                if DEBUG: debug(message)
+                continue # skip to next event
             if DEBUG: debug('final window params: t0=%d, tend=%d, phasets=%r, Vs=%r'
-                            % (wave.ts[t0i], wave.ts[tendi], wave.ts[phasetis], AD2uV(Vs)))
+                            % (wave.ts[t0i], wave.ts[tendi], wave.ts[t0i+phasetis], AD2uV(Vs)))
             Vpp = abs(Vs[1]-Vs[0]) # don't maintain sign
             if Vpp < self.ppthresh[chani]:
                 if DEBUG: debug("matched companion peak to extremum at "
@@ -1059,11 +1064,6 @@ class Detector(object):
 
             s = spikes[nspikes]
             s['t'] = wave.ts[ti]
-            try:
-                assert cutrange[0] <= s['t'] <= cutrange[1], 'spike time %r falls outside cutrange for this searchblock call, discarding' % s['t'] # use %r since s['t'] is np.int64 and %d gives TypeError if > 2**31
-            except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
-                if DEBUG: debug(message)
-                continue # skip to next event
             # leave each spike's chanis in sorted order, as they are in self.nbhdi, important
             # assumption used later on, like in sort.get_wave() and Neuron.update_wave()
             ts = wave.ts[t0i:tendi]
@@ -1071,6 +1071,9 @@ class Detector(object):
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
             s['phasetis'][:] = phasetis # wrt t0i, not sure why the [:] is necessary
             s['aligni'] = aligni # 0 or 1
+
+            # TODO: add a sharpi field to designate which of the 2 phases is the sharpest (main) phase - use this for extractor.get_Vp_weights()
+
             s['dphase'] = ts[phasetis[1]] - ts[phasetis[0]] # in us
             s['Vs'][:] = AD2uV(Vs) # in uV, not sure why the [:] is necessary
             s['Vpp'] = AD2uV(Vpp) # in uV
@@ -1099,6 +1102,11 @@ class Detector(object):
             '''
             #dphaseti = phasetis[1] - phasetis[0]
             #lockout = t0i + phasetis[1] + dphaseti
+
+            # TODO: lock out only those chans that exceed thresh within -dphase/2
+            # of V0 and +dphase/2 of V1. Lock such chans out up to the latest
+            # of the thresh exceeding peaks that are found. This should fix double
+            # trigger at ptc18.14.7012560
             lockouts[chanis] = lockout # same for all chans in this spike
             if DEBUG:
                 lockoutt = wave.ts[lockout]

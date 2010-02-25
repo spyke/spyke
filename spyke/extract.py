@@ -18,9 +18,16 @@ class LeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
     def __init__(self):
         #self.anisotropy = 2 # y vs x anisotropy in sigma of gaussian fit
+        """
+        TODO: try and improve clusterability:
+            - try making A a free variable again, and plot that in cluster
+              space instead of Vp or Vpp of maxchan
+            - try making sy a free variable again, but leave sx fixed at 30
+        """
         self.A = None
         self.sx = 30
         self.sy = 30
+        self.debug = False
 
     def calc(self, x, y, V):
         t0 = time.clock()
@@ -31,12 +38,13 @@ class LeastSquares(object):
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
-        #print('iters took %.3f sec' % (time.clock()-t0))
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        #print('p0 = %r' % self.p0)
-        #print('p = %r' % self.p)
-        #print('%d iterations' % self.infodict['nfev'])
-        #print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def model(self, p, x, y):
         """2D circularly symmetric Gaussian"""
@@ -65,6 +73,7 @@ class Extractor(object):
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
+        self.debug = False
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'spatial mean':
@@ -74,6 +83,7 @@ class Extractor(object):
         elif self.XYmethod.lower() == 'gaussian fit':
             self.extractXY = self.get_gaussian_fit
             self.ls = LeastSquares()
+            self.ls.debug = self.debug
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
@@ -86,8 +96,8 @@ class Extractor(object):
         self.__dict__ = d
         self.choose_XY_fun() # restore instance method
 
-    def extract_all(self):
-        """Extract spike parameters, store them as spike attribs"""
+    def extract_all_XY(self):
+        """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
         spikes = sort.spikes # struct array
         nspikes = len(spikes)
@@ -102,6 +112,7 @@ class Extractor(object):
         ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
         invICs = ICs.I # not a square matrix, think it must do pseudoinverse
         '''
+        '''
         import multiprocessing
         from spyke import threadpool
         ncpus = multiprocessing.cpu_count()
@@ -109,7 +120,7 @@ class Extractor(object):
         x0y0s = pool.map(self.extractspike, range(nspikes))
         pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
         #pool.join() # unnecessary, hangs
-        """
+        '''
         for ri in xrange(nspikes):
             wavedata = sort.wavedata[ri]
             detid = spikes['detid'][ri]
@@ -126,16 +137,16 @@ class Extractor(object):
             spikes['IC1'][ri] = weights[0, 0]
             spikes['IC2'][ri] = weights[0, 1]
             '''
-            phase1ti = spikes['phase1ti'][ri]
-            phase2ti = spikes['phase2ti'][ri]
+            phasetis = spikes['phasetis'][ri]
+            aligni = spikes['aligni'][ri]
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             # just x and y params for now
-            #print('ri = %d' % ri)
-            x0, y0 = self.extract(wavedata, phase1ti, phase2ti, x, y, maxchani)
+            if ri % 1000 == 0:
+                print('ri = %d' % ri)
+            x0, y0 = self.extract(wavedata, maxchani, phasetis, aligni, x, y)
             spikes['x0'][ri] = x0
             spikes['y0'][ri] = y0
-        """
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
               (nspikes, self.XYmethod.lower(), time.time()-t0))
         # trigger resaving of .spike file on next .sort save
@@ -146,10 +157,11 @@ class Extractor(object):
     # this assumes all spikes come from the same detector with the same siteloc and chans,
     # which is safe to assume anyway
 
-    def extract(self, wavedata, phasetis, x, y, maxchani):
+    def extract(self, wavedata, maxchani, phasetis, aligni, x, y):
         if len(wavedata) == 1: # only one chan, return its coords
             return int(x), int(y)
-        weights = self.get_weights(wavedata, phasetis, maxchani)
+        #weights = self.get_Vpp_weights(wavedata, maxchani, phasetis)
+        weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
         return self.extractXY(weights, x, y, maxchani)
 
     def callextractspike(spike, wavedata):
@@ -170,16 +182,33 @@ class Extractor(object):
         spikes['IC2'][ri] = weights[0, 1]
         '''
         phasetis = spike['phasetis']
+        aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
         #print('ri = %d' % ri)
-        x0, y0 = self.extract(wavedata, phasetis, x, y, maxchani)
+        x0, y0 = self.extract(wavedata, maxchani, phasetis, aligni, x, y)
         return x0, y0
         #spikes['x0'][ri] = x0
         #spikes['y0'][ri] = y0
 
-    def get_weights(self, wavedata, phasetis, maxchani):
+    def get_Vp_weights(self, wavedata, maxchani, phasetis, aligni):
+        """Using just Vp instead of Vpp doesn't seem to improve clusterability"""
+        dti = max((phasetis[1]-phasetis[0]) // 2, 1) # varies from spike to spike
+        phaseti = phasetis[aligni]
+        V = wavedata[maxchani, phaseti]
+        window = wavedata[:, max(phaseti-dti,0):phaseti+dti]
+        if V < 0:
+            weights = np.float32(window.min(axis=1))
+            # TODO: try this
+            #weights = np.fmin(weights, 0) # clip any +ve values to 0
+        else: # V >= 0
+            weights = np.float32(window.max(axis=1))
+            # TODO: try this
+            #weights = np.fmax(weights, 0) # clip any -ve values to 0
+        return weights
+
+    def get_Vpp_weights(self, wavedata, maxchani, phasetis):
         """NOTE: you get better clustering if you allow phasetis to
         vary at least slightly for each chan, since they're never simultaneous across
         chans, and sometimes they're very delayed or advanced in time
