@@ -5,6 +5,7 @@ from __future__ import division
 __authors__ = ['Martin Spacek']
 
 import time
+import multiprocessing as mp
 
 import numpy as np
 np.seterr(under='warn') # don't halt on underflow during gaussian_fit
@@ -14,18 +15,28 @@ from scipy.interpolate import UnivariateSpline
 from spyke.core import g2
 
 
+def callextractspike(args):
+    spike, wavedata = args
+    ext = mp.current_process().extractor
+    det = mp.current_process().detector
+    return ext.extractspike(spike, wavedata, det)
+
+def initializer(extractor, detector):
+    #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
+    #detector.sort.stream = stream
+    #detector.sort.stream.srff = srff # restore .srff that was deleted from stream on pickling
+    mp.current_process().extractor = extractor
+    mp.current_process().detector = detector
+
+
 class LeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
     def __init__(self):
-        #self.anisotropy = 2 # y vs x anisotropy in sigma of gaussian fit
-        """
-        TODO: try and improve clusterability:
-            - try making A a free variable again, and plot that in cluster
-              space instead of Vp or Vpp of maxchan
-        """
         self.A = None
-        self.sx = 30
-        self.sy = 30
+        # TODO: mess with fixed sx and sy to find most clusterable vals, test on
+        # 3 column data too
+        self.sx = 45
+        self.sy = 45
 
     def calc(self, x, y, V):
         t0 = time.clock()
@@ -51,7 +62,6 @@ class LeastSquares(object):
     def model2(self, p, x, y):
         """2D elliptical Gaussian"""
         try:
-            #return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
             return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
         except Exception as err:
             print(err)
@@ -94,7 +104,19 @@ class Extractor(object):
     def __setstate__(self, d):
         self.__dict__ = d
         self.choose_XY_fun() # restore instance method
+    '''
+    def extract_ICA(self):
+        """This is just roughed in for now, had it in the extract_all_XY
+        spike loop before"""
+        ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
+        invICs = ICs.I # not a square matrix, think it must do pseudoinverse
 
+        for ri in xrange(nspikes):
+            maxchanwavedata = wavedata[maxchani]
+            weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
+            spikes['IC1'][ri] = weights[0, 0]
+            spikes['IC2'][ri] = weights[0, 1]
+    '''
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
@@ -102,79 +124,62 @@ class Extractor(object):
         nspikes = len(spikes)
         if nspikes == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
-        try: sort.wavedata
+        try:
+            wavedata = sort.wavedata
         except AttributeError:
             raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
         print("Extracting parameters from spikes")
         t0 = time.time()
-        ''' # comment out ICA stuff
-        ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
-        invICs = ICs.I # not a square matrix, think it must do pseudoinverse
-        '''
-        '''
-        import multiprocessing
-        from spyke import threadpool
-        ncpus = multiprocessing.cpu_count()
-        pool = threadpool.Pool(ncpus)
-        x0y0s = pool.map(self.extractspike, range(nspikes))
-        pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
-        #pool.join() # unnecessary, hangs
-        '''
-        for ri in xrange(nspikes):
-            wavedata = sort.wavedata[ri]
-            detid = spikes['detid'][ri]
-            det = sort.detections[detid].detector
-            nchans = spikes['nchans'][ri]
-            chans = spikes['chans'][ri, :nchans]
-            maxchan = spikes['chan'][ri]
-            maxchani = int(np.where(chans == maxchan)[0])
-            chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-            wavedata = wavedata[0:nchans]
-            ''' # comment out ICA stuff
-            maxchanwavedata = wavedata[maxchani]
-            weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
-            spikes['IC1'][ri] = weights[0, 0]
-            spikes['IC2'][ri] = weights[0, 1]
-            '''
-            phasetis = spikes['phasetis'][ri]
-            aligni = spikes['aligni'][ri]
-            x = det.siteloc[chanis, 0] # 1D array (row)
-            y = det.siteloc[chanis, 1]
-            # just x and y params for now
-            if self.debug or ri % 1000 == 0:
-                print('ri = %d' % ri)
-            x0, y0 = self.extract(wavedata, maxchani, phasetis, aligni, x, y)
-            spikes['x0'][ri] = x0
-            spikes['y0'][ri] = y0
+        if not False: #self.debug: # use multiprocessing
+            assert len(sort.detections) == 1
+            det = sort.detector
+            ncpus = mp.cpu_count() # 1 per core
+            pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
+            args = zip(spikes, wavedata)
+            results = pool.map(callextractspike, args) # set chunksize=1 ?
+            print('done with pool.map()')
+            pool.close()
+            # results is a list of (x0, y0) tuples, and needs to be unzipped
+            spikes['x0'], spikes['y0'] = zip(*results)
+        else:
+            # give each process a detector, then pass one spike record and one waveform to each
+            # this assumes all spikes come from the same detector with the same siteloc and chans,
+            # which is safe to assume anyway
+            initializer(self, sort.detector)
+            for spike, wd in zip(spikes, wavedata):
+                if self.debug or spike['id'] % 1000 == 0:
+                    print('spikei = %d' % spike['id'])
+                #spike = spikes[ri]
+                #wd = wavedata[ri]
+
+                x0, y0 = callextractspike((spike, wd))
+                '''
+                detid = spike['detid']
+                det = sort.detections[detid].detector
+                x0, y0 = self.extractspike(spike, wd, det)
+                '''
+                spike['x0'] = x0
+                spike['y0'] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
-              (nspikes, self.XYmethod.lower(), time.time()-t0))
+             (nspikes, self.XYmethod.lower(), time.time()-t0))
         # trigger resaving of .spike file on next .sort save
         try: del sort.spikefname
         except AttributeError: pass
 
-    # give each process a detector, then pass one spike record and one waveform to each
-    # this assumes all spikes come from the same detector with the same siteloc and chans,
-    # which is safe to assume anyway
-
-    def extract(self, wavedata, maxchani, phasetis, aligni, x, y):
-        if len(wavedata) == 1: # only one chan, return its coords
-            return int(x), int(y)
-        # Vpp weights seem more clusterable than Vp weights
-        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis)
-        #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
-        return self.extractXY(weights, x, y, maxchani)
-
-    def callextractspike(spike, wavedata):
-        det = multiprocessing.current_process().detector
-        return extractspike(spike, wavedata, det)
-
-    def extractspike(spike, wavedata, det):
+    def extractspike(self, spike, wavedata, det):
+        print('%s: spike: %r' % (mp.current_process().name, spike))
+        print('%s: wavedata: %r' % (mp.current_process().name, wavedata))
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
-        maxchani = int(np.where(chans == maxchan)[0])
+        try:
+            maxchani = int(np.where(chans == maxchan)[0])
+        except TypeError:
+            print('%s: error trying maxchani' % mp.current_process().name)
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
         wavedata = wavedata[0:nchans]
+        print('%s: spikei: %d, wavedata.shape: %r' %
+             (mp.current_process().name, spike['id'], wavedata.shape))
         ''' # comment out ICA stuff
         maxchanwavedata = wavedata[maxchani]
         weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
@@ -191,6 +196,17 @@ class Extractor(object):
         return x0, y0
         #spikes['x0'][ri] = x0
         #spikes['y0'][ri] = y0
+
+    def extract(self, wavedata, maxchani, phasetis, aligni, x, y):
+        if len(wavedata) == 1: # only one chan, return its coords
+            try:
+                return int(x), int(y)
+            except TypeError:
+                print('%s: error trying int(x) and int(y)' % mp.current_process().name)
+        # Vpp weights seem more clusterable than Vp weights
+        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis)
+        #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
+        return self.extractXY(weights, x, y, maxchani)
 
     def get_Vp_weights(self, wavedata, maxchani, phasetis, aligni):
         """Using just Vp instead of Vpp doesn't seem to improve clusterability"""
