@@ -35,8 +35,8 @@ class LeastSquares(object):
         self.A = None
         # TODO: mess with fixed sx and sy to find most clusterable vals, test on
         # 3 column data too
-        self.sx = 45
-        self.sy = 45
+        self.sx = 30
+        self.sy = 30
 
     def calc(self, x, y, V):
         t0 = time.clock()
@@ -121,6 +121,8 @@ class Extractor(object):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
         spikes = sort.spikes # struct array
+        # hack to get around numpy bug, see http://projects.scipy.org/numpy/ticket/1415:
+        spikeslist = map(np.asarray, spikes)
         nspikes = len(spikes)
         if nspikes == 0:
             raise RuntimeError("No spikes to extract XY parameters from")
@@ -130,34 +132,24 @@ class Extractor(object):
             raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
         print("Extracting parameters from spikes")
         t0 = time.time()
-        if not False: #self.debug: # use multiprocessing
+        if not self.debug: # use multiprocessing
             assert len(sort.detections) == 1
             det = sort.detector
             ncpus = mp.cpu_count() # 1 per core
             pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
-            args = zip(spikes, wavedata)
-            results = pool.map(callextractspike, args) # set chunksize=1 ?
+            args = zip(spikeslist, wavedata)
+            results = pool.map(callextractspike, args) # using chunksize=1 is a bit slower
             print('done with pool.map()')
             pool.close()
             # results is a list of (x0, y0) tuples, and needs to be unzipped
             spikes['x0'], spikes['y0'] = zip(*results)
         else:
-            # give each process a detector, then pass one spike record and one waveform to each
-            # this assumes all spikes come from the same detector with the same siteloc and chans,
-            # which is safe to assume anyway
+            # give each process a detector, then pass one spike record and one waveform to
+            # each this assumes all spikes come from the same detector with the same
+            # siteloc and chans, which is safe to assume anyway
             initializer(self, sort.detector)
             for spike, wd in zip(spikes, wavedata):
-                if self.debug or spike['id'] % 1000 == 0:
-                    print('spikei = %d' % spike['id'])
-                #spike = spikes[ri]
-                #wd = wavedata[ri]
-
                 x0, y0 = callextractspike((spike, wd))
-                '''
-                detid = spike['detid']
-                det = sort.detections[detid].detector
-                x0, y0 = self.extractspike(spike, wd, det)
-                '''
                 spike['x0'] = x0
                 spike['y0'] = y0
         print("Extracting parameters from all %d spikes using %r took %.3f sec" %
@@ -167,8 +159,8 @@ class Extractor(object):
         except AttributeError: pass
 
     def extractspike(self, spike, wavedata, det):
-        print('%s: spike: %r' % (mp.current_process().name, spike))
-        print('%s: wavedata: %r' % (mp.current_process().name, wavedata))
+        if self.debug or spike['id'] % 1000 == 0:
+            print('%s: spike id: %d' % (mp.current_process().name, spike['id']))
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
@@ -178,8 +170,6 @@ class Extractor(object):
             print('%s: error trying maxchani' % mp.current_process().name)
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
         wavedata = wavedata[0:nchans]
-        print('%s: spikei: %d, wavedata.shape: %r' %
-             (mp.current_process().name, spike['id'], wavedata.shape))
         ''' # comment out ICA stuff
         maxchanwavedata = wavedata[maxchani]
         weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
@@ -191,11 +181,8 @@ class Extractor(object):
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
-        #print('ri = %d' % ri)
         x0, y0 = self.extract(wavedata, maxchani, phasetis, aligni, x, y)
         return x0, y0
-        #spikes['x0'][ri] = x0
-        #spikes['y0'][ri] = y0
 
     def extract(self, wavedata, maxchani, phasetis, aligni, x, y):
         if len(wavedata) == 1: # only one chan, return its coords

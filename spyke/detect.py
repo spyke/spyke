@@ -658,7 +658,7 @@ class Detector(object):
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
-    DEFEXTRACTPARAMSONDETECT = False
+    DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
     # Only useful for ensuring spike times within the actual block time range are
@@ -1087,7 +1087,7 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0])
-                s['x0'], s['y0'] = extract(window, phasetis, x, y, maxchani)
+                s['x0'], s['y0'] = extract(window, maxchani, phasetis, aligni, x, y)
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike

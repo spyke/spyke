@@ -1,5 +1,7 @@
 RECENT:
 
+    - implement dynamic noise calc - do it on a blocksize (10s) basis, right before calling get_edges() - this will reduce excess loading time, and take advantage of the multiple processes already present for detection
+
     - implement proper simultaneous spatiotemporal detection
         - search through 2D array representing window of data, look for all extrema
         - sort extrema by an abs(amplitude) measure of some kind (sum(rise**2/run) on each side of each extremum)
