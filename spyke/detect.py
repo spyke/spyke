@@ -666,7 +666,7 @@ class Detector(object):
     BLOCKEXCESS = 1000
 
     def __init__(self, sort, chans=None,
-                 threshmethod=None, noisemethod=None, noisemult=None, fixedthresh=None,
+                 threshmethod=None, noisemethod=None, noisemult=None, fixedthreshuV=None,
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, maxnchansperspike=None,
                  blocksize=None, slock=None, dt=None, randomsample=None,
@@ -679,7 +679,7 @@ class Detector(object):
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
-        self.fixedthresh = fixedthresh or self.DEFFIXEDTHRESH
+        self.fixedthreshuV = fixedthreshuV or self.DEFFIXEDTHRESH
         self.ppthreshmult = ppthreshmult or self.DEFPPTHRESHMULT
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
@@ -870,6 +870,19 @@ class Detector(object):
             maxnspikes = 1 # how many more we're looking for in the next block
         else:
             maxnspikes = self.maxnspikes - self.nspikes
+
+        if self.threshmethod == 'Dynamic':
+            # update thresh for each channel for this new block of data
+            tnoise = time.time()
+            noise = self.get_noise(wave.data) # float AD units
+            info('%s: get_noise took %.3f sec' % (mp.current_process().name, time.time()-tnoise))
+            self.thresh = noise * self.noisemult # float AD units
+            self.thresh = np.int16(np.round(self.thresh)) # int16 AD units
+            self.thresh = self.thresh.clip(self.fixedthresh, self.thresh.max()) # clip so that all threshes are at least fixedthresh
+            self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
+            AD2uV = self.sort.converter.AD2uV
+            info('%s: thresh:   %r' % (mp.current_process().name, AD2uV(self.thresh)))
+            info('%s: ppthresh: %r' % (mp.current_process().name, AD2uV(self.ppthresh)))
 
         tget_edges = time.time()
         edgeis = get_edges(wave, self.thresh)
@@ -1166,9 +1179,9 @@ class Detector(object):
     def get_thresh(self):
         """Return array of thresholds in AD units, one per chan in self.chans,
         according to threshmethod and noisemethod"""
-        fixedthresh = self.sort.converter.uV2AD(self.fixedthresh) # convert to AD units
+        self.fixedthresh = self.sort.converter.uV2AD(self.fixedthreshuV) # convert to AD units
         if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
-            thresh = np.tile(fixedthresh, len(self.chans))
+            thresh = np.tile(self.fixedthresh, len(self.chans))
         elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
             # randomly sample self.fixednoisewin's worth of data from self.trange in
             # blocks of self.blocksize, without replacement
@@ -1193,32 +1206,28 @@ class Detector(object):
             info('get_noise took %.3f sec' % (time.time()-tnoise))
             thresh = noise * self.noisemult # float AD units
             thresh = np.int16(np.round(thresh)) # int16 AD units
-            thresh = thresh.clip(fixedthresh, thresh.max()) # clip so that all threshes are at least fixedthresh
+            thresh = thresh.clip(self.fixedthresh, thresh.max()) # clip so that all threshes are at least fixedthresh
         elif self.threshmethod == 'Dynamic':
             # dynamic threshes are calculated on the fly during the search, so leave as zero for now
-            # or at least they were, in the Cython code
-            #thresh = np.zeros(len(self.chans), dtype=np.float32)
-            raise NotImplementedError
+            thresh = np.zeros(len(self.chans), dtype=np.int16)
         else:
             raise ValueError
-        #assert len(thresh) == len(self.chans)
-        #assert thresh.dtype == np.float32
         return thresh
 
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
-        print('calculating noise')
-        ncpus = mp.cpu_count()
-        pool = threadpool.Pool(ncpus)
+        #print('calculating noise')
+        #ncpus = mp.cpu_count()
+        #pool = threadpool.Pool(ncpus)
         if self.noisemethod == 'median':
-            noise = pool.map(self.get_median, data) # multithreads over rows in data
-            #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+            #noise = pool.map(self.get_median, data) # multithreads over rows in data
+            noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':
-            noise = pool.map(self.get_stdev, data) # multithreads over rows in data
-            #noise = np.stdev(data, axis=-1)
+            #noise = pool.map(self.get_stdev, data) # multithreads over rows in data
+            noise = np.stdev(data, axis=-1)
         else:
             raise ValueError
-        pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
+        #pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
         #pool.join() # unnecessary, hangs
         return np.asarray(noise)
 
