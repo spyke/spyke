@@ -1,7 +1,5 @@
 RECENT:
 
-    - implement dynamic noise calc - do it on a blocksize (10s) basis, right before calling get_edges() - this will reduce excess loading time, and take advantage of the multiple processes already present for detection
-
     - apply Vpp thresh in get_edges C loop to reduce number of edges - this means having to search for biggest and 2nd biggest maxima near each thresh xing - if you're doing this, may as well return these values so they don't have to be searchd for a 2nd time in check_edges()
 
     - consider using mean instead of median for calculating noise - both seem to give a similar result (initial test on 10sec of data from t=10e6 to 20e6 in ptc18.14 gives mean that is 1.2 X bigger than median, but consistently so across chans), but mean calc is quite a bit faster
@@ -693,6 +691,8 @@ DONE:
     - need each .sort file to reference a specifically named .spike file in the same folder - they can't all obviously have the same root name, since multiple .sort files have to have different names
     - .sort, .spike, and .wave files should now all be stored a couple levels down from the .srf file, in the appropriate track/recording/ folder
 - make srffname, sortfname, spikefname, and wavefname be pathless (relative to cwd) for portability
+- implement dynamic noise calc - do it on a blocksize (10s) basis, right before calling get_edges() - this will reduce excess loading time, and take advantage of the multiple processes already present for detection
+
 
 
 

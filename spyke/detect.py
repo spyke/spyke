@@ -4,6 +4,12 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+# this stuff needs to be near the top apparently
+import numpy as np
+import pyximport
+pyximport.install(setup_args={'include_dirs':[np.get_include()]})
+import util # .pyx file
+
 import itertools
 import sys
 import time
@@ -17,7 +23,6 @@ import wx
 import pylab
 import matplotlib as mpl
 
-import numpy as np
 from scipy.weave import inline
 #from scipy import ndimage
 #from scipy.optimize import leastsq, fmin_slsqp
@@ -26,7 +31,8 @@ from scipy.weave import inline
 
 import spyke.surf
 from spyke.core import eucd
-from spyke import threadpool
+
+#from spyke import threadpool
 #from spyke.core import WaveForm, toiter, argcut, intround, g, g2, RM
 #from text import SimpleTable
 
@@ -642,7 +648,7 @@ class NLLSPSpikeModel(SpikeModel):
 
 class Detector(object):
     """Spike detector base class"""
-    DEFTHRESHMETHOD = 'ChanFixed' # GlobalFixed, ChanFixed, or Dynamic
+    DEFTHRESHMETHOD = 'Dynamic' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
     DEFNOISEMULT = 5
     DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
@@ -882,7 +888,7 @@ class Detector(object):
             self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
             AD2uV = self.sort.converter.AD2uV
             info('%s: thresh:   %r' % (mp.current_process().name, AD2uV(self.thresh)))
-            info('%s: ppthresh: %r' % (mp.current_process().name, AD2uV(self.ppthresh)))
+            #info('%s: ppthresh: %r' % (mp.current_process().name, AD2uV(self.ppthresh)))
 
         tget_edges = time.time()
         edgeis = get_edges(wave, self.thresh)
@@ -1221,7 +1227,10 @@ class Detector(object):
         #pool = threadpool.Pool(ncpus)
         if self.noisemethod == 'median':
             #noise = pool.map(self.get_median, data) # multithreads over rows in data
-            noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+            #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+            noise = util.median_inplace_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
+            #noise = np.mean(np.abs(data), axis=-1) / 0.6745 / 1.2
+            #noise = util.mean_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':
             #noise = pool.map(self.get_stdev, data) # multithreads over rows in data
             noise = np.stdev(data, axis=-1)
@@ -1229,8 +1238,9 @@ class Detector(object):
             raise ValueError
         #pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
         #pool.join() # unnecessary, hangs
-        return np.asarray(noise)
-
+        #return np.asarray(noise)
+        return noise
+    '''
     def get_median(self, data):
         """Return median value of multichan data, scaled according to Quiroga2004"""
         return np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
@@ -1238,7 +1248,7 @@ class Detector(object):
     def get_stdev(self, data):
         """Return stdev of multichan data"""
         return np.stdev(data, axis=-1)
-
+    '''
 
 
 

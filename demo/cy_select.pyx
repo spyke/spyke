@@ -36,7 +36,7 @@ cdef short select(short *a, int l, int r, int k):
 
 
 cdef double mean(short *a, int N):
-    cdef Py_ssize_t i
+    cdef Py_ssize_t i # recommended type for looping
     cdef double s=0
     for i in range(N):
         s += a[i]
@@ -45,6 +45,9 @@ cdef double mean(short *a, int N):
 
 
 def mean2(np.ndarray[np.int16_t, ndim=1] a):
+    """Uses new simpler numpy type notation for fast indexing, but is still a
+    bit slower than the classical way, because you currently can't
+    use the new notation with cdefs"""
     cdef Py_ssize_t i
     cdef double s=0
     for i in range(a.shape[0]):
