@@ -11,6 +11,8 @@ import numpy as np
 np.seterr(under='warn') # don't halt on underflow during gaussian_fit
 from scipy.optimize import leastsq
 from scipy.interpolate import UnivariateSpline
+import pywt
+import scipy.stats
 
 from spyke.core import g2
 
@@ -113,10 +115,36 @@ class Extractor(object):
 
         for ri in xrange(nspikes):
             maxchanwavedata = wavedata[maxchani]
+            # TODO: maybe normalize amplitude of spike to match that of the ICs (maybe keep everything normalized to 1). That way, You're really just looking at spike shape, and not allowing amplitude to add to the variability. Amplitude can remain a clusterable parameter via Vp or Vpp.
             weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
-            spikes['IC1'][ri] = weights[0, 0]
-            spikes['IC2'][ri] = weights[0, 1]
+            spikes['IC0'][ri] = weights[0, 0]
+            spikes['IC1'][ri] = weights[0, 1]
     '''
+    def extract_wpd(self):
+        """Wavelet packet decomposition. Returns wcs, ksis, ks, p"""
+        sort = self.sort
+        spikes = sort.spikes # struct array
+        wavedata = sort.wavedata
+        nspikes = len(spikes)
+        #nt = wavedata.shape[-1]
+        ncoeffs = 53 # TODO: this only applies for V of length 50, stop hardcoding
+        wcs = np.zeros((nspikes, ncoeffs))
+        for spikei, (spike, wd) in enumerate(zip(spikes, wavedata)):
+            nchans = spike['nchans']
+            chans = spike['chans'][:nchans]
+            maxchan = spike['chan']
+            maxchani = int(np.where(chans == maxchan)[0])
+            #chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+            #wd = wd[:nchans] # unnecessary?
+            V = wd[maxchani]
+            wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar')) # flat array of wavelet coeffs
+        ks = np.zeros(ncoeffs)
+        p = np.zeros(ncoeffs)
+        for i in range(ncoeffs):
+            ks[i], p[i] = scipy.stats.kstest(wcs[:, i], 'norm')
+        ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
+        return wcs, ksis, ks, p
+
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
@@ -164,12 +192,9 @@ class Extractor(object):
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
-        try:
-            maxchani = int(np.where(chans == maxchan)[0])
-        except TypeError:
-            print('%s: error trying maxchani' % mp.current_process().name)
+        maxchani = int(np.where(chans == maxchan)[0])
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-        wavedata = wavedata[0:nchans]
+        #wavedata = wavedata[:nchans] # unnecessary?
         ''' # comment out ICA stuff
         maxchanwavedata = wavedata[maxchani]
         weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform

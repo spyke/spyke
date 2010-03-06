@@ -8,7 +8,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import numpy as np
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
-import util # .pyx file
+import spyke.util # .pyx file
 
 import itertools
 import sys
@@ -1228,7 +1228,7 @@ class Detector(object):
         if self.noisemethod == 'median':
             #noise = pool.map(self.get_median, data) # multithreads over rows in data
             #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
-            noise = util.median_inplace_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
+            noise = spyke.util.median_inplace_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
             #noise = np.mean(np.abs(data), axis=-1) / 0.6745 / 1.2
             #noise = util.mean_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':

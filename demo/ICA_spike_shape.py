@@ -2,20 +2,12 @@ totalnspikes = 2000
 data = np.zeros((totalnspikes, 50), np.float64)
 
 #for spikei, spike in enumerate(s.spikes[:nspikes]): # s is the Sort object
-spikei = 0
-nspikes = 0
-spikei = 0
-while nspikes < totalnspikes:
-    spike = s.spikes[spikei]
+for spikei, spike in enumerate(s.spikes[:totalnspikes]):
     nchans = spike['nchans']
     chans = spike['chans'][0:nchans]
     chani = chans.searchsorted(spike['chan'])
     signal = s.get_wavedata(spikei)[chani]
-    spikei += 1
-    if len(signal) != 50:
-        continue # skip spikes that have some lockout, not worth the indexing trouble
-    data[nspikes] = signal
-    nspikes += 1
+    data[spikei] = signal
 
 import py_ica
 
