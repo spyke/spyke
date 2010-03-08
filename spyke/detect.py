@@ -839,7 +839,7 @@ class Detector(object):
                            ('Vs', np.float32, 2), ('Vpp', np.float32),
                            ('phasetis', np.uint8, 2), ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16), # in us
-                           ('IC0', np.float32), ('IC1', np.float32)
+                           ('wc0', np.float32), ('wc1', np.float32), ('wc2', np.float32), ('wc3', np.float32), ('wc4', np.float32)
                            ]
 
     def searchblock(self, wavetrange, direction):

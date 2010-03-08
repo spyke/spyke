@@ -398,21 +398,40 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def init_extractor(self):
         """Initialize Extractor"""
-        XYmethod = self.extract_radio_box.GetStringSelection()
+        XYmethod = self.XY_extract_radio_box.GetStringSelection()
         ext = extract.Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
         self.sort.extractor = ext
         #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
 
-    def OnExtract(self, evt=None):
-        """Extract pane Extract button click. Extracts (or re-extracts and
-        overwrites) spike parameters from all sort.spikes, and stores
+    def OnXYExtract(self, evt=None):
+        """Extract pane XY Extract button click. Extracts (or re-extracts and
+        overwrites) XY parameters from all sort.spikes, and stores
         them as spike attribs"""
-        self.init_extractor()
+        try:
+            self.sort.extractor
+        except AttributeError:
+            self.init_extractor()
 
         #import cProfile
         #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
 
         self.sort.extractor.extract_all_XY() # adds extracted XY params to sort.spikes
+        self.frames['sort'].slist.RefreshItems() # update any columns showing param values
+        self.EnableSpikeWidgets(True) # enable cluster_pane
+
+    def OnWaveletExtract(self, evt=None):
+        """Extract pane wavelet Extract button click. Extracts (or re-extracts and
+        overwrites) wavelet coefficients all sort.spikes, and stores
+        them as spike attribs"""
+        try:
+            self.sort.extractor
+        except AttributeError:
+            self.init_extractor()
+
+        #import cProfile
+        #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
+
+        self.sort.extractor.extract_all_wcs() # adds extracted wavelet coeffs to sort.spikes
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 

@@ -4,7 +4,7 @@ RECENT:
 
     - consider using mean instead of median for calculating noise - both seem to give a similar result (initial test on 10sec of data from t=10e6 to 20e6 in ptc18.14 gives mean that is 1.2 X bigger than median, but consistently so across chans), but mean calc is quite a bit faster
         - how does Nick do his median calc so fast? requires a quicksort, which is nlog(n), ie worse than linear with increasing n
-        - taking np.abs seems quite slow too - maybe C loop would be faster?
+        - taking np.abs seems quite slow too - maybe C loop would be faster? No, it's just the copy that takes time
 
     - implement proper simultaneous spatiotemporal detection
         - search through 2D array representing window of data, look for all extrema
