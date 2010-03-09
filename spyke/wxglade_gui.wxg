@@ -1218,11 +1218,11 @@
                                                                     <choice>Vpp</choice>
                                                                     <choice>V0</choice>
                                                                     <choice>V1</choice>
-                                                                    <choice>wc0</choice>
-                                                                    <choice>wc1</choice>
-                                                                    <choice>wc2</choice>
-                                                                    <choice>wc3</choice>
-                                                                    <choice>wc4</choice>
+                                                                    <choice>w0</choice>
+                                                                    <choice>w1</choice>
+                                                                    <choice>w2</choice>
+                                                                    <choice>w3</choice>
+                                                                    <choice>w4</choice>
                                                                     <choice>dphase</choice>
                                                                 </choices>
                                                                 <events>
@@ -1289,11 +1289,11 @@
                                                                     <choice>Vpp</choice>
                                                                     <choice>V0</choice>
                                                                     <choice>V1</choice>
-                                                                    <choice>wc0</choice>
-                                                                    <choice>wc1</choice>
-                                                                    <choice>wc2</choice>
-                                                                    <choice>wc3</choice>
-                                                                    <choice>wc4</choice>
+                                                                    <choice>w0</choice>
+                                                                    <choice>w1</choice>
+                                                                    <choice>w2</choice>
+                                                                    <choice>w3</choice>
+                                                                    <choice>w4</choice>
                                                                     <choice>dphase</choice>
                                                                 </choices>
                                                                 <events>
@@ -1360,11 +1360,11 @@
                                                                     <choice>Vpp</choice>
                                                                     <choice>V0</choice>
                                                                     <choice>V1</choice>
-                                                                    <choice>wc0</choice>
-                                                                    <choice>wc1</choice>
-                                                                    <choice>wc2</choice>
-                                                                    <choice>wc3</choice>
-                                                                    <choice>wc4</choice>
+                                                                    <choice>w0</choice>
+                                                                    <choice>w1</choice>
+                                                                    <choice>w2</choice>
+                                                                    <choice>w3</choice>
+                                                                    <choice>w4</choice>
                                                                     <choice>dphase</choice>
                                                                 </choices>
                                                                 <events>

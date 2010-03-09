@@ -17,11 +17,11 @@ import scipy.stats
 from spyke.core import g2
 
 
-def callextractspike(args):
+def callspike2XY(args):
     spike, wavedata = args
     ext = mp.current_process().extractor
     det = mp.current_process().detector
-    return ext.extractspike(spike, wavedata, det)
+    return ext.spike2XY(spike, wavedata, det)
 
 def initializer(extractor, detector):
     #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
@@ -83,9 +83,9 @@ class Extractor(object):
         """Takes a parent Sort session and sets various parameters"""
         self.debug = False
         self.sort = sort
-        self.get_weights = self.get_Vpp_weights # the default
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
+        self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
@@ -123,7 +123,7 @@ class Extractor(object):
     '''
     def extract_all_wcs(self):
         """Extract wavelet coefficients from all spikes, store them as spike attribs"""
-        self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
+        # TODO: add multiprocessing
         ncoeffs = len(self.ksis)
         sort = self.sort
         spikes = sort.spikes # struct array
@@ -138,10 +138,11 @@ class Extractor(object):
             maxchan = spike['chan']
             maxchani = int(np.where(chans == maxchan)[0])
             #chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-            wd = wd[:nchans]
-            V = wd[maxchani]
+            #wd = wd[:nchans] # unnecessary?
+            #V = wd[maxchani]
             #wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar')) # flat array of wavelet coeffs
-            wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar'))[self.ksis]
+            #wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar'))[self.ksis]
+            wcs[spikei] = self.wavedata2wcs(wd, maxchani)
         #ks = np.zeros(ncoeffs)
         #p = np.zeros(ncoeffs)
         #for i in range(ncoeffs):
@@ -149,12 +150,18 @@ class Extractor(object):
         #ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
         # assign as params in spikes struct array
         for coeffi in range(ncoeffs):
-            spikes['wc%d' % coeffi] = wcs[:, coeffi]
+            spikes['w%d' % coeffi] = wcs[:, coeffi]
         print("Extracting wavelet coefficients from all %d spikes took %.3f sec" %
              (nspikes, time.time()-t0))
         # trigger resaving of .spike file on next .sort save
         try: del sort.spikefname
         except AttributeError: pass
+
+    def wavedata2wcs(self, wavedata, maxchani):
+        """Return wavelet coeffs specified by self.ksis, given wavedata
+        with a maxchani"""
+        V = wavedata[maxchani]
+        return np.concatenate(pywt.wavedec(V, 'haar'))[self.ksis]
 
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
@@ -177,7 +184,7 @@ class Extractor(object):
             ncpus = mp.cpu_count() # 1 per core
             pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
             args = zip(spikeslist, wavedata)
-            results = pool.map(callextractspike, args) # using chunksize=1 is a bit slower
+            results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
             print('done with pool.map()')
             pool.close()
             # results is a list of (x0, y0) tuples, and needs to be unzipped
@@ -188,7 +195,7 @@ class Extractor(object):
             # siteloc and chans, which is safe to assume anyway
             initializer(self, sort.detector)
             for spike, wd in zip(spikes, wavedata):
-                x0, y0 = callextractspike((spike, wd))
+                x0, y0 = callspike2XY((spike, wd))
                 spike['x0'] = x0
                 spike['y0'] = y0
         print("Extracting XY parameters from all %d spikes using %r took %.3f sec" %
@@ -222,8 +229,7 @@ class Extractor(object):
 
     def wavedata2XY(self, wavedata, maxchani, phasetis, aligni, x, y):
         # Vpp weights seem more clusterable than Vp weights
-        weights = self.get_weights(wavedata, maxchani, phasetis, aligni)
-        #weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
+        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
         #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
 
         # TODO: consider using some feature other than Vp or Vpp, like a wavelet,
@@ -279,7 +285,6 @@ class Extractor(object):
         """Return weighted spatial mean of chans in spike according to their
         Vpp at the same timepoints as on the max chan, to use as rough
         spatial origin of spike. x and y are spatial coords of chans in wavedata"""
-
         if len(w) == 1: # only one chan, return its coords
             return int(x), int(y)
 
@@ -296,8 +301,6 @@ class Extractor(object):
         return x0, y0
 
     def weights2splines(self, w, x, y, maxchani):
-        # w stands for weights
-
         if len(w) == 1: # only one chan, return its coords
             return int(x), int(y)
 
@@ -357,14 +360,13 @@ class Extractor(object):
         than results from spatial mean. Plus, the LM algorithm keeps generating underflow
         errors for some reason. These can be turned off and ignored, but it's strange that
         it's choosing to explore the fit at such extreme values of sx (say 0.6 instead of 60)"""
-        #self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to get_spatial_mean()
+        #self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to weights2spatialmean()
         #w **= 2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
-
         if len(w) == 1: # only one chan, return its coords
             return int(x), int(y)
 
         ls = self.ls
-        x0, y0 = self.get_spatial_mean(w, x, y, maxchani)
+        x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
         ls.A = w[maxchani]
@@ -376,7 +378,7 @@ class Extractor(object):
         while True:
             if len(V) < 4: # can't fit Gaussian for spikes with low nchans
                 print('\n\nonly %d fittable chans in spike \n\n' % len(V))
-                return self.get_spatial_mean(weights, self.x, self.y, self.maxchani)
+                return self.weights2spatialmean(weights, self.x, self.y, self.maxchani)
             ls.calc(x, y, V)
             if ls.ier == 2: # essentially perfect fit between data and model
                 break

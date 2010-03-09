@@ -839,7 +839,7 @@ class Detector(object):
                            ('Vs', np.float32, 2), ('Vpp', np.float32),
                            ('phasetis', np.uint8, 2), ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16), # in us
-                           ('wc0', np.float32), ('wc1', np.float32), ('wc2', np.float32), ('wc3', np.float32), ('wc4', np.float32)
+                           ('w0', np.float32), ('w1', np.float32), ('w2', np.float32), ('w3', np.float32), ('w4', np.float32)
                            ]
 
     def searchblock(self, wavetrange, direction):
@@ -946,7 +946,8 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
-            extract = sort.extractor.extract
+            wavedata2XY = sort.extractor.wavedata2XY
+            wavedata2wcs = sort.extractor.wavedata2wcs
         #lockouts = self.lockouts
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
 
@@ -1106,11 +1107,8 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0])
-                #s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
-                weights = get_weights(wavedata, maxchani, phasetis, aligni)
-                s['x0'], s['y0'] = weights2XY(weights, x, y, maxchani)
-                s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] =
-                    weights2wcs(weights, x, y, maxchani)
+                s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
+                s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 

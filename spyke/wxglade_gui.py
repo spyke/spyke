@@ -54,7 +54,7 @@ class SpykeFrame(wx.Frame):
         self.sizer_12_staticbox = wx.StaticBox(self.cluster_pane, -1, "Clusters")
         self.sizer_15_staticbox = wx.StaticBox(self.cluster_params_pane, -1, "Cluster parameters")
         self.file_pos_control_panel = wx.Panel(self, -1)
-        
+
         # Menu Bar
         self.menubar = wx.MenuBar()
         wxglade_tmp_menu = wx.Menu()
@@ -110,7 +110,7 @@ class SpykeFrame(wx.Frame):
         self.menubar.Append(wxglade_tmp_menu, "&Help")
         self.SetMenuBar(self.menubar)
         # Menu Bar end
-        
+
         # Tool Bar
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL|wx.TB_FLAT)
         self.SetToolBar(self.toolbar)
@@ -180,17 +180,17 @@ class SpykeFrame(wx.Frame):
         self.label_11 = wx.StaticText(self.cluster_params_pane, -1, "ori")
         self.label_12 = wx.StaticText(self.cluster_params_pane, -1, "scale")
         self.label_7 = wx.StaticText(self.cluster_params_pane, -1, "x:")
-        self.xdim = wx.ComboBox(self.cluster_params_pane, -1, choices=["x0", "y0", "Vpp", "V0", "V1", "wc0", "wc1", "wc2", "wc3", "wc4", "dphase"], style=wx.CB_DROPDOWN|wx.CB_READONLY)
+        self.xdim = wx.ComboBox(self.cluster_params_pane, -1, choices=["x0", "y0", "Vpp", "V0", "V1", "w0", "w1", "w2", "w3", "w4", "dphase"], style=wx.CB_DROPDOWN|wx.CB_READONLY)
         self.xpos = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=-2147483647, max=2147483647)
         self.xori = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=-90, max=90)
         self.xscale = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=0, max=2147483647)
         self.label_8 = wx.StaticText(self.cluster_params_pane, -1, "y:")
-        self.ydim = wx.ComboBox(self.cluster_params_pane, -1, choices=["x0", "y0", "Vpp", "V0", "V1", "wc0", "wc1", "wc2", "wc3", "wc4", "dphase"], style=wx.CB_DROPDOWN|wx.CB_READONLY)
+        self.ydim = wx.ComboBox(self.cluster_params_pane, -1, choices=["x0", "y0", "Vpp", "V0", "V1", "w0", "w1", "w2", "w3", "w4", "dphase"], style=wx.CB_DROPDOWN|wx.CB_READONLY)
         self.ypos = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=-2147483647, max=2147483647)
         self.yori = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=-90, max=90)
         self.yscale = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=0, max=2147483647)
         self.label_9 = wx.StaticText(self.cluster_params_pane, -1, "z:")
-        self.zdim = wx.ComboBox(self.cluster_params_pane, -1, choices=["x0", "y0", "Vpp", "V0", "V1", "wc0", "wc1", "wc2", "wc3", "wc4", "dphase"], style=wx.CB_DROPDOWN|wx.CB_READONLY)
+        self.zdim = wx.ComboBox(self.cluster_params_pane, -1, choices=["x0", "y0", "Vpp", "V0", "V1", "w0", "w1", "w2", "w3", "w4", "dphase"], style=wx.CB_DROPDOWN|wx.CB_READONLY)
         self.zpos = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=-2147483647, max=2147483647)
         self.zori = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=-90, max=90)
         self.zscale = wx.SpinCtrl(self.cluster_params_pane, -1, "", min=0, max=2147483647)
@@ -698,7 +698,7 @@ class SortFrame(wx.MiniFrame):
         self.plot_pane = wx.Panel(self.splitter, -1)
         self.sort_splitter = wx.SplitterWindow(self.splitter, -1, style=wx.SP_3DSASH)
         self.ns_splitter = wx.SplitterWindow(self.sort_splitter, -1, style=wx.SP_NOBORDER)
-        
+
         # Tool Bar
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL|wx.TB_FLAT|wx.TB_TEXT|wx.TB_NOICONS|wx.TB_HORZ_LAYOUT|wx.TB_HORZ_TEXT)
         self.SetToolBar(self.toolbar)
