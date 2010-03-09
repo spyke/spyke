@@ -66,7 +66,7 @@ class Sort(object):
         self.uris_reversed = False
 
         # how much to scale each dim for better viewing in cluster plots
-        self.SCALE = {'x0': 2, 'Vpp': 0.5, 'dphase': 0.5, 'wc0': 0.05, 'wc1': 0.01, 'wc2': 0.05, 'wc3': 0.05, 'wc4': 0.02}
+        self.SCALE = {'x0': 2, 'Vpp': 0.5, 'dphase': 0.5, 'wc0': -0.03, 'wc1': -0.005, 'wc2': 0.03, 'wc3': 0.05, 'wc4': 0.02}
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs
@@ -769,8 +769,8 @@ class Neuron(object):
                         x = det.siteloc[chanis, 0] # 1D array (row)
                         y = det.siteloc[chanis, 1]
                         maxchani = int(np.where(chans == s['chan'])[0])
-                        s['x0'], s['y0'] = sort.extractor.extractXY(wavedata, x, y,
-                                                                    s['phasetis'], maxchani)
+                        s['x0'], s['y0'] = sort.extractor.weights2XY(wavedata, x, y,
+                                                                     s['phasetis'], maxchani)
         # TODO: replot only the spikes whose params have changed, and keep their
         # scalar params intact so you can see that they moved
         self.wave = WaveForm() # reset to empty waveform so mean is recalculated

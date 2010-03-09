@@ -660,7 +660,7 @@ class Detector(object):
                              # when using spatial mean extraction, setting this to a bad value
                              # can give artificially segregated clusters in space
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
-    DEFSLOCK = 150 # spatial lockout radius, um
+    DEFSLOCK = 100 # spatial lockout radius, um
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
@@ -1106,7 +1106,12 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0])
-                s['x0'], s['y0'] = extract(window, maxchani, phasetis, aligni, x, y)
+                #s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
+                weights = get_weights(wavedata, maxchani, phasetis, aligni)
+                s['x0'], s['y0'] = weights2XY(weights, x, y, maxchani)
+                s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] =
+                    weights2wcs(weights, x, y, maxchani)
+
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             # update lockouts to just past the last phase of this spike

@@ -36,7 +36,7 @@ class Cluster(object):
         self.ori = {'x0':{}, 'y0':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'wc0':{}, 'wc1':{}, 'wc2':{}, 'wc3':{}, 'wc4':{}, 'dphase':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':10, 'y0':20, 'Vpp':50, 'V0':0, 'V1':0, 'wc0':0, 'wc1':0, 'wc2':0, 'wc3':0, 'wc4':0, 'dphase':0}
+        self.scale = {'x0':10, 'y0':20, 'Vpp':0, 'V0':0, 'V1':0, 'wc0':0, 'wc1':0, 'wc2':0, 'wc3':0, 'wc4':0, 'dphase':0}
 
     def get_id(self):
         return self.neuron.id
@@ -171,6 +171,7 @@ class SpykeMayaviScene(MayaviScene):
                 cluster.scale[dim] += sign * 5 / SCALE.get(dim, 1)
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif event.ControlDown(): # adjust ori
+                # TODO: ori adjustment doesn't take SCALE into account!
                 axes    = {x:(y, z), y:(z, x), z:(x, y)}
                 revaxes = {x:(z, y), y:(x, z), z:(y, x)}
                 if modifiers == wx.MOD_CONTROL: # adjust ori slowly
@@ -286,6 +287,7 @@ class ClusterFrame(wx.MiniFrame):
         y = X[:, 1]
         z = X[:, 2]
         cmap = CMAPPLUSTRANSWHITE
+        '''
         if nids: # figure out scalar value to assign to each spike to colour it correctly
             t0 = time.time()
             nids = np.asarray(nids)
@@ -339,7 +341,8 @@ class ClusterFrame(wx.MiniFrame):
             # TODO: order colours consecutively according to cluster mean y location, to
             # make neighbouring clusters in X-Y space less likely to be assigned the same colour
         else:
-            s = np.tile(TRANSWHITEI, len(X))
+        '''
+        s = np.tile(TRANSWHITEI, len(X))
 
         if envisage == True:
             mlab.options.backend = 'envisage' # full GUI instead of just simple window
@@ -348,8 +351,10 @@ class ClusterFrame(wx.MiniFrame):
         f = self.f
         f.scene.disable_render = True # for speed
         # clear just the plotted glyph representing the points, not the whole scene including the ellipsoids
-        try: f.scene.remove_actor(self.glyph.actor.actor)
-        except AttributeError: pass # no glyph exists yet
+        try:
+            f.scene.remove_actor(self.glyph.actor.actor)
+            view, roll = self.view, self.roll
+        except AttributeError: pass # no self.glyph exists yet
         #mlab.clf(f) # clear the whole scene
         #f.scene.camera.view_transform_matrix.scale(3, 1, 1) # this doesn't seem to work
         kwargs = {'figure': f, 'mode': mode,
@@ -363,6 +368,10 @@ class ClusterFrame(wx.MiniFrame):
                   'vmin': 0, # make sure mayavi respects full range of cmap indices
                   'vmax': len(cmap)-1}
         glyph = mlab.points3d(x, y, z, s, **kwargs)
+        try:
+            self.view, self.roll = view, roll
+        except NameError: # view and roll weren't set above cuz no self.glyph existed yet
+            pass
         glyph.module_manager.scalar_lut_manager.load_lut_from_list(cmap) # assign colourmap
         glyph.module_manager.scalar_lut_manager.data_range = np.array([0, len(cmap)-1]) # need to force it again for some reason
         if scale: glyph.actor.actor.scale = scale

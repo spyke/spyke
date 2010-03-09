@@ -83,24 +83,25 @@ class Extractor(object):
         """Takes a parent Sort session and sets various parameters"""
         self.debug = False
         self.sort = sort
+        self.get_weights = self.get_Vpp_weights # the default
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
-            self.extractXY = self.get_gaussian_fit
+            self.weights2XY = self.weights2gaussian
             self.ls = LeastSquares()
             self.ls.debug = self.debug
         elif self.XYmethod.lower() == 'spatial mean':
-            self.extractXY = self.get_spatial_mean
+            self.weights2XY = self.weights2spatialmean
         elif self.XYmethod.lower() == 'splines 1d fit':
-            self.extractXY = self.get_splines_fit
+            self.weights2XY = self.weights2splines
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['extractXY'] # can't pickle an instance method, not sure why it even bothers trying
+        del d['weights2XY'] # can't pickle an instance method, not sure why it even bothers trying
         return d
 
     def __setstate__(self, d):
@@ -196,7 +197,7 @@ class Extractor(object):
         try: del sort.spikefname
         except AttributeError: pass
 
-    def extractspike(self, spike, wavedata, det):
+    def spike2XY(self, spike, wavedata, det):
         if self.debug or spike['id'] % 1000 == 0:
             print('%s: spike id: %d' % (mp.current_process().name, spike['id']))
         nchans = spike['nchans']
@@ -216,19 +217,19 @@ class Extractor(object):
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
-        x0, y0 = self.extract(wavedata, maxchani, phasetis, aligni, x, y)
+        x0, y0 = self.wavedata2XY(wavedata, maxchani, phasetis, aligni, x, y)
         return x0, y0
 
-    def extract(self, wavedata, maxchani, phasetis, aligni, x, y):
-        if len(wavedata) == 1: # only one chan, return its coords
-            try:
-                return int(x), int(y)
-            except TypeError:
-                print('%s: error trying int(x) and int(y)' % mp.current_process().name)
+    def wavedata2XY(self, wavedata, maxchani, phasetis, aligni, x, y):
         # Vpp weights seem more clusterable than Vp weights
-        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis)
+        weights = self.get_weights(wavedata, maxchani, phasetis, aligni)
+        #weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
         #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
-        return self.extractXY(weights, x, y, maxchani)
+
+        # TODO: consider using some feature other than Vp or Vpp, like a wavelet,
+        # for extracting weights across chans
+
+        return self.weights2XY(weights, x, y, maxchani)
 
     def get_Vp_weights(self, wavedata, maxchani, phasetis, aligni):
         """Using just Vp instead of Vpp doesn't seem to improve clusterability"""
@@ -244,7 +245,7 @@ class Extractor(object):
             weights = np.fmax(weights, 0) # clip any -ve values to 0
         return weights
 
-    def get_Vpp_weights(self, wavedata, maxchani, phasetis):
+    def get_Vpp_weights(self, wavedata, maxchani, phasetis, aligni=None):
         """NOTE: you get better clustering if you allow phasetis to
         vary at least slightly for each chan, since they're never simultaneous across
         chans, and sometimes they're very delayed or advanced in time
@@ -274,25 +275,32 @@ class Extractor(object):
             weights = V0s - V1s
         return weights
 
-    def get_spatial_mean(self, weights, x, y, maxchani):
+    def weights2spatialmean(self, w, x, y, maxchani):
         """Return weighted spatial mean of chans in spike according to their
         Vpp at the same timepoints as on the max chan, to use as rough
         spatial origin of spike. x and y are spatial coords of chans in wavedata"""
 
+        if len(w) == 1: # only one chan, return its coords
+            return int(x), int(y)
+
         # convert to float before normalization, take abs of all weights
         # taking abs doesn't seem to affect clusterability
-        weights = np.abs(weights)
-        weights /= weights.sum() # normalized
+        w = np.abs(w)
+        w /= w.sum() # normalized
         # alternative approach: replace -ve weights with 0
-        #weights = np.float32(np.where(weights >= 0, weights, 0))
-        #try: weights /= weights.sum() # normalized
+        #w = np.float32(np.where(w >= 0, w, 0))
+        #try: w /= w.sum() # normalized
         #except FloatingPointError: pass # weird all -ve weights spike, replaced with 0s
-        x0 = (weights * x).sum()
-        y0 = (weights * y).sum()
+        x0 = (w * x).sum()
+        y0 = (w * y).sum()
         return x0, y0
 
-    def get_splines_fit(self, w, x, y, maxchani):
+    def weights2splines(self, w, x, y, maxchani):
         # w stands for weights
+
+        if len(w) == 1: # only one chan, return its coords
+            return int(x), int(y)
+
         xi = x.argsort()
         w, x, y = w[xi], x[xi], y[xi] # sort points by x values
         ux = np.unique(x)
@@ -340,7 +348,7 @@ class Extractor(object):
         y0 = (yw * y0s).sum()
         return x0, y0
 
-    def get_gaussian_fit(self, w, x, y, maxchani):
+    def weights2gaussian(self, w, x, y, maxchani):
         """Can't seem to prevent from getting a stupidly wide range of modelled
         x locations. Tried fitting V**2 instead of V (to give big chans more weight),
         tried removing chans that don't fit spatial Gaussian model very well, and
@@ -351,6 +359,10 @@ class Extractor(object):
         it's choosing to explore the fit at such extreme values of sx (say 0.6 instead of 60)"""
         #self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to get_spatial_mean()
         #w **= 2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
+
+        if len(w) == 1: # only one chan, return its coords
+            return int(x), int(y)
+
         ls = self.ls
         x0, y0 = self.get_spatial_mean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
