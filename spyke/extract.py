@@ -87,14 +87,14 @@ class Extractor(object):
         self.choose_XY_fun()
 
     def choose_XY_fun(self):
-        if self.XYmethod.lower() == 'spatial mean':
-            self.extractXY = self.get_spatial_mean
-        elif self.XYmethod.lower() == 'splines 1d fit':
-            self.extractXY = self.get_splines_fit
-        elif self.XYmethod.lower() == 'gaussian fit':
+        if self.XYmethod.lower() == 'gaussian fit':
             self.extractXY = self.get_gaussian_fit
             self.ls = LeastSquares()
             self.ls.debug = self.debug
+        elif self.XYmethod.lower() == 'spatial mean':
+            self.extractXY = self.get_spatial_mean
+        elif self.XYmethod.lower() == 'splines 1d fit':
+            self.extractXY = self.get_splines_fit
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
@@ -137,7 +137,7 @@ class Extractor(object):
             maxchan = spike['chan']
             maxchani = int(np.where(chans == maxchan)[0])
             #chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-            #wd = wd[:nchans] # unnecessary?
+            wd = wd[:nchans]
             V = wd[maxchani]
             #wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar')) # flat array of wavelet coeffs
             wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar'))[self.ksis]
@@ -204,7 +204,7 @@ class Extractor(object):
         maxchan = spike['chan']
         maxchani = int(np.where(chans == maxchan)[0])
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-        #wavedata = wavedata[:nchans] # unnecessary?
+        wavedata = wavedata[:nchans]
         ''' # comment out ICA stuff
         maxchanwavedata = wavedata[maxchani]
         weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
