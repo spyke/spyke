@@ -511,8 +511,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Update cluster widgets based on current cluster and dims,
         and replot the data in the (potentially) new projection, while
         maintaining the colour of each point"""
-        cluster = self.GetCluster()
-        self.UpdateParamWidgets(cluster)
+        try:
+            cluster = self.GetCluster()
+            self.UpdateParamWidgets(cluster)
+        except RuntimeError:
+            # no cluster currently selected, like when changing dim before
+            # any clusters have been created
+            pass
         cf = self.frames['cluster']
         scalars = cf.glyph.mlab_source.scalars # save scalars
         self.OnClusterPlot() # replot
@@ -543,6 +548,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # update all ellipsoids
         for cluster in self.sort.clusters.values():
             cluster.update_ellipsoid(dims=dims)
+        self.cluster_params_pane.Enable(True)
 
     def OnApplyCluster(self, evt=None):
         """Apply (cluster) button press in cluster_pane. Don't need the evt"""
@@ -1037,7 +1043,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CloseSortFile(self):
         self.DeleteSort()
         self.EnableSortWidgets(False)
-
+    '''
     def OpenSortAndSpikeFile(self, fname):
         """Open an old .sort file that has both a Sort and spikes in it"""
         self.DeleteSort() # delete any existing Sort
@@ -1097,8 +1103,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
         print('done opening sort file')
-
-
+    '''
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort file, try and open a .wave file
         with the same name, restore the stream"""
