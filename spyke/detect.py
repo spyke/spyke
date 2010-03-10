@@ -1057,22 +1057,29 @@ class Detector(object):
             # find all enabled chanis within inclnbhd of chani, exclude those locked-out at ti
             #inclchanis = self.inclnbhdi[chani]
             #chanis = inclchanis[lockouts[inclchanis] < ti]
-            chanis = self.inclnbhdi[chani] # give near-final waveform the full suite of chans, lockouts be damned
+            chanis = self.inclnbhdi[chani] # give final waveform the full suite of chans, lockouts be damned
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
+            # make phasetis relative to new t0i
+            phasetis -= t0i
+            '''
+            # find indices into chanis that give you only the chanis that exceed
+            # 1/4 the spike amplitude at the spike time, with the correct sign
+            V = Vs[aligni]
+            Vi = phasetis[aligni]
+            chaniis = window[:, Vi] / V >= 1/6 # excludes chans with wrong sign
+            '''
+            '''
             # find indices into chanis that give you only the chanis that exceed
             # half the current per-chan thresh
-            inclthresh = self.thresh[chanis]/2 # 1D vector
+            inclthresh = self.thresh[chanis]/3 # 1D vector
             inclthresh.shape = len(inclthresh), 1 # 2D column vector
             chaniis = np.unique(np.where((abs(window) > inclthresh))[0])
             # update chanis
             chanis = chanis[chaniis]
             # update multichan window
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
-
-            # make phasetis relative to new t0i
-            phasetis -= t0i
-
+            '''
             try:
                 assert cutrange[0] <= wave.ts[ti] <= cutrange[1], 'spike time %r falls outside cutrange for this searchblock call, discarding' % wave.ts[ti] # use %r since s['t'] is np.int64 and %d gives TypeError if > 2**31
             except AssertionError, message: # doesn't qualify as a spike, don't change lockouts
