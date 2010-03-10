@@ -88,7 +88,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-        columnlabels = ['detID', 'class', 'thresh', 'trange', 'nspikes', 'slock', 'datetime', 'file']
+        columnlabels = ['detID', 'class', 'thresh', 'trange', 'nspikes', 'lockr', 'datetime', 'file']
         for coli, label in enumerate(columnlabels):
             self.detection_list.InsertColumn(coli, label)
         for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
@@ -101,7 +101,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.dt_units_label.SetLabel(MICRO+'s')
         self.range_units_label.SetLabel(MICRO+'s')
         self.blocksize_units_label.SetLabel(MICRO+'s')
-        self.spatial_units_label.SetLabel(MICRO+'m')
+        self.lockout_units_label.SetLabel(MICRO+'m')
+        self.include_units_label.SetLabel(MICRO+'m')
 
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -134,8 +135,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.range_end_combo_box.SetValue('30e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
-        self.slock_spin_ctrl.SetValue(detect.Detector.DEFSLOCK)
-        self.maxnchansperspike_spin_ctrl.SetValue(detect.Detector.DEFMAXNCHANSPERSPIKE)
+        self.lockr_spin_ctrl.SetValue(detect.Detector.DEFLOCKR)
+        self.inclr_spin_ctrl.SetValue(detect.Detector.DEFINCLR)
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def OnNew(self, evt):
@@ -747,7 +748,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                str(detection.detector.fixedthresh or detection.det.noisemult), # 2: thresh
                str(detection.detector.trange), # 3: trange
                str(detection.nspikes), # 4: nspikes
-               str(detection.detector.slock), # 5: slock
+               str(detection.detector.lockr), # 5: lockr
                str(detection.datetime).rpartition('.')[0], # 6: datetime
                detection.detector.srffname] # 7: file
         auto = wx.LIST_AUTOSIZE_USEHEADER
@@ -1526,8 +1527,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.trange = self.get_detectortrange()
         det.maxnspikes = self.nspikes_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
         det.blocksize = int(self.blocksize_combo_box.GetValue())
-        det.slock = self.slock_spin_ctrl.GetValue()
-        det.maxnchansperspike = self.maxnchansperspike_spin_ctrl.GetValue()
+        det.lockr = self.lockr_spin_ctrl.GetValue()
+        det.inclr = self.inclr_spin_ctrl.GetValue()
         det.randomsample = self.random_sample_checkbox.GetValue()
 
     def update_from_detector(self, det):
@@ -1544,8 +1545,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             self.nspikes_spin_ctrl.SetValue(det.maxnspikes)
         self.blocksize_combo_box.SetValue(str(det.blocksize))
-        self.slock_spin_ctrl.SetValue(det.slock)
-        self.maxnchansperspike_spin_ctrl.SetValue(det.maxnchansperspike)
+        self.lockr_spin_ctrl.SetValue(det.lockr)
+        self.inclr_spin_ctrl.SetValue(det.inclr)
         self.random_sample_checkbox.SetValue(det.randomsample)
 
     def set_detectorthresh(self, det):

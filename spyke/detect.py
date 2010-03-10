@@ -656,11 +656,9 @@ class Detector(object):
     DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
     DEFMAXNSPIKES = 0
-    DEFMAXNCHANSPERSPIKE = 25 # overrides spatial lockout, 9 seems to give greatest clusterability for uMap54_2b probe.
-                             # when using spatial mean extraction, setting this to a bad value
-                             # can give artificially segregated clusters in space
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
-    DEFSLOCK = 100 # spatial lockout radius, um
+    DEFLOCKR = 150 # spatial lockout radius, um
+    DEFINCLR = 100 # spatial include radius, um
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
@@ -674,8 +672,8 @@ class Detector(object):
     def __init__(self, sort, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthreshuV=None,
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
-                 trange=None, maxnspikes=None, maxnchansperspike=None,
-                 blocksize=None, slock=None, dt=None, randomsample=None,
+                 trange=None, maxnspikes=None, blocksize=None,
+                 lockr=None, inclr=None, dt=None, randomsample=None,
                  #keepspikewavesondetect=None,
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
@@ -691,9 +689,9 @@ class Detector(object):
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
         self.trange = trange or (sort.stream.t0, sort.stream.tend)
         self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes
-        self.maxnchansperspike = maxnchansperspike or self.DEFMAXNCHANSPERSPIKE
         self.blocksize = blocksize or self.DEFBLOCKSIZE
-        self.slock = slock or self.DEFSLOCK
+        self.lockr = lockr or self.DEFLOCKR
+        self.inclr = inclr or self.DEFINCLR
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
         #self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
@@ -801,35 +799,30 @@ class Detector(object):
         return spikes
 
     def calc_chans(self):
-        """Calculate max number of chans to use, and related stuff"""
+        """Calculate lockout and inclusion chan neighbourhoods, max number of chans to use,
+        and define the spike record dtype"""
         sort = self.sort
         self.enabledSiteLoc = {}
         for chan in self.chans: # for all enabled chans
             self.enabledSiteLoc[chan] = sort.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
         self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search, sorted by chans
-        #self.nbhd = {} # dict of neighbourhood of chans for each chan, as defined by self.slock, each sorted by ascending distance
-        self.nbhdi = {} # corresponding dict of neighbourhood of chanis for each chani
+        # dict of neighbourhood of chanis for each chani
+        self.locknbhdi = {} # for lockout around a spike
+        self.inclnbhdi = {} # for inclusion of wavedata as part of a spike
         maxnchansperspike = 0
         for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
-            chanis, = np.uint8(np.where(distances <= self.slock)) # at what col indices does the returned row fall within slock?
-            if len(chanis) > self.maxnchansperspike: # exceeds the hard upper limit
-                ds = distances[chanis] # pick out relevant distances
-                chaniis = ds.argsort() # indices that sort chanis by distance
-                chanis = chanis[chaniis] # chanis sorted by distance
-                chanis = chanis[:self.maxnchansperspike] # pick out closest self.maxnchansperspike chanis
-                chanis.sort() # sorted numerical order assumed later on!
-            maxnchansperspike = max(maxnchansperspike, len(chanis))
-            self.nbhdi[chani] = chanis
-            #chan = self.dm.chans[chani]
-            #chans = self.dm.chans[chanis]
-            #self.nbhd[chan] = chans
-        self.maxnchansperspike = min(self.maxnchansperspike, maxnchansperspike)
+            lockchanis, = np.uint8(np.where(distances <= self.lockr)) # at what col indices does the returned row fall within lockr?
+            inclchanis, = np.uint8(np.where(distances <= self.inclr)) # at what col indices does the returned row fall within inclr?
+            self.locknbhdi[chani] = lockchanis
+            self.inclnbhdi[chani] = inclchanis
+            maxnchansperspike = max(maxnchansperspike, len(inclchanis))
+        self.maxnchansperspike = maxnchansperspike
 
         for detection in sort.detections.values():
             det = detection.detector
             if self.maxnchansperspike != det.maxnchansperspike:
-                raise RuntimeError("Can't have multiple detections generating spikes struct arrays with "
-                                   "different width 'chans' fields")
+                raise RuntimeError("Can't have multiple detections generating spikes struct "
+                                   "arrays with different width 'chans' fields")
 
         self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('detid', np.uint8),
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
@@ -839,7 +832,8 @@ class Detector(object):
                            ('Vs', np.float32, 2), ('Vpp', np.float32),
                            ('phasetis', np.uint8, 2), ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16), # in us
-                           ('w0', np.float32), ('w1', np.float32), ('w2', np.float32), ('w3', np.float32), ('w4', np.float32)
+                           ('w0', np.float32), ('w1', np.float32), ('w2', np.float32),
+                           ('w3', np.float32), ('w4', np.float32)
                            ]
 
     def searchblock(self, wavetrange, direction):
@@ -919,7 +913,7 @@ class Detector(object):
         of just single independent channel
             - e.g. obvious but small multichan spike at ptc15.87.23340
             - hyperellipsoidal?
-            - take mean of sets of chans (say one set per chan, slock of chans
+            - take mean of sets of chans (say one set per chan, lockr of chans
             around it), check when they exceed thresh, find max chan within
             that set at that time and report it as a threshold event
             - or slide some filter across the data in space and time that not
@@ -930,7 +924,7 @@ class Detector(object):
             - on the maxchan, lockout for some determined time after 2nd phase (say one dphase),
             on others lock out a proportionally less amount in time (say V2/V2maxchan*dphase)
             - should help with nearly overlapping spikes, such as at ptc15.87.89740
-        - or more crudely?: for chans within slock radius, lockout only those that
+        - or more crudely?: for chans within lockr radius, lockout only those that
         exceeded thresh within the window
 
         TODO: search local window in space and time *simultaneously* for biggest signal,
@@ -971,11 +965,11 @@ class Detector(object):
                 if DEBUG: debug('thresh event is locked out')
                 continue # skip to next event
 
-            # find all enabled chanis within nbhd of chani, exclude those locked-out at threshold xing
-            #nbhdchanis = self.nbhdi[chani]
-            #chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
+            # find all enabled chanis within locknbhd of chani, exclude those locked-out at threshold xing
+            #lockchanis = self.locknbhdi[chani]
+            #chanis = lockchanis[lockouts[lockchanis] < ti]
             # no need to check lockouts, lockouts are checked in amplis loop below
-            chanis = self.nbhdi[chani]
+            chanis = self.locknbhdi[chani]
 
             # get data window wrt threshold crossing
             # clip t0i to 0 since don't need full width wave just yet
@@ -1060,10 +1054,10 @@ class Detector(object):
             #tendi = min(ti+twi[1]+1, maxti) # +1 makes it end inclusive, don't go further than last wave timepoint
             tendi = ti+twi[1]+1 # make window always be full width, lockouts be damned
             # update channel neighbourhood
-            # find all enabled chanis within nbhd of chani, exclude those locked-out at ti
-            #nbhdchanis = self.nbhdi[chani]
-            #chanis = nbhdchanis[lockouts[nbhdchanis] < ti]
-            chanis = self.nbhdi[chani] # give final waveform full suite of chans, lockouts be damned
+            # find all enabled chanis within inclnbhd of chani, exclude those locked-out at ti
+            #inclchanis = self.inclnbhdi[chani]
+            #chanis = inclchanis[lockouts[inclchanis] < ti]
+            chanis = self.inclnbhdi[chani] # give final waveform full suite of chans, lockouts be damned
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # make phasetis relative to new t0i
@@ -1084,8 +1078,9 @@ class Detector(object):
 
             s = spikes[nspikes]
             s['t'] = wave.ts[ti]
-            # leave each spike's chanis in sorted order, as they are in self.nbhdi, important
-            # assumption used later on, like in sort.get_wave() and Neuron.update_wave()
+            # leave each spike's chanis in sorted order, as they are in self.inclnbhdi,
+            # important assumption used later on, like in sort.get_wave() and
+            # Neuron.update_wave()
             ts = wave.ts[t0i:tendi]
             # use ts = np.arange(s['t0'], s['tend'], stream.tres) to reconstruct
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
