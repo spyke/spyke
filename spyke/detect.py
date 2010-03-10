@@ -1101,11 +1101,13 @@ class Detector(object):
                 # just x and y params for now
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
-                maxchani = int(np.where(chans == chan)[0])
+                maxchani = int(np.where(chans == chan)[0]) # != chani!
                 s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
                 s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
+
+            lockchanis = self.locknbhdi[chani]
 
             # update lockouts to just past the last phase of this spike
             # TODO: lock out to the latest of the 3 sharpest extrema. Some spikes are more
@@ -1113,9 +1115,9 @@ class Detector(object):
             # but never more than 3 significant phases
             #import pdb; pdb.set_trace()
             '''
-            for chani, row in zip(chanis, window):
-                i = np.where(abs(row) > self.thresh[chani])[0]
-                if i.any(): lockouts[chani] = t0i + i.max()
+            for lockchani, row in zip(lockchanis, window):
+                i = np.where(abs(row) > self.thresh[lockchani])[0]
+                if i.any(): lockouts[lockchani] = t0i + i.max()
             '''
             #dphaseti = phasetis[1] - phasetis[0]
             #lockout = t0i + phasetis[1] + dphaseti
@@ -1124,10 +1126,11 @@ class Detector(object):
             # of V0 and +dphase/2 of V1. Lock such chans out up to the latest
             # of the thresh exceeding peaks that are found. This should fix double
             # trigger at ptc18.14.7012560
-            lockouts[chanis] = lockout # same for all chans in this spike
+            lockouts[lockchanis] = lockout # same for all chans in this spike
             if DEBUG:
                 lockoutt = wave.ts[lockout]
-                debug('lockout=%d for chans=%s' % (lockoutt, chans))
+                lockchans = self.chans[lockchanis]
+                debug('lockout=%d for chans=%s' % (lockoutt, lockchans))
 
             nspikes += 1
 
