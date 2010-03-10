@@ -1057,7 +1057,17 @@ class Detector(object):
             # find all enabled chanis within inclnbhd of chani, exclude those locked-out at ti
             #inclchanis = self.inclnbhdi[chani]
             #chanis = inclchanis[lockouts[inclchanis] < ti]
-            chanis = self.inclnbhdi[chani] # give final waveform full suite of chans, lockouts be damned
+            chanis = self.inclnbhdi[chani] # give near-final waveform the full suite of chans, lockouts be damned
+            window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
+
+            # find indices into chanis that give you only the chanis that exceed
+            # half the current per-chan thresh
+            inclthresh = self.thresh[chanis]/2 # 1D vector
+            inclthresh.shape = len(inclthresh), 1 # 2D column vector
+            chaniis = np.unique(np.where((abs(window) > inclthresh))[0])
+            # update chanis
+            chanis = chanis[chaniis]
+            # update multichan window
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # make phasetis relative to new t0i
