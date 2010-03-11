@@ -432,7 +432,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #import cProfile
         #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
 
-        self.sort.extractor.extract_all_wcs() # adds extracted wavelet coeffs to sort.spikes
+        # extract coeffs of selected wavelet type, add coeffs to sort.spikes
+        wavelet = self.wavelet_extract_radio_box.GetStringSelection()
+        self.sort.extractor.extract_all_wcs(wavelet)
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
@@ -512,6 +514,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Update cluster widgets based on current cluster and dims,
         and replot the data in the (potentially) new projection, while
         maintaining the colour of each point"""
+        cf = self.frames['cluster']
+        scalars = cf.glyph.mlab_source.scalars # save scalars
+        self.OnClusterPlot() # replot
+        cf.glyph.mlab_source.scalars = scalars # restore scalars
+        cf.glyph.mlab_source.update() # make scalar changes visible
         try:
             cluster = self.GetCluster()
             self.UpdateParamWidgets(cluster)
@@ -519,11 +526,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # no cluster currently selected, like when changing dim before
             # any clusters have been created
             pass
-        cf = self.frames['cluster']
-        scalars = cf.glyph.mlab_source.scalars # save scalars
-        self.OnClusterPlot() # replot
-        cf.glyph.mlab_source.scalars = scalars # restore scalars
-        cf.glyph.mlab_source.update() # make scalar changes visible
 
     def FocusCurrentCluster(self):
         """Sets the position of the currently selected cluster to
@@ -533,7 +535,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         dims = self.GetDimNames()
         for dim, fp in zip(dims, fps):
-            cluster.pos[dim] = fp / self.sort.SCALE.get(dim, 1)
+            cluster.pos[dim] = fp / self.sort.SCALE[dim]
         cluster.update_ellipsoid('pos', dims=dims)
         self.UpdateParamWidgets(cluster)
 
@@ -541,7 +543,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Plot button press in cluster_pane. Don't need the evt"""
         dims = self.GetDimNames()
         cf = self.OpenFrame('cluster') # in case it isn't already open
-        X = self.sort.get_param_matrix(dims=dims, viz_scaled=True)
+        X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot
@@ -616,9 +618,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Update 3x3 grid of cluster param widgets from values in cluster"""
         x, y, z = self.GetDimNames() # tuple of dim names, in (x, y, z) order
         SCALE = self.sort.SCALE
-        self.xpos.SetValue(cluster.pos[x]*SCALE.get(x, 1))
-        self.ypos.SetValue(cluster.pos[y]*SCALE.get(y, 1))
-        self.zpos.SetValue(cluster.pos[z]*SCALE.get(z, 1))
+        self.xpos.SetValue(cluster.pos[x]*SCALE[x])
+        self.ypos.SetValue(cluster.pos[y]*SCALE[y])
+        self.zpos.SetValue(cluster.pos[z]*SCALE[z])
         if (y, z) in cluster.ori[x]: self.xori.SetValue(cluster.ori[x][(y, z)])
         elif (z, y) in cluster.ori[x]: self.xori.SetValue(-cluster.ori[x][(z, y)])
         else: self.xori.SetValue(0)
@@ -628,30 +630,30 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if (x, y) in cluster.ori[z]: self.zori.SetValue(cluster.ori[z][(x, y)])
         elif (y, x) in cluster.ori[z]: self.zori.SetValue(-cluster.ori[z][(y, x)])
         else: self.zori.SetValue(0)
-        self.xscale.SetValue(cluster.scale[x]*SCALE.get(x, 1))
-        self.yscale.SetValue(cluster.scale[y]*SCALE.get(y, 1))
-        self.zscale.SetValue(cluster.scale[z]*SCALE.get(z, 1))
+        self.xscale.SetValue(cluster.scale[x]*SCALE[x])
+        self.yscale.SetValue(cluster.scale[y]*SCALE[y])
+        self.zscale.SetValue(cluster.scale[z]*SCALE[z])
 
     """Update parameters for currently selected cluster, and associated ellipsoid"""
     def OnXPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.pos[x] = val / self.sort.SCALE.get(x, 1)
+        cluster.pos[x] = val / self.sort.SCALE[x]
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnYPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.pos[y] = val / self.sort.SCALE.get(y, 1)
+        cluster.pos[y] = val / self.sort.SCALE[y]
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnZPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.pos[z] = val / self.sort.SCALE.get(z, 1)
+        cluster.pos[z] = val / self.sort.SCALE[z]
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnXOri(self, evt):
@@ -688,21 +690,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.scale[x] = val / self.sort.SCALE.get(x, 1)
+        cluster.scale[x] = val / self.sort.SCALE[x]
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnYScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.scale[y] = val / self.sort.SCALE.get(y, 1)
+        cluster.scale[y] = val / self.sort.SCALE[y]
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnZScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetDimNames()
         val = evt.GetInt()
-        cluster.scale[z] = val / self.sort.SCALE.get(z, 1)
+        cluster.scale[z] = val / self.sort.SCALE[z]
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnKeyDown(self, evt):

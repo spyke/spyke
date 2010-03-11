@@ -54,8 +54,9 @@ class Cluster(object):
         if params == None:
             params = ['pos', 'ori', 'scale']
         if 'pos' in params:
-            ellipsoid.actor.actor.position = [ self.pos[dim]*SCALE.get(dim, 1) for dim in dims ]
+            ellipsoid.actor.actor.position = [ self.pos[dim]*SCALE[dim] for dim in dims ]
         if 'ori' in params:
+            # TODO: need to take SCALE into account here somehow
             oris = []
             for dimi, dim in enumerate(dims):
                 # pick the two next highest dims, in that order,
@@ -71,7 +72,7 @@ class Cluster(object):
                     oris.append(0)
             ellipsoid.actor.actor.orientation = oris
         if 'scale' in params:
-            ellipsoid.actor.actor.scale = [ self.scale[dim]*SCALE.get(dim, 1) for dim in dims ]
+            ellipsoid.actor.actor.scale = [ self.scale[dim]*SCALE[dim] for dim in dims ]
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
@@ -159,16 +160,16 @@ class SpykeMayaviScene(MayaviScene):
 
         if dim != None and sign != None:
             if modifiers == wx.MOD_NONE: # adjust pos slowly
-                cluster.pos[dim] += sign * 1 / SCALE.get(dim, 1)
+                cluster.pos[dim] += sign * 1 / SCALE[dim]
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
             elif modifiers == wx.MOD_NONE|wx.MOD_ALT: # adjust pos quickly
-                cluster.pos[dim] += sign * 5 / SCALE.get(dim, 1)
+                cluster.pos[dim] += sign * 5 / SCALE[dim]
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
             elif modifiers == wx.MOD_SHIFT: # adjust scale slowly
-                cluster.scale[dim] += sign * 1 / SCALE.get(dim, 1)
+                cluster.scale[dim] += sign * 1 / SCALE[dim]
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif modifiers == wx.MOD_SHIFT|wx.MOD_ALT: # adjust scale quickly
-                cluster.scale[dim] += sign * 5 / SCALE.get(dim, 1)
+                cluster.scale[dim] += sign * 5 / SCALE[dim]
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif event.ControlDown(): # adjust ori
                 # TODO: ori adjustment doesn't take SCALE into account!

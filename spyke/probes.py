@@ -4,10 +4,37 @@ probe designs have contiguous channel indices starting from 0"""
 
 # TODO: add pt16c, and pt16x layouts (with 16 to HS-27 adapter)
 
+from __future__ import division
+
+__authors__ = ['Martin Spacek']
+
+import numpy as np
+
 
 class Probe(object):
     """self.SiteLoc maps probe chan id to (x, y) position of site in um"""
-    pass
+    def get_siteloc_arr(self):
+        return np.asarray(self.SiteLoc.values())
+
+    def get_unique_xcoords(self):
+        """Return sorted unique column xcoords"""
+        sa = self.get_siteloc_arr()
+        xcoords = np.unique(sa[:, 0]) # comes out sorted
+        return xcoords
+
+    def get_xsep(self):
+        """Return x separation of columns, assuming uniform column spacing in x"""
+        xcoords = self.get_unique_xcoords()
+        xsep = np.unique(np.diff(xcoords))
+        if len(xsep) != 1:
+            raise ValueError("non-uniform column spacing, no single column x separation value")
+            # take mean maybe?
+        return xsep[0] # pull scalar out of array
+
+    def get_max_xsep(self):
+        """Return maximum x separation of columns"""
+        xcoords = self.get_unique_xcoords()
+        return xcoords[-1] - xcoords[0]
 
 
 class uMap54_1a(Probe):

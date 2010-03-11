@@ -85,7 +85,7 @@ class Extractor(object):
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
-        self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
+        #self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
@@ -121,15 +121,18 @@ class Extractor(object):
             spikes['IC0'][ri] = weights[0, 0]
             spikes['IC1'][ri] = weights[0, 1]
     '''
-    def extract_all_wcs(self):
+    def extract_all_wcs(self, wavelet='haar'):
         """Extract wavelet coefficients from all spikes, store them as spike attribs"""
         # TODO: add multiprocessing
-        ncoeffs = len(self.ksis)
+        nkeep = 5 # num of top wavelet coeffs to keep
         sort = self.sort
         spikes = sort.spikes # struct array
         wavedata = sort.wavedata
         nspikes = len(spikes)
         #ncoeffs = 53 # TODO: this only applies for V of length 50, stop hardcoding
+        #ncoeffs = len(self.ksis)
+        nt = wavedata.shape[2]
+        ncoeffs = len(np.concatenate(pywt.wavedec(wavedata[0, 0], wavelet)))
         wcs = np.zeros((nspikes, ncoeffs))
         t0 = time.time()
         for spikei, (spike, wd) in enumerate(zip(spikes, wavedata)):
@@ -139,30 +142,31 @@ class Extractor(object):
             maxchani = int(np.where(chans == maxchan)[0])
             #chanis = det.chans.searchsorted(chans) # det.chans are always sorted
             #wd = wd[:nchans] # unnecessary?
-            #V = wd[maxchani]
-            #wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar')) # flat array of wavelet coeffs
-            #wcs[spikei] = np.concatenate(pywt.wavedec(V, 'haar'))[self.ksis]
-            wcs[spikei] = self.wavedata2wcs(wd, maxchani)
-        #ks = np.zeros(ncoeffs)
-        #p = np.zeros(ncoeffs)
-        #for i in range(ncoeffs):
-        #    ks[i], p[i] = scipy.stats.kstest(wcs[:, i], 'norm')
-        #ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
+            V = wd[maxchani]
+            wcs[spikei] = np.concatenate(pywt.wavedec(V, wavelet)) # flat array of wavelet coeffs
+            #wcs[spikei] = np.concatenate(pywt.wavedec(V, wavelet))[self.ksis]
+            #wcs[spikei] = self.wavedata2wcs(wd, maxchani)
+        ks = np.zeros(ncoeffs)
+        p = np.zeros(ncoeffs)
+        for i in range(ncoeffs):
+            ks[i], p[i] = scipy.stats.kstest(wcs[:, i], 'norm')
+        ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
         # assign as params in spikes struct array
-        for coeffi in range(ncoeffs):
-            spikes['w%d' % coeffi] = wcs[:, coeffi]
+        for coeffi in range(nkeep): # assign first nkeep
+            spikes['w%d' % coeffi] = wcs[:, ksis[coeffi]]
         print("Extracting wavelet coefficients from all %d spikes took %.3f sec" %
              (nspikes, time.time()-t0))
         # trigger resaving of .spike file on next .sort save
         try: del sort.spikefname
         except AttributeError: pass
-
-    def wavedata2wcs(self, wavedata, maxchani):
+        return wcs, ks, ksis, p
+    '''
+    def wavedata2wcs(self, wavedata, maxchani, wavelet):
         """Return wavelet coeffs specified by self.ksis, given wavedata
         with a maxchani"""
         V = wavedata[maxchani]
-        return np.concatenate(pywt.wavedec(V, 'haar'))[self.ksis]
-
+        return np.concatenate(pywt.wavedec(V, wavelet))[self.ksis]
+    '''
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
