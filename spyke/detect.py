@@ -1180,8 +1180,9 @@ class Detector(object):
             es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
             for e in es:
                 wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
-            # last wavetrange surpasses self.trange[1] by some unknown amount, fix that here:
-            wavetranges[-1] = (wavetranges[-1][0], self.trange[1]+bx) # replace with a new tuple
+            # limit wavetranges to self.trange
+            wavetranges[0] = self.trange[0], wavetranges[0][1]
+            wavetranges[-1] = wavetranges[-1][0], self.trange[1]
         return wavetranges, (bs, bx, direction)
 
     def get_sorted_sm(self, onlyvalid=False):
