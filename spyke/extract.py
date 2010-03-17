@@ -14,7 +14,9 @@ from scipy.interpolate import UnivariateSpline
 import pywt
 import scipy.stats
 
-from spyke.core import g2
+from pylab import figure, plot
+
+from spyke.core import g, g2
 
 
 def callspike2XY(args):
@@ -31,14 +33,15 @@ def initializer(extractor, detector):
     mp.current_process().detector = detector
 
 
-class LeastSquares(object):
+class SpatialLeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
-    def __init__(self):
+    def __init__(self, debug=False):
         self.A = None
         # TODO: mess with fixed sx and sy to find most clusterable vals, test on
         # 3 column data too
         self.sx = 30
         self.sy = 30
+        self.debug = debug
 
     def calc(self, x, y, V):
         t0 = time.clock()
@@ -61,19 +64,58 @@ class LeastSquares(object):
         """2D circularly symmetric Gaussian"""
         return self.A * g2(p[0], p[1], self.sx, self.sx, x, y)
     '''
-    def model2(self, p, x, y):
+    def model(self, p, x, y):
         """2D elliptical Gaussian"""
-        try:
-            return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
+        #try:
+        return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
+        #except Exception as err:
+        #    print(err)
+        #    import pdb; pdb.set_trace()
+
+    def cost(self, p, x, y, V):
+        """Distance of each point to the model function"""
+        return self.model(p, x, y) - V
+
+
+class TemporalLeastSquares(object):
+    """Least squares Levenberg-Marquardt temporal 2 (or 3?) gaussian fit of
+    spike shape"""
+    def __init__(self, debug=False):
+        #self.V0 = None
+        #self.V1 = None
+        #self.t0 = None
+        #self.t1 = None
+        self.debug = debug
+
+    def calc(self, ts, V):
+        t0 = time.clock()
+        try: result = leastsq(self.cost, self.p0, args=(ts, V), full_output=True)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def cost(self, p, x, y, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        return self.model2(p, x, y) - V
+    def model(self, p, ts):
+        """Temporal sum of Gaussians"""
+        #try:
+        V0, V1, t0, t1, s0, s1 = p
+        return V0*g(t0, s0, ts) + V1*g(t1, s1, ts)
+        #except Exception as err:
+        #    print(err)
+        #    import pdb; pdb.set_trace()
+
+    def cost(self, p, ts, V):
+        """Distance of each point to the model function"""
+        return self.model(p, ts) - V
 
 
 class Extractor(object):
@@ -85,13 +127,13 @@ class Extractor(object):
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
+        self.sls = SpatialLeastSquares(self.debug)
+        self.tls = TemporalLeastSquares(self.debug)
         #self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
             self.weights2XY = self.weights2gaussian
-            self.ls = LeastSquares()
-            self.ls.debug = self.debug
         elif self.XYmethod.lower() == 'spatial mean':
             self.weights2XY = self.weights2spatialmean
         elif self.XYmethod.lower() == 'splines 1d fit':
@@ -213,8 +255,6 @@ class Extractor(object):
         try: del sort.spikefname
         except AttributeError: pass
         return wcs, flatwcs, ks, ksis, p
-
-
     '''
     def wavedata2wcs(self, wavedata, maxchani, wavelet):
         """Return wavelet coeffs specified by self.ksis, given wavedata
@@ -222,6 +262,47 @@ class Extractor(object):
         V = wavedata[maxchani]
         return np.concatenate(pywt.wavedec(V, wavelet))[self.ksis]
     '''
+    def extract_all_temporal(self):
+        """Extract temporal parameters by modelling maxchan spike shape
+        as sum of 2 (or 3?) Gaussians"""
+        sort = self.sort
+        spikes = sort.spikes # struct array
+        nspikes = len(spikes)
+        if nspikes == 0:
+            raise RuntimeError("No spikes to extract temporal parameters from")
+        try:
+            wavedata = sort.wavedata
+        except AttributeError:
+            raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
+        print("Extracting XY parameters from spikes")
+        t0 = time.time()
+        raise NotImplementedError
+
+    def spike2temporal(self, spike):
+        """Extract temporal Gaussian params from spike record"""
+        nchans = spike['nchans']
+        chans = spike['chans'][:nchans]
+        maxchan = spike['chan']
+        maxchani = int(np.where(chans == maxchan)[0])
+        spikei = spike['id']
+        V = self.sort.wavedata[spikei, maxchani]
+        ts = np.arange(spike['t0'], spike['tend'], self.sort.tres)
+        t0, t1 = ts[spike['phasetis']]
+        V0, V1 = V[spike['phasetis']]
+        tls = self.tls
+        #tls.t0, tls.t1 = t0, t1
+        #tls.V0, tls.V1 = V0, V1
+        s0, s1 = 60, 60
+        #tls.V = V
+        #tls.ts = ts
+        tls.p0 = V0, V1, t0, t1, s0, s1
+        tls.calc(ts, V)
+        f = figure()
+        plot(V)
+        plot(tls.model(tls.p, ts))
+        f.canvas.Parent.SetTitle('spike %d' % spikei)
+        return tls.p
+
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
@@ -424,24 +505,24 @@ class Extractor(object):
         if len(w) == 1: # only one chan, return its coords
             return int(x), int(y)
 
-        ls = self.ls
+        sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
-        ls.A = w[maxchani]
-        ls.p0 = np.asarray([x0, y0])
-        #ls.p0 = np.asarray([x[maxchani], y[maxchani]])
-        ls.calc(x, y, w)
-        return ls.p[0], ls.p[1]
+        sls.A = w[maxchani]
+        sls.p0 = np.asarray([x0, y0])
+        #sls.p0 = np.asarray([x[maxchani], y[maxchani]])
+        sls.calc(x, y, w)
+        return sls.p[0], sls.p[1]
         '''
         while True:
             if len(V) < 4: # can't fit Gaussian for spikes with low nchans
                 print('\n\nonly %d fittable chans in spike \n\n' % len(V))
                 return self.weights2spatialmean(weights, self.x, self.y, self.maxchani)
-            ls.calc(x, y, V)
-            if ls.ier == 2: # essentially perfect fit between data and model
+            sls.calc(x, y, V)
+            if sls.ier == 2: # essentially perfect fit between data and model
                 break
-            err = np.sqrt(np.abs(ls.cost(ls.p, x, y, V)))
+            err = np.sqrt(np.abs(sls.cost(sls.p, x, y, V)))
             errsortis = err.argsort() # indices into err and chans, that sort err from lowest to highest
             #errsortis = errsortis[-1:0:-1] # highest to lowest
             otheris = list(errsortis) # creates a copy, used for mean & std calc
@@ -471,5 +552,5 @@ class Extractor(object):
                 break
 
         # TODO: return modelled amplitude and sigma as well!
-        return ls.p[1], ls.p[2]
+        return sls.p[1], sls.p[2]
         '''
