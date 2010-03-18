@@ -78,7 +78,7 @@ class SpatialLeastSquares(object):
 
 
 class TemporalLeastSquares(object):
-    """Least squares Levenberg-Marquardt temporal 2 (or 3?) gaussian fit of
+    """Least squares Levenberg-Marquardt temporal 2 gaussian fit of
     spike shape"""
     def __init__(self, debug=False):
         #self.V0 = None
@@ -243,6 +243,7 @@ class Extractor(object):
             wcs[maxchan] = np.asarray(wcs[maxchan])
             for i in range(ncoeffs):
                 ks[maxchani, i], p[maxchani, i] = scipy.stats.kstest(wcs[maxchan][:, i], 'norm')
+        # TODO: weight the KS value from each maxchan according to the nspikes for that maxchan!!!!!
         ks = ks.mean(axis=0)
         p = p.mean(axis=0)
         ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
@@ -264,7 +265,7 @@ class Extractor(object):
     '''
     def extract_all_temporal(self):
         """Extract temporal parameters by modelling maxchan spike shape
-        as sum of 2 (or 3?) Gaussians"""
+        as sum of 2 Gaussians"""
         sort = self.sort
         spikes = sort.spikes # struct array
         nspikes = len(spikes)
@@ -274,9 +275,43 @@ class Extractor(object):
             wavedata = sort.wavedata
         except AttributeError:
             raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
-        print("Extracting XY parameters from spikes")
-        t0 = time.time()
-        raise NotImplementedError
+        print("Extracting temporal parameters from spikes")
+        tstart = time.time()
+        '''
+        if not self.debug: # use multiprocessing
+            assert len(sort.detections) == 1
+            det = sort.detector
+            ncpus = mp.cpu_count() # 1 per core
+            pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
+            args = zip(spikeslist, wavedata)
+            results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
+            print('done with pool.map()')
+            pool.close()
+            # results is a list of (x0, y0) tuples, and needs to be unzipped
+            spikes['x0'], spikes['y0'] = zip(*results)
+        else:
+            # give each process a detector, then pass one spike record and one waveform to
+            # each this assumes all spikes come from the same detector with the same
+            # siteloc and chans, which is safe to assume anyway
+            initializer(self, sort.detector)
+
+            for spike, wd in zip(spikes, wavedata):
+                x0, y0 = callspike2XY((spike, wd))
+                spike['x0'] = x0
+                spike['y0'] = y0
+        '''
+        for spike in spikes:
+            V0, V1, t0, t1, s0, s1 = self.spike2temporal(spike)
+            spike['s0'], spike['s1'] = s0, s1
+            spike['mVpp'] = V1 - V0
+            spike['mVs'] = V0, V1
+            spike['mdphase'] = t1 - t0
+
+        print("Extracting temporal parameters from all %d spikes using %r took %.3f sec" %
+             (nspikes, self.XYmethod.lower(), time.time()-tstart))
+        # trigger resaving of .spike file on next .sort save
+        try: del sort.spikefname
+        except AttributeError: pass
 
     def spike2temporal(self, spike):
         """Extract temporal Gaussian params from spike record"""
@@ -297,10 +332,10 @@ class Extractor(object):
         #tls.ts = ts
         tls.p0 = V0, V1, t0, t1, s0, s1
         tls.calc(ts, V)
-        f = figure()
-        plot(V)
-        plot(tls.model(tls.p, ts))
-        f.canvas.Parent.SetTitle('spike %d' % spikei)
+        #f = figure()
+        #plot(V)
+        #plot(tls.model(tls.p, ts))
+        #f.canvas.Parent.SetTitle('spike %d' % spikei)
         return tls.p
 
     def extract_all_XY(self):

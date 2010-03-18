@@ -422,7 +422,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnWaveletExtract(self, evt=None):
         """Extract pane wavelet Extract button click. Extracts (or re-extracts and
-        overwrites) wavelet coefficients all sort.spikes, and stores
+        overwrites) wavelet coefficients from all sort.spikes, and stores
         them as spike attribs"""
         try:
             self.sort.extractor
@@ -435,6 +435,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # extract coeffs of selected wavelet type, add coeffs to sort.spikes
         wavelet = self.wavelet_extract_radio_box.GetStringSelection()
         self.sort.extractor.extract_all_wcs(wavelet)
+        self.frames['sort'].slist.RefreshItems() # update any columns showing param values
+        self.EnableSpikeWidgets(True) # enable cluster_pane
+
+    def OnTemporalExtract(self, evt=None):
+        """Extract pane temporal Extract button click. Extracts (or re-extracts and
+        overwrites) temporal params from all sort.spikes, and stores
+        them as spike attribs"""
+        try:
+            self.sort.extractor
+        except AttributeError:
+            self.init_extractor()
+
+        self.sort.extractor.extract_all_temporal()
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 

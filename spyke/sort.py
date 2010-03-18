@@ -296,6 +296,10 @@ class Sort(object):
                 params.append( np.float32(self.spikes['Vs'][:, 0]) )
             elif dim == 'V1':
                 params.append( np.float32(self.spikes['Vs'][:, 1]) )
+            elif dim == 'mV0':
+                params.append( np.float32(self.spikes['mVs'][:, 0]) )
+            elif dim == 'mV1':
+                params.append( np.float32(self.spikes['mVs'][:, 1]) )
             else:
                 params.append( np.float32(self.spikes[dim]) )
         X = np.column_stack(params)
