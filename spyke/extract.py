@@ -14,7 +14,7 @@ from scipy.interpolate import UnivariateSpline
 import pywt
 import scipy.stats
 
-from pylab import figure, plot
+import pylab as pl
 
 from spyke.core import g, g2
 
@@ -267,6 +267,7 @@ class Extractor(object):
         """Extract temporal parameters by modelling maxchan spike shape
         as sum of 2 Gaussians"""
         sort = self.sort
+        AD2uV = sort.converter.AD2uV
         spikes = sort.spikes # struct array
         nspikes = len(spikes)
         if nspikes == 0:
@@ -302,18 +303,18 @@ class Extractor(object):
         '''
         for spike in spikes:
             V0, V1, t0, t1, s0, s1 = self.spike2temporal(spike)
-            spike['s0'], spike['s1'] = s0, s1
-            spike['mVpp'] = V1 - V0
-            spike['mVs'] = V0, V1
+            spike['s0'], spike['s1'] = abs(s0), abs(s1)
+            spike['mVpp'] = AD2uV(V1 - V0)
+            spike['mVs'][:] = AD2uV([V0, V1])
             spike['mdphase'] = t1 - t0
 
-        print("Extracting temporal parameters from all %d spikes using %r took %.3f sec" %
-             (nspikes, self.XYmethod.lower(), time.time()-tstart))
+        print("Extracting temporal parameters from all %d spikes took %.3f sec" %
+             (nspikes, time.time()-tstart))
         # trigger resaving of .spike file on next .sort save
         try: del sort.spikefname
         except AttributeError: pass
 
-    def spike2temporal(self, spike):
+    def spike2temporal(self, spike, plot=False):
         """Extract temporal Gaussian params from spike record"""
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
@@ -321,21 +322,23 @@ class Extractor(object):
         maxchani = int(np.where(chans == maxchan)[0])
         spikei = spike['id']
         V = self.sort.wavedata[spikei, maxchani]
-        ts = np.arange(spike['t0'], spike['tend'], self.sort.tres)
+        # get timestamps relative to start of waveform
+        ts = np.arange(0, spike['tend'] - spike['t0'], self.sort.tres)
         t0, t1 = ts[spike['phasetis']]
         V0, V1 = V[spike['phasetis']]
         tls = self.tls
-        #tls.t0, tls.t1 = t0, t1
-        #tls.V0, tls.V1 = V0, V1
+        tls.t0, tls.t1 = t0, t1
+        tls.V0, tls.V1 = V0, V1
         s0, s1 = 60, 60
         #tls.V = V
         #tls.ts = ts
         tls.p0 = V0, V1, t0, t1, s0, s1
         tls.calc(ts, V)
-        #f = figure()
-        #plot(V)
-        #plot(tls.model(tls.p, ts))
-        #f.canvas.Parent.SetTitle('spike %d' % spikei)
+        if plot:
+            f = pl.figure()
+            pl.plot(V)
+            pl.plot(tls.model(tls.p, ts))
+            f.canvas.Parent.SetTitle('spike %d' % spikei)
         return tls.p
 
     def extract_all_XY(self):
