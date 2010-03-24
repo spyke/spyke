@@ -81,10 +81,10 @@ class TemporalLeastSquares(object):
     """Least squares Levenberg-Marquardt temporal 2 gaussian fit of
     spike shape"""
     def __init__(self, debug=False):
-        #self.V0 = None
-        #self.V1 = None
-        #self.t0 = None
-        #self.t1 = None
+        self.V0 = None
+        self.V1 = None
+        self.t0 = None
+        self.t1 = None
         self.debug = debug
 
     def calc(self, ts, V):
@@ -107,8 +107,8 @@ class TemporalLeastSquares(object):
     def model(self, p, ts):
         """Temporal sum of Gaussians"""
         #try:
-        V0, V1, t0, t1, s0, s1 = p
-        return V0*g(t0, s0, ts) + V1*g(t1, s1, ts)
+        s0, s1 = p
+        return self.V0*g(self.t0, s0, ts) + self.V1*g(self.t1, s1, ts)
         #except Exception as err:
         #    print(err)
         #    import pdb; pdb.set_trace()
@@ -302,11 +302,11 @@ class Extractor(object):
                 spike['y0'] = y0
         '''
         for spike in spikes:
-            V0, V1, t0, t1, s0, s1 = self.spike2temporal(spike)
+            s0, s1 = self.spike2temporal(spike)
             spike['s0'], spike['s1'] = abs(s0), abs(s1)
-            spike['mVpp'] = AD2uV(V1 - V0)
-            spike['mVs'][:] = AD2uV([V0, V1])
-            spike['mdphase'] = t1 - t0
+            #spike['mVpp'] = AD2uV(V1 - V0)
+            #spike['mVs'][:] = AD2uV([V0, V1])
+            #spike['mdphase'] = t1 - t0
 
         print("Extracting temporal parameters from all %d spikes took %.3f sec" %
              (nspikes, time.time()-tstart))
@@ -332,7 +332,7 @@ class Extractor(object):
         s0, s1 = 60, 60
         #tls.V = V
         #tls.ts = ts
-        tls.p0 = V0, V1, t0, t1, s0, s1
+        tls.p0 = s0, s1
         tls.calc(ts, V)
         if plot:
             f = pl.figure()

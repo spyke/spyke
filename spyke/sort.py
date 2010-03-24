@@ -304,11 +304,12 @@ class Sort(object):
                 params.append( np.float32(self.spikes[dim]) )
         X = np.column_stack(params)
 
-        # for better visualization, auto scale columns relative to x0 dim
+        # for better visualization, auto scale each X column (each param) relative to x0 dim
         p = self.probe
         for dim, col in zip(dims, X.T): # iterate over columns
             if dim not in self.SCALE:
-                self.SCALE[dim] = np.sign(col.mean()) * p.get_max_xsep() / (2*col.std())
+                colmed = np.median(col)
+                self.SCALE[dim] = np.sign(colmed) * p.get_max_xsep() / colmed
             col *= self.SCALE[dim]
         return X
 
