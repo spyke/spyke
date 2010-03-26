@@ -1,15 +1,5 @@
 spyke is a Python package for visualization, navigation, and spike sorting of extracellular waveform data, and currently works with Swindale Lab .srf files. Some of its functionality is inherited from Tim Blanche's Delphi program "SurfBawd".
 
-Dependency versions:
-
-Python 2.5.2
-numpy 1.1.0
-wxPython 2.8.8.1 (2.8.8.0 has keyboard entry issue for spinctrls or comboboxes or something)
-matplotlib 0.98.1 or better (for compatibility with numpy 1.1.0)
-
-If installing from source (as opposed to from a win32 binary), you'll also need Cython 0.9.6.14 or better. If installing from source on win32, you'll also need the free MinGW compiler. See http://wiki.cython.org/InstallingOnWindows
-
-
 To install:
 
 >>> python setup.py install
@@ -17,6 +7,7 @@ To install:
 To develop:
 
 >>> python setup.py build_ext --inplace
-(you might need to add --compiler=mingw32 if you're in win32 and mingw isn't your default compiler in Python)
 
 Launch the program by running spyke/main.py
+
+For clustering, you need to use keyboard commands. Take a look in cluster.SpykeMayaviScene.OnKeyDown to see what various keys do what.
