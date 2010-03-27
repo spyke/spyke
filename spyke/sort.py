@@ -402,16 +402,21 @@ class Sort(object):
         return neuron
 
     def align_neuron(self, nid, to):
-        """Align all of a neuron's spikes by their max or min"""
+        """Align all of a neuron's spikes by their max or min
+        TODO: make sure all temporal values are properly updated.
+        This includes modelled temporal means, if any.
+        """
         neuron = self.neurons[nid]
         spikes = self.spikes
         nris = spikes['id'].searchsorted(neuron.spikeis) # row indices of spikes that belong to this neuron
+
         Vss = spikes['Vs'][nris] # 2 x nris array
         alignis = spikes['aligni'][nris]
+        b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
         if to == 'max':
-            nriis = Vss[:, alignis] < 0 # indices into nris of spikes aligned to the min phase
+            nriis = Vss[b] < 0 # indices into nris of spikes aligned to the min phase
         elif to == 'min':
-            nriis = Vss[:, alignis] > 0 # indices into nris of spikes aligned to the max phase
+            nriis = Vss[b] > 0 # indices into nris of spikes aligned to the max phase
         else: raise ValueError()
         ris = nris[nriis] # row indices of spikes that need realigning
         phasetis = spikes['phasetis'][ris]
@@ -420,14 +425,15 @@ class Sort(object):
         # for those spikes that are being realigned, translate aligni from
         # [0, 1] to [1, -1] and use as multipliers of dphases and dphasetis to adjust
         # spike time values and phasetis values
-        dphasesx = -spikes['aligni'][ris]*2 + 1
-        dts = dphasesx * dphases
-        dtis = dphasesx * dphasetis
+        dalignis = -np.int32(spikes['aligni'][ris])*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
+        dts = dalignis * dphases
+        dtis = -dalignis * dphasetis
         # shift values
-        spikes['t0'][ris] += dt
-        spikes['t'][ris] += dt
-        spikes['tend'][ris] += dt
-        spikes['phasetis'] += dtis # update wrt new t0i
+        spikes['t0'][ris] += dts
+        spikes['t'][ris] += dts
+        spikes['tend'][ris] += dts
+        spikes['aligni'][ris] += dalignis
+        spikes['phasetis'][ris] += np.column_stack((dtis, dtis)) # update wrt new t0i
         # update wavedata for each shifted spike
         for ri, spike in zip(ris, spikes[ris]):
             wave = self.stream[spike['t0']:spike['tend']]
