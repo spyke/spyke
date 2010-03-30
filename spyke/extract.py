@@ -67,7 +67,8 @@ class SpatialLeastSquares(object):
     def model(self, p, x, y):
         """2D elliptical Gaussian"""
         #try:
-        return self.A * g2(p[0], p[1], self.sx, self.sy, x, y)
+        x0, y0, soff = p
+        return self.A * g2(x0, y0, self.sx, self.sy, x, y) + soff
         #except Exception as err:
         #    print(err)
         #    import pdb; pdb.set_trace()
@@ -107,8 +108,8 @@ class TemporalLeastSquares(object):
     def model(self, p, ts):
         """Temporal sum of Gaussians"""
         #try:
-        V0, V1, s0, s1 = p
-        return V0*g(self.t0, s0, ts) + V1*g(self.t1, s1, ts)
+        V0, V1, s0, s1, toff = p
+        return V0*g(self.t0, s0, ts) + V1*g(self.t1, s1, ts) + toff
         #except Exception as err:
         #    print(err)
         #    import pdb; pdb.set_trace()
@@ -341,6 +342,37 @@ class Extractor(object):
             f.canvas.Parent.SetTitle('spike %d' % spikei)
         return tls.p
 
+    def spike2spatial(self, spike, plot=True):
+        """A more convenient way of plotting spatial fits, one spike at a time"""
+        nchans = spike['nchans']
+        chans = spike['chans'][:nchans]
+        maxchan = spike['chan']
+        maxchani = int(np.where(chans == maxchan)[0])
+        det = self.sort.detector
+        chanis = det.chans.searchsorted(chans) # det.chans are always sorted
+        spikei = spike['id']
+        wavedata = self.sort.wavedata[spikei, :nchans]
+        phasetis = spike['phasetis']
+        aligni = spike['aligni']
+        x = det.siteloc[chanis, 0] # 1D array (row)
+        y = det.siteloc[chanis, 1]
+
+        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
+        sls = self.sls
+        x0, y0 = self.weights2spatialmean(weights, x, y, maxchani)
+        soff = 0
+        # or, init with just the coordinates of the max weight, doesn't save time
+        #x0, y0 = x[maxchani], y[maxchani]
+        sls.A = w[maxchani]
+        sls.p0 = np.array([x0, y0, soff])
+        #sls.p0 = np.array([x[maxchani], y[maxchani], soff])
+        sls.calc(x, y, w)
+        if plot:
+            f = pl.figure()
+
+            f.canvas.Parent.SetTitle('spike %d' % spikei)
+        return sls.p
+
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
@@ -366,16 +398,17 @@ class Extractor(object):
             print('done with pool.map()')
             pool.close()
             # results is a list of (x0, y0) tuples, and needs to be unzipped
-            spikes['x0'], spikes['y0'] = zip(*results)
+            spikes['x0'], spikes['y0'], spikes['soff'] = zip(*results)
         else:
             # give each process a detector, then pass one spike record and one waveform to
             # each this assumes all spikes come from the same detector with the same
             # siteloc and chans, which is safe to assume anyway
             initializer(self, sort.detector)
             for spike, wd in zip(spikes, wavedata):
-                x0, y0 = callspike2XY((spike, wd))
+                x0, y0, soff = callspike2XY((spike, wd))
                 spike['x0'] = x0
                 spike['y0'] = y0
+                spike['soff'] = soff
         print("Extracting XY parameters from all %d spikes using %r took %.3f sec" %
              (nspikes, self.XYmethod.lower(), time.time()-t0))
         # trigger resaving of .spike file on next .sort save
@@ -402,8 +435,7 @@ class Extractor(object):
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
-        x0, y0 = self.wavedata2XY(wavedata, maxchani, phasetis, aligni, x, y)
-        return x0, y0
+        return self.wavedata2XY(wavedata, maxchani, phasetis, aligni, x, y)
 
     def wavedata2XY(self, wavedata, maxchani, phasetis, aligni, x, y):
         # Vpp weights seem more clusterable than Vp weights
@@ -545,13 +577,14 @@ class Extractor(object):
 
         sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
+        soff = 0
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
         sls.A = w[maxchani]
-        sls.p0 = np.asarray([x0, y0])
-        #sls.p0 = np.asarray([x[maxchani], y[maxchani]])
+        sls.p0 = np.array([x0, y0, soff])
+        #sls.p0 = np.array([x[maxchani], y[maxchani], soff])
         sls.calc(x, y, w)
-        return sls.p[0], sls.p[1]
+        return sls.p #sls.p[0], sls.p[1]
         '''
         while True:
             if len(V) < 4: # can't fit Gaussian for spikes with low nchans

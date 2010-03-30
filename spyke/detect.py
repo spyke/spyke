@@ -831,7 +831,8 @@ class Detector(object):
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
                            ('Vs', np.float32, 2), ('Vpp', np.float32),
                            ('phasetis', np.uint8, 2), ('aligni', np.uint8),
-                           ('x0', np.float32), ('y0', np.float32), ('dphase', np.int16), # in us
+                           ('x0', np.float32), ('y0', np.float32), ('soff', np.float32),
+                           ('dphase', np.int16), # in us
                            ('w0', np.float32), ('w1', np.float32), ('w2', np.float32),
                            ('w3', np.float32), ('w4', np.float32),
                            ('s0', np.float32), ('s1', np.float32),
@@ -1122,7 +1123,7 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0]) # != chani!
-                s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
+                s['x0'], s['y0'], s['soff'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
                 #s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
