@@ -67,8 +67,8 @@ class SpatialLeastSquares(object):
     def model(self, p, x, y):
         """2D elliptical Gaussian"""
         #try:
-        x0, y0, soff = p
-        return self.A * g2(x0, y0, self.sx, self.sy, x, y) + soff
+        x0, y0 = p
+        return self.A * g2(x0, y0, self.sx, self.sy, x, y)
         #except Exception as err:
         #    print(err)
         #    import pdb; pdb.set_trace()
@@ -357,19 +357,31 @@ class Extractor(object):
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
 
-        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
+        w = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
         sls = self.sls
-        x0, y0 = self.weights2spatialmean(weights, x, y, maxchani)
-        soff = 0
+        x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
         sls.A = w[maxchani]
-        sls.p0 = np.array([x0, y0, soff])
-        #sls.p0 = np.array([x[maxchani], y[maxchani], soff])
+        sls.p0 = np.array([x0, y0])
+        #sls.p0 = np.array([x[maxchani], y[maxchani]])
         sls.calc(x, y, w)
         if plot:
             f = pl.figure()
-
+            from mpl_toolkits.mplot3d import Axes3D
+            from matplotlib import cm
+            a = Axes3D(f)
+            a.scatter(x, y, w, c='k') # actual
+            a.scatter(x, y, sls.model(sls.p, x, y), c='r') # modelled
+            #X, Y = np.meshgrid(x, y)
+            #a.plot_surface(X, Y, sls.model(sls.p, X, Y), color=(0.2, 0.2, 0.2, 0.5))
+            X = np.arange(x.min(), x.max(), 2)
+            Y = np.arange(y.min(), y.max(), 2)
+            X, Y = np.meshgrid(X, Y)
+            a.plot_surface(X, Y, sls.model(sls.p, X, Y), rstride=2, cstride=2, cmap=cm.jet)
+            a.set_xlabel('x')
+            a.set_ylabel('y')
+            a.set_zlabel('V')
             f.canvas.Parent.SetTitle('spike %d' % spikei)
         return sls.p
 
@@ -398,17 +410,16 @@ class Extractor(object):
             print('done with pool.map()')
             pool.close()
             # results is a list of (x0, y0) tuples, and needs to be unzipped
-            spikes['x0'], spikes['y0'], spikes['soff'] = zip(*results)
+            spikes['x0'], spikes['y0'] = zip(*results)
         else:
             # give each process a detector, then pass one spike record and one waveform to
             # each this assumes all spikes come from the same detector with the same
             # siteloc and chans, which is safe to assume anyway
             initializer(self, sort.detector)
             for spike, wd in zip(spikes, wavedata):
-                x0, y0, soff = callspike2XY((spike, wd))
+                x0, y0 = callspike2XY((spike, wd))
                 spike['x0'] = x0
                 spike['y0'] = y0
-                spike['soff'] = soff
         print("Extracting XY parameters from all %d spikes using %r took %.3f sec" %
              (nspikes, self.XYmethod.lower(), time.time()-t0))
         # trigger resaving of .spike file on next .sort save
@@ -577,12 +588,11 @@ class Extractor(object):
 
         sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
-        soff = 0
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
         sls.A = w[maxchani]
-        sls.p0 = np.array([x0, y0, soff])
-        #sls.p0 = np.array([x[maxchani], y[maxchani], soff])
+        sls.p0 = np.array([x0, y0])
+        #sls.p0 = np.array([x[maxchani], y[maxchani]])
         sls.calc(x, y, w)
         return sls.p #sls.p[0], sls.p[1]
         '''
