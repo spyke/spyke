@@ -43,9 +43,9 @@ class SpatialLeastSquares(object):
         self.sy = 30
         self.debug = debug
 
-    def calc(self, x, y, V):
+    def calc0(self, x, y, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
+        try: result = leastsq(self.cost0, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
@@ -59,12 +59,25 @@ class SpatialLeastSquares(object):
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
-    '''
-    def model(self, p, x, y):
-        """2D circularly symmetric Gaussian"""
-        return self.A * g2(p[0], p[1], self.sx, self.sx, x, y)
-    '''
-    def model(self, p, x, y):
+
+    def calc1(self, x, y, V):
+        t0 = time.clock()
+        try: result = leastsq(self.cost1, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
+        except Exception as err:
+            print(err)
+            import pdb; pdb.set_trace()
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+
+    def model0(self, p, x, y):
         """2D elliptical Gaussian"""
         #try:
         x0, y0 = p
@@ -73,14 +86,46 @@ class SpatialLeastSquares(object):
         #    print(err)
         #    import pdb; pdb.set_trace()
 
-    def cost(self, p, x, y, V):
+    def model1(self, p, x, y):
+        """2D elliptical Gaussian"""
+        #try:
+        sx, sy, A = p
+        return A * g2(self.x0, self.y0, sx, sy, x, y)
+        #except Exception as err:
+        #    print(err)
+        #    import pdb; pdb.set_trace()
+
+    def cost0(self, p, x, y, V):
         """Distance of each point to the model function"""
-        return self.model(p, x, y) - V
+        return self.model0(p, x, y) - V
+
+    def cost1(self, p, x, y, V):
+        """Distance of each point to the model function"""
+        return self.model1(p, x, y) - V
+
+
+    def plot(self, x, y, w):
+        from mpl_toolkits.mplot3d import Axes3D
+        from matplotlib import cm
+        f = pl.figure()
+        a = Axes3D(f)
+        a.scatter(x, y, w, c='k') # actual
+        a.scatter(x, y, self.model(self.p, x, y), c='r') # modelled
+        #X, Y = np.meshgrid(x, y)
+        #a.plot_surface(X, Y, self.model(self.p, X, Y), color=(0.2, 0.2, 0.2, 0.5))
+        X = np.arange(x.min(), x.max(), 2)
+        Y = np.arange(y.min(), y.max(), 2)
+        X, Y = np.meshgrid(X, Y)
+        a.plot_surface(X, Y, self.model(self.p, X, Y), rstride=1, cstride=1, cmap=cm.jet)
+        a.set_xlabel('x')
+        a.set_ylabel('y')
+        a.set_zlabel('V')
+        f.canvas.Parent.SetTitle('spike %d' % spike['id'])
 
 
 class TemporalLeastSquares(object):
     """Least squares Levenberg-Marquardt temporal 2 gaussian fit of
-    spike shape"""
+    spike shape on a single channel"""
     def __init__(self, debug=False):
         #self.V0 = None
         #self.V1 = None
@@ -342,8 +387,9 @@ class Extractor(object):
             f.canvas.Parent.SetTitle('spike %d' % spikei)
         return tls.p
 
-    def spike2spatial(self, spike, plot=True):
-        """A more convenient way of plotting spatial fits, one spike at a time"""
+    def spike2xyw(self, spike):
+        """Return x and y coords of spike's chans, plus the weights of its signal
+        at those coords"""
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
@@ -351,7 +397,7 @@ class Extractor(object):
         det = self.sort.detector
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
         spikei = spike['id']
-        wavedata = self.sort.wavedata[spikei, :nchans]
+        wavedata = self.sort.wavedata[spikei, :nchans] # chans in wavedata are sorted
         phasetis = spike['phasetis']
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
@@ -365,24 +411,14 @@ class Extractor(object):
         sls.A = w[maxchani]
         sls.p0 = np.array([x0, y0])
         #sls.p0 = np.array([x[maxchani], y[maxchani]])
+        return x, y, w
+
+    def spike2spatial(self, spike):
+        """A convenient way of plotting spatial fits, one spike at a time"""
+        x, y, w = spike2xyw(spike)
+        sls = self.sls
         sls.calc(x, y, w)
-        if plot:
-            f = pl.figure()
-            from mpl_toolkits.mplot3d import Axes3D
-            from matplotlib import cm
-            a = Axes3D(f)
-            a.scatter(x, y, w, c='k') # actual
-            a.scatter(x, y, sls.model(sls.p, x, y), c='r') # modelled
-            #X, Y = np.meshgrid(x, y)
-            #a.plot_surface(X, Y, sls.model(sls.p, X, Y), color=(0.2, 0.2, 0.2, 0.5))
-            X = np.arange(x.min(), x.max(), 2)
-            Y = np.arange(y.min(), y.max(), 2)
-            X, Y = np.meshgrid(X, Y)
-            a.plot_surface(X, Y, sls.model(sls.p, X, Y), rstride=2, cstride=2, cmap=cm.jet)
-            a.set_xlabel('x')
-            a.set_ylabel('y')
-            a.set_zlabel('V')
-            f.canvas.Parent.SetTitle('spike %d' % spikei)
+        sls.plot(x, y, w)
         return sls.p
 
     def extract_all_XY(self):
