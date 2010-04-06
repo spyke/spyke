@@ -1123,7 +1123,7 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0]) # != chani!
-                s['x0'], s['y0'], = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
+                s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
                 #s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))

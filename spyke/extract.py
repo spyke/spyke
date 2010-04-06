@@ -417,7 +417,7 @@ class Extractor(object):
         """A convenient way of plotting spatial fits, one spike at a time"""
         x, y, w = spike2xyw(spike)
         sls = self.sls
-        sls.calc(x, y, w)
+        sls.calc0(x, y, w)
         sls.plot(x, y, w)
         return sls.p
 
@@ -629,7 +629,7 @@ class Extractor(object):
         sls.A = w[maxchani]
         sls.p0 = np.array([x0, y0])
         #sls.p0 = np.array([x[maxchani], y[maxchani]])
-        sls.calc(x, y, w)
+        sls.calc0(x, y, w)
         return sls.p #sls.p[0], sls.p[1]
         '''
         while True:
