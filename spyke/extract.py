@@ -37,10 +37,12 @@ class SpatialLeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
     def __init__(self, debug=False):
         self.A = None
-        # TODO: mess with fixed sx and sy to find most clusterable vals, test on
-        # 3 column data too
         self.sx = 30
         self.sy = 30
+        self.x0 = None
+        self.y0 = None
+        # TODO: mess with fixed sx and sy to find most clusterable vals, test on
+        # 3 column data too
         self.debug = debug
 
     def calc0(self, x, y, V):
@@ -53,6 +55,7 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.x0, self.y0 = self.p
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
             print('p0 = %r' % self.p0)
@@ -70,6 +73,7 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.A, self.sx, self.sy = self.p
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
             print('p0 = %r' % self.p0)
@@ -89,7 +93,7 @@ class SpatialLeastSquares(object):
     def model1(self, p, x, y):
         """2D elliptical Gaussian"""
         #try:
-        sx, sy, A = p
+        A, sx, sy = p
         return A * g2(self.x0, self.y0, sx, sy, x, y)
         #except Exception as err:
         #    print(err)
@@ -103,20 +107,22 @@ class SpatialLeastSquares(object):
         """Distance of each point to the model function"""
         return self.model1(p, x, y) - V
 
+    def staticmodel(self, x, y):
+        return self.A * g2(self.x0, self.y0, self.sx, self.sy, x, y)
 
-    def plot(self, x, y, w):
+    def plot(self, x, y, w, spike):
         from mpl_toolkits.mplot3d import Axes3D
         from matplotlib import cm
         f = pl.figure()
         a = Axes3D(f)
         a.scatter(x, y, w, c='k') # actual
-        a.scatter(x, y, self.model(self.p, x, y), c='r') # modelled
+        a.scatter(x, y, self.staticmodel(x, y), c='r') # modelled
         #X, Y = np.meshgrid(x, y)
-        #a.plot_surface(X, Y, self.model(self.p, X, Y), color=(0.2, 0.2, 0.2, 0.5))
-        X = np.arange(x.min(), x.max(), 2)
-        Y = np.arange(y.min(), y.max(), 2)
+        #a.plot_surface(X, Y, self.staticmodel(X, Y), color=(0.2, 0.2, 0.2, 0.5))
+        X = np.arange(x.min(), x.max(), 5)
+        Y = np.arange(y.min(), y.max(), 5)
         X, Y = np.meshgrid(X, Y)
-        a.plot_surface(X, Y, self.model(self.p, X, Y), rstride=1, cstride=1, cmap=cm.jet)
+        a.plot_surface(X, Y, self.staticmodel(X, Y), rstride=1, cstride=1, cmap=cm.jet)
         a.set_xlabel('x')
         a.set_ylabel('y')
         a.set_zlabel('V')
@@ -389,7 +395,7 @@ class Extractor(object):
 
     def spike2xyw(self, spike):
         """Return x and y coords of spike's chans, plus the weights of its signal
-        at those coords"""
+        at those coords, and A and p0 initial values from the data"""
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
@@ -404,22 +410,27 @@ class Extractor(object):
         y = det.siteloc[chanis, 1]
 
         w = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
-        sls = self.sls
+        A = w[maxchani]
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
-        sls.A = w[maxchani]
-        sls.p0 = np.array([x0, y0])
-        #sls.p0 = np.array([x[maxchani], y[maxchani]])
-        return x, y, w
+        #p0 = np.array([x0, y0])
+        #p0 = np.array([x[maxchani], y[maxchani]])
+        return x, y, w, A, x0, y0
 
     def spike2spatial(self, spike):
         """A convenient way of plotting spatial fits, one spike at a time"""
-        x, y, w = spike2xyw(spike)
+        x, y, w, A, x0, y0 = self.spike2xyw(spike)
         sls = self.sls
-        sls.calc0(x, y, w)
-        sls.plot(x, y, w)
-        return sls.p
+        sls.A, sls.sx, sls.sy = A, 30, 30 # sigmas need to be reset each time, since they may have been modified by a previous call to this method!
+        sls.p0 = np.array([x0, y0])
+        print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
+        sls.calc0(x, y, w) # A and sigmas fixed
+        print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
+        sls.p0 = np.array([sls.A, sls.sx, sls.sy])
+        sls.calc1(x, y, w) # x0 and y0 fixed
+        print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
+        sls.plot(x, y, w, spike)
 
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
