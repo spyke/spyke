@@ -73,7 +73,7 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.A, self.sx, self.sy = self.p
+        self.sx, self.sy = self.p
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
             print('p0 = %r' % self.p0)
@@ -93,8 +93,8 @@ class SpatialLeastSquares(object):
     def model1(self, p, x, y):
         """2D elliptical Gaussian"""
         #try:
-        A, sx, sy = p
-        return A * g2(self.x0, self.y0, sx, sy, x, y)
+        sx, sy = p
+        return self.A * g2(self.x0, self.y0, sx, sy, x, y)
         #except Exception as err:
         #    print(err)
         #    import pdb; pdb.set_trace()
@@ -427,7 +427,7 @@ class Extractor(object):
         print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
         sls.calc0(x, y, w) # A and sigmas fixed
         print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
-        sls.p0 = np.array([sls.A, sls.sx, sls.sy])
+        sls.p0 = np.array([sls.sx, sls.sy])
         sls.calc1(x, y, w) # x0 and y0 fixed
         print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
         sls.plot(x, y, w, spike)
