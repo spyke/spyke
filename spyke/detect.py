@@ -832,6 +832,7 @@ class Detector(object):
                            ('Vs', np.float32, 2), ('Vpp', np.float32),
                            ('phasetis', np.uint8, 2), ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32),
+                           ('sx', np.float32), ('sy', np.float32),
                            ('dphase', np.int16), # in us
                            ('w0', np.float32), ('w1', np.float32), ('w2', np.float32),
                            ('w3', np.float32), ('w4', np.float32),
@@ -944,7 +945,7 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
-            wavedata2XY = sort.extractor.wavedata2XY
+            wavedata2spatial = sort.extractor.wavedata2spatial
             #wavedata2wcs = sort.extractor.wavedata2wcs
         #lockouts = self.lockouts
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
@@ -1123,7 +1124,7 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0]) # != chani!
-                s['x0'], s['y0'] = wavedata2XY(window, maxchani, phasetis, aligni, x, y)
+                s['x0'], s['y0'], s['sx'], s['sy'] = wavedata2spatial(window, maxchani, phasetis, aligni, x, y)
                 #s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 
             if DEBUG: debug('*** found new spike: %d @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))

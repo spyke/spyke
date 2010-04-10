@@ -73,7 +73,7 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        self.sx, self.sy = self.p
+        self.sx, self.sy = abs(self.p) # keep sigmas +ve
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
             print('p0 = %r' % self.p0)
@@ -185,17 +185,17 @@ class Extractor(object):
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
-            self.weights2XY = self.weights2gaussian
+            self.weights2spatial = self.weights2gaussian
         elif self.XYmethod.lower() == 'spatial mean':
-            self.weights2XY = self.weights2spatialmean
+            self.weights2spatial = self.weights2spatialmean
         elif self.XYmethod.lower() == 'splines 1d fit':
-            self.weights2XY = self.weights2splines
+            self.weights2spatial = self.weights2splines
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['weights2XY'] # can't pickle an instance method, not sure why it even bothers trying
+        del d['weights2spatial'] # can't pickle an instance method, not sure why it even bothers trying
         return d
 
     def __setstate__(self, d):
@@ -493,9 +493,9 @@ class Extractor(object):
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
-        return self.wavedata2XY(wavedata, maxchani, phasetis, aligni, x, y)
+        return self.wavedata2spatial(wavedata, maxchani, phasetis, aligni, x, y)
 
-    def wavedata2XY(self, wavedata, maxchani, phasetis, aligni, x, y):
+    def wavedata2spatial(self, wavedata, maxchani, phasetis, aligni, x, y):
         # Vpp weights seem more clusterable than Vp weights
         weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
         #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
@@ -503,7 +503,7 @@ class Extractor(object):
         # TODO: consider using some feature other than Vp or Vpp, like a wavelet,
         # for extracting weights across chans
 
-        return self.weights2XY(weights, x, y, maxchani)
+        return self.weights2spatial(weights, x, y, maxchani)
 
     def get_Vp_weights(self, wavedata, maxchani, phasetis, aligni):
         """Using just Vp instead of Vpp doesn't seem to improve clusterability"""
@@ -637,11 +637,14 @@ class Extractor(object):
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
         #x0, y0 = x[maxchani], y[maxchani]
-        sls.A = w[maxchani]
+        sls.A, sls.sx, sls.sy = w[maxchani], 30, 30 # sigmas need to be reset each time
         sls.p0 = np.array([x0, y0])
         #sls.p0 = np.array([x[maxchani], y[maxchani]])
-        sls.calc0(x, y, w)
-        return sls.p #sls.p[0], sls.p[1]
+        sls.calc0(x, y, w) # A and sigmas fixed
+        sls.p0 = np.array([sls.sx, sls.sy])
+        sls.calc1(x, y, w) # x0 and y0 fixed
+
+        return sls.x0, sls.y0, sls.sx, sls.sy
         '''
         while True:
             if len(V) < 4: # can't fit Gaussian for spikes with low nchans
