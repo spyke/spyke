@@ -159,8 +159,8 @@ class TemporalLeastSquares(object):
     def model(self, p, ts):
         """Temporal sum of Gaussians"""
         #try:
-        V0, V1, s0, s1, toff = p
-        return V0*g(self.t0, s0, ts) + V1*g(self.t1, s1, ts) + toff
+        V0, V1, s0, s1, Voff = p
+        return V0*g(self.t0, s0, ts) + V1*g(self.t1, s1, ts) + Voff
         #except Exception as err:
         #    print(err)
         #    import pdb; pdb.set_trace()
@@ -354,7 +354,7 @@ class Extractor(object):
                 spike['y0'] = y0
         '''
         for spike in spikes:
-            V0, V1, s0, s1 = self.spike2temporal(spike)
+            V0, V1, s0, s1, Voff = self.spike2temporal(spike)
             spike['s0'], spike['s1'] = abs(s0), abs(s1)
             spike['mVpp'] = AD2uV(V1 - V0)
             spike['mVs'][:] = AD2uV([V0, V1])
@@ -382,9 +382,10 @@ class Extractor(object):
         tls.t0, tls.t1 = t0, t1
         #tls.V0, tls.V1 = V0, V1
         s0, s1 = 60, 60
+        Voff = 0
         #tls.V = V
         #tls.ts = ts
-        tls.p0 = V0, V1, s0, s1
+        tls.p0 = V0, V1, s0, s1, Voff
         tls.calc(ts, V)
         if plot:
             f = pl.figure()
