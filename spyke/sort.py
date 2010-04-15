@@ -67,7 +67,7 @@ class Sort(object):
 
         # how much to scale each dim for better viewing in cluster plots.
         # Other dims are filled in automatically as needed, by auto-scaling
-        self.SCALE = {'y0': 1, 'x0': 2}
+        self.SCALE = {'y0': 1, 'x0': 2, 't':5e-7}
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs

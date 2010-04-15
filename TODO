@@ -1,5 +1,8 @@
 RECENT:
 
+    - for temporal spike modelling, if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
+        - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is
+
     - apply Vpp thresh in get_edges C loop to reduce number of edges - this means having to search for biggest and 2nd biggest maxima near each thresh xing - if you're doing this, may as well return these values so they don't have to be searchd for a 2nd time in check_edges()
 
     - consider using mean instead of median for calculating noise - both seem to give a similar result (initial test on 10sec of data from t=10e6 to 20e6 in ptc18.14 gives mean that is 1.2 X bigger than median, but consistently so across chans), but mean calc is quite a bit faster
