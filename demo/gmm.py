@@ -32,9 +32,53 @@ mins = data.min(axis=0)
 maxs = data.max(axis=0)
 ranges = maxs - mins
 
+
+pos = np.asarray([
+[-27, 1305],
+[33, 1299],
+[-36, 1256],
+[-34, 1237],
+[27, 1250],
+[-35, 1213],
+[-36, 1176],
+[-38, 1151],
+[-38, 1044],
+[12, 1036],
+[-19, 995],
+[-37, 962],
+[-23, 925],
+[55, 950],
+[23, 931],
+[-20, 873],
+[20, 855],
+[23, 800],
+[-7, 781],
+[-28, 741],
+[30, 548],
+[-16, 482],
+[9, 289],
+[-31, 272],
+[-35, 167],
+[-19, 155],
+[30, 151],
+[62, 149],
+[-35, 110],
+[-24, 100],
+[38, 102],
+[-30, 73],
+[-24, 49]])
+
 ndistribs = 50
 distribs = []
-for i in range(ndistribs-1): # exclude the background noise distrib
+for mu in pos:
+    #mu = np.random.random(nd)
+    #mu = mins + mu * ranges
+    xd = pm.NormalDistribution(mu[0], 30)
+    yd = pm.NormalDistribution(mu[1], 30)
+    distrib = pm.ProductDistribution([xd, yd])
+    distribs.append(distrib)
+# add some extra random ones
+for i in range(len(pos), ndistribs):
     mu = np.random.random(nd)
     mu = mins + mu * ranges
     xd = pm.NormalDistribution(mu[0], 30)
@@ -42,6 +86,8 @@ for i in range(ndistribs-1): # exclude the background noise distrib
     distrib = pm.ProductDistribution([xd, yd])
     distribs.append(distrib)
 
+
+'''
 # add background noise distrib, see 2006 Bar-Hillel
 #datamu = data.mean(axis=0)
 #datasigma = data.std(axis=0)
@@ -58,17 +104,18 @@ distrib = pm.ProductDistribution([xd, yd])
 distribs.append(distrib)
 compFix = [0] * ndistribs
 compFix[-1] = 1 # flag to make last distrib have fixed params
+'''
 
 pmdata = pm.DataSet()
 pmdata.fromArray(data)
 
 m = pm.MixtureModel(ndistribs, np.ones(ndistribs)/ndistribs, distribs,
-                    compFix=compFix)
+                    compFix=None)
 #m.modelInitialization(pmdata) # this hangs? only for multivariate distribs, works fine for productdistribs
 posterior, loglikelihood = m.EM(pmdata, 50, 0.1)
 #posterior, loglikelihood = m.randMaxEM(pmdata, 20, 100, 0.5, silent=False)
 
-clusteris = m.classify(pmdata, entropy_cutoff=0.2, silent=True)
+clusteris = m.classify(pmdata, entropy_cutoff=0.5, silent=True)
 
 ncolours = len(COLOURS)
 colouris = clusteris % ncolours

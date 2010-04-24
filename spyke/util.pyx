@@ -88,3 +88,37 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
             s[i] += a[i, j]
         s[i] /= nt # normalize
     return s
+
+def gradient_ascent(np.ndarray[np.float32_t, ndim=2] data,
+                    double sigma, double alpha):
+    """Implement Nick's gradient ascent (mountain climbing) algorithm"""
+    cdef int N = len(data) # total num data points
+    #cdef np.ndarray[np.float32_t, ndim=2] scouts = data
+    cdef int M = N # current num scout points
+    cdef np.ndarray[np.int32_t, ndim=1] clustis = np.arange(N) # indices into data
+    cdef double r = sigma # radius within which scout points are merged
+    cdef int k # num points in vicinity of scout point
+
+    while True:
+        for i in range(M):
+            scout = data[clustis[i]]
+
+            # measure gradient, include only points within 4*sigma
+            # update scout position
+
+        # merge scouts sufficiently close to each other
+        for i in range(M):
+            # M is decr throughout this loop, so this condition will
+            # be reached before this loop completes
+            if i >= M: break # out of for loop
+            scouti = data[clustis[i]]
+            for j in range(i+1, M):
+                if j >= M: break # out of for loop
+
+                # for each pair of scouts, check if any pair is within r of each other
+                scoutj = data[clustis[j]]
+                diff = scouti - scoutj
+                if (diff > r).any(): continue # to next iter
+                if diff**2.sum() <= r:
+                    # merge the scouts
+                    M -= 1
