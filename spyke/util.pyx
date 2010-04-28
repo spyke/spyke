@@ -1,8 +1,8 @@
 """Some functions written in Cython for max performance"""
-
 cimport cython
 import numpy as np
 cimport numpy as np
+
 
 cdef short select_short(short *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
@@ -93,32 +93,46 @@ def gradient_ascent(np.ndarray[np.float32_t, ndim=2] data,
                     double sigma, double alpha):
     """Implement Nick's gradient ascent (mountain climbing) algorithm"""
     cdef int N = len(data) # total num data points
-    #cdef np.ndarray[np.float32_t, ndim=2] scouts = data
-    cdef int M = N # current num scout points
-    cdef np.ndarray[np.int32_t, ndim=1] clustis = np.arange(N) # indices into data
+    cdef np.ndarray[np.float32_t, ndim=2] scouts = data # TODO: hopefully this is a copy
+    cdef int M = N # current num scout points (clusters)
+    cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.arange(N) # cluster indices into data
+    cdef int k = N # num points in vicinity of scout point
+    cdef double sigma2 = sigma**2
     cdef double r = sigma # radius within which scout points are merged
-    cdef int k # num points in vicinity of scout point
+    cdef double r2 = sigma2
+    cdef np.ndarray[np.float32_t, ndim=2] diff
+    cdef double v
+    cdef Py_ssize_t i, j, iteri
 
-    while True:
-        for i in range(M):
-            scout = data[clustis[i]]
-
+    #while True:
+    for iteri in range(10000):
+        # move each scout point up its local gradient
+        for i in range(M): # iterate over all scout points
             # measure gradient, include only points within 4*sigma
-            # update scout position
+            #localdata = data[(data - scout)**2.sum() <= sigma2]
+            diff = data - scouts[i]
+            # mean vector of g-weighted distances between scout point and all data
+            v = (diff * np.exp(-diff**2 / (2*sigma2))).sum(axis=0)
+            # update scout position in direction of v
+            scouts[i] += alpha / k * v
 
-        # merge scouts sufficiently close to each other
+        # merge scout points sufficiently close to each other
         for i in range(M):
-            # M is decr throughout this loop, so this condition will
+            # M may be decr in this loop, so this condition may
             # be reached before this loop completes
             if i >= M: break # out of for loop
-            scouti = data[clustis[i]]
             for j in range(i+1, M):
                 if j >= M: break # out of for loop
-
                 # for each pair of scouts, check if any pair is within r of each other
-                scoutj = data[clustis[j]]
-                diff = scouti - scoutj
+                diff = abs(scouts[i] - scouts[j])
                 if (diff > r).any(): continue # to next iter
-                if diff**2.sum() <= r:
-                    # merge the scouts
-                    M -= 1
+                if (diff**2).sum() <= r2:
+                    # merge the scouts: keep scout i, ditch scout j
+                    clusteris[clusteris == j] = i
+                    clusteris[clusteris > j] -= 1 # decr all clust indices above j
+                    M -= 1 # decr num of scouts (clusters)
+                    print('merging clusters %d and %d' % (i, j))
+        print '.',
+
+    return clusteris
+
