@@ -35,7 +35,7 @@ print('Cython mean: %r' % result)
 print('mydata: %r' % mydata)
 '''
 
-from pylab import figure, gca, scatter
+from pylab import figure, gca, scatter, show
 import scipy.io
 import wx
 
@@ -58,10 +58,10 @@ COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, 
 
 data = scipy.io.loadmat('/data/ptc18/14_full.mat')
 data = data['data']
-data = np.float32(data)
+#data = np.float32(data)
 nd = data.shape[1]
-data = data[:10000] # keep only the 1st 10000 data points for now
-clusteris = util.gradient_ascent(data, sigma=1.0, alpha=0.1)
+data = data[:1000] # keep only the 1st 10000 data points for now
+clusteris = util.gradient_ascent(data, sigma=3.0, alpha=3.0)
 
 
 ncolours = len(COLOURS)
@@ -75,3 +75,4 @@ f.set_facecolor('black')
 f.set_edgecolor('black')
 a.set_axis_bgcolor('black')
 scatter(data[:, 0], data[:, 1], s=1, c=colours, edgecolors='none')
+show()
