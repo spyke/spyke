@@ -53,7 +53,7 @@ WHITE = '#FFFFFF'
 BROWN = '#AF5050'
 GREY = '#555555' # reserve as junk cluster colour
 
-COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN]
+COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 
 
 data = scipy.io.loadmat('/data/ptc18/14_full.mat')
@@ -61,12 +61,12 @@ data = data['data']
 #data = np.float32(data)
 nd = data.shape[1]
 data = data[:10000] # keep only the 1st 10000 data points for now
-clusteris, scouts = util.gradient_ascent(data, sigma=7.0, alpha=3.0)
-
+clusteris, clusters = util.gradient_ascent(data, sigma=7.0, alpha=3.0)
+nclusters = len(clusters)
 
 ncolours = len(COLOURS)
-colouris = clusteris % ncolours
-colours = np.asarray(COLOURS)[colouris]
+samplecolours = COLOURS[clusteris % ncolours]
+clustercolours = COLOURS[np.arange(nclusters) % ncolours]
 #colours[clusteris == -1] = GREY # unclassified points
 f = figure()
 a = gca()
@@ -74,5 +74,6 @@ f.canvas.SetBackgroundColour(wx.BLACK)
 f.set_facecolor('black')
 f.set_edgecolor('black')
 a.set_axis_bgcolor('black')
-scatter(data[:, 0], data[:, 1], s=1, c=colours, edgecolors='none')
+scatter(data[:, 0], data[:, 1], s=1, c=samplecolours, edgecolors='none')
+scatter(clusters[:, 0], clusters[:, 1], c=clustercolours)
 show()
