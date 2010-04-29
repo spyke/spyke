@@ -60,8 +60,8 @@ data = scipy.io.loadmat('/data/ptc18/14_full.mat')
 data = data['data']
 #data = np.float32(data)
 nd = data.shape[1]
-data = data[:1000] # keep only the 1st 10000 data points for now
-clusteris = util.gradient_ascent(data, sigma=3.0, alpha=3.0)
+data = data[:10000] # keep only the 1st 10000 data points for now
+clusteris, scouts = util.gradient_ascent(data, sigma=7.0, alpha=3.0)
 
 
 ncolours = len(COLOURS)

@@ -103,6 +103,9 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
 def gradient_ascent(np.ndarray[np.float64_t, ndim=2] data,
                     double sigma, double alpha):
     """Implement Nick's gradient ascent (mountain climbing) algorithm
+    TODO: keep track of max movement on each iter, use consistently low max movement as
+          automatic exit criteria
+    TODO: add some of Nick's optimizations
     TODO: reverse annealing by starting with small sigma, and gradually increasing it over iters
     TODO: multithreading/multiprocessing
     """
@@ -120,22 +123,7 @@ def gradient_ascent(np.ndarray[np.float64_t, ndim=2] data,
     cdef Py_ssize_t i, j, k, iteri, scouti, clustii
 
     #while True:
-    for iteri in range(1000):
-        # move each scout point up its local gradient
-        for i in range(M): # iterate over all scout points
-            # measure gradient
-            for k in range(ndims):
-                v[k] = 0 # reset v
-            for j in range(N): # iterate over all data points
-                for k in range(ndims): # iterate over dims for each point
-                    # TODO: include only points within 4*sigma, check each dim first for speed
-                    diff = data[j, k] - scouts[i, k]
-                    # v is ndim vector of sum of g-weighted distances between
-                    # current scout point and all data
-                    v[k] += diff * exp(-diff**2 / (2*sigma2))
-            # update scout position in direction of v, normalize by nneighs
-            for k in range(ndims):
-                scouts[i, k] += alpha / nneighs * v[k]
+    for iteri in range(2500):
 
         # merge those scout points sufficiently close to each other
         for i in range(M):
@@ -163,7 +151,24 @@ def gradient_ascent(np.ndarray[np.float64_t, ndim=2] data,
                             clusteris[clustii] -= 1 # decr all clust indices above j
                     M -= 1 # decr num of scouts (clusters)
                     printf(' %d<-%d ', i, j)
+
+        # move each scout point up its local gradient
+        for i in range(M): # iterate over all scout points
+            # measure gradient
+            for k in range(ndims):
+                v[k] = 0 # reset v
+            for j in range(N): # iterate over all data points
+                for k in range(ndims): # iterate over dims for each point
+                    # TODO: include only points within 4*sigma, check each dim first for speed
+                    diff = data[j, k] - scouts[i, k]
+                    # v is ndim vector of sum of g-weighted distances between
+                    # current scout point and all data
+                    v[k] += diff * exp(-diff**2 / (2*sigma2))
+            # update scout position in direction of v, normalize by nneighs
+            for k in range(ndims):
+                scouts[i, k] += alpha / nneighs * v[k]
+
         printf('.')
 
-    return clusteris
+    return clusteris, scouts[:M]
 
