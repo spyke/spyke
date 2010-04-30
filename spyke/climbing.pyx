@@ -74,8 +74,6 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
                 # for each pair of scouts, check if any pair is within r of each other
                 diff2sum = 0 # reset
                 for k in range(ndims):
-                    diff2sum += (scouts[i, k] - scouts[j, k])**2
-                    '''
                     diff = abs(scouts[i, k] - scouts[j, k])
                     if diff > r: # break out of k loop, continue to next j loop
                         continuej = 1
@@ -85,7 +83,6 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
                 if continuej == 1:
                     continuej = 0 # reset
                     continue # to next j loop
-                    '''
                 if diff2sum <= r2:
                     # merge the scouts: keep scout i, ditch scout j
                     # shift all entries at j and above in scouts array down by one
