@@ -54,7 +54,7 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = 5 * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
-    cdef double diff2sum = 0
+    cdef double diff, diff2sum
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
