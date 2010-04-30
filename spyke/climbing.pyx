@@ -16,14 +16,24 @@ cdef extern from "stdio.h":
 @cython.wraparound(False)
 def gradient_ascent(np.ndarray[np.float64_t, ndim=2] data,
                     double sigma, double alpha):
-    """Implement Nick's gradient ascent (mountain climbing) algorithm
+    """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO: keep track of max movement on each iter, use consistently low max movement as
           automatic exit criteria
-    TODO: add some of Nick's optimizations
-    TODO: add freezing of points, for speed and also to leave noise points unclustered
+    TODO: add freezing of points, for speed and also to leave noise points unclustered?
+        - when a scout point has moved less than some distance per iteration for all of the last n iterations, freeze it. Then, in the position update loop, check for frozen scout points
+    TODO: delete scouts that have fewer than n points (at any point during iteration?)
     TODO: reverse annealing by starting with small sigma, and gradually increasing it over iters
-    TODO: maybe annealing of alpha (decreasing it over time)?
+        - or maybe some way of making sigma dynamic for each scout and for each iteration
+    TODO: classify obvious wide flat areas as noise points that shouldn't be clustered:
+        - track the distance each point has travelled during the course of the algorithm. When done, plot the distribution of travel distances, and maybe you'll get something bimodal, and choose a cutoff travel distance past which any point that travelled further is considered a noise point
+    TODO: visualize algorithm in real time to see what exactly it's doing, and why some clusters are split while others are merged
+    TODO: maybe annealing of alpha (decreasing it over time)? NVS sounds skeptical
+    TODO: try using simplex algorithm for scout position update step, though that might miss local maxima
     TODO: multithreading/multiprocessing
+    TODO: turn off checks for ZeroDivisionError, though I doubt that slows things down much
+    TODO: add subsampling to reduce initial number of scout points
+    TODO: rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation?
+    TODO: try using the n nearest neighbours to calculate gradient, instead of a guassian with a sigma. This makes it scale free, but NVS says this often results in situations where the gradient is 0 for some reason
     """
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
@@ -45,7 +55,7 @@ def gradient_ascent(np.ndarray[np.float64_t, ndim=2] data,
     cdef int continuej = 0
 
     #while True:
-    for iteri in range(2500):
+    for iteri in range(1000):
 
         # merge those scout points sufficiently close to each other
         for i in range(M):
@@ -98,10 +108,9 @@ def gradient_ascent(np.ndarray[np.float64_t, ndim=2] data,
                         v[k] += diffs[k] * exp(-diffs2[k] / twosigma2)
                     nneighs += 1
             # update scout position in direction of v, normalize by nneighs
-            if nneighs != 0:
-                for k in range(ndims):
-                    scouts[i, k] += alpha / nneighs * v[k]
-            # else: freeze this scout point, since it'll never move again?
+            # nneighs will never be 0, because each scout point starts as a data point
+            for k in range(ndims):
+                scouts[i, k] += alpha / nneighs * v[k]
 
         printf('.')
 
