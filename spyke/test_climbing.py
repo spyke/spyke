@@ -2,11 +2,12 @@ import numpy as np
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
-from climbing import gradient_ascent # .pyx file
+from climbing import climb # .pyx file
 
 from pylab import figure, gca, scatter, show
 import scipy.io
 import wx
+import time
 
 
 RED = '#FF0000'
@@ -30,7 +31,10 @@ data = data['data']
 #data = np.float32(data)
 nd = data.shape[1]
 data = data[:10000] # keep only the 1st 10000 data points for now
-clusteris, clusters = gradient_ascent(data, sigma=7.0, alpha=3.0)
+t0 = time.clock()
+clusteris, clusters = climb(data, sigma=7.0, alpha=3.0)
+print('climb took %.3f sec' % (time.clock()-t0))
+
 nclusters = len(clusters)
 
 ncolours = len(COLOURS)
