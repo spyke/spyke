@@ -14,11 +14,13 @@ cdef extern from "stdio.h":
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
+#@cython.cdivision(True) might be necessary to release the GIL?
 def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - keep track of max movement on each iter, use consistently low max movement as
           automatic exit criteria
+            - alternative: keep track of how long it's been since the last scout merger, and exit based on that
         - add freezing of points, for speed and also to leave noise points unclustered?
             - when a scout point has moved less than some distance per iteration for all of the last n iterations, freeze it. Then, in the position update loop, check for frozen scout points
         - delete scouts that have fewer than n points (at any point during iteration?)
@@ -89,7 +91,7 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
                         continuej = 1
                         break # out of k loop
                     else:
-                        diff2sum += diff**2
+                        diff2sum += diff * diff
                 if continuej == 1:
                     continuej = 0 # reset
                     continue # to next j loop
@@ -126,7 +128,7 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
                         continuej = 1
                         break # out of k loop
                     else:
-                        diffs2[k] = diffs[k]**2 # used twice, so calc it only once
+                        diffs2[k] = diffs[k] * diffs[k] # used twice, so calc it only once
                     diff2sum += diffs2[k]
                 if continuej == 1:
                     continuej = 0 # reset
