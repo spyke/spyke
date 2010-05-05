@@ -5,7 +5,7 @@ cimport numpy as np
 
 cdef extern from "math.h":
     #double sqrt(double x)
-    double abs(double x)
+    double fabs(double x)
     double exp(double x)
 
 cdef extern from "stdio.h":
@@ -14,7 +14,7 @@ cdef extern from "stdio.h":
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-#@cython.cdivision(True) might be necessary to release the GIL?
+@cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
@@ -37,7 +37,7 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
         - instead of merging the higher indexed scout into the lower indexed one, you should really merge the one with the lower density estimate into the one with the higher density estimate - otherwise you potentially end up deleting the scout that's closer to the local max density, which probably sets you back several iterations
             - this would require storing all the density calculations - not a big deal
             - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, densities, still) except for the clusteris array, then proceed as usual
-        - maybe to deal with clusters that are oversplit,
+        - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that but up against those of the other scout
 
         - try using simplex algorithm for scout position update step, though that might miss local maxima
         - multithreading/multiprocessing
@@ -57,36 +57,41 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
     cdef int M = N # current num scout points (clusters)
     cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.arange(N) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
-    cdef np.uint8_t maxstill = 25
+    cdef np.uint8_t maxstill = 100
     cdef double sigma2 = sigma**2
     cdef double twosigma2 = 2 * sigma2
-    cdef double rmerge = sigma / 2.0 # radius within which scout points are merged
+    cdef double rmerge = sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge**2
     cdef int nneighs # num points in vicinity of scout point
-    cdef double rneigh = 5 * sigma # radius around scout to include data for gradient calc
+    cdef double rneigh = 4 * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
     cdef double diff, diff2sum, move, movesum
-    cdef double minmovesum = 0.05 * sigma * ndims
+    cdef double minmovesum = 0.000000000001 * sigma * ndims
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
-    cdef Py_ssize_t i, j, k, iteri, scouti, clustii
-    cdef int continuej = 0
+    cdef Py_ssize_t i, j, k, scouti, clustii
+    cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
 
-    #while True:
-    for iteri in range(5000):
+    while True:
+
+        if nnomerges == maxnnomerges:
+            break
 
         # merge pairs of scout points sufficiently close to each other
+        merged = 0
         for i in range(M):
             # M may be decr in this loop, so this condition may
             # be reached before this loop completes
             if i >= M: break # out of for loop
             for j in range(i+1, M):
                 if j >= M: break # out of for loop
+                if still[i] > maxstill and still[j] > maxstill: # both scouts are frozen
+                    continue
                 # for each pair of scouts, check if any pair is within rmerge of each other
-                diff2sum = 0 # reset
+                diff2sum = 0.0 # reset
                 for k in range(ndims):
-                    diff = abs(scouts[i, k] - scouts[j, k])
+                    diff = fabs(scouts[i, k] - scouts[j, k])
                     if diff > rmerge: # break out of k loop, continue to next j loop
                         continuej = 1
                         break # out of k loop
@@ -109,22 +114,28 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
                         elif clusteris[clustii] > j:
                             clusteris[clustii] -= 1 # decr all clust indices above j
                     M -= 1 # decr num of scouts (clusters)
-                    printf(' %d<-%d ', i, j)
+                    #printf(' %d<-%d ', i, j)
+                    printf('M')
+                    merged = 1
+        if merged == 0:
+            nnomerges += 1
+        else:
+            nnomerges = 0
 
         # move each scout point up its local gradient
         for i in range(M): # iterate over all scout points
             # skip frozen scout points
-            if still[i] > maxstill:
+            if still[i] == maxstill:
                 continue
             # measure gradient
             nneighs = 0 # reset
             for k in range(ndims):
-                v[k] = 0 # reset
+                v[k] = 0.0 # reset
             for j in range(N): # iterate over all data points, check if they're within rneigh
-                diff2sum = 0 # reset
+                diff2sum = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
                     diffs[k] = data[j, k] - scouts[i, k]
-                    if abs(diffs[k]) > rneigh: # break out of k loop, continue to next j loop
+                    if fabs(diffs[k]) > rneigh: # break out of k loop, continue to next j loop
                         continuej = 1
                         break # out of k loop
                     else:
@@ -141,20 +152,27 @@ def climb(np.ndarray[np.float64_t, ndim=2] data, double sigma, double alpha):
                     nneighs += 1
             # update scout position in direction of v, normalize by nneighs
             # nneighs will never be 0, because each scout point starts as a data point
-            movesum = 0 # reset
+            movesum = 0.0 # reset
             for k in range(ndims):
                 move = alpha / nneighs * v[k]
-                movesum += move # to save time, just take sum instead of sum of squares
+                movesum += fabs(move) # to save time, just take sum instead of sum of squares
                 scouts[i, k] += move
+            #printf(',%f', movesum)
             if movesum < minmovesum:
                 still[i] += 1
             else:
                 still[i] = 0 # reset stillness counter for this scout
 
         printf('.')
+        iteri += 1
 
-    nmoving = (still[:M] <= maxstill).sum()
-    print('nmoving: %d' % nmoving)
-
+    nmoving = (still[:M] < maxstill).sum()
+    print('\nniters: %d' % iteri)
+    print('nscouts: %d' % M)
+    print('nmoving: %d, minmovesum: %f' % (nmoving, minmovesum))
+    print('sigma: %.2f, rneigh: %.2f, rmerge: %.2f, alpha: %.2f' % (sigma, rneigh, rmerge, alpha))
+    print 'minmovesum:', minmovesum
+    print('still array:')
+    print still[:M]
     return clusteris, scouts[:M]
 

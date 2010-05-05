@@ -32,7 +32,7 @@ data = data['data']
 nd = data.shape[1]
 data = data[:10000] # keep only the 1st 10000 data points for now
 t0 = time.clock()
-clusteris, clusters = climb(data, sigma=7.0, alpha=3.0)
+clusteris, clusters = climb(data, sigma=5.0, alpha=1.0)
 print('climb took %.3f sec' % (time.clock()-t0))
 
 nclusters = len(clusters)
@@ -42,6 +42,7 @@ samplecolours = COLOURS[clusteris % ncolours]
 clustercolours = COLOURS[np.arange(nclusters) % ncolours]
 #colours[clusteris == -1] = GREY # unclassified points
 f = figure()
+f.subplots_adjust(0, 0, 1, 1)
 a = gca()
 f.canvas.SetBackgroundColour(wx.BLACK)
 f.set_facecolor('black')
