@@ -286,7 +286,7 @@ class Sort(object):
             print(neuronfname)
             spikets.tofile(os.path.join(path, neuronfname)) # save it
 
-    def get_param_matrix(self, dims=None):
+    def get_param_matrix(self, dims=None, scale=True):
         """Organize parameters in dims from all spikes into a
         data matrix, each column corresponds to a dim"""
         # np.column_stack returns a copy, not modifying the original array
@@ -304,13 +304,14 @@ class Sort(object):
                 params.append( np.float32(self.spikes[dim]) )
         X = np.column_stack(params)
 
-        # for better visualization, auto scale each X column (each param) relative to x0 dim
-        p = self.probe
-        for dim, col in zip(dims, X.T): # iterate over columns
-            if dim not in self.SCALE:
-                colmed = np.median(col)
-                self.SCALE[dim] = np.sign(colmed) * p.get_max_xsep() / colmed
-            col *= self.SCALE[dim]
+        if scale:
+            # for better visualization, auto scale each X column (each param) relative to x0 dim
+            p = self.probe
+            for dim, col in zip(dims, X.T): # iterate over columns
+                if dim not in self.SCALE:
+                    colmed = np.median(col)
+                    self.SCALE[dim] = np.sign(colmed) * p.get_max_xsep() / colmed
+                col *= self.SCALE[dim]
         return X
 
     def apply_cluster(self, cluster):
