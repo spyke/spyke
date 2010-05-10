@@ -198,6 +198,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     if subsample > 1:
         # for each unclusterd point, find the closest clustered point, and assign
         # it to the same cluster
+        # TODO: this seems quite slow. Optimize somehow?
         print('Finding nearest clustered points for each unclustered point')
         for j in range(N): # iterate over all data points
             if clusteris[j] >= 0: # point already has a valid cluster index

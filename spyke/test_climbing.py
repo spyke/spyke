@@ -41,9 +41,11 @@ data = scipy.io.loadmat('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/14_full.mat')
 data = data['data']
 data = np.float32(data)
 '''
-data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/14_full_x0_y0_t_Vpp.npy')
-data = data[:100000, :3] # limit npoints and ndims
+#data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/14_full_x0_y0_t_Vpp.npy')
+data = np.load('/data/ptc15/tr7c/92 - track 7c mseq32 0.4deg/92_full_x0_y0_t_Vpp.npy')
+data = data[:10000, :3] # limit npoints and ndims
 nd = data.shape[1]
+
 xstd = data[:, 0].std()
 # normalize x and y by xstd
 for dim in data.T[:2]: # iter over columns:
@@ -56,17 +58,17 @@ if data.shape[1] > 2:
     tmin = t.min()
     tmax = t.max()
     tspan = tmax - tmin
-    scale = 1.0 / (60*60*1e6) * tspan
+    tscale = 1.0 / (60*60*1e6) * tspan
     t -= tmin
     t /= tmax
-    t *= scale
+    t *= tscale
     # normalize all other dims by their std
     for dim in data.T[3:]: # iter over columns:
         dim -= dim.mean()
         dim /= dim.std()
 
 t0 = time.clock()
-clusteris, clusters = climb(data, sigma=0.25, alpha=1.0, subsample=10, maxstill=100)
+clusteris, clusters = climb(data, sigma=0.25, alpha=1.0, subsample=1, maxstill=100)
 print('climb took %.3f sec' % (time.clock()-t0))
 
 nclusters = len(clusters)
