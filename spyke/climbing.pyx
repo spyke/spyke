@@ -45,10 +45,6 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         - multithreading/multiprocessing
             - NVS thinks you could leave the merging step as a thread running in parallel with the gradient step (which itself could be split up easily into multiple threads) - although now with subsampling, the slow steps are mostly the gradient calcs, since there are far fewer scouts to merge to begin with
 
-        - add subsampling to reduce initial number of scout points
-        - instead of subsampling or duplicating all data as scouts, try starting with a regularly spaced grid of scout points, spaced at intervals slightly less than the smallest cluster. This will especially speed things up for really big data sets, where you'd otherwise start with an enormous number of scouts
-            - with any kind of subsampling, the question is how to associate unsampled points with scout points - probably keep track of how each original scout was merged into subsequent ones, and then associate unsampled points with their nearest original scout position - maybe do the association at the start, before any mergers happen
-
         - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation?
         - try using the n nearest neighbours to calculate gradient, instead of a guassian with a sigma. This makes it scale free, but NVS says this often results in situations where the gradient is 0 for some reason
 
@@ -61,6 +57,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             - alternative: keep track of how long it's been since the last scout merger, and exit based on that
         - add freezing of points, for speed?
             - when a scout point has moved less than some distance per iteration for all of the last n iterations, freeze it. Then, in the position update loop, check for frozen scout points
+        - add subsampling to reduce initial number of scout points
 
 
     """
@@ -80,7 +77,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef double rneigh = 4 * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
     cdef double diff, diff2sum, mindiff2sum, move, movesum
-    cdef double minmovesum = 0.0001 * sigma * ndims
+    cdef double minmovesum = 0.0001 * sigma * ndims # maybe this should depend on alpha too, and if proper sum of squares distance was calculated, it wouldn't have to depend on ndims
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
@@ -198,7 +195,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     if subsample > 1:
         # for each unclusterd point, find the closest clustered point, and assign
         # it to the same cluster
-        # TODO: this seems quite slow. Optimize somehow?
+        # TODO: this seems quite slow. Optimize somehow? Maybe swap inner and outer loops?
         print('Finding nearest clustered points for each unclustered point')
         for j in range(N): # iterate over all data points
             if clusteris[j] >= 0: # point already has a valid cluster index

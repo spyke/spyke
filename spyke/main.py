@@ -1505,7 +1505,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.extract_pane.Enable(enable)
         try: self.sort.extractor
         except AttributeError: enable = False # no params extracted, or .sort doesn't exist
-        self.cluster_pane.Enable(enable)
+        self.manual_cluster_pane.Enable(enable)
         try:
             if len(self.sort.clusters) == 0: enable = False # no clusters exist yet
         except AttributeError: enable = False

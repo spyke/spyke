@@ -1,5 +1,15 @@
 RECENT:
 
+    - automated clustering:
+        - select dims to use for clustering - multiselect listctrl
+        - set climb params
+        - normalize appropriately (differently than for plotting, or maybe should do it the same, to make things more apparent)
+        - merge and delete clusters
+        - control density fraction of max outside of which you throw away noise points (just a global control, or per cluster?)
+        - plot ellipsoids representing the position of each cluster and 1 std out in each clustered dimension
+
+    - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
+
     - for temporal spike modelling, if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
         - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is
 
