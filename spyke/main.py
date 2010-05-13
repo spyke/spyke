@@ -143,7 +143,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.inclr_spin_ctrl.SetValue(detect.Detector.DEFINCLR)
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
-    def set_auto_cluster_pane_defaults(self):
+    def set_cluster_pane_defaults(self):
         for i in range(3): # select 1st 3 cluster dims by default
             self.dimlist.Select(i, on=True)
         s = self.sort
@@ -478,13 +478,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: cf.glyph # glyph already plotted?
         except AttributeError: self.OnClusterPlot() # create glyph on first open
         self.AddCluster(cluster)
+        return cluster
 
     def AddCluster(self, cluster):
         """Add cluster to GUI"""
         cf = self.OpenFrame('cluster')
         dims = self.GetDimNames()
         cf.add_ellipsoid(cluster, dims)
-        self.clist.SetItemCount(len(self.sort.neurons))
+        self.clist.SetItemCount(len(self.sort.neurons)) # TODO: shouldn't this really be len(self.sort.clusters) ??????????
         self.clist.RefreshItems()
         self.clist.DeSelectAll()
         self.clist.Select(len(self.sort.neurons) - 1) # select newly created item
@@ -770,6 +771,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         evt.Skip()
 
     def OnClimb(self, evt=None):
+        """Climb button press"""
         # grab dims
         i = self.dimlist.getSelection()
         if len(i) == 0: raise RuntimeError('No cluster dimensions selected')
@@ -784,7 +786,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 d -= d.mean()
                 d /= x0std
             elif dim == 't':
-                # for time, subtract the min time, divide by the max time (this gives you time from 0 to 1), then scale by 1.0 for every hour of recording
+                # for time, subtract the min time, divide by the max time
+                # (this gives you time from 0 to 1), then scale by 1.0 for
+                # every hour of recording
                 tmin = d.min()
                 tmax = d.max()
                 tspan = tmax - tmin
@@ -798,18 +802,35 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 d /= d.std()
 
         # grab climbing params
-        self.update_sort_from_auto_cluster_pane()
+        self.update_sort_from_cluster_pane()
         s = self.sort
         t0 = time.clock()
-        clusteris, clusters = climb(data, sigma=s.sigma, alpha=s.alpha,
-                                    subsample=s.subsample, maxstill=s.maxstill)
+        clusteris, positions = climb(data, sigma=s.sigma, alpha=s.alpha,
+                                     subsample=s.subsample, maxstill=s.maxstill)
         print('climb took %.3f sec' % (time.clock()-t0))
 
+        sf = self.frames['sort']
+        for nid, pos in zip(np.unique(clusteris), positions): # nids come out sorted
+            spikeis, = np.where(clusteris == nid)
+            cluster = self.OnAddCluster()
+            neuron = cluster.neuron
+            sf.MoveSpikes2Neuron(spikeis, neuron, update=True)
+            # TODO: update cluster.ellipsoid's params
+            '''
+            neuron.pos = pos
+            neuron.std = std
+            '''
+        '''
+        s.update_uris() # update unsorted spike indices
+        sf.slist.SetItemCount(len(s.uris))
+        sf.slist.RefreshItems() # refresh the list
+        '''
         # populate cluster list(s) and sort window
+        self.ColourPoints(s.clusters.values())
 
         # auto plot cluster space
 
-    def update_sort_from_auto_cluster_pane(self):
+    def update_sort_from_cluster_pane(self):
         s = self.sort
         s.sigma = float(self.sigma_text_ctrl.GetValue())
         s.alpha = float(self.alpha_text_ctrl.GetValue())
@@ -1119,67 +1140,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def CloseSortFile(self):
         self.DeleteSort()
         self.EnableSortWidgets(False)
-    '''
-    def OpenSortAndSpikeFile(self, fname):
-        """Open an old .sort file that has both a Sort and spikes in it"""
-        self.DeleteSort() # delete any existing Sort
-        print('opening sort file %r' % fname)
-        t0 = time.time()
-        f = open(fname, 'rb')
-        print('loading Sort')
-        sort = np.load(f)
-        print('sort was %d bytes long' % f.tell())
-        sort = sort.item() # pull sort object out of array
-        self.sort = sort
-        sortProbeType = type(sort.probe)
-        if self.hpstream != None:
-            streamProbeType = type(self.hpstream.probe)
-            if sortProbeType != streamProbeType:
-                self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
-                                   % (sortProbeType, streamProbeType))
 
-        print('loading spikes')
-        spikes = np.load(f)
-        sort.spikes = spikes
-        sort.update_spike_lists()
-        f.close()
-        print('done opening sort file, took %.3f sec' % (time.time()-t0))
-
-        wavefname = os.path.splitext(fname)[0] + '.wave'
-        sort.wavedata = self.OpenWaveFile(wavefname)
-        sort.stream = self.hpstream # restore missing stream object to Sort
-        self.SetSampfreq(sort.sampfreq)
-        self.SetSHCorrect(sort.shcorrect)
-        self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
-        self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
-        if self.srff == None: # no .srf file is open
-            self.notebook.Show(True) # lets us do stuff with the Sort
-        for detection in sort.detections.values(): # restore detections to detection list
-            self.append_detection_list(detection)
-
-        sf = self.OpenFrame('sort') # ensure it's open
-        # restore unsorted spike virtual listctrl
-        sf.slist.SetItemCount(len(sort.uris))
-        sf.slist.RefreshItems()
-
-        # do this here first in case no clusters exist and hence self.AddCluster
-        # is never called, yet you want spikes to be plotted in the cluster frame:
-        cf = self.OpenFrame('cluster')
-        try: cf.glyph # glyph already plotted?
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
-        # try and reset camera view and roll to where it was last saved
-        try: cf.view, cf.roll = sort.view, sort.roll
-        except AttributeError: pass
-        self.RestoreClusters2GUI()
-
-        self.sortfname = fname # bind it now that it's been successfully loaded
-        self.SetTitle(self.srffname + ' | ' + self.sortfname)
-        if sort.detector != None:
-            self.update_from_detector(sort.detector)
-        self.EnableSortWidgets(True)
-        print('done opening sort file')
-    '''
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort file, try and open a .wave file
         with the same name, restore the stream"""
@@ -1565,9 +1526,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.extract_pane.Enable(enable)
         try: self.sort.extractor
         except AttributeError: enable = False # no params extracted, or .sort doesn't exist
-        self.manual_cluster_pane.Enable(enable)
-        self.auto_cluster_pane.Enable(enable)
-        if enable: self.set_auto_cluster_pane_defaults()
+        self.cluster_pane.Enable(enable)
+        if enable: self.set_cluster_pane_defaults()
         try:
             if len(self.sort.clusters) == 0: enable = False # no clusters exist yet
         except AttributeError: enable = False

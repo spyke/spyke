@@ -1082,7 +1082,7 @@ class SortFrame(wxglade_gui.SortFrame):
         if neuron == self.nslist.neuron:
             self.nslist.neuron = None
 
-    def MoveSpikes2Neuron(self, spikeis, neuron=None):
+    def MoveSpikes2Neuron(self, spikeis, neuron=None, update=True):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.
         If neuron is None, create a new one"""
         spikeis = toiter(spikeis)
@@ -1093,9 +1093,10 @@ class SortFrame(wxglade_gui.SortFrame):
             neuron = self.sort.create_neuron()
         neuron.spikeis = np.union1d(neuron.spikeis, spikeis) # update
         spikes['nid'][ris] = neuron.id
-        self.sort.update_uris()
-        self.slist.SetItemCount(len(self.sort.uris))
-        self.slist.RefreshItems() # refresh the list
+        if update:
+            self.sort.update_uris()
+            self.slist.SetItemCount(len(self.sort.uris))
+            self.slist.RefreshItems() # refresh the list
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list

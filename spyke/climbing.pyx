@@ -65,7 +65,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int ndims = data.shape[1] # num cols in data
     cdef int M # current num scout points (clusters)
     cdef int nsamples
-    cdef np.ndarray[np.float32_t, ndim=2] scouts
+    cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
     cdef np.ndarray[np.int32_t, ndim=1] scoutis # potentially, indices sumsampling data
     cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
