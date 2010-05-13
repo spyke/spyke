@@ -751,6 +751,20 @@ class CListCtrl(SpykeListCtrl):
         return cids[row]
 
 
+class DimListCtrl(SpykeListCtrl):
+    """A virtual ListCtrl for displaying dimensions.
+    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
+    def __init__(self, *args, **kwargs):
+        SpykeListCtrl.__init__(self, *args, **kwargs)
+        #self.SetColumnWidth(0, 20)
+        self.dims = ['x0', 'y0', 't', 'Vpp']
+        #self.InsertColumn(0, 'dim')
+        self.SetItemCount(len(self.dims))
+
+    def OnGetItemText(self, row, col):
+        return self.dims[row]
+
+
 class NSListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for displaying a neuron's spikes.
     The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
@@ -959,6 +973,7 @@ def revcmp(x, y):
     Return negative if y<x, zero if y==x, positive if y>x"""
     return cmp(y, x)
 
+
 class Gaussian(object):
     """Gaussian function, works with ndarray inputs"""
     def __init__(self, mu, sigma):
@@ -975,6 +990,7 @@ class Gaussian(object):
     def __getitem__(self, x):
         """Called when self is indexed into"""
         return self(x)
+
 
 def g(x0, sx, x):
     """1-D Gaussian"""

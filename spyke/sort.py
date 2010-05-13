@@ -69,6 +69,12 @@ class Sort(object):
         # Other dims are filled in automatically as needed, by auto-scaling
         self.SCALE = {'y0': 1, 'x0': 2, 't':5e-7}
 
+        # cluster density climbing params
+        self.sigma = 0.25
+        self.alpha = 1.0
+        self.subsample = 1
+        self.maxstill = 100
+
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs
         self._nid = 0 # used to count off unique neuron IDs

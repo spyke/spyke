@@ -4,6 +4,12 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+import numpy as np
+import pyximport
+pyximport.install(setup_args={'include_dirs':[np.get_include()]})
+
+from climbing import climb # .pyx file
+
 import wx
 import wx.html
 import wx.py
@@ -13,8 +19,6 @@ import time
 import datetime
 import gc
 import cPickle
-
-import numpy as np
 
 spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
 sys.path.insert(0, spykepath)
@@ -138,6 +142,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.lockr_spin_ctrl.SetValue(detect.Detector.DEFLOCKR)
         self.inclr_spin_ctrl.SetValue(detect.Detector.DEFINCLR)
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
+
+    def set_auto_cluster_pane_defaults(self):
+        for i in range(3): # select 1st 3 cluster dims by default
+            self.dimlist.Select(i, on=True)
+        s = self.sort
+        self.sigma_text_ctrl.SetValue(str(s.sigma))
+        self.alpha_text_ctrl.SetValue(str(s.alpha))
+        self.subsample_spin_ctrl.SetValue(s.subsample)
+        self.maxstill_spin_ctrl.SetValue(s.maxstill)
 
     def OnNew(self, evt):
         self.CreateNewSort()
@@ -755,6 +768,53 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if key == wx.WXK_DELETE:
             self.delete_selected_detections()
         evt.Skip()
+
+    def OnClimb(self, evt=None):
+        # grab dims
+        i = self.dimlist.getSelection()
+        if len(i) == 0: raise RuntimeError('No cluster dimensions selected')
+        dims = np.asarray(self.dimlist.dims)[i]
+        data = self.sort.get_param_matrix(dims=dims, scale=False)
+
+        # scale data
+        x0 = self.sort.get_param_matrix(dims=['x0'], scale=False)
+        x0std = x0.std()
+        for dim, d in zip(dims, data.T):
+            if dim in ['x0', 'y0']:
+                d -= d.mean()
+                d /= x0std
+            elif dim == 't':
+                # for time, subtract the min time, divide by the max time (this gives you time from 0 to 1), then scale by 1.0 for every hour of recording
+                tmin = d.min()
+                tmax = d.max()
+                tspan = tmax - tmin
+                tscale = 1.0 / (60*60*1e6) * tspan
+                d -= tmin
+                d /= tmax
+                d *= tscale
+            else:
+                # normalize all other dims by their std
+                d -= d.mean()
+                d /= d.std()
+
+        # grab climbing params
+        self.update_sort_from_auto_cluster_pane()
+        s = self.sort
+        t0 = time.clock()
+        clusteris, clusters = climb(data, sigma=s.sigma, alpha=s.alpha,
+                                    subsample=s.subsample, maxstill=s.maxstill)
+        print('climb took %.3f sec' % (time.clock()-t0))
+
+        # populate cluster list(s) and sort window
+
+        # auto plot cluster space
+
+    def update_sort_from_auto_cluster_pane(self):
+        s = self.sort
+        s.sigma = float(self.sigma_text_ctrl.GetValue())
+        s.alpha = float(self.alpha_text_ctrl.GetValue())
+        s.subsample = self.subsample_spin_ctrl.GetValue()
+        s.maxstill = self.maxstill_spin_ctrl.GetValue()
 
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
@@ -1506,6 +1566,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: self.sort.extractor
         except AttributeError: enable = False # no params extracted, or .sort doesn't exist
         self.manual_cluster_pane.Enable(enable)
+        self.auto_cluster_pane.Enable(enable)
+        if enable: self.set_auto_cluster_pane_defaults()
         try:
             if len(self.sort.clusters) == 0: enable = False # no clusters exist yet
         except AttributeError: enable = False
