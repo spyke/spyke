@@ -23,20 +23,19 @@ from spyke.plot import CMAP, CMAPPLUSJUNK, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 class Cluster(object):
     """Just a simple container for multidim ellipsoid parameters. A
-    Cluster will always correspond to a Neuron. But, if manual sorting is enabled
-    (which it isn't), not all Neurons will necessarily have a cluster."""
+    Cluster will always correspond to a Neuron"""
     def __init__(self, neuron, ellipsoid=None):
         self.neuron = neuron
         self.ellipsoid = ellipsoid
         # cluster attribs store true values of each dim, unscaled by the
         # visualization sort.SCALE factor
-        self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':100, 'V0':50, 'V1':50, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':200, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
+        self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
         self.ori = {'x0':{}, 'y0':{}, 'sx':{}, 'sy':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'w0':{}, 'w1':{}, 'w2':{}, 'w3':{}, 'w4':{}, 'dphase':{}, 't':{}, 's0':{}, 's1':{}, 'mVpp':{}, 'mV0':{}, 'mV1':{}, 'mdphase':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':10, 'y0':20, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
+        self.scale = {'x0':0.25, 'y0':0.25, 'sx':0, 'sy':0, 'Vpp':0.25, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0.25, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
 
     def get_id(self):
         return self.neuron.id
@@ -160,16 +159,16 @@ class SpykeMayaviScene(MayaviScene):
 
         if dim != None and sign != None:
             if modifiers == wx.MOD_NONE: # adjust pos slowly
-                cluster.pos[dim] += sign * 1 / SCALE[dim]
+                cluster.pos[dim] += sign * 0.05 / SCALE[dim]
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
             elif modifiers == wx.MOD_NONE|wx.MOD_ALT: # adjust pos quickly
-                cluster.pos[dim] += sign * 5 / SCALE[dim]
+                cluster.pos[dim] += sign * 0.25 / SCALE[dim]
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
             elif modifiers == wx.MOD_SHIFT: # adjust scale slowly
-                cluster.scale[dim] += sign * 1 / SCALE[dim]
+                cluster.scale[dim] += sign * 0.05 / SCALE[dim]
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif modifiers == wx.MOD_SHIFT|wx.MOD_ALT: # adjust scale quickly
-                cluster.scale[dim] += sign * 5 / SCALE[dim]
+                cluster.scale[dim] += sign * 0.25 / SCALE[dim]
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif event.ControlDown(): # adjust ori
                 # TODO: ori adjustment doesn't take SCALE into account!

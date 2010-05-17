@@ -724,7 +724,7 @@ class NListCtrl(SpykeListCtrl):
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         self.InsertColumn(0, 'nID')
-        self.SetColumnWidth(0, 30)
+        self.SetColumnWidth(0, 29)
 
     def OnGetItemText(self, row, col):
         sort = self.GetTopLevelParent().sort
@@ -771,7 +771,7 @@ class NSListCtrl(SpykeListCtrl):
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         self.InsertColumn(0, 'sID')
-        self.SetColumnWidth(0, 60)
+        self.SetColumnWidth(0, 53)
         self._neuron = None
 
     def OnGetItemText(self, row, col):

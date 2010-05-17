@@ -528,6 +528,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             self.clist.Select(len(self.sort.clusters)-1) # select last one
 
+    def OnMergeClusters(self, evt=None):
+        """Cluster pane Merge cutton click"""
+        pass
+
     def OnCListSelect(self, evt, cluster=None):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
@@ -771,35 +775,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         evt.Skip()
 
     def OnClimb(self, evt=None):
-        """Climb button press"""
+        """Cluster pane Climb button click"""
         # grab dims
         i = self.dimlist.getSelection()
         if len(i) == 0: raise RuntimeError('No cluster dimensions selected')
         dims = np.asarray(self.dimlist.dims)[i]
-        data = self.sort.get_param_matrix(dims=dims, scale=False)
-
-        # scale data
-        x0 = self.sort.get_param_matrix(dims=['x0'], scale=False)
-        x0std = x0.std()
-        for dim, d in zip(dims, data.T):
-            if dim in ['x0', 'y0']:
-                d -= d.mean()
-                d /= x0std
-            elif dim == 't':
-                # for time, subtract the min time, divide by the max time
-                # (this gives you time from 0 to 1), then scale by 1.0 for
-                # every hour of recording
-                tmin = d.min()
-                tmax = d.max()
-                tspan = tmax - tmin
-                tscale = 1.0 / (60*60*1e6) * tspan
-                d -= tmin
-                d /= tmax
-                d *= tscale
-            else:
-                # normalize all other dims by their std
-                d -= d.mean()
-                d /= d.std()
+        data = self.sort.get_param_matrix(dims=dims, scale=True)
+        if 'Vpp' not in dims: # get Vpp data simply for plotting purposes
+            Vppdata = self.sort.get_param_matrix(dims=['Vpp'], scale=True)
 
         # grab climbing params
         self.update_sort_from_cluster_pane()
@@ -810,16 +793,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('climb took %.3f sec' % (time.clock()-t0))
 
         sf = self.frames['sort']
+        plotdims = self.GetDimNames()
         for nid, pos in zip(np.unique(clusteris), positions): # nids come out sorted
             spikeis, = np.where(clusteris == nid)
-            cluster = self.OnAddCluster()
+            cluster = self.OnAddCluster() # TODO: add update arg, set to False, then update once?
             neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(spikeis, neuron, update=True)
-            # TODO: update cluster.ellipsoid's params
-            '''
-            neuron.pos = pos
-            neuron.std = std
-            '''
+            sf.MoveSpikes2Neuron(spikeis, neuron, update=True) # TODO: ditto
+            for dimi, dim in enumerate(dims):
+                cluster.pos[dim] = pos[dimi]
+                cluster.scale[dim] = data[spikeis, dimi].std()
+            if 'Vpp' not in dims: # assign Vpp mean pos and std scale simply for plotting purposes
+                cluster.pos['Vpp'] = Vppdata[spikeis].mean()
+                cluster.scale['Vpp'] = Vppdata[spikeis].std()
+            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
         '''
         s.update_uris() # update unsorted spike indices
         sf.slist.SetItemCount(len(s.uris))
@@ -827,8 +813,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         '''
         # populate cluster list(s) and sort window
         self.ColourPoints(s.clusters.values())
-
-        # auto plot cluster space
 
     def update_sort_from_cluster_pane(self):
         s = self.sort

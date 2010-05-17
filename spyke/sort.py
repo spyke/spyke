@@ -25,7 +25,7 @@ MAXCHANTOLERANCE = 100 # um
 
 SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
-NSSPLITTERSASH = 30
+NSSPLITTERSASH = 45
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
 
@@ -67,7 +67,8 @@ class Sort(object):
 
         # how much to scale each dim for better viewing in cluster plots.
         # Other dims are filled in automatically as needed, by auto-scaling
-        self.SCALE = {'y0': 1, 'x0': 2, 't':5e-7}
+        #self.SCALE = {'y0': 1, 'x0': 2, 't':5e-7}
+        self.SCALE = {'y0': 1, 'x0': 1, 't':1, 'Vpp': 1}
 
         # cluster density climbing params
         self.sigma = 0.25
@@ -296,29 +297,44 @@ class Sort(object):
         """Organize parameters in dims from all spikes into a
         data matrix, each column corresponds to a dim"""
         # np.column_stack returns a copy, not modifying the original array
-        params = []
+        data = []
         for dim in dims:
             if dim == 'V0':
-                params.append( np.float32(self.spikes['Vs'][:, 0]) )
+                data.append( np.float32(self.spikes['Vs'][:, 0]) )
             elif dim == 'V1':
-                params.append( np.float32(self.spikes['Vs'][:, 1]) )
+                data.append( np.float32(self.spikes['Vs'][:, 1]) )
             elif dim == 'mV0':
-                params.append( np.float32(self.spikes['mVs'][:, 0]) )
+                data.append( np.float32(self.spikes['mVs'][:, 0]) )
             elif dim == 'mV1':
-                params.append( np.float32(self.spikes['mVs'][:, 1]) )
+                data.append( np.float32(self.spikes['mVs'][:, 1]) )
             else:
-                params.append( np.float32(self.spikes[dim]) )
-        X = np.column_stack(params)
+                data.append( np.float32(self.spikes[dim]) )
+        data = np.column_stack(data)
 
         if scale:
-            # for better visualization, auto scale each X column (each param) relative to x0 dim
-            p = self.probe
-            for dim, col in zip(dims, X.T): # iterate over columns
-                if dim not in self.SCALE:
-                    colmed = np.median(col)
-                    self.SCALE[dim] = np.sign(colmed) * p.get_max_xsep() / colmed
-                col *= self.SCALE[dim]
-        return X
+            x0std = self.spikes['x0'].std()
+            assert x0std != 0
+            for dim, d in zip(dims, data.T):
+                if dim in ['x0', 'y0']:
+                    d -= d.mean()
+                    d /= x0std
+                elif dim == 't':
+                    # for time, subtract the min time, divide by the max time
+                    # (this gives you time from 0 to 1), then scale by 1.0 for
+                    # every hour of recording
+                    tmin = d.min()
+                    tmax = d.max()
+                    tspan = tmax - tmin
+                    tscale = 1.0 / (60*60*1e6) * tspan
+                    d -= tmin
+                    d /= tmax
+                    d *= tscale
+                else:
+                    # normalize all other dims by their std
+                    d -= d.mean()
+                    d /= d.std()
+
+        return data
 
     def apply_cluster(self, cluster):
         """Apply cluster to spike data - calculate which spikes fall within the
