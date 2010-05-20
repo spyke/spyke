@@ -27,12 +27,13 @@ DEFNHIGHPASSRECORDS = 50000
 DEFNLOWPASSRECORDS = 300000
 DEFNDIGITALSVALRECORDS = 600000
 CTSRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('dataoffset', '<i8')]
+LPMCRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('lpreci', '<i4')]
 DIGITALSVALDTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
 
 # create a couple of Struct objects with compiled format strings
 # and call them as needed for the most common record types.
 # Using np.fromfile to load one dtype record at a time without itermediate string isn't any faster
-# Without little endian < symbol, it struct.unpack uses 4 byte native size and alignment
+# Without little endian < symbol, struct.unpack uses 4 byte native size and alignment
 ctsstruct = Struct('qqhhii')
 dsvalstruct = Struct('qqhhi')
 unpackctsrec = ctsstruct.unpack
@@ -66,9 +67,9 @@ class File(object):
         # init struct ndarrays for high volume record types
         self.highpassrecords = np.empty(DEFNHIGHPASSRECORDS, dtype=CTSRECORDDTYPE)
         self.lowpassrecords = np.empty(DEFNLOWPASSRECORDS, dtype=CTSRECORDDTYPE)
+        self.digitalsvalrecords = np.empty(DEFNDIGITALSVALRECORDS, dtype=DIGITALSVALDTYPE)
         self.nhighpassrecords = 0
         self.nlowpassrecords = 0
-        self.digitalsvalrecords = np.empty(DEFNDIGITALSVALRECORDS, dtype=DIGITALSVALDTYPE)
         self.ndigitalsvalrecords = 0
 
     def open(self):
@@ -135,7 +136,8 @@ class File(object):
             self._parseRecords()
             print('Done parsing %r' % self.fname)
             print('parsing took %.3f sec' % (time.time()-t0))
-            self._connectRecords()
+            self._trimRecords()
+            self._buildLowpassMultiChanRecords()
             self._verifyParsing()
 
             if hasattr(self, 'highpassrecords'):
@@ -245,59 +247,14 @@ class File(object):
         data.shape = (nchans, -1) # reshape to have nchans rows, as indicated in layout
         return data
 
-    '''
-    class LowPassMultiChanRecord(object):
-        """Low-pass multichannel (usually 10) continuous waveform record"""
-        def __init__(self, lowpassrecords):
-            """Takes several low pass records, all at the same timestamp"""
-            self.lowpassrecords = toiter(lowpassrecords) # len of this is nchans
-            self.TimeStamp = self.lowpassrecords[0].TimeStamp
-            self.layout = self.lowpassrecords[0].layout
-            self.NumSamples = self.lowpassrecords[0].NumSamples
-            # why is this commented out? I guess because the checks it does are somewhat redundant
-            # and slow things down a little...
-            """
-            self.tres = self.lowpassrecords[0].layout.tres
-            self.chanis = []
-            self.dataoffsets = []
-            for recordi, record in enumerate(self.lowpassrecords): # typically 10 of these records
-                # make sure all passed lowpassrecords have the same timestamp
-                assert record.TimeStamp == self.TimeStamp
-                assert record.layout.tres == self.tres # ditto
-                # make sure each lowpassrecord in this batch of them at this timestamp all have unique channels
-                newchanis = [ chani for chani in record.layout.ADchanlist if chani not in self.chanis ]
-                assert newchanis != []
-                # assigning this to each and every record might be taking up a lot of space,
-                # better to assign it higher up, say to the stream?
-                self.chanis.extend(newchanis)
-            """
-
-        def load(self, f):
-            """Load waveform data for each lowpass record, appending it as
-            channel(s) to a single 2D data array"""
-            data = []
-            for record in self.lowpassrecords:
-                try:
-                    recorddata = record.data
-                except AttributeError:
-                    recorddata = record.load(f) # to save time, only load the waveform if it's not already loaded
-                # shouldn't matter if record.data is one channel (row) or several
-                data.append(recorddata)
-            # save as array, removing singleton dimensions
-            data = np.squeeze(data)
-            return data
-    '''
-
     def _appendRecord(self, rec, reclistname):
         """Append record to reclistname"""
         if reclistname not in self.__dict__: # if not already an attrib
             self.__dict__[reclistname] = [] # init it
         self.__dict__[reclistname].append(rec) # append this record to its list
 
-    def _connectRecords(self):
-        """Connect the appropriate probe layout to each high and lowpass record"""
-        #print('Connecting probe layouts to waveform records')
-        # trim struct ndarrays to their final size
+    def _trimRecords(self):
+        """Trim struct ndarrays to their final size"""
         self.highpassrecords.resize(self.nhighpassrecords, refcheck=False)
         self.lowpassrecords.resize(self.nlowpassrecords, refcheck=False)
         self.digitalsvalrecords.resize(self.ndigitalsvalrecords, refcheck=False)
@@ -306,33 +263,66 @@ class File(object):
             if len(self.__getattribute__(recname)) == 0:
                 self.__delattr__(recname)
 
-        return # skip lowpassmultichan stuff for now
+    def _buildLowpassMultiChanRecords(self):
+        """Rearrange single channel lowpass records into multichannel lowpass records
 
-        try: # check if lowpass records are present in this .srf file
+        Here's the most correct way to do this, that doesn't assume records fall in any
+        order whatsoever, whether channel (probe) order, or temporal order:
+        1. Sort all records by time (should probably be a stable sort, so if they're already sorted, the order of records with identical timestamps won't change)
+        2. find all the unique timestamp values for all the records
+        3. For each unique timestamp, find all records that have it. Combine them into a single lpmc record. Then, make sure they're sorted by channel (probe number)
+
+        The same should probably be done for highpass records too.
+        The vast majority of the time, all the records will be in temporal and probe order, which would make things very quick. Do a test to see if this is indeed the case and can be taken advantage of. Assume that it's the case, and arrange records accordingly into lpmc records. Then check for temporal order across lpmc records, and for each lpmc record, check that its chans are in probe order (chan order).
+
+        If either assumption is wrong (sorted by time, with records of identical timestamps sorted by Probe), should first sort by Probe, then (stable sort) by time, and then the assumptions will be correct.
+        """
+
+        try: # check if any lowpass records exist
             self.lowpassrecords
         except AttributeError:
             return
 
-        # Rearrange single channel lowpass records into
-        # multichannel lowpass records
-        #print('Rearranging single lowpass records into multichannel lowpass records')
         # get array of lowpass record timestamps
-        rts = np.asarray([record.TimeStamp for record in self.lowpassrecords])
-        # find at which records the timestamps change
-        rtsis, = np.diff(rts).nonzero()
-        # convert to edge values appropriate for getting slices of records
-        # with the same timestamp
-        rtsis = np.concatenate([[0], rtsis+1, [len(rts)]])
-        self.lowpassmultichanrecords = []
-        for rtsii in xrange(1, len(rtsis)): # start with the second rtsi
-            lo = rtsis[rtsii-1]
-            hi = rtsis[rtsii]
-            lpass = LowPassMultiChanRecord(self.lowpassrecords[lo:hi])
-            self.lowpassmultichanrecords.append(lpass)
+        rts = self.lowpassrecords['TimeStamp']
 
-        lpmclayout = self.get_LowPassMultiChanLayout()
-        for lpmcr in self.lowpassmultichanrecords:
-            lpmcr.layout = lpmclayout # overwrite each lpmc record's layout attrib
+        re_sort = False
+        if not (rts == np.sort(rts)).all():
+            print("Lowpass records aren't in temporal order ")
+            re_sort = True
+        probes = self.lowpassrecords['Probe']
+        uprobes = np.unique(probes)
+        nchans = len(uprobes)
+        if len(probes) % nchans != 0:
+            raise RuntimeError("Lowpass probes have unequal record numbers")
+        nrepeats = len(probes) / nchans
+        if not (probes == np.tile(uprobes, nrepeats)).all():
+            print("Lowpass records aren't stored in regular alternating order of probes")
+            re_sort = True
+
+        if re_sort: # resort lowpass records by timestamp and Probe
+            self.lowpassrecords.sort(order=['TimeStamp', 'Probe']) # in-place
+            # don't need to reassign new sorted array to rts or probes
+            assert (rts == np.sort(rts)).all(), 'detected problems in file'
+            assert (probes == np.tile(uprobes, nrepeats)).all(), 'detected problems in file'
+
+        NumSamples = np.unique(self.lowpassrecords['NumSamples'])
+        if len(NumSamples) > 1:
+            raise RuntimeError("Don't know how to deal with lowpass records that are of "
+                               "different lengths. NumSamples = %r" % NumSamples)
+
+        self.nlowpassmultichanrecords = nrepeats
+        self.lowpassmultichanrecords = np.empty(self.nlowpassmultichanrecords,
+                                                dtype=LPMCRECORDDTYPE)
+
+        probe = len(self.layoutrecords)
+        lpmclayout = self.get_LowPassMultiChanLayout(uprobes, probe)
+        self.layoutrecords.append(lpmclayout)
+
+        self.lowpassmultichanrecords['TimeStamp'] = np.unique(rts)
+        self.lowpassmultichanrecords['Probe'] = probe
+        self.lowpassmultichanrecords['NumSamples'] = NumSamples
+        self.lowpassmultichanrecords['lpreci'] = np.arange(0, self.nlowpassrecords, nchans)
 
     def _verifyParsing(self):
         """Make sure timestamps of all records are in causal (increasing)
@@ -343,20 +333,23 @@ class File(object):
                 #print('Asserting %s are in causal order' % attrname)
                 assert causalorder(attr)
 
-    def get_LowPassMultiChanLayout(self):
+    def get_LowPassMultiChanLayout(self, probes, probe):
         """Creates sort of a fake lowpassmultichan layout record, based on
         a lowpass single chan record, with some fields copied/modified from the
         highpass layout record in the file"""
-        hplayout = self.highpassrecords[0].layout
-        lpmclayout = copy(self.lowpassrecords[0].layout) # start with the layout of a lp single chan record
-        lowpassrecords_t0 = self.lowpassmultichanrecords[0].lowpassrecords # lowpass records at first timestamp
-        lpmclayout.nchans = len(lowpassrecords_t0)
+        hpprobe = self.highpassrecords['Probe'][0]
+        hplayout = self.layoutrecords[hpprobe]
+        lpprobe = self.lowpassrecords['Probe'][0]
+        lplayout = self.layoutrecords[lpprobe]
+        lpmclayout = copy(lplayout) # start with the layout of a lp single chan record
+        lpmclayout.nchans = len(probes)
+        lpmclayout.Probe = probe
         chans = [] # probe chans that were tapped off of the MCS patch board
                    # assume the mapping between AD chans and probe chans (if not 1 to 1) was done correctly before recording
         ADchanlist = [] # corresponding A/D chans
         PROBEDESCRIPRE = re.compile(r'ch(?P<tappedchan>[0-9]+)') # find 'ch' followed by at least 1 digit
-        for lowpassrecord in self.lowpassmultichanrecords[0].lowpassrecords: # should be one per LFP channel
-            layout = lowpassrecord.layout
+        for probe in probes:
+            layout = self.layoutrecords[probe]
             mo = PROBEDESCRIPRE.search(layout.probe_descrip) # match object
             if mo != None:
                 chan = int(mo.groupdict()['tappedchan'])
@@ -365,10 +358,13 @@ class File(object):
                 ADchan = layout.ADchanlist[0]
                 ADchanlist.append(ADchan)
             else:
-                raise ValueError, 'cannot parse LFP chan from probe description: %r' % layout.probe_descrip
+                raise ValueError('cannot parse LFP chan from probe description: %r' %
+                                 layout.probe_descrip)
         lpmclayout.chans = np.asarray(chans)
         lpmclayout.ADchanlist = np.asarray(ADchanlist) # replace single chan A/D chanlist with our new multichan highpass probe based one
         lpmclayout.probe_descrip = "LFP probe chans: %r; A/D chans: %r" % (lpmclayout.chans, lpmclayout.ADchanlist)
+        # lowpassmultichans have the same probe layout as the highpass probe,
+        # just fewer chans, lower sampling, and via different analog filters
         lpmclayout.electrode_name = hplayout.electrode_name
         lpmclayout.probewinlayout = hplayout.probewinlayout
         return lpmclayout
@@ -836,3 +832,5 @@ def causalorder(records):
         ts = np.asarray([ record['TimeStamp'] for record in records ])
     # is ts in increasing order, ie is difference between subsequent entries >= 0?
     return (np.diff(ts) >= 0).all()
+    # TODO: or, you could compare the array to an explicitly sorted version of itself,
+    # and see if they're identical

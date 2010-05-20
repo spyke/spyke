@@ -74,10 +74,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef double rmerge = sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge**2
     cdef int nneighs # num points in vicinity of scout point
-    cdef double rneigh = 4 * sigma # radius around scout to include data for gradient calc
+    cdef double rneigh = 3 * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
     cdef double diff, diff2sum, mindiff2sum, move, movesum
-    cdef double minmovesum = 0.0001 * sigma * ndims # maybe this should depend on alpha too, and if proper sum of squares distance was calculated, it wouldn't have to depend on ndims
+    cdef double minmovesum = 0.00001 * sigma * ndims # maybe this should depend on alpha too, and if proper sum of squares distance was calculated, it wouldn't have to depend on ndims
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
@@ -221,7 +221,6 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     print('nscouts: %d' % M)
     print('nmoving: %d, minmovesum: %f' % (nmoving, minmovesum))
     print('sigma: %.2f, rneigh: %.2f, rmerge: %.2f, alpha: %.2f' % (sigma, rneigh, rmerge, alpha))
-    print 'minmovesum:', minmovesum
     print('still array:')
     print still[:M]
     return clusteris, scouts[:M]

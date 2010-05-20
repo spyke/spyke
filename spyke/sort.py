@@ -73,7 +73,7 @@ class Sort(object):
         # cluster density climbing params
         self.sigma = 0.25
         self.alpha = 1.0
-        self.subsample = 1
+        self.subsample = 10
         self.maxstill = 100
 
         self._detid = 0 # used to count off unqiue Detection run IDs

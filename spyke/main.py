@@ -144,7 +144,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def set_cluster_pane_defaults(self):
-        for i in range(3): # select 1st 3 cluster dims by default
+        for i in range(4): # select 1st 4 cluster dims by default
             self.dimlist.Select(i, on=True)
         s = self.sort
         self.sigma_text_ctrl.SetValue(str(s.sigma))
@@ -158,7 +158,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnOpen(self, evt):
         dlg = wx.FileDialog(self, message="Open .srf, .sort or .wave file",
                             defaultDir=os.getcwd(), defaultFile='',
-                            wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort|Wave files (*.wave)|*.wave",
+                            #wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort|Wave files (*.wave)|*.wave",
+                            wildcard="Surf & sort files (*.srf, *.sort)|*.srf;*.sort|All files (*.*)|*.*",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
@@ -776,17 +777,20 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
+        s = self.sort
+        # delete any existing clusters
+        for cluster in s.clusters.values():
+            self.DelCluster(cluster)
+        s._nid = 0 # reset unique neuron ID counter
+
         # grab dims
         i = self.dimlist.getSelection()
         if len(i) == 0: raise RuntimeError('No cluster dimensions selected')
         dims = np.asarray(self.dimlist.dims)[i]
         data = self.sort.get_param_matrix(dims=dims, scale=True)
-        if 'Vpp' not in dims: # get Vpp data simply for plotting purposes
-            Vppdata = self.sort.get_param_matrix(dims=['Vpp'], scale=True)
 
         # grab climbing params
         self.update_sort_from_cluster_pane()
-        s = self.sort
         t0 = time.clock()
         clusteris, positions = climb(data, sigma=s.sigma, alpha=s.alpha,
                                      subsample=s.subsample, maxstill=s.maxstill)
@@ -802,16 +806,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             for dimi, dim in enumerate(dims):
                 cluster.pos[dim] = pos[dimi]
                 cluster.scale[dim] = data[spikeis, dimi].std()
-            if 'Vpp' not in dims: # assign Vpp mean pos and std scale simply for plotting purposes
-                cluster.pos['Vpp'] = Vppdata[spikeis].mean()
-                cluster.scale['Vpp'] = Vppdata[spikeis].std()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
         '''
+        # maybe this stuff should only be done once here, instead of the many times above
+        # in MoveSpikes2Neuron
         s.update_uris() # update unsorted spike indices
         sf.slist.SetItemCount(len(s.uris))
         sf.slist.RefreshItems() # refresh the list
         '''
-        # populate cluster list(s) and sort window
         self.ColourPoints(s.clusters.values())
 
     def update_sort_from_cluster_pane(self):

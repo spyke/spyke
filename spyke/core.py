@@ -212,7 +212,7 @@ class Stream(object):
         self.probe = probetype() # instantiate it
 
         self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
-        lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.probe.nchans)) # nsamples in last record
+        lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.layout.nchans)) # nsamples in last record
         self.tend = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
 
     def open(self):
@@ -310,11 +310,27 @@ class Stream(object):
         # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
         # lower bounds checking (don't go less than 0), but not upper bounds checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
+
+        # TODO: check here if len(cutrecords) == 0, if so, return right away to save time
+        # and potential errors that might arise below???
+
         recorddatas = []
         #tload = time.time()
-        for record in cutrecords:
-            recorddata = self.srff.loadContinuousRecord(record)
-            recorddatas.append(recorddata)
+        if self.kind == 'highpass': # straightforward
+            for record in cutrecords:
+                recorddata = self.srff.loadContinuousRecord(record)
+                recorddatas.append(recorddata)
+        else: # kind == 'lowpass', need some trickiness
+            nchans = self.layout.nchans
+            for lpmcrec in cutrecords:
+                lpmcrecorddata = []
+                lpreci = lpmcrec['lpreci']
+                for chani in range(nchans):
+                    lprec = self.srff.lowpassrecords[lpreci+chani]
+                    lprecorddata = self.srff.loadContinuousRecord(lprec)
+                    lpmcrecorddata.append(lprecorddata)
+                lpmcrecorddata = np.reshape(lpmcrecorddata, (nchans, -1))
+                recorddatas.append(lpmcrecorddata)
         '''
         # don't really feel like dealing with this right now:
         if not self.contiguous: # fill in gaps with zeros
@@ -384,7 +400,7 @@ class Stream(object):
             data, ts = self.resample(data, ts)
             #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
-            if range(nchans) != list(self.chans): # some chans are disabled
+            if range(nchans) != list(self.chans) and self.kind != 'lowpass': # some chans are disabled, this is a total hack!!!!!!!!
                 # TODO: BUG: this doesn't work right for lowpass Streams, because their ADchans and probe chans don't map 1 to 1
                 data = data[self.chans]
         # now get rid of any excess
@@ -757,7 +773,7 @@ class DimListCtrl(SpykeListCtrl):
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         #self.SetColumnWidth(0, 20)
-        self.dims = ['x0', 'y0', 't', 'Vpp']
+        self.dims = ['x0', 'y0', 'Vpp', 't']
         #self.InsertColumn(0, 'dim')
         self.SetItemCount(len(self.dims))
 
