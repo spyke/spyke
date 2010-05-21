@@ -4,7 +4,7 @@ cimport cython
 import numpy as np
 cimport numpy as np
 
-import random
+import random, time
 
 cdef extern from "math.h":
     #double sqrt(double x)
@@ -63,10 +63,11 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     """
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
+    cdef np.ndarray[np.float32_t, ndim=2] alldata # used to store all data in case of sampling
     cdef int M # current num scout points (clusters)
     cdef int nsamples
     cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
-    cdef np.ndarray[np.int32_t, ndim=1] scoutis # potentially, indices sumsampling data
+    cdef np.ndarray[np.int32_t, ndim=1] sampleis # potentially, indices sumsampling data
     cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
     cdef double sigma2 = sigma**2
@@ -81,18 +82,21 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
-    cdef Py_ssize_t i, j, k, scouti, clustii
+    cdef Py_ssize_t i, j, k, samplei, scouti, clustii
     cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
 
     if subsample > 1:
         # subsample to get a reasonable number of scouts
         nsamples = N / subsample # this will trunc
-        scoutis = np.asarray(random.sample(xrange(N), nsamples))
+        sampleis = np.asarray(random.sample(xrange(N), nsamples))
         M = nsamples # initially, but M will decrease over time
-        scouts = data[scoutis].copy() # scouts will be modified
+        alldata = data.copy()
+        data = data[sampleis]
+        scouts = data.copy() # scouts will be modified
         clusteris.fill(-1) # -ve number indicates an unclustered data point
-        clusteris[scoutis] = np.arange(M)
+        clusteris[sampleis] = np.arange(M)
     else:
+        nsamples = N
         M = N
         scouts = data.copy() # scouts will be modified
         clusteris = np.arange(N)
@@ -133,7 +137,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                             scouts[scouti, k] = scouts[scouti+1, k]
                         still[scouti] = still[scouti+1] # ditto for still array
                     # update cluster indices
-                    for clustii in range(N):
+                    for clustii in range(nsamples):
                         if clusteris[clustii] == j:
                             clusteris[clustii] = i # overwrite all occurences of j with i
                         elif clusteris[clustii] > j:
@@ -156,7 +160,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             nneighs = 0 # reset
             for k in range(ndims):
                 v[k] = 0.0 # reset
-            for j in range(N): # iterate over all data points, check if they're within rneigh
+            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
                 diff2sum = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
                     diffs[k] = data[j, k] - scouts[i, k]
@@ -197,23 +201,25 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         # it to the same cluster
         # TODO: this seems quite slow. Optimize somehow? Maybe swap inner and outer loops?
         print('Finding nearest clustered points for each unclustered point')
+        t0 = time.clock()
         for j in range(N): # iterate over all data points
             if clusteris[j] >= 0: # point already has a valid cluster index
                 continue
             # point is unclustered, find nearest clustered point
             mindiff2sum = 100e99
             for i in range(nsamples): # iterate over all clustered points
-                # scoutis is an array of nsamples indices into data that were used as scouts,
+                # sampleis is an array of nsamples indices into data that were used as scouts,
                 # and therefore have been clustered
-                scouti = scoutis[i]
+                samplei = sampleis[i]
                 diff2sum = 0.0 # reset
                 for k in range(ndims):
-                    diff = data[j, k] - data[scouti, k]
+                    diff = alldata[j, k] - alldata[samplei, k]
                     diff2sum += diff * diff
                 if diff2sum < mindiff2sum:
                     # update this unclustered point's cluster index
                     mindiff2sum = diff2sum
-                    clusteris[j] = clusteris[scouti]
+                    clusteris[j] = clusteris[samplei]
+        print('Assigning unclustered points took %.3f sec' % (time.clock()-t0))
 
 
     nmoving = (still[:M] < maxstill).sum()
