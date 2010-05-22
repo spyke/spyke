@@ -19,7 +19,7 @@ cdef extern from "stdio.h":
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float32_t, ndim=2] data,
-          double sigma, double alpha, int subsample=1, int maxstill=100):
+          double sigma, double alpha, double rneighx=4, int subsample=1, int maxstill=100):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - delete scouts that have fewer than n points (at any point during iteration?)
@@ -75,7 +75,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef double rmerge = sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge**2
     cdef int nneighs # num points in vicinity of scout point
-    cdef double rneigh = 3 * sigma # radius around scout to include data for gradient calc
+    cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
     cdef double diff, diff2sum, mindiff2sum, move, movesum
     cdef double minmovesum = 0.00001 * sigma * ndims # maybe this should depend on alpha too, and if proper sum of squares distance was calculated, it wouldn't have to depend on ndims
@@ -91,7 +91,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         sampleis = np.asarray(random.sample(xrange(N), nsamples))
         M = nsamples # initially, but M will decrease over time
         alldata = data.copy()
-        data = data[sampleis]
+        data = alldata[sampleis]
         scouts = data.copy() # scouts will be modified
         clusteris.fill(-1) # -ve number indicates an unclustered data point
         clusteris[sampleis] = np.arange(M)
@@ -137,7 +137,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                             scouts[scouti, k] = scouts[scouti+1, k]
                         still[scouti] = still[scouti+1] # ditto for still array
                     # update cluster indices
-                    for clustii in range(nsamples):
+                    for clustii in range(N):
                         if clusteris[clustii] == j:
                             clusteris[clustii] = i # overwrite all occurences of j with i
                         elif clusteris[clustii] > j:
@@ -203,7 +203,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         print('Finding nearest clustered points for each unclustered point')
         t0 = time.clock()
         for j in range(N): # iterate over all data points
-            if clusteris[j] >= 0: # point already has a valid cluster index
+            if clusteris[j] > -1: # point already has a valid cluster index
                 continue
             # point is unclustered, find nearest clustered point
             mindiff2sum = 100e99
