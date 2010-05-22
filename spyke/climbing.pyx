@@ -1,10 +1,11 @@
-"""Nick's gradient-ascent (mountain-climbing) algorithm"""
+"""Nick's gradient-ascent (mountain-climbing) clustering algorithm"""
 
 cimport cython
 import numpy as np
 cimport numpy as np
 
 import random, time
+#from scipy.spatial import KDTree
 
 cdef extern from "math.h":
     #double sqrt(double x)
@@ -82,8 +83,9 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
+    cdef int maxvardimi
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
-    cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
+    cdef int iteri = 0, continuei = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
 
     if subsample > 1:
         # subsample to get a reasonable number of scouts
@@ -121,11 +123,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 diff2sum = 0.0 # reset
                 for k in range(ndims):
                     diff = fabs(scouts[i, k] - scouts[j, k])
-                    if diff > rmerge: # break out of k loop, continue to next j loop
+                    if diff > rmerge: # break out of k loop, continue to next j
                         continuej = 1
                         break # out of k loop
-                    else:
-                        diff2sum += diff * diff
+                    diff2sum += diff * diff
                 if continuej == 1:
                     continuej = 0 # reset
                     continue # to next j loop
@@ -167,12 +168,11 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     if fabs(diffs[k]) > rneigh: # break out of k loop, continue to next j loop
                         continuej = 1
                         break # out of k loop
-                    else:
-                        diffs2[k] = diffs[k] * diffs[k] # used twice, so calc it only once
+                    diffs2[k] = diffs[k] * diffs[k] # used twice, so calc it only once
                     diff2sum += diffs2[k]
                 if continuej == 1:
                     continuej = 0 # reset
-                    continue # to next j loop
+                    continue # to next j
                 if diff2sum <= rneigh2: # do the calculation
                     for k in range(ndims):
                         # v is ndim vector of sum of g-weighted distances between
@@ -198,10 +198,26 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
 
     if subsample > 1:
         # for each unclusterd point, find the closest clustered point, and assign
-        # it to the same cluster
-        # TODO: this seems quite slow. Optimize somehow? Maybe swap inner and outer loops?
-        print('Finding nearest clustered points for each unclustered point')
+        # it to the same cluster. If a point falls more than rneigh away from the
+        # nearest clustered point along the dimension of maximum variance in the data,
+        # it's left unclustered
+        printf('\n')
+        print('Finding nearest clustered point for each unclustered point')
         t0 = time.clock()
+        '''
+        # Tried using kdtree for speed, results aren't right, and it's much slower:
+        kdtree = KDTree(data) # tree of clustered data points
+        # pick out unclustered data points
+        print('picking out unclustered data')
+        uciis = clusteris == -1
+        ucdata = alldata[uciis]
+        # query the tree for the closest clustered point for each unclustered data point
+        print('calling query')
+        nnd, nni = kdtree.query(ucdata)
+        print('assigning clusters')
+        clusteris[uciis] = clusteris[nni]
+        '''
+        maxvardimi = alldata.std(axis=0).argmax()
         for j in range(N): # iterate over all data points
             if clusteris[j] > -1: # point already has a valid cluster index
                 continue
@@ -211,14 +227,27 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 # sampleis is an array of nsamples indices into data that were used as scouts,
                 # and therefore have been clustered
                 samplei = sampleis[i]
+                diffs[maxvardimi] = alldata[j, maxvardimi] - alldata[samplei, maxvardimi]
+                if fabs(diffs[maxvardimi]) > rneigh or fabs(diffs[maxvardimi]) > mindiff2sum:
+                    continue # to next i
+                for k in range(ndims):
+                    if k == maxvardimi: # diff for this k was already calculated above
+                        continue # to next dim
+                    diffs[k] = alldata[j, k] - alldata[samplei, k]
+                    if fabs(diffs[k]) > mindiff2sum: # break out of k loop, continue to next i
+                        continuei = 1
+                        break # out of k loop
+                if continuei == 1:
+                    continuei = 0 # reset
+                    continue # to next i
                 diff2sum = 0.0 # reset
                 for k in range(ndims):
-                    diff = alldata[j, k] - alldata[samplei, k]
-                    diff2sum += diff * diff
+                    diff2sum += diffs[k] * diffs[k]
                 if diff2sum < mindiff2sum:
                     # update this unclustered point's cluster index
                     mindiff2sum = diff2sum
                     clusteris[j] = clusteris[samplei]
+
         print('Assigning unclustered points took %.3f sec' % (time.clock()-t0))
 
 
