@@ -83,7 +83,6 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
-    cdef int maxvardimi
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
     cdef int iteri = 0, continuei = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
 
@@ -198,9 +197,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
 
     if subsample > 1:
         # for each unclusterd point, find the closest clustered point, and assign
-        # it to the same cluster. If a point falls more than rneigh away from the
-        # nearest clustered point along the dimension of maximum variance in the data,
-        # it's left unclustered
+        # it to the same cluster
         printf('\n')
         print('Finding nearest clustered point for each unclustered point')
         t0 = time.clock()
@@ -217,7 +214,6 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         print('assigning clusters')
         clusteris[uciis] = clusteris[nni]
         '''
-        maxvardimi = alldata.std(axis=0).argmax()
         for j in range(N): # iterate over all data points
             if clusteris[j] > -1: # point already has a valid cluster index
                 continue
@@ -227,12 +223,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 # sampleis is an array of nsamples indices into data that were used as scouts,
                 # and therefore have been clustered
                 samplei = sampleis[i]
-                diffs[maxvardimi] = alldata[j, maxvardimi] - alldata[samplei, maxvardimi]
-                if fabs(diffs[maxvardimi]) > rneigh or fabs(diffs[maxvardimi]) > mindiff2sum:
-                    continue # to next i
+
                 for k in range(ndims):
-                    if k == maxvardimi: # diff for this k was already calculated above
-                        continue # to next dim
                     diffs[k] = alldata[j, k] - alldata[samplei, k]
                     if fabs(diffs[k]) > mindiff2sum: # break out of k loop, continue to next i
                         continuei = 1
