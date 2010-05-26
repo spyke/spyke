@@ -41,7 +41,9 @@ data = data[:100000, :4] # limit npoints and ndims
 nd = data.shape[1]
 
 t0 = time.clock()
-clusteris, clusters = climb(data, sigma=0.25, alpha=1.0, rneighx=4, subsample=10, maxstill=100)
+results = climb(data, sigma=0.25, alpha=1.0, rneighx=4,
+                subsample=10, calcdensities=True, maxstill=100)
+clusteris, clusters, densities, scoutdensities = results
 print('climb took %.3f sec' % (time.clock()-t0))
 
 nclusters = len(clusters)
