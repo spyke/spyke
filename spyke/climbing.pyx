@@ -78,10 +78,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
-    cdef double d, diff, diff2sum, mindiff2sum, move, movesum
+    cdef double d, d2, min_d2, move, movesum
     cdef double minmovesum = 0.00001 * sigma * ndims # maybe this should depend on alpha too, and if proper sum of squares distance was calculated, it wouldn't have to depend on ndims
-    cdef np.ndarray[np.float64_t, ndim=1] diffs = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1] diffs2 = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1] ds = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1] d2s = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
@@ -116,17 +116,17 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 if still[i] > maxstill and still[j] > maxstill: # both scouts are frozen
                     continue
                 # for each pair of scouts, check if any pair is within rmerge of each other
-                diff2sum = 0.0 # reset
+                d2 = 0.0 # reset
                 for k in range(ndims):
-                    diff = fabs(scouts[i, k] - scouts[j, k])
-                    if diff > rmerge: # break out of k loop, continue to next j
+                    d = fabs(scouts[i, k] - scouts[j, k])
+                    if d > rmerge: # break out of k loop, continue to next j
                         continuej = 1
                         break # out of k loop
-                    diff2sum += diff * diff
+                    d2 += d * d
                 if continuej == 1:
                     continuej = 0 # reset
                     continue # to next j loop
-                if diff2sum <= rmerge2:
+                if d2 <= rmerge2:
                     # merge the scouts: keep scout i, ditch scout j
                     # shift all entries at j and above in scouts array down by one
                     for scouti in range(j, M-1):
@@ -159,22 +159,22 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 v[k] = 0.0 # reset
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
                 samplei = sampleis[j]
-                diff2sum = 0.0 # reset
+                d2 = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
-                    diffs[k] = data[samplei, k] - scouts[i, k]
-                    if fabs(diffs[k]) > rneigh: # break out of k loop, continue to next j loop
+                    ds[k] = data[samplei, k] - scouts[i, k]
+                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
                         continuej = 1
                         break # out of k loop
-                    diffs2[k] = diffs[k] * diffs[k] # used twice, so calc it only once
-                    diff2sum += diffs2[k]
+                    d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
+                    d2 += d2s[k]
                 if continuej == 1:
                     continuej = 0 # reset
                     continue # to next j
-                if diff2sum <= rneigh2: # do the calculation
+                if d2 <= rneigh2: # do the calculation
                     for k in range(ndims):
                         # v is ndim vector of sum of g-weighted distances between
                         # current scout point and all data within rneigh
-                        v[k] += diffs[k] * exp(-diffs2[k] / twosigma2)
+                        v[k] += ds[k] * exp(-d2s[k] / twosigma2)
                     nneighs += 1
             # update scout position in direction of v, normalize by nneighs
             # nneighs will never be 0, because each scout point starts as a data point
@@ -193,58 +193,6 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         iteri += 1
 
     printf('\n')
-
-    if calcdensities:
-        # calculate the local density for each point, using potentially just subsampled data
-        # TODO: or maybe this should calculate the density based on only those points in the same
-        # cluster
-
-        # just do g weighted sum of distances, almost like just counting the number of points
-        # in a volume, and then dividing by the volume. Except you don't really need to divide by
-        # the volume of the gaussian, cuz that's just a constant for a given sigma, and that constant
-        # will cancel out when you go to declare that you only want to keep points that have
-        # at least say 10% the density of the scout point. No need to divide by nneighs either,
-        # since that was really just a way of making the gradient ascent more stable
-        print('Calculating density around each data point, based on sampled data')
-        t0 = time.clock()
-        densities = np.zeros(N)
-        for i in range(N):
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
-                if samplei == i:
-                    continue # don't include itself in its own local density calc
-                diff2sum = 0.0 # reset
-                for k in range(ndims): # iterate over dims for each point
-                    diffs[k] = data[i, k] - data[samplei, k]
-                    if fabs(diffs[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = 1
-                        break # out of k loop
-                    diff2sum += diffs[k] * diffs[k] # add to sum of squares for this sample
-                if continuej == 1:
-                    continuej = 0 # reset
-                    continue # to next j
-                if diff2sum <= rneigh2: # include this point in the density calculation
-                    d = sqrt(diff2sum) # Euclidean distance
-                    densities[i] += d * exp(d / twosigma2)
-        print('Calculating density around each scout, based on sampled data')
-        scoutdensities = np.zeros(M)
-        for i in range(M):
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
-                diff2sum = 0.0 # reset
-                for k in range(ndims): # iterate over dims for each point
-                    diffs[k] = scouts[i, k] - data[samplei, k]
-                    if fabs(diffs[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = 1
-                        break # out of k loop
-                    diff2sum += diffs[k] * diffs[k] # add to sum of squares for this sample
-                if continuej == 1:
-                    continuej = 0 # reset
-                    continue # to next j
-                if diff2sum <= rneigh2: # include this point in the density calculation
-                    d = sqrt(diff2sum) # Euclidean distance
-                    scoutdensities[i] += d * exp(d / twosigma2)
-        print('Density calculations took %.3f sec' % (time.clock()-t0))
 
     if subsample > 1:
         # for each unclusterd point, find the closest clustered point, and assign
@@ -268,27 +216,77 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             if clusteris[i] > -1: # point already has a valid cluster index
                 continue
             # point is unclustered, find nearest clustered point
-            mindiff2sum = 100e99
+            min_d2 = 100e99
             for j in range(nsamples): # iterate over all clustered points
                 # sampleis is an array of nsamples indices into data that were used as scouts,
                 # and therefore have been clustered
                 samplei = sampleis[j]
                 for k in range(ndims):
-                    diffs[k] = data[i, k] - data[samplei, k]
-                    if fabs(diffs[k]) > mindiff2sum: # break out of k loop, continue to next i
+                    ds[k] = data[i, k] - data[samplei, k]
+                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next i
                         continuej = 1
                         break # out of k loop
                 if continuej == 1:
                     continuej = 0 # reset
                     continue # to next i
-                diff2sum = 0.0 # reset
+                d2 = 0.0 # reset
                 for k in range(ndims):
-                    diff2sum += diffs[k] * diffs[k]
-                if diff2sum < mindiff2sum:
+                    d2 += ds[k] * ds[k]
+                if d2 < min_d2:
                     # update this unclustered point's cluster index
-                    mindiff2sum = diff2sum
+                    min_d2 = d2
                     clusteris[i] = clusteris[samplei]
         print('Assigning unclustered points took %.3f sec' % (time.clock()-t0))
+
+
+    if calcdensities:
+        # calculate the local density for each point, using potentially just subsampled data
+        # from this cluster. This does g weighted sum of distances, almost like just counting
+        # the number of points in a volume, and then dividing by the volume. Except you don't
+        # really need to divide by the volume of the gaussian, cuz that's just a constant for
+        # a given sigma
+        print('Calculating density around each data point, based on sampled data')
+        t0 = time.clock()
+        densities = np.zeros(N)
+        for i in range(N):
+            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
+                samplei = sampleis[j]
+                if clusteris[i] != clusteris[samplei] or samplei == i:
+                    continue # don't include points from different clusters, or the point itself
+                d2 = 0.0 # reset
+                for k in range(ndims): # iterate over dims for each point
+                    ds[k] = data[i, k] - data[samplei, k]
+                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
+                        continuej = 1
+                        break # out of k loop
+                    d2 += ds[k] * ds[k] # add to sum of squares for this sample
+                if continuej == 1:
+                    continuej = 0 # reset
+                    continue # to next j
+                if d2 <= rneigh2: # include this point in the density calculation
+                    d = sqrt(d2) # Euclidean distance
+                    densities[i] += d * exp(-d2 / twosigma2)
+        print('Calculating density around each scout, based on sampled data')
+        scoutdensities = np.zeros(M)
+        for i in range(M):
+            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
+                samplei = sampleis[j]
+                if i != clusteris[samplei]:
+                    continue # don't include points from different clusters
+                d2 = 0.0 # reset
+                for k in range(ndims): # iterate over dims for each point
+                    ds[k] = scouts[i, k] - data[samplei, k]
+                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
+                        continuej = 1
+                        break # out of k loop
+                    d2 += ds[k] * ds[k] # add to sum of squares for this sample
+                if continuej == 1:
+                    continuej = 0 # reset
+                    continue # to next j
+                if d2 <= rneigh2: # include this point in the density calculation
+                    d = sqrt(d2) # Euclidean distance
+                    scoutdensities[i] += d * exp(-d2 / twosigma2)
+        print('Density calculations took %.3f sec' % (time.clock()-t0))
 
 
     nmoving = (still[:M] < maxstill).sum()
