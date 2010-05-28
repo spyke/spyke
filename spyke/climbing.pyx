@@ -20,8 +20,9 @@ cdef extern from "stdio.h":
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float32_t, ndim=2] data,
-          double sigma, double alpha, double rneighx=4, int subsample=1,
-          bint calcdensities=False, int maxstill=100):
+          np.ndarray[np.int32_t, ndim=1] sampleis=np.zeros(0, dtype=np.int32),
+          double sigma=0.25, double alpha=1.0, double rneighx=4, int subsample=1,
+          bint calcdensities=True, int maxstill=100, int minsize=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - delete scouts that have fewer than n points (at any point during iteration?)
@@ -66,9 +67,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
     cdef int M # current num scout points (clusters)
-    cdef int nsamples
+    cdef int nsamples, npoints, nremoved
     cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
-    cdef np.ndarray[np.int32_t, ndim=1] sampleis # potentially, indices sumsampling data
     cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
     cdef double sigma2 = sigma**2
@@ -87,7 +87,9 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
     cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
 
-    if subsample > 1:
+    if len(sampleis) != 0:
+        nsamples = len(sampleis)
+    elif subsample > 1:
         # subsample to get a reasonable number of scouts
         nsamples = N / subsample # this will trunc
         sampleis = np.asarray(random.sample(xrange(N), nsamples))
@@ -238,6 +240,32 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     clusteris[i] = clusteris[samplei]
         print('Assigning unclustered points took %.3f sec' % (time.clock()-t0))
 
+    # remove clusters with less than minsize number of points
+    nremoved = 0
+    for i in range(M):
+        # M may be decr in this loop, so this condition may
+        # be reached before this loop completes
+        if i >= M: break # out of for loop
+        npoints = 0 # reset
+        for j in range(N):
+            if clusteris[j] == i:
+                npoints += 1
+        if npoints < minsize:
+            # remove cluster i
+            # shift all entries at i and above in scouts array down by one
+            for scouti in range(i, M-1):
+                for k in range(ndims):
+                    scouts[scouti, k] = scouts[scouti+1, k]
+                still[scouti] = still[scouti+1] # ditto for still array
+            # update cluster indices
+            for clustii in range(N):
+                if clusteris[clustii] == i:
+                    clusteris[clustii] = -1 # overwrite all occurences of i with -1
+                elif clusteris[clustii] > i:
+                    clusteris[clustii] -= 1 # decr all clust indices above i
+            M -= 1 # decr num of scouts (clusters)
+            nremoved += 1
+    print('%d clusters deleted for having less than %d points' % (nremoved, minsize))
 
     if calcdensities:
         # calculate the local density for each point, using potentially just subsampled data
@@ -287,6 +315,9 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     d = sqrt(d2) # Euclidean distance
                     scoutdensities[i] += d * exp(-d2 / twosigma2)
         print('Density calculations took %.3f sec' % (time.clock()-t0))
+    else:
+        densities = np.zeros(0)
+        scoutdensities = np.zeros(0)
 
 
     nmoving = (still[:M] < maxstill).sum()
@@ -296,5 +327,5 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     print('sigma: %.2f, rneigh: %.2f, rmerge: %.2f, alpha: %.2f' % (sigma, rneigh, rmerge, alpha))
     print('still array:')
     print still[:M]
-    return clusteris, scouts[:M], densities, scoutdensities
+    return clusteris, scouts[:M], densities, scoutdensities, sampleis
 

@@ -39,11 +39,12 @@ COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGEN
 data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
 data = data[:100000, :4] # limit npoints and ndims
 nd = data.shape[1]
+sampleis = np.load('10k_of_100k_sampleis.npy')
 
 t0 = time.clock()
-results = climb(data, sigma=0.25, alpha=1.0, rneighx=4,
+results = climb(data, sampleis, sigma=0.25, alpha=1.0, rneighx=4,
                 subsample=10, calcdensities=True, maxstill=100)
-clusteris, clusters, densities, scoutdensities = results
+clusteris, positions, densities, scoutdensities, sampleis = results
 print('climb took %.3f sec' % (time.clock()-t0))
 
 nclusters = len(clusters)

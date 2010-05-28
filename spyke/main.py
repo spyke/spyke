@@ -151,6 +151,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.alpha_text_ctrl.SetValue(str(s.alpha))
         self.subsample_spin_ctrl.SetValue(s.subsample)
         self.maxstill_spin_ctrl.SetValue(s.maxstill)
+        self.density_thresh_text_ctrl.SetValue(str(s.density_thresh))
 
     def OnNew(self, evt):
         self.CreateNewSort()
@@ -792,14 +793,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # grab climbing params
         self.update_sort_from_cluster_pane()
         t0 = time.clock()
-        clusteris, positions = climb(data, sigma=s.sigma, alpha=s.alpha,
-                                     subsample=s.subsample, maxstill=s.maxstill)
+        results = climb(data, sigma=s.sigma, alpha=s.alpha, subsample=s.subsample,
+                        calcdensities=True, maxstill=s.maxstill)
+        s.clusteris, s.positions, s.densities, s.scoutdensities, s.sampleis = results
+
         print('climb took %.3f sec' % (time.clock()-t0))
 
         sf = self.frames['sort']
         plotdims = self.GetDimNames()
-        for nid, pos in zip(np.unique(clusteris), positions): # nids come out sorted
-            spikeis, = np.where(clusteris == nid)
+        for nid, pos in zip(np.unique(s.clusteris), s.positions): # nids come out sorted
+            density_mask = s.densities/s.scoutdensities[nid] > s.density_thresh
+            spikeis, = np.where((s.clusteris == nid) & density_mask)
             cluster = self.OnAddCluster() # TODO: add update arg, set to False, then update once?
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(spikeis, neuron, update=True) # TODO: ditto
@@ -822,6 +826,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         s.alpha = float(self.alpha_text_ctrl.GetValue())
         s.subsample = self.subsample_spin_ctrl.GetValue()
         s.maxstill = self.maxstill_spin_ctrl.GetValue()
+        s.density_thresh = float(self.density_thresh_text_ctrl.GetValue())
 
     def append_detection_list(self, detection):
         """Appends Detection run to the detection list control"""
