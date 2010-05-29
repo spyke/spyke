@@ -22,7 +22,7 @@ cdef extern from "stdio.h":
 def climb(np.ndarray[np.float32_t, ndim=2] data,
           np.ndarray[np.int32_t, ndim=1] sampleis=np.zeros(0, dtype=np.int32),
           double sigma=0.25, double alpha=1.0, double rneighx=4, int subsample=1,
-          bint calcdensities=True, int maxstill=100, int minsize=10):
+          bint calcdensities=True, double minmove=-1.0, int maxstill=100, int minsize=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - delete scouts that have fewer than n points (at any point during iteration?)
@@ -78,14 +78,14 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh**2
-    cdef double d, d2, min_d2, move, movesum
-    cdef double minmovesum = 0.00001 * sigma * ndims # maybe this should depend on alpha too, and if proper sum of squares distance was calculated, it wouldn't have to depend on ndims
+    cdef double d, d2, min_d2, move
     cdef np.ndarray[np.float64_t, ndim=1] ds = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] d2s = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
     cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
+    cdef bint incstill
 
     if len(sampleis) != 0:
         nsamples = len(sampleis)
@@ -101,6 +101,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     clusteris.fill(-1) # -ve number indicates an unclustered data point
     clusteris[sampleis] = np.arange(M)
 
+    if minmove == -1.0:
+        minmove = 0.00001 * sigma * alpha # along a single dimension
 
     while True:
 
@@ -109,13 +111,12 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
 
         # merge pairs of scout points sufficiently close to each other
         merged = 0
-        for i in range(M):
-            # M may be decr in this loop, so this condition may
-            # be reached before this loop completes
-            if i >= M: break # out of for loop
-            for j in range(i+1, M):
-                if j >= M: break # out of for loop
+        i = 0
+        while i < M:
+            j = i+1
+            while j < M:
                 if still[i] > maxstill and still[j] > maxstill: # both scouts are frozen
+                    j += 1
                     continue
                 # for each pair of scouts, check if any pair is within rmerge of each other
                 d2 = 0.0 # reset
@@ -127,6 +128,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     d2 += d * d
                 if continuej == 1:
                     continuej = 0 # reset
+                    j += 1
                     continue # to next j loop
                 if d2 <= rmerge2:
                     # merge the scouts: keep scout i, ditch scout j
@@ -141,10 +143,13 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                             clusteris[clustii] = i # overwrite all occurences of j with i
                         elif clusteris[clustii] > j:
                             clusteris[clustii] -= 1 # decr all clust indices above j
-                    M -= 1 # decr num of scouts (clusters)
+                    M -= 1 # decr num of scouts, don't inc j, new value at j has just slid into view
                     #printf(' %d<-%d ', i, j)
                     printf('M')
                     merged = 1
+                else:
+                    j += 1
+            i += 1
         if merged == 0:
             nnomerges += 1
         else:
@@ -180,13 +185,13 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     nneighs += 1
             # update scout position in direction of v, normalize by nneighs
             # nneighs will never be 0, because each scout point starts as a data point
-            movesum = 0.0 # reset
+            incstill = True # reset
             for k in range(ndims):
                 move = alpha / nneighs * v[k]
-                movesum += fabs(move) # to save time, just take sum instead of sum of squares
                 scouts[i, k] += move
-            #printf(',%f', movesum)
-            if movesum < minmovesum:
+                if incstill and fabs(move) > minmove:
+                    incstill = False
+            if incstill:
                 still[i] += 1
             else:
                 still[i] = 0 # reset stillness counter for this scout
@@ -215,7 +220,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         clusteris[uciis] = clusteris[nni]
         '''
         for i in range(N): # iterate over all data points
-            if clusteris[i] > -1: # point already has a valid cluster index
+            if clusteris[i] != -1: # point already has a valid cluster index
                 continue
             # point is unclustered, find nearest clustered point
             min_d2 = 100e99
@@ -242,15 +247,14 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
 
     # remove clusters with less than minsize number of points
     nremoved = 0
-    for i in range(M):
-        # M may be decr in this loop, so this condition may
-        # be reached before this loop completes
-        if i >= M: break # out of for loop
+    i = 0
+    while i < M:
         npoints = 0 # reset
         for j in range(N):
             if clusteris[j] == i:
                 npoints += 1
         if npoints < minsize:
+            #print('cluster %d has only %d points' % (i, npoints))
             # remove cluster i
             # shift all entries at i and above in scouts array down by one
             for scouti in range(i, M-1):
@@ -263,8 +267,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     clusteris[clustii] = -1 # overwrite all occurences of i with -1
                 elif clusteris[clustii] > i:
                     clusteris[clustii] -= 1 # decr all clust indices above i
-            M -= 1 # decr num of scouts (clusters)
+            M -= 1 # decr num of scouts, don't inc i, new value at i has just slid into view
             nremoved += 1
+        else:
+            i += 1
     print('%d clusters deleted for having less than %d points' % (nremoved, minsize))
 
     if calcdensities:
@@ -323,7 +329,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     nmoving = (still[:M] < maxstill).sum()
     print('\nniters: %d' % iteri)
     print('nscouts: %d' % M)
-    print('nmoving: %d, minmovesum: %f' % (nmoving, minmovesum))
+    print('nmoving: %d, minmove: %f' % (nmoving, minmove))
     print('sigma: %.2f, rneigh: %.2f, rmerge: %.2f, alpha: %.2f' % (sigma, rneigh, rmerge, alpha))
     print('still array:')
     print still[:M]

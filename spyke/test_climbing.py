@@ -40,14 +40,23 @@ data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full
 data = data[:100000, :4] # limit npoints and ndims
 nd = data.shape[1]
 sampleis = np.load('10k_of_100k_sampleis.npy')
+sigma = 0.25
+alpha = 1.0
+rneighx = 4
+subsample = 10
+calcdensities = True
+minmove = 0.00001 * sigma * alpha # along a single dimension
+maxstill = 100
+minsize = 10
 
 t0 = time.clock()
-results = climb(data, sampleis, sigma=0.25, alpha=1.0, rneighx=4,
-                subsample=10, calcdensities=True, maxstill=100)
+results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
+                subsample=subsample, calcdensities=calcdensities,
+                minmove=minmove, maxstill=maxstill, minsize=minsize)
 clusteris, positions, densities, scoutdensities, sampleis = results
 print('climb took %.3f sec' % (time.clock()-t0))
 
-nclusters = len(clusters)
+nclusters = len(positions)
 
 ncolours = len(COLOURS)
 samplecolours = COLOURS[clusteris % ncolours]
@@ -57,19 +66,19 @@ clustercolours = COLOURS[np.arange(nclusters) % ncolours]
 # plot x vs y
 f = makefigure()
 scatter(data[:, 0], data[:, 1], s=1, c=samplecolours, edgecolors='none')
-scatter(clusters[:, 0], clusters[:, 1], c=clustercolours)
+scatter(positions[:, 0], positions[:, 1], c=clustercolours)
 
 if data.shape[1] > 2:
     # plot Vpp vs y
     f = makefigure()
     scatter(data[:, 2], data[:, 1], s=1, c=samplecolours, edgecolors='none')
-    scatter(clusters[:, 2], clusters[:, 1], c=clustercolours)
+    scatter(positions[:, 2], positions[:, 1], c=clustercolours)
 
 if data.shape[1] > 3:
     # plot t vs y
     f = makefigure()
     scatter(data[:, 3], data[:, 1], s=1, c=samplecolours, edgecolors='none')
-    scatter(clusters[:, 3], clusters[:, 1], c=clustercolours)
+    scatter(positions[:, 3], positions[:, 1], c=clustercolours)
 
 
 show()

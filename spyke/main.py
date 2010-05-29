@@ -802,14 +802,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.frames['sort']
         plotdims = self.GetDimNames()
         for nid, pos in zip(np.unique(s.clusteris), s.positions): # nids come out sorted
-            density_mask = s.densities/s.scoutdensities[nid] > s.density_thresh
+            scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
+            density_mask = s.densities/scoutdensity > s.density_thresh
             spikeis, = np.where((s.clusteris == nid) & density_mask)
             cluster = self.OnAddCluster() # TODO: add update arg, set to False, then update once?
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(spikeis, neuron, update=True) # TODO: ditto
             for dimi, dim in enumerate(dims):
                 cluster.pos[dim] = pos[dimi]
-                cluster.scale[dim] = data[spikeis, dimi].std()
+                try:
+                    cluster.scale[dim] = data[spikeis, dimi].std()
+                except: import pdb; pdb.set_trace()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
         '''
         # maybe this stuff should only be done once here, instead of the many times above
