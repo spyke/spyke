@@ -75,7 +75,7 @@ class Sort(object):
         self.alpha = 1.0
         self.subsample = 10
         self.maxstill = 100
-        self.density_thresh = 0.1
+        self.density_thresh = 0.2
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs

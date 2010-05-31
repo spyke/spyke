@@ -796,12 +796,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         results = climb(data, sigma=s.sigma, alpha=s.alpha, subsample=s.subsample,
                         calcdensities=True, maxstill=s.maxstill)
         s.clusteris, s.positions, s.densities, s.scoutdensities, s.sampleis = results
+        nids = list(np.unique(s.clusteris))
+        nids.remove(-1)
 
         print('climb took %.3f sec' % (time.clock()-t0))
 
         sf = self.frames['sort']
         plotdims = self.GetDimNames()
-        for nid, pos in zip(np.unique(s.clusteris), s.positions): # nids come out sorted
+        for nid, pos in zip(nids, s.positions): # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = s.densities/scoutdensity > s.density_thresh
             spikeis, = np.where((s.clusteris == nid) & density_mask)
