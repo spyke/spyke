@@ -65,11 +65,6 @@ class Sort(object):
         self.uris_sorted_by = 't'
         self.uris_reversed = False
 
-        # how much to scale each dim for better viewing in cluster plots.
-        # Other dims are filled in automatically as needed, by auto-scaling
-        #self.SCALE = {'y0': 1, 'x0': 2, 't':5e-7}
-        self.SCALE = {'y0': 1, 'x0': 1, 't':1, 'Vpp': 1}
-
         # cluster density climbing params
         self.sigma = 0.25
         self.alpha = 1.0
@@ -353,10 +348,9 @@ class Sort(object):
         # pick them out of the original set of unmodified points
 
         # undo the translation, in place
-        SCALE = self.SCALE
         dim2coli = {}
         for i, dim in enumerate(dims):
-            X[:, i] -= cluster.pos[dim] * SCALE[dim]
+            X[:, i] -= cluster.pos[dim]
             dim2coli[dim] = i # build up dim to X column index mapping while we're at it
 
         # build up dict of groups of rotations which not only have the same set of 3 dims,
@@ -394,7 +388,7 @@ class Sort(object):
         sumterms = np.zeros(len(X)) # ellipsoid eq'n sum of terms over non-rotated dimensions
         for dim in nonrotdims:
             x = X[:, dim2coli[dim]] # pull correct column out of X for this non-rotated dim
-            A = cluster.scale[dim] * SCALE[dim]
+            A = cluster.scale[dim]
             sumterms += x**2/A**2
         trutharray = (sumterms <= 1) # which points in nonrotdims space fall inside the ellipsoid?
 
@@ -405,9 +399,9 @@ class Sort(object):
             Xrot = (R(oris[0], oris[1], oris[2]).T * Xrot.T).T
             Xrot = np.asarray(Xrot) # convert from np.matrix back to np.array to prevent from taking matrix power
             # which points are inside the ellipsoid?
-            x = Xrot[:, 0]; A = cluster.scale[rotdims[0]] * SCALE[rotdims[0]]
-            y = Xrot[:, 1]; B = cluster.scale[rotdims[1]] * SCALE[rotdims[1]]
-            z = Xrot[:, 2]; C = cluster.scale[rotdims[2]] * SCALE[rotdims[2]]
+            x = Xrot[:, 0]; A = cluster.scale[rotdims[0]]
+            y = Xrot[:, 1]; B = cluster.scale[rotdims[1]]
+            z = Xrot[:, 2]; C = cluster.scale[rotdims[2]]
             trutharray *= (x**2/A**2 + y**2/B**2 + z**2/C**2 <= 1) # AND with interior points from any previous rotgroups
 
         # spikes row indices of points that fall within ellipsoids of all rotgroups

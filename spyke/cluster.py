@@ -27,8 +27,7 @@ class Cluster(object):
     def __init__(self, neuron, ellipsoid=None):
         self.neuron = neuron
         self.ellipsoid = ellipsoid
-        # cluster attribs store true values of each dim, unscaled by the
-        # visualization sort.SCALE factor
+        # cluster attribs store true values of each dim
         self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
@@ -47,15 +46,13 @@ class Cluster(object):
 
     def update_ellipsoid(self, params=None, dims=None):
         ellipsoid = self.ellipsoid
-        SCALE = self.neuron.sort.SCALE
         if ellipsoid == None:
             return
         if params == None:
             params = ['pos', 'ori', 'scale']
         if 'pos' in params:
-            ellipsoid.actor.actor.position = [ self.pos[dim]*SCALE[dim] for dim in dims ]
+            ellipsoid.actor.actor.position = [ self.pos[dim] for dim in dims ]
         if 'ori' in params:
-            # TODO: need to take SCALE into account here somehow
             oris = []
             for dimi, dim in enumerate(dims):
                 # pick the two next highest dims, in that order,
@@ -71,7 +68,7 @@ class Cluster(object):
                     oris.append(0)
             ellipsoid.actor.actor.orientation = oris
         if 'scale' in params:
-            ellipsoid.actor.actor.scale = [ self.scale[dim]*SCALE[dim] for dim in dims ]
+            ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
@@ -142,7 +139,6 @@ class SpykeMayaviScene(MayaviScene):
             MayaviScene.OnKeyDown(self, event)
         x, y, z = spykeframe.GetDimNames()
         dim, sign = None, None
-        SCALE = spykeframe.sort.SCALE
         modifiers = event.GetModifiers()
         if key == wx.WXK_PAGEDOWN: # inc xdim
             dim, sign = x, 1
@@ -159,19 +155,18 @@ class SpykeMayaviScene(MayaviScene):
 
         if dim != None and sign != None:
             if modifiers == wx.MOD_NONE: # adjust pos slowly
-                cluster.pos[dim] += sign * 0.05 / SCALE[dim]
+                cluster.pos[dim] += sign * 0.05
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
             elif modifiers == wx.MOD_NONE|wx.MOD_ALT: # adjust pos quickly
-                cluster.pos[dim] += sign * 0.25 / SCALE[dim]
+                cluster.pos[dim] += sign * 0.25
                 cluster.update_ellipsoid('pos', dims=(x, y, z))
             elif modifiers == wx.MOD_SHIFT: # adjust scale slowly
-                cluster.scale[dim] += sign * 0.05 / SCALE[dim]
+                cluster.scale[dim] += sign * 0.05
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif modifiers == wx.MOD_SHIFT|wx.MOD_ALT: # adjust scale quickly
-                cluster.scale[dim] += sign * 0.25 / SCALE[dim]
+                cluster.scale[dim] += sign * 0.25
                 cluster.update_ellipsoid('scale', dims=(x, y, z))
             elif event.ControlDown(): # adjust ori
-                # TODO: ori adjustment doesn't take SCALE into account!
                 axes    = {x:(y, z), y:(z, x), z:(x, y)}
                 revaxes = {x:(z, y), y:(x, z), z:(y, x)}
                 if modifiers == wx.MOD_CONTROL: # adjust ori slowly
