@@ -512,21 +512,31 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                                % nselected)
         return clusters[0]
 
-    def DelCluster(self, cluster):
+    def DelCluster(self, cluster, update=True):
         """Delete a cluster from the GUI, and delete the cluster
         and its neuron from the Sort"""
+        cf = self.frames['cluster']
+        cf.f.scene.disable_render = True # for speed
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
-        self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
-        self.frames['sort'].RemoveNeuron(cluster.neuron)
-        self.clist.SetItemCount(len(self.sort.clusters))
-        self.clist.RefreshItems()
+        if update:
+            self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
+        self.frames['sort'].RemoveNeuron(cluster.neuron, update=update)
+        if update:
+            self.clist.SetItemCount(len(self.sort.clusters))
+            self.clist.RefreshItems()
+            cf.f.scene.disable_render = False
 
     def OnDelCluster(self, evt=None):
         """Cluster pane Del button click"""
         clusters = self.GetClusters()
+        spikeis = []
         for cluster in clusters:
-            self.DelCluster(cluster)
+            spikeis.append(cluster.neuron.spikeis)
+            self.DelCluster(cluster, update=False)
+        spikeis = np.concatenate(spikeis)
+        self.DeColourPoints(spikeis) # decolour appropriate points
+        self.UpdateClustersGUI()
         self.frames['cluster'].glyph.mlab_source.update()
         if len(self.sort.clusters) == 0:
             self.cluster_params_pane.Enable(False)
@@ -615,6 +625,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ColourPoints(clusters)
         try: del self.sort.spikefname # need to update .spike file on next .sort save
         except AttributeError: pass
+
+    def UpdateClustersGUI(self):
+        """Update lots of stuff after modifying clusters,
+        here as a separate method for speed, only call when really needed"""
+        s = self.sort
+        sf = self.frames['sort']
+        cf = self.frames['cluster']
+        cf.f.scene.disable_render = False # turn rendering back on
+        self.clist.SetItemCount(len(s.clusters))
+        self.clist.RefreshItems()
+        self.clist.DeSelectAll()
+        sf.nlist.SetItemCount(len(s.neurons))
+        sf.nlist.RefreshItems()
+        s.update_uris()
+        sf.slist.SetItemCount(len(s.uris))
+        sf.slist.RefreshItems() # refresh the list
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
@@ -784,7 +810,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # delete any existing clusters
         for cluster in s.clusters.values():
-            self.DelCluster(cluster)
+            self.DelCluster(cluster, update=False)
+        self.UpdateClustersGUI()
+        self.DeColourAllPoints()
         cf = self.frames['cluster']
         cf.glyph.mlab_source.update()
 
@@ -826,17 +854,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # now do some final updates
-        cf.f.scene.disable_render = False # turn rendering back on
-        self.clist.SetItemCount(len(s.clusters))
-        self.clist.RefreshItems()
-        self.clist.DeSelectAll()
-
-        sf.nlist.SetItemCount(len(s.neurons))
-        sf.nlist.RefreshItems()
-        s.update_uris()
-        sf.slist.SetItemCount(len(s.uris))
-        sf.slist.RefreshItems() # refresh the list
-
+        self.UpdateClustersGUI()
         print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
         '''
         # maybe this stuff should only be done once here, instead of the many times above
@@ -1283,7 +1301,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             raise RuntimeError('sort in file %r has no neurons to import' % fname)
         # delete any existing clusters from GUI
         for cluster in self.sort.clusters.values():
-            self.DelCluster(cluster)
+            self.DelCluster(cluster, update=False)
+        self.UpdateClustersGUI()
         # reset all plotted spike points to white
         cf = self.OpenFrame('cluster')
         try: # decolour any and all spikes

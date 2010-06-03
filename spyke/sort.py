@@ -1080,17 +1080,18 @@ class SortFrame(wxglade_gui.SortFrame):
     def UpdateItemsInPlot(self, items):
         self.spikesortpanel.updateItems(items)
 
-    def RemoveNeuron(self, neuron):
+    def RemoveNeuron(self, neuron, update=True):
         """Remove neuron and all its spikes from the GUI and the Sort"""
         #self.RemoveNeuronFromTree(neuron)
-        self.MoveSpikes2List(neuron, neuron.spikeis)
+        self.MoveSpikes2List(neuron, neuron.spikeis, update=update)
         try:
             del self.sort.neurons[neuron.id] # maybe already be removed due to recursive call
             del self.sort.clusters[neuron.id] # may or may not exist
         except KeyError:
             pass
-        self.nlist.SetItemCount(len(self.sort.neurons))
-        self.nlist.RefreshItems()
+        if update:
+            self.nlist.SetItemCount(len(self.sort.neurons))
+            self.nlist.RefreshItems()
         if neuron == self.nslist.neuron:
             self.nslist.neuron = None
         if len(self.sort.neurons) == 0:
@@ -1119,7 +1120,7 @@ class SortFrame(wxglade_gui.SortFrame):
         #neuron.update_wave() # update mean neuron waveform
         return neuron
 
-    def MoveSpikes2List(self, neuron, spikeis):
+    def MoveSpikes2List(self, neuron, spikeis, update=True):
         """Move spikes from a neuron back to the unsorted spike list control.
         Make sure to call neuron.update_wave() at some appropriate time after
         calling this method"""
@@ -1130,9 +1131,10 @@ class SortFrame(wxglade_gui.SortFrame):
         neuron.spikeis = np.setdiff1d(neuron.spikeis, spikeis) # return what's in first arr and not in the 2nd
         ris = spikes['id'].searchsorted(spikeis)
         spikes['nid'][ris] = -1 # unbind neuron id of spikeis in struct array
-        self.sort.update_uris()
-        self.slist.SetItemCount(len(self.sort.uris))
-        self.slist.RefreshItems() # refresh the spike list
+        if update:
+            self.sort.update_uris()
+            self.slist.SetItemCount(len(self.sort.uris))
+            self.slist.RefreshItems() # refresh the spike list
         # this only makes sense if the neuron is currently selected in the nlist:
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
