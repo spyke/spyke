@@ -773,7 +773,7 @@ class DimListCtrl(SpykeListCtrl):
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         #self.SetColumnWidth(0, 20)
-        self.dims = ['x0', 'y0', 'Vpp', 't']
+        self.dims = ['x0', 'y0', 'Vpp', 't', 'dphase']
         #self.InsertColumn(0, 'dim')
         self.SetItemCount(len(self.dims))
 

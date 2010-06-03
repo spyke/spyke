@@ -21,8 +21,9 @@ cdef extern from "stdio.h":
 @cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float32_t, ndim=2] data,
           np.ndarray[np.int32_t, ndim=1] sampleis=np.zeros(0, dtype=np.int32),
-          double sigma=0.25, double alpha=1.0, double rneighx=4, int subsample=1,
-          bint calcdensities=True, double minmove=-1.0, int maxstill=100, int minsize=10):
+          double sigma=0.25, double alpha=1.0, double rmergex=1.0, double rneighx=4, int subsample=1,
+          bint calcdensities=True, double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
+          int minsize=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - delete scouts that have fewer than n points (at any point during iteration?)
@@ -73,7 +74,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
     cdef double sigma2 = sigma**2
     cdef double twosigma2 = 2 * sigma2
-    cdef double rmerge = sigma # radius within which scout points are merged
+    cdef double rmerge = rmergex * sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge**2
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
@@ -84,7 +85,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
-    cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0, maxnnomerges = 1000
+    cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0
     cdef bint incstill
 
     if len(sampleis) != 0:

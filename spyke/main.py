@@ -144,10 +144,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def set_cluster_pane_defaults(self):
-        for i in range(4): # select 1st 4 cluster dims by default
+        for i in range(5): # select 1st 5 cluster dims by default
             self.dimlist.Select(i, on=True)
         s = self.sort
         self.sigma_text_ctrl.SetValue(str(s.sigma))
+        self.rmergex_text_ctrl.SetValue(str(s.rmergex))
         self.alpha_text_ctrl.SetValue(str(s.alpha))
         self.subsample_spin_ctrl.SetValue(s.subsample)
         self.maxstill_spin_ctrl.SetValue(s.maxstill)
@@ -466,12 +467,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
-    def OnAddCluster(self, evt=None):
+    def OnAddCluster(self, evt=None, update=True):
         """Cluster pane Add button click"""
         neuron = self.sort.create_neuron()
         sf = self.frames['sort']
-        sf.nlist.SetItemCount(len(self.sort.neurons))
-        sf.nlist.RefreshItems()
+        if update:
+            sf.nlist.SetItemCount(len(self.sort.neurons))
+            sf.nlist.RefreshItems()
         from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
@@ -479,18 +481,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.OpenFrame('cluster')
         try: cf.glyph # glyph already plotted?
         except AttributeError: self.OnClusterPlot() # create glyph on first open
-        self.AddCluster(cluster)
+        self.AddCluster(cluster, update=update)
         return cluster
 
-    def AddCluster(self, cluster):
+    def AddCluster(self, cluster, update=True):
         """Add cluster to GUI"""
         cf = self.OpenFrame('cluster')
         dims = self.GetDimNames()
-        cf.add_ellipsoid(cluster, dims)
-        self.clist.SetItemCount(len(self.sort.neurons)) # TODO: shouldn't this really be len(self.sort.clusters) ??????????
-        self.clist.RefreshItems()
-        self.clist.DeSelectAll()
-        self.clist.Select(len(self.sort.neurons) - 1) # select newly created item
+        cf.add_ellipsoid(cluster, dims, update=update)
+        if update:
+            self.clist.SetItemCount(len(self.sort.clusters))
+            self.clist.RefreshItems()
+            self.clist.DeSelectAll()
+            self.clist.Select(len(self.sort.clusters) - 1) # select newly created item
         self.cluster_params_pane.Enable(True)
 
     def GetClusters(self):
@@ -514,6 +517,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         and its neuron from the Sort"""
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
+        self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
         self.frames['sort'].RemoveNeuron(cluster.neuron)
         self.clist.SetItemCount(len(self.sort.clusters))
         self.clist.RefreshItems()
@@ -522,7 +526,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Cluster pane Del button click"""
         clusters = self.GetClusters()
         for cluster in clusters:
-            self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
             self.DelCluster(cluster)
         self.frames['cluster'].glyph.mlab_source.update()
         if len(self.sort.clusters) == 0:
@@ -778,10 +781,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
         s = self.sort
+
         # delete any existing clusters
         for cluster in s.clusters.values():
             self.DelCluster(cluster)
-        s._nid = 0 # reset unique neuron ID counter
+        cf = self.frames['cluster']
+        cf.glyph.mlab_source.update()
 
         # grab dims
         i = self.dimlist.getSelection()
@@ -792,29 +797,47 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # grab climbing params
         self.update_sort_from_cluster_pane()
         t0 = time.clock()
-        results = climb(data, sigma=s.sigma, alpha=s.alpha, subsample=s.subsample,
-                        calcdensities=True, maxstill=s.maxstill)
+        results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex, rneighx=4,
+                        subsample=s.subsample, calcdensities=True,
+                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000, minsize=10)
         s.clusteris, s.positions, s.densities, s.scoutdensities, s.sampleis = results
         nids = list(np.unique(s.clusteris))
         nids.remove(-1)
 
         print('climb took %.3f sec' % (time.clock()-t0))
 
+        # apply the clusters to the cluster plot
         sf = self.frames['sort']
         plotdims = self.GetDimNames()
+        t0 = time.clock()
         for nid, pos in zip(nids, s.positions): # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = s.densities/scoutdensity > s.density_thresh
             spikeis, = np.where((s.clusteris == nid) & density_mask)
-            cluster = self.OnAddCluster() # TODO: add update arg, set to False, then update once?
+            cluster = self.OnAddCluster(update=False)
             neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(spikeis, neuron, update=True) # TODO: ditto
+            sf.MoveSpikes2Neuron(spikeis, neuron, update=False)
             for dimi, dim in enumerate(dims):
                 cluster.pos[dim] = pos[dimi]
-                try:
+                if len(spikeis) == 0:
+                    print('WARNING: neuron %d has no spikes' % nid)
+                else:
                     cluster.scale[dim] = data[spikeis, dimi].std()
-                except: import pdb; pdb.set_trace()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+
+        # now do some final updates
+        cf.f.scene.disable_render = False # turn rendering back on
+        self.clist.SetItemCount(len(s.clusters))
+        self.clist.RefreshItems()
+        self.clist.DeSelectAll()
+
+        sf.nlist.SetItemCount(len(s.neurons))
+        sf.nlist.RefreshItems()
+        s.update_uris()
+        sf.slist.SetItemCount(len(s.uris))
+        sf.slist.RefreshItems() # refresh the list
+
+        print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
         '''
         # maybe this stuff should only be done once here, instead of the many times above
         # in MoveSpikes2Neuron
@@ -827,6 +850,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def update_sort_from_cluster_pane(self):
         s = self.sort
         s.sigma = float(self.sigma_text_ctrl.GetValue())
+        s.rmergex = float(self.rmergex_text_ctrl.GetValue())
         s.alpha = float(self.alpha_text_ctrl.GetValue())
         s.subsample = self.subsample_spin_ctrl.GetValue()
         s.maxstill = self.maxstill_spin_ctrl.GetValue()

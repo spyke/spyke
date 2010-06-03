@@ -34,7 +34,7 @@ class Cluster(object):
         self.ori = {'x0':{}, 'y0':{}, 'sx':{}, 'sy':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'w0':{}, 'w1':{}, 'w2':{}, 'w3':{}, 'w4':{}, 'dphase':{}, 't':{}, 's0':{}, 's1':{}, 'mVpp':{}, 'mV0':{}, 'mV1':{}, 'mdphase':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':0.25, 'y0':0.25, 'sx':0, 'sy':0, 'Vpp':0.25, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0.25, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
+        self.scale = {'x0':0.25, 'y0':0.25, 'sx':0, 'sy':0, 'Vpp':0.25, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
 
     def get_id(self):
         return self.neuron.id
@@ -374,7 +374,7 @@ class ClusterFrame(wx.MiniFrame):
         print("Plotting took %.3f sec" % (time.time()-t0))
         return glyph
 
-    def add_ellipsoid(self, cluster, dims, alpha=0.5):
+    def add_ellipsoid(self, cluster, dims, alpha=0.5, update=True):
         """Add an ellipsoid to figure self.f, given its corresponding cluster
         TODO: turn on 4th light source - looks great!
         """
@@ -422,7 +422,8 @@ class ClusterFrame(wx.MiniFrame):
         #actor.actor.origin = 0, 0, 0
         cluster.ellipsoid = glyph
         cluster.update_ellipsoid(dims=dims) # update all params
-        f.scene.disable_render = False
+        if update:
+            f.scene.disable_render = False
 
     def get_view(self):
         return mlab.view()

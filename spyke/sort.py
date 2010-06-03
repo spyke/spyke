@@ -67,6 +67,7 @@ class Sort(object):
 
         # cluster density climbing params
         self.sigma = 0.25
+        self.rmergex = 1.5
         self.alpha = 1.0
         self.subsample = 10
         self.maxstill = 100
@@ -1092,6 +1093,8 @@ class SortFrame(wxglade_gui.SortFrame):
         self.nlist.RefreshItems()
         if neuron == self.nslist.neuron:
             self.nslist.neuron = None
+        if len(self.sort.neurons) == 0:
+            self.sort._nid = 0 # reset unique neuron ID counter
 
     def MoveSpikes2Neuron(self, spikeis, neuron=None, update=True):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.
