@@ -487,7 +487,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def AddCluster(self, cluster, update=True):
         """Add cluster to GUI"""
         cf = self.OpenFrame('cluster')
-        dims = self.GetDimNames()
+        dims = self.GetClusterPlotDimNames()
         cf.add_ellipsoid(cluster, dims, update=update)
         if update:
             self.clist.SetItemCount(len(self.sort.clusters))
@@ -579,7 +579,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.frames['cluster']
         fps = cf.f.scene.camera.focal_point
         cluster = self.GetCluster()
-        dims = self.GetDimNames()
+        dims = self.GetClusterPlotDimNames()
         for dim, fp in zip(dims, fps):
             cluster.pos[dim] = fp
         cluster.update_ellipsoid('pos', dims=dims)
@@ -587,7 +587,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnClusterPlot(self, evt=None):
         """Plot button press in cluster_pane. Don't need the evt"""
-        dims = self.GetDimNames()
+        dims = self.GetClusterPlotDimNames()
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
@@ -669,7 +669,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.frames['cluster']
         cf.glyph.mlab_source.scalars = np.tile(TRANSWHITEI, self.sort.nspikes)
 
-    def GetDimNames(self):
+    def GetClusterPlotDimNames(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
         x = self.xdim.GetStringSelection()
         y = self.ydim.GetStringSelection()
@@ -678,7 +678,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def UpdateParamWidgets(self, cluster):
         """Update 3x3 grid of cluster param widgets from values in cluster"""
-        x, y, z = self.GetDimNames() # tuple of dim names, in (x, y, z) order
+        x, y, z = self.GetClusterPlotDimNames() # tuple of dim names, in (x, y, z) order
         self.xpos.SetValue(cluster.pos[x])
         self.ypos.SetValue(cluster.pos[y])
         self.zpos.SetValue(cluster.pos[z])
@@ -698,28 +698,28 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     """Update parameters for currently selected cluster, and associated ellipsoid"""
     def OnXPos(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         cluster.pos[x] = val
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnYPos(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         cluster.pos[y] = val
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnZPos(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         cluster.pos[z] = val
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnXOri(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         if (z, y) in cluster.ori[x]: # reversed axes already used as a key
             cluster.ori[x][(z, y)] = -val # reverse the ori
@@ -729,7 +729,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnYOri(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         if (x, z) in cluster.ori[y]:
             cluster.ori[y][(x, z)] = -val
@@ -739,7 +739,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnZOri(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         if (y, x) in cluster.ori[z]:
             cluster.ori[z][(y, x)] = -val
@@ -749,21 +749,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnXScale(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         cluster.scale[x] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnYScale(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         cluster.scale[y] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnZScale(self, evt):
         cluster = self.GetCluster()
-        x, y, z = self.GetDimNames()
+        x, y, z = self.GetClusterPlotDimNames()
         val = evt.GetInt()
         cluster.scale[z] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
@@ -813,14 +813,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.DelCluster(cluster, update=False)
         self.UpdateClustersGUI()
         self.DeColourAllPoints()
-        cf = self.frames['cluster']
+        cf = self.OpenFrame('cluster')
         cf.glyph.mlab_source.update()
 
         # grab dims
-        i = self.dimlist.getSelection()
+        dimselis = self.dimlist.getSelection()
         if len(i) == 0: raise RuntimeError('No cluster dimensions selected')
-        dims = np.asarray(self.dimlist.dims)[i]
-        data = self.sort.get_param_matrix(dims=dims, scale=True)
+        s.dims = [ self.dimlist.dims[i] for i in dimselis ]
+        data = self.sort.get_param_matrix(dims=s.dims, scale=True)
 
         # grab climbing params
         self.update_sort_from_cluster_pane()
@@ -835,8 +835,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('climb took %.3f sec' % (time.clock()-t0))
 
         # apply the clusters to the cluster plot
-        sf = self.frames['sort']
-        plotdims = self.GetDimNames()
+        sf = self.OpenFrame('sort')
+        plotdims = self.GetClusterPlotDimNames()
         t0 = time.clock()
         for nid, pos in zip(nids, s.positions): # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
@@ -845,7 +845,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cluster = self.OnAddCluster(update=False)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(spikeis, neuron, update=False)
-            for dimi, dim in enumerate(dims):
+            for dimi, dim in enumerate(s.dims):
                 cluster.pos[dim] = pos[dimi]
                 if len(spikeis) == 0:
                     print('WARNING: neuron %d has no spikes' % nid)
@@ -863,6 +863,46 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf.slist.SetItemCount(len(s.uris))
         sf.slist.RefreshItems() # refresh the list
         '''
+        self.ColourPoints(s.clusters.values())
+
+    def OnApplyDensityThresh(self, evt=None):
+        """Cluster pane point density threshold Apply button click. Changes
+        the points that are included/excluded from their cluster,
+        and updates the cluster's ellipsoid size to reflect the change std
+        of the included points"""
+        s = self.sort
+        nids = list(np.unique(s.clusteris))
+        nids.remove(-1)
+        # ensure climb results s.clusteris, s.positions, and s.scoutdensities were
+        # updated after any cluster changes
+        assert s.neurons.keys() == nids
+        data = self.sort.get_param_matrix(dims=s.dims, scale=True)
+        s.density_thresh = float(self.density_thresh_text_ctrl.GetValue()) # update from GUI
+        sf = self.frames['sort']
+        plotdims = self.GetClusterPlotDimNames()
+        self.DeColourAllPoints()
+        print("Applying new density threshold")
+        cf = self.frames['cluster']
+        cf.f.scene.disable_render = True # turn rendering off for speed
+        for nid in nids: # nids come out sorted
+            scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
+            density_mask = s.densities/scoutdensity > s.density_thresh
+            spikeis, = np.where((s.clusteris == nid) & density_mask)
+            cluster = s.clusters[nid]
+            neuron = cluster.neuron
+            # remove existing spikes from neuron
+            sf.MoveSpikes2List(neuron, neuron.spikeis, update=False)
+            # add newly selected set to neuron
+            sf.MoveSpikes2Neuron(spikeis, neuron, update=False)
+            for dimi, dim in enumerate(s.dims):
+                if len(spikeis) == 0:
+                    print('WARNING: neuron %d has no spikes' % nid)
+                else:
+                    cluster.scale[dim] = data[spikeis, dimi].std()
+            cluster.update_ellipsoid(params=['scale'], dims=plotdims)
+
+        # now do some final updates
+        self.UpdateClustersGUI()
         self.ColourPoints(s.clusters.values())
 
     def update_sort_from_cluster_pane(self):

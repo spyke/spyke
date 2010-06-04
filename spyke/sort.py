@@ -1116,7 +1116,7 @@ class SortFrame(wxglade_gui.SortFrame):
             self.nslist.neuron = neuron # this triggers a refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.slist.Select(row) # automatically select the new item at that position
-        neuron.wave.data = None # signify it needs an update when it's actually needed
+        neuron.wave.data = None # triggers an update when it's actually needed
         #neuron.update_wave() # update mean neuron waveform
         return neuron
 
@@ -1138,6 +1138,7 @@ class SortFrame(wxglade_gui.SortFrame):
         # this only makes sense if the neuron is currently selected in the nlist:
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
+        neuron.wave.data = None # triggers an update when it's actually needed
 
     def MoveCurrentSpikes2Neuron(self, which='selected'):
         if which == 'selected':

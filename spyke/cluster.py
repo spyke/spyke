@@ -137,7 +137,7 @@ class SpykeMayaviScene(MayaviScene):
         except RuntimeError:
             # pass event to parent class
             MayaviScene.OnKeyDown(self, event)
-        x, y, z = spykeframe.GetDimNames()
+        x, y, z = spykeframe.GetClusterPlotDimNames()
         dim, sign = None, None
         modifiers = event.GetModifiers()
         if key == wx.WXK_PAGEDOWN: # inc xdim
