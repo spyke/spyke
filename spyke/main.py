@@ -807,18 +807,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
         s = self.sort
+        sf = self.OpenFrame('sort')
+        cf = self.OpenFrame('cluster')
 
         # delete any existing clusters
         for cluster in s.clusters.values():
             self.DelCluster(cluster, update=False)
         self.UpdateClustersGUI()
+        try: cf.glyph
+        except AttributeError: self.OnClusterPlot()
         self.DeColourAllPoints()
-        cf = self.OpenFrame('cluster')
         cf.glyph.mlab_source.update()
 
         # grab dims
         dimselis = self.dimlist.getSelection()
-        if len(i) == 0: raise RuntimeError('No cluster dimensions selected')
+        if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
         s.dims = [ self.dimlist.dims[i] for i in dimselis ]
         data = self.sort.get_param_matrix(dims=s.dims, scale=True)
 
@@ -835,7 +838,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('climb took %.3f sec' % (time.clock()-t0))
 
         # apply the clusters to the cluster plot
-        sf = self.OpenFrame('sort')
         plotdims = self.GetClusterPlotDimNames()
         t0 = time.clock()
         for nid, pos in zip(nids, s.positions): # nids come out sorted
