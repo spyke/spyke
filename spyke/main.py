@@ -144,7 +144,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def set_cluster_pane_defaults(self):
-        for i in range(5): # select 1st 5 cluster dims by default
+        for i in range(4): # select 1st 4 cluster dims by default
             self.dimlist.Select(i, on=True)
         s = self.sort
         self.sigma_text_ctrl.SetValue(str(s.sigma))
@@ -595,8 +595,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             return # nothing to plot
         cf.glyph = cf.plot(X)
         # update all ellipsoids
-        for cluster in self.sort.clusters.values():
+        cf.f.scene.disable_render = True # turn rendering off for speed
+        clusters = self.sort.clusters.values()
+        for cluster in clusters:
             cluster.update_ellipsoid(dims=dims)
+        self.UpdateClustersGUI()
         self.cluster_params_pane.Enable(True)
 
     def OnApplyCluster(self, evt=None):
@@ -1116,6 +1119,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             #sf.chartsortpanel.removeAllItems()
         if 'cluster' in self.frames:
             cf = self.frames['cluster']
+            cf.f.scene.disable_render = True # for speed
             for cluster in clusters.values():
                 cluster.ellipsoid.remove() # from pipeline
                 # no need to del cluster.ellipsoid, since all clusters are deleted when sort is deleted
@@ -1123,6 +1127,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 cf.glyph.remove() # from pipeline
                 del cf.glyph # cluster frame hangs around, so del its glyph
             except AttributeError: pass
+            cf.f.scene.disable_render = False
         self.clist.SetItemCount(0)
         self.clist.RefreshItems()
         self.total_nspikes_label.SetLabel(str(0))
@@ -1321,14 +1326,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
         # restore neuron clusters and the neuron listctrl
         for cluster in self.sort.clusters.values():
-            self.AddCluster(cluster)
+            self.AddCluster(cluster, update=False)
+        self.UpdateClustersGUI()
         try:
             self.sort.spikes
             self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
         except AttributeError: pass # no spikes
-        sf = self.OpenFrame('sort')
-        sf.nlist.SetItemCount(len(self.sort.neurons))
-        sf.nlist.RefreshItems()
+        self.OpenFrame('sort')
         self.notebook.SetSelection(2) # switch to the cluster pane
 
     def ImportNeurons(self, fname):
