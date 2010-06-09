@@ -307,7 +307,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
                 samplei = sampleis[j]
                 if i != clusteris[samplei]:
-                    continue # don't include points from different clusters
+                    continue # don't include points from different clusters. TODO: maybe I should anyway?
                 d2 = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
                     ds[k] = scouts[i, k] - data[samplei, k]

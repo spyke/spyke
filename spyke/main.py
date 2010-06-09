@@ -41,7 +41,7 @@ SPIKEFRAMEHEIGHT = 700
 CHARTFRAMESIZE = 900, SPIKEFRAMEHEIGHT
 LFPFRAMESIZE = 250, SPIKEFRAMEHEIGHT
 PYSHELLSIZE = CHARTFRAMESIZE[0], CHARTFRAMESIZE[1]/2
-CLUSTERFRAMESIZE = 530, 530
+CLUSTERFRAMESIZE = 535, 535
 
 FRAMEUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
 PYSHELLCFGFNAME = 'pyshell_cfg'
@@ -514,14 +514,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def DelCluster(self, cluster, update=True):
         """Delete a cluster from the GUI, and delete the cluster
-        and its neuron from the Sort"""
+        and its neuron from the Sort. Think you need to call
+        mlab_source.update() afterwards"""
+        sf = self.frames['sort']
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # for speed
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
         if update:
             self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
-        self.frames['sort'].RemoveNeuron(cluster.neuron, update=update)
+        sf.RemoveNeuron(cluster.neuron, update=update)
         if update:
             self.clist.SetItemCount(len(self.sort.clusters))
             self.clist.RefreshItems()
@@ -548,8 +550,43 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.clist.Select(len(self.sort.clusters)-1) # select last one
 
     def OnMergeClusters(self, evt=None):
-        """Cluster pane Merge cutton click"""
-        pass
+        """Cluster pane Merge button click"""
+        clusters = self.GetClusters() # merge them all into the lowest numbered cluster
+        s = self.sort
+        sortis = np.argsort([ cluster.id for cluster in clusters ])
+        clusters = [ clusters[sorti] for sorti in sortis ] # sorted by their cluster id
+        mergecluster = clusters[0] # merge into the lowest numbered one
+        plotdims = self.GetClusterPlotDimNames()
+        sf = self.frames['sort']
+        cf = self.frames['cluster']
+        cf.f.scene.disable_render = True # turn rendering off for speed
+        spikeis = []
+        spikeis.append(mergecluster.neuron.spikeis) # for updating ellipsoid params
+        for cluster in clusters[1:]: # iterate over all the clusters to be merged
+            spikeis.append(cluster.neuron.spikeis)
+            self.DelCluster(cluster, update=False)
+            try: # update s.clusteris
+                s.clusteris[s.clusteris == cluster.id] = mergecluster.id # update
+            except AttributeError: pass # s.clusteris doesn't exist
+            # TODO: update s.scoutdensities now that mergecluster has more points in it, or maybe
+            # scoutdensities shouldn't care about which points belong to them????
+            #self.DeColourPoints(cluster.neuron.spikeis) # decolour appropriate points
+        spikeis = np.concatenate(spikeis)
+        sf.MoveSpikes2Neuron(spikeis, mergecluster.neuron, update=False)
+        data = self.sort.get_param_matrix(dims=s.dims, scale=True)
+        for dimi, dim in enumerate(s.dims): # update ellipsoid params
+            mergecluster.pos[dim] = data[spikeis, dimi].mean()
+            # TODO: or maybe revised cluster position should be the mean all
+            # the cluster (scout) positions, each weighted by its number of points
+            mergecluster.scale[dim] = data[spikeis, dimi].std()
+
+        mergecluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+        cf.glyph.mlab_source.update()
+
+        # now do some final updates
+        self.UpdateClustersGUI()
+        self.ColourPoints(mergecluster)
+
 
     def OnCListSelect(self, evt, cluster=None):
         """Cluster list box item selection. Update cluster param widgets
@@ -830,7 +867,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # grab dims
         dimselis = self.dimlist.getSelection()
         if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
-        s.dims = [ self.dimlist.dims[i] for i in dimselis ]
+        s.dims = [ self.dimlist.dims[i] for i in dimselis ] # record dim names that were clustered upon
         data = self.sort.get_param_matrix(dims=s.dims, scale=True)
 
         # grab climbing params
@@ -910,7 +947,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 print('WARNING: neuron %d has no spikes' % nid)
             else:
                 for dimi, dim in enumerate(s.dims):
-                        cluster.scale[dim] = data[spikeis, dimi].std()
+                    cluster.scale[dim] = data[spikeis, dimi].std()
             cluster.update_ellipsoid(params=['scale'], dims=plotdims)
 
         # now do some final updates

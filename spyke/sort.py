@@ -66,12 +66,12 @@ class Sort(object):
         self.uris_reversed = False
 
         # cluster density climbing params
-        self.sigma = 0.25
-        self.rmergex = 1.5
+        self.sigma = 0.3
+        self.rmergex = 1.0
         self.alpha = 1.0
         self.subsample = 10
         self.maxstill = 100
-        self.density_thresh = 0.2
+        self.density_thresh = 0.1
 
         self._detid = 0 # used to count off unqiue Detection run IDs
         self._sid = 0 # used to count off unique spike IDs
