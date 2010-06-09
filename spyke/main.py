@@ -531,9 +531,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Cluster pane Del button click"""
         clusters = self.GetClusters()
         spikeis = []
+        s = self.sort
         for cluster in clusters:
             spikeis.append(cluster.neuron.spikeis)
             self.DelCluster(cluster, update=False)
+            try: # update s.clusteris
+                s.clusteris[s.clusteris == cluster.id] = -1 # signifies no cluster
+            except AttributeError: pass # s.clusteris doesn't exist
         spikeis = np.concatenate(spikeis)
         self.DeColourPoints(spikeis) # decolour appropriate points
         self.UpdateClustersGUI()
@@ -587,6 +591,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnClusterPlot(self, evt=None):
         """Plot button press in cluster_pane. Don't need the evt"""
+        print('in OnClusterPlot()')
         dims = self.GetClusterPlotDimNames()
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
@@ -836,7 +841,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000, minsize=10)
         s.clusteris, s.positions, s.densities, s.scoutdensities, s.sampleis = results
         nids = list(np.unique(s.clusteris))
-        nids.remove(-1)
+        try: nids.remove(-1)
+        except ValueError: pass
 
         print('climb took %.3f sec' % (time.clock()-t0))
 
@@ -877,7 +883,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         of the included points"""
         s = self.sort
         nids = list(np.unique(s.clusteris))
-        nids.remove(-1)
+        try: nids.remove(-1)
+        except ValueError: pass
         # ensure climb results s.clusteris, s.positions, and s.scoutdensities were
         # updated after any cluster changes
         assert s.neurons.keys() == nids
@@ -891,7 +898,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf.f.scene.disable_render = True # turn rendering off for speed
         for nid in nids: # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            density_mask = s.densities/scoutdensity > s.density_thresh
+            density_mask = s.densities/scoutdensity >= s.density_thresh
             spikeis, = np.where((s.clusteris == nid) & density_mask)
             cluster = s.clusters[nid]
             neuron = cluster.neuron
@@ -899,11 +906,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf.MoveSpikes2List(neuron, neuron.spikeis, update=False)
             # add newly selected set to neuron
             sf.MoveSpikes2Neuron(spikeis, neuron, update=False)
-            for dimi, dim in enumerate(s.dims):
-                if len(spikeis) == 0:
-                    print('WARNING: neuron %d has no spikes' % nid)
-                else:
-                    cluster.scale[dim] = data[spikeis, dimi].std()
+            if len(spikeis) == 0:
+                print('WARNING: neuron %d has no spikes' % nid)
+            else:
+                for dimi, dim in enumerate(s.dims):
+                        cluster.scale[dim] = data[spikeis, dimi].std()
             cluster.update_ellipsoid(params=['scale'], dims=plotdims)
 
         # now do some final updates
@@ -1362,6 +1369,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sort.neurons = sort.neurons
         self.sort.clusters = sort.clusters
         self.sort._nid = max(self.sort.neurons.keys()) + 1 # reset unique nid counter
+        # TODO: import auto clustering output arrays too!
         self.RestoreClusters2GUI()
 
     def SaveSortFile(self, fname):

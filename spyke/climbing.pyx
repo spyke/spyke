@@ -72,13 +72,13 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
     cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
-    cdef double sigma2 = sigma**2
+    cdef double sigma2 = sigma * sigma
     cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
-    cdef double rmerge2 = rmerge**2
+    cdef double rmerge2 = rmerge * rmerge
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
-    cdef double rneigh2 = rneigh**2
+    cdef double rneigh2 = rneigh * rneigh
     cdef double d, d2, min_d2, move
     cdef np.ndarray[np.float64_t, ndim=1] ds = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1] d2s = np.zeros(ndims)
@@ -327,11 +327,13 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         scoutdensities = np.zeros(0)
 
 
-    nmoving = (still[:M] < maxstill).sum()
+    moving = still[:M] < maxstill
+    nmoving = moving.sum()
     print('\nniters: %d' % iteri)
     print('nscouts: %d' % M)
-    print('nmoving: %d, minmove: %f' % (nmoving, minmove))
     print('sigma: %.2f, rneigh: %.2f, rmerge: %.2f, alpha: %.2f' % (sigma, rneigh, rmerge, alpha))
+    print('nmoving: %d, minmove: %f' % (nmoving, minmove))
+    print('moving scouts: %r' % np.where(moving)[0])
     print('still array:')
     print still[:M]
     return clusteris, scouts[:M], densities, scoutdensities, sampleis

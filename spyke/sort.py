@@ -315,19 +315,12 @@ class Sort(object):
                 if dim in ['x0', 'y0']:
                     d -= d.mean()
                     d /= x0std
-                elif dim == 't':
-                    # for time, subtract the min time, divide by the max time
-                    # (this gives you time from 0 to 1), then scale by 1.0 for
-                    # every hour of recording
-                    tmin = d.min()
-                    tmax = d.max()
-                    tspan = tmax - tmin
-                    tscale = 1.0 / (60*60*1e6) * tspan
-                    d -= tmin
-                    d /= tmax
-                    d *= tscale
-                else:
-                    # normalize all other dims by their std
+                elif dim == 't': # the longer the recording in hours, the greater the scaling in time
+                    trange = d.max() - d.min()
+                    tscale = trange / (60*60*1e6)
+                    d -= d.mean()
+                    d *= tscale / d.std()
+                else: # normalize all other dims by their std
                     d -= d.mean()
                     d /= d.std()
 
