@@ -581,12 +581,44 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             mergecluster.scale[dim] = data[spikeis, dimi].std()
 
         mergecluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
-        cf.glyph.mlab_source.update()
 
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(mergecluster)
 
+    def OnRenumberClusters(self, evt=None):
+        """Renumber clusters consecutively from 0, on "re#" button click"""
+        s = self.sort
+        oldcids = sorted(s.clusters.keys()) # make sure they're in order
+        newcids = range(len(s.clusters))
+        if oldcids == newcids:
+            return
+        cf = self.frames['cluster']
+        cf.f.scene.disable_render = True # turn rendering off for speed
+        for oldcid, newcid in zip(oldcids, newcids):
+            if newcid == oldcid:
+                continue # to next pair
+            # else need to do a renumbering, change all occurences of oldcid to newcid
+            cluster = s.clusters[oldcid]
+            cluster.id = newcid # this indirectly updates neuron.id
+            # update cluster and neuron dicts
+            s.clusters[newcid] = s.clusters.pop(oldcid)
+            s.neurons[newcid] = s.neurons.pop(oldcid)
+            s.spikes['nid'][s.spikes['nid'] == oldcid] = newcid
+            s.clusteris[s.clusteris == oldcid] = newcid
+            # TODO: can't figure out how to change scalar value of eixsting ellipsoid, just delete it and
+            # make a new one. This is probably a very innefficient thing to do
+            cluster.ellipsoid.remove()
+            dims = self.GetClusterPlotDimNames()
+            cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
+
+        # repack some len(s.clusters) climb results arrays
+        s.scoutpositions = s.scoutpositions[oldcids]
+        s.scoutdensities = s.scoutdensities[oldcids]
+
+        # now do some final updates
+        self.UpdateClustersGUI()
+        self.ColourPoints(s.clusters.values())
 
     def OnCListSelect(self, evt, cluster=None):
         """Cluster list box item selection. Update cluster param widgets
@@ -697,7 +729,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             neuron = cluster.neuron
             cf.glyph.mlab_source.scalars[ris] = neuron.id % len(CMAP)
         t0 = time.time()
-        print('calling glyph.mlab_source.update()')
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
         print('glyph.mlab_source.update() call took %.3f sec' % ((time.time()-t0)))
 
@@ -876,7 +907,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex, rneighx=4,
                         subsample=s.subsample, calcdensities=True,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000, minsize=10)
-        s.clusteris, s.positions, s.densities, s.scoutdensities, s.sampleis = results
+        s.clusteris, s.scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
         nids = list(np.unique(s.clusteris))
         try: nids.remove(-1)
         except ValueError: pass
@@ -886,7 +917,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # apply the clusters to the cluster plot
         plotdims = self.GetClusterPlotDimNames()
         t0 = time.clock()
-        for nid, pos in zip(nids, s.positions): # nids come out sorted
+        for nid, pos in zip(nids, s.scoutpositions): # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = s.densities/scoutdensity > s.density_thresh
             spikeis, = np.where((s.clusteris == nid) & density_mask)
@@ -922,8 +953,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         nids = list(np.unique(s.clusteris))
         try: nids.remove(-1)
         except ValueError: pass
-        # ensure climb results s.clusteris, s.positions, and s.scoutdensities were
-        # updated after any cluster changes
         assert s.neurons.keys() == nids
         data = self.sort.get_param_matrix(dims=s.dims, scale=True)
         s.density_thresh = float(self.density_thresh_text_ctrl.GetValue()) # update from GUI
