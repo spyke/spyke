@@ -751,7 +751,7 @@ class Detector(object):
 
         if not DEBUG:
             # create a processing pool with as many processes as there are CPUs/cores
-            ncpus = mp.cpu_count() # 1 per core
+            ncpus = min(mp.cpu_count(), 4) # 1 per core, max of 4, ie don't allow 8 "cores"
             pool = mp.Pool(ncpus, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
             directions = [direction]*len(wavetranges)
             args = zip(wavetranges, directions)

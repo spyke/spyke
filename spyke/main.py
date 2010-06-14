@@ -84,7 +84,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.hpstream = None
         self.lpstream = None
 
-        self.Bind(wx.EVT_MOVE, self.OnMove)
+        #self.Bind(wx.EVT_MOVE, self.OnMove)
         self.Bind(wx.EVT_CLOSE, self.OnExit)
 
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
@@ -136,7 +136,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # TODO: this is just temporary, for faster testing
         #self.range_start_combo_box.SetValue('0')
-        self.range_end_combo_box.SetValue('30e6')
+        #self.range_end_combo_box.SetValue('30e6')
 
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.lockr_spin_ctrl.SetValue(detect.Detector.DEFLOCKR)
@@ -329,14 +329,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Sample & hold menu event"""
         enable = self.menubar.IsChecked(wx.ID_SHCORRECT) # maybe not safe, but seems to work
         self.SetSHCorrect(enable)
-
+    '''
     def OnMove(self, evt):
         """Move frame, and all dataframes as well, like docked windows"""
         for frametype, frame in self.frames.iteritems():
             frame.Move(self.GetPosition() + self.dpos[frametype])
         #evt.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the frame no matter what you do with the event
-
+    '''
     def OnFilePosComboBox(self, evt):
         """Change file position using combo box control,
         convert start, now, and end to appropriate vals"""
@@ -606,8 +606,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             s.neurons[newcid] = s.neurons.pop(oldcid)
             s.spikes['nid'][s.spikes['nid'] == oldcid] = newcid
             s.clusteris[s.clusteris == oldcid] = newcid
-            # TODO: can't figure out how to change scalar value of eixsting ellipsoid, just delete it and
-            # make a new one. This is probably a very innefficient thing to do
+            # TODO: can't figure out how to change scalar value of existing ellipsoid (for
+            # mouse hover tooltip), just delete it and make a new one. This is very innefficient
             cluster.ellipsoid.remove()
             dims = self.GetClusterPlotDimNames()
             cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
@@ -623,11 +623,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnCListSelect(self, evt, cluster=None):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
-        # TODO: handle multiple selection by disabling the param widgets,
-        # and only reenabling them once only a single item is selected
-        # in the clist
-        cluster = self.GetCluster()
-        self.UpdateParamWidgets(cluster)
+        selectedRows = self.clist.getSelection()
+        if len(selectedRows) == 1:
+            cluster = self.GetCluster()
+            self.cluster_params_pane.Enable(True)
+            self.UpdateParamWidgets(cluster)
+        else:
+            self.cluster_params_pane.Enable(False)
+        # mirror selection changes to nlist
+        sf = self.frames['sort']
+        all_nids = sorted(self.sort.neurons)
+        nids = set(np.asarray(all_nids)[selectedRows])
+        remove_nids = list(sf.nlist.lastSelectedIDs.difference(nids))
+        add_nids = list(nids.difference(sf.nlist.lastSelectedIDs))
+        deselect_rows = np.searchsorted(all_nids, remove_nids)
+        select_rows = np.searchsorted(all_nids, add_nids)
+        nlist = sf.nlist
+        [ nlist.Select(row, on=False) for row in deselect_rows ]
+        [ nlist.Select(row, on=True) for row in select_rows ]
+
 
     def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,

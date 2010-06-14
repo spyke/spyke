@@ -963,7 +963,8 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnNListSelect(self, evt):
         selectedRows = self.nlist.getSelection()
-        nids = set(np.asarray(list(self.sort.neurons))[selectedRows])
+        all_nids = sorted(self.sort.neurons)
+        nids = set(np.asarray(all_nids)[selectedRows])
         remove_nids = self.nlist.lastSelectedIDs.difference(nids)
         add_nids = nids.difference(self.nlist.lastSelectedIDs)
         self.RemoveItemsFromPlot([ 'n'+str(nid) for nid in remove_nids ])
@@ -974,6 +975,14 @@ class SortFrame(wxglade_gui.SortFrame):
         elif len(nids) == 1:
             nid = list(nids)[0]
             self.nslist.neuron = self.sort.neurons[nid]
+        # mirror selection changes to clist
+        remove_nids = list(remove_nids)
+        add_nids = list(add_nids)
+        deselect_rows = np.searchsorted(all_nids, remove_nids)
+        select_rows = np.searchsorted(all_nids, add_nids)
+        clist = self.spykeframe.clist
+        [ clist.Select(row, on=False) for row in deselect_rows ]
+        [ clist.Select(row, on=True) for row in select_rows ]
 
     def OnNSListSelect(self, evt):
         sort = self.sort
