@@ -19,6 +19,10 @@ import pylab as pl
 from spyke.core import g, g2
 
 
+DEFSX = 30 # default spatial decay along x axis, in um
+DEFSY = 30
+
+
 def callspike2XY(args):
     spike, wavedata = args
     ext = mp.current_process().extractor
@@ -37,17 +41,17 @@ class SpatialLeastSquares(object):
     """Least squares Levenberg-Marquardt spatial gaussian fit of decay across chans"""
     def __init__(self, debug=False):
         self.A = None
-        self.sx = 30
-        self.sy = 30
+        self.sx = DEFSX
+        self.sy = DEFSY
         self.x0 = None
         self.y0 = None
         # TODO: mess with fixed sx and sy to find most clusterable vals, test on
         # 3 column data too
         self.debug = debug
 
-    def calc0(self, x, y, V):
+    def calc_x0y0(self, x, y, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost0, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
+        try: result = leastsq(self.cost_x0y0, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
@@ -63,9 +67,9 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def calc1(self, x, y, V):
+    def calc_sxsy(self, x, y, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost1, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
+        try: result = leastsq(self.cost_sxsy, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
@@ -81,8 +85,8 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def model0(self, p, x, y):
-        """2D elliptical Gaussian"""
+    def model_x0y0(self, p, x, y):
+        """2D elliptical Gaussian, with x0 and y0 free"""
         #try:
         x0, y0 = p
         return self.A * g2(x0, y0, self.sx, self.sy, x, y)
@@ -90,8 +94,8 @@ class SpatialLeastSquares(object):
         #    print(err)
         #    import pdb; pdb.set_trace()
 
-    def model1(self, p, x, y):
-        """2D elliptical Gaussian"""
+    def model_sxsy(self, p, x, y):
+        """2D elliptical Gaussian, with sx and sy free"""
         #try:
         sx, sy = p
         return self.A * g2(self.x0, self.y0, sx, sy, x, y)
@@ -99,13 +103,13 @@ class SpatialLeastSquares(object):
         #    print(err)
         #    import pdb; pdb.set_trace()
 
-    def cost0(self, p, x, y, V):
+    def cost_x0y0(self, p, x, y, V):
         """Distance of each point to the model function"""
-        return self.model0(p, x, y) - V
+        return self.model_x0y0(p, x, y) - V
 
-    def cost1(self, p, x, y, V):
+    def cost_sxsy(self, p, x, y, V):
         """Distance of each point to the model function"""
-        return self.model1(p, x, y) - V
+        return self.model_sxsy(p, x, y) - V
 
     def staticmodel(self, x, y):
         return self.A * g2(self.x0, self.y0, self.sx, self.sy, x, y)
@@ -115,8 +119,9 @@ class SpatialLeastSquares(object):
         from matplotlib import cm
         f = pl.figure()
         a = Axes3D(f)
+        model = self.staticmodel(x, y)
         a.scatter(x, y, w, c='k') # actual
-        a.scatter(x, y, self.staticmodel(x, y), c='r') # modelled
+        a.scatter(x, y, model, c='r') # modelled
         #X, Y = np.meshgrid(x, y)
         #a.plot_surface(X, Y, self.staticmodel(X, Y), color=(0.2, 0.2, 0.2, 0.5))
         X = np.arange(x.min(), x.max(), 5)
@@ -126,6 +131,8 @@ class SpatialLeastSquares(object):
         a.set_xlabel('x')
         a.set_ylabel('y')
         a.set_zlabel('V')
+        err = np.sum(np.square(model - w))
+        a.set_title('sum squared error: %.1f' % err)
         f.canvas.Parent.SetTitle('spike %d' % spike['id'])
 
 
@@ -420,17 +427,33 @@ class Extractor(object):
         return x, y, w, A, x0, y0
 
     def spike2spatial(self, spike):
-        """A convenient way of plotting spatial fits, one spike at a time"""
+        """A convenient way of plotting spatial fits, one spike at a time.
+        Fits location first, followed by spread, using a global constant intial guess for spread"""
         x, y, w, A, x0, y0 = self.spike2xyw(spike)
         sls = self.sls
-        sls.A, sls.sx, sls.sy = A, 30, 30 # sigmas need to be reset each time, since they may have been modified by a previous call to this method!
+        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSY
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([x0, y0])
-        print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
-        sls.calc0(x, y, w) # A and sigmas fixed
-        print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
+        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc1(x, y, w) # x0 and y0 fixed
-        print {'A':sls.A, 'sx':sls.sx, 'sy':sls.sy, 'x0':sls.x0, 'y0':sls.y0}
+        sls.calc_sxsy(x, y, w) # sx and sy free
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        sls.plot(x, y, w, spike)
+
+    def spike2spatial2(self, spike):
+        """A convenient way of plotting spatial fits, one spike at a time.
+        Fits spread first, followed by location, using spatialmean as intial guess for location"""
+        x, y, w, A, x0, y0 = self.spike2xyw(spike)
+        sls = self.sls
+        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSY
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        sls.p0 = np.array([sls.sx, sls.sy])
+        sls.calc_sxsy(x, y, w) # sx and sy free
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        sls.p0 = np.array([sls.x0, sls.y0])
+        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.plot(x, y, w, spike)
 
     def extract_all_XY(self):
@@ -497,13 +520,13 @@ class Extractor(object):
         return self.wavedata2spatial(wavedata, maxchani, phasetis, aligni, x, y)
 
     def wavedata2spatial(self, wavedata, maxchani, phasetis, aligni, x, y):
-        # Vpp weights seem more clusterable than Vp weights
+        """Convert wavedata to per-channel weights. Vpp weights seem more clusterable
+        than Vp weights.
+        TODO: consider using some feature other than Vp or Vpp, like a wavelet,
+        for extracting weights across chans
+        """
         weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
         #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
-
-        # TODO: consider using some feature other than Vp or Vpp, like a wavelet,
-        # for extracting weights across chans
-
         return self.weights2spatial(weights, x, y, maxchani)
 
     def get_Vp_weights(self, wavedata, maxchani, phasetis, aligni):
@@ -531,7 +554,12 @@ class Extractor(object):
         # looking for same phase maybe slightly shifted
         #dti = self.sort.detector.dti // 2 # constant
 
-        # TODO: try using dphase instead of dphase/2, check clusterability
+        # TODO: try using dphase/2 instead of dphase, check clusterability
+        # and if this reduces cluster pollution from double-triggered spikes
+
+        # TODO: seach for peaks within dti, not just max/min value on each chan.
+        # If you don't find a peak within the window for a given chan, then default to using the
+        # timepoint from the maxchan
 
         phasetis = np.int32(phasetis) # prevent over/underflow of uint8
         dti = max((phasetis[1]-phasetis[0]), 1) # varies from spike to spike
@@ -621,68 +649,23 @@ class Extractor(object):
         return x0, y0
 
     def weights2gaussian(self, w, x, y, maxchani):
-        """Can't seem to prevent from getting a stupidly wide range of modelled
-        x locations. Tried fitting V**2 instead of V (to give big chans more weight),
-        tried removing chans that don't fit spatial Gaussian model very well, and
-        tried fitting with a fixed sy to sx ratio (1.5 or 2). They all may have helped
-        a bit, but the results are still way too scattered, and look far less clusterable
-        than results from spatial mean. Plus, the LM algorithm keeps generating underflow
-        errors for some reason. These can be turned off and ignored, but it's strange that
-        it's choosing to explore the fit at such extreme values of sx (say 0.6 instead of 60)"""
-        #self.x, self.y, self.maxchani = x, y, maxchani # bind in case need to pass unmolested versions to weights2spatialmean()
-        #w **= 2 # fit Vpp squared, so that big chans get more consideration, and errors on small chans aren't as important
-        if len(w) == 1: # only one chan, return its coords
-            return int(x), int(y)
+        """Return spatial location and spread using a 2D Gaussian model,
+        with location initialized using spatial mean, and spread initialized
+        with constant global values. Spread and location are fit sequentially, in that
+        order, because there isn't enough data from a single spike to fit them both
+        simultaneously and expect to get reasonable results. Otherwise, LM ends up using the
+        tail of the 2D distrib to get min sum squared error"""
+        if len(w) == 1: # only one chan, return its coords and the default sigmas
+            return int(x), int(y), DEFSX, DEFSY
 
         sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
-        # or, init with just the coordinates of the max weight, doesn't save time
-        #x0, y0 = x[maxchani], y[maxchani]
-        sls.A, sls.sx, sls.sy = w[maxchani], 30, 30 # sigmas need to be reset each time
-        sls.p0 = np.array([x0, y0])
-        #sls.p0 = np.array([x[maxchani], y[maxchani]])
-        sls.calc0(x, y, w) # A and sigmas fixed
+        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
+        # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
         sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc1(x, y, w) # x0 and y0 fixed
+        sls.calc_sxsy(x, y, w) # sx and sy free
+        # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
+        sls.p0 = np.array([x0, y0])
+        sls.calc_x0y0(x, y, w) # x0 and y0 free
 
         return sls.x0, sls.y0, sls.sx, sls.sy
-        '''
-        while True:
-            if len(V) < 4: # can't fit Gaussian for spikes with low nchans
-                print('\n\nonly %d fittable chans in spike \n\n' % len(V))
-                return self.weights2spatialmean(weights, self.x, self.y, self.maxchani)
-            sls.calc(x, y, V)
-            if sls.ier == 2: # essentially perfect fit between data and model
-                break
-            err = np.sqrt(np.abs(sls.cost(sls.p, x, y, V)))
-            errsortis = err.argsort() # indices into err and chans, that sort err from lowest to highest
-            #errsortis = errsortis[-1:0:-1] # highest to lowest
-            otheris = list(errsortis) # creates a copy, used for mean & std calc
-            erri = errsortis[-1] # index of biggest error
-            if erri == maxchani: # maxchan has the biggest error
-                erri = errsortis[-2] # index of biggest error excluding that of maxchan
-                otheris.remove(maxchani) # remove maxchan from mean & std calc
-            otheris.remove(erri) # remove biggest error from mean & std calc
-            others = err[otheris] # dereference
-            #hist(others)
-            #hist(err[[erri]])
-            meanerr, meanstd = others.mean(), others.std()
-            maxerr = err[erri]
-            print('mean err: %.0f' % meanerr)
-            print('stdev err: %.0f' % meanstd)
-            print('deviant chani %d had err: %.0f' % (erri, maxerr))
-            if maxerr > meanerr+3*meanstd: # it's a big outlier, probably messing up Gaussian fit a lot
-                # remove the erri'th entry from x, y and V
-                # allow calc to happen again
-                print('removing deviant chani %d' % erri)
-                x = np.delete(x, erri)
-                y = np.delete(y, erri)
-                V = np.delete(V, erri)
-                if erri < maxchani:
-                    maxchani -= 1 # decr maxchani appropriately
-            else:
-                break
-
-        # TODO: return modelled amplitude and sigma as well!
-        return sls.p[1], sls.p[2]
-        '''
