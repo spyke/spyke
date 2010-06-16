@@ -19,8 +19,8 @@ import pylab as pl
 from spyke.core import g, g2
 
 
-DEFSX = 30 # default spatial decay along x axis, in um
-DEFSY = 30
+DEFSX = 50 # default spatial decay along x axis, in um
+DEFSY = 50
 
 
 def callspike2XY(args):
