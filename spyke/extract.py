@@ -67,6 +67,25 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
+    def calc_s(self, x, y, V):
+        t0 = time.clock()
+        try: result = leastsq(self.cost_s, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
+        except Exception as err:
+            print(err)
+            import pdb; pdb.set_trace()
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        s = abs(self.p) # keep sigma +ve
+        self.sx, self.sy = s, s
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+
     def calc_sxsy(self, x, y, V):
         t0 = time.clock()
         try: result = leastsq(self.cost_sxsy, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
@@ -85,31 +104,32 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def model_x0y0(self, p, x, y):
-        """2D elliptical Gaussian, with x0 and y0 free"""
-        #try:
-        x0, y0 = p
-        return self.A * g2(x0, y0, self.sx, self.sy, x, y)
-        #except Exception as err:
-        #    print(err)
-        #    import pdb; pdb.set_trace()
-
-    def model_sxsy(self, p, x, y):
-        """2D elliptical Gaussian, with sx and sy free"""
-        #try:
-        sx, sy = p
-        return self.A * g2(self.x0, self.y0, sx, sy, x, y)
-        #except Exception as err:
-        #    print(err)
-        #    import pdb; pdb.set_trace()
-
     def cost_x0y0(self, p, x, y, V):
         """Distance of each point to the model function"""
         return self.model_x0y0(p, x, y) - V
 
+    def cost_s(self, p, x, y, V):
+        """Distance of each point to the model function"""
+        return self.model_s(p, x, y) - V
+
     def cost_sxsy(self, p, x, y, V):
         """Distance of each point to the model function"""
         return self.model_sxsy(p, x, y) - V
+
+    def model_x0y0(self, p, x, y):
+        """2D elliptical Gaussian, with x0 and y0 free"""
+        x0, y0 = p
+        return self.A * g2(x0, y0, self.sx, self.sy, x, y)
+
+    def model_s(self, p, x, y):
+        """2D elliptical Gaussian, with s (sx == sy) free"""
+        s, = p
+        return self.A * g2(self.x0, self.y0, s, s, x, y)
+
+    def model_sxsy(self, p, x, y):
+        """2D elliptical Gaussian, with sx and sy free"""
+        sx, sy = p
+        return self.A * g2(self.x0, self.y0, sx, sy, x, y)
 
     def staticmodel(self, x, y):
         return self.A * g2(self.x0, self.y0, self.sx, self.sy, x, y)
@@ -341,7 +361,7 @@ class Extractor(object):
         if not self.debug: # use multiprocessing
             assert len(sort.detections) == 1
             det = sort.detector
-            ncpus = mp.cpu_count() # 1 per core
+            ncpus = min(mp.cpu_count(), 4) # 1 per core, max of 4, ie don't allow 8 "cores"
             pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
             args = zip(spikeslist, wavedata)
             results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
@@ -456,6 +476,22 @@ class Extractor(object):
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.plot(x, y, w, spike)
 
+    def spike2spatial3(self, spike):
+        """A convenient way of plotting spatial fits, one spike at a time.
+        Fits spread first using just a single sigma, followed by location,
+        using spatialmean as intial guess for location"""
+        x, y, w, A, x0, y0 = self.spike2xyw(spike)
+        sls = self.sls
+        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSX
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        sls.p0 = np.array([sls.sx])
+        sls.calc_s(x, y, w) # s free (sx == sy)
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        sls.p0 = np.array([sls.x0, sls.y0])
+        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        sls.plot(x, y, w, spike)
+
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
         sort = self.sort
@@ -474,14 +510,14 @@ class Extractor(object):
         if not self.debug: # use multiprocessing
             assert len(sort.detections) == 1
             det = sort.detector
-            ncpus = mp.cpu_count() # 1 per core
+            ncpus = min(mp.cpu_count(), 4) # 1 per core, max of 4, ie don't allow 8 "cores"
             pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
             args = zip(spikeslist, wavedata)
             results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
             print('done with pool.map()')
             pool.close()
-            # results is a list of (x0, y0) tuples, and needs to be unzipped
-            spikes['x0'], spikes['y0'] = zip(*results)
+            # results is a list of (x0, y0, sx, sy) tuples, and needs to be unzipped
+            spikes['x0'], spikes['y0'], spikes['sx'], spikes['sy'] = zip(*results)
         else:
             # give each process a detector, then pass one spike record and one waveform to
             # each this assumes all spikes come from the same detector with the same
@@ -560,6 +596,8 @@ class Extractor(object):
         # TODO: seach for peaks within dti, not just max/min value on each chan.
         # If you don't find a peak within the window for a given chan, then default to using the
         # timepoint from the maxchan
+
+        # TODO: use the same per-channel amplitude weighted slope measure to return weights for each chan
 
         phasetis = np.int32(phasetis) # prevent over/underflow of uint8
         dti = max((phasetis[1]-phasetis[0]), 1) # varies from spike to spike
@@ -661,9 +699,14 @@ class Extractor(object):
         sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
+        '''
         # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
         sls.p0 = np.array([sls.sx, sls.sy])
         sls.calc_sxsy(x, y, w) # sx and sy free
+        '''
+        sls.p0 = np.array([sls.sx])
+        sls.calc_s(x, y, w) # s free (sx == sy)
+
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
         sls.p0 = np.array([x0, y0])
         sls.calc_x0y0(x, y, w) # x0 and y0 free
