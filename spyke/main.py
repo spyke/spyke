@@ -19,6 +19,7 @@ import time
 import datetime
 import gc
 import cPickle
+import random
 
 spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
 sys.path.insert(0, spykepath)
@@ -591,21 +592,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         s = self.sort
         oldcids = sorted(s.clusters.keys()) # make sure they're in order
         newcids = range(len(s.clusters))
-        if oldcids == newcids:
-            return
+        if oldcids == newcids: # oldcids are contiguous, shuffle the newids to recolour clusters
+            random.shuffle(newcids)
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
+        oldclusters = s.clusters.copy()
+        oldneurons = s.neurons.copy()
+        oldnids = s.spikes['nid'].copy()
+        oldclusteris = s.clusteris.copy()
+        s.clusters = {} # clear 'em
+        s.neurons = {}
         for oldcid, newcid in zip(oldcids, newcids):
-            if newcid == oldcid:
-                continue # to next pair
-            # else need to do a renumbering, change all occurences of oldcid to newcid
-            cluster = s.clusters[oldcid]
+            # change all occurences of oldcid to newcid
+            cluster = oldclusters[oldcid]
             cluster.id = newcid # this indirectly updates neuron.id
             # update cluster and neuron dicts
-            s.clusters[newcid] = s.clusters.pop(oldcid)
-            s.neurons[newcid] = s.neurons.pop(oldcid)
-            s.spikes['nid'][s.spikes['nid'] == oldcid] = newcid
-            s.clusteris[s.clusteris == oldcid] = newcid
+            s.clusters[newcid] = oldclusters[oldcid]
+            s.neurons[newcid] = oldneurons[oldcid]
+            s.spikes['nid'][oldnids == oldcid] = newcid
+            s.clusteris[oldclusteris == oldcid] = newcid
             # TODO: can't figure out how to change scalar value of existing ellipsoid (for
             # mouse hover tooltip), just delete it and make a new one. This is very innefficient
             cluster.ellipsoid.remove()
@@ -613,8 +618,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
 
         # repack some len(s.clusters) climb results arrays
-        s.scoutpositions = s.scoutpositions[oldcids]
-        s.scoutdensities = s.scoutdensities[oldcids]
+        s.scoutpositions[newcids] = s.scoutpositions[oldcids]
+        s.scoutdensities[newcids] = s.scoutdensities[oldcids]
 
         # now do some final updates
         self.UpdateClustersGUI()
