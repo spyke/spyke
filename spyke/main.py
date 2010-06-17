@@ -665,15 +665,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # any clusters have been created
             pass
 
-    def FocusCurrentCluster(self):
+    def OnFocusCurrentCluster(self, evt=None):
+        """Focus button press in cluster_pane. Move focus to location
+        of currently selected (single) cluster"""
+        cluster = self.GetCluster()
+        cf = self.frames['cluster']
+        dims = self.GetClusterPlotDimNames()
+        fp = [ cluster.pos[dim] for dim in dims ]
+        cf.f.scene.camera.focal_point = fp
+        cf.Refresh() # repaint the frame
+
+    def MoveCurrentCluster2Focus(self):
         """Sets the position of the currently selected cluster to
         the point in 3D where the scene's camera is currently focused"""
-        cf = self.frames['cluster']
-        fps = cf.f.scene.camera.focal_point
         cluster = self.GetCluster()
+        cf = self.frames['cluster']
+        fp = cf.f.scene.camera.focal_point
         dims = self.GetClusterPlotDimNames()
-        for dim, fp in zip(dims, fps):
-            cluster.pos[dim] = fp
+        for dim, val in zip(dims, fp):
+            cluster.pos[dim] = val
         cluster.update_ellipsoid('pos', dims=dims)
         self.UpdateParamWidgets(cluster)
 

@@ -251,7 +251,7 @@ class ClusterFrame(wx.MiniFrame):
         elif key == 'd':
             spykeframe.OnDelCluster()
         elif key == 'x':
-            spykeframe.FocusCurrentCluster()
+            spykeframe.MoveCurrentCluster2Focus()
         elif key == 'c':
             spykeframe.OnApplyCluster()
 
