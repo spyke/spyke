@@ -116,28 +116,54 @@ class SpykeMayaviScene(MayaviScene):
     def OnKeyDown(self, event):
         key = event.GetKeyCode()
         #modifiers = event.HasModifiers()
-        if key in [ord('a'), ord('d'), ord('x'), ord('c')]:
-            # can't call spykeframe from here, do it in on_vtkkeypress
-            if key == ord('x'):
-                # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
-                x = event.GetX()
-                y = self._vtk_control.GetSize()[1] - event.GetY()
-                # set camera focal point and move current cluster to that point
-                data = self.picker.pick_world(x, y)
-                coord = data.coordinate
-                if coord is not None:
-                    self.camera.focal_point = coord
-                    self.render()
-                    self._record_methods('camera.focal_point = %r\n'\
-                                         'render()'%list(coord))
-            self._vtk_control.OnKeyDown(event)
+        sf = self._spykeframe
+        print('key = %r' % key)
+        if key == ord('a'):
+            sf.OnAddCluster(); return
+        elif key == ord('d'):
+            sf.OnDelCluster(); return
+        elif key == ord('x'):
+            # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
+            x = event.GetX()
+            y = self._vtk_control.GetSize()[1] - event.GetY()
+            # set camera focal point and move current cluster to that point
+            data = self.picker.pick_world(x, y)
+            coord = data.coordinate
+            if coord is not None:
+                self.camera.focal_point = coord
+                self.render()
+                self._record_methods('camera.focal_point = %r\n'\
+                                     'render()'%list(coord))
+            sf.MoveCurrentCluster2Focus()
             return
-        spykeframe = self._spykeframe
-        try: cluster = spykeframe.GetCluster() # TODO: adjust multiple clusters simult?
+        elif key == ord('c'):
+            sf.OnApplyCluster(); return
+        elif key in [ord('s'), wx.WXK_SPACE]:
+            # toggle selection of cluster under the cursor
+            pos = event.GetPosition()
+            x = pos.x
+            y = self._vtk_control.GetSize()[1] - pos.y
+            #x = event.GetX()
+            #y = self._vtk_control.GetSize()[1] - event.GetY()
+            data = self.picker.pick_point(x, y)
+            if data.data != None:
+                scalar = data.data.scalars[0] # just grab the first value
+                if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+                    nid = int(-(scalar + 1))
+                    all_nids = np.asarray(sorted(sf.sort.neurons))
+                    row, = np.where(all_nids == nid)
+                    assert len(row) == 1
+                    row = row[0] # pull it out of the array
+                    on = not sf.clist.IsSelected(row) # toggle
+                    sf.clist.Select(row, on=on)
+            return
+        #self._vtk_control.OnKeyDown(event)
+
+        try: cluster = sf.GetCluster()
         except RuntimeError:
             # pass event to parent class
             MayaviScene.OnKeyDown(self, event)
-        x, y, z = spykeframe.GetClusterPlotDimNames()
+        x, y, z = sf.GetClusterPlotDimNames()
         dim, sign = None, None
         modifiers = event.GetModifiers()
         if key == wx.WXK_PAGEDOWN: # inc xdim
@@ -196,9 +222,9 @@ class SpykeMayaviScene(MayaviScene):
         if key in [wx.WXK_PAGEDOWN, wx.WXK_DELETE,
                    wx.WXK_HOME, wx.WXK_END,
                    wx.WXK_PAGEUP, wx.WXK_INSERT]:
-            spykeframe = self._spykeframe
-            cluster = spykeframe.GetCluster()
-            spykeframe.UpdateParamWidgets(cluster)
+            sf = self._spykeframe
+            cluster = sf.GetCluster()
+            sf.UpdateParamWidgets(cluster)
         # pass event to parent class
         MayaviScene.OnKeyUp(self, event)
 
@@ -227,8 +253,8 @@ class ClusterFrame(wx.MiniFrame):
         # this is a hack to remove the vtkObserver that catches 'a' and 'c' VTK CharEvents
         # to see all registered observers, print the interactor
         self.vis.scene.interactor.remove_observer(1)
-        # add my own observer to catch keypress events that need access to spykeframe
-        self.vis.scene.interactor.add_observer('KeyPressEvent', self.on_vtkkeypress)
+        # here's how to add your own observer to catch vtk keypress events
+        #self.vis.scene.interactor.add_observer('KeyPressEvent', self.on_vtkkeypress)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
@@ -239,22 +265,14 @@ class ClusterFrame(wx.MiniFrame):
     def OnClose(self, evt):
         frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
         self.Parent.HideFrame(frametype)
-
+    '''
     def on_vtkkeypress(self, obj, evt):
-        """Custom VTK key press event.
+        """Custom VTK key press event. Here just for instructive purposes.
         See http://article.gmane.org/gmane.comp.python.enthought.devel/10491"""
         key = obj.GetKeyCode()
+        print('key == %s' % key)
         spykeframe = self.Parent
-        # finish handling the 'x' keypress. First part was handled by SpykeMayaviScene.OnKeyDown()
-        if key == 'a':
-            spykeframe.OnAddCluster()
-        elif key == 'd':
-            spykeframe.OnDelCluster()
-        elif key == 'x':
-            spykeframe.MoveCurrentCluster2Focus()
-        elif key == 'c':
-            spykeframe.OnApplyCluster()
-
+    '''
     def plot(self, X, scale=None, nids=None, minspikes=1,
              mode='point', scale_factor=0.5, alpha=None,
              mask_points=None, resolution=8, line_width=2.0, envisage=False):

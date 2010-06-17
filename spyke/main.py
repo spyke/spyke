@@ -673,7 +673,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dims = self.GetClusterPlotDimNames()
         fp = [ cluster.pos[dim] for dim in dims ]
         cf.f.scene.camera.focal_point = fp
-        cf.Refresh() # repaint the frame
+        cf.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
+        #cf.Refresh() # this also seems to work: repaint the frame
 
     def MoveCurrentCluster2Focus(self):
         """Sets the position of the currently selected cluster to
