@@ -235,12 +235,12 @@ class Extractor(object):
         ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
         invICs = ICs.I # not a square matrix, think it must do pseudoinverse
 
-        for ri in xrange(nspikes):
+        for sid in xrange(nspikes):
             maxchanwavedata = wavedata[maxchani]
             # TODO: maybe normalize amplitude of spike to match that of the ICs (maybe keep everything normalized to 1). That way, You're really just looking at spike shape, and not allowing amplitude to add to the variability. Amplitude can remain a clusterable parameter via Vp or Vpp.
             weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
-            spikes['IC0'][ri] = weights[0, 0]
-            spikes['IC1'][ri] = weights[0, 1]
+            spikes['IC0'][sid] = weights[0, 0]
+            spikes['IC1'][sid] = weights[0, 1]
     '''
     def extract_all_wcs(self, wavelet='haar'):
         """Extract wavelet coefficients from all spikes, store them as spike attribs"""
@@ -256,7 +256,7 @@ class Extractor(object):
         ncoeffs = len(np.concatenate(pywt.wavedec(wavedata[0, 0], wavelet)))
         wcs = np.zeros((nspikes, ncoeffs))
         t0 = time.time()
-        for spikei, (spike, wd) in enumerate(zip(spikes, wavedata)):
+        for spike, wd in zip(spikes, wavedata):
             nchans = spike['nchans']
             chans = spike['chans'][:nchans]
             maxchan = spike['chan']
@@ -264,9 +264,9 @@ class Extractor(object):
             #chanis = det.chans.searchsorted(chans) # det.chans are always sorted
             #wd = wd[:nchans] # unnecessary?
             V = wd[maxchani]
-            wcs[spikei] = np.concatenate(pywt.wavedec(V, wavelet)) # flat array of wavelet coeffs
-            #wcs[spikei] = np.concatenate(pywt.wavedec(V, wavelet))[self.ksis]
-            #wcs[spikei] = self.wavedata2wcs(wd, maxchani)
+            wcs[spike['id']] = np.concatenate(pywt.wavedec(V, wavelet)) # flat array of wavelet coeffs
+            #wcs[spike['id']] = np.concatenate(pywt.wavedec(V, wavelet))[self.ksis]
+            #wcs[spike['id']] = self.wavedata2wcs(wd, maxchani)
         ks = np.zeros(ncoeffs)
         p = np.zeros(ncoeffs)
         for i in range(ncoeffs):
@@ -305,7 +305,7 @@ class Extractor(object):
         flatwcs = np.zeros((nspikes, ncoeffs))
 
         t0 = time.time()
-        for spikei, (spike, wd) in enumerate(zip(spikes, wavedata)):
+        for spike, wd in zip(spikes, wavedata):
             nchans = spike['nchans']
             chans = spike['chans'][:nchans]
             maxchan = spike['chan']
@@ -315,7 +315,7 @@ class Extractor(object):
             V = wd[maxchani]
             coeffs = np.concatenate(pywt.wavedec(V, wavelet)) # flat array of wavelet coeffs
             wcs[maxchan].append(coeffs)
-            flatwcs[spikei] = coeffs
+            flatwcs[spike['id']] = coeffs
         ks = np.zeros((nmaxchans, ncoeffs))
         p = np.zeros((nmaxchans, ncoeffs))
         for maxchani, maxchan in enumerate(maxchans):
@@ -399,8 +399,8 @@ class Extractor(object):
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
         maxchani = int(np.where(chans == maxchan)[0])
-        spikei = spike['id']
-        V = self.sort.wavedata[spikei, maxchani]
+        sid = spike['id']
+        V = self.sort.wavedata[sid, maxchani]
         # get timestamps relative to start of waveform
         ts = np.arange(0, spike['tend'] - spike['t0'], self.sort.tres)
         t0, t1 = ts[spike['phasetis']]
@@ -418,7 +418,7 @@ class Extractor(object):
             f = pl.figure()
             pl.plot(V)
             pl.plot(tls.model(tls.p, ts))
-            f.canvas.Parent.SetTitle('spike %d' % spikei)
+            f.canvas.Parent.SetTitle('spike %d' % sid)
         return tls.p
 
     def spike2xyw(self, spike):
@@ -430,8 +430,8 @@ class Extractor(object):
         maxchani = int(np.where(chans == maxchan)[0])
         det = self.sort.detector
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-        spikei = spike['id']
-        wavedata = self.sort.wavedata[spikei, :nchans] # chans in wavedata are sorted
+        sid = spike['id']
+        wavedata = self.sort.wavedata[sid, :nchans] # chans in wavedata are sorted
         phasetis = spike['phasetis']
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
@@ -545,8 +545,8 @@ class Extractor(object):
         ''' # comment out ICA stuff
         maxchanwavedata = wavedata[maxchani]
         weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
-        spikes['IC1'][ri] = weights[0, 0]
-        spikes['IC2'][ri] = weights[0, 1]
+        spikes['IC1'][sid] = weights[0, 0]
+        spikes['IC2'][sid] = weights[0, 1]
         '''
         phasetis = spike['phasetis']
         aligni = spike['aligni']

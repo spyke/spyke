@@ -52,9 +52,8 @@ def get_wave(obj, sort=None):
             return n.wave # return existing neuron waveform
     # it's a spike record
     s = obj
-    ri = sort.spikes['id'].searchsorted(s['id']) # returns an array
-    ri = int(ri)
-    wave = sort.get_wave(ri)
+    sid = int(s['id'])
+    wave = sort.get_wave(sid)
     return wave
 
 
@@ -362,289 +361,6 @@ class DistanceMatrix(object):
         self.coords = [ chan_coord[1] for chan_coord in chans_coords ] # pull out the coords, now in chan order
         self.data = eucd(self.coords)
 
-'''
-# no longer necessary, now that spikes struct array is being used
-class Spike(object):
-    """A Spike"""
-    def __eq__(self, other):
-        """Compare Spikes according to their hashes"""
-        if self.__class__ != other.__class__: # might be comparing a Spike with a Neuron
-            return False
-        return hash(self) == hash(other) # good enough for just simple detection
-
-    def __hash__(self):
-        """Unique hash value for self, based on spike time and location.
-        Required for effectively using Spikes in a Set, and for testing equality"""
-        return hash((self.t, self.chani)) # hash of their tuple, should guarantee uniqueness
-
-    def __repr__(self):
-        chan = self.detection.detector.chans[self.chani] # dereference
-        return str((self.t, chan))
-
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = self.__dict__.copy() # this doesn't seem to be a slow step
-        # when deleting a dict entry, the strategy here is to use
-        # d.pop(entry, None) to not raise an error if the entry doesn't exist
-        if not self.detection.sort.SAVEWAVES:
-            d.pop('wave', None) # clear wave (if any) to save space and time during pickling
-        if 'neuron' in d and d['neuron'] == None:
-            del d['neuron']
-        # TODO: do spikes really need a .neuron attribute at all? How about just a .nid attribute? .nid would be invalid
-        # after a renumbering of the neurons
-        d.pop('plt', None) # clear plot (if any) self is assigned to, since that'll have changed anyway on unpickle
-        d.pop('itemID', None) # clear tree item ID (if any) since that'll have changed anyway on unpickle
-        return d
-
-    # TODO: Could potentially define __setstate___ to reset .wave, .neuron,
-    # .plt, and .itemID back to None if they don't exist in the d returned
-    # from the pickle. This might make it easier to work with other
-    # code that relies on all of these attribs exsting all the time"""
-
-    def get_chan(self):
-        return self.detection.detector.chans[self.chani] # dereference max chani
-
-    def set_chan(self, chans):
-        raise RuntimeError("spike.chan isn't settable, set spike.chani instead")
-
-    chan = property(get_chan, set_chan)
-
-    def get_chans(self):
-        return self.detection.detector.chans[self.chanis] # dereference
-
-    def set_chans(self, chans):
-        raise RuntimeError("spike.chans isn't settable, set spike.chanis instead")
-
-    chans = property(get_chans, set_chans)
-
-    def update_wave(self, stream, tw=None):
-        """Load/update self's waveform taken from the given stream.
-        Optionally slice it according to tw around self's spike time"""
-        if stream == None:
-            raise RuntimeError("No stream open, can't update waveform for spike %d" % self.id)
-        if self.detection.detector.srffname != stream.srffname:
-            msg = ("Spike %d was extracted from .srf file %s.\n"
-                   "The currently opened .srf file is %s.\n"
-                   "Can't update spike %d's waveform." %
-                   (self.id, self.detection.detector.srffname, stream.srffname, self.id))
-            wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
-            raise RuntimeError(msg)
-        wave = stream[self.t0 : self.tend]
-        ts = np.arange(self.t0, self.tend, stream.tres) # build them up
-        # can't do this cuz chanis indexes only into enabled chans,
-        # not into all stream chans represented in data array:
-        #data = wave.data[self.chanis]
-        chans = self.detection.detector.chans[self.chanis] # dereference
-        data = wave[chans].data # maybe a bit slower, but correct
-        #assert data.shape[1] == len(np.arange(s.t0, s.tend, stream.tres)) # make sure I know what I'm doing
-        self.wave = WaveForm(data=data, ts=ts, chans=chans)
-        if tw != None:
-            self.wave = self[self.t+tw[0] : self.t+tw[1]]
-        return self.wave
-
-
-class SpikeModel(Spike):
-    """A model for fitting two voltage Gaussians to spike phases,
-    plus a 2D spatial gaussian to model decay across channels"""
-    def __init__(self):
-        self.errs = []
-        self.valid = False # modelled event is assumed not to be a spike until proven spike-worthy
-        self.sxsyfactor = 3 # sx and sy need to be within this factor of each other
-
-    def __eq__(self, other):
-        """Compare SpikeModels by their parameter arrays"""
-        if self.__class__ != other.__class__: # might be comparing a Spike with a Neuron
-            return False
-        return np.all(self.p == other.p) # disable for now while not modelling
-
-    def __getitem__(self, key):
-        """Return WaveForm for this spike given slice key"""
-        assert type(key) == slice
-        if self.wave != None:
-            return self.wave[key] # slice existing .wave
-        else: # existing .wave unavailable
-            return WaveForm() # return empty waveform
-
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = Spike.__getstate__(self)
-        d['errs'] = None
-        return d
-
-    def plot(self):
-        """Plot modelled and raw data for all chans, plus the single spatially
-        positioned source time series, along with its 1 sigma ellipse"""
-        # TODO: also plot the initial estimate of the model, according to p0, to see how the algoritm has changed wrt it
-        ts, p = self.ts, self.p
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
-        uV2um = 45 / 100 # um/uV
-        us2um = 75 / 1000 # um/us
-        tw = ts[-1] - ts[0]
-        f = pylab.figure()
-        f.canvas.Parent.SetTitle('t=%d' % self.t)
-        a = f.add_axes((0, 0, 1, 1), frameon=False, alpha=1.)
-        self.f, self.a = f, a
-        a.set_axis_off() # turn off the x and y axis
-        f.set_facecolor('black')
-        f.set_edgecolor('black')
-        xmin, xmax = min(self.x), max(self.x)
-        ymin, ymax = min(self.y), max(self.y)
-        xrange = xmax - xmin
-        yrange = ymax - ymin
-        # this is set with an aspect ratio to mimic the effects of a.set_aspect('equal') without enforcing it
-        f.canvas.Parent.SetSize((xrange*us2um*100, yrange*uV2um*8))
-        thetadeg = theta*180/np.pi
-        # plot stdev ellipse centered on middle timepoint, with bottom origin
-        ellorig = x0, ymax-y0
-        e = mpl.patches.Ellipse(ellorig, 2*sx, 2*sy, angle=thetadeg,
-                                ec='#007700', fill=False, ls='dotted')
-        a.add_patch(e)
-        """
-        c = mpl.patches.Circle((0, yrange-15), radius=15, # for calibrating aspect ratio of display
-                                ec='#ffffff', fill=False, ls='dotted')
-        a.add_patch(c)
-        """
-        # plot a radial arrow on the ellipse to make its vertical axis obvious. theta=0 should plot a vertical radial line
-        arrow = mpl.patches.Arrow(ellorig[0], ellorig[1], -sy*np.sin(theta), sy*np.cos(theta),
-                                  ec='#007700', fc='#007700', ls='solid')
-        a.add_patch(arrow)
-        for (V, x, y) in zip(self.V, self.x, self.y):
-            t_ = (ts-ts[0]-tw/2)*us2um + x # in um, centered on the trace
-            V_ = V*uV2um + (ymax-y) # in um, switch to bottom origin
-            modelV_ = self.model(p, ts, x, y).ravel() * uV2um + (ymax-y) # in um, switch to bottom origin
-            rawline = mpl.lines.Line2D(t_, V_, color='grey', ls='-', linewidth=1)
-            modelline = mpl.lines.Line2D(t_, modelV_, color='red', ls='-', linewidth=1)
-            a.add_line(rawline)
-            a.add_line(modelline)
-        t_ = (ts-ts[0]-tw/2)*us2um + x0 # in um
-        modelsourceV_ = self.model(p, ts, x0, y0).ravel() * uV2um + (ymax-y0) # in um, switch to bottom origin
-        modelsourceline = mpl.lines.Line2D(t_, modelsourceV_, color='lime', ls='-', linewidth=1)
-        a.add_line(modelsourceline)
-        a.autoscale_view(tight=True) # fit to enclosing figure
-        a.set_aspect('equal') # this makes circles look like circles, and ellipses to tilt at the right apparent angle
-        # plot vertical lines in all probe columns at self's modelled 1st and 2nd spike phase times
-        colxs = list(set(self.x)) # x coords of probe columns
-        ylims = a.get_ylim() # y coords of vertical line
-        for colx in colxs: # plot one vertical line per spike phase per probe column
-            t1_ = (self.phase1t-ts[0]-tw/2)*us2um + colx # in um
-            t2_ = (self.phase2t-ts[0]-tw/2)*us2um + colx # in um
-            vline1 = mpl.lines.Line2D([t1_, t1_], ylims, color='#004444', ls='dotted')
-            vline2 = mpl.lines.Line2D([t2_, t2_], ylims, color='#440044', ls='dotted')
-            a.add_line(vline1)
-            a.add_line(vline2)
-
-    def model(self, p, ts, x, y):
-        """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian.
-        For each channel, return a vector of voltage values V of same length as ts.
-        x and y are vectors of coordinates of each channel's spatial location.
-        Output should be an (nchans, nt) matrix of modelled voltage values V"""
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
-        x, y = np.inner(RM(theta), np.asarray([x-x0, y-y0]).T) # make x, y distance to origin at x0, y0, and rotate by theta
-        tmodel = V1*g(mu1, s1, ts) + V2*g(mu2, s2, ts)
-        smodel = g2(0, 0, sx, sy, x, y)
-        return np.outer(smodel, tmodel)
-
-    def cost(self, p, ts, x, y, V):
-        """Distance of each point to the 2D target function
-        Returns a matrix of errors, channels in rows, timepoints in columns.
-        Seems the resulting matrix has to be flattened into an array"""
-        error = np.ravel(self.model(p, ts, x, y) - V)
-        self.errs.append(np.abs(error).sum())
-        #sys.stdout.write('%.1f, ' % np.abs(error).sum())
-        return error
-
-    def check_theta(self):
-        """Ensure theta points along long axis of spatial model ellipse.
-        Since theta always points along the sy axis, ensure sy is the long axis"""
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = self.p
-        if sx > sy:
-            sx, sy = sy, sx # swap them so sy is the bigger of the two
-            if theta > 0: # keep theta in [-pi/2, pi/2]
-                theta = theta - np.pi/2
-            else: # theta <= 0
-                theta = theta + np.pi/2
-            self.p = np.array([V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta])
-
-    def get_paramstr(self, p=None):
-        """Get formatted string of model parameter values"""
-        p = p or self.p
-        V1, V2, mu1, mu2, s1, s2, x0, y0, sx, sy, theta = p
-        s = ''
-        s += 'V1, V2 = %d, %d uV\n' % (V1, V2)
-        s += 'mu1, mu2 = %d, %d us\n' % (mu1, mu2)
-        s += 's1, s2 = %d, %d us\n' % (s1, s2)
-        s += 'x0, y0 = %d, %d um\n' % (x0, y0)
-        s += 'sx, sy = %d, %d um\n' % (sx, sy)
-        s += 'theta = %d deg' % (theta*180/np.pi)
-        return s
-
-    def print_paramstr(self, p=None):
-        """Print formatted string of model parameter values"""
-        print self.get_paramstr(p)
-
-
-class NLLSPSpikeModel(SpikeModel):
-    """Nonlinear least squares problem solver from openopt, uses Shor's R-algorithm.
-    This one can handle constraints"""
-    FTOL = 1e-1 # function tolerance, openopt default is 1e-6
-    XTOL = 1e-6 # variable tolerance
-    GTOL = 1e-6 # gradient tolerance
-
-    """Here come the constraints. For improved speed, might want to stop passing unnecessary args"""
-
-    """constrain self.dmurange[0] <= dmu <= self.dmurange[1]
-    TODO: maybe this contraint should be on the peak separation in the sum of Gaussians,
-    instead of just on the mu params. Can probably remove the lower bound on the peak separation,
-    especially if it's left at 0"""
-    def c0(self, p, ts, x, y, V):
-        """dmu lower bound constraint"""
-        dmu = abs(p[3] - p[2])
-        return self.dmurange[0] - dmu # <= 0, lower bound
-
-    def c1(self, p, ts, x, y, V):
-        """dmu upper bound constraint"""
-        dmu = abs(p[3] - p[2])
-        return dmu - self.dmurange[1] # <= 0, upper bound
-
-    def c2(self, p, ts, x, y, V):
-        """Constrain that sx and sy need to be within some factor of each other,
-        ie constrain their ratio"""
-        return max(p[8], p[9]) - self.sxsyfactor*min(p[8], p[9]) # <= 0
-
-    # TODO: constrain V1 and V2 to have opposite sign, see ptc15.87.6920
-
-    def calc(self, ts, x, y, V):
-        self.ts = ts
-        self.x = x
-        self.y = y
-        self.V = V
-        pr = openopt.NLLSP(self.cost, self.p0, args=(ts, x, y, V),
-                           ftol=self.FTOL, xtol=self.XTOL, gtol=self.GTOL)
-        # set lower and upper bounds on parameters:
-        # limit mu1 and mu2 to within min(ts) and max(ts) - sometimes they fall outside,
-        # esp if there was a poor lockout and you're triggering off a previous spike
-        pr.lb[2], pr.ub[2] = min(ts), max(ts) # mu1
-        pr.lb[3], pr.ub[3] = min(ts), max(ts) # mu2
-        pr.lb[4], pr.ub[4] = 40, 250 # s1
-        pr.lb[5], pr.ub[5] = 40, 250 # s2
-        # limit x0 to within reasonable distance of vertical midline of probe
-        pr.lb[6], pr.ub[6] = -50, 50 # x0
-        pr.lb[8], pr.ub[8] = 20, 200 # sx
-        pr.lb[9], pr.ub[9] = 20, 200 # sy
-        pr.lb[10], pr.ub[10] = -np.pi/2, np.pi/2 # theta (radians)
-        pr.c = [self.c0, self.c1, self.c2] # constraints
-        pr.solve('nlp:ralg')
-        self.pr, self.p = pr, pr.xf
-        print "%d NLLSP iterations, cost f'n eval'd %d times" % (pr.iter, len(self.errs))
-        self.check_theta()
-
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = SpikeModel.__getstate__(self)
-        # TODO: would be really nice to be able to keep the .pr attrib, for later inspection after unpickling of, say, bounds
-        d['pr'] = None # don't pickle the openopt.NLLSP problem object, cuz it has lambdas which aren't picklable apparently
-        return d
-'''
 
 class Detector(object):
     """Spike detector base class"""
@@ -661,7 +377,6 @@ class Detector(object):
     DEFINCLR = 100 # spatial include radius, um
     DEFDT = 370 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
-    #DEFKEEPSPIKEWAVESONDETECT = False # turn this off is to save memory during detection, or during multiprocessing
     DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
@@ -674,7 +389,6 @@ class Detector(object):
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
                  trange=None, maxnspikes=None, blocksize=None,
                  lockr=None, inclr=None, dt=None, randomsample=None,
-                 #keepspikewavesondetect=None,
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
@@ -694,10 +408,10 @@ class Detector(object):
         self.inclr = inclr or self.DEFINCLR
         self.dt = dt or self.DEFDT
         self.randomsample = randomsample or self.DEFRANDOMSAMPLE
-        #self.keepspikewavesondetect = keepspikewavesondetect or self.DEFKEEPSPIKEWAVESONDETECT
         self.extractparamsondetect = extractparamsondetect or self.DEFEXTRACTPARAMSONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
+        self.datetime = None # date and time of last detect() call
 
     def get_chans(self):
         return self._chans
@@ -761,7 +475,7 @@ class Detector(object):
             #pool.join() # unnecessary, I think
             blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
             spikes = np.concatenate(blockspikes)
-            wavedata = np.concatenate(blockwavedata) # along spikei axis, all other dims are identical
+            wavedata = np.concatenate(blockwavedata) # along sid axis, all other dims are identical
         else:
             # single process method, useful for debugging:
             spikes = np.zeros(0, self.SPIKEDTYPE) # init
@@ -791,11 +505,15 @@ class Detector(object):
         sort.wavedata = wavedata
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
-        # default -1 indicates no nid or detid is set as of yet, reserve 0 for actual ids
+        # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
         spikes['nid'] = -1
-        spikes['detid'] = -1
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
+        # spikes might come out slightly out of temporal order, due to the way
+        # the best peak is searched for forward and backwards in time on each edge
+        spikes = spikes[spikes['t'].argsort()] # ensure they're in temporal order
+        spikes['id'] = np.arange(self.nspikes) # assign ids now that they're in temporal order
+        self.datetime = datetime.datetime.now()
         return spikes
 
     def calc_chans(self):
@@ -818,14 +536,8 @@ class Detector(object):
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
 
-        for detection in sort.detections.values():
-            det = detection.detector
-            if self.maxnchansperspike != det.maxnchansperspike:
-                raise RuntimeError("Can't have multiple detections generating spikes struct "
-                                   "arrays with different width 'chans' fields")
-
-        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('detid', np.uint8),
-                           ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
+        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('chan', np.uint8),
+                           ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
                            # TODO: maybe it would be more efficient to store ti, t0i,
                            # and tendi wrt start of surf file instead of times in us?
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
@@ -842,7 +554,8 @@ class Detector(object):
                            ]
 
     def searchblock(self, wavetrange, direction):
-        """Search a block of data, return a list of valid Spikes"""
+        """Search a block of data, return a struct array of valid spikes,
+        along with an array of their wavedata"""
         #info('searchblock():')
         stream = self.sort.stream
         #info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
@@ -1190,22 +903,6 @@ class Detector(object):
             wavetranges[-1] = wavetranges[-1][0], self.trange[1]
         return wavetranges, (bs, bx, direction)
 
-    def get_sorted_sm(self, onlyvalid=False):
-        """Return (only valid) SpikeModels in a sorted list of key:val tuples"""
-        l = self.sms.items()
-        l.sort() # according to key (spike time)
-        if onlyvalid:
-            l = [ (key, sm) for (key, sm) in l if sm.valid ]
-        return l
-
-    def plot_sm(self, reversed=True, onlyvalid=True):
-        """Plot all spike models in self in (reversed) sorted order"""
-        sortedsm = self.get_sorted_sm(onlyvalid)
-        if reversed:
-            sortedsm.reverse()
-        for st, sm in sortedsm:
-            sm.plot()
-
     def get_thresh(self):
         """Return array of thresholds in AD units, one per chan in self.chans,
         according to threshmethod and noisemethod"""
@@ -1273,33 +970,3 @@ class Detector(object):
         """Return stdev of multichan data"""
         return np.stdev(data, axis=-1)
     '''
-
-
-
-class Detection(object):
-    """A spike detection run, which happens every time Detect is pressed.
-    When you're merely searching for the previous/next spike with
-    F2/F3, that's not considered a detection run"""
-    def __init__(self, sort, detector, id=None, datetime=None):
-        self.sort = sort
-        self.detector = detector # Detector object used in this Detection run
-        self.id = id
-        self.datetime = datetime
-
-    def get_spikeis(self):
-        return np.arange(self.spikei0, self.spikei0+self.nspikes)
-
-    def set_spikeis(self, spikes):
-        """Give each spike an ID, inc sort's _sid spike ID counter, and save
-        array of spikeis to self"""
-        # don't iterate over spikes struct array, since that generates
-        # a bunch of np.void objects, which is slow?
-        self.spikei0 = self.sort._sid
-        self.nspikes = len(spikes)
-        # generate IDs in one shot and assign them to spikes struct array
-        spikes['id'] = np.arange(self.spikei0, self.spikei0+self.nspikes)
-        spikes['detid'] = self.id
-        self.sort._sid += self.nspikes # inc for next unique Detection
-
-    # array of spike IDs that came from this detection
-    spikeis = property(get_spikeis, set_spikeis)

@@ -1,5 +1,7 @@
 RECENT:
 
+    - for simplicity, rename Vs back to V0 and V1, and phasetis back to phaseti0 and phaseti1?
+
     - add split method for a single cluster, but need to be able to tell it how many you want to split it to, which dims to cluster along, what params to use (perhaps one that isn't commonly used, but would be beneficial for this cluster), etc
         - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - sum of squared error?
 

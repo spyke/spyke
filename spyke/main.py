@@ -26,7 +26,6 @@ sys.path.insert(0, spykepath)
 
 import spyke
 from spyke import core, surf, detect, extract
-from spyke.detect import Detection
 from spyke.sort import Sort
 from spyke.core import toiter, MICRO
 from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
@@ -89,15 +88,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.Bind(wx.EVT_CLOSE, self.OnExit)
 
         self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
-        self.detection_list.Bind(wx.EVT_KEY_DOWN, self.OnDetectionListKeyDown)
 
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-
-        columnlabels = ['detID', 'class', 'thresh', 'trange', 'nspikes', 'lockr', 'datetime', 'file']
-        for coli, label in enumerate(columnlabels):
-            self.detection_list.InsertColumn(coli, label)
-        for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
-            self.detection_list.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
 
         self.set_detect_pane_defaults()
 
@@ -368,19 +360,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Detect pane Detect button click"""
         sort = self.sort
         sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
-        # see if this would-be detection overlaps in time with any existing ones
-        trange = sort.detector.trange
-        for det in sort.detections.values():
-            oldtrange = det.detector.trange
-            if trange == oldtrange:
-                raise RuntimeError("Identical detection ignored")
-            elif (oldtrange[0] < trange[0] < oldtrange[1] or
-                  oldtrange[0] < trange[1] < oldtrange[1]):
-                raise RuntimeError("New detection ignored for overlapping "
-                                   "in time with existing detection")
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
-        spikes = sort.detector.detect() # struct array of spikes
+        sort.spikes = sort.detector.detect() # struct array of spikes
+        sort.update_usids()
+        sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
+        sort.shcorrect = sort.stream.shcorrect
+        sort.tres = sort.stream.tres # for convenience
 
         # every time a new detection is run, need to clear sort, spike
         # and wave fnames. Want to (re)ask user for sort fname, and that will
@@ -392,26 +378,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: del sort.wavefname
         except AttributeError: pass
 
-        #import cProfile; cProfile.runctx('spikes = sort.detector.detect()', globals(), locals())
-        detection = Detection(sort, sort.detector, # create a new Detection run
-                              id=sort._detid,
-                              datetime=datetime.datetime.now())
-        sort._detid += 1 # inc for next unique Detection run
-        detection.spikeis = spikes # now that we know this detection isn't redundant, assign IDs to spikes
-        sort.detections[detection.id] = detection
-        sort.append_spikes(spikes)
-        self.append_detection_list(detection)
+        self.total_nspikes_label.SetLabel(str(sort.nspikes))
+        self.EnableSpikeWidgets(True)
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
-        # now that we've had at least one detection run
+        # now that we've had a detection run
         self.menubar.Enable(wx.ID_SAMPLING, False)
         self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open data windows
         sf = self.OpenFrame('sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         # refresh spike virtual listctrl
-        sf.slist.SetItemCount(len(sort.uris))
+        sf.slist.SetItemCount(len(sort.usids))
         sf.slist.RefreshItems()
-        #print '%r' % detection.spikes
         #self.OpenFrame('pyshell') # for testing
 
     def init_extractor(self):
@@ -523,7 +501,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
         if update:
-            self.DeColourPoints(cluster.neuron.spikeis) # decolour before neuron loses its spikeis
+            self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
         sf.RemoveNeuron(cluster.neuron, update=update)
         if update:
             self.clist.SetItemCount(len(self.sort.clusters))
@@ -533,16 +511,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnDelCluster(self, evt=None):
         """Cluster pane Del button click"""
         clusters = self.GetClusters()
-        spikeis = []
+        sids = []
         s = self.sort
         for cluster in clusters:
-            spikeis.append(cluster.neuron.spikeis)
+            sids.append(cluster.neuron.sids)
             self.DelCluster(cluster, update=False)
             try: # update s.clusteris
                 s.clusteris[s.clusteris == cluster.id] = -1 # signifies no cluster
             except AttributeError: pass # s.clusteris doesn't exist
-        spikeis = np.concatenate(spikeis)
-        self.DeColourPoints(spikeis) # decolour appropriate points
+        sids = np.concatenate(sids)
+        self.DeColourPoints(sids) # decolour appropriate points
         self.UpdateClustersGUI()
         self.frames['cluster'].glyph.mlab_source.update()
         if len(self.sort.clusters) == 0:
@@ -561,25 +539,25 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.frames['sort']
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
-        spikeis = []
-        spikeis.append(mergecluster.neuron.spikeis) # for updating ellipsoid params
+        sids = []
+        sids.append(mergecluster.neuron.sids) # for updating ellipsoid params
         for cluster in clusters[1:]: # iterate over all the clusters to be merged
-            spikeis.append(cluster.neuron.spikeis)
+            sids.append(cluster.neuron.sids)
             self.DelCluster(cluster, update=False)
             try: # update s.clusteris
                 s.clusteris[s.clusteris == cluster.id] = mergecluster.id # update
             except AttributeError: pass # s.clusteris doesn't exist
             # TODO: update s.scoutdensities now that mergecluster has more points in it, or maybe
             # scoutdensities shouldn't care about which points belong to them????
-            #self.DeColourPoints(cluster.neuron.spikeis) # decolour appropriate points
-        spikeis = np.concatenate(spikeis)
-        sf.MoveSpikes2Neuron(spikeis, mergecluster.neuron, update=False)
+            #self.DeColourPoints(cluster.neuron.sids) # decolour appropriate points
+        sids = np.concatenate(sids)
+        sf.MoveSpikes2Neuron(sids, mergecluster.neuron, update=False)
         data = self.sort.get_param_matrix(dims=s.dims, scale=True)
         for dimi, dim in enumerate(s.dims): # update ellipsoid params
-            mergecluster.pos[dim] = data[spikeis, dimi].mean()
-            # TODO: or maybe revised cluster position should be the mean all
+            mergecluster.pos[dim] = data[sids, dimi].mean()
+            # TODO: or maybe revised cluster position should be the mean of all
             # the cluster (scout) positions, each weighted by its number of points
-            mergecluster.scale[dim] = data[spikeis, dimi].std()
+            mergecluster.scale[dim] = data[sids, dimi].std()
 
         mergecluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
@@ -723,11 +701,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             neuron = cluster.neuron
             # reset scalar values for cluster's existing points
             # TODO: decolour only those points that are being removed
-            self.DeColourPoints(neuron.spikeis)
+            self.DeColourPoints(neuron.sids)
             # remove any existing spikes from neuron and restore them to spike listctrl:
-            sf.MoveSpikes2List(neuron, neuron.spikeis)
-            spikeis = self.sort.apply_cluster(cluster)
-            sf.MoveSpikes2Neuron(spikeis, neuron)
+            sf.MoveSpikes2List(neuron, neuron.sids)
+            sids = self.sort.apply_cluster(cluster)
+            sf.MoveSpikes2Neuron(sids, neuron)
         # TODO: colour only those points that have been added
         self.ColourPoints(clusters)
         try: del self.sort.spikefname # need to update .spike file on next .sort save
@@ -745,29 +723,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.clist.DeSelectAll()
         sf.nlist.SetItemCount(len(s.neurons))
         sf.nlist.RefreshItems()
-        s.update_uris()
-        sf.slist.SetItemCount(len(s.uris))
+        s.update_usids()
+        sf.slist.SetItemCount(len(s.usids))
         sf.slist.RefreshItems() # refresh the list
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
-        by cluster.neuron.spikeis) the same colour as the cluster itself"""
+        by cluster.neuron.sids) the same colour as the cluster itself"""
         clusters = toiter(clusters)
         cf = self.frames['cluster']
         for cluster in clusters:
-            ris = self.sort.spikes['id'].searchsorted(cluster.neuron.spikeis)
             neuron = cluster.neuron
-            cf.glyph.mlab_source.scalars[ris] = neuron.id % len(CMAP)
+            cf.glyph.mlab_source.scalars[neuron.sids] = neuron.id % len(CMAP)
         t0 = time.time()
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
         print('glyph.mlab_source.update() call took %.3f sec' % ((time.time()-t0)))
 
-    def DeColourPoints(self, spikeis):
+    def DeColourPoints(self, sids):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
         Don't forget to call cf.glyph.mlab_source.update() after calling this"""
         cf = self.frames['cluster']
-        ris = self.sort.spikes['id'].searchsorted(spikeis)
-        cf.glyph.mlab_source.scalars[ris] = np.tile(TRANSWHITEI, len(ris))
+        cf.glyph.mlab_source.scalars[sids] = np.tile(TRANSWHITEI, len(sids))
 
     def DeColourAllPoints(self):
         """Restore all spike points in cluster plot to unclustered WHITE.
@@ -904,12 +880,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
 
-    def OnDetectionListKeyDown(self, evt):
-        key = evt.GetKeyCode()
-        if key == wx.WXK_DELETE:
-            self.delete_selected_detections()
-        evt.Skip()
-
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
         s = self.sort
@@ -950,28 +920,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for nid, pos in zip(nids, s.scoutpositions): # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = s.densities/scoutdensity > s.density_thresh
-            spikeis, = np.where((s.clusteris == nid) & density_mask)
+            sids, = np.where((s.clusteris == nid) & density_mask)
             cluster = self.OnAddCluster(update=False)
             neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(spikeis, neuron, update=False)
+            sf.MoveSpikes2Neuron(sids, neuron, update=False)
             for dimi, dim in enumerate(s.dims):
                 cluster.pos[dim] = pos[dimi]
-                if len(spikeis) == 0:
+                if len(sids) == 0:
                     print('WARNING: neuron %d has no spikes' % nid)
                 else:
-                    cluster.scale[dim] = data[spikeis, dimi].std()
+                    cluster.scale[dim] = data[sids, dimi].std()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # now do some final updates
         self.UpdateClustersGUI()
         print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
-        '''
-        # maybe this stuff should only be done once here, instead of the many times above
-        # in MoveSpikes2Neuron
-        s.update_uris() # update unsorted spike indices
-        sf.slist.SetItemCount(len(s.uris))
-        sf.slist.RefreshItems() # refresh the list
-        '''
         self.ColourPoints(s.clusters.values())
 
     def OnApplyDensityThresh(self, evt=None):
@@ -995,18 +958,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         for nid in nids: # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = s.densities/scoutdensity >= s.density_thresh
-            spikeis, = np.where((s.clusteris == nid) & density_mask)
+            sids, = np.where((s.clusteris == nid) & density_mask)
             cluster = s.clusters[nid]
             neuron = cluster.neuron
             # remove existing spikes from neuron
-            sf.MoveSpikes2List(neuron, neuron.spikeis, update=False)
+            sf.MoveSpikes2List(neuron, neuron.sids, update=False)
             # add newly selected set to neuron
-            sf.MoveSpikes2Neuron(spikeis, neuron, update=False)
-            if len(spikeis) == 0:
+            sf.MoveSpikes2Neuron(sids, neuron, update=False)
+            if len(sids) == 0:
                 print('WARNING: neuron %d has no spikes' % nid)
             else:
                 for dimi, dim in enumerate(s.dims):
-                    cluster.scale[dim] = data[spikeis, dimi].std()
+                    cluster.scale[dim] = data[sids, dimi].std()
             cluster.update_ellipsoid(params=['scale'], dims=plotdims)
 
         # now do some final updates
@@ -1021,106 +984,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         s.subsample = self.subsample_spin_ctrl.GetValue()
         s.maxstill = self.maxstill_spin_ctrl.GetValue()
         s.density_thresh = float(self.density_thresh_text_ctrl.GetValue())
-
-    def append_detection_list(self, detection):
-        """Appends Detection run to the detection list control"""
-        row = [str(detection.id), # 0: detID
-               detection.detector.threshmethod, # 1: class
-               str(detection.detector.fixedthresh or detection.det.noisemult), # 2: thresh
-               str(detection.detector.trange), # 3: trange
-               str(detection.nspikes), # 4: nspikes
-               str(detection.detector.lockr), # 5: lockr
-               str(detection.datetime).rpartition('.')[0], # 6: datetime
-               detection.detector.srffname] # 7: file
-        auto = wx.LIST_AUTOSIZE_USEHEADER
-        col2width = {0:auto, 1:auto, 2:auto, 3:100, 4:auto, 5:auto, 6:auto, 7:100}
-        self.detection_list.Append(row)
-        for coli, width in col2width.items():
-            self.detection_list.SetColumnWidth(coli, width) # resize columns
-        self.total_nspikes_label.SetLabel(str(len(self.sort.spikes)))
-        self.EnableSpikeWidgets(True)
-
-    def delete_selected_detections(self):
-        """Delete selected rows in detection list"""
-        sort = self.sort
-        if len(sort.detections) > 1:
-            raise RuntimeError('deleting one of multiple '
-                               'detections might not be very reliable, disabling for now')
-        sf = self.frames['sort']
-        selectedRows = self.detection_list.getSelection()
-        selectedDetections = [ self.listRow2Detection(row) for row in selectedRows ]
-        for det in selectedDetections:
-            # check if any of this detection's spikes belong to a neuron
-            result = None
-            allspikeis = sort.spikes['id']
-            #allspikeis.sort() # spikes struct array is always sorted by id
-            delris = allspikeis.searchsorted(det.spikeis) # row indices into sort.spikes of detection's spikes to delete
-            if (sort.spikes['nid'][delris] != -1).any():
-                dlg = wx.MessageDialog(self,
-                                       "Spikes in detection %d are neuron members.\n"
-                                       "Delete detection %d and all its spikes anyway?" % (det.id, det.id),
-                                       "Remove spikes from neurons?", wx.YES_NO | wx.ICON_QUESTION)
-                result = dlg.ShowModal()
-                dlg.Destroy()
-            if result == wx.ID_NO:
-                continue # to next selectedDetection
-
-            # rebuild sort.spikes, excluding detection's spikes
-            keepspikeis = np.setdiff1d(allspikeis, det.spikeis) # return what's in first arr and not in the 2nd
-            keepris = allspikeis.searchsorted(keepspikeis)
-            delspikes = sort.spikes[delris] # returns a struct array, doesn't generate a bunch of records I think, so not slow?
-            # which about-to-be-deleted spikes belong to a neuron?
-            delriis, = np.where(delspikes['nid'] != -1)
-            nids = np.unique(delspikes['nid'][delriis])
-            for nid in nids:
-                neuron = sort.neurons[nid]
-                neuron.spikeis = np.setdiff1d(neuron.spikeis, det.spikeis)
-
-            # overwrite sort.spikes and sort.wavedata
-            sort.spikes = sort.spikes[keepris]
-            if len(keepris) == 0:
-                try: del sort.wavedata
-                except AttributeError: pass
-            else:
-                raise RuntimeError('the following code for deleting one of multiple '
-                                   'detections might not be very reliable, disabling for now')
-                sort.wavedata = sort.wavedata[keepris] # TODO: is this right?
-            # remove from sort's detections dict
-            del sort.detections[det.id]
-            # remove from detection listctrl
-            self.detection_list.DeleteItemByData(det.id)
-        sort.update_spike_lists() # update spike lists with new spikes dict contents
-        # refresh spike virtual listctrl
-        sf.nlist.SetItemCount(len(sort.neurons))
-        sf.nlist.RefreshItems()
-        try:
-            sf.nslist.SetItemCount(sf.nslist.neuron.nspikes)
-            sf.nslist.RefreshItems()
-        except AttributeError: pass # no neuron selected
-        sf.slist.SetItemCount(len(sort.uris))
-        sf.slist.RefreshItems()
-        self.plot() # update rasters
-        try:
-            cf = self.frames['cluster']
-            cf.glyph.remove() # from pipeline
-            del cf.glyph # del its glyph
-            # replot any remaining points, but don't apply clusters - leave it to user:
-            self.OnClusterPlot()
-        except(KeyError, AttributeError): pass
-
-        if len(sort.detections) == 0: # if no detection runs are left
-            sort._detid = 0 # reset
-            self.menubar.Enable(wx.ID_SAMPLING, True) # reenable sampling menu
-        if sort.nspikes == 0:
-            sort._sid = 0 # reset
-        self.total_nspikes_label.SetLabel(str(sort.nspikes)) # update
-        self.EnableSpikeWidgets(True) # call in case nspikes has dropped to 0
-
-    def listRow2Detection(self, row):
-        """Return Detection at detection list row"""
-        detectioni = int(self.detection_list.GetItemText(row))
-        detection = self.sort.detections[detectioni]
-        return detection
 
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
@@ -1189,10 +1052,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
         self.EnableSurfWidgets(True)
-        #self.detection_list.SetToolTip(wx.ToolTip('hello world'))
 
     def CreateNewSort(self):
-        """Create a new Sort and bind it to .self"""
+        """Create a new Sort and bind it to self"""
         self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in OnDetect
                          stream=self.hpstream)
@@ -1209,7 +1071,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             del self.sort
         except AttributeError:
             pass
-        self.detection_list.DeleteAllItems()
         if 'sort' in self.frames:
             sf = self.frames['sort']
             sf.nlist.DeleteAllItems()
@@ -1358,13 +1219,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
         if self.srff == None: # no .srf file is open
             self.notebook.Show(True) # lets us do stuff with the Sort
-        for detection in sort.detections.values(): # restore detections to detection list
-            self.append_detection_list(detection)
+        self.total_nspikes_label.SetLabel(str(sort.nspikes))
+        self.EnableSpikeWidgets(True)
 
         self.SPIKEFRAMEWIDTH = sort.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         sf = self.OpenFrame('sort') # ensure it's open
         # restore unsorted spike virtual listctrl
-        sf.slist.SetItemCount(len(sort.uris))
+        sf.slist.SetItemCount(len(sort.usids))
         sf.slist.RefreshItems()
 
         # do this here first in case no clusters exist and hence self.AddCluster
@@ -1395,9 +1256,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # when loading a spike file, make sure the nid field is overwritten
         # in the spikes array. The nids in sort.neurons are always the definitive ones
         for neuron in sort.neurons.values():
-            ris = spikes['id'].searchsorted(neuron.spikeis)
-            spikes['nid'][ris] = neuron.id
-        sort.update_spike_lists()
+            spikes['nid'][neuron.sids] = neuron.id
+        sort.update_usids()
         # try loading .wave file of the same name
         wavefname = os.path.splitext(fname)[0] + '.wave'
         sort.wavedata = self.OpenWaveFile(wavefname)
@@ -1460,7 +1320,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.frames['cluster'].glyph.mlab_source.update()
         except AttributeError: pass # no spikes glyph to decolour
         for neuron in sort.neurons.values():
-            neuron.spikeis = np.array([], dtype=int) # clear spike indices of all imported neurons
+            neuron.sids = np.array([], dtype=int) # clear spike indices of all imported neurons
             neuron.sort = self.sort # overwrite the sort neurons came from with current sort
         self.sort.neurons = sort.neurons
         self.sort.clusters = sort.clusters
@@ -1541,10 +1401,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             if result == wx.ID_NO:
                 return
         print('saving wave file %r' % fname)
-        nspikes = sort.nspikes # keep only enough wavedata to hold waveforms of sorted spikes
         t0 = time.time()
         f = open(fname, 'wb')
-        np.save(f, sort.wavedata[:nspikes])
+        np.save(f, sort.wavedata)
         f.close()
         print('done saving wave file, took %.3f sec' % (time.time()-t0))
         sort.wavefname = fname

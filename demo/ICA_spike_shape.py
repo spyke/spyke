@@ -1,13 +1,14 @@
 totalnspikes = 2000
 data = np.zeros((totalnspikes, 50), np.float64)
 
-#for spikei, spike in enumerate(s.spikes[:nspikes]): # s is the Sort object
-for spikei, spike in enumerate(s.spikes[:totalnspikes]):
+#for spike in s.spikes[:nspikes]: # s is the Sort object
+for spike in s.spikes[:totalnspikes]:
+    sid = spike['id']
     nchans = spike['nchans']
     chans = spike['chans'][0:nchans]
     chani = chans.searchsorted(spike['chan'])
-    signal = s.get_wavedata(spikei)[chani]
-    data[spikei] = signal
+    signal = s.get_wavedata(sid)[chani]
+    data[sid] = signal
 
 import py_ica
 

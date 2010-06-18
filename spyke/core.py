@@ -793,7 +793,7 @@ class NSListCtrl(SpykeListCtrl):
     def OnGetItemText(self, row, col):
         if self.neuron == None:
             return
-        return self.neuron.spikeis[row]
+        return self.neuron.sids[row]
 
     def get_neuron(self):
         return self._neuron
@@ -828,10 +828,10 @@ class SListCtrl(SpykeListCtrl):
 
     def OnGetItemText(self, row, col):
         """For virtual list ctrl, return data string for the given item and its col"""
-        # index into uris list, in whatever order it was last sorted
+        # index into usids list, in whatever order it was last sorted
         sort = self.GetTopLevelParent().sort
-        ri = sort.uris[row]
-        spike = sort.spikes[ri]
+        sid = sort.usids[row]
+        spike = sort.spikes[sid]
         field = self.COL2FIELD[col]
         try:
             val = spike[field]

@@ -1,11 +1,5 @@
 """wx.Panels with embedded mpl figures based on FigureCanvasWxAgg.
-Everything is plotted in units of uV and us
-
-TODO: perhaps refactor, keep info about each channel together,
-make a Channel object with .id, .pos, .colour, .line, .enabled properties,
-and set_enable() method, and then stick them in a dict of chans indexed by id
-    - looks like I've more or less done this with the Plot object
-"""
+Everything is plotted in units of uV and us"""
 
 from __future__ import division
 
@@ -641,9 +635,8 @@ class PlotPanel(FigureCanvasWxAgg):
         """Update spike raster positions and visibility wrt tref"""
         # find out which spikes are within time window
         sort = self.spykeframe.sort
-        lo, hi = sort.st.searchsorted((tref+self.tw[0], tref+self.tw[1]))
-        ris = sort.ris_by_time[lo:hi]
-        spikes = sort.spikes[ris] # spikes within range of current time window
+        lo, hi = sort.spikes['t'].searchsorted((tref+self.tw[0], tref+self.tw[1]))
+        spikes = sort.spikes[lo:hi] # spikes within range of current time window
         while len(spikes) > len(self.rasters):
             self.init_rasters() # append another batch to self.rasters
         rasteriter = iter(self.rasters) # iterator over rasters
@@ -986,7 +979,7 @@ class SortPanel(PlotPanel):
         self.qrplt = None
         self.background = None
 
-    def addItems(self, items, ris=None):
+    def addItems(self, items):
         """Add items (spikes/neurons) to self"""
         if items == []:
             return # do nothing
@@ -994,21 +987,16 @@ class SortPanel(PlotPanel):
             # before blitting this single item to screen, grab current buffer,
             # save as new background for quick restore if the next action is removal of this very same item
             self.background = self.copy_from_bbox(self.ax.bbox)
-            ris = toiter(ris)
-            self.qrplt = self.addItem(items[0], ri=ris[0]) # add the single item, save reference to its plot
+            self.qrplt = self.addItem(items[0]) # add the single item, save reference to its plot
             #print 'saved quick remove plot %r' % self.qrplt
         else:
             self.background = None
             # add all items
-            if ris != None:
-                for item, ri in zip(items, ris):
-                    self.addItem(item, ri=ri)
-            else:
-                for item in items:
-                    self.addItem(item)
+            for item in items:
+                self.addItem(item)
         self.blit(self.ax.bbox)
 
-    def addItem(self, item, ri=None):
+    def addItem(self, item):
         """Put item in an available Plot, return the Plot"""
         if len(self.available_plots) == 0: # if we've run out of plots for additional items
             self.init_plots() # init another batch of plots
@@ -1027,12 +1015,8 @@ class SortPanel(PlotPanel):
             plt.n = n # bind neuron to plot
             wave = get_wave(n, sort=self.spykeframe.sort) # calls n.update_wave() if necessary
         else: # item[0] == 's' # it's a spike
-            if ri == None: # it's probably a spike in the nslist, not in the slist
-                #ri, = np.where(sort.spikes['id'] == id) # returns an array
-                ri = sort.spikes['id'].searchsorted(id) # returns an array
-                ri = int(ri)
-            t = sort.spikes['t'][ri]
-            nid = sort.spikes['nid'][ri]
+            t = sort.spikes['t'][id]
+            nid = sort.spikes['nid'][id]
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             if nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
@@ -1041,7 +1025,7 @@ class SortPanel(PlotPanel):
             else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
                 colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
-            wave = sort.get_wave(ri)
+            wave = sort.get_wave(id)
         plt.set_colours(colours)
         plt.set_alpha(alpha)
         plt.set_stylewidth(style, width)
