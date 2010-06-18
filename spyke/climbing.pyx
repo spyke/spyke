@@ -21,9 +21,9 @@ cdef extern from "stdio.h":
 @cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float32_t, ndim=2] data,
           np.ndarray[np.int32_t, ndim=1] sampleis=np.zeros(0, dtype=np.int32),
-          double sigma=0.25, double alpha=1.0, double rmergex=1.0, double rneighx=4, int subsample=1,
+          double sigma=0.25, double alpha=1.0, double rmergex=1.0, double rneighx=4, int nsamples=0,
           bint calcdensities=True, double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
-          int minsize=10):
+          int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - delete scouts that have fewer than n points (at any point during iteration?)
@@ -68,7 +68,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
     cdef int M # current num scout points (clusters)
-    cdef int nsamples, npoints, nremoved
+    cdef int npoints, nremoved
     cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
     cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
@@ -88,13 +88,13 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0
     cdef bint incstill
 
-    if len(sampleis) != 0:
+    if len(sampleis) != 0: # sampleis arg trumps nsamples arg
         nsamples = len(sampleis)
-    elif subsample > 1:
-        # subsample to get a reasonable number of scouts
-        nsamples = N / subsample # this will trunc
+    elif nsamples != 0: # nsamples == 0 means use all points
+        # subsample with nsamples to get a reasonable number of scouts
+        nsamples = min(nsamples, N) # require nsamples <= N
         sampleis = np.asarray(random.sample(xrange(N), nsamples))
-    else:
+    else: # use all points
         nsamples = N
         sampleis = np.arange(nsamples)
     M = nsamples # initially, but M will decrease over time
@@ -202,7 +202,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
 
     printf('\n')
 
-    if subsample > 1:
+    if nsamples != N: # if we're subsampling
         # for each unclusterd point, find the closest clustered point, and assign
         # it to the same cluster
         print('Finding nearest clustered point for each unclustered point')
@@ -246,7 +246,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     clusteris[i] = clusteris[samplei]
         print('Assigning unclustered points took %.3f sec' % (time.clock()-t0))
 
-    # remove clusters with less than minsize number of points
+    # remove clusters with less than minpoints number of points
     nremoved = 0
     i = 0
     while i < M:
@@ -254,7 +254,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         for j in range(N):
             if clusteris[j] == i:
                 npoints += 1
-        if npoints < minsize:
+        if npoints < minpoints:
             #print('cluster %d has only %d points' % (i, npoints))
             # remove cluster i
             # shift all entries at i and above in scouts array down by one
@@ -272,7 +272,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             nremoved += 1
         else:
             i += 1
-    print('%d clusters deleted for having less than %d points' % (nremoved, minsize))
+    print('%d clusters deleted for having less than %d points' % (nremoved, minpoints))
 
     if calcdensities:
         # calculate the local density for each point, using potentially just subsampled data

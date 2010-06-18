@@ -64,10 +64,6 @@ RECENT:
 
     - 'nt' field in spikes array doesn't seem to be needed
 
-    - maybe get rid of multiple detection ability - this would greatly simplify indexing into spikes array. All spikes would always be labelled contiguously from 0 according to their row index - wouldn't need to mess with ris stuff anymore - the row index would become the spike index, since you can now never add or delete spikes
-        - or actually, only need to enforce inability to delete spikes, can still add spikes to the end
-        - would get rid of a whole lot of .searchsorted calls and np.where calls. To find a spike's spot in the spikes array, all you need is its sid == rid. Voila?
-
     - maybe make all spikes span the same amount of time, regardless of lockout during detection? Whatever lockouts existed during detection are ignored when you realign anyway... This would simplify interpretation of wave data in the wave data array
 
     - Nick - use infomax ICA to pull out most informative features across a multitude of spikes (get a couple of mother spikes), and then apply them to all spikes you encounter, pull out the weights of those features, and cluster on those - make sure they come out independent, and also try and compare the ICA features to PCA features. Any difference/improvement?
@@ -715,6 +711,10 @@ DONE:
     - merge and delete clusters
     - control density fraction of max outside of which you throw away noise points (just a global control, or per cluster?)
     - plot ellipsoids representing the position of each cluster and 1 std out in each clustered dimension
+- get rid of multiple detection ability - this would greatly simplify indexing into spikes array. All spikes would always be labelled contiguously from 0 according to their row index - wouldn't need to mess with ris stuff anymore - the row index would become the spike index, since you can now never add or delete spikes
+    - or actually, only need to enforce inability to delete spikes, can still add spikes to the end
+    - would get rid of a whole lot of .searchsorted calls and np.where calls. To find a spike's spot in the spikes array, all you need is its sid == rid
+
 
 
 

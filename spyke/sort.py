@@ -66,8 +66,9 @@ class Sort(object):
         self.sigma = 0.3
         self.rmergex = 1.0
         self.alpha = 1.0
-        self.subsample = 10
+        self.nsamples = 10000
         self.maxstill = 100
+        self.minpoints = 10
         self.density_thresh = 0.1
 
         self._nid = 0 # used to count off unique neuron IDs

@@ -143,8 +143,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sigma_text_ctrl.SetValue(str(s.sigma))
         self.rmergex_text_ctrl.SetValue(str(s.rmergex))
         self.alpha_text_ctrl.SetValue(str(s.alpha))
-        self.subsample_spin_ctrl.SetValue(s.subsample)
+        self.nsamples_spin_ctrl.SetValue(s.nsamples)
         self.maxstill_spin_ctrl.SetValue(s.maxstill)
+        self.minpoints_spin_ctrl.SetValue(s.minpoints)
         self.density_thresh_text_ctrl.SetValue(str(s.density_thresh))
 
     def OnNew(self, evt):
@@ -905,8 +906,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.update_sort_from_cluster_pane()
         t0 = time.clock()
         results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex, rneighx=4,
-                        subsample=s.subsample, calcdensities=True,
-                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000, minsize=10)
+                        nsamples=s.nsamples, calcdensities=True,
+                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
+                        minpoints=s.minpoints)
         s.clusteris, s.scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
         nids = list(np.unique(s.clusteris))
         try: nids.remove(-1)
@@ -981,8 +983,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         s.sigma = float(self.sigma_text_ctrl.GetValue())
         s.rmergex = float(self.rmergex_text_ctrl.GetValue())
         s.alpha = float(self.alpha_text_ctrl.GetValue())
-        s.subsample = self.subsample_spin_ctrl.GetValue()
+        s.nsamples = self.nsamples_spin_ctrl.GetValue()
         s.maxstill = self.maxstill_spin_ctrl.GetValue()
+        s.minpoints = self.minpoints_spin_ctrl.GetValue()
         s.density_thresh = float(self.density_thresh_text_ctrl.GetValue())
 
     def OpenFile(self, fname):
