@@ -66,12 +66,21 @@ class Sort(object):
         self.sigma = 0.3
         self.rmergex = 1.0
         self.alpha = 1.0
+        self.rneighx = 4
         self.nsamples = 10000
         self.maxstill = 100
         self.minpoints = 10
         self.density_thresh = 0.1
 
-        self._nid = 0 # used to count off unique neuron IDs
+    def get_nextnid(self):
+        """nextnid is used to retrieve the next unique neuron ID"""
+        nids = self.neurons.keys()
+        if len(nids) == 0:
+            return 0
+        else:
+            return max(nids) + 1
+
+    nextnid = property(get_nextnid)
 
     def get_stream(self):
         return self._stream
@@ -350,8 +359,7 @@ class Sort(object):
 
     def create_neuron(self):
         """Create and return a new Neuron with a unique ID"""
-        neuron = Neuron(self, self._nid)
-        self._nid += 1 # inc for next unique neuron
+        neuron = Neuron(self, self.nextnid)
         self.neurons[neuron.id] = neuron # add neuron to self
         return neuron
 
@@ -1029,8 +1037,6 @@ class SortFrame(wxglade_gui.SortFrame):
             self.nlist.RefreshItems()
         if neuron == self.nslist.neuron:
             self.nslist.neuron = None
-        if len(self.sort.neurons) == 0:
-            self.sort._nid = 0 # reset unique neuron ID counter
 
     def MoveSpikes2Neuron(self, sids, neuron=None, update=True):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.

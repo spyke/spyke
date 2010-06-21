@@ -447,6 +447,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.frames['sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
+    def GetClusters(self):
+        """Return currently selected clusters"""
+        rows = self.clist.getSelection()
+        cids = np.asarray(sorted(self.sort.clusters))[rows]
+        clusters = [ self.sort.clusters[cid] for cid in cids ]
+        return clusters
+
+    def GetCluster(self):
+        """Return just one selected cluster"""
+        clusters = self.GetClusters()
+        nselected = len(clusters)
+        if nselected != 1:
+            raise RuntimeError("can't figure out which of the %d selected clusters you want"
+                               % nselected)
+        return clusters[0]
+
     def OnAddCluster(self, evt=None, update=True):
         """Cluster pane Add button click"""
         neuron = self.sort.create_neuron()
@@ -476,39 +492,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.clist.Select(len(self.sort.clusters) - 1) # select newly created item
         self.cluster_params_pane.Enable(True)
 
-    def GetClusters(self):
-        """Return currently selected clusters"""
-        rows = self.clist.getSelection()
-        cids = np.asarray(sorted(self.sort.clusters))[rows]
-        clusters = [ self.sort.clusters[cid] for cid in cids ]
-        return clusters
-
-    def GetCluster(self):
-        """Return just one selected cluster"""
-        clusters = self.GetClusters()
-        nselected = len(clusters)
-        if nselected != 1:
-            raise RuntimeError("can't figure out which of the %d selected clusters you want"
-                               % nselected)
-        return clusters[0]
-
-    def DelCluster(self, cluster, update=True):
-        """Delete a cluster from the GUI, and delete the cluster
-        and its neuron from the Sort. Think you need to call
-        mlab_source.update() afterwards"""
-        sf = self.frames['sort']
-        cf = self.frames['cluster']
-        cf.f.scene.disable_render = True # for speed
-        cluster.ellipsoid.remove() # from pipeline
-        cluster.ellipsoid = None
-        if update:
-            self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
-        sf.RemoveNeuron(cluster.neuron, update=update)
-        if update:
-            self.clist.SetItemCount(len(self.sort.clusters))
-            self.clist.RefreshItems()
-            cf.f.scene.disable_render = False
-
     def OnDelCluster(self, evt=None):
         """Cluster pane Del button click"""
         clusters = self.GetClusters()
@@ -529,6 +512,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             self.clist.Select(len(self.sort.clusters)-1) # select last one
 
+    def DelCluster(self, cluster, update=True):
+        """Delete a cluster from the GUI, and delete the cluster
+        and its neuron from the Sort. Think you need to call
+        mlab_source.update() afterwards"""
+        sf = self.frames['sort']
+        cf = self.frames['cluster']
+        cf.f.scene.disable_render = True # for speed
+        cluster.ellipsoid.remove() # from pipeline
+        cluster.ellipsoid = None
+        if update:
+            self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
+        sf.RemoveNeuron(cluster.neuron, update=update)
+        if update:
+            self.clist.SetItemCount(len(self.sort.clusters))
+            self.clist.RefreshItems()
+            cf.f.scene.disable_render = False
+
     def OnMergeClusters(self, evt=None):
         """Cluster pane Merge button click"""
         clusters = self.GetClusters() # merge them all into the lowest numbered cluster
@@ -541,6 +541,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
         sids = []
+        # TODO: this is technically wrong: should be using values in s.clusteris
+        # and merging all those indices that match the ids of the clusters being
+        # merged, not the sids that happen to be assigned to each neuron based on
+        # the currently applied density thresh. Then, once those are merged, need
+        # to reapply the density thresh to the newly formed cluster. Only problem is
+        # the new cluster's scout point hasn't done any climbing, and its density
+        # isn't necessarily appropriate to use for comparison to its points. So maybe
+        # this way isn't so bad after all. But, a solution would be to rerun the climb
+        # algorithm on just the newly merged points, and set sigma such that you only
+        # get a single cluster out of it, ie the original merged cluster, but this
+        # time, the cluster position would be an actual scout position, and you could
+        # then truly apply a density threshold to its points
         sids.append(mergecluster.neuron.sids) # for updating ellipsoid params
         for cluster in clusters[1:]: # iterate over all the clusters to be merged
             sids.append(cluster.neuron.sids)
@@ -905,15 +917,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # grab climbing params
         self.update_sort_from_cluster_pane()
         t0 = time.clock()
-        results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex, rneighx=4,
-                        nsamples=s.nsamples, calcdensities=True,
+        results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
+                        rneighx=s.rneighx, nsamples=s.nsamples, calcdensities=True,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
         s.clusteris, s.scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
         nids = list(np.unique(s.clusteris))
         try: nids.remove(-1)
         except ValueError: pass
-
         print('climb took %.3f sec' % (time.clock()-t0))
 
         # apply the clusters to the cluster plot
@@ -1327,7 +1338,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             neuron.sort = self.sort # overwrite the sort neurons came from with current sort
         self.sort.neurons = sort.neurons
         self.sort.clusters = sort.clusters
-        self.sort._nid = max(self.sort.neurons.keys()) + 1 # reset unique nid counter
         # TODO: import auto clustering output arrays too!
         self.RestoreClusters2GUI()
 
