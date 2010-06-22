@@ -531,16 +531,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnMergeClusters(self, evt=None):
         """Cluster pane Merge button click"""
-        clusters = self.GetClusters() # merge them all into the lowest numbered cluster
-        s = self.sort
+        clusters = self.GetClusters()
+
+        # deselect them all
+        [ self.clist.Select(row, on=False) for row in self.clist.getSelection() ]
+
+        # merge them all into the lowest numbered cluster
         sortis = np.argsort([ cluster.id for cluster in clusters ])
-        clusters = [ clusters[sorti] for sorti in sortis ] # sorted by their cluster id
-        mergecluster = clusters[0] # merge into the lowest numbered one
-        plotdims = self.GetClusterPlotDimNames()
+        clusters = [ clusters[sorti] for sorti in sortis ] # sorted by cluster id
+        mergecluster = clusters[0] # lowest numbered one
+
+        s = self.sort
         sf = self.frames['sort']
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
+        plotdims = self.GetClusterPlotDimNames()
         sids = []
+
         # TODO: this is technically wrong: should be using values in s.clusteris
         # and merging all those indices that match the ids of the clusters being
         # merged, not the sids that happen to be assigned to each neuron based on
@@ -553,6 +560,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # get a single cluster out of it, ie the original merged cluster, but this
         # time, the cluster position would be an actual scout position, and you could
         # then truly apply a density threshold to its points
+
+        # NOTE: the above could all be easily accomplished by simply running
+        # OnSplitClusters with a lower sigma. In other words, we don't need separate
+        # merge and split functionality, just a single "re-run climb() on the points
+        # belonging to the selected cluster(s)" method
+
         sids.append(mergecluster.neuron.sids) # for updating ellipsoid params
         for cluster in clusters[1:]: # iterate over all the clusters to be merged
             sids.append(cluster.neuron.sids)
@@ -577,6 +590,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(mergecluster)
+
+        # select newly created cluster
+        all_nids = sorted(s.neurons)
+        row = np.searchsorted(all_nids, mergecluster.id)
+        self.clist.Select(row, on=True)
 
     def OnSplitCluster(self, evt=None):
         """Cluster pane Split button click. Do this by running the gradient density
@@ -606,6 +624,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except ValueError: pass
         print('climb took %.3f sec' % (time.clock()-t0))
 
+        row = self.clist.getSelection().pop()
+        self.clist.Select(row, on=False) # deselect original cluster
         self.DelCluster(oldcluster) # del original cluster
         s.clusteris[i] = clusteris + s.nextnid
         s.scoutpositions = np.concatenate((s.scoutpositions, scoutpositions))
@@ -638,7 +658,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
         self.ColourPoints(newclusters)
 
-        # select newly created cluster(s):
+        # select newly created cluster(s)
         all_nids = sorted(s.neurons)
         new_nids = [ cluster.id for cluster in newclusters ]
         select_rows = np.searchsorted(all_nids, new_nids)
