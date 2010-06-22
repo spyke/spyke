@@ -42,18 +42,23 @@ nd = data.shape[1]
 sampleis = np.load('10k_of_100k_sampleis.npy')
 sigma = 0.25
 alpha = 1.0
+rmergex=1.0
 rneighx = 4
 #nsamples = 10000
-calcdensities = True
+calcpointdensities = True
+calcscoutdensities = True
 minmove = 0.00001 * sigma * alpha # along a single dimension
 maxstill = 100
+maxnnomerges = 1000
 minpoints = 10
 
 t0 = time.clock()
 results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
-                #nsamples=nsamples,
-                calcdensities=calcdensities,
-                minmove=minmove, maxstill=maxstill, minpoints=minpoints)
+                rmergex=rmergex, #nsamples=nsamples,
+                calcpointdensities=calcpointdensities,
+                calcscoutdensities=calcscoutdensities,
+                minmove=minmove, maxstill=maxstill,
+                maxnnomerges=maxnnomerges, minpoints=minpoints)
 clusteris, positions, densities, scoutdensities, sampleis = results
 print('climb took %.3f sec' % (time.clock()-t0))
 

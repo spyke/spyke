@@ -21,8 +21,10 @@ cdef extern from "stdio.h":
 @cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float32_t, ndim=2] data,
           np.ndarray[np.int32_t, ndim=1] sampleis=np.zeros(0, dtype=np.int32),
-          double sigma=0.25, double alpha=1.0, double rmergex=1.0, double rneighx=4, int nsamples=0,
-          bint calcdensities=True, double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
+          double sigma=0.25, double alpha=1.0, double rmergex=1.0,
+          double rneighx=4, int nsamples=0,
+          bint calcpointdensities=True, bint calcscoutdensities=True,
+          double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
@@ -274,12 +276,16 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             i += 1
     print('%d clusters deleted for having less than %d points' % (nremoved, minpoints))
 
-    if calcdensities:
+    if calcpointdensities:
         # calculate the local density for each point, using potentially just subsampled data
         # from this cluster. This does g weighted sum of distances, almost like just counting
         # the number of points in a volume, and then dividing by the volume. Except you don't
         # really need to divide by the volume of the gaussian, cuz that's just a constant for
         # a given sigma
+        # TODO: normalize by volume anyway, since you might run climb() with different values
+        # of sigma (like during a cluster split), and you want to keep all your density
+        # values consistent and comparable. Calculate the volume once per call, and divide
+        # all density values by it. Shouldn't be expensive
         print('Calculating density around each data point, based on sampled data')
         t0 = time.clock()
         densities = np.zeros(N)
@@ -301,7 +307,11 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 if d2 <= rneigh2: # include this point in the density calculation
                     d = sqrt(d2) # Euclidean distance
                     densities[i] += d * exp(-d2 / twosigma2)
+        print('Point density calculations took %.3f sec' % (time.clock()-t0))
+    else: densities = np.zeros(0)
+    if calcscoutdensities:
         print('Calculating density around each scout, based on sampled data')
+        t0 = time.clock()
         scoutdensities = np.zeros(M)
         for i in range(M):
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
@@ -321,9 +331,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 if d2 <= rneigh2: # include this point in the density calculation
                     d = sqrt(d2) # Euclidean distance
                     scoutdensities[i] += d * exp(-d2 / twosigma2)
-        print('Density calculations took %.3f sec' % (time.clock()-t0))
+        print('Scout density calculations took %.3f sec' % (time.clock()-t0))
     else:
-        densities = np.zeros(0)
         scoutdensities = np.zeros(0)
 
 

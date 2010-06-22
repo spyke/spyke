@@ -578,6 +578,72 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.UpdateClustersGUI()
         self.ColourPoints(mergecluster)
 
+    def OnSplitCluster(self, evt=None):
+        """Cluster pane Split button click. Do this by running the gradient density
+        climbing algorithm on just the points assigned to the current cluster"""
+        oldcluster = self.GetCluster()
+        s = self.sort
+        sf = self.OpenFrame('sort')
+
+        # grab dims
+        dimselis = self.dimlist.getSelection()
+        if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
+        dims = [ self.dimlist.dims[i] for i in dimselis ] # dim names to cluster upon
+        data = self.sort.get_param_matrix(dims=dims, scale=True)
+        i, = np.where(s.clusteris == oldcluster.id) # spikes to run climb() on
+
+        # grab current climbing params, apply them to points in current cluster
+        self.update_sort_from_cluster_pane()
+        t0 = time.clock()
+        results = climb(data[i], sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
+                        rneighx=s.rneighx, nsamples=s.nsamples,
+                        calcpointdensities=True, calcscoutdensities=True,
+                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
+                        minpoints=s.minpoints)
+        clusteris, scoutpositions, densities, scoutdensities, sampleis = results
+        nids = list(np.unique(clusteris))
+        try: nids.remove(-1)
+        except ValueError: pass
+        print('climb took %.3f sec' % (time.clock()-t0))
+
+        self.DelCluster(oldcluster) # del original cluster
+        s.clusteris[i] = clusteris + s.nextnid
+        s.scoutpositions = np.concatenate((s.scoutpositions, scoutpositions))
+        s.densities[i] = densities
+        s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
+
+        # apply new clusters to the cluster plot
+        plotdims = self.GetClusterPlotDimNames()
+        newclusters = []
+        t0 = time.clock()
+        for nid, pos in zip(nids, scoutpositions): # nids come out sorted
+            scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
+            density_mask = densities/scoutdensity > s.density_thresh
+            ii, = np.where((clusteris == nid) & density_mask)
+            sids = i[ii]
+            cluster = self.OnAddCluster(update=False)
+            newclusters.append(cluster)
+            neuron = cluster.neuron
+            sf.MoveSpikes2Neuron(sids, neuron, update=False)
+            for dimi, dim in enumerate(dims):
+                cluster.pos[dim] = pos[dimi]
+                if len(sids) == 0:
+                    print('WARNING: neuron %d has no spikes' % nid)
+                else:
+                    cluster.scale[dim] = data[sids, dimi].std()
+            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+
+        # now do some final updates
+        self.UpdateClustersGUI()
+        print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
+        self.ColourPoints(newclusters)
+
+        # select newly created cluster(s):
+        all_nids = sorted(s.neurons)
+        new_nids = [ cluster.id for cluster in newclusters ]
+        select_rows = np.searchsorted(all_nids, new_nids)
+        [ self.clist.Select(row, on=True) for row in select_rows ]
+
     def OnRenumberClusters(self, evt=None):
         """Renumber clusters consecutively from 0, on "re#" button click"""
         s = self.sort
@@ -918,7 +984,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.update_sort_from_cluster_pane()
         t0 = time.clock()
         results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
-                        rneighx=s.rneighx, nsamples=s.nsamples, calcdensities=True,
+                        rneighx=s.rneighx, nsamples=s.nsamples,
+                        calcpointdensities=True, calcscoutdensities=True,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
         s.clusteris, s.scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
