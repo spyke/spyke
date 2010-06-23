@@ -461,6 +461,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                                % nselected)
         return clusters[0]
 
+    def SelectClusters(self, clusters, on=True):
+        """Select/deselect clusters"""
+        clusters = toiter(clusters)
+        all_nids = sorted(self.sort.neurons)
+        sel_nids = [ cluster.id for cluster in clusters ]
+        rows = np.searchsorted(all_nids, sel_nids)
+        [ self.clist.Select(row, on=on) for row in rows ]
+
     def OnAddCluster(self, evt=None, update=True):
         """Cluster pane Add button click"""
         neuron = self.sort.create_neuron()
@@ -495,6 +503,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         clusters = self.GetClusters()
         sids = []
         s = self.sort
+        # deselect them all
+        self.SelectClusters(clusters, on=False)
         for cluster in clusters:
             sids.append(cluster.neuron.sids)
             self.DelCluster(cluster, update=False)
@@ -508,7 +518,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if len(self.sort.clusters) == 0:
             self.cluster_params_pane.Enable(False)
         else:
-            self.clist.Select(len(self.sort.clusters)-1) # select last one
+            self.SelectClusters(clusters[max(s.clusters)]) # select last one
 
     def DelCluster(self, cluster, update=True):
         """Delete a cluster from the GUI, and delete the cluster
@@ -532,7 +542,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         clusters = self.GetClusters()
 
         # deselect them all
-        [ self.clist.Select(row, on=False) for row in self.clist.getSelection() ]
+        self.SelectClusters(clusters, on=False)
 
         # merge them all into the lowest numbered cluster
         sortis = np.argsort([ cluster.id for cluster in clusters ])
@@ -590,9 +600,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ColourPoints(mergecluster)
 
         # select newly created cluster
-        all_nids = sorted(s.neurons)
-        row = np.searchsorted(all_nids, mergecluster.id)
-        self.clist.Select(row, on=True)
+        self.SelectClusters(mergecluster, on=True)
 
     def OnSplitCluster(self, evt=None):
         """Cluster pane Split button click. Do this by running the gradient density
@@ -622,8 +630,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except ValueError: pass
         print('climb took %.3f sec' % (time.clock()-t0))
 
-        row = self.clist.getSelection().pop()
-        self.clist.Select(row, on=False) # deselect original cluster
+        self.SelectCluster(oldcluster, on=False) # deselect original cluster
         self.DelCluster(oldcluster) # del original cluster
         s.clusteris[i] = clusteris + s.nextnid
         s.scoutpositions = np.concatenate((s.scoutpositions, scoutpositions))
@@ -657,10 +664,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ColourPoints(newclusters)
 
         # select newly created cluster(s)
-        all_nids = sorted(s.neurons)
-        new_nids = [ cluster.id for cluster in newclusters ]
-        select_rows = np.searchsorted(all_nids, new_nids)
-        [ self.clist.Select(row, on=True) for row in select_rows ]
+        self.SelectClusters(newclusters, on=True)
 
     def OnRenumberClusters(self, evt=None):
         """Renumber clusters consecutively from 0, on "re#" button click"""
@@ -700,9 +704,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.UpdateClustersGUI()
         self.ColourPoints(s.clusters.values())
 
-    def OnCListSelect(self, evt, cluster=None):
+    def OnCListSelect(self, evt=None):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
+        # TODO: this method isn't triggered when clicking in empty space to deselect all items
+        # print('in OnCListSelect()')
         selectedRows = self.clist.getSelection()
         if len(selectedRows) == 1:
             cluster = self.GetCluster()
@@ -721,7 +727,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         nlist = sf.nlist
         [ nlist.Select(row, on=False) for row in deselect_rows ]
         [ nlist.Select(row, on=True) for row in select_rows ]
-
 
     def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,

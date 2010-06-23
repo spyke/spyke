@@ -745,8 +745,7 @@ class NListCtrl(SpykeListCtrl):
     def OnGetItemText(self, row, col):
         sort = self.GetTopLevelParent().sort
         # TODO: could almost assume sort.neurons dict is ordered, since it always seems to be
-        nids = list(sort.neurons)
-        nids.sort()
+        nids = sorted(sort.neurons)
         return nids[row]
 
 

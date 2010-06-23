@@ -92,11 +92,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
 
     if len(sampleis) != 0: # sampleis arg trumps nsamples arg
         nsamples = len(sampleis)
-    elif nsamples != 0: # nsamples == 0 means use all points
+    elif 0 < nsamples < N: # nsamples == 0 means use all points
         # subsample with nsamples to get a reasonable number of scouts
-        nsamples = min(nsamples, N) # require nsamples <= N
         sampleis = np.asarray(random.sample(xrange(N), nsamples))
-    else: # use all points
+    else: # nsamples == 0, or nsamples >= N, use all N points
         nsamples = N
         sampleis = np.arange(nsamples)
     M = nsamples # initially, but M will decrease over time
