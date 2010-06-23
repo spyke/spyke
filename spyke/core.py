@@ -768,14 +768,16 @@ class CListCtrl(SpykeListCtrl):
 
 
 class DimListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl for displaying dimensions.
+    """A virtual ListCtrl for selecting which dimensions to cluster upon.
     The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         #self.SetColumnWidth(0, 20)
-        self.dims = ['x0', 'y0', 'Vpp', 't', 'dphase']
+        self.dims = ['x0', 'y0', 'sx', 'sy', 'Vpp', 'V0', 'V1', 'dphase', 't', 's0', 's1']
         #self.InsertColumn(0, 'dim')
         self.SetItemCount(len(self.dims))
+        select = ['x0', 'y0', 'sx', 'Vpp'] # select these by default
+        [ self.Select(self.dims.index(sel), on=True) for sel in select ]
 
     def OnGetItemText(self, row, col):
         return self.dims[row]

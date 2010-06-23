@@ -137,8 +137,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def set_cluster_pane_defaults(self):
-        for i in range(4): # select 1st 4 cluster dims by default
-            self.dimlist.Select(i, on=True)
         s = self.sort
         self.sigma_text_ctrl.SetValue(str(s.sigma))
         self.rmergex_text_ctrl.SetValue(str(s.rmergex))

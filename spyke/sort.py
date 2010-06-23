@@ -248,16 +248,7 @@ class Sort(object):
         # np.column_stack returns a copy, not modifying the original array
         data = []
         for dim in dims:
-            if dim == 'V0':
-                data.append( np.float32(self.spikes['Vs'][:, 0]) )
-            elif dim == 'V1':
-                data.append( np.float32(self.spikes['Vs'][:, 1]) )
-            elif dim == 'mV0':
-                data.append( np.float32(self.spikes['mVs'][:, 0]) )
-            elif dim == 'mV1':
-                data.append( np.float32(self.spikes['mVs'][:, 1]) )
-            else:
-                data.append( np.float32(self.spikes[dim]) )
+            data.append( np.float32(self.spikes[dim]) )
         data = np.column_stack(data)
 
         if scale:
@@ -381,7 +372,7 @@ class Sort(object):
             i = Vss[b] > 0 # indices into nsids of spikes aligned to the max phase
         else: raise ValueError()
         sids = nsids[i] # ids of spikes that need realigning
-        phasetis = spikes['phasetis'][sids]
+        phasetis = np.column_stack([spikes['phaseti0'][sids], spikes['phaseti1'][sids]])
         dphasetis = phasetis[:, 1] - phasetis[:, 0]
         dphases = spikes['dphase'][sids]
         # for those spikes that are being realigned, translate aligni from
@@ -395,7 +386,9 @@ class Sort(object):
         spikes['t'][sids] += dts
         spikes['tend'][sids] += dts
         spikes['aligni'][sids] += dalignis
-        spikes['phasetis'][sids] += np.column_stack((dtis, dtis)) # update wrt new t0i
+        spikes['phaseti0'][sids] += dtis # update wrt new t0i
+        spikes['phaseti1'][sids] += dtis # update wrt new t0i
+
         # update wavedata for each shifted spike
         for sid, spike in zip(sids, spikes[sids]):
             wave = self.stream[spike['t0']:spike['tend']]
@@ -738,8 +731,9 @@ class Neuron(object):
                         x = det.siteloc[chanis, 0] # 1D array (row)
                         y = det.siteloc[chanis, 1]
                         maxchani = int(np.where(chans == s['chan'])[0])
+                        phasetis = s['phaseti0'], s['phaseti1']
                         s['x0'], s['y0'] = sort.extractor.weights2XY(wavedata, x, y,
-                                                                     s['phasetis'], maxchani)
+                                                                     phasetis, maxchani)
         # TODO: replot only the spikes whose params have changed, and keep their
         # scalar params intact so you can see that they moved
         self.wave = WaveForm() # reset to empty waveform so mean is recalculated

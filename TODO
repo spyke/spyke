@@ -1,16 +1,21 @@
 RECENT:
 
-    - for simplicity, rename Vs back to V0 and V1, and phasetis back to phaseti0 and phaseti1?
+    - stop using grey as a cluster colour - grey points are hard to tell apart from unsorted semi-transparent white points
 
-    - add split method for a single cluster, but need to be able to tell it how many you want to split it to, which dims to cluster along, what params to use (perhaps one that isn't commonly used, but would be beneficial for this cluster), etc
-        - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - sum of squared error?
+    - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
+        - plot error histogram to aid in setting thresh
+        - for each point, find shortest geometric distance between spike and cluster mean, instead of just vertical distance like rms
+        - do Gaussian weighting in space and time of errors - care most about errors near the max chan and near the main phases of the spike - maybe use spatial sigma and temporal spread from parameter extraction step, which would give you different G weighting for every spike. Or better yet, just use spatial sigma and temporal spread of the mean, which should be nice and noise-free
+             - then, once you've removed the noisy spikes, need to recalculate and replot the error histogram, and make sure there aren't any other noisy spikes remaining
+
+    - normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
+
+    - combine merge and split into re-climb
 
     - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
 
     - for temporal spike modelling, if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
         - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is
-
-    - see if it's possible to make sx and sy free variables (or just make them a single free variable sigma) when doing spatial localization - currently they're fixed at 30 um each. Changing this value changes the resulting localization, which is a bit worrisome. What happens when you decrease or increase this fixed value? If it has to remain fixed, is 30 the optimum value? How do I know this?
 
     - discovered the bug in naming LFP chans in SURF has hit us again (see 2008-11-13 note): in ptc18.14, and probably lots of others. Crap! This probably means I'll have to go in and manually edit lots of .srf files, and all their copies. I thought I had this problem figured out a long time ago. Some kind of sloppy memory management in surf causes characters from the previous LFP chan to remain for the next LFP chan - think it's a single digit number vs a 2 digit number problem. Maybe I should be putting leading zeros in the LFP chan field names in the surf .cfg files...
         - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
@@ -163,8 +168,6 @@ RECENT:
 
     - overplotting speed
 
-    - actually, not so bad: need to figure out what to do with not-so-great grey and white cluster colours - hard to see which points are inside/outside such coloured ellipses (especially in the white ellipses) - maybe make their points greyish red and pink (respectively) instead?
-
     - manual sorting is disabled, and maybe it should stay that way
 
     - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
@@ -172,8 +175,6 @@ RECENT:
     - looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
 
     - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
-
-    - deleting one of multiple detections doesn't work right now, and might now be a bit of a hassle - if len(sort.wavedatas) > 1, concatenate them all into a single array, slice out the keepris, and save that as the new single wavedatas[0]. If it fails due to MemoryError, too bad. Deleting a detection is rare anyway, especially a big detection
 
     - ptc15.81 not contiguous at record timestamps number 3309 and 3310
         np.where((np.diff(s.stream.rts, n=2) == 0) == False)
@@ -714,6 +715,13 @@ DONE:
 - get rid of multiple detection ability - this would greatly simplify indexing into spikes array. All spikes would always be labelled contiguously from 0 according to their row index - wouldn't need to mess with ris stuff anymore - the row index would become the spike index, since you can now never add or delete spikes
     - or actually, only need to enforce inability to delete spikes, can still add spikes to the end
     - would get rid of a whole lot of .searchsorted calls and np.where calls. To find a spike's spot in the spikes array, all you need is its sid == rid
+- add split method for a single cluster, but need to be able to tell it how many you want to split it to, which dims to cluster along, what params to use (perhaps one that isn't commonly used, but would be beneficial for this cluster), etc
+- see if it's possible to make sx and sy free variables (or just make them a single free variable sigma) when doing spatial localization - currently they're fixed at 30 um each. Changing this value changes the resulting localization, which is a bit worrisome. What happens when you decrease or increase this fixed value? If it has to remain fixed, is 30 the optimum value? How do I know this?
+    - solution was to make a single spatial sigma free variable, and to fit it first using the spatial mean as the fixed x and y positions, followed by fitting a 2nd time with x and y free, and sigma fixed. Don't get convergence problems, and sigma comes out to something realistic on every spike. Unfortunately, the sigma dimension doesn't seem to improve clusterability
+- for simplicity, rename Vs back to V0 and V1, and phasetis back to phaset0i and phaset1i
+
+
+
 
 
 

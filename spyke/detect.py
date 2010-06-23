@@ -366,7 +366,7 @@ class Detector(object):
     """Spike detector base class"""
     DEFTHRESHMETHOD = 'Dynamic' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
-    DEFNOISEMULT = 5
+    DEFNOISEMULT = 6
     DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
     DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
@@ -541,16 +541,19 @@ class Detector(object):
                            # TODO: maybe it would be more efficient to store ti, t0i,
                            # and tendi wrt start of surf file instead of times in us?
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
-                           ('Vs', np.float32, 2), ('Vpp', np.float32),
-                           ('phasetis', np.uint8, 2), ('aligni', np.uint8),
+                           ('V0', np.float32), ('V1', np.float32),
+                           ('Vpp', np.float32),
+                           ('phaseti0', np.uint8), ('phaseti1', np.uint8),
+                           ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32),
                            ('sx', np.float32), ('sy', np.float32),
                            ('dphase', np.int16), # in us
-                           ('w0', np.float32), ('w1', np.float32), ('w2', np.float32),
-                           ('w3', np.float32), ('w4', np.float32),
+                           #('w0', np.float32), ('w1', np.float32), ('w2', np.float32),
+                           #('w3', np.float32), ('w4', np.float32),
                            ('s0', np.float32), ('s1', np.float32),
-                           ('mVpp', np.float32), ('mVs', np.float32, 2),
-                           ('mdphase', np.float32),
+                           #('mVpp', np.float32),
+                           #('mV0', np.float32), ('mV1', np.float32),
+                           #('mdphase', np.float32),
                            ]
 
     def searchblock(self, wavetrange, direction):
@@ -819,13 +822,13 @@ class Detector(object):
             ts = wave.ts[t0i:tendi]
             # use ts = np.arange(s['t0'], s['tend'], stream.tres) to reconstruct
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
-            s['phasetis'][:] = phasetis # wrt t0i, not sure why the [:] is necessary
+            s['phaseti0'], s['phaseti1'] = phasetis # wrt t0i
             s['aligni'] = aligni # 0 or 1
 
             # TODO: add a sharpi field to designate which of the 2 phases is the sharpest (main) phase - use this for extractor.get_Vp_weights()
 
             s['dphase'] = ts[phasetis[1]] - ts[phasetis[0]] # in us
-            s['Vs'][:] = AD2uV(Vs) # in uV, not sure why the [:] is necessary
+            s['V0'], s['V1'] = AD2uV(Vs) # in uV
             s['Vpp'] = AD2uV(Vpp) # in uV
             chan = self.chans[chani]
             chans = self.chans[chanis]

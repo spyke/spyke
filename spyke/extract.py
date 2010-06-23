@@ -383,8 +383,8 @@ class Extractor(object):
         for spike in spikes:
             V0, V1, s0, s1, Voff = self.spike2temporal(spike)
             spike['s0'], spike['s1'] = abs(s0), abs(s1)
-            spike['mVpp'] = AD2uV(V1 - V0)
-            spike['mVs'][:] = AD2uV([V0, V1])
+            #spike['mVpp'] = AD2uV(V1 - V0)
+            #spike['mV0'], spike['mV1'] = AD2uV([V0, V1])
             #spike['mdphase'] = t1 - t0
 
         print("Extracting temporal parameters from all %d spikes took %.3f sec" %
@@ -403,8 +403,8 @@ class Extractor(object):
         V = self.sort.wavedata[sid, maxchani]
         # get timestamps relative to start of waveform
         ts = np.arange(0, spike['tend'] - spike['t0'], self.sort.tres)
-        t0, t1 = ts[spike['phasetis']]
-        V0, V1 = V[spike['phasetis']]
+        t0, t1 = ts[[spike['phaseti0'], spike['phaseti1']]]
+        V0, V1 = spike['V0'], spike['V1']
         tls = self.tls
         tls.t0, tls.t1 = t0, t1
         #tls.V0, tls.V1 = V0, V1
@@ -432,7 +432,7 @@ class Extractor(object):
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
         sid = spike['id']
         wavedata = self.sort.wavedata[sid, :nchans] # chans in wavedata are sorted
-        phasetis = spike['phasetis']
+        phasetis = spike['phaseti0'], spike['phaseti1']
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
@@ -548,7 +548,7 @@ class Extractor(object):
         spikes['IC1'][sid] = weights[0, 0]
         spikes['IC2'][sid] = weights[0, 1]
         '''
-        phasetis = spike['phasetis']
+        phasetis = spike['phaseti0'], spike['phaseti1']
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
@@ -601,10 +601,10 @@ class Extractor(object):
 
         phasetis = np.int32(phasetis) # prevent over/underflow of uint8
         dti = max((phasetis[1]-phasetis[0]), 1) # varies from spike to spike
-        Vs = wavedata[maxchani, phasetis]
+        V0, V1 = wavedata[maxchani, phasetis]
         window0 = wavedata[:, max(phasetis[0]-dti,0):phasetis[0]+dti]
         window1 = wavedata[:, max(phasetis[1]-dti,0):phasetis[1]+dti]
-        if Vs[0] < Vs[1]: # 1st phase is a min on maxchan, 2nd phase is a max
+        if V0 < V1: # 1st phase is a min on maxchan, 2nd phase is a max
             #weights = np.float32(window0.min(axis=1))
             V0s = np.float32(window0.min(axis=1))
             V1s = np.float32(window1.max(axis=1))
