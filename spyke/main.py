@@ -518,7 +518,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if len(self.sort.clusters) == 0:
             self.cluster_params_pane.Enable(False)
         else:
-            self.SelectClusters(clusters[max(s.clusters)]) # select last one
+            self.SelectClusters(s.clusters[max(s.clusters)]) # select last one
 
     def DelCluster(self, cluster, update=True):
         """Delete a cluster from the GUI, and delete the cluster
@@ -537,84 +537,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.clist.RefreshItems()
             cf.f.scene.disable_render = False
 
-    def OnMergeClusters(self, evt=None):
-        """Cluster pane Merge button click"""
-        clusters = self.GetClusters()
-
-        # deselect them all
-        self.SelectClusters(clusters, on=False)
-
-        # merge them all into the lowest numbered cluster
-        sortis = np.argsort([ cluster.id for cluster in clusters ])
-        clusters = [ clusters[sorti] for sorti in sortis ] # sorted by cluster id
-        mergecluster = clusters[0] # lowest numbered one
-
-        s = self.sort
-        sf = self.frames['sort']
-        cf = self.frames['cluster']
-        cf.f.scene.disable_render = True # turn rendering off for speed
-        plotdims = self.GetClusterPlotDimNames()
-        sids = []
-
-        # TODO: this is technically wrong: should be using values in s.clusteris
-        # and merging all those indices that match the ids of the clusters being
-        # merged, not the sids that happen to be assigned to each neuron based on
-        # the currently applied density thresh. Then, once those are merged, need
-        # to reapply the density thresh to the newly formed cluster. Only problem is
-        # the new cluster's scout point hasn't done any climbing, and its density
-        # isn't necessarily appropriate to use for comparison to its points. So maybe
-        # this way isn't so bad after all. But, a solution would be to rerun the climb
-        # algorithm on just the newly merged points, and set sigma such that you only
-        # get a single cluster out of it, ie the original merged cluster, but this
-        # time, the cluster position would be an actual scout position, and you could
-        # then truly apply a density threshold to its points
-
-        # NOTE: the above could all be easily accomplished by simply running
-        # OnSplitClusters with a lower sigma. In other words, we don't need separate
-        # merge and split functionality, just a single "re-run climb() on the points
-        # belonging to the selected cluster(s)" method
-
-        sids.append(mergecluster.neuron.sids) # for updating ellipsoid params
-        for cluster in clusters[1:]: # iterate over all the clusters to be merged
-            sids.append(cluster.neuron.sids)
-            self.DelCluster(cluster, update=False)
-            try: # update s.clusteris
-                s.clusteris[s.clusteris == cluster.id] = mergecluster.id # update
-            except AttributeError: pass # s.clusteris doesn't exist
-            # TODO: update s.scoutdensities now that mergecluster has more points in it, or maybe
-            # scoutdensities shouldn't care about which points belong to them????
-            #self.DeColourPoints(cluster.neuron.sids) # decolour appropriate points
-        sids = np.concatenate(sids)
-        sf.MoveSpikes2Neuron(sids, mergecluster.neuron, update=False)
-        data = self.sort.get_param_matrix(dims=s.dims, scale=True)
-        for dimi, dim in enumerate(s.dims): # update ellipsoid params
-            mergecluster.pos[dim] = data[sids, dimi].mean()
-            # TODO: or maybe revised cluster position should be the mean of all
-            # the cluster (scout) positions, each weighted by its number of points
-            mergecluster.scale[dim] = data[sids, dimi].std()
-
-        mergecluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        self.ColourPoints(mergecluster)
-
-        # select newly created cluster
-        self.SelectClusters(mergecluster, on=True)
-
-    def OnSplitCluster(self, evt=None):
+    def OnReClimb(self, evt=None):
         """Cluster pane Split button click. Do this by running the gradient density
-        climbing algorithm on just the points assigned to the current cluster"""
-        oldcluster = self.GetCluster()
+        climbing algorithm on just the points assigned to the current clusters"""
+        oldclusters = self.GetClusters()
         s = self.sort
         sf = self.OpenFrame('sort')
+        cf = self.OpenFrame('cluster')
 
         # grab dims
         dimselis = self.dimlist.getSelection()
         if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
         dims = [ self.dimlist.dims[i] for i in dimselis ] # dim names to cluster upon
         data = self.sort.get_param_matrix(dims=dims, scale=True)
-        i, = np.where(s.clusteris == oldcluster.id) # spikes to run climb() on
+        i = []
+        for oldcluster in oldclusters:
+            i.append(np.where(s.clusteris == oldcluster.id)[0])
+        i = np.concatenate(i) # spikes to run climb() on
 
         # grab current climbing params, apply them to points in current cluster
         self.update_sort_from_cluster_pane()
@@ -630,10 +569,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except ValueError: pass
         print('climb took %.3f sec' % (time.clock()-t0))
 
-        self.SelectClusters(oldcluster, on=False) # deselect original cluster
-        self.DelCluster(oldcluster) # del original cluster
+        self.SelectClusters(oldclusters, on=False) # deselect original cluster
+        for oldcluster in oldclusters:
+            self.DelCluster(oldcluster, update=False) # del original clusters
+        cf.f.scene.disable_render = True # for speed
+        self.DeColourPoints(i) # decolour all points belonging to old clusters in one shot
+
         s.clusteris[i] = clusteris + s.nextnid
-        s.scoutpositions = np.concatenate((s.scoutpositions, scoutpositions))
         s.densities[i] = densities
         s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
 
@@ -696,8 +638,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             dims = self.GetClusterPlotDimNames()
             cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
 
-        # repack some len(s.clusters) climb results arrays
-        s.scoutpositions[newcids] = s.scoutpositions[oldcids]
+        # repack a saved len(s.clusters) climb results array
         s.scoutdensities[newcids] = s.scoutdensities[oldcids]
 
         # now do some final updates
@@ -1010,7 +951,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                         calcpointdensities=True, calcscoutdensities=True,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
-        s.clusteris, s.scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
+        s.clusteris, scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
         nids = list(np.unique(s.clusteris))
         try: nids.remove(-1)
         except ValueError: pass
@@ -1019,7 +960,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # apply the clusters to the cluster plot
         plotdims = self.GetClusterPlotDimNames()
         t0 = time.clock()
-        for nid, pos in zip(nids, s.scoutpositions): # nids come out sorted
+        for nid, pos in zip(nids, scoutpositions): # nids come out sorted
             scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = s.densities/scoutdensity > s.density_thresh
             sids, = np.where((s.clusteris == nid) & density_mask)
