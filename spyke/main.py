@@ -361,7 +361,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
-        sort.spikes = sort.detector.detect() # struct array of spikes
+        sort.spikes, sort.wavedata = sort.detector.detect() # struct array of spikes, 3D array
         sort.update_usids()
         sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
         sort.shcorrect = sort.stream.shcorrect
@@ -630,7 +630,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except ValueError: pass
         print('climb took %.3f sec' % (time.clock()-t0))
 
-        self.SelectCluster(oldcluster, on=False) # deselect original cluster
+        self.SelectClusters(oldcluster, on=False) # deselect original cluster
         self.DelCluster(oldcluster) # del original cluster
         s.clusteris[i] = clusteris + s.nextnid
         s.scoutpositions = np.concatenate((s.scoutpositions, scoutpositions))
@@ -770,7 +770,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnClusterPlot(self, evt=None):
         """Plot button press in cluster_pane. Don't need the evt"""
-        print('in OnClusterPlot()')
         dims = self.GetClusterPlotDimNames()
         cf = self.OpenFrame('cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
@@ -1768,7 +1767,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             det.trange = (self.t-1, self.hpstream.t0)
         else:
             raise ValueError, which
-        spikes = det.detect() # don't bother saving it, don't update total_nspikes_label
+        spikes, wavedata = det.detect() # don't bother saving it, don't update total_nspikes_label
         wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
         try: # if a spike was found
             spike = spikes[0]

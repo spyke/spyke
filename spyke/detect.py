@@ -502,7 +502,6 @@ class Detector(object):
                 self.nspikes += nblockspikes
 
         stream.open()
-        sort.wavedata = wavedata
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
@@ -511,10 +510,14 @@ class Detector(object):
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         # spikes might come out slightly out of temporal order, due to the way
         # the best peak is searched for forward and backwards in time on each edge
-        spikes = spikes[spikes['t'].argsort()] # ensure they're in temporal order
+        t0 = time.time()
+        i = spikes['t'].argsort()
+        spikes = spikes[i] # ensure they're in temporal order
+        wavedata = wavedata[i] # ditto for wavedata
+        info("Sorting spikes and wavedata to ensure temporal order took %.3f sec" % (time.time()-t0))
         spikes['id'] = np.arange(self.nspikes) # assign ids now that they're in temporal order
         self.datetime = datetime.datetime.now()
-        return spikes
+        return spikes, wavedata
 
     def calc_chans(self):
         """Calculate lockout and inclusion chan neighbourhoods, max number of chans to use,
