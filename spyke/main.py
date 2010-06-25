@@ -461,6 +461,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                                % nselected)
         return clusters[0]
 
+    def GetSpikes(self):
+        """Return IDs of currently selected spikes"""
+        sf = self.frames['sort']
+        nsrows = sf.nslist.getSelection()
+        srows = sf.slist.getSelection()
+        sids = []
+        try:
+            sids.extend(sf.nslist.neuron.sids[nsrows])
+        except AttributeError: pass # nslist has neuron=None, with no sids
+        sids.extend(self.sort.usids[srows])
+        return sids
+
+    def GetSpike(self):
+        """Return Id of just one selected spike, from nslist or slist"""
+        sids = self.GetSpikes()
+        nselected = len(sids)
+        if nselected != 1:
+            raise RuntimeError("can't figure out which of the %d selected spike IDs you want"
+                               % nselected)
+        return sids[0]
+
     def SelectClusters(self, clusters, on=True):
         """Select/deselect clusters"""
         clusters = toiter(clusters)
@@ -622,6 +643,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf = self.frames['cluster']
         dims = self.GetClusterPlotDimNames()
         fp = [ cluster.pos[dim] for dim in dims ]
+        cf.f.scene.camera.focal_point = fp
+        cf.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
+        #cf.Refresh() # this also seems to work: repaint the frame
+
+    def OnFocusCurrentSpike(self, evt=None):
+        """Focus button press in sort_pane. Move focus to location
+        of currently selected (single) spike"""
+        sid = self.GetSpike()
+        cf = self.frames['cluster']
+        dims = self.GetClusterPlotDimNames()
+        fp = self.sort.get_param_matrix(dims=dims)[sid]
         cf.f.scene.camera.focal_point = fp
         cf.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
         #cf.Refresh() # this also seems to work: repaint the frame

@@ -18,7 +18,7 @@ from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 from enthought.mayavi import mlab
 from enthought.mayavi.tools.engine_manager import get_engine
 
-from spyke.plot import CMAP, CMAPPLUSJUNK, CMAPPLUSTRANSWHITE, TRANSWHITEI
+from spyke.plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 
 class Cluster(object):
@@ -272,14 +272,11 @@ class ClusterFrame(wx.MiniFrame):
         print('key == %s' % key)
         spykeframe = self.Parent
     '''
-    def plot(self, X, scale=None, nids=None, minspikes=1,
+    def plot(self, X, scale=None,
              mode='point', scale_factor=0.5, alpha=None,
              mask_points=None, resolution=8, line_width=2.0, envisage=False):
         """Plot 3D projection of (possibly clustered) spike params in X. scale
-        each dimension in X by scale. nids is a sequence of neuron ids
-        corresponding to a sorted sequence of spike ids. "Neurons" with <
-        minspikes will all be coloured the same dark grey.
-        Mode can be '2darrow', '2dcircle', '2dcross',
+        each dimension in X by scale. Mode can be '2darrow', '2dcircle', '2dcross',
         '2ddash', '2ddiamond', '2dhooked_arrow', '2dsquare', '2dthick_arrow',
         '2dthick_cross', '2dtriangle', '2dvertex', 'arrow', 'cone', 'cube',
         'cylinder', 'point', 'sphere'. 3D glyphs like 'sphere' come out
@@ -299,61 +296,6 @@ class ClusterFrame(wx.MiniFrame):
         y = X[:, 1]
         z = X[:, 2]
         cmap = CMAPPLUSTRANSWHITE
-        '''
-        if nids: # figure out scalar value to assign to each spike to colour it correctly
-            t0 = time.time()
-            nids = np.asarray(nids)
-            sortednidis = nids.argsort() # indices to get nids in sorted order
-            unsortednidis = sortednidis.argsort() # indices that unsort nids back to original spike id order
-            nids = nids[sortednidis] # nids is now sorted
-            maxnid = max(nids)
-            consecutivenids = np.arange(maxnid+1)
-            if set(nids) != set(consecutivenids):
-                print("***WARNING: nids has gaps in it")
-            # the extra +1 gives us the correct rightmost bin edge
-            # for histogram's end inclusive semantics
-            bins = np.arange(maxnid+1+1)
-            hist, bins = np.histogram(nids, bins=bins)
-            # assume lowest numbered nids are the most frequent ones
-            # is hist in decreasing order, ie is difference between subsequent entries <= 0?
-            try:
-                assert (np.diff(hist) <= 0).all()
-            except AssertionError:
-                import pdb; pdb.set_trace()
-            # find histi where hist drops to minspikes
-            # searchsorted requires ascending order, not descending
-            histifromend = hist[::-1].searchsorted(minspikes)
-            histi = len(hist) - histifromend
-            # take bins[histi] to find junknid, at which point all subsequently
-            # numbered nids occur less than minspikes
-            junknid = bins[histi]
-            # should really get junknid == histi if everything's right
-            try:
-                assert junknid == histi
-            except AssertionError:
-                import pdb; pdb.set_trace()
-            # junknidi is first index into sorted nids which occurs <= minspikes times,
-            # and is considered junk, as are all subsequent ones
-            junknidi = nids.searchsorted(junknid)
-            # or maybe junknidi = sum(hist[:histi]) would work as well? faster?
-            njunk = len(nids) - junknidi # number of junk points
-            # s are indices into colourmap
-            s = nids % len(cmap)
-            if njunk > 0:
-                # use CMAPPLUSJUNK with its extra junk colour only if it's needed,
-                # otherwise mayavi rescales and throws out a middle colour
-                # (like light blue), and you end up with dk grey points even
-                # though you don't have any junk points
-                cmap = CMAPPLUSJUNK # has extra dk grey colour at end for junk
-                s[junknidi:] = len(cmap) - 1 # assign last colour (dk grey) to junk clusters
-            # unsort, so mayavi pick indices match spike indices
-            nids = nids[unsortednidis] # unsort nids back to its original spike id order
-            s = s[unsortednidis] # do the same for the colourmap indices
-            print("Figuring out colours took %.3f sec" % (time.time()-t0))
-            # TODO: order colours consecutively according to cluster mean y location, to
-            # make neighbouring clusters in X-Y space less likely to be assigned the same colour
-        else:
-        '''
         s = np.tile(TRANSWHITEI, len(X))
 
         if envisage == True:

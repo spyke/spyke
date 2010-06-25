@@ -57,16 +57,16 @@ MAGENTA = '#FF00FF'
 GREY = '#555555'
 WHITE = '#FFFFFF'
 BROWN = '#AF5050'
-DARKGREY = '#222222' # reserve as junk cluster colour
+#DARKGREY = '#222222' # reserve as junk cluster colour
 
-COLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
-COLOURSWITHJUNK = COLOURS + [DARKGREY]
+PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
+CLUSTERCOLOURS = copy(PLOTCOLOURS)
+CLUSTERCOLOURS.remove(GREY)
 
-CMAP = hex2cmap(COLOURS, alpha=1.0)
+CMAP = hex2cmap(CLUSTERCOLOURS, alpha=1.0)
 TRANSWHITE = [1.0, 1.0, 1.0, 0.5]
 CMAPPLUSTRANSWHITE = CMAP + [TRANSWHITE]
 TRANSWHITEI = len(CMAPPLUSTRANSWHITE) - 1
-CMAPPLUSJUNK = hex2cmap(COLOURSWITHJUNK, alpha=1.0)
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
@@ -82,22 +82,22 @@ PLOTZORDER = 4
 
 
 class ColourDict(dict):
-    """Just an easy way to cycle through COLOURS given some index,
+    """Just an easy way to cycle through PLOTCOLOURS given some index,
     like say a chan id or a neuron id. Better than using a generator,
     cuz you don't need to keep calling .next(). This is like a dict
     of inifite length"""
-    def __init__(self, colours=COLOURS):
+    def __init__(self, colours=PLOTCOLOURS):
         self.colours = colours
 
     def __getitem__(self, key):
-        i = key % len(COLOURS)
-        return COLOURS[i]
+        i = key % len(self.colours)
+        return self.colours[i]
 
     def __setitem__(self, key, val):
-        raise RuntimeError, 'ColourDict is unsettable'
+        raise RuntimeError('ColourDict is unsettable')
 
 
-COLOURDICT = ColourDict(colours=COLOURS)
+CLUSTERCOLOURDICT = ColourDict(colours=CLUSTERCOLOURS)
 
 
 class Plot(object):
@@ -818,7 +818,7 @@ class SpikePanel(PlotPanel):
                          self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1]) # x origin at center
         self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
                          self.um2uv(self.siteloc[self.vchans[-1]][1]) + CHANVBORDER)
-        colourgen = itertools.cycle(iter(COLOURS))
+        colourgen = itertools.cycle(iter(PLOTCOLOURS))
         for chan in self.vchans:
             # chan order doesn't matter for setting .pos, but it does for setting .colours
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
@@ -865,7 +865,7 @@ class ChartPanel(PlotPanel):
         maxy = self.um2uv(self.siteloc[self.vchans[-1]][1])
         vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
-        colourgen = itertools.cycle(iter(COLOURS))
+        colourgen = itertools.cycle(iter(PLOTCOLOURS))
         for chani, chan in enumerate(self.vchans):
             #self.pos[chan] = (0, self.um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
@@ -1007,7 +1007,7 @@ class SortPanel(PlotPanel):
         if item[0] == 'n': # it's a neuron
             n = sort.neurons[id]
             t = n.t
-            colours = [COLOURDICT[id]]
+            colours = [CLUSTERCOLOURDICT[id]]
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
@@ -1021,7 +1021,7 @@ class SortPanel(PlotPanel):
             width = SPIKELINEWIDTH
             if nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
                 alpha = 0.5
-                colours = [COLOURDICT[nid]]
+                colours = [CLUSTERCOLOURDICT[nid]]
             else: # it's an unsorted spike, colour each chan separately
                 alpha = 1
                 colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
