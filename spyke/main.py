@@ -537,77 +537,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.clist.RefreshItems()
             cf.f.scene.disable_render = False
 
-    def OnReClimb(self, evt=None):
-        """Cluster pane Split button click. Do this by running the gradient density
-        climbing algorithm on just the points assigned to the current clusters"""
-        oldclusters = self.GetClusters()
-        s = self.sort
-        sf = self.OpenFrame('sort')
-        cf = self.OpenFrame('cluster')
-
-        # grab dims
-        dimselis = self.dimlist.getSelection()
-        if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
-        dims = [ self.dimlist.dims[i] for i in dimselis ] # dim names to cluster upon
-        data = self.sort.get_param_matrix(dims=dims, scale=True)
-        i = []
-        for oldcluster in oldclusters:
-            i.append(np.where(s.clusteris == oldcluster.id)[0])
-        i = np.concatenate(i) # spikes to run climb() on
-
-        # grab current climbing params, apply them to points in current cluster
-        self.update_sort_from_cluster_pane()
-        t0 = time.clock()
-        results = climb(data[i], sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
-                        rneighx=s.rneighx, nsamples=s.nsamples,
-                        calcpointdensities=True, calcscoutdensities=True,
-                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
-                        minpoints=s.minpoints)
-        clusteris, scoutpositions, densities, scoutdensities, sampleis = results
-        nids = list(np.unique(clusteris))
-        try: nids.remove(-1)
-        except ValueError: pass
-        print('climb took %.3f sec' % (time.clock()-t0))
-
-        self.SelectClusters(oldclusters, on=False) # deselect original cluster
-        for oldcluster in oldclusters:
-            self.DelCluster(oldcluster, update=False) # del original clusters
-        cf.f.scene.disable_render = True # for speed
-        self.DeColourPoints(i) # decolour all points belonging to old clusters in one shot
-
-        s.clusteris[i] = clusteris + s.nextnid
-        s.densities[i] = densities
-        s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
-
-        # apply new clusters to the cluster plot
-        plotdims = self.GetClusterPlotDimNames()
-        newclusters = []
-        t0 = time.clock()
-        for nid, pos in zip(nids, scoutpositions): # nids come out sorted
-            scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            density_mask = densities/scoutdensity > s.density_thresh
-            ii, = np.where((clusteris == nid) & density_mask)
-            sids = i[ii]
-            cluster = self.OnAddCluster(update=False)
-            newclusters.append(cluster)
-            neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(sids, neuron, update=False)
-            for dimi, dim in enumerate(dims):
-                cluster.pos[dim] = pos[dimi]
-                if len(sids) == 0:
-                    print('WARNING: neuron %d has no spikes' % nid)
-                else:
-                    cluster.scale[dim] = data[sids, dimi].std()
-            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
-        self.ColourPoints(newclusters)
-
-        # select newly created cluster(s)
-        self.SelectClusters(newclusters, on=True)
-
     def OnRenumberClusters(self, evt=None):
         """Renumber clusters consecutively from 0, on "re#" button click"""
         s = self.sort
@@ -928,46 +857,72 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort')
         cf = self.OpenFrame('cluster')
 
-        # delete any existing clusters
-        for cluster in s.clusters.values():
-            self.DelCluster(cluster, update=False)
-        self.UpdateClustersGUI()
-        try: cf.glyph
-        except AttributeError: self.OnClusterPlot()
-        self.DeColourAllPoints()
-        cf.glyph.mlab_source.update()
+        oldclusters = self.GetClusters()
+        if oldclusters: # some clusters selected
+            i = [] # spikes to run climb() on
+            for oldcluster in oldclusters:
+                i.append(np.where(s.clusteris == oldcluster.id)[0])
+            i = np.concatenate(i) # run climb() on selected spikes
+        else: # no clusters selected
+            i = np.arange(s.nspikes) # run climb() on all spikes
+            # delete all existing clusters (if any)
+            for cluster in s.clusters.values():
+                self.DelCluster(cluster, update=False)
+            self.UpdateClustersGUI()
+            try: cf.glyph
+            except AttributeError: self.OnClusterPlot()
+            self.DeColourAllPoints()
+            cf.glyph.mlab_source.update()
 
-        # grab dims
+        # grab dims and data
         dimselis = self.dimlist.getSelection()
         if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
-        s.dims = [ self.dimlist.dims[i] for i in dimselis ] # record dim names that were clustered upon
-        data = self.sort.get_param_matrix(dims=s.dims, scale=True)
+        dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
+        data = self.sort.get_param_matrix(dims=dims, scale=True)
 
         # grab climbing params
         self.update_sort_from_cluster_pane()
         t0 = time.clock()
-        results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
+        results = climb(data[i], sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
                         rneighx=s.rneighx, nsamples=s.nsamples,
                         calcpointdensities=True, calcscoutdensities=True,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
-        s.clusteris, scoutpositions, s.densities, s.scoutdensities, s.sampleis = results
-        nids = list(np.unique(s.clusteris))
+        clusteris, scoutpositions, densities, scoutdensities, sampleis = results
+        nids = list(np.unique(clusteris))
         try: nids.remove(-1)
         except ValueError: pass
         print('climb took %.3f sec' % (time.clock()-t0))
 
+        if oldclusters: # some clusters selected
+            self.SelectClusters(oldclusters, on=False) # deselect original cluster
+            for oldcluster in oldclusters:
+                self.DelCluster(oldcluster, update=False) # del original clusters
+            cf.f.scene.disable_render = True # for speed
+            self.DeColourPoints(i) # decolour all points belonging to old clusters in one shot
+            s.clusteris[i] = clusteris + s.nextnid
+            s.densities[i] = densities
+            s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
+        else: # no clusters selected
+            s.clusteris = clusteris
+            s.densities = densities
+            s.scoutdensities = scoutdensities
+            s.sampleis = sampleis
+
         # apply the clusters to the cluster plot
         plotdims = self.GetClusterPlotDimNames()
+        newclusters = []
         t0 = time.clock()
         for nid, pos in zip(nids, scoutpositions): # nids come out sorted
-            scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            density_mask = s.densities/scoutdensity > s.density_thresh
-            sids, = np.where((s.clusteris == nid) & density_mask)
+            scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
+            density_mask = densities/scoutdensity > s.density_thresh
+            ii, = np.where((clusteris == nid) & density_mask)
+            sids = i[ii]
             cluster = self.OnAddCluster(update=False)
+            newclusters.append(cluster)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(sids, neuron, update=False)
-            for dimi, dim in enumerate(s.dims):
+            for dimi, dim in enumerate(dims):
                 cluster.pos[dim] = pos[dimi]
                 if len(sids) == 0:
                     print('WARNING: neuron %d has no spikes' % nid)
@@ -978,7 +933,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now do some final updates
         self.UpdateClustersGUI()
         print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
-        self.ColourPoints(s.clusters.values())
+        self.ColourPoints(newclusters)
+
+        if oldclusters:
+            # select newly created cluster(s)
+            self.SelectClusters(newclusters, on=True)
 
     def OnApplyDensityThresh(self, evt=None):
         """Cluster pane point density threshold Apply button click. Changes
@@ -990,7 +949,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: nids.remove(-1)
         except ValueError: pass
         assert s.neurons.keys() == nids
-        data = self.sort.get_param_matrix(dims=s.dims, scale=True)
+
+        # get dims and data
+        dimselis = self.dimlist.getSelection()
+        if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
+        dims = [ self.dimlist.dims[i] for i in dimselis ] # dim names to measure density upon
+        data = self.sort.get_param_matrix(dims=dims, scale=True)
+
         s.density_thresh = float(self.density_thresh_text_ctrl.GetValue()) # update from GUI
         sf = self.frames['sort']
         plotdims = self.GetClusterPlotDimNames()
@@ -1011,7 +976,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             if len(sids) == 0:
                 print('WARNING: neuron %d has no spikes' % nid)
             else:
-                for dimi, dim in enumerate(s.dims):
+                for dimi, dim in enumerate(dims):
                     cluster.scale[dim] = data[sids, dimi].std()
             cluster.update_ellipsoid(params=['scale'], dims=plotdims)
 
