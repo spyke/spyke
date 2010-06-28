@@ -363,7 +363,9 @@ class Sort(object):
         spikes = self.spikes
         nsids = neuron.sids # ids of spikes that belong to this neuron
 
-        Vss = spikes['Vs'][nsids] # 2 x len(nsids) array
+        V0s = spikes['V0'][nsids]
+        V1s = spikes['V1'][nsids]
+        Vss = np.column_stack((V0s, V1s))
         alignis = spikes['aligni'][nsids]
         b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
         if to == 'max':
