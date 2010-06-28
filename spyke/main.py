@@ -599,14 +599,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
         # TODO: this method isn't triggered when clicking in empty space to deselect all items
-        # print('in OnCListSelect()')
+        #print('in OnCListSelect()')
         selectedRows = self.clist.getSelection()
         if len(selectedRows) == 1:
             cluster = self.GetCluster()
-            self.cluster_params_pane.Enable(True)
+            self.EnablePosOriScaleWidgets(True)
             self.UpdateParamWidgets(cluster)
         else:
-            self.cluster_params_pane.Enable(False)
+            self.EnablePosOriScaleWidgets(False)
         # mirror selection changes to nlist
         sf = self.frames['sort']
         all_nids = sorted(self.sort.neurons)
@@ -723,7 +723,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf.f.scene.disable_render = False # turn rendering back on
         self.clist.SetItemCount(len(s.clusters))
         self.clist.RefreshItems()
-        self.clist.DeSelectAll()
+        #self.clist.DeSelectAll() # not sure why this was here
         sf.nlist.SetItemCount(len(s.neurons))
         sf.nlist.RefreshItems()
         s.update_usids()
@@ -1623,6 +1623,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             if len(self.sort.neurons) == 0: enable = False # no neurons
         except AttributeError: enable = False # self.sort doesn't exist yet
         self.validate_pane.Enable(enable)
+
+    def EnablePosOriScaleWidgets(self, enable):
+        """Enable/disable the pos, ori, and scale textctrl widgets for controlling
+        and displaying cluster params. Use this instead of self.cluster_pane.Enable()
+        to allow the dims ComboBoxes to remain enabled for plotting purposes"""
+        widgets = [self.xpos, self.ypos, self.zpos,
+                   self.xori, self.yori, self.zori,
+                   self.xscale, self.yscale, self.zscale]
+        for widget in widgets:
+            widget.Enable(enable)
 
     def get_detector(self):
         """Create a Detector object based on widget values"""
