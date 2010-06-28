@@ -269,7 +269,7 @@ class Sort(object):
 
         return data
 
-    def apply_cluster(self, cluster):
+    def cut_cluster(self, cluster):
         """Apply cluster to spike data - calculate which spikes fall within the
         cluster's multidimensional ellipsoid. Return spike indices in an array view"""
 

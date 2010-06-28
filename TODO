@@ -1,7 +1,5 @@
 RECENT:
 
-    - stop using grey as a cluster colour - grey points are hard to tell apart from unsorted semi-transparent white points
-
     - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
         - plot error histogram to aid in setting thresh
         - for each point, find shortest geometric distance between spike and cluster mean, instead of just vertical distance like rms
@@ -720,6 +718,8 @@ DONE:
     - solution was to make a single spatial sigma free variable, and to fit it first using the spatial mean as the fixed x and y positions, followed by fitting a 2nd time with x and y free, and sigma fixed. Don't get convergence problems, and sigma comes out to something realistic on every spike. Unfortunately, the sigma dimension doesn't seem to improve clusterability
 - for simplicity, rename Vs back to V0 and V1, and phasetis back to phaset0i and phaset1i
 - combine merge and split into re-climb
+- stop using grey as a cluster colour - grey points are hard to tell apart from unsorted semi-transparent white points
+
 
 
 

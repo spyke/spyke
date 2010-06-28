@@ -687,16 +687,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.UpdateClustersGUI()
         self.cluster_params_pane.Enable(True)
 
-    def OnApplyCluster(self, evt=None):
-        """Apply (cluster) button press in cluster_pane. Don't need the evt"""
+    def OnCutCluster(self, evt=None):
+        """Cut (cluster) button press in cluster_pane. Don't need the evt"""
         cluster = self.GetCluster()
-        self.ApplyClusters(cluster)
+        self.CutClusters(cluster)
 
-    def OnApplyAllClusters(self, evt=None):
-        """Apply all (cluster) button press in cluster_pane. Don't need the evt"""
-        self.ApplyClusters(self.sort.clusters.values())
+    def OnCutAllClusters(self, evt=None):
+        """Cut all (cluster) button press in cluster_pane. Don't need the evt"""
+        self.CutClusters(self.sort.clusters.values())
 
-    def ApplyClusters(self, clusters):
+    def CutClusters(self, clusters):
         """Apply the cluster params to the spikes. Cut the spikes and
         update the plot"""
         sf = self.frames['sort']
@@ -707,7 +707,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.DeColourPoints(neuron.sids)
             # remove any existing spikes from neuron and restore them to spike listctrl:
             sf.MoveSpikes2List(neuron, neuron.sids)
-            sids = self.sort.apply_cluster(cluster)
+            sids = self.sort.cut_cluster(cluster)
             sf.MoveSpikes2Neuron(sids, neuron)
         # TODO: colour only those points that have been added
         self.ColourPoints(clusters)
@@ -764,48 +764,48 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def UpdateParamWidgets(self, cluster):
         """Update 3x3 grid of cluster param widgets from values in cluster"""
         x, y, z = self.GetClusterPlotDimNames() # tuple of dim names, in (x, y, z) order
-        self.xpos.SetValue(cluster.pos[x])
-        self.ypos.SetValue(cluster.pos[y])
-        self.zpos.SetValue(cluster.pos[z])
-        if (y, z) in cluster.ori[x]: self.xori.SetValue(cluster.ori[x][(y, z)])
-        elif (z, y) in cluster.ori[x]: self.xori.SetValue(-cluster.ori[x][(z, y)])
-        else: self.xori.SetValue(0)
-        if (z, x) in cluster.ori[y]: self.yori.SetValue(cluster.ori[y][(z, x)])
-        elif (x, z) in cluster.ori[y]: self.yori.SetValue(-cluster.ori[y][(x, z)])
-        else: self.yori.SetValue(0)
-        if (x, y) in cluster.ori[z]: self.zori.SetValue(cluster.ori[z][(x, y)])
-        elif (y, x) in cluster.ori[z]: self.zori.SetValue(-cluster.ori[z][(y, x)])
-        else: self.zori.SetValue(0)
-        self.xscale.SetValue(cluster.scale[x])
-        self.yscale.SetValue(cluster.scale[y])
-        self.zscale.SetValue(cluster.scale[z])
+        self.xpos.SetValue(str(cluster.pos[x]))
+        self.ypos.SetValue(str(cluster.pos[y]))
+        self.zpos.SetValue(str(cluster.pos[z]))
+        if (y, z) in cluster.ori[x]: self.xori.SetValue(str(cluster.ori[x][(y, z)]))
+        elif (z, y) in cluster.ori[x]: self.xori.SetValue(str(-cluster.ori[x][(z, y)]))
+        else: self.xori.SetValue(str(0))
+        if (z, x) in cluster.ori[y]: self.yori.SetValue(str(cluster.ori[y][(z, x)]))
+        elif (x, z) in cluster.ori[y]: self.yori.SetValue(str(-cluster.ori[y][(x, z)]))
+        else: self.yori.SetValue(str(0))
+        if (x, y) in cluster.ori[z]: self.zori.SetValue(str(cluster.ori[z][(x, y)]))
+        elif (y, x) in cluster.ori[z]: self.zori.SetValue(str(-cluster.ori[z][(y, x)]))
+        else: self.zori.SetValue(str(0))
+        self.xscale.SetValue(str(cluster.scale[x]))
+        self.yscale.SetValue(str(cluster.scale[y]))
+        self.zscale.SetValue(str(cluster.scale[z]))
 
     """Update parameters for currently selected cluster, and associated ellipsoid"""
     def OnXPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         cluster.pos[x] = val
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnYPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         cluster.pos[y] = val
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnZPos(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         cluster.pos[z] = val
         cluster.update_ellipsoid('pos', dims=(x, y, z))
 
     def OnXOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         if (z, y) in cluster.ori[x]: # reversed axes already used as a key
             cluster.ori[x][(z, y)] = -val # reverse the ori
         else:
@@ -815,7 +815,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnYOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         if (x, z) in cluster.ori[y]:
             cluster.ori[y][(x, z)] = -val
         else:
@@ -825,7 +825,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnZOri(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         if (y, x) in cluster.ori[z]:
             cluster.ori[z][(y, x)] = -val
         else:
@@ -835,21 +835,21 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnXScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         cluster.scale[x] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnYScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         cluster.scale[y] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 
     def OnZScale(self, evt):
         cluster = self.GetCluster()
         x, y, z = self.GetClusterPlotDimNames()
-        val = evt.GetInt()
+        val = float(evt.GetString())
         cluster.scale[z] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
 

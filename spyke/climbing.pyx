@@ -28,8 +28,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
-        - delete scouts that have fewer than n points (at any point during iteration?)
         - reverse annealing sigma: starting small, and gradually increase it over iters
+            - increase it a bit every time you get an iteration with no mergers?
         - maybe some way of making sigma dynamic for each scout and for each iteration?
         - maybe annealing of alpha (decreasing it over time)? NVS sounds skeptical
 
@@ -39,12 +39,14 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             - track the distance each point has travelled during the course of the algorithm. When done, plot the distribution of travel distances, and maybe you'll get something bimodal, and choose a cutoff travel distance past which any point that travelled further is considered a noise point
             - or maybe plot distribution of travel times
             - use some cutoff of local density to specify what's noise and what isn't? skeptical..
-        - NVS - to weed out potential noise spikes, for each cluster, find the local density of the scout point at the max, then reject all other data points in that cluster whose local density falls below, say, 1% of the max. Apply it as a mask, so you can tweak that 1% value as you wish, without having to run the whole algorithm all over again
 
         - visualize algorithm in real time to see what exactly it's doing, and why some clusters are split while others are merged
+
         - instead of merging the higher indexed scout into the lower indexed one, you should really merge the one with the lower density estimate into the one with the higher density estimate - otherwise you potentially end up deleting the scout that's closer to the local max density, which probably sets you back several iterations
-            - this would require storing all the density calculations - not a big deal
-            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, densities, still) except for the clusteris array, then proceed as usual
+            - this would require calc'ing and storing the density for each cluster, and updating it every time it moves
+                - is local density and local gradient calc sufficiently similar that this won't be expensive?
+            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, densities, still) except for the clusteris array, then proceed as usual. Then update the density for the newly merged cluster
+
         - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that butt up against those of the other scout
 
         - try using simplex algorithm for scout position update step, though that might miss local maxima
@@ -52,6 +54,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             - NVS thinks you could leave the merging step as a thread running in parallel with the gradient step (which itself could be split up easily into multiple threads) - although now with subsampling, the slow steps are mostly the gradient calcs, since there are far fewer scouts to merge to begin with
 
         - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation?
+
         - try using the n nearest neighbours to calculate gradient, instead of a guassian with a sigma. This makes it scale free, but NVS says this often results in situations where the gradient is 0 for some reason
 
         - scale x not just by its std, but also according to some absolute multiple of space (say 1.0 is 50 um), such that recordings with wider or narrower x locations (2 or 3 column probes) will cluster roughly as well with a constant sigma value (like 0.25, which really means you can expect up to 4 clusters along the x axis)
@@ -64,8 +67,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         - add freezing of points, for speed?
             - when a scout point has moved less than some distance per iteration for all of the last n iterations, freeze it. Then, in the position update loop, check for frozen scout points
         - add subsampling to reduce initial number of scout points
-
-
+        - NVS - to weed out potential noise spikes, for each cluster, find the local density of the scout point at the max, then reject all other data points in that cluster whose local density falls below, say, 1% of the max. Apply it as a mask, so you can tweak that 1% value as you wish, without having to run the whole algorithm all over again
+        - delete scouts that have fewer than n points (at any point during iteration?)
     """
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
@@ -104,7 +107,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     clusteris[sampleis] = np.arange(M)
 
     if minmove == -1.0:
-        minmove = 0.00001 * sigma * alpha # along a single dimension
+        minmove = 0.000001 * sigma * alpha # along a single dimension
 
     while True:
 

@@ -136,7 +136,7 @@ class SpykeMayaviScene(MayaviScene):
             sf.MoveCurrentCluster2Focus()
             return
         elif key == ord('c'):
-            sf.OnApplyCluster(); return
+            sf.OnCutCluster(); return
         elif key in [ord('s'), wx.WXK_SPACE]:
             # toggle selection of cluster under the cursor
             pos = event.GetPosition()
