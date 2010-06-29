@@ -587,11 +587,11 @@ class Extractor(object):
 
         # find peaks on each chan around phasetis, assign weights by Vpp.
         # Dividing dti by 2 seems safer, since not looking for other phase, just
-        # looking for same phase maybe slightly shifted
+        # looking for same phase maybe slightly shifted. Check clusterability
+        # and if this reduces cluster pollution from double-triggered spikes.
+        # Catch is that some cells have spikes that really are shifted by as
+        # much as dphase
         #dti = self.sort.detector.dti // 2 # constant
-
-        # TODO: try using dphase/2 instead of dphase, check clusterability
-        # and if this reduces cluster pollution from double-triggered spikes
 
         # TODO: seach for peaks within dti, not just max/min value on each chan.
         # If you don't find a peak within the window for a given chan, then default to using the

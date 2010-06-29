@@ -10,18 +10,14 @@ import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 import spyke.util # .pyx file
 
-import itertools
 import sys
 import time
-import string
 import logging
 import datetime
 import multiprocessing as mp
 from copy import copy
 
 import wx
-import pylab
-import matplotlib as mpl
 
 from scipy.weave import inline
 #from scipy import ndimage
@@ -101,9 +97,8 @@ def minmax_filter(x, width=3):
     return maxi+mini
 
 def argextrema1Damplitude(signal):
-    """Return indices of all local extrema in 1D int signal
-    Also return array designating each extremum's type (max or min)
-    and its amplitude."""
+    """Return shape(signal) array of extremum amplitude and sign at each point
+    in 1D int signal"""
     assert len(signal.shape) == 1
     # it's possible to have a local extremum at every timepoint on every chan
     ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak amplitude
@@ -136,10 +131,8 @@ def argextrema1Damplitude(signal):
     return ampl
 
 def argextrema2Dsharpness(signal):
-    """Return indices of all local extrema in 2D int signal
-    Also return array designating each extremum's type (max or min)
-    and its "amplitude", which is actually its sharpness defined as
-    rise**2/run"""
+    """Return shape(signal) array of extremum sharpness and sign at
+    each point in 2D int signal. Sharpness is defined as rise**2/run"""
     assert len(signal.shape) == 2
     # it's possible to have a local extremum at every timepoint on every chan
     ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak sharpness
@@ -706,20 +699,20 @@ class Detector(object):
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is sharpest
-            ampl = argextrema2Dsharpness(window)
-            # find max abs(amplitude) that isn't locked out
-            amplis = abs(ampl.ravel()).argsort() # to get chani and ti of each sort index, reshape to ampl.shape
-            amplis = amplis[::-1] # reverse for highest to lowest abs(amplitude)
+            sharp = argextrema2Dsharpness(window)
+            # find max abs(sharpness) that isn't locked out
+            sharpis = abs(sharp.ravel()).argsort() # to get chani and ti of each sort index, reshape to sharp.shape
+            sharpis = sharpis[::-1] # reverse for highest to lowest abs(sharpness)
             ncols = window.shape[1]
-            for ampli in amplis:
-                rowi = ampli // ncols
-                coli = ampli % ncols
+            for sharpi in sharpis:
+                rowi = sharpi // ncols
+                coli = sharpi % ncols
                 chani = chanis[rowi]
                 ti = t0i + coli
                 if ti > lockouts[chani]:# and abs(window[rowi, coli]) > self.thresh[chani]:
                     # extremum is not locked out
                     if DEBUG: debug('found peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
-                    break # found valid extremum with biggest relative amplitude
+                    break # found valid extremum with biggest relative sharpness
                 else: # extremum is locked out (rare)
                     if DEBUG: debug('extremum at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
             else:
@@ -843,6 +836,9 @@ class Detector(object):
                 x = self.siteloc[chanis, 0] # 1D array (row)
                 y = self.siteloc[chanis, 1]
                 maxchani = int(np.where(chans == chan)[0]) # != chani!
+                # TODO: could call weights2spatialmean directly, since we already
+                # have the multichan sharp array available, from which weights could be
+                # more effectively extracted than with get_Vpp_weights()
                 s['x0'], s['y0'], s['sx'], s['sy'] = wavedata2spatial(window, maxchani, phasetis, aligni, x, y)
                 #s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 

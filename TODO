@@ -1,5 +1,23 @@
 RECENT:
 
+    New check_edges() strategy:
+
+    1. For each chan, find 3 most extreme extrema, where an extremum is the biggest max > 0 between zero crossings, or the smallest min < 0 between zero crossings. Endpoints of each waveform are treated as zero crossings.
+
+    2. For each chan, measure sharpness of each extremum by taking peak_value / npoints around it on that side of 0. Keep the sign. This could later be refined to divide by the FWHM instead of npoints, but would require at least some linear interpolation between the points straddling 50% on either side of the extremum.
+
+    3. Find chan with single biggest abs(sharpness) value, choose that as maxchan.
+
+    3. Align maxchan to the abs(sharpest) extremum, and store the two (or 3?) sharpest (signed) values. Save sharpness values in s0 and s1 (and s2?). Might consider storing V2 as well as V0 and V1.
+
+    4. For each spike, maybe make phaseti0 and phaseti1 (and phaseti2?) all arrays of length == nchans, so you can save the positions of those non-maxchan extrema and use them to easily determine channel weights later for spatial fitting
+        - this would also allow you to have a different lockout for each chan in a spike
+        - maybe make V0 and V1 and V2, and s0 and s1 and s2 all nchans length arrays too, for easier phase alignment across channels when getting channel weights
+        - for manual alignment, rename align max/align min to align +/align - and use signed sharpness instead of amplitude to decide which phase to align each spike to
+
+
+
+
     - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
         - plot error histogram to aid in setting thresh
         - for each point, find shortest geometric distance between spike and cluster mean, instead of just vertical distance like rms
