@@ -135,15 +135,15 @@ def argextrema2Dsharpness(signal):
     each point in 2D int signal. Sharpness is defined as rise**2/run"""
     assert len(signal.shape) == 2
     # it's possible to have a local extremum at every timepoint on every chan
-    ampl = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak sharpness
+    sharp = np.zeros(signal.shape, dtype=np.float64) # +ve: max, -ve: min, abs: peak sharpness
     itemsize = signal.dtype.itemsize
-    aitemsize = ampl.dtype.itemsize
+    aitemsize = sharp.dtype.itemsize
     nchans = int(signal.shape[0])
     nt = int(signal.shape[1])
     stride0 = int(signal.strides[0] // itemsize)
     stride1 = int(signal.strides[1] // itemsize)
-    astride0 = int(ampl.strides[0] // aitemsize)
-    astride1 = int(ampl.strides[1] // aitemsize)
+    astride0 = int(sharp.strides[0] // aitemsize)
+    astride1 = int(sharp.strides[1] // aitemsize)
     extiw = np.empty(nt, dtype=np.int32) # for temp internal use
     code = (r"""#line 152 "detect.py"
     int ci, ti, ei, n_ext, cis0, i, ai, alasti, now, last, last2, thisti, lastti, nextti;
@@ -162,14 +162,14 @@ def argextrema2Dsharpness(signal):
                 // last is a max
                 extiw[n_ext] = ti-1; // save previous time index
                 alasti = ci*astride0 + (ti-1)*astride1;
-                ampl[alasti] = 1; // +ve peak
+                sharp[alasti] = 1; // +ve peak
                 n_ext++;
             }
             else if (last2 >= last && last < now) {
                 // last is a min
                 extiw[n_ext] = ti-1; // save previous time index
                 alasti = ci*astride0 + (ti-1)*astride1;
-                ampl[alasti] = -1; // -ve peak
+                sharp[alasti] = -1; // -ve peak
                 n_ext++;
             }
             // update for next loop
@@ -198,13 +198,13 @@ def argextrema2Dsharpness(signal):
             //    printf("signal[%d] == %d\n", thisti, signal[i]);
             //    printf("signal[%d] == %d\n", lastti, signal[cis0 + lastti*stride1]);
             //    printf("%f, %f, %f, %f;\n", rise1, rise1*rise1, run1, rise1*rise1/run1); }
-            ampl[ai] *= rise1*rise1/run1 + rise2*rise2/run2; // preserve existing sign in ampl
+            sharp[ai] *= rise1*rise1/run1 + rise2*rise2/run2; // preserve existing sign in sharp
         }
     }
     """)
     inline(code, ['signal', 'nchans', 'nt', 'stride0', 'stride1', 'astride0', 'astride1',
-           'extiw', 'ampl'])
-    return ampl
+           'extiw', 'sharp'])
+    return sharp
 
 def get_edges(wave, thresh):
     """Return n x 2 array (ti, chani) of indices of all threshold crossings
