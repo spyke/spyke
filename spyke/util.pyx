@@ -3,6 +3,9 @@ cimport cython
 import numpy as np
 cimport numpy as np
 
+cdef extern from "math.h":
+    double abs(int x)
+
 
 cdef short select_short(short *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
@@ -90,3 +93,45 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
     return s
 
 
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
+    """Spike phase sharpness measure which does simple height / width, but relies on
+    zero crossings to demarcate borders between phases.
+    TODO: might also try adding mode='c' kwarg to signal arg, if you know it's C contig,
+    reduces need to do stride calc on each access"""
+    cdef Py_ssize_t ci, ti, nchans, nt, segi, nseg
+    cdef short last, now, next
+    nchans = signal.shape[0]
+    nt = signal.shape[1]
+    cdef np.ndarray[np.int16_t, ndim=2] ext = np.zeros((nchans, nt), dtype=np.int16)
+    cdef np.ndarray[np.int16_t, ndim=2] extti = np.zeros((nchans, nt), dtype=np.int16)
+    cdef np.ndarray[np.int16_t, ndim=2] npoints = np.zeros((nchans, nt), dtype=np.int16)
+    cdef np.ndarray[np.int16_t, ndim=1] nsegments = np.zeros(nchans, dtype=np.int16)
+    cdef np.ndarray[np.float64_t, ndim=2] sharp = np.zeros((nchans, nt))
+
+    for ci in range(nchans):
+        segi = 0 # segment index, segments bounded by pair of 0 crossings, endpoints count as 0 crossings
+        npoints[ci, segi] = 1 # count signal startpoint of first segment
+        for ti in range(1, nt-1):
+            now = signal[ci, ti]
+            last = signal[ci, ti-1]
+            next = signal[ci, ti+1]
+            if (last > 0) != (now > 0): # crossed 0 between last and now
+                segi += 1 # each segment between 0 crossings has 1 extremum
+            npoints[ci, segi] += 1 # inc npoints in current segment
+            if (last < now > next and now > 0) or (last > now < next and now < 0):
+                # found a local max or min
+                if abs(now) > abs(ext[ci, segi]): # biggest max/min so far for this segment
+                    extti[ci, segi] = ti
+                    ext[ci, segi] = now
+        npoints[ci, segi] += 1 # count signal endpoint of last segment
+        nseg = segi + 1
+        nsegments[ci] = nseg
+        for segi in range(nseg): # calc sharpness for each extremum (one per segment)
+            # keep extremum sign, typecast to ensure float division
+            sharp[ci, segi] = ext[ci, segi] / <float>npoints[ci, segi]
+    return ext, extti, npoints, sharp, nsegments
