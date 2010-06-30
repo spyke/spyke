@@ -14,8 +14,8 @@ RECENT:
         - this would also allow you to have a different lockout for each chan in a spike
         - maybe make V0 and V1 and V2, and s0 and s1 and s2 all nchans length arrays too, for easier phase alignment across channels when getting channel weights
         - for manual alignment, rename align max/align min to align +/align - and use signed sharpness instead of amplitude to decide which phase to align each spike to
-
-
+        - most meaningful spike chans should be those that have the least number of 0 crossing
+        - maybe calc sharpness between all 0 crossings on all data, and use that during edge detection. Check the signal amplitude at sharpest point for each segment between each 0 crossings, and if it exceeds threshold, save it as an edge, and pass sharpness values on for spike alignment, max phase choosing, etc. This would also avoid having to constantly deal with waveform edge values, which aren't really 0 crossings.
 
 
     - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
