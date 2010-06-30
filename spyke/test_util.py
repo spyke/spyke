@@ -62,4 +62,4 @@ signal2 = np.array([[-3022, -3031, -2423, -1655, -1108,  -864,  -891,  -994,  -9
          1110,   792,   179,  -586, -1304, -1793, -1904, -1564,  -947,  -478,  -394,  -464,  -382,  -184,  -129,  -294,  -454,  -321,    85,   378,
           297,    11,   -47,   266,   645,   653,   184,  -364,  -580,  -474]], dtype=np.int16)
 
-ext, extti, npoints, sharp, nsegments = util.argsharpness2D(signal2)
+extti, npoints, sharp, nsegments = util.argsharpness2D(signal2)

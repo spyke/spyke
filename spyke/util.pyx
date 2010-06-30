@@ -5,7 +5,7 @@ cimport numpy as np
 
 cdef extern from "math.h":
     double abs(int x)
-
+    double fabs(float x)
 
 cdef short select_short(short *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
@@ -99,20 +99,20 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
-    """Spike phase sharpness measure which does simple accumulated height / width
-    but relies on zero crossings to demarcate borders between phases.
+    """Spike phase sharpness measure which takes (accumulated height)**2 / width
+    for each phase, and relies on zero crossings to demarcate borders between phases.
 
     TODO: might also try adding mode='c' kwarg to signal arg, if you know it's C contig,
     reduces need to do stride calc on each access. Actually, might try adding mode='c'
     to all locally declared np arrays as well.
 
-    TODO: instead of simply taking extremum value and dividing by width, accumulate the
+    DONE: instead of simply taking extremum value and dividing by width, accumulate the
     change in signal in the correct direction on either side of the extremum. This way,
     an extremum with a long amount of signal leading up to it and away from it on either
     side is deemed sharper than one that only has a lead up on one side (say due to falling
     near the border of the waveform)
 
-    TODO: you only really need to do this accumulation thing for segments that fall at
+    DONE: you only really need to do this accumulation thing for segments that fall at
     the ends of the waveform. For all the rest, you can just take 2*(extremum value). Duh. This will be more accurate too, since you won't be relying on getting segment edge points that
     are really close to crossing 0
 
@@ -120,15 +120,14 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     This will require at least some linear interpolation though between points straddling
     the half max level on either side of each extremum.
 
-    TODO: maybe try weighting each sharpness value by the abs(extremum), so when you have
-    big and small phases of equal sharpness, the big ones are assigned a bigger value
+    DONE: weight each accumulation of phase height value by the abs(extremum), so when you have
+    big and small phases of similar shape, the big ones are considered sharper
 
     """
-    cdef Py_ssize_t ci, ti, nchans, nt, segi, nseg, leftti, rightti
+    cdef Py_ssize_t ci, ti, nchans, nt, segi, nseg
     cdef short last, now, next, ext
     nchans = signal.shape[0]
     nt = signal.shape[1]
-    cdef np.ndarray[np.int16_t, ndim=1] segti = np.zeros(nt, dtype=np.int16)
     cdef np.ndarray[np.int16_t, ndim=2] extti = np.zeros((nchans, nt), dtype=np.int16)
     cdef np.ndarray[np.int16_t, ndim=2] npoints = np.zeros((nchans, nt), dtype=np.int16)
     cdef np.ndarray[np.int16_t, ndim=1] nsegments = np.zeros(nchans, dtype=np.int16)
@@ -137,7 +136,6 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     for ci in range(nchans):
         segi = 0 # segment index, segments bound by 0 crossings, endpoints count as 0 crossings
         ext = 0 # biggest max/min so far for current segment
-        segti[segi] = 0 # save left edge of 0th segment
         npoints[ci, segi] = 1 # count signal startpoint of first segment
         for ti in range(1, nt-1): # start at 2nd ti, go to 2nd last ti
             now = signal[ci, ti]
@@ -146,7 +144,6 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
             if (last > 0) != (now > 0): # crossed 0 between last and now
                 segi += 1 # each segment between 0 crossings has 1 extremum
                 ext = 0 # reset biggest max/min so far for new segment
-                segti[segi] = ti # save left edge of new segment
             npoints[ci, segi] += 1 # inc npoints in current segment
             if (last < now > next and now > 0) or (last > now < next and now < 0):
                 # found a local max or min
@@ -156,19 +153,21 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
         npoints[ci, segi] += 1 # count signal endpoint of last segment
         nseg = segi + 1
         nsegments[ci] = nseg
-        segti[nseg] = nt # last entry is left edge of what would be nseg+1th segment
         # calc sharpness for each extremum (one per segment), maintain extremum sign
         for segi in range(nseg):
             ti = extti[ci, segi] # ti for extremum in this segment
-            if ti == 0 or ti == nt-1: # "extremum" falls on signal edge, don't consider it
+            if ti == 0 or ti == nt-1: # "extremum" is on signal edge, don't consider it
                 continue
-            # acumulate height of left half of phase
-            leftti = segti[segi] # left edge
-            sharp[ci, segi] += signal[ci, ti] - signal[ci, leftti] # peak val - left edge val
-            # accumulate height of right half of phase
-            rightti = segti[segi+1] - 1 # right edge (left edge of next segment, minus 1)
-            sharp[ci, segi] += signal[ci, ti] - signal[ci, rightti] # peak val - right edge val
-            # normalize by phase width
-            sharp[ci, segi] = sharp[ci, segi] / npoints[ci, segi]
+            # store sum of heights of left and right sides of each phase
+            sharp[ci, segi] = 2*signal[ci, ti]
+            if segi == 0: # first segment
+                # left segment edge == left waveform edge, left side is shorter than usual
+                sharp[ci, segi] -= signal[ci, 0]
+            elif segi == nseg-1: # last segment
+                # right segment edge == right waveform edge, right side is shorter than usual
+                sharp[ci, segi] -= signal[ci, nt-1]
+            # weight by sum of heights value, normalize by phase width
+            sharp[ci, segi] *= fabs(sharp[ci, segi]) # maintain extremum sign
+            sharp[ci, segi] /= npoints[ci, segi]
 
     return extti, npoints, sharp, nsegments
