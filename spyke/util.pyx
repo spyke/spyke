@@ -102,13 +102,19 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
-def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
+def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     """Spike phase sharpness measure which takes (accumulated height)**2 / width
     for each phase, and relies on zero crossings to demarcate borders between phases.
+    First, update npoints, check for extremum and update ext. Then, then look forward
+    for 0-crossing or end of signal, and calc sharpness if you find either is the case.
 
     TODO: might also try adding mode='c' kwarg to signal arg, if you know it's C contig,
     reduces need to do stride calc on each access. Actually, might try adding mode='c'
     to all locally declared np arrays as well.
+
+    TODO: use FWHM instead of npoints of each segment to more accurately determine width.
+    This will require at least some linear interpolation though between points straddling
+    the half max level on either side of each extremum.
 
     DONE: instead of simply taking extremum value and dividing by width, accumulate the
     change in signal in the correct direction on either side of the extremum. This way,
@@ -120,22 +126,19 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     the ends of the signal. For all the rest, you can just take 2*(extremum value). Duh. This will be more accurate too, since you won't be relying on getting segment edge points that
     are really close to crossing 0
 
-    TODO: use FWHM instead of npoints of each segment to more accurately determine width.
-    This will require at least some linear interpolation though between points straddling
-    the half max level on either side of each extremum.
-
     DONE: weight each accumulation of phase height value by the abs(extremum), so when you have
     big and small phases of similar shape, the big ones are considered sharper
 
     """
-    cdef Py_ssize_t nchans, nt, ci, ti, extti, npoints
-    cdef bint seg0 = True
-    cdef short last, now, next
+    cdef Py_ssize_t nchans, nt, ci, ti, extti, npoints, maxti
+    cdef bint seg0=True, cross=False
+    cdef short last, now, next, sig0
     cdef float ext
 
     nchans = signal.shape[0]
     nt = signal.shape[1]
-    cdef np.ndarray[np.float64_t, ndim=2] sharp = np.zeros((nchans, nt)) # TODO: switch to float32 to save space
+    maxti = nt-2
+    cdef np.ndarray[np.float32_t, ndim=2] sharp = np.zeros((nchans, nt), dtype=np.float32)
 
     assert nt < 2**31-1 # make sure time indices don't overflow
 
@@ -143,32 +146,38 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
         ext = 0.0 # val of biggest extremum so far for current segment
         extti = 0 # ti of biggest extremum so far for current segment
         npoints = 0 # npoints in current segment, count signal startpoint of first segment
-        now = signal[ci, 0] # init
-        next = signal[ci, 1] # init
-        for ti in range(1, nt-1): # start at 2nd ti, go to 2nd last ti
-            last = now # last = signal[ci, ti-1]
+        sig0 = signal[ci, 0]
+        now = sig0 # init
+        next = sig0 # init
+        for ti in range(nt-1):
+            last = now # last = signal[ci, ti-1], except when ti==0, last = signal[ci, 0]
             now = next # now = signal[ci, ti]
             next = signal[ci, ti+1]
-            npoints += 1 # inc for this segment, corresponds to last'th point in segment
-            print('ti=%d, npoints=%d' % (ti, npoints))
+            npoints += 1 # inc for this segment, corresponds to "now" point in segment
+            #print('ti=%d, npoints=%d' % (ti, npoints))
             if (last < now > next and now > 0) or (last > now < next and now < 0):
-                # found a local extremum of appropriate sign
+                #print('found a local extremum of appropriate sign')
                 if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
                     extti = ti # store its timepoint
                     ext = now # update for this segment
-            if (last > 0) != (now > 0) or ti == nt-2:
-                # 0-cross between last and now, ti-1 was segment's last ti, or at end of signal
+                    #print('found new biggest local ext=%f at ti=%d' % (ext, extti))
+            cross = (now > 0) != (next > 0)
+            if cross or ti == maxti: # both might happen simultaneously
+                # 0-cross coming up, or at end of signal. ti is last timepoint in segment,
+                # but if we're at end of signal, ti+1 is last timepoint in segment, and
+                # needs to be counted in npoints.
                 # calculate sharpness of extremum in this segment
-                print('new segment')
-                if seg0: # we're on the first segment
+                #print('reached end of segment')
+                if seg0: # we're on first segment
                     # left segment edge == left signal edge, left side is shorter than usual
-                    ext -= <float>signal[ci, 0] / 2
+                    if ext != 0.0: # leave it untouched if it's 0
+                        ext -= <float>sig0 / 2 # penalize
                     seg0 = False
-                elif ti == nt-2: # "next" is last ti in signal, we're on last segment
+                elif not cross: # we're on last segment, bound only by signal, not true 0-cross
                     # right segment edge == right signal edge, right side is shorter than usual
-                    ext -= <float>signal[ci, nt-1] / 2 #
-                    npoints += 2 # count now'th and next'th points for this last segment
-                print('using npoints=%d for sharpness calc' % npoints)
+                    ext -= <float>signal[ci, nt-1] / 2 # penalize
+                    npoints += 1 # count next'th point as well for this last segment
+                #print('using npoints=%d for sharpness calc' % npoints)
                 # square height, normalize by phase width
                 ext *= fabs(ext) # maintain extremum sign
                 ext /= npoints
@@ -177,8 +186,3 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
                 npoints = 0 # reset for new current segment
 
     return sharp
-
-    # think there's gonna be a problem with single point extrema, their ext value will be incorrect and will use the ext value from the previous extrema
-
-    # 1st, update npoints and check for extremum and update ext, then look forward for 0-crossing
-    # and calc sharpness
