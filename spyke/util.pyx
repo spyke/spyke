@@ -110,10 +110,10 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     change in signal in the correct direction on either side of the extremum. This way,
     an extremum with a long amount of signal leading up to it and away from it on either
     side is deemed sharper than one that only has a lead up on one side (say due to falling
-    near the border of the waveform)
+    near the border of the signal)
 
     DONE: you only really need to do this accumulation thing for segments that fall at
-    the ends of the waveform. For all the rest, you can just take 2*(extremum value). Duh. This will be more accurate too, since you won't be relying on getting segment edge points that
+    the ends of the signal. For all the rest, you can just take 2*(extremum value). Duh. This will be more accurate too, since you won't be relying on getting segment edge points that
     are really close to crossing 0
 
     TODO: use FWHM instead of npoints of each segment to more accurately determine width.
@@ -124,50 +124,54 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     big and small phases of similar shape, the big ones are considered sharper
 
     """
-    cdef Py_ssize_t ci, ti, nchans, nt, segi, nseg
-    cdef short last, now, next, ext
+    cdef Py_ssize_t nchans, nt, ci, ti, extti, npoints
+    cdef bint seg0 = True
+    cdef short last, now, next
+    cdef float ext
+
     nchans = signal.shape[0]
     nt = signal.shape[1]
-    cdef np.ndarray[np.int16_t, ndim=2] extti = np.zeros((nchans, nt), dtype=np.int16)
-    cdef np.ndarray[np.int16_t, ndim=2] npoints = np.zeros((nchans, nt), dtype=np.int16)
-    cdef np.ndarray[np.int16_t, ndim=1] nsegments = np.zeros(nchans, dtype=np.int16)
-    cdef np.ndarray[np.float64_t, ndim=2] sharp = np.zeros((nchans, nt))
+    cdef np.ndarray[np.float64_t, ndim=2] sharp = np.zeros((nchans, nt)) # TODO: switch to float32 to save space
+
+    assert nt < 2**31-1 # make sure time indices don't overflow
 
     for ci in range(nchans):
-        segi = 0 # segment index, segments bound by 0 crossings, endpoints count as 0 crossings
-        ext = 0 # biggest max/min so far for current segment
-        npoints[ci, segi] = 1 # count signal startpoint of first segment
+        ext = 0.0 # val of biggest extremum so far for current segment
+        extti = 0 # ti of biggest extremum so far for current segment
+        npoints = 1 # npoints in current segment, count signal startpoint of first segment
+        now = signal[ci, 0] # init
+        next = signal[ci, 1] # init
         for ti in range(1, nt-1): # start at 2nd ti, go to 2nd last ti
-            now = signal[ci, ti]
-            last = signal[ci, ti-1]
+            last = now # last = signal[ci, ti-1]
+            now = next # now = signal[ci, ti]
             next = signal[ci, ti+1]
-            if (last > 0) != (now > 0): # crossed 0 between last and now
-                segi += 1 # each segment between 0 crossings has 1 extremum
-                ext = 0 # reset biggest max/min so far for new segment
-            npoints[ci, segi] += 1 # inc npoints in current segment
+            npoints += 1 # inc for this segment, corresponds to now'th point in segment
             if (last < now > next and now > 0) or (last > now < next and now < 0):
-                # found a local max or min
-                if abs(now) > abs(ext): # found new biggest max/min so far for this segment
-                    extti[ci, segi] = ti # store its timepoint
+                # found a local extremum of appropriate sign
+                if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
+                    extti = ti # store its timepoint
                     ext = now # update for this segment
-        npoints[ci, segi] += 1 # count signal endpoint of last segment
-        nseg = segi + 1
-        nsegments[ci] = nseg
-        # calc sharpness for each extremum (one per segment), maintain extremum sign
-        for segi in range(nseg):
-            ti = extti[ci, segi] # ti for extremum in this segment
-            if ti == 0 or ti == nt-1: # "extremum" is on signal edge, don't consider it
-                continue
-            # store sum of heights of left and right sides of each phase
-            sharp[ci, segi] = 2*signal[ci, ti]
-            if segi == 0: # first segment
-                # left segment edge == left waveform edge, left side is shorter than usual
-                sharp[ci, segi] -= signal[ci, 0]
-            elif segi == nseg-1: # last segment
-                # right segment edge == right waveform edge, right side is shorter than usual
-                sharp[ci, segi] -= signal[ci, nt-1]
-            # weight by sum of heights value, normalize by phase width
-            sharp[ci, segi] *= fabs(sharp[ci, segi]) # maintain extremum sign
-            sharp[ci, segi] /= npoints[ci, segi]
+            if (now > 0) != (next > 0) or ti == nt-2:
+                # 0-cross between now and next, on segment's last ti, or at end of signal
+                if extti == 0: # TODO: test this only once externally
+                    # biggest "extremum" for this segment falls on signal leading edge, ignore it
+                    # Never get situation where extti == nt-1, don't need to test for it
+                    pass
+                else: # calculate sharpness of extremum in this segment
+                    # TODO: test these conditions only once externally, ditch seg0
+                    if seg0: # we're on the first segment
+                        # left segment edge == left signal edge, left side is shorter than usual
+                        ext -= <float>signal[ci, 0] / 2
+                        seg0 = False
+                    elif ti == nt-2: # "next" is last ti in signal, we're on last segment
+                        # right segment edge == right signal edge, right side is shorter than usual
+                        ext -= <float>signal[ci, nt-1] / 2
+                        npoints += 1 # count signal endpoint of last segment
+                    # square height, normalize by phase width
+                    ext *= fabs(ext) # maintain extremum sign
+                    ext /= npoints
+                    sharp[ci, extti] = ext # store
+                ext = 0.0 # reset biggest max/min so far for new segment
+                npoints = 0 # reset for next segment
 
-    return extti, npoints, sharp, nsegments
+    return sharp
