@@ -7,6 +7,10 @@ cdef extern from "math.h":
     double abs(int x)
     double fabs(float x)
 
+#cdef extern from "stdio.h":
+#    int printf(char *, ...)
+
+
 cdef short select_short(short *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
     and right pointers l and r. This is quicksort partitioning based
@@ -138,40 +142,43 @@ def argsharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     for ci in range(nchans):
         ext = 0.0 # val of biggest extremum so far for current segment
         extti = 0 # ti of biggest extremum so far for current segment
-        npoints = 1 # npoints in current segment, count signal startpoint of first segment
+        npoints = 0 # npoints in current segment, count signal startpoint of first segment
         now = signal[ci, 0] # init
         next = signal[ci, 1] # init
         for ti in range(1, nt-1): # start at 2nd ti, go to 2nd last ti
             last = now # last = signal[ci, ti-1]
             now = next # now = signal[ci, ti]
             next = signal[ci, ti+1]
-            npoints += 1 # inc for this segment, corresponds to now'th point in segment
+            npoints += 1 # inc for this segment, corresponds to last'th point in segment
+            print('ti=%d, npoints=%d' % (ti, npoints))
             if (last < now > next and now > 0) or (last > now < next and now < 0):
                 # found a local extremum of appropriate sign
                 if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
                     extti = ti # store its timepoint
                     ext = now # update for this segment
-            if (now > 0) != (next > 0) or ti == nt-2:
-                # 0-cross between now and next, on segment's last ti, or at end of signal
-                if extti == 0: # TODO: test this only once externally
-                    # biggest "extremum" for this segment falls on signal leading edge, ignore it
-                    # Never get situation where extti == nt-1, don't need to test for it
-                    pass
-                else: # calculate sharpness of extremum in this segment
-                    # TODO: test these conditions only once externally, ditch seg0
-                    if seg0: # we're on the first segment
-                        # left segment edge == left signal edge, left side is shorter than usual
-                        ext -= <float>signal[ci, 0] / 2
-                        seg0 = False
-                    elif ti == nt-2: # "next" is last ti in signal, we're on last segment
-                        # right segment edge == right signal edge, right side is shorter than usual
-                        ext -= <float>signal[ci, nt-1] / 2
-                        npoints += 1 # count signal endpoint of last segment
-                    # square height, normalize by phase width
-                    ext *= fabs(ext) # maintain extremum sign
-                    ext /= npoints
-                    sharp[ci, extti] = ext # store
+            if (last > 0) != (now > 0) or ti == nt-2:
+                # 0-cross between last and now, ti-1 was segment's last ti, or at end of signal
+                # calculate sharpness of extremum in this segment
+                print('new segment')
+                if seg0: # we're on the first segment
+                    # left segment edge == left signal edge, left side is shorter than usual
+                    ext -= <float>signal[ci, 0] / 2
+                    seg0 = False
+                elif ti == nt-2: # "next" is last ti in signal, we're on last segment
+                    # right segment edge == right signal edge, right side is shorter than usual
+                    ext -= <float>signal[ci, nt-1] / 2 #
+                    npoints += 2 # count now'th and next'th points for this last segment
+                print('using npoints=%d for sharpness calc' % npoints)
+                # square height, normalize by phase width
+                ext *= fabs(ext) # maintain extremum sign
+                ext /= npoints
+                sharp[ci, extti] = ext # store
                 ext = 0.0 # reset biggest max/min so far for new segment
-                npoints = 0 # reset for next segment
+                npoints = 0 # reset for new current segment
 
     return sharp
+
+    # think there's gonna be a problem with single point extrema, their ext value will be incorrect and will use the ext value from the previous extrema
+
+    # 1st, update npoints and check for extremum and update ext, then look forward for 0-crossing
+    # and calc sharpness
