@@ -699,7 +699,7 @@ class Detector(object):
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is sharpest
-            sharp = argextrema2Dsharpness(window)
+            sharp = spyke.util.sharpness2D(window)
             # find max abs(sharpness) that isn't locked out
             sharpis = abs(sharp.ravel()).argsort() # to get chani and ti of each sort index, reshape to sharp.shape
             sharpis = sharpis[::-1] # reverse for highest to lowest abs(sharpness)
@@ -734,7 +734,9 @@ class Detector(object):
                 window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
             '''
             tiw = int(ti - t0i) # time index where ti falls wrt the window
-            ampl = argextrema1Damplitude(window) # this is 1D
+            window.shape = 1, len(window) # make it 2D
+            ampl = spyke.util.sharpness2D(window).squeeze() # this is 1D
+            window = window.squeeze() # back to 1D
             # if tiw is a max, choose only extrema that are min, and vice versa
             if window[tiw-1] >= window[tiw] < window[tiw+1]: # main phase is a min
                 ampl[ampl < 0] = 0 # null all the min entries, leave only max entries
