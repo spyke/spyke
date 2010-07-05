@@ -695,21 +695,26 @@ class Detector(object):
             # actually: need to search forward and backward for sharpest peak, not biggest
             #t0i = ti # check for lockouts in amplis loop below
             tendi = ti+twi[1]+1 # +1 makes it end inclusive, don't worry about slicing past end
-            window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
+            window2D = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
+
+            # TODO: search 2*DT in either direction from thresh xing for sharpness values, save
+            # the whole thing for companion search, then do subsearch of just DT in either direction
+            # for sharpest extremum. Then simply pick the extrema to the left and right of the
+            # found sharpest extremum, and you're done.
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is sharpest
-            sharp = spyke.util.sharpness2D(window)
+            sharp = spyke.util.sharpness2D(window2D)
             # find max abs(sharpness) that isn't locked out
             sharpis = abs(sharp.ravel()).argsort() # to get chani and ti of each sort index, reshape to sharp.shape
             sharpis = sharpis[::-1] # reverse for highest to lowest abs(sharpness)
-            ncols = window.shape[1]
+            ncols = window2D.shape[1]
             for sharpi in sharpis:
                 rowi = sharpi // ncols
                 coli = sharpi % ncols
                 chani = chanis[rowi]
                 ti = t0i + coli
-                if ti > lockouts[chani]:# and abs(window[rowi, coli]) > self.thresh[chani]:
+                if ti > lockouts[chani]:# and abs(window2D[rowi, coli]) > self.thresh[chani]:
                     # extremum is not locked out
                     if DEBUG: debug('found peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
                     break # found valid extremum with biggest relative sharpness
@@ -719,20 +724,12 @@ class Detector(object):
                 if DEBUG: debug('all extrema are locked out')
                 continue # skip to next event
 
-            # get window +/- dti+1 around ti on chani, look for the other spike phase
+            # get 1D window +/- dti+1 around ti on chani, look for the other spike phase
             t0i = max(ti-dti-1, lockouts[chani]+1) # make sure any timepoints included prior to ti aren't locked out
-            #t0i = ti-dti-1 # don't worry about lockout for companion phase
             #if t0i < 0:
             #    continue # too close to start of wave to get full width window, abort
             tendi = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
-            '''
-            # check if window has global max or min at end of window,
-            # if so, extend by dti/2 before searching for extrema
-            if len(window)-1 in [window.argmax(), window.argmin()]:
-                tendi = min(ti+dti+1+dti//2, maxti) # don't go further than last wave timepoint
-                window = wave.data[chani, t0i:tendi] # single chan window of data, not necessarily contiguous
-            '''
             tiw = int(ti - t0i) # time index where ti falls wrt the window
             window.shape = 1, len(window) # make it 2D
             ampl = spyke.util.sharpness2D(window).squeeze() # this is 1D

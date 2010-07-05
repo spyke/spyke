@@ -16,6 +16,8 @@ RECENT:
         - for manual alignment, rename align max/align min to align +/align - and use signed sharpness instead of amplitude to decide which phase to align each spike to
         - most meaningful spike chans should be those that have the least number of 0 crossing
         - maybe calc sharpness between all 0 crossings on all data, and use that during edge detection. Check the signal amplitude at sharpest point for each segment between each 0 crossings, and if it exceeds threshold, save it as an edge, and pass sharpness values on for spike alignment, max phase choosing, etc. This would also avoid having to constantly deal with waveform edge values, which aren't really 0 crossings.
+        - another refinement might be when calculating the width that goes with an extremum, instead of counting the npoints between 0 crossings, count the npoints between where signal drops to say 10% of extremum, ie calc FW1/10M. Wouldn't really need to interpolate like you would for FWHM, since you'd still have a decent number of points to work with, almost as many as FW0M which is what we're currently doing. This would deal with problem where a phase is obviously a phase, and has dropped from its peak back down to almost 0, but it doesn't quite cross, and the crossing doesn't happen til way way later, greatly skewing the width measure for that phase. See first +ve phase of spike at ptc18.14.299719780.
+
 
 
     - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?

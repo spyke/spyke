@@ -118,6 +118,14 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     This will require at least some linear interpolation though between points straddling
     the half max level on either side of each extremum.
 
+    TODO: do I really need to check for an extremum between each 0 crossing? I think not.
+    Just find the max abs between zero crossings. Also, don't need to check sign, since sign
+    will always alternate anyway. Trouble is at the endpoints, where you don't
+    have a 0 crossing, and you need to actually check if an extremum was found between the
+    last 0 crossing and the end of the signal (or vice versa). But that can be done easily enough by
+    checking to the left and right of the max abs found in that last segment, and deciding if
+    it represents an extremum.
+
     DONE: instead of simply taking extremum value and dividing by width, accumulate the
     change in signal in the correct direction on either side of the extremum. This way,
     an extremum with a long amount of signal leading up to it and away from it on either
