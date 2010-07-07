@@ -1129,6 +1129,20 @@ def win2posixpath(path):
     path = os.path.splitdrive(path)[-1] # remove drive name from start
     return path
 
+def oneD2D(a):
+    """Convert 1D array to 2D array"""
+    a = a.squeeze()
+    assert a.ndim == 1, "array has more than one non-singleton dimension"
+    a.shape = 1, len(a) # make it 2D
+    return a
+
+def twoD1D(a):
+    """Convert trivially 2D array to 1D array"""
+    a = a.squeeze()
+    assert a.ndim == 1, "array has more than one non-singleton dimension"
+    return a
+
+
 '''
 def intersect1d(arrays, assume_unique=False):
     """Find the intersection of any number of 1D arrays.

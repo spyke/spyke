@@ -97,8 +97,6 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
     return s
 
 
-
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
