@@ -368,7 +368,7 @@ class Detector(object):
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFLOCKR = 150 # spatial lockout radius, um
     DEFINCLR = 100 # spatial include radius, um
-    DEFDT = 450 # max time between phases of a single spike, us
+    DEFDT = 400 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     DEFEXTRACTPARAMSONDETECT = True
 
@@ -678,18 +678,18 @@ class Detector(object):
 
             # get data window 2*DT on either side of threshold crossing
             # clip t0i to 0 since don't need full width wave just yet
-            t0i = max(ti+2*twi[0], 0) # check for lockouts in amplis loop below,
-            tendi = ti+2*twi[1]+1 # +1 makes it end inclusive, don't worry about slicing past end
+            t0i = max(ti+2*twi[0]-dti, 0) # check for lockouts in amplis loop below,
+            tendi = ti+2*twi[1]+2+dti # +2 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:tendi] # multichan window of data, not necessarily contiguous
 
             # do spatiotemporal search for all local extrema in window,
             # decide which extremum is sharpest
             sharp = spyke.util.sharpness2D(window)
+
             # find max abs(sharpness) within +/- TW that isn't locked out
             midi = ti-t0i # wrt start of window
             neart0i = max(midi+twi[0], 0) # wrt start of window
             neartendi = midi+twi[1]+1 # wrt start of window, end inclusive
-
             nearsharp = sharp[:, neart0i:neartendi]
             nearsharpis = abs(nearsharp.ravel()).argsort() # to get chani and ti of each sort index, reshape to nearsharp.shape
             nearsharpis = nearsharpis[::-1] # reverse for highest to lowest abs(sharpness)
@@ -701,7 +701,7 @@ class Detector(object):
                 ti = t0i + coli # now represents spike time index, not thresh xing time index
                 if ti > lockouts[chani]:# and abs(window[rowi, coli]) > self.thresh[chani]:
                     # extremum is not locked out
-                    if DEBUG: debug('found peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
+                    if DEBUG: debug('found sharpest peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
                     break # found valid extremum with biggest relative sharpness
                 else: # extremum is locked out (rare)
                     if DEBUG: debug('extremum at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
@@ -730,19 +730,36 @@ class Detector(object):
             companionphasetis = np.array([phase0ti, -1, phase2ti])
             companionsharpi = abs(companionsharp).argmax() # either 0 or 2
             companionphaseti = companionphasetis[companionsharpi] # either phase0ti or phase2ti
-            phasetis = np.sort([ti, companionphaseti]) # keep them in temporal order
             if companionsharp[companionsharpi] == 0.0:
                 if DEBUG: debug("couldn't find a matching companion phase to extremum at "
                                 "t=%r chan=%d" % (wave.ts[ti], self.chans[chani]))
                 continue # skip to next event
+            phasetis = np.sort([ti, companionphaseti]) # keep them in temporal order
             dphase = phasetis[1] - phasetis[0]
             if dphase > dti:
-                dt = dphase * sort.stream.tres
-                if DEBUG: debug("sharpest companion phase to extremum at t=%r is %d us away"
-                                % (wave.ts[ti], dt))
+                if DEBUG:
+                    dt = dphase * sort.stream.tres
+                    debug("sharpest companion phase to extremum at t=%r is %d us away"
+                          % (wave.ts[ti], dt))
                 continue # skip to next event
             lockout = phasetis.max()
             Vs = wave.data[chani, phasetis]
+
+            # ensure thresh is exceeded by the biggest of the two phases
+            maxampli = abs(Vs).argmax()
+            if abs(Vs[maxampli]) < self.thresh[chani]:
+                if DEBUG:
+                    debug("biggest peak at t=%r chan=%d gives only %.1f Vp"
+                    % (wave.ts[phasetis[maxampli]], self.chans[chani], AD2uV(Vs[maxampli])))
+                continue # skip to next event
+
+            # ensure ppthresh is exceeded
+            Vpp = abs(Vs[1] - Vs[0]) # don't maintain sign
+            if Vpp < self.ppthresh[chani]:
+                if DEBUG:
+                    debug("matched companion peak to extremum at t=%r chan=%d gives "
+                          "only %.1f Vpp" % (wave.ts[ti], self.chans[chani], AD2uV(Vpp)))
+                continue # skip to next event
 
             # align to sharpest -ve phase, set aligni
             sharps = sharp[rowi, phasetis-t0i] # maintain sign
@@ -750,7 +767,7 @@ class Detector(object):
             #aligni = Vs.argmin() # could align by voltage instead
             ti = phasetis[aligni] # overwrite ti, new absolute time index to align to (though this will be the same as previous ti, if sharpest phase is -ve)
             newt0i = ti+twi[0] # make final window always be full width
-            dt0i = newt0i - t0i # should always be +ve, since window is 2X wider than needed
+            dt0i = newt0i - t0i # should always be +ve, since window is as wide as max needed
             if dt0i < 0: import pdb; pdb.set_trace()
 
             starti = dt0i
@@ -760,11 +777,6 @@ class Detector(object):
             window = window[:, starti:endi]
             t0i = newt0i # overwrite, absolute
             tendi = ti+twi[1]+1 # overwrite, absolute
-
-            # Test if current set of chans == final set of chans centered on chani.
-            # If not, cut new window and calc new sharp. Unfortunate, but
-            # shouldn't happen too often. Chan that you cross thresh on is usually
-            # the maxchan in the end, so usually initial chans set == final chan set
 
             # reuse as much of sharp as possible when cutting final set of chans
             inclchanis = self.inclnbhdi[chani] # final channels to include in spike waveform
@@ -793,13 +805,6 @@ class Detector(object):
 
             if DEBUG: debug("final window params: t0=%r, tend=%r, phasets=%r, Vs=%r"
                             % (wave.ts[t0i], wave.ts[tendi], wave.ts[t0i+phasetis], AD2uV(Vs)))
-
-            Vpp = abs(Vs[1] - Vs[0]) # don't maintain sign
-            if Vpp < self.ppthresh[chani]:
-                if DEBUG:
-                    debug("matched companion peak to extremum at t=%r chan=%d gives "
-                          "only %d Vpp" % (wave.ts[ti], self.chans[chani], AD2uV(Vpp)))
-                continue # skip to next event
 
             # build up spike record
 
@@ -835,18 +840,29 @@ class Detector(object):
                 s['x0'], s['y0'], s['sx'], s['sy'] = wavedata2spatial(window, maxchani, phasetis, aligni, x, y)
                 #s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
 
-            if DEBUG: debug('*** found new spike: %r @ (%d, %d)' % (s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
+            if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
+                            % (nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
             lockchanis = self.locknbhdi[chani]
 
-            # update lockouts to the last phase of this spike
+            # Update lockouts for this spike.
+            # Lock out to the latest of the 3 sharpest significant extrema. Some spikes
+            # are more than biphasic, with a significant 3rd phase (see ptc18.14.24570980),
+            # but never more than 3 significant phases. If the 3rd phase exceeds
+            # threshold and falls within allowable dt of the previously considered last
+            # phase, lock out to it. Otherwise, just lock out to 2nd phase. Doing this
+            # helps reduce double triggers.
 
-            # TODO: lock out to the latest of the 3 sharpest extrema. Some spikes are more
-            # than biphasic, with a significant 3rd phase (see ptc18.14.24570980),
-            # but never more than 3 significant phases
+            if (phase2ti != lockout and
+                phase2ti - lockout <= dti and
+                abs(wave.data[chani, phase2ti]) >= self.thresh[chani]):
+                lockout = phase2ti
 
             # TODO: give each chan a distinct lockout, based on how each chan's
-            # sharpest phases line up with those of the maxchan
+            # sharpest phases line up with those of the maxchan. This will fix double
+            # triggers that happen about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
+            # Lining up each included chan's sharpest phases with those of the maxchan
+            # should also give better channel weights for spatial localization
 
             lockouts[lockchanis] = lockout # same for all chans in this spike
             if DEBUG:
