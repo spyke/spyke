@@ -687,6 +687,9 @@ class Detector(object):
             sharp = spyke.util.sharpness2D(window)
 
             # find max abs(sharpness) within +/- TW that isn't locked out
+            # TODO: change this to choose maxchan according to which chan has the biggest
+            # sum(abs(its two sharpest peaks)), sort of Vpp - ptc18.14.9526000 should really be
+            # centered on magenta chan 33, not purple chan 19
             midi = ti-t0i # wrt start of window
             neart0i = max(midi+twi[0], 0) # wrt start of window
             neartendi = midi+twi[1]+1 # wrt start of window, end inclusive
@@ -819,7 +822,8 @@ class Detector(object):
             s['phaseti0'], s['phaseti1'] = phasetis # wrt t0i
             s['aligni'] = aligni # 0 or 1
 
-            # TODO: add a sharpi field to designate which of the 2 phases is the sharpest (main) phase - use this for extractor.get_Vp_weights()
+            # TODO: add a sharpi field to designate which of the 2 phases is the sharpest
+            # (main) phase - use this for extractor.get_Vp_weights()
 
             s['dphase'] = ts[phasetis[1]] - ts[phasetis[0]] # in us
             s['V0'], s['V1'] = AD2uV(Vs) # in uV
@@ -851,12 +855,12 @@ class Detector(object):
             # but never more than 3 significant phases. If the 3rd phase exceeds
             # threshold and falls within allowable dt of the previously considered last
             # phase, lock out to it. Otherwise, just lock out to 2nd phase. Doing this
-            # helps reduce double triggers.
+            # reduces double triggers, yet maintains a minimalist lockout.
 
             if (phase2ti != lockout and
                 phase2ti - lockout <= dti and
                 abs(wave.data[chani, phase2ti]) >= self.thresh[chani]):
-                lockout = phase2ti
+                lockout = phase2ti # absolute
 
             # TODO: give each chan a distinct lockout, based on how each chan's
             # sharpest phases line up with those of the maxchan. This will fix double
