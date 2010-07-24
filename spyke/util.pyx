@@ -120,9 +120,9 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     Just find the max abs between zero crossings. Also, don't need to check sign, since sign
     will always alternate anyway. Trouble is at the endpoints, where you don't
     have a 0 crossing, and you need to actually check if an extremum was found between the
-    last 0 crossing and the end of the signal (or vice versa). But that can be done easily enough by
-    checking to the left and right of the max abs found in that last segment, and deciding if
-    it represents an extremum.
+    last 0 crossing and the end of the signal (or vice versa). But that can be done easily
+    enough by checking to the left and right of the max abs found in that last segment,
+    and deciding if it represents an extremum.
 
     DONE: instead of simply taking extremum value and dividing by width, accumulate the
     change in signal in the correct direction on either side of the extremum. This way,
@@ -149,7 +149,7 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     maxti = nt-2
     cdef np.ndarray[np.float32_t, ndim=2] sharp = np.zeros((nchans, nt), dtype=np.float32)
 
-    assert nt < 2**31-1 # make sure time indices don't overflow
+    assert nt < 2**31 # make sure time indices don't overflow
 
     for ci in range(nchans):
         ext = 0.0 # val of biggest extremum so far for current segment
@@ -200,3 +200,35 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
                 npoints = 0 # reset for new segment
 
     return sharp
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
+                   np.ndarray[np.int16_t, ndim=1] thresh,
+                   np.ndarray[np.float32_t, ndim=2] sharp):
+    """Given original signal, threshold array, and sharpness array,
+    returns a temporally sorted n x 2 (ti, ci) array of peaks that exceed
+    thresh for the appropriate chan"""
+
+    cdef Py_ssize_t nt, chans, ti, ci, npeaks = 0
+
+    assert signal.shape[1] < 2**31 # stick to int32 time indices
+    nchans = signal.shape[0]
+    nt = signal.shape[1]
+    assert sharp.shape[0] == nchans
+    assert sharp.shape[1] == nt
+    assert len(thresh) == nchans
+
+    # worst case scenario: we find as many thresh exceeding peaks as nt
+    cdef np.ndarray[np.int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
+
+    for ti in range(nt):
+        for ci in range(nchans):
+            if sharp[ci, ti] != 0.0 and abs(signal[ci, ti]) >= thresh[ci]:
+                peakis[npeaks, 0] = ti
+                peakis[npeaks, 1] = ci
+                npeaks += 1
+
+    return peakis[:npeaks]

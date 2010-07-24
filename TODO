@@ -1,5 +1,10 @@
 RECENT:
 
+    - 2010-07-21 - NVS:
+        - try taking integral of spike on main chan (or each chan?), and find peak of the integral to tell you when the biggest phase of the spike has ended
+        - might try using climbing algorithm to clean clusters based on spike shape. Take all points in maxchan. This gives you say 25 or 50 dim space. Run climb on that, but only need to do it for however many spikes are currently in the cluster, which isn't more than a few thousand. Then, exclude subclusters with say less than 5 points in them. This gets rid of the junk. Or, you could also use it to subcluster, based on maxchan spike shape
+
+
     New check_edges() strategy:
 
     1. For each chan, find 3 most extreme extrema, where an extremum is the biggest max > 0 between zero crossings, or the smallest min < 0 between zero crossings. Endpoints of each waveform are treated as zero crossings.
@@ -17,7 +22,6 @@ RECENT:
         - most meaningful spike chans should be those that have the least number of 0 crossing
         - maybe calc sharpness between all 0 crossings on all data, and use that during edge detection. Check the signal amplitude at sharpest point for each segment between each 0 crossings, and if it exceeds threshold, save it as an edge, and pass sharpness values on for spike alignment, max phase choosing, etc. This would also avoid having to constantly deal with waveform edge values, which aren't really 0 crossings.
         - another refinement might be when calculating the width that goes with an extremum, instead of counting the npoints between 0 crossings, count the npoints between where signal drops to say 10% of extremum, ie calc FW1/10M. Wouldn't really need to interpolate like you would for FWHM, since you'd still have a decent number of points to work with, almost as many as FW0M which is what we're currently doing. This would deal with problem where a phase is obviously a phase, and has dropped from its peak back down to almost 0, but it doesn't quite cross, and the crossing doesn't happen til way way later, greatly skewing the width measure for that phase. See first +ve phase of spike at ptc18.14.299719780.
-
 
 
     - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
