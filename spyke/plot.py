@@ -22,7 +22,6 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from spyke.core import MICRO, TW, hex2cmap, toiter
-from spyke.detect import get_wave
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -79,6 +78,24 @@ VREFLINEZORDER = 1
 TREFLINEZORDER = 2
 RASTERZORDER = 3
 PLOTZORDER = 4
+
+
+def get_wave(obj, sort=None):
+    """Return object's waveform, whether a spike record or a neuron,
+    taken from sort.wavedata or sort.stream"""
+    assert sort != None
+    if type(obj) != np.void: # it's a Neuron
+        n = obj
+        if n.wave == None or n.wave.data == None:
+            wave = n.update_wave() # call Neuron method
+            return wave
+        else:
+            return n.wave # return existing neuron waveform
+    # it's a spike record
+    s = obj
+    sid = int(s['id'])
+    wave = sort.get_wave(sid)
+    return wave
 
 
 class ColourDict(dict):

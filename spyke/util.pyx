@@ -106,6 +106,9 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     First, update npoints, check for extremum and update ext. Then, then look forward
     for 0-crossing or end of signal, and calc sharpness if you find either is the case.
 
+    TODO: stop checking for weird corner cases, since end bits of results are now thrown away
+    after the call, and we won't be running sharpness2D on short bits of waveforms any more.
+
     TODO: test if double math is faster than float math. They're probably identical.
 
     TODO: might also try adding mode='c' kwarg to signal arg, if you know it's C contig,
