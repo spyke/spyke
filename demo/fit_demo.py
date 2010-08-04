@@ -154,19 +154,19 @@ p0 = [50, 0, 200, 50, 200, 40] # ms and uV
 
 ls = LeastSquares(p0, t, v)
 
-t0 = time.clock()
+t0 = time.time()
 for i in xrange(100):
     ls.calc()
 
-print '%.3f sec' % (time.clock() - t0) # ~2 sec
+print '%.3f sec' % (time.time() - t0) # ~2 sec
 
 c = Cobyla(p0, t, v)
 
-t0 = time.clock()
+t0 = time.time()
 for i in xrange(100):
     c.calc()
 
-print '%.3f sec' % (time.clock() - t0) # ~12 sec
+print '%.3f sec' % (time.time() - t0) # ~12 sec
 
 
 ###############################################################

@@ -39,10 +39,10 @@ if __name__ == '__main__':
     #    result = pool.apply_async(f, args=(i,), callback=handleOutput) # evaluate f(i) asynchronously
     #    results.append(result)
     ncpus = multiprocessing.cpu_count()
-    t0 = time.clock()
+    t0 = time.time()
     args = zip(range(0, 2*ncpus), [10]*(2*ncpus))
     results = pool.map(g, args) # make it int multiple of ncpus for efficiency
-    print('tasks took %.3f sec' % time.clock())
+    print('tasks took %.3f sec' % time.time())
     #print 'done queueing tasks, result objects are: %r' % results
     print(results)
     pool.close()

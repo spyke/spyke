@@ -46,7 +46,7 @@ if __name__ == '__main__':
     nthreads = ncpus + 1
     print 'ncpus: %d, nthreads: %d' % (ncpus, nthreads)
     pool = ThreadPool(nthreads) # create a threading pool
-    t0 = time.clock()
+    t0 = time.time()
     #arr = np.random.random(10000000)
     #for i, val in enumerate([1000000000]*10):#range(10):
     for i in range(10):
@@ -57,6 +57,6 @@ if __name__ == '__main__':
         pool.putRequest(request)
     print 'done queueing tasks'
     pool.wait()
-    print 'tasks took %.3f sec' % time.clock()
+    print 'tasks took %.3f sec' % time.time()
     print 'outputs: %r' % outputs
     time.sleep(2) # pause so you can watch the parent thread in taskman hang around after worker threads exit

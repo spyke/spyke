@@ -253,14 +253,14 @@ def selectpy(ndarray data, int k):
     """
     cdef int N = len(data)
     print data
-    tpy = time.clock()
+    tpy = time.time()
     sorteddata = np.sort(data) # do a full quicksort
     print 'Python:', sorteddata[k]
-    print 'Python took %.3f sec' % (time.clock()-tpy)
+    print 'Python took %.3f sec' % (time.time()-tpy)
     cdef float *a = <float *>data.data # float pointer to data's .data field
-    tcy = time.clock()
+    tcy = time.time()
     print 'Cython:', select(a, 0, N-1, k)
-    print 'Cython took %.3f sec' % (time.clock()-tcy)
+    print 'Cython took %.3f sec' % (time.time()-tcy)
     print sorteddata
 
 

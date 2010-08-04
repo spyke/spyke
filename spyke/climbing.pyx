@@ -210,7 +210,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         # for each unclusterd point, find the closest clustered point, and assign
         # it to the same cluster
         print('Finding nearest clustered point for each unclustered point')
-        t0 = time.clock()
+        t0 = time.time()
         '''
         # Tried using kdtree for speed, results aren't right, and it's much slower:
         kdtree = KDTree(data) # tree of clustered data points
@@ -248,7 +248,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     # update this unclustered point's cluster index
                     min_d2 = d2
                     clusteris[i] = clusteris[samplei]
-        print('Assigning unclustered points took %.3f sec' % (time.clock()-t0))
+        print('Assigning unclustered points took %.3f sec' % (time.time()-t0))
 
     # remove clusters with less than minpoints number of points
     nremoved = 0
@@ -289,7 +289,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         # values consistent and comparable. Calculate the volume once per call, and divide
         # all density values by it. Shouldn't be expensive
         print('Calculating density around each data point, based on sampled data')
-        t0 = time.clock()
+        t0 = time.time()
         densities = np.zeros(N)
         for i in range(N):
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
@@ -309,11 +309,11 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 if d2 <= rneigh2: # include this point in the density calculation
                     d = sqrt(d2) # Euclidean distance
                     densities[i] += d * exp(-d2 / twosigma2)
-        print('Point density calculations took %.3f sec' % (time.clock()-t0))
+        print('Point density calculations took %.3f sec' % (time.time()-t0))
     else: densities = np.zeros(0)
     if calcscoutdensities:
         print('Calculating density around each scout, based on sampled data')
-        t0 = time.clock()
+        t0 = time.time()
         scoutdensities = np.zeros(M)
         for i in range(M):
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
@@ -333,7 +333,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 if d2 <= rneigh2: # include this point in the density calculation
                     d = sqrt(d2) # Euclidean distance
                     scoutdensities[i] += d * exp(-d2 / twosigma2)
-        print('Scout density calculations took %.3f sec' % (time.clock()-t0))
+        print('Scout density calculations took %.3f sec' % (time.time()-t0))
     else:
         scoutdensities = np.zeros(0)
 

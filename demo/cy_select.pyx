@@ -67,38 +67,38 @@ def selectpy(np.ndarray[np.int16_t, ndim=1] data):
     cdef int N = len(data)
     cdef int k = (N-1) // 2 # this gives us exact median for odd N
 
-    tsort = time.clock()
+    tsort = time.time()
     sorteddata = np.sort(data) # copy, do a full quicksort
     print 'np.sort:', sorteddata[k]
-    print 'np.sort took %.3f sec' % (time.clock()-tsort)
+    print 'np.sort took %.3f sec' % (time.time()-tsort)
 
-    tmed = time.clock()
+    tmed = time.time()
     result = np.median(data) # doesn't modify data, does internal copy
     print 'np.median:', result
-    print 'np.median took %.3f sec' % (time.clock()-tmed)
+    print 'np.median took %.3f sec' % (time.time()-tmed)
 
-    tmean = time.clock()
+    tmean = time.time()
     result = np.mean(data) # doesn't modify data
     print 'np.mean:', result
-    print 'np.mean took %.3f sec' % (time.clock()-tmean)
+    print 'np.mean took %.3f sec' % (time.time()-tmean)
 
-    tmean = time.clock()
+    tmean = time.time()
     cdef short *d = <short *>data.data
     result = mean(d, N) # doesn't modify data
     print 'Cython mean:', result
-    print 'Cython mean took %.3f sec' % (time.clock()-tmean)
+    print 'Cython mean took %.3f sec' % (time.time()-tmean)
 
-    tmean = time.clock()
+    tmean = time.time()
     result = mean2(data) # doesn't modify data
     print 'Cython mean2:', result
-    print 'Cython mean2 took %.3f sec' % (time.clock()-tmean)
+    print 'Cython mean2 took %.3f sec' % (time.time()-tmean)
 
-    tcy = time.clock()
+    tcy = time.time()
     cdef np.ndarray[np.int16_t, ndim=1] newdata = data.copy() # copy, select modifies in-place
-    print 'copy took %.3f sec' % (time.clock()-tcy)
+    print 'copy took %.3f sec' % (time.time()-tcy)
     cdef short *a = <short *>newdata.data # int pointer to newdata's .data field
     print 'Cython median:', select(a, 0, N-1, k)
-    print 'Cython median took %.3f sec' % (time.clock()-tcy)
+    print 'Cython median took %.3f sec' % (time.time()-tcy)
 
     print 'data:', data
     print 'newdata:', newdata

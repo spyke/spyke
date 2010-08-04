@@ -52,7 +52,7 @@ maxstill = 100
 maxnnomerges = 1000
 minpoints = 10
 
-t0 = time.clock()
+t0 = time.time()
 results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
                 rmergex=rmergex, #nsamples=nsamples,
                 calcpointdensities=calcpointdensities,
@@ -60,7 +60,7 @@ results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
                 minmove=minmove, maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
 clusteris, positions, densities, scoutdensities, sampleis = results
-print('climb took %.3f sec' % (time.clock()-t0))
+print('climb took %.3f sec' % (time.time()-t0))
 
 nclusters = len(positions)
 

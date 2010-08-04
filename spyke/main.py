@@ -914,7 +914,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # grab climbing params
         self.update_sort_from_cluster_pane()
-        t0 = time.clock()
+        t0 = time.time()
         results = climb(data[i], sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
                         rneighx=s.rneighx, nsamples=s.nsamples,
                         calcpointdensities=True, calcscoutdensities=True,
@@ -924,7 +924,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         nids = list(np.unique(clusteris))
         try: nids.remove(-1)
         except ValueError: pass
-        print('climb took %.3f sec' % (time.clock()-t0))
+        print('climb took %.3f sec' % (time.time()-t0))
 
         if oldclusters: # some clusters selected
             self.SelectClusters(oldclusters, on=False) # deselect original cluster
@@ -944,7 +944,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # apply the clusters to the cluster plot
         plotdims = self.GetClusterPlotDimNames()
         newclusters = []
-        t0 = time.clock()
+        t0 = time.time()
         for nid, pos in zip(nids, scoutpositions): # nids come out sorted
             scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = densities/scoutdensity > s.density_thresh
@@ -964,7 +964,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # now do some final updates
         self.UpdateClustersGUI()
-        print('applying clusters to plot took %.3f sec' % (time.clock()-t0))
+        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         self.ColourPoints(newclusters)
 
         if oldclusters:

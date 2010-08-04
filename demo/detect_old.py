@@ -105,10 +105,10 @@ class Detector(object):
         TODO: remove any events that happen right at the first or last timepoint in the file,
         since we can't say when an interrupted rising or falling edge would've reached peak
         """
-        t0 = time.clock()
+        t0 = time.time()
 
         self.thresh = self.get_thresh() # this could probably go in __init__ without problems
-        print '.get_thresh() took %.3f sec' % (time.clock()-t0)
+        print '.get_thresh() took %.3f sec' % (time.time()-t0)
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
@@ -149,7 +149,7 @@ class Detector(object):
             events = np.asarray(self.events)
             events.shape = (2, 0)
         print '\nfound %d events in total' % events.shape[1]
-        print 'inside .search() took %.3f sec' % (time.clock()-t0)
+        print 'inside .search() took %.3f sec' % (time.time()-t0)
         return events
 
     def searchblockprocess(self, wavetrange, direction):

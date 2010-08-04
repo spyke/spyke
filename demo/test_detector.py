@@ -16,9 +16,9 @@ wx.Yield()
 s = spyke.core.Stream(ctsrecords=f.highpassrecords)
 det = BipolarAmplitudeFixedThresh(stream=s)
 det.trange = (0, 1000000)
-t0 = time.clock()
+t0 = time.time()
 spikes = det.search()
-print 'whole search took %f sec' % (time.clock()-t0)
+print 'whole search took %f sec' % (time.time()-t0)
 #timeit.Timer('det.search()', 'from __main__ import det').timeit(1)
 
 # correct results for BipolarAmplitudeFixedThresh in ptc15/87:

@@ -19,12 +19,12 @@ class LeastSquares(object):
         #self.x = x
         #self.y = y
         #self.V = V
-        t0 = time.clock()
+        t0 = time.time()
         result = leastsq(self.cost, self.p0, args=(x, y, V), full_output=True)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
-        print('iters took %.3f sec' % (time.clock()-t0))
+        print('iters took %.3f sec' % (time.time()-t0))
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         print('p0 = %r' % self.p0)
         print('p = %r' % self.p)

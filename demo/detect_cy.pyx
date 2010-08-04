@@ -82,10 +82,10 @@ cpdef class Detector_Cy:
         s.chansp = <int *>chans.data # int pointer to .data field
 
         if self.chans != range(s.nchans): # if self.chans is not contiguous
-            #ttake = time.clock()
+            #ttake = time.time()
             # pull our chans of data out, this assumes wave.data has all possible chans in it, which it should
             contigdata = wave.data.take(chans, axis=0) # returns a contiguous copy of data
-            #print 'data take in searchblock() took %.3f sec' % (time.clock()-ttake)
+            #print 'data take in searchblock() took %.3f sec' % (time.time()-ttake)
         else: # save time by avoiding an unnecessary .take
             contigdata = wave.data
         self._contigdata = contigdata # bind a reference to prevent garbage collection
@@ -155,7 +155,7 @@ cpdef class BipolarAmplitude_Cy(Detector_Cy):
         cdef int eventti # event time index (indexes into .data and .ts)
         cdef int eventt # event time
 
-        #tcyloop = time.clock()
+        #tcyloop = time.time()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
@@ -203,7 +203,7 @@ cpdef class BipolarAmplitude_Cy(Detector_Cy):
                         break # out of while loop
                     lastpeakti = peakti # update
                 set_lockout(&s, lastpeakti+s.tilock) # lock out up to peak of last spike phase plus another tlock
-        #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
+        #print 'cy loop took %.3f sec' % (time.time()-tcyloop)
         eventtimes = self._eventtimes[:nevents] # keep only the entries that were filled
         maxchans = self._maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])
@@ -253,7 +253,7 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
         cdef int eventt # event time
         cdef int prepeakti, postpeakti, peak2ti
 
-        #tcyloop = time.clock()
+        #tcyloop = time.time()
         for ti from 0 <= ti < s.nt: # iterate over all timepoint indices
             prevti = max(ti-1, 0) # previous timepoint index, ensuring to go no earlier than first timepoint
             if s.threshmethod == 2 and ti % s.nnt == 0: # update dynamic channel thresholds every nnt'th timepoint
@@ -329,7 +329,7 @@ cpdef class DynamicMultiphasic_Cy(Detector_Cy):
                     lastpeakti = peakti # update
                 print 'lockout to lastpeakt=%s' % s.tsp[lastpeakti]
                 set_lockout(&s, lastpeakti) # lock out up to and including peak of last spike phase, and no further
-        #print 'cy loop took %.3f sec' % (time.clock()-tcyloop)
+        #print 'cy loop took %.3f sec' % (time.time()-tcyloop)
         eventtimes = self._eventtimes[:nevents] # keep only the entries that were filled
         maxchans = self._maxchans[:nevents] # keep only the entries that were filled
         return np.asarray([eventtimes, maxchans])

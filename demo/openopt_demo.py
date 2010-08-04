@@ -58,10 +58,10 @@ class NLLSPSpikeModel(object):
         pr.c = [self.c0, self.c1, self.c2] # constraints
         '''
         pr.lb[1], pr.ub[1] = -50, 50 # um
-        t0 = time.clock()
+        t0 = time.time()
         pr.solve('scipy_leastsq')
         self.pr, self.p = pr, pr.xf
-        print('iters took %.3f sec' % (time.clock()-t0))
+        print('iters took %.3f sec' % (time.time()-t0))
         print('p0 = %r' % self.p0)
         print('p = %r' % self.p)
         print("%d NLLSP iterations" % pr.iter)
