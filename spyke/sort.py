@@ -702,61 +702,6 @@ class Neuron(object):
         print('mean calc took %.3f sec' % (time.time()-t0))
         return self.wave
 
-    def remove_chans(self, remchans, reextract=True):
-        """Remove remchans from all member spikes, re-extract their params.
-        This is to get rid of spurious clustering using spatial mean
-        when the maxchan alternates between two chans"""
-        #import pdb; pdb.set_trace()
-        print("this code hasn't been used in a while, and untested changes have been made")
-        sort = self.sort
-        spikes = sort.spikes
-        sids = self.sids
-        # TODO: these nested loops must be really slow
-        for sid in sids:
-            s = spikes[sid]
-            wavedata = sort.wavedata[sid]
-            nchans = s['nchans']
-            wavedata = wavedata[0:nchans]
-            chans = s['chans'][:nchans]
-            for remchan in remchans:
-                chani, = np.where(chans == remchan)
-                if len(chani) != 0: # delete it
-                    wavedata = np.delete(wavedata, chani, axis=0)
-                    chans = np.delete(chans, chani)
-                    nchans = len(chans)
-                    s['nchans'] = nchans
-                    s['chans'][:nchans] = chans
-                    sort.wavedata[sid, 0:nchans] = wavedata # untested
-                    if reextract: # not sure why this is happening within the remchans loop
-                        det = sort.detector
-                        chanis = det.chans.searchsorted(chans) # det.chans are always sorted
-                        x = det.siteloc[chanis, 0] # 1D array (row)
-                        y = det.siteloc[chanis, 1]
-                        maxchani = int(np.where(chans == s['chan'])[0])
-                        phasetis = s['phaseti0'], s['phaseti1']
-                        s['x0'], s['y0'] = sort.extractor.weights2XY(wavedata, x, y,
-                                                                     phasetis, maxchani)
-        # TODO: replot only the spikes whose params have changed, and keep their
-        # scalar params intact so you can see that they moved
-        self.wave = WaveForm() # reset to empty waveform so mean is recalculated
-        # trigger resaving of .spike and .wave files next time .sort is saved,
-        # since their associated array contents have changed
-        try: del sort.spikefname
-        except AttributeError: pass
-        try: del sort.wavefname
-        except AttributeError: pass
-
-    '''
-    def get_stdev(self):
-        """Return 2D array of stddev of each timepoint of each chan of member spikes.
-        Assumes self.update_wave has already been called"""
-        data = []
-        # TODO: speed this up by pre-allocating memory and then filling in the array
-        for spike in self.spikes:
-            data.append(spike.wave.data) # collect spike's data
-        stdev = np.asarray(data).std(axis=0)
-        return stdev
-    '''
     def get_chans(self):
         return self.wave.chans # self.chans just refers to self.wave.chans
 
@@ -772,39 +717,16 @@ class Neuron(object):
         d = self.__dict__.copy()
         d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
         return d
-
     '''
-    def get_maxchan(self):
-        """Find maxchan at t=0 in mean waveform, constrained to enabled chans
-
-        Notes:
-            - don't recenter self.chans on maxchan, leave actual chan selection to user
-            - maxchan should however be constrained to currently enabled chans
-        """
-        if self.wave.data == None or self.chans == None:
-            return None
-        data = self.wave.data
-        ts = self.wave.ts
-        t0i, = np.where(ts == 0) # find column index that corresponds to t=0
-        assert len(t0i) == 1 # make sure there's only one reference timepoint
-        maxchani = abs(data[self.chans, t0i]).argmax() # find index into self.chans with greatest abs(signal) at t=0
-        #maxchani = abs(data).max(axis=1).argmax() # ignore sign, find max across columns, find row with greatest max
-        maxchan = self.chans[maxchani] # dereference
-        return maxchan
-    '''
-    '''
-    def get_tw(self):
-        return self._tw
-
-    def set_tw(self, tw):
-        """Reset self's time range relative to t=0 spike time,
-        update slice of member spikes, and update mean waveform"""
-        self._tw = tw
-        for spike in self.spikes.values():
-            spike.update_wave(tw=tw)
-        self.update_wave()
-
-    tw = property(get_tw, set_tw)
+    def get_stdev(self):
+        """Return 2D array of stddev of each timepoint of each chan of member spikes.
+        Assumes self.update_wave has already been called"""
+        data = []
+        # TODO: speed this up by pre-allocating memory and then filling in the array
+        for spike in self.spikes:
+            data.append(spike.wave.data) # collect spike's data
+        stdev = np.asarray(data).std(axis=0)
+        return stdev
 
     def get_weights(self, weighting=None, sstdev=None, tstdev=None):
         """Returns unity, spatial, temporal, or spatiotemporal Gaussian weights
@@ -843,14 +765,6 @@ class Neuron(object):
         ts = self.wave.ts # template mean timepoints relative to t=0 spike time
         weights = g[ts] # horizontal vector with 1 row, nt timepoints
         return weights
-
-    def __del__(self):
-        """Is this run on 'del template'?"""
-        for spike in self.spikes:
-            spike.template = None # remove self from all spike.template fields
-
-    def pop(self, sid):
-        return self.spikes.pop(sid)
     '''
 
 

@@ -148,15 +148,15 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
                     crossedonce = True # for next iter
                 continue # nothing to do until we cross 0 at least once
             npoints += 1 # inc for this segment, corresponds to "now" point in segment
-            print('ti=%d, npoints=%d' % (ti, npoints))
+            #print('ti=%d, npoints=%d' % (ti, npoints))
             if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
                 extti = ti # store its timepoint
                 ext = now # update for this segment
-                print('found new biggest local ext=%f at ti=%d' % (ext, extti))
+                #print('found new biggest local ext=%f at ti=%d' % (ext, extti))
             if cross:
                 # 0-cross coming up, calculate sharpness of extremum in this segment
-                print('reached end of segment')
-                print('using npoints=%d for sharpness calc' % npoints)
+                #print('reached end of segment')
+                #print('using npoints=%d for sharpness calc' % npoints)
                 # square height, normalize by phase width
                 ext *= fabs(ext) # maintain extremum sign
                 ext /= npoints
@@ -177,14 +177,14 @@ def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
     return a temporally sorted n x 2 (ti, ci) array of peak indices that exceed
     thresh for the appropriate chan"""
 
-    cdef Py_ssize_t nt, chans, ti, ci, npeaks = 0
+    cdef Py_ssize_t nt, nchans, ti, ci, npeaks = 0
 
     assert signal.shape[1] < 2**31 # stick to int32 time indices
     nchans = signal.shape[0]
     nt = signal.shape[1]
     assert sharp.shape[0] == nchans
     assert sharp.shape[1] == nt
-    assert len(thresh) == nchans
+    assert thresh.shape[0] == nchans
 
     # worst case scenario: we find as many thresh exceeding peaks as nt
     cdef np.ndarray[np.int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
