@@ -106,50 +106,30 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     First, update npoints, check for extremum and update ext. Then, then look forward
     for 0-crossing or end of signal, and calc sharpness if you find either is the case.
 
-    TODO: stop checking for weird corner cases, since end bits of results are now thrown away
-    after the call, and we won't be running sharpness2D on short bits of waveforms any more.
-
     TODO: test if double math is faster than float math. They're probably identical.
 
     TODO: might also try adding mode='c' kwarg to signal arg, if you know it's C contig,
     reduces need to do stride calc on each access. Actually, might try adding mode='c'
     to all locally declared np arrays as well.
 
-    TODO: use FWHM instead of npoints of each segment to more accurately determine width.
-    This will require at least some linear interpolation though between points straddling
-    the half max level on either side of each extremum.
+    TODO: use FWHM or FW 1/10 max or something instead of npoints of each segment to more
+    accurately determine width. This will require at least some linear interpolation between
+    points straddling whatever fraction of max level on either side of each extremum.
 
-    TODO: do I really need to check for an extremum between each 0 crossing? I think not.
+    DONE: do I really need to check for an extremum between each 0 crossing? I think not.
     Just find the max abs between zero crossings. Also, don't need to check sign, since sign
-    will always alternate anyway. Trouble is at the endpoints, where you don't
-    have a 0 crossing, and you need to actually check if an extremum was found between the
-    last 0 crossing and the end of the signal (or vice versa). But that can be done easily
-    enough by checking to the left and right of the max abs found in that last segment,
-    and deciding if it represents an extremum.
+    will always alternate anyway.
 
-    DONE: instead of simply taking extremum value and dividing by width, accumulate the
-    change in signal in the correct direction on either side of the extremum. This way,
-    an extremum with a long amount of signal leading up to it and away from it on either
-    side is deemed sharper than one that only has a lead up on one side (say due to falling
-    near the border of the signal)
-
-    DONE: you only really need to do this accumulation thing for segments that fall at
-    the ends of the signal. For all the rest, you can just take 2*(extremum value). Duh.
-    This will be more accurate too, since you won't be relying on getting segment edge
-    points that are really close to crossing 0.
-
-    DONE: weight each accumulation of phase height value by the abs(extremum), so when you have
-    big and small phases of similar shape, the big ones are considered sharper
-
+    DONE: stop checking for weird corner cases, since end bits of results are now thrown away
+    after the call, and we won't be running sharpness2D on short bits of waveforms any more.
     """
-    cdef Py_ssize_t nchans, nt, ci, ti, extti, npoints, maxti
-    cdef bint seg0=True, cross=False
-    cdef short last, now, next, sig0
+    cdef Py_ssize_t nchans, nt, ci, ti, extti, npoints
+    cdef bint cross=False, crossedonce=False
+    cdef short now, next
     cdef float ext
 
     nchans = signal.shape[0]
     nt = signal.shape[1]
-    maxti = nt-2
     cdef np.ndarray[np.float32_t, ndim=2] sharp = np.zeros((nchans, nt), dtype=np.float32)
 
     assert nt < 2**31 # make sure time indices don't overflow
@@ -158,43 +138,25 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
         ext = 0.0 # val of biggest extremum so far for current segment
         extti = 0 # ti of biggest extremum so far for current segment
         npoints = 0 # npoints in current segment
-        sig0 = signal[ci, 0]
-        now = sig0 # init
-        next = sig0 # init
+        next = signal[ci, 0] # init
         for ti in range(nt-1):
-            last = now # last = signal[ci, ti-1], except when ti==0: last = signal[ci, 0]
             now = next # now = signal[ci, ti]
             next = signal[ci, ti+1]
-            npoints += 1 # inc for this segment, corresponds to "now" point in segment
-            #print('ti=%d, npoints=%d' % (ti, npoints))
-            if (last < now > next and now > 0) or (last > now < next and now < 0):
-                #print('found a local extremum of appropriate sign')
-                if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
-                    extti = ti # store its timepoint
-                    ext = now # update for this segment
-                    #print('found new biggest local ext=%f at ti=%d' % (ext, extti))
             cross = (now > 0) != (next > 0) # 0-crossing coming up?
-            if cross or ti == maxti: # both might happen simultaneously
-                # 0-cross coming up, or at end of signal. ti is last timepoint in segment,
-                # but if we're at end of signal, ti+1 is last timepoint in segment, and
-                # needs to be counted in npoints.
-                # calculate sharpness of extremum in this segment
-                #print('reached end of segment')
-                if seg0: # we're on first segment
-                    # left segment edge == left signal edge, left side is shorter than usual
-                    if ext == 0.0: # leave untouched if 0, don't have extremum to store
-                        extti = 0 # harmlessly write 0 to first entry in sharp
-                    else:
-                        ext -= <float>sig0 / 2 # penalize
-                    seg0 = False
-                elif not cross: # we're on last segment, bound only by signal, not true 0-cross
-                    # right segment edge == right signal edge, right side is shorter than usual
-                    if ext == 0.0: # leave untouched if 0, don't have extremum to store
-                        extti = nt-1 # harmlessly write 0 to last entry in sharp
-                    else:
-                        ext -= <float>signal[ci, nt-1] / 2 # penalize
-                        npoints += 1 # count next'th point as well for this last segment
-                #print('using npoints=%d for sharpness calc' % npoints)
+            if not crossedonce: # haven't crossed 0 yet...
+                if cross: # ...but about to
+                    crossedonce = True # for next iter
+                continue # nothing to do until we cross 0 at least once
+            npoints += 1 # inc for this segment, corresponds to "now" point in segment
+            print('ti=%d, npoints=%d' % (ti, npoints))
+            if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
+                extti = ti # store its timepoint
+                ext = now # update for this segment
+                print('found new biggest local ext=%f at ti=%d' % (ext, extti))
+            if cross:
+                # 0-cross coming up, calculate sharpness of extremum in this segment
+                print('reached end of segment')
+                print('using npoints=%d for sharpness calc' % npoints)
                 # square height, normalize by phase width
                 ext *= fabs(ext) # maintain extremum sign
                 ext /= npoints
