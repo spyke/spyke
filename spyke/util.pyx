@@ -212,7 +212,7 @@ def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
                    np.ndarray[np.int16_t, ndim=1] thresh,
                    np.ndarray[np.float32_t, ndim=2] sharp):
     """Given original signal, threshold array, and sharpness array,
-    returns a temporally sorted n x 2 (ti, ci) array of peaks that exceed
+    return a temporally sorted n x 2 (ti, ci) array of peak indices that exceed
     thresh for the appropriate chan"""
 
     cdef Py_ssize_t nt, chans, ti, ci, npeaks = 0
@@ -235,3 +235,54 @@ def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
                 npeaks += 1
 
     return peakis[:npeaks]
+
+'''
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
+    """Given sharpness array, return a temporally sorted n x 2 (ti, ci) array
+    of peak indices"""
+
+    cdef Py_ssize_t nt, chans, ti, ci, npeaks = 0
+
+    assert sharp.shape[1] < 2**31 # stick to int32 time indices
+    nchans = sharp.shape[0]
+    nt = sharp.shape[1]
+
+    # worst case scenario: we find as many thresh exceeding peaks as nt
+    cdef np.ndarray[np.int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
+
+    for ti in range(nt):
+        for ci in range(nchans):
+            if sharp[ci, ti] != 0.0:
+                peakis[npeaks, 0] = ti
+                peakis[npeaks, 1] = ci
+                npeaks += 1
+
+    return peakis[:npeaks]
+'''
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+def rowtake(np.ndarray[np.int16_t, ndim=2] a,
+            np.ndarray[np.int32_t, ndim=2] i):
+    """For each row in a, return values according to column indinces in i in the
+    corresponding row"""
+
+    cdef Py_ssize_t nrows, ncols, rowi, coli
+
+    nrows = a.shape[0]
+    ncols = i.shape[1] # num cols to take for each row
+    assert i.shape[0] == nrows
+    assert nrows < 2**31 # stick to int32 row indices
+    assert ncols < 2**31 # stick to int32 col indices
+
+    cdef np.ndarray[np.int16_t, ndim=2] out = np.empty((nrows, ncols), dtype=np.int16)
+
+    for rowi in range(nrows):
+        for coli in range(ncols):
+            out[rowi, coli] = a[rowi, i[rowi, coli]]
+
+    return out

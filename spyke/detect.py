@@ -307,7 +307,7 @@ class Detector(object):
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
                            ('V0', np.float32), ('V1', np.float32),
                            ('Vpp', np.float32),
-                           ('phaseti0', np.uint8), ('phaseti1', np.uint8),
+                           ('phasetis', np.uint8, (self.maxnchansperspike, 2)),
                            ('aligni', np.uint8),
                            ('x0', np.float32), ('y0', np.float32),
                            ('sx', np.float32), ('sy', np.float32),
@@ -354,8 +354,10 @@ class Detector(object):
             info('%s: get_noise took %.3f sec' % (mp.current_process().name, time.time()-tnoise))
             self.thresh = noise * self.noisemult # float AD units
             self.thresh = np.int16(np.round(self.thresh)) # int16 AD units
-            self.thresh = self.thresh.clip(self.fixedthresh, self.thresh.max()) # clip so that all threshes are at least fixedthresh
-            self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
+            # clip so that fixedthresh <= self.thresh <= self.thresh.max()
+            self.thresh = self.thresh.clip(self.fixedthresh, self.thresh.max())
+            # peak-to-peak threshold, abs, in AD units
+            self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult))
             AD2uV = self.sort.converter.AD2uV
             info('%s: thresh:   %r' % (mp.current_process().name, AD2uV(self.thresh)))
             #info('%s: ppthresh: %r' % (mp.current_process().name, AD2uV(self.ppthresh)))
@@ -382,7 +384,8 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
-            wavedata2spatial = sort.extractor.wavedata2spatial
+            weights2gaussian = sort.extractor.weights2gaussian
+            #wavedata2spatial = sort.extractor.wavedata2spatial
             #wavedata2wcs = sort.extractor.wavedata2wcs
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
 
@@ -418,12 +421,14 @@ class Detector(object):
             tendi = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:tendi] # multichan data window, might not be contig
 
-            # find chan with biggest peak-to-peak sharpness, choose as maxchan. Also,
-            # save max sharpness timepoints for each chan
+            # collect peak-to-peak sharpness for all chans
+            # save max and adjacent sharpness timepoints for each chan, and keep track
+            # of which of the two adjacent non locked out peaks is the sharpest
             localsharp = sharp[chanis, t0i:tendi]
             ppsharp = np.zeros(nchans, dtype=np.float32)
             maxsharpis = np.zeros(nchans, dtype=int)
-            adjpeakis = np.zeros(nchans, dtype=int)
+            adjpeakis = np.zeros((nchans, 2), dtype=int)
+            maxadjiis = np.zeros(nchans, dtype=int)
             for cii in range(nchans):
                 localpeakis, = np.where(localsharp[cii] != 0.0)
                 lastpeakii = len(localpeakis) - 1
@@ -433,139 +438,113 @@ class Detector(object):
                 maxsharpis[cii] = maxsharpi
                 # get one adjacent peak to left and right each, due to limits, either or
                 # both may be identical to the max sharpness peak
-                adjpis = localpeakis[[max(maxsharpii-1, 0), min(maxsharpii+1, lastpeakii)]]
+                adjpeakis[cii] = localpeakis[[max(maxsharpii-1, 0), min(maxsharpii+1, lastpeakii)]]
                 if localsharp[cii, maxsharpi] < 0:
-                    maxadjii = localsharp[cii, adjpis].argmax() # look for +ve adj peak
+                    maxadjii = localsharp[cii, adjpeakis[cii]].argmax() # look for +ve adj peak
                 else:
-                    maxadjii = localsharp[cii, adjpis].argmin() # look for -ve adj peak
-                adjpi = adjpis[maxadjii]
-                adjpeakis[cii] = adjpi
+                    maxadjii = localsharp[cii, adjpeakis[cii]].argmin() # look for -ve adj peak
+                if maxadjii == 0 and (t0i+adjpeakis[cii, maxadjii] < lockouts[chanis[cii]]):
+                    # adjacent peak comes before maxsharpi and is locked out
+                    maxadjii = 1 # choose adjacent peak that falls after maxsharpi
+                maxadjiis[cii] = maxadjii # save
+                adjpi = adjpeakis[cii, maxadjii]
                 ppsharp[cii] = localsharp[cii, maxsharpi] - localsharp[cii, adjpi]
 
             #oldti = ti # save
-            #oldchani = chani # save
-            ciis = abs(ppsharp).argsort()[::-1] # biggest to smallest ppsharpness
-            for cii in ciis: # test potential maxchans in decreasing ppsharpness order
-                maxsharpi = maxsharpis[cii]
-                ti = t0i + maxsharpi # align to sharpest peak of maxchan
-                chani = chanis[cii] # update maxchan
-                if ti <= lockouts[chani]: # peak is locked out
-                    if DEBUG: debug('peak at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
-                    continue
-                # check that Vp thresh is exceeded by one of the phases
-                adjpi = adjpeakis[cii]
-                Vp = abs(window[cii, [maxsharpi, adjpi]]).max() # grab biggest phase
-                if Vp < self.thresh[chani]:
-                    if DEBUG: debug('peak at t=%d chan=%d is < Vp' % (wave.ts[ti], self.chans[chani]))
-                    continue
-                # check that Vpp thresh is exceeded by the two phases
-                Vpp = abs(window[cii, [maxsharpi, adjpi]]).sum()
-                if Vpp < self.ppthresh[chani]:
-                    if DEBUG: debug('peaks at t=%r chan=%d are < Vpp' % (wave.ts[[ti, t0i+adjpi]], self.chans[chani]))
-                    continue
-                if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
-                break
-            else:
-                if DEBUG: debug('all peaks are locked out')
-                continue # skip to next event
+            oldchani = chani # save
 
-            # get new spatiotemporal neighbourhood
-            #oldchanis = chanis # save
-            chanis = self.inclnbhdi[chani] # now take just inclnbhd instead of whole locknbhd
-            nchans = len(chanis)
-            t0i = max(ti+twi[0], 0)
-            tendi = ti+twi[1]+1 # +1 makes it end inclusive
-            window = wave.data[chanis, t0i:tendi] # multichan data window, might not be contig
-            localsharp = sharp[chani, t0i:tendi] # single chan now
-            maxsharpi = ti - t0i # relative
-
-            # TODO: I think much of the following is no longer necessary, now that we're
-            # searching for adjpeakis in ppsharp loop above:
-
-            # grab adjacent phases to left and right of ti
-            try:
-                sharp0ti = np.where(localsharp[:maxsharpi] != 0.0)[0][-1] # relative to t0i
-                sharp0 = localsharp[sharp0ti]
-                phase0ti = t0i + sharp0ti # absolute
-            except IndexError: # no phase to the left of ti
-                sharp0 = 0.0
-                phase0ti = 0
-            #sharp1ti = maxsharpi
-            #sharp1 = localsharp[sharp1ti]
-            #phase1ti = ti
-            try:
-                sharp2ti = np.where(localsharp[maxsharpi+1:] != 0.0)[0][0] + maxsharpi + 1
-                sharp2 = localsharp[sharp2ti]
-                phase2ti = t0i + sharp2ti # absolute
-            except IndexError: # no phase to the right of ti
-                sharp2 = 0.0
-                phase2ti = 0
-
-            if phase0ti <= lockouts[chani]:
-                sharp0 = 0.0 # don't consider this a viable phase
-
-            # find sharpest adjacent phase, set potential lockout to later phase
-            adjsharp = np.array([sharp0, sharp2])
-            adjphasetis = np.array([phase0ti, phase2ti])
-            adjsharpi = abs(adjsharp).argmax()
-            adjphaseti = adjphasetis[adjsharpi] # either phase0ti or phase2ti
-            if adjsharp[adjsharpi] == 0.0:
-                if DEBUG: debug("couldn't find a matching adjacent phase to peak at "
-                                "t=%r chan=%d" % (wave.ts[ti], self.chans[chani]))
-                continue # skip to next event
-            phasetis = np.sort([ti, adjphaseti]) # absolute, in temporal order
-            dphase = phasetis[1] - phasetis[0]
-            if dphase > dti:
-                if DEBUG:
-                    dt = dphase * sort.stream.tres
-                    debug("sharpest adjacent phase to peak at t=%r is %d us away"
-                          % (wave.ts[ti], dt))
-                continue # skip to next event
-            lockout = phasetis.max()
-            Vs = wave.data[chani, phasetis]
-
-            # ensure thresh is exceeded by the biggest of the two phases
-            maxampli = abs(Vs).argmax()
-            if abs(Vs[maxampli]) < self.thresh[chani]:
-                if DEBUG:
-                    debug("biggest peak at t=%r chan=%d gives only %.1f Vp"
-                    % (wave.ts[phasetis[maxampli]], self.chans[chani], AD2uV(Vs[maxampli])))
-                continue # skip to next event
-
-            # ensure ppthresh is exceeded
-            Vpp = abs(Vs[1] - Vs[0]) # don't maintain sign
-            if Vpp < self.ppthresh[chani]:
-                if DEBUG:
-                    debug("matched adjacent peak to peak at t=%r chan=%d gives "
-                          "only %.1f Vpp" % (wave.ts[ti], self.chans[chani], AD2uV(Vpp)))
-                continue # skip to next event
-
-            # align to sharpest -ve phase, set aligni
-            aligni = localsharp[phasetis-t0i].argmin()
-            #aligni = Vs.argmin() # could align by voltage instead
-            oldti = ti # save
-            ti = phasetis[aligni] # new absolute time index to align to (== oldti if sharpest phase is -ve)
-            if ti != oldti: # need to update some variables
-                t0i = ti+twi[0]
-                tendi = ti+twi[1]+1 # end inclusive
-                window = wave.data[chanis, t0i:tendi] # multichan data window, might not be contig
-                #localsharp = sharp[chani, t0i:tendi] # not really necessary
-
-            # now make phasetis relative to (potentially new) t0i
-            phasetis -= t0i
-
+            # choose chan with biggest ppsharp as maxchan, check that this is identical to
+            # the trigger chan, that its sharpest phase isn't locked out, that it falls within
+            # cutrange, and that it meets both Vp and Vpp thresh criteria
+            maxcii = abs(ppsharp).argmax()
+            chani = chanis[maxcii] # update maxchan
+            if chani != oldchani:
+                if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for this event, pass on this peak and wait for the true peak to come later")
+                continue
+            maxsharpi = maxsharpis[maxcii]
+            ti = t0i + maxsharpi # choose sharpest peak of maxchan, absolute
+            if ti <= lockouts[chani]: # sharpest peak is locked out
+                if DEBUG: debug('sharpest peak at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
+                continue
             if not (cutrange[0] <= wave.ts[ti] <= cutrange[1]):
                 if DEBUG:
                     # use %r since wave.ts[ti] is np.int64 and %d gives TypeError if > 2**31
                     debug("spike time %r falls outside cutrange for this searchblock "
                           "call, discarding" % wave.ts[ti])
-                continue # skip to next event
+                continue # skip to next peak
+            # check that Vp thresh is exceeded by one of the two sharpest phases
+            adjpi = adjpeakis[maxcii, maxadjiis[maxcii]]
+            maxchanphasetis = np.array([maxsharpi, adjpi]) # relative to t0i, not necessarily in temporal order
+            Vp = abs(window[maxcii, maxchanphasetis]).max() # grab biggest phase
+            if Vp < self.thresh[chani]:
+                if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both < Vp' % (wave.ts[ti], self.chans[chani]))
+                continue
+            # check that Vpp thresh is exceeded by the two sharpest phases
+            Vs = window[maxcii, maxchanphasetis]
+            Vpp = abs(Vs).sum() # Vs are of opposite sign
+            if Vpp < self.ppthresh[chani]:
+                if DEBUG: debug('peaks at t=%r chan=%d are < Vpp' % (wave.ts[[ti, t0i+adjpi]], self.chans[chani]))
+                continue
+            if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
 
-            if DEBUG: debug("final window params: t0=%r, tend=%r, phasets=%r, Vs=%r"
-                            % (wave.ts[t0i], wave.ts[tendi], wave.ts[t0i+phasetis], AD2uV(Vs)))
+            # get new spatiotemporal neighbourhood, with full window
+            # align to -ve of the two sharpest peaks
+            aligni = localsharp[maxcii, maxchanphasetis].argmin()
+            #oldti = ti # save
+            ti = t0i + maxchanphasetis[aligni] # new absolute time index to align to
+            # cut new window
+            oldt0i = t0i
+            t0i = max(ti+twi[0], 0)
+            tendi = ti+twi[1]+1 # end inclusive
+            window = wave.data[chanis, t0i:tendi] # multichan data window, might not be contig
+            maxcii, = np.where(chanis == chani)
+            maxchanphasetis += oldt0i - t0i # relative to new t0i
+            phasetis = np.zeros((nchans, 2), dtype=int) # holds phasetis for each lockchani
+            phasetis[maxcii] = maxchanphasetis
+
+            # pick corresponding peaks on other chans according to how
+            # close they are to those on maxchan, Don't consider the sign of the peak on each
+            # chan, just their proximity in time. In other words, allow for spike inversion
+            # across space
+            localsharp = sharp[chanis, t0i:tendi]
+            phaset0i, phaset1i = maxchanphasetis
+            for cii in range(nchans):
+                if cii == maxcii: # already set
+                    continue
+                localpeakis, = np.where(localsharp[cii] != 0.0)
+                if len(localpeakis) == 0: # empty
+                    phasetis[cii] = maxchanphasetis # use same tis as maxchan
+                    continue
+                lastpeakii = len(localpeakis) - 1
+                # find peak on this chan that's temporally closest to primary phase on maxchan.
+                # If two peaks are equally close, this picks this first one, although we should
+                # probably pick the sharpest one instead:
+                peak0ii = abs(localpeakis-phaset0i).argmin()
+                # save primary phase for this cii
+                phasetis[cii, 0] = localpeakis[peak0ii]
+                # save 2ndary phase for this cii
+                if phaset0i < phaset1i: # primary phase comes first (more common case)
+                    peak1ii = peak0ii + 1 # 2ndary phase is 1 to the right
+                    if peak1ii > lastpeakii: # no local peak follows primary phase
+                        phasetis[cii, 1] = phaset1i # set to the same ti as maxchan
+                    else:
+                        phasetis[cii, 1] = localpeakis[peak1ii]
+                else: # phaset1i < phaset0i, ie 2ndary phase comes first
+                    peak1ii = peak0ii - 1 # 2ndary phase is 1 to the left
+                    if peak1ii < 0: # no local peak precedes primary phase
+                        phasetis[cii, 1] = phaset1i # set to the same ti as maxchan
+                    else:
+                        phasetis[cii, 1] = localpeakis[peak1ii]
+
+            # find inclchanis, get corresponding indices into locknbhd of chanis
+            inclchanis = self.inclnbhdi[chani]
+            ninclchans = len(inclchanis)
+            inclciis = chanis.searchsorted(inclchanis)
+
+            if DEBUG: debug("final window params: t0=%r, tend=%r, Vs=%r, phasets=\n%r"
+                            % (wave.ts[t0i], wave.ts[tendi], list(AD2uV(Vs)), wave.ts[t0i+phasetis]))
 
             # build up spike record
-
             s = spikes[nspikes]
             s['t'] = wave.ts[ti]
             # leave each spike's chanis in sorted order, as they are in self.inclnbhdi,
@@ -574,35 +553,31 @@ class Detector(object):
             ts = wave.ts[t0i:tendi]
             # use ts = np.arange(s['t0'], s['tend'], stream.tres) to reconstruct
             s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
-            s['phaseti0'], s['phaseti1'] = phasetis # wrt t0i
+            inclphasetis = phasetis[inclciis]
+            s['phasetis'][:ninclchans] = inclphasetis # wrt t0i
             s['aligni'] = aligni # 0 or 1
-
-            # TODO: add a sharpi field to designate which of the 2 phases is the sharpest
-            # (main) phase - use this for extractor.get_Vp_weights()
-
-            s['dphase'] = ts[phasetis[1]] - ts[phasetis[0]] # in us
+            try:
+                s['dphase'] = int(abs(ts[phasetis[maxcii, 0]] - ts[phasetis[maxcii, 1]])) # in us
+            except TypeError:
+                import pdb; pdb.set_trace()
             s['V0'], s['V1'] = AD2uV(Vs) # in uV
             s['Vpp'] = AD2uV(Vpp) # in uV
             chan = self.chans[chani]
-            chans = self.chans[chanis]
-            nchans = len(chans)
-            s['chan'], s['chans'][:nchans], s['nchans'] = chan, chans, nchans
-            wavedata[nspikes, 0:nchans] = window # aligned in time due to all having same nt
+            inclchans = self.chans[inclchanis]
+            s['chan'], s['chans'][:ninclchans], s['nchans'] = chan, inclchans, ninclchans
+            inclwindow = window[inclciis]
+            wavedata[nspikes, 0:ninclchans] = inclwindow
             if self.extractparamsondetect:
-                # just x and y params for now
-                x = self.siteloc[chanis, 0] # 1D array (row)
-                y = self.siteloc[chanis, 1]
-                maxchani = int(np.where(chans == chan)[0]) # != chani!
-                # TODO: could call weights2spatialmean directly, since we already
-                # have the multichan sharp array available, from which weights could be
-                # more effectively extracted than with get_Vpp_weights()
-                s['x0'], s['y0'], s['sx'], s['sy'] = wavedata2spatial(window, maxchani, phasetis, aligni, x, y)
-                #s['w0'], s['w1'], s['w2'], s['w3'], s['w4'] = wavedata2wcs(window, maxchani)
+                # Get Vpp at each inclchan's phasetis, use as spatial weights:
+                w = np.float32(spyke.util.rowtake(inclwindow, inclphasetis))
+                w = abs(w).sum(axis=1)
+                x = self.siteloc[inclchanis, 0] # 1D array (row)
+                y = self.siteloc[inclchanis, 1]
+                maxchani = int(np.where(inclchans == chan)[0]) # != chani!
+                s['x0'], s['y0'], s['sx'], s['sy'] = weights2gaussian(w, x, y, maxchani)
 
             if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
                             % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
-
-            lockchanis = self.locknbhdi[chani]
 
             # Update lockouts for this spike.
             # Lock out to the latest of the 3 sharpest significant extrema. Some spikes
@@ -611,23 +586,24 @@ class Detector(object):
             # threshold and falls within allowable dt of the previously considered last
             # phase, lock out to it. Otherwise, just lock out to 2nd phase. Doing this
             # reduces double triggers, yet maintains a minimalist lockout.
-
+            '''
             if (phase2ti != lockout and
                 phase2ti - lockout <= dti and
                 abs(wave.data[chani, phase2ti]) >= self.thresh[chani]):
                 lockout = phase2ti # absolute
-
-            # TODO: give each chan a distinct lockout, based on how each chan's
-            # sharpest phases line up with those of the maxchan. This will fix double
+            '''
+            # locking out to phase2ti no longer seems necessary, now that each chan
+            # has its own custom lockout
+            '''
+            p2ciis = (phase2tis - lockouts <= dti and
+                      abs(wave.data[chanis, phase2tis]) >= self.thresh[chanis])) # bool array
+            lockouts[p2ciis] = phase2tis[p2ciis]
+            '''
+            # give each chan a distinct lockout, based on how each chan's
+            # sharpest phases line up with those of the maxchan. This fixes double
             # triggers that happen about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
-            # Lining up each included chan's sharpest phases with those of the maxchan
-            # should also give better channel weights for spatial localization
-
-            lockouts[lockchanis] = lockout # same for all chans in this spike
-            if DEBUG:
-                lockoutt = wave.ts[lockout]
-                lockchans = self.chans[lockchanis]
-                debug('lockout=%d for chans=%s' % (lockoutt, lockchans))
+            lockouts[chanis] = t0i + phasetis.max(axis=1)
+            if DEBUG: debug('lockouts=%r\nfor chans=%r' % (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
 
             nspikes += 1
 

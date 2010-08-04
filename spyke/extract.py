@@ -77,7 +77,7 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        s = abs(self.p) # keep sigma +ve
+        s, = abs(self.p) # keep sigma +ve
         self.sx, self.sy = s, s
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
