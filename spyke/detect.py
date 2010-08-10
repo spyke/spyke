@@ -198,6 +198,8 @@ class Detector(object):
         spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
         self.maxnt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
 
+        assert (self.dt < np.abs(sort.TW)).all() # necessary when calling sort.align_neuron()
+
         t0 = time.time()
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
@@ -302,6 +304,7 @@ class Detector(object):
 
         self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('chan', np.uint8),
                            ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
+                           ('chani', np.uint8),
                            # TODO: maybe it would be more efficient to store ti, t0i,
                            # and tendi wrt start of surf file instead of times in us?
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
@@ -539,6 +542,9 @@ class Detector(object):
             # find inclchanis, get corresponding indices into locknbhd of chanis
             inclchanis = self.inclnbhdi[chani]
             ninclchans = len(inclchanis)
+            inclchans = self.chans[inclchanis]
+            chan = self.chans[chani]
+            inclchani = int(np.where(inclchans == chan)[0]) # != chani!
             inclciis = chanis.searchsorted(inclchanis)
 
             if DEBUG: debug("final window params: t0=%r, tend=%r, Vs=%r, phasets=\n%r"
@@ -556,25 +562,21 @@ class Detector(object):
             inclphasetis = phasetis[inclciis]
             s['phasetis'][:ninclchans] = inclphasetis # wrt t0i
             s['aligni'] = aligni # 0 or 1
-            try:
-                s['dphase'] = int(abs(ts[phasetis[maxcii, 0]] - ts[phasetis[maxcii, 1]])) # in us
-            except TypeError:
-                import pdb; pdb.set_trace()
+            s['dphase'] = int(abs(ts[phasetis[maxcii, 0]] - ts[phasetis[maxcii, 1]])) # in us
             s['V0'], s['V1'] = AD2uV(Vs) # in uV
             s['Vpp'] = AD2uV(Vpp) # in uV
-            chan = self.chans[chani]
-            inclchans = self.chans[inclchanis]
             s['chan'], s['chans'][:ninclchans], s['nchans'] = chan, inclchans, ninclchans
+            s['chani'] = inclchani
             inclwindow = window[inclciis]
             wavedata[nspikes, 0:ninclchans] = inclwindow
             if self.extractparamsondetect:
                 # Get Vpp at each inclchan's phasetis, use as spatial weights:
-                w = np.float32(spyke.util.rowtake(inclwindow, inclphasetis))
+                # see core.rowtake() or util.rowtake_cy() for indexing explanation:
+                w = np.float32(inclwindow[np.arange(ninclchans)[:, None], inclphasetis])
                 w = abs(w).sum(axis=1)
                 x = self.siteloc[inclchanis, 0] # 1D array (row)
                 y = self.siteloc[inclchanis, 1]
-                maxchani = int(np.where(inclchans == chan)[0]) # != chani!
-                s['x0'], s['y0'], s['sx'], s['sy'] = weights2gaussian(w, x, y, maxchani)
+                s['x0'], s['y0'], s['sx'], s['sy'] = weights2gaussian(w, x, y, inclchani)
 
             if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
                             % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))

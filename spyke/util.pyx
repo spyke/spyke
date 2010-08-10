@@ -228,20 +228,19 @@ def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
-def rowtake(np.ndarray[np.int16_t, ndim=2] a,
-            np.ndarray[np.int32_t, ndim=2] i):
-    """For each row in a, return values according to column indinces in i in the
-    corresponding row"""
+def rowtake_cy(np.ndarray[np.int32_t, ndim=2] a,
+               np.ndarray[np.int32_t, ndim=2] i):
+    """For each row in a, return values according to column indices in the
+    corresponding row in i. Returned shape == i.shape"""
 
     cdef Py_ssize_t nrows, ncols, rowi, coli
+    cdef np.ndarray[np.int32_t, ndim=2] out
 
-    nrows = a.shape[0]
+    nrows = i.shape[0]
     ncols = i.shape[1] # num cols to take for each row
-    assert i.shape[0] == nrows
-    assert nrows < 2**31 # stick to int32 row indices
-    assert ncols < 2**31 # stick to int32 col indices
-
-    cdef np.ndarray[np.int16_t, ndim=2] out = np.empty((nrows, ncols), dtype=np.int16)
+    #assert a.shape[0] == nrows
+    #assert i.max() < a.shape[1] # make sure col indices into a aren't out of range
+    out = np.empty((nrows, ncols), dtype=np.int32)
 
     for rowi in range(nrows):
         for coli in range(ncols):

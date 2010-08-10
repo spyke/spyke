@@ -357,8 +357,7 @@ class Sort(object):
     def align_neuron(self, nid, to):
         """Align all of a neuron's spikes by their max or min
         TODO: make sure all temporal values are properly updated.
-        This includes modelled temporal means, if any.
-        """
+        This includes modelled temporal means, if any"""
         neuron = self.neurons[nid]
         spikes = self.spikes
         nsids = neuron.sids # ids of spikes that belong to this neuron
@@ -374,22 +373,41 @@ class Sort(object):
             i = Vss[b] > 0 # indices into nsids of spikes aligned to the max phase
         else: raise ValueError()
         sids = nsids[i] # ids of spikes that need realigning
-        phasetis = np.column_stack([spikes['phaseti0'][sids], spikes['phaseti1'][sids]])
-        dphasetis = phasetis[:, 1] - phasetis[:, 0]
-        dphases = spikes['dphase'][sids]
-        # for those spikes that are being realigned, translate aligni from
-        # [0, 1] to [1, -1] and use as multipliers of dphases and dphasetis to adjust
-        # spike time values and phasetis values
-        dalignis = -np.int32(spikes['aligni'][sids])*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
-        dts = dalignis * dphases
-        dtis = -dalignis * dphasetis
+        n = len(sids) # num spikes that need realigning
+        print("Realigning %d spikes" % n)
+        if n == 0: # nothing to do
+            return
+
+        multichanphasetis = spikes['phasetis'][sids] # n x nchans x 2 arr
+        chanis = spikes['chani'][sids] # len(n) arr
+        # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
+        phasetis = np.int32(multichanphasetis[np.arange(n), chanis]) # n x 2 arr
+        # NOTE: phasetis aren't always in temporal order!
+        dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
+        dphases = spikes['dphase'][sids] # stored as +ve
+
+        # for each spike, decide whether to add or subtract dphase to/from its temporal values
+        ordered =  dphasetis > 0 # in temporal order
+        reversed = dphasetis < 0 # in reversed temporal order
+        alignis = spikes['aligni'][sids]
+        alignis0 = alignis == 0
+        alignis1 = alignis == 1
+        dphasei = np.zeros(len(alignis), dtype=int)
+        # add dphase to temporal values to align to later phase
+        dphasei[ordered & alignis0 | reversed & alignis1] = 1
+        # subtact dphase from temporal values to align to earlier phase
+        dphasei[ordered & alignis1 | reversed & alignis0] = -1
+
+        #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
+        dts = dphasei * dphases
+        dtis = dphasei * dphasetis
         # shift values
         spikes['t0'][sids] += dts
         spikes['t'][sids] += dts
         spikes['tend'][sids] += dts
-        spikes['aligni'][sids] += dalignis
-        spikes['phaseti0'][sids] += dtis # update wrt new t0i
-        spikes['phaseti1'][sids] += dtis # update wrt new t0i
+        spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
+        spikes['aligni'][sids[alignis0]] = 1
+        spikes['aligni'][sids[alignis1]] = 0
 
         # update wavedata for each shifted spike
         for sid, spike in zip(sids, spikes[sids]):
@@ -656,15 +674,15 @@ class Neuron(object):
             #return self.wave
         sids = self.sids
 
-        t0 = time.time()
+        #t0 = time.time()
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
         chanpopulation = np.concatenate(chanslist)
         neuronchans = np.unique(chanpopulation)
-        print('first loop took %.3f sec' % (time.time()-t0))
+        #print('first loop took %.3f sec' % (time.time()-t0))
 
-        t0 = time.time()
+        #t0 = time.time()
         try:
             wavedata = sort.wavedata[sids]
         except MemoryError:
@@ -685,8 +703,8 @@ class Neuron(object):
             chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
             data[chanis] += wd[:len(chans)] # accumulate
             nspikes[chanis] += 1 # inc spike count for this spike's chans
-        print('2nd loop took %.3f sec' % (time.time()-t0))
-        t0 = time.time()
+        #print('2nd loop took %.3f sec' % (time.time()-t0))
+        #t0 = time.time()
         data /= nspikes # normalize all data points appropriately
         # keep only those chans that at least 1/2 the spikes contributed to
         bins = list(neuronchans) + [sys.maxint] # concatenate rightmost bin edge
@@ -699,7 +717,7 @@ class Neuron(object):
         self.wave.ts = sort.twts
         #print('neuron[%d].wave.chans = %r' % (self.id, chans))
         #print('neuron[%d].wave.ts = %r' % (self.id, ts))
-        print('mean calc took %.3f sec' % (time.time()-t0))
+        #print('mean calc took %.3f sec' % (time.time()-t0))
         return self.wave
 
     def get_chans(self):

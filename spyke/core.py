@@ -1162,3 +1162,24 @@ def intersect1d(arrays, assume_unique=False):
     shift = N-1
     return aux[aux[shift:] == aux[:-shift]]
 '''
+
+def rowtake(a, i):
+    """For each row in a, return values according to column indices in the
+    corresponding row in i. Returned shape == i.shape"""
+    assert a.ndim == 2
+    assert i.ndim <= 2
+    '''
+    if i.ndim == 1:
+        j = np.arange(a.shape[0])
+    else: # i.ndim == 2
+        j = np.repeat(np.arange(a.shape[0]), i.shape[1])
+        j.shape = i.shape
+    j *= a.shape[1]
+    j += i
+    return a.flat[j]
+    '''
+    # this is about 3X faster:
+    if i.ndim == 1:
+        return a[np.arange(a.shape[0]), i]
+    else: # i.ndim == 2
+        return a[np.arange(a.shape[0])[:, None], i]

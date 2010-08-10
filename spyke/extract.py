@@ -403,7 +403,7 @@ class Extractor(object):
         V = self.sort.wavedata[sid, maxchani]
         # get timestamps relative to start of waveform
         ts = np.arange(0, spike['tend'] - spike['t0'], self.sort.tres)
-        t0, t1 = ts[[spike['phaseti0'], spike['phaseti1']]]
+        t0, t1 = ts[[spike['phaset0i'], spike['phaset1i']]]
         V0, V1 = spike['V0'], spike['V1']
         tls = self.tls
         tls.t0, tls.t1 = t0, t1
@@ -432,7 +432,7 @@ class Extractor(object):
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
         sid = spike['id']
         wavedata = self.sort.wavedata[sid, :nchans] # chans in wavedata are sorted
-        phasetis = spike['phaseti0'], spike['phaseti1']
+        phasetis = spike['phaset0i'], spike['phaset1i']
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
@@ -548,7 +548,7 @@ class Extractor(object):
         spikes['IC1'][sid] = weights[0, 0]
         spikes['IC2'][sid] = weights[0, 1]
         '''
-        phasetis = spike['phaseti0'], spike['phaseti1']
+        phasetis = spike['phaset0i'], spike['phaset1i']
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
