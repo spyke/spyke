@@ -925,12 +925,10 @@ class SortFrame(wxglade_gui.SortFrame):
         self.Align('min')
 
     def Align(self, to):
-        selectedRows = self.nlist.getSelection()
-        if len(selectedRows) != 1:
-            raise RuntimeError("Exactly 1 neuron must be selected for spike alignment")
-        row = selectedRows[0]
-        nid = list(self.sort.neurons)[row]
-        self.sort.align_neuron(nid, to)
+        rowis = self.nlist.getSelection()
+        nids = np.asarray(list(self.sort.neurons))[rowis]
+        for nid in nids:
+            self.sort.align_neuron(nid, to)
 
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""

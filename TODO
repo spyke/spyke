@@ -1,34 +1,12 @@
 RECENT:
 
-    - 2010-07-21 - NVS:
-        - try taking integral of spike on main chan (or each chan?), and find peak of the integral to tell you when the biggest phase of the spike has ended
-        - might try using climbing algorithm to clean clusters based on spike shape. Take all points in maxchan. This gives you say 25 or 50 dim space. Run climb on that, but only need to do it for however many spikes are currently in the cluster, which isn't more than a few thousand. Then, exclude subclusters with say less than 5 points in them. This gets rid of the junk. Or, you could also use it to subcluster, based on maxchan spike shape
+    - make sort.align_neuron a neuron.align() method instead?
 
+    - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
 
-    New check_edges() strategy:
+    - maybe instead of having a sort.clusteris attrib, add a field to spikes rec array called cid. So each spike would have both an nid and a cid (nid could be -1 after application of density thresh mask, while cid could remain something else). cid could be int16 like nid
 
-    1. For each chan, find 3 most extreme extrema, where an extremum is the biggest max > 0 between zero crossings, or the smallest min < 0 between zero crossings. Endpoints of each waveform are treated as zero crossings.
-
-    2. For each chan, measure sharpness of each extremum by taking peak_value / npoints around it on that side of 0. Keep the sign. This could later be refined to divide by the FWHM instead of npoints, but would require at least some linear interpolation between the points straddling 50% on either side of the extremum.
-
-    3. Find chan with single biggest abs(sharpness) value, choose that as maxchan.
-
-    3. Align maxchan to the abs(sharpest) extremum, and store the two (or 3?) sharpest (signed) values. Save sharpness values in s0 and s1 (and s2?). Might consider storing V2 as well as V0 and V1.
-
-    4. For each spike, maybe make phaseti0 and phaseti1 (and phaseti2?) all arrays of length == nchans, so you can save the positions of those non-maxchan extrema and use them to easily determine channel weights later for spatial fitting
-        - this would also allow you to have a different lockout for each chan in a spike
-        - maybe make V0 and V1 and V2, and s0 and s1 and s2 all nchans length arrays too, for easier phase alignment across channels when getting channel weights
-        - for manual alignment, rename align max/align min to align +/align - and use signed sharpness instead of amplitude to decide which phase to align each spike to
-        - most meaningful spike chans should be those that have the least number of 0 crossing
-        - maybe calc sharpness between all 0 crossings on all data, and use that during edge detection. Check the signal amplitude at sharpest point for each segment between each 0 crossings, and if it exceeds threshold, save it as an edge, and pass sharpness values on for spike alignment, max phase choosing, etc. This would also avoid having to constantly deal with waveform edge values, which aren't really 0 crossings.
-        - another refinement might be when calculating the width that goes with an extremum, instead of counting the npoints between 0 crossings, count the npoints between where signal drops to say 10% of extremum, ie calc FW1/10M. Wouldn't really need to interpolate like you would for FWHM, since you'd still have a decent number of points to work with, almost as many as FW0M which is what we're currently doing. This would deal with problem where a phase is obviously a phase, and has dropped from its peak back down to almost 0, but it doesn't quite cross, and the crossing doesn't happen til way way later, greatly skewing the width measure for that phase. See first +ve phase of spike at ptc18.14.299719780.
-
-
-    - add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
-        - plot error histogram to aid in setting thresh
-        - for each point, find shortest geometric distance between spike and cluster mean, instead of just vertical distance like rms
-        - do Gaussian weighting in space and time of errors - care most about errors near the max chan and near the main phases of the spike - maybe use spatial sigma and temporal spread from parameter extraction step, which would give you different G weighting for every spike. Or better yet, just use spatial sigma and temporal spread of the mean, which should be nice and noise-free
-             - then, once you've removed the noisy spikes, need to recalculate and replot the error histogram, and make sure there aren't any other noisy spikes remaining
+    - why does neuron.sids field have dtype=int64? Should stick with int32 as spikes['id'] does
 
     - normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
 
@@ -743,6 +721,35 @@ DONE:
 - for simplicity, rename Vs back to V0 and V1, and phasetis back to phaset0i and phaset1i
 - combine merge and split into re-climb
 - stop using grey as a cluster colour - grey points are hard to tell apart from unsorted semi-transparent white points
+
+- New check_edges() strategy:
+
+1. For each chan, find 3 most extreme extrema, where an extremum is the biggest max > 0 between zero crossings, or the smallest min < 0 between zero crossings. Endpoints of each waveform are treated as zero crossings.
+
+2. For each chan, measure sharpness of each extremum by taking peak_value / npoints around it on that side of 0. Keep the sign. This could later be refined to divide by the FWHM instead of npoints, but would require at least some linear interpolation between the points straddling 50% on either side of the extremum.
+
+3. Find chan with single biggest abs(sharpness) value, choose that as maxchan.
+
+3. Align maxchan to the abs(sharpest) extremum, and store the two (or 3?) sharpest (signed) values. Save sharpness values in s0 and s1 (and s2?). Might consider storing V2 as well as V0 and V1.
+
+4. For each spike, maybe make phaseti0 and phaseti1 (and phaseti2?) all arrays of length == nchans, so you can save the positions of those non-maxchan extrema and use them to easily determine channel weights later for spatial fitting
+    - this would also allow you to have a different lockout for each chan in a spike
+    - maybe make V0 and V1 and V2, and s0 and s1 and s2 all nchans length arrays too, for easier phase alignment across channels when getting channel weights
+    - for manual alignment, rename align max/align min to align +/align - and use signed sharpness instead of amplitude to decide which phase to align each spike to
+    - most meaningful spike chans should be those that have the least number of 0 crossing
+    - maybe calc sharpness between all 0 crossings on all data, and use that during edge detection. Check the signal amplitude at sharpest point for each segment between each 0 crossings, and if it exceeds threshold, save it as an edge, and pass sharpness values on for spike alignment, max phase choosing, etc. This would also avoid having to constantly deal with waveform edge values, which aren't really 0 crossings.
+    - another refinement might be when calculating the width that goes with an extremum, instead of counting the npoints between 0 crossings, count the npoints between where signal drops to say 10% of extremum, ie calc FW1/10M. Wouldn't really need to interpolate like you would for FWHM, since you'd still have a decent number of points to work with, almost as many as FW0M which is what we're currently doing. This would deal with problem where a phase is obviously a phase, and has dropped from its peak back down to almost 0, but it doesn't quite cross, and the crossing doesn't happen til way way later, greatly skewing the width measure for that phase. See first +ve phase of spike at ptc18.14.299719780.
+
+
+- add a cleaning method, to reject points whose waveforms are quite different from the mean - ask Nick about his criteria - rms error?
+    - plot error histogram to aid in setting thresh
+    - for each point, find shortest geometric distance between spike and cluster mean, instead of just vertical distance like rms
+    - do Gaussian weighting in space and time of errors - care most about errors near the max chan and near the main phases of the spike - maybe use spatial sigma and temporal spread from parameter extraction step, which would give you different G weighting for every spike. Or better yet, just use spatial sigma and temporal spread of the mean, which should be nice and noise-free
+         - then, once you've removed the noisy spikes, need to recalculate and replot the error histogram, and make sure there aren't any other noisy spikes remaining
+    - try taking integral of spike on main chan (or each chan?), and find peak of the integral to tell you when the biggest phase of the spike has ended
+        - he tried this, says it doesn't work too well
+    - perhaps best cleaning idea: 2010-07-21 - NVS:
+        - use gradient ascent clustering algorithm on maxchan waveform to not just remove noise but actually split 2 or more cells that are stuck in a single cluster, that can't be split in normal parameter space. This is a very high dimensional space (50D in my case, with interpolation to 50 kHz), but there are relatively few spikes in a single cluster that needs splitting (1000s), so this should run fast
 
 
 

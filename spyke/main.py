@@ -10,6 +10,7 @@ pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
 from climbing import climb # .pyx file
 
+from scipy.stats import mode
 import wx
 import wx.html
 import wx.py
@@ -886,17 +887,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
         s = self.sort
+        spikes = s.spikes
         sf = self.OpenFrame('sort')
         cf = self.OpenFrame('cluster')
 
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
-            i = [] # spikes to run climb() on
+            sids = [] # spikes to run climb() on
             for oldcluster in oldclusters:
-                i.append(np.where(s.clusteris == oldcluster.id)[0])
-            i = np.concatenate(i) # run climb() on selected spikes
+                sids.append(np.where(s.clusteris == oldcluster.id)[0])
+            sids = np.concatenate(sids) # run climb() on selected spikes
         else: # no clusters selected
-            i = np.arange(s.nspikes) # run climb() on all spikes
+            sids = spikes['id'] # run climb() on all spikes
             # delete all existing clusters (if any)
             for cluster in s.clusters.values():
                 self.DelCluster(cluster, update=False)
@@ -910,12 +912,36 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dimselis = self.dimlist.getSelection()
         if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
         dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
-        data = self.sort.get_param_matrix(dims=dims, scale=True)
+        if 'wave' in dims: # do maxchan wavefrom clustering
+            if len(dims) > 1:
+                raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
+            # decide which is the definitive maxchan for the one selected cluster. Or, allow
+            # maxchan waveform clustering across multiple clusters?
+            # pop up dialog asking for chan to cluster on
+            maxchans = spikes['chan'][sids]
+            clusterchan = mode(maxchans)[0] # cluster on most common maxchan
+            print("Clustering based on chan %d waveforms" % clusterchan)
+            # build up data
+            nspikes = len(sids)
+            nt = s.wavedata.shape[2]
+            data = np.zeros((nspikes, nt), dtype=np.float32)
+            for sii, sid in enumerate(sids):
+                nchans = spikes['nchans'][sid]
+                chans = spikes['chans'][sid, :nchans]
+                clusterchani = np.where(chans == clusterchan)[0]
+                if len(clusterchani) == 0:
+                    raise RuntimeError("Chan %d isn't a part of spike %d" % (clusterchan, sid))
+                data[sii] = np.int32(s.wavedata[sid, clusterchani])
+            # normalize each dimension
+            data -= data.mean(axis=0)
+            data /= data.std(axis=0)
+        else: # do non-maxchan wavefrom clustering
+            data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
 
-        # grab climbing params
+        # grab climbing params and run it
         self.update_sort_from_cluster_pane()
         t0 = time.time()
-        results = climb(data[i], sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
+        results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
                         rneighx=s.rneighx, nsamples=s.nsamples,
                         calcpointdensities=True, calcscoutdensities=True,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
@@ -931,9 +957,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             for oldcluster in oldclusters:
                 self.DelCluster(oldcluster, update=False) # del original clusters
             cf.f.scene.disable_render = True # for speed
-            self.DeColourPoints(i) # decolour all points belonging to old clusters in one shot
-            s.clusteris[i] = clusteris + s.nextnid
-            s.densities[i] = densities
+            self.DeColourPoints(sids) # decolour all points belonging to old clusters
+            s.clusteris[sids] = clusteris + s.nextnid
+            s.densities[sids] = densities
             s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
         else: # no clusters selected
             s.clusteris = clusteris
@@ -949,17 +975,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
             density_mask = densities/scoutdensity > s.density_thresh
             ii, = np.where((clusteris == nid) & density_mask)
-            sids = i[ii]
+            nsids = sids[ii] # sids belonging to this nid
             cluster = self.OnAddCluster(update=False)
             newclusters.append(cluster)
             neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(sids, neuron, update=False)
+            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
             for dimi, dim in enumerate(dims):
                 cluster.pos[dim] = pos[dimi]
-                if len(sids) == 0:
-                    print('WARNING: neuron %d has no spikes' % nid)
+                if len(nsids) == 0:
+                    print('WARNING: neuron %d has no spikes' % neuron.id)
                 else:
-                    cluster.scale[dim] = data[sids, dimi].std()
+                    cluster.scale[dim] = data[ii, dimi].std()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # now do some final updates
