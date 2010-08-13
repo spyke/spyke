@@ -954,9 +954,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         if oldclusters: # some clusters selected
             self.SelectClusters(oldclusters, on=False) # deselect original cluster
+            cf.f.scene.disable_render = True # for speed
             for oldcluster in oldclusters:
                 self.DelCluster(oldcluster, update=False) # del original clusters
-            cf.f.scene.disable_render = True # for speed
             self.DeColourPoints(sids) # decolour all points belonging to old clusters
             s.clusteris[sids] = clusteris + s.nextnid
             s.densities[sids] = densities
@@ -973,25 +973,26 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         t0 = time.time()
         for nid, pos in zip(nids, scoutpositions): # nids come out sorted
             scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            density_mask = densities/scoutdensity > s.density_thresh
-            ii, = np.where((clusteris == nid) & density_mask)
+            density_mask = densities/scoutdensity >= s.density_thresh
+            nid_mask = clusteris == nid
+            ii, = np.where(nid_mask & density_mask)
             nsids = sids[ii] # sids belonging to this nid
             cluster = self.OnAddCluster(update=False)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
+            if len(nsids) == 0:
+                print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
             for dimi, dim in enumerate(dims):
                 cluster.pos[dim] = pos[dimi]
                 if len(nsids) == 0:
-                    print('WARNING: neuron %d has no spikes' % neuron.id)
-                else:
                     cluster.scale[dim] = data[ii, dimi].std()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # now do some final updates
         self.UpdateClustersGUI()
-        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         self.ColourPoints(newclusters)
+        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
 
         if oldclusters:
             # select newly created cluster(s)
