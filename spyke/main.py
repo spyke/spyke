@@ -912,7 +912,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dimselis = self.dimlist.getSelection()
         if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
         dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
-        if 'wave' in dims: # do maxchan wavefrom clustering
+        plotdims = self.GetClusterPlotDimNames()
+        waveclustering = 'wave' in dims
+        if waveclustering: # do maxchan wavefrom clustering
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
             # decide which is the definitive maxchan for the one selected cluster. Or, allow
@@ -935,6 +937,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # normalize each dimension
             data -= data.mean(axis=0)
             data /= data.std(axis=0)
+            plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do non-maxchan wavefrom clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
 
@@ -968,7 +971,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             s.sampleis = sampleis
 
         # apply the clusters to the cluster plot
-        plotdims = self.GetClusterPlotDimNames()
         newclusters = []
         t0 = time.time()
         for nid, pos in zip(nids, scoutpositions): # nids come out sorted
@@ -983,10 +985,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
                 print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
-            for dimi, dim in enumerate(dims):
-                cluster.pos[dim] = pos[dimi]
-                if len(nsids) == 0:
-                    cluster.scale[dim] = data[ii, dimi].std()
+            if waveclustering and len(nsids) != 0:
+                # set pos and scale in plotdims using mean and std of points
+                for plotdimi, plotdim in enumerate(plotdims):
+                    points = plotdata[ii, plotdimi]
+                    cluster.pos[plotdim] = points.mean()
+                    cluster.scale[plotdim] = points.std() or cluster.scale[plotdim]
+            else: # set pos and scale in cluster dims using cluster pos and std of points
+                for dimi, dim in enumerate(dims):
+                    cluster.pos[dim] = pos[dimi]
+                    if len(nsids) != 0:
+                        cluster.scale[dim] = data[ii, dimi].std() or cluster.scale[dim]
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # now do some final updates

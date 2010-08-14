@@ -1,5 +1,8 @@
 RECENT:
 
+    - sometimes spike shapes don't distinguish much on maxchan, but they do on other chans. Try sorting on multichan waveforms, not just maxchan - reduce dimensionality by just picking the peak points (whether simultaneously according to their position on maxchan, or not-so-simultaneously as stored in 2 dimension phasetis of each spike)
+        - when picking points, need to take aligni into account. If alignis for two different spikes are different, need to find the dt that would let you keep them aligned and have the same aligni - ie, need to deduce the position of the missing 3rd phase on one of the two spikes
+
     - make sort.align_neuron a neuron.align() method instead?
 
     - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
