@@ -45,7 +45,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         - instead of merging the higher indexed scout into the lower indexed one, you should really merge the one with the lower density estimate into the one with the higher density estimate - otherwise you potentially end up deleting the scout that's closer to the local max density, which probably sets you back several iterations
             - this would require calc'ing and storing the density for each cluster, and updating it every time it moves
                 - is local density and local gradient calc sufficiently similar that this won't be expensive?
-            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, densities, still) except for the clusteris array, then proceed as usual. Then update the density for the newly merged cluster
+            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, densities, still) except for the cids array, then proceed as usual. Then update the density for the newly merged cluster
 
         - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that butt up against those of the other scout
 
@@ -75,7 +75,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int M # current num scout points (clusters)
     cdef int npoints, nremoved
     cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
-    cdef np.ndarray[np.int32_t, ndim=1] clusteris = np.zeros(N, dtype=np.int32) # cluster indices into data
+    cdef np.ndarray[np.int32_t, ndim=1] cids = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
     cdef double sigma2 = sigma * sigma
     cdef double twosigma2 = 2 * sigma2
@@ -103,8 +103,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         sampleis = np.arange(nsamples)
     M = nsamples # initially, but M will decrease over time
     scouts = data[sampleis].copy() # scouts will be modified
-    clusteris.fill(-1) # -ve number indicates an unclustered data point
-    clusteris[sampleis] = np.arange(M)
+    cids.fill(-1) # -ve number indicates an unclustered data point
+    cids[sampleis] = np.arange(M)
 
     if minmove == -1.0:
         minmove = 0.000001 * sigma * alpha # along a single dimension
@@ -144,10 +144,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                         still[scouti] = still[scouti+1] # ditto for still array
                     # update cluster indices
                     for clustii in range(N):
-                        if clusteris[clustii] == j:
-                            clusteris[clustii] = i # overwrite all occurences of j with i
-                        elif clusteris[clustii] > j:
-                            clusteris[clustii] -= 1 # decr all clust indices above j
+                        if cids[clustii] == j:
+                            cids[clustii] = i # overwrite all occurences of j with i
+                        elif cids[clustii] > j:
+                            cids[clustii] -= 1 # decr all clust indices above j
                     M -= 1 # decr num of scouts, don't inc j, new value at j has just slid into view
                     #printf(' %d<-%d ', i, j)
                     printf('M')
@@ -216,16 +216,16 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         kdtree = KDTree(data) # tree of clustered data points
         # pick out unclustered data points
         print('picking out unclustered data')
-        uciis = clusteris == -1
+        uciis = cids == -1
         ucdata = data[uciis]
         # query the tree for the closest clustered point for each unclustered data point
         print('calling query')
         nnd, nni = kdtree.query(ucdata)
         print('assigning clusters')
-        clusteris[uciis] = clusteris[nni]
+        cids[uciis] = cids[nni]
         '''
         for i in range(N): # iterate over all data points
-            if clusteris[i] != -1: # point already has a valid cluster index
+            if cids[i] != -1: # point already has a valid cluster index
                 continue
             # point is unclustered, find nearest clustered point
             min_d2 = 100e99
@@ -247,7 +247,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 if d2 < min_d2:
                     # update this unclustered point's cluster index
                     min_d2 = d2
-                    clusteris[i] = clusteris[samplei]
+                    cids[i] = cids[samplei]
         print('Assigning unclustered points took %.3f sec' % (time.time()-t0))
 
     # remove clusters with less than minpoints number of points
@@ -256,7 +256,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     while i < M:
         npoints = 0 # reset
         for j in range(N):
-            if clusteris[j] == i:
+            if cids[j] == i:
                 npoints += 1
         if npoints < minpoints:
             #print('cluster %d has only %d points' % (i, npoints))
@@ -268,10 +268,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 still[scouti] = still[scouti+1] # ditto for still array
             # update cluster indices
             for clustii in range(N):
-                if clusteris[clustii] == i:
-                    clusteris[clustii] = -1 # overwrite all occurences of i with -1
-                elif clusteris[clustii] > i:
-                    clusteris[clustii] -= 1 # decr all clust indices above i
+                if cids[clustii] == i:
+                    cids[clustii] = -1 # overwrite all occurences of i with -1
+                elif cids[clustii] > i:
+                    cids[clustii] -= 1 # decr all clust indices above i
             M -= 1 # decr num of scouts, don't inc i, new value at i has just slid into view
             nremoved += 1
         else:
@@ -294,7 +294,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         for i in range(N):
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
                 samplei = sampleis[j]
-                if clusteris[i] != clusteris[samplei] or samplei == i:
+                if cids[i] != cids[samplei] or samplei == i:
                     continue # don't include points from different clusters, or the point itself
                 d2 = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
@@ -318,7 +318,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         for i in range(M):
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
                 samplei = sampleis[j]
-                if i != clusteris[samplei]:
+                if i != cids[samplei]:
                     continue # don't include points from different clusters. TODO: maybe I should anyway?
                 d2 = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
@@ -347,5 +347,5 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     print('moving scouts: %r' % np.where(moving)[0])
     print('still array:')
     print still[:M]
-    return clusteris, scouts[:M], densities, scoutdensities, sampleis
+    return cids, scouts[:M], densities, scoutdensities, sampleis
 

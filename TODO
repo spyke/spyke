@@ -2,14 +2,11 @@ RECENT:
 
     - sometimes spike shapes don't distinguish much on maxchan, but they do on other chans. Try sorting on multichan waveforms, not just maxchan - reduce dimensionality by just picking the peak points (whether simultaneously according to their position on maxchan, or not-so-simultaneously as stored in 2 dimension phasetis of each spike)
         - when picking points, need to take aligni into account. If alignis for two different spikes are different, need to find the dt that would let you keep them aligned and have the same aligni - ie, need to deduce the position of the missing 3rd phase on one of the two spikes
+        - maybe best of all is give user ability to select which chan, or which channels, to do waveform clustering on
 
     - make sort.align_neuron a neuron.align() method instead?
 
     - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
-
-    - maybe instead of having a sort.clusteris attrib, add a field to spikes rec array called cid. So each spike would have both an nid and a cid (nid could be -1 after application of density thresh mask, while cid could remain something else). cid could be int16 like nid
-
-    - why does neuron.sids field have dtype=int64? Should stick with int32 as spikes['id'] does
 
     - normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
 
@@ -753,6 +750,12 @@ DONE:
         - he tried this, says it doesn't work too well
     - perhaps best cleaning idea: 2010-07-21 - NVS:
         - use gradient ascent clustering algorithm on maxchan waveform to not just remove noise but actually split 2 or more cells that are stuck in a single cluster, that can't be split in normal parameter space. This is a very high dimensional space (50D in my case, with interpolation to 50 kHz), but there are relatively few spikes in a single cluster that needs splitting (1000s), so this should run fast
+
+- why does neuron.sids field have dtype=int64? Should stick with int32 as spikes['id'] does
+    - actually, I'm not sure it is int64. Seems to be int32 after all...
+
+- instead of having a sort.clusteris attrib, add a field to spikes rec array called cid. So each spike would have both an nid and a cid (nid could be -1 after application of density thresh mask, while cid could remain something else). cid could be int16 like nid
+
 
 
 

@@ -59,15 +59,15 @@ results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
                 calcscoutdensities=calcscoutdensities,
                 minmove=minmove, maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
-clusteris, positions, densities, scoutdensities, sampleis = results
+cids, positions, densities, scoutdensities, sampleis = results
 print('climb took %.3f sec' % (time.time()-t0))
 
 nclusters = len(positions)
 
 ncolours = len(COLOURS)
-samplecolours = COLOURS[clusteris % ncolours]
+samplecolours = COLOURS[cids % ncolours]
 clustercolours = COLOURS[np.arange(nclusters) % ncolours]
-#colours[clusteris == -1] = GREY # unclassified points
+#colours[cids == -1] = GREY # unclassified points
 
 # plot x vs y
 f = makefigure()

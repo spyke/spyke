@@ -267,8 +267,9 @@ class Detector(object):
         stream.open()
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
-        # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
+        # default -1 indicates no nid is set as of yet, reserve 0 for actual ids. Ditto for cid
         spikes['nid'] = -1
+        spikes['cid'] = -1
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         # spikes might come out slightly out of temporal order, due to the way
@@ -302,9 +303,9 @@ class Detector(object):
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
 
-        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('chan', np.uint8),
-                           ('chans', np.uint8, self.maxnchansperspike), ('nchans', np.uint8),
-                           ('chani', np.uint8),
+        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('cid', np.int16),
+                           ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike),
+                           ('nchans', np.uint8), ('chani', np.uint8),
                            # TODO: maybe it would be more efficient to store ti, t0i,
                            # and tendi wrt start of surf file instead of times in us?
                            ('t', np.int64), ('t0', np.int64), ('tend', np.int64),

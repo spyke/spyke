@@ -115,12 +115,12 @@ m = pm.MixtureModel(ndistribs, np.ones(ndistribs)/ndistribs, distribs,
 posterior, loglikelihood = m.EM(pmdata, 50, 0.1)
 #posterior, loglikelihood = m.randMaxEM(pmdata, 20, 100, 0.5, silent=False)
 
-clusteris = m.classify(pmdata, entropy_cutoff=0.5, silent=True)
+cids = m.classify(pmdata, entropy_cutoff=0.5, silent=True)
 
 ncolours = len(COLOURS)
-colouris = clusteris % ncolours
+colouris = cids % ncolours
 colours = np.asarray(COLOURS)[colouris]
-colours[clusteris == -1] = GREY # unclassified points
+colours[cids == -1] = GREY # unclassified points
 
 f = figure()
 a = gca()
