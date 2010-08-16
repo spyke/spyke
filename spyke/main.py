@@ -963,7 +963,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             for oldcluster in oldclusters:
                 self.DelCluster(oldcluster, update=False) # del original clusters
             self.DeColourPoints(sids) # decolour all points belonging to old clusters
-            spikes['cid'][sids] = cids + s.nextnid
+            spikes['cid'][sids] = np.int16(cids + s.nextnid)
             s.densities[sids] = densities
             s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
         else: # no clusters selected

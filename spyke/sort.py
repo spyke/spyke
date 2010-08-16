@@ -354,75 +354,6 @@ class Sort(object):
         self.neurons[neuron.id] = neuron # add neuron to self
         return neuron
 
-    def align_neuron(self, nid, to):
-        """Align all of a neuron's spikes by their max or min
-        TODO: make sure all temporal values are properly updated.
-        This includes modelled temporal means, if any"""
-        neuron = self.neurons[nid]
-        spikes = self.spikes
-        nsids = neuron.sids # ids of spikes that belong to this neuron
-
-        V0s = spikes['V0'][nsids]
-        V1s = spikes['V1'][nsids]
-        Vss = np.column_stack((V0s, V1s))
-        alignis = spikes['aligni'][nsids]
-        b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
-        if to == 'max':
-            i = Vss[b] < 0 # indices into nsids of spikes aligned to the min phase
-        elif to == 'min':
-            i = Vss[b] > 0 # indices into nsids of spikes aligned to the max phase
-        else: raise ValueError()
-        sids = nsids[i] # ids of spikes that need realigning
-        n = len(sids) # num spikes that need realigning
-        print("Realigning %d spikes" % n)
-        if n == 0: # nothing to do
-            return
-
-        multichanphasetis = spikes['phasetis'][sids] # n x nchans x 2 arr
-        chanis = spikes['chani'][sids] # len(n) arr
-        # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
-        phasetis = np.int32(multichanphasetis[np.arange(n), chanis]) # n x 2 arr
-        # NOTE: phasetis aren't always in temporal order!
-        dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
-        dphases = spikes['dphase'][sids] # stored as +ve
-
-        # for each spike, decide whether to add or subtract dphase to/from its temporal values
-        ordered =  dphasetis > 0 # in temporal order
-        reversed = dphasetis < 0 # in reversed temporal order
-        alignis = spikes['aligni'][sids]
-        alignis0 = alignis == 0
-        alignis1 = alignis == 1
-        dphasei = np.zeros(len(alignis), dtype=int)
-        # add dphase to temporal values to align to later phase
-        dphasei[ordered & alignis0 | reversed & alignis1] = 1
-        # subtact dphase from temporal values to align to earlier phase
-        dphasei[ordered & alignis1 | reversed & alignis0] = -1
-
-        #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
-        dts = dphasei * dphases
-        dtis = dphasei * dphasetis
-        # shift values
-        spikes['t0'][sids] += dts
-        spikes['t'][sids] += dts
-        spikes['tend'][sids] += dts
-        spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
-        spikes['aligni'][sids[alignis0]] = 1
-        spikes['aligni'][sids[alignis1]] = 0
-
-        # update wavedata for each shifted spike
-        for sid, spike in zip(sids, spikes[sids]):
-            wave = self.stream[spike['t0']:spike['tend']]
-            nchans = spike['nchans']
-            chans = spike['chans'][:nchans]
-            wave = wave[chans]
-            self.wavedata[sid, 0:nchans] = wave.data
-        neuron.update_wave() # update mean waveform
-        # trigger resaving of .spike and .wave files on next .sort save
-        try: del self.spikefname
-        except AttributeError: pass
-        try: del self.wavefname
-        except AttributeError: pass
-        # TODO: trigger a redraw for all of this neuron's plotted spikes
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -735,6 +666,76 @@ class Neuron(object):
         d = self.__dict__.copy()
         d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
         return d
+
+    def align(self, to):
+        """Align all of this neuron's spikes by their max or min
+        TODO: make sure all temporal values are properly updated.
+        This includes modelled temporal means, if any"""
+        s = self.sort
+        spikes = s.spikes
+        nsids = self.sids # ids of spikes that belong to this neuron
+
+        V0s = spikes['V0'][nsids]
+        V1s = spikes['V1'][nsids]
+        Vss = np.column_stack((V0s, V1s))
+        alignis = spikes['aligni'][nsids]
+        b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
+        if to == 'max':
+            i = Vss[b] < 0 # indices into nsids of spikes aligned to the min phase
+        elif to == 'min':
+            i = Vss[b] > 0 # indices into nsids of spikes aligned to the max phase
+        else: raise ValueError()
+        sids = nsids[i] # ids of spikes that need realigning
+        n = len(sids) # num spikes that need realigning
+        print("Realigning %d spikes" % n)
+        if n == 0: # nothing to do
+            return
+
+        multichanphasetis = spikes['phasetis'][sids] # n x nchans x 2 arr
+        chanis = spikes['chani'][sids] # len(n) arr
+        # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
+        phasetis = np.int32(multichanphasetis[np.arange(n), chanis]) # n x 2 arr
+        # NOTE: phasetis aren't always in temporal order!
+        dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
+        dphases = spikes['dphase'][sids] # stored as +ve
+
+        # for each spike, decide whether to add or subtract dphase to/from its temporal values
+        ordered =  dphasetis > 0 # in temporal order
+        reversed = dphasetis < 0 # in reversed temporal order
+        alignis = spikes['aligni'][sids]
+        alignis0 = alignis == 0
+        alignis1 = alignis == 1
+        dphasei = np.zeros(len(alignis), dtype=int)
+        # add dphase to temporal values to align to later phase
+        dphasei[ordered & alignis0 | reversed & alignis1] = 1
+        # subtact dphase from temporal values to align to earlier phase
+        dphasei[ordered & alignis1 | reversed & alignis0] = -1
+
+        #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
+        dts = dphasei * dphases
+        dtis = dphasei * dphasetis
+        # shift values
+        spikes['t0'][sids] += dts
+        spikes['t'][sids] += dts
+        spikes['tend'][sids] += dts
+        spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
+        spikes['aligni'][sids[alignis0]] = 1
+        spikes['aligni'][sids[alignis1]] = 0
+
+        # update wavedata for each shifted spike
+        for sid, spike in zip(sids, spikes[sids]):
+            wave = s.stream[spike['t0']:spike['tend']]
+            nchans = spike['nchans']
+            chans = spike['chans'][:nchans]
+            wave = wave[chans]
+            s.wavedata[sid, 0:nchans] = wave.data
+        self.update_wave() # update mean waveform
+        # trigger resaving of .spike and .wave files on next .sort save
+        try: del s.spikefname
+        except AttributeError: pass
+        try: del s.wavefname
+        except AttributeError: pass
+        # TODO: trigger a redraw for all of this neuron's plotted spikes
     '''
     def get_stdev(self):
         """Return 2D array of stddev of each timepoint of each chan of member spikes.
@@ -928,7 +929,7 @@ class SortFrame(wxglade_gui.SortFrame):
         rowis = self.nlist.getSelection()
         nids = np.asarray(list(self.sort.neurons))[rowis]
         for nid in nids:
-            self.sort.align_neuron(nid, to)
+            self.sort.neurons[nid].align(to)
 
     def DrawRefs(self):
         """Redraws refs and resaves background of sort panel(s)"""
