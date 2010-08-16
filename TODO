@@ -1,11 +1,5 @@
 RECENT:
 
-    - sometimes spike shapes don't distinguish much on maxchan, but they do on other chans. Try sorting on multichan waveforms, not just maxchan - reduce dimensionality by just picking the peak points (whether simultaneously according to their position on maxchan, or not-so-simultaneously as stored in 2 dimension phasetis of each spike)
-        - when picking points, need to take aligni into account. If alignis for two different spikes are different, need to find the dt that would let you keep them aligned and have the same aligni - ie, need to deduce the position of the missing 3rd phase on one of the two spikes
-        - maybe best of all is give user ability to select which chan, or which channels, to do waveform clustering on
-
-    - make sort.align_neuron a neuron.align() method instead?
-
     - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
 
     - normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
@@ -682,9 +676,14 @@ DONE:
     - spatial mean seems very sensitive to lockout radius/maxnchansperspike - 9 seems a good num of chans to use for 2 col probes, need to test on 3 col. Using an odd number of chans per spike greatly reduces clusterability, but going down to only 7 also messes things up
 - consider making V1 and V2 possible plot params to help distinguish a cluster that has two obviously different shaped spikes in it, that happen to have the same Vpp
 - turn off rendering when changing the parameter for a dimension - takes forever to reposition each ellipsoid
-
 - on 'f' down in cluster frame (focus camera), if a neuron is under the mouse, select that neuron in the clist, and maybe in the nlist too
     - or maybe make it a seperate key, like 's' for select - maybe make 's' focus and select, kind of like how 'x' focuses and moves a cluster
+- make sort.align_neuron a neuron.align() method instead?
+- sometimes spike shapes don't distinguish much on maxchan, but they do on other chans. Try sorting on multichan waveforms, not just maxchan - reduce dimensionality by just picking the peak points (whether simultaneously according to their position on maxchan, or not-so-simultaneously as stored in 2 dimension phasetis of each spike)
+    - when picking points, need to take aligni into account. If alignis for two different spikes are different, need to find the dt that would let you keep them aligned and have the same aligni - ie, need to deduce the position of the missing 3rd phase on one of the two spikes
+    - maybe best of all is give user ability to select which chan, or which channels, to do waveform clustering on
+
+
 
 
 

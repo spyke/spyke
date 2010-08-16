@@ -919,11 +919,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if waveclustering: # do maxchan wavefrom clustering
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
-            # decide which is the definitive maxchan for the one selected cluster. Or, allow
-            # maxchan waveform clustering across multiple clusters?
-            # pop up dialog asking for chan to cluster on
+            # decide which is the definitive maxchan for the selected spikes
             maxchans = spikes['chan'][sids]
             clusterchan = mode(maxchans)[0] # cluster on most common maxchan
+            # pop up dialog asking for chan to cluster on
+            clusterchan = wx.GetNumberFromUser('Cluster on which channel?',
+                                               'chan:', 'Waveform clustering', clusterchan)
+            if clusterchan == -1:
+                return # cancel was pressed
             print("Clustering based on chan %d waveforms" % clusterchan)
             # build up data
             nspikes = len(sids)
