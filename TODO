@@ -1,11 +1,21 @@
 RECENT:
 
 - spoke with NVS:
-    - he uses only x0, y0, and Vpp as cluster dims, with sigma=0.3, alpha=2, and rmerge=0.1, although that's for ptc15.tr7c
+    - he uses only x0, y0, and Vpp as cluster dims, with sigma=0.3, alpha=2, rmerge=0.1, minpoints=50, although that's all for ptc15.tr7c
     - so, maybe I should make rmergex=0.3 X sigma
     - also, once he's got clusters, he aligns each spike to max or min and updates the template, iterates that a few times, then he aligns according to least squares best fit of each spike to the template, and iterates that a few times too. This gets him lower SD for each cluster template
         - should try this least squares alignment, and should also calculate SD for each cluster
         - not sure if he does this on all chans in cluster, or just the maxchan
+    - he compares the two most similar cluster templates, based I guess on their least squares difference, so you can decide if anything is oversplit, and you can merge them, and then look at the next two most similar cluster templates...
+    - should ask him if he calculates scout densities and point densities and applies a density threshold to reject points in really empty regions
+    - what's his exit criteria again?
+
+- multithread assignment of unclustered points to nearest clustered point, and point density calculations
+
+- add ability to renumber clusters according to their Vpp, or their nspikes, or their y location (which could be very very useful for renumbering clusters to match those in another file)
+    - maybe shift clicking the # sign brings up a dialog with a choice drop down box. Normal clicking it makes it do what it currently does (not sort according to anything, just renumber to fill in missing neuron ids, or to shuffle the colours)
+
+- add ability to cycle through plotting all of a cluster's waveforms, 50 or 100 at a time, ala NVS, to more thoroughly check how clean the cluster really is
 
 - spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
 

@@ -185,6 +185,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             dt = dt.replace(':', '.')
             tail = dt + '_' + tail
             os.chdir(head) # update cwd
+            # make way for new .spike and .wave files
+            try: del self.sort.spikefname
+            except AttributeError: pass
+            try: del self.sort.wavefname
+            except AttributeError: pass
             self.SaveSortFile(tail)
         dlg.Destroy()
 
