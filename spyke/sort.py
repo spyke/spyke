@@ -730,9 +730,7 @@ class Neuron(object):
             wave = wave[chans]
             s.wavedata[sid, 0:nchans] = wave.data
         self.update_wave() # update mean waveform
-        # trigger resaving of .spike and .wave files on next .sort save
-        try: del s.spikefname
-        except AttributeError: pass
+        # trigger resaving of .wave file on next .sort+.spike save
         try: del s.wavefname
         except AttributeError: pass
         # TODO: trigger a redraw for all of this neuron's plotted spikes

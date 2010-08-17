@@ -1,96 +1,105 @@
 RECENT:
 
-    - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
+- spoke with NVS:
+    - he uses only x0, y0, and Vpp as cluster dims, with sigma=0.3, alpha=2, and rmerge=0.1, although that's for ptc15.tr7c
+    - so, maybe I should make rmergex=0.3 X sigma
+    - also, once he's got clusters, he aligns each spike to max or min and updates the template, iterates that a few times, then he aligns according to least squares best fit of each spike to the template, and iterates that a few times too. This gets him lower SD for each cluster template
+        - should try this least squares alignment, and should also calculate SD for each cluster
+        - not sure if he does this on all chans in cluster, or just the maxchan
 
-    - normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
+- spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
 
-    - clicking on blank part of listctrl, thereby deselecting all, doesn't trigger a selection event - try binding OnClistSelect and OnNlistSelect to each and every click in the list?
+- try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
 
-    - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
+- normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
 
-    - for temporal spike modelling, if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
-        - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is
+- clicking on blank part of listctrl, thereby deselecting all, doesn't trigger a selection event - try binding OnClistSelect and OnNlistSelect to each and every click in the list?
 
-    - discovered the bug in naming LFP chans in SURF has hit us again (see 2008-11-13 note): in ptc18.14, and probably lots of others. Crap! This probably means I'll have to go in and manually edit lots of .srf files, and all their copies. I thought I had this problem figured out a long time ago. Some kind of sloppy memory management in surf causes characters from the previous LFP chan to remain for the next LFP chan - think it's a single digit number vs a 2 digit number problem. Maybe I should be putting leading zeros in the LFP chan field names in the surf .cfg files...
-        - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
-            - for a given probe type (1a, 2a, whatever the layout happens to be), if you parse out a list of chans that matches a known hard-coded "bad" LFP chan list, then simply replace it with the appropriate correct hard-coded LFP chan list
-            - just have to go through a few .srf files, (one per track, or really just one per probe ID, since LFP chan layout stays constant across tracks for a given probe), and create the bad to good chanlist mapping
+- set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
 
-    - to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike - that way you could lower the median noise multiplier a bit and catch smaller spikes, while ignoring bigger ripple
+- for temporal spike modelling, if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
+    - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is
 
-    - add ability to add notes to a .sort file, where you can mention sorting details, like problems encountered, or where the set of neurons were imported from (if at all)
+- discovered the bug in naming LFP chans in SURF has hit us again (see 2008-11-13 note): in ptc18.14, and probably lots of others. Crap! This probably means I'll have to go in and manually edit lots of .srf files, and all their copies. I thought I had this problem figured out a long time ago. Some kind of sloppy memory management in surf causes characters from the previous LFP chan to remain for the next LFP chan - think it's a single digit number vs a 2 digit number problem. Maybe I should be putting leading zeros in the LFP chan field names in the surf .cfg files...
+    - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
+        - for a given probe type (1a, 2a, whatever the layout happens to be), if you parse out a list of chans that matches a known hard-coded "bad" LFP chan list, then simply replace it with the appropriate correct hard-coded LFP chan list
+        - just have to go through a few .srf files, (one per track, or really just one per probe ID, since LFP chan layout stays constant across tracks for a given probe), and create the bad to good chanlist mapping
 
-    - need dynamic scaling of dimensions for visualization (some sort of GUI for it), and also need to fix problems with changing scaling when a cluster has a non zero ori - could be tricky
-        - actually, maybe all you have to do is make ori represent ori in real space (unscaled, not visualized), and then when you scale any of the dims, take the arctan of the scaled dims to get the visualized ori, but make sure to always store the real ori in the .sort
+- to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike - that way you could lower the median noise multiplier a bit and catch smaller spikes, while ignoring bigger ripple
 
-    - Nick's idea: represent Vpp on a log scale - this might make things more clusterable in the Vpp dim, especially since some of the spikes can reach really big amplitudes due to instabilities, and those stretch out clusters (maybe non-linearly) in the Vpp direction
-        - doesn't seem to improve clusterability, although Nick says it does for him
+- add ability to add notes to a .sort file, where you can mention sorting details, like problems encountered, or where the set of neurons were imported from (if at all)
 
-    - rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
-        - hangs whenever you call clist.RefreshItems(). If you change clist from a normal wxLC_list style to wxLC_report style, the problem goes away. Maybe RefreshItems() doesn't need to be called at all for a non-report style?
+- need dynamic scaling of dimensions for visualization (some sort of GUI for it), and also need to fix problems with changing scaling when a cluster has a non zero ori - could be tricky
+    - actually, maybe all you have to do is make ori represent ori in real space (unscaled, not visualized), and then when you scale any of the dims, take the arctan of the scaled dims to get the visualized ori, but make sure to always store the real ori in the .sort
 
-    - check if num plot slots has reached some ridiculous value (say 100), and stop adding any more, raise an error - this prevents the user from accidentally selecting 1000s of spikes for plotting, by going shift+end in the nslist
+- Nick's idea: represent Vpp on a log scale - this might make things more clusterable in the Vpp dim, especially since some of the spikes can reach really big amplitudes due to instabilities, and those stretch out clusters (maybe non-linearly) in the Vpp direction
+    - doesn't seem to improve clusterability, although Nick says it does for him
 
-    - add random numbers (up to 1/2 a dphase bin width: 20 us/2 == 10us) to the dphase values to dither them out a bit, and make it more obvious how many fall into each dphase bin, so you can actually tell what the distribution looks like in dphase space, instead of having lots of overlap at each of the discrete dphase values
+- rev646 (switch cluster list to a virtual listctrl) broke spyke in linux
+    - hangs whenever you call clist.RefreshItems(). If you change clist from a normal wxLC_list style to wxLC_report style, the problem goes away. Maybe RefreshItems() doesn't need to be called at all for a non-report style?
 
-    - might be useful to hide clustered points, so you can focus on just the unclustered ones that are left
-        - not sure if this can even be done, given that all points are part of the same single glyph
+- check if num plot slots has reached some ridiculous value (say 100), and stop adding any more, raise an error - this prevents the user from accidentally selecting 1000s of spikes for plotting, by going shift+end in the nslist
 
-    - colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
-        - do it in the cluster list as well - maybe make that a proper listctrl
-        - this would require a black background for the listctrl, otherwise white wouldn't show up
+- add random numbers (up to 1/2 a dphase bin width: 20 us/2 == 10us) to the dphase values to dither them out a bit, and make it more obvious how many fall into each dphase bin, so you can actually tell what the distribution looks like in dphase space, instead of having lots of overlap at each of the discrete dphase values
 
-    - nid tooltips are a bit slow and not always reliable
+- might be useful to hide clustered points, so you can focus on just the unclustered ones that are left
+    - not sure if this can even be done, given that all points are part of the same single glyph
 
-    - maybe keep rendering disabled during the whole .sort restore process - it's currently disabled when calling mlab.points3d
+- colour items in nlist and clist - declare OnGetItemAttr method (see wx demos)
+    - do it in the cluster list as well - maybe make that a proper listctrl
+    - this would require a black background for the listctrl, otherwise white wouldn't show up
 
-    - should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
+- nid tooltips are a bit slow and not always reliable
 
-    - rethink the whole "best" thing for marking which sort to use - maybe just leave it be with no best marker any more, and add a sort level to the command line neuropy interface - nevermind, its already there, but the sorts are only numbered, not named
-        - also, you can't go sortN.e0.sta(), since sort is below exp in the hierarchy - this is awkward - rethink the hierarchy?
-        - tree printout should show the sorts and experiments?
-    - get neuropy+dimstim working in Python 2.6
+- maybe keep rendering disabled during the whole .sort restore process - it's currently disabled when calling mlab.points3d
 
-    - make neuron renumbering (to get rid of gaps in IDs) work again
-        - add a feature where you renumber the neurons according to their vertical spatial order - this would make STA plots come out vertically ordered, which would be nice for deducing layers and where you get lots of simple fields and complex fields
+- should really set up neuropy to import the spikes from the .sort directly, but can make it still rely on an existing .din and .textheader file, since those would have to be pulled from the .srf file anyway
 
-    - MAYBE: add ability to turn on/off a cluster (and its coloured points) temporarily, so you can see the uncoloured density of points within it, and maybe better decide how to adjust the cluster to match
-        - cluster button: hide unselected clusters
-            - or just a hide/show button, which toggles the visibility of each of the selected clusters
-            - or best: separate show and hide buttons that set the visibility of each of the selected clusters
-                - should this leave point colours unchanged? probably, otherwise toggling would get really slow
-            - this would also prevent distracting tooltips from popping up
+- rethink the whole "best" thing for marking which sort to use - maybe just leave it be with no best marker any more, and add a sort level to the command line neuropy interface - nevermind, its already there, but the sorts are only numbered, not named
+    - also, you can't go sortN.e0.sta(), since sort is below exp in the hierarchy - this is awkward - rethink the hierarchy?
+    - tree printout should show the sorts and experiments?
+- get neuropy+dimstim working in Python 2.6
 
-    - overplotting speed
+- make neuron renumbering (to get rid of gaps in IDs) work again
+    - add a feature where you renumber the neurons according to their vertical spatial order - this would make STA plots come out vertically ordered, which would be nice for deducing layers and where you get lots of simple fields and complex fields
 
-    - manual sorting is disabled, and maybe it should stay that way
+- MAYBE: add ability to turn on/off a cluster (and its coloured points) temporarily, so you can see the uncoloured density of points within it, and maybe better decide how to adjust the cluster to match
+    - cluster button: hide unselected clusters
+        - or just a hide/show button, which toggles the visibility of each of the selected clusters
+        - or best: separate show and hide buttons that set the visibility of each of the selected clusters
+            - should this leave point colours unchanged? probably, otherwise toggling would get really slow
+        - this would also prevent distracting tooltips from popping up
 
-    - is there some way to speed up "from enthought.mayavi import mlab"? - painful!
+- overplotting speed
 
-    - looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
+- manual sorting is disabled, and maybe it should stay that way
 
-    - parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
+- is there some way to speed up "from enthought.mayavi import mlab"? - painful!
 
-    - ptc15.81 not contiguous at record timestamps number 3309 and 3310
-        np.where((np.diff(s.stream.rts, n=2) == 0) == False)
-        (array([3309, 3310]),)
-        - when stream is asked for gap in data, fill the gap with zeros
-        - fill the same gap with zeros in .resample file
-            - find ctsrecord duration that's the most frequent
+- looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
 
-    - replace unnecesary use of list(set(array)) with np.unique(array)
+- parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
 
-    - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
-        - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
+- ptc15.81 not contiguous at record timestamps number 3309 and 3310
+    np.where((np.diff(s.stream.rts, n=2) == 0) == False)
+    (array([3309, 3310]),)
+    - when stream is asked for gap in data, fill the gap with zeros
+    - fill the same gap with zeros in .resample file
+        - find ctsrecord duration that's the most frequent
 
-    - detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
+- replace unnecesary use of list(set(array)) with np.unique(array)
 
-    - deleting a detection doesn't clear neurons' waveforms, but maybe that's not such a bad thing?
+- open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
+    - maybe soln is to turn off rasters every time you open a .srf, and then enable them every time you open a .sort?
 
-    - selecting a block of spikes in list doesn't plot them - might be due to bugfixes in latest wx, might not need my hack workarounds anymore?
+- detect, cluster, do new detection just following first one in time, cluster, then delete first one, get an IndexError
 
-    - clear/update neuron mean waveform and replot it immediately (if currently plotted), when updating its cluster members, ie moving/modifying the cluster and then hitting "c"
-        - close .srf file, open test.sort with no waves in it, modify cluster, apply it, yet mean neuron waveform remains unchanged from when it was last calculated when the .srf file was open
+- deleting a detection doesn't clear neurons' waveforms, but maybe that's not such a bad thing?
+
+- selecting a block of spikes in list doesn't plot them - might be due to bugfixes in latest wx, might not need my hack workarounds anymore?
+
+- clear/update neuron mean waveform and replot it immediately (if currently plotted), when updating its cluster members, ie moving/modifying the cluster and then hitting "c"
+    - close .srf file, open test.sort with no waves in it, modify cluster, apply it, yet mean neuron waveform remains unchanged from when it was last calculated when the .srf file was open
 
 
 

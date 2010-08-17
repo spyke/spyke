@@ -277,9 +277,6 @@ class Extractor(object):
             spikes['w%d' % coeffi] = wcs[:, ksis[coeffi]]
         print("Extracting wavelet coefficients from all %d spikes took %.3f sec" %
              (nspikes, time.time()-t0))
-        # trigger resaving of .spike file on next .sort save
-        try: del sort.spikefname
-        except AttributeError: pass
         return wcs, ks, ksis, p
 
     def extract_all_wcs_by_maxchan(self, wavelet='haar'):
@@ -331,9 +328,6 @@ class Extractor(object):
             spikes['w%d' % coeffi] = flatwcs[:, ksis[coeffi]]
         print("Extracting wavelet coefficients from all %d spikes took %.3f sec" %
              (nspikes, time.time()-t0))
-        # trigger resaving of .spike file on next .sort save
-        try: del sort.spikefname
-        except AttributeError: pass
         return wcs, flatwcs, ks, ksis, p
     '''
     def wavedata2wcs(self, wavedata, maxchani, wavelet):
@@ -389,9 +383,6 @@ class Extractor(object):
 
         print("Extracting temporal parameters from all %d spikes took %.3f sec" %
              (nspikes, time.time()-tstart))
-        # trigger resaving of .spike file on next .sort save
-        try: del sort.spikefname
-        except AttributeError: pass
 
     def spike2temporal(self, spike, plot=False):
         """Extract temporal Gaussian params from spike record"""
@@ -529,9 +520,6 @@ class Extractor(object):
                 spike['y0'] = y0
         print("Extracting XY parameters from all %d spikes using %r took %.3f sec" %
              (nspikes, self.XYmethod.lower(), time.time()-t0))
-        # trigger resaving of .spike file on next .sort save
-        try: del sort.spikefname
-        except AttributeError: pass
 
     def spike2XY(self, spike, wavedata, det):
         if self.debug or spike['id'] % 1000 == 0:
