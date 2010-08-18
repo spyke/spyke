@@ -409,7 +409,7 @@ class Detector(object):
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each peak for validity
         for ti, chani in peakis:
-            if DEBUG: debug('*** trying thresh event at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
+            if DEBUG: debug('*** trying thresh peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
             # is this thresh exceeding peak locked out?
             if ti <= lockouts[chani]:
                 if DEBUG: debug('peak is locked out')
@@ -454,7 +454,7 @@ class Detector(object):
                 adjpi = adjpeakis[cii, maxadjii]
                 ppsharp[cii] = localsharp[cii, maxsharpi] - localsharp[cii, adjpi]
 
-            #oldti = ti # save
+            oldti = ti # save
             oldchani = chani # save
 
             # choose chan with biggest ppsharp as maxchan, check that this is identical to
@@ -463,10 +463,14 @@ class Detector(object):
             maxcii = abs(ppsharp).argmax()
             chani = chanis[maxcii] # update maxchan
             if chani != oldchani:
-                if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for this event, pass on this peak and wait for the true peak to come later")
+                if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for this event, pass on this peak and wait for the true sharpest peak to come later")
                 continue
             maxsharpi = maxsharpis[maxcii]
             ti = t0i + maxsharpi # choose sharpest peak of maxchan, absolute
+            # if sharpest peak is in the past, use it. If it's yet to come, wait for it
+            if ti > oldti:
+                if DEBUG: debug("triggered off early adjacent peak for this event, pass on this peak and wait for the true sharpest peak to come later")
+                continue
             if ti <= lockouts[chani]: # sharpest peak is locked out
                 if DEBUG: debug('sharpest peak at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
                 continue
