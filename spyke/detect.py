@@ -130,7 +130,7 @@ class Detector(object):
     DEFTHRESHMETHOD = 'Dynamic' # GlobalFixed, ChanFixed, or Dynamic
     DEFNOISEMETHOD = 'median' # median or stdev
     DEFNOISEMULT = 6
-    DEFFIXEDTHRESH = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
+    DEFFIXEDTHRESHUV = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
     DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
@@ -160,7 +160,7 @@ class Detector(object):
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD
         self.noisemult = noisemult or self.DEFNOISEMULT
-        self.fixedthreshuV = fixedthreshuV or self.DEFFIXEDTHRESH
+        self.fixedthreshuV = fixedthreshuV or self.DEFFIXEDTHRESHUV
         self.ppthreshmult = ppthreshmult or self.DEFPPTHRESHMULT
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
@@ -395,13 +395,16 @@ class Detector(object):
 
         tsharp = time.time()
         sharp = spyke.util.sharpness2D(wave.data)
-        info('sharpness2D() took %.3f sec' % (time.time()-tsharp))
+        info('%s: sharpness2D() took %.3f sec' %
+            (mp.current_process().name, time.time()-tsharp))
         targthreshsharp = time.time()
         peakis = spyke.util.argthreshsharp(wave.data, self.thresh, sharp) # thresh exceeding peak indices
-        info('argthreshsharp() took %.3f sec' % (time.time()-targthreshsharp))
+        info('%s: argthreshsharp() took %.3f sec' %
+            (mp.current_process().name, time.time()-targthreshsharp))
 
         dti = self.dti
         twi = sort.twi
+        sdti = dti // 2 # spatial dti - max dti allowed between maxchan and all other chans
         nspikes = 0
         npeaks = len(peakis)
         spikes = np.zeros(npeaks, self.SPIKEDTYPE) # nspikes will always be <= npeaks
@@ -511,7 +514,7 @@ class Detector(object):
             phasetis[maxcii] = maxchanphasetis
 
             # pick corresponding peaks on other chans according to how
-            # close they are to those on maxchan, Don't consider the sign of the peak on each
+            # close they are to those on maxchan, Don't consider the sign of the peaks on each
             # chan, just their proximity in time. In other words, allow for spike inversion
             # across space
             localsharp = sharp[chanis, t0i:tendi]
@@ -525,24 +528,31 @@ class Detector(object):
                     continue
                 lastpeakii = len(localpeakis) - 1
                 # find peak on this chan that's temporally closest to primary phase on maxchan.
-                # If two peaks are equally close, this picks this first one, although we should
+                # If two peaks are equally close, this picks the first one, although we should
                 # probably pick the sharpest one instead:
-                peak0ii = abs(localpeakis-phaset0i).argmin()
+                dt0is = abs(localpeakis-phaset0i)
+                peak0ii = dt0is.argmin()
                 # save primary phase for this cii
-                phasetis[cii, 0] = localpeakis[peak0ii]
+                dt0i = dt0is[peak0ii]
+                if dt0i > sdti: # too distant in time
+                    phasetis[cii, 0] = phaset0i # use same t0i as maxchan
+                else: # give it its own t0i
+                    phasetis[cii, 0] = localpeakis[peak0ii]
                 # save 2ndary phase for this cii
                 if phaset0i < phaset1i: # primary phase comes first (more common case)
                     peak1ii = peak0ii + 1 # 2ndary phase is 1 to the right
-                    if peak1ii > lastpeakii: # no local peak follows primary phase
-                        phasetis[cii, 1] = phaset1i # set to the same ti as maxchan
-                    else:
-                        phasetis[cii, 1] = localpeakis[peak1ii]
                 else: # phaset1i < phaset0i, ie 2ndary phase comes first
                     peak1ii = peak0ii - 1 # 2ndary phase is 1 to the left
-                    if peak1ii < 0: # no local peak precedes primary phase
-                        phasetis[cii, 1] = phaset1i # set to the same ti as maxchan
-                    else:
-                        phasetis[cii, 1] = localpeakis[peak1ii]
+                dt1is = abs(localpeakis-phaset1i)
+                try:
+                    dt1i = dt1is[peak1ii]
+                except IndexError: # no local peak relative to primary phase
+                    phasetis[cii, 1] = phaset1i # use same t1i as maxchan
+                    continue
+                if dt1i > sdti: # too distant in time
+                    phasetis[cii, 1] = phaset1i # use same t1i as maxchan
+                else:
+                    phasetis[cii, 1] = localpeakis[peak1ii]
 
             # find inclchanis, get corresponding indices into locknbhd of chanis
             inclchanis = self.inclnbhdi[chani]

@@ -10,6 +10,13 @@ RECENT:
     - should ask him if he calculates scout densities and point densities and applies a density threshold to reject points in really empty regions
     - what's his exit criteria again?
 
+- add a way for user to indicate if he wants to keep the reclustering results of existing cluster(s), or if he wants to revert back to the previous results. Maybe implement this as a single level undo button. This means that every time you cluster on existing clusters, you need to save a whole bunch of stuff for the undo. Is this doable?
+    - motivation for this is that when you go to recluster, you're messing with sigma (and maybe rmerge), and you don't know what value of sigma will get you the results you want, so you have to try a bunch of different values. And every time you cluster, you can potentially lose spikes due to them falling into a scout that was eventually deleted for having too few spikes. This means you can't completely manually undo by simply rerunning the clustering at the previous sigma, since you've lost some spikes in the forward process, and have no way of gaining them back in the backward process
+        - just to make sure, the density thresh doesn't matter while clustering, does it? I recluster based on cids, not nids, right?
+    - NVS does something like this too (but only for splitting clusters based on waveforms), except he has a sort of preview mode where you have to hit apply to actually apply the new results. This makes more sense for the user, and means potentially less unnecessary data manipulation, but for spyke it would mean you now have the potential for the GUI to be out of synch with the actual state of the clustering, and I think this would be confusing to code, and confusing for the user too.
+
+- maybe mess with how wavefrom data is normalized before high-D clustering. Normalize by std of all data points, not just on a per data point basis? Or, normalize all dims by std of chan with biggest std?
+
 - multithread assignment of unclustered points to nearest clustered point, and point density calculations
 
 - add ability to renumber clusters according to their Vpp, or their nspikes, or their y location (which could be very very useful for renumbering clusters to match those in another file)

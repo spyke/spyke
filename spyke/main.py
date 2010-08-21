@@ -95,7 +95,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.set_detect_pane_defaults()
 
         self.file_pos_combo_box_units_label.SetLabel(MICRO+'s') # can't seem to set mu symbol from within wxGlade
-        self.fixedthresh_units_label.SetLabel(MICRO+'V')
+        self.fixedthreshuV_units_label.SetLabel(MICRO+'V')
         self.dt_units_label.SetLabel(MICRO+'s')
         self.range_units_label.SetLabel(MICRO+'s')
         self.blocksize_units_label.SetLabel(MICRO+'s')
@@ -121,7 +121,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                               'ChanFixed': self.chanfixedthresh_radio_btn,
                               'Dynamic': self.dynamicthresh_radio_btn}
         self.METH2RADIOBTN[detect.Detector.DEFTHRESHMETHOD].SetValue(True) # enable the appropriate radio button
-        self.fixedthresh_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESH)
+        self.fixedthreshuV_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESHUV)
         self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
         self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
         self.ppthreshmult_text_ctrl.SetValue(str(detect.Detector.DEFPPTHRESHMULT))
@@ -944,7 +944,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 data[sii] = np.int32(s.wavedata[sid, clusterchani])
             # normalize each dimension
             data -= data.mean(axis=0)
-            data /= data.std(axis=0)
+            #data /= data.std(axis=0)
+            data /= data.std()
+            # or maybe normalize by the std of the dim with the biggest std, like this?:
+            #data /= data.std(axis=0).max()
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do non-maxchan wavefrom clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
@@ -1696,7 +1699,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else:
             raise ValueError
         det.threshmethod = threshmethod
-        det.fixedthresh = self.fixedthresh_spin_ctrl.GetValue()
+        det.fixedthreshuV = self.fixedthreshuV_spin_ctrl.GetValue()
         det.noisemult = float(self.noisemult_text_ctrl.GetValue())
         det.noisemethod = self.noise_method_choice.GetStringSelection()
         #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
@@ -1713,7 +1716,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Update self from detector attribs"""
         self.set_detectorthresh(det)
         self.chans_enabled = det.chans
-        self.fixedthresh_spin_ctrl.SetValue(det.fixedthresh)
+        self.fixedthreshuV_spin_ctrl.SetValue(det.fixedthreshuV)
         self.noisemult_text_ctrl.SetValue(str(det.noisemult))
         #self.noisewindow_spin_ctrl.SetValue(det.noisewindow) # not in the gui yet
         self.range_start_combo_box.SetValue(str(det.trange[0]))
