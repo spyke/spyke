@@ -49,6 +49,8 @@ MAXLONGLONG = 2**63-1
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
+INVPI = 1 / pi
+
 
 class Converter(object):
     """Simple object to store intgain and extgain values and
@@ -1026,6 +1028,14 @@ def g2(x0, y0, sx, sy, x, y):
 def g3(x0, y0, z0, sx, sy, sz, x, y, z):
     """3-D Gaussian"""
     return np.exp( -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2) - (z-z0)**2 / (2*sz**2) )
+
+def cauchy(x0, gx, x):
+    """1-D Cauchy"""
+    return INVPI * gx/((x-x0)**2+gx**2)
+
+def cauchy2(x0, y0, gx, gy, x, y):
+    """2-D Cauchy"""
+    return INVPI * gx/((x-x0)**2+gx**2) * gy/((y-y0)**2+gy**2)
 
 def Vf(Im, x0, y0, z0, sx, sy, sz, x, y, z):
     """1/r voltage decay function in 2D space

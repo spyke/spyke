@@ -51,10 +51,12 @@ class SpatialLeastSquares(object):
 
     def calc_x0y0(self, x, y, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost_x0y0, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
-                         #Dfun=None, full_output=True, col_deriv=False,
-                         #maxfev=50, xtol=0.0001,
-                         #diag=None)
+        try:
+            result = leastsq(self.cost_x0y0, self.p0, args=(x, y, V), full_output=True,
+                             ftol=1e-3)
+                             #Dfun=None, full_output=True, col_deriv=False,
+                             #maxfev=50, xtol=0.0001,
+                             #diag=None)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
@@ -69,10 +71,12 @@ class SpatialLeastSquares(object):
 
     def calc_s(self, x, y, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost_s, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
-                         #Dfun=None, full_output=True, col_deriv=False,
-                         #maxfev=50, xtol=0.0001,
-                         #diag=None)
+        try:
+            result = leastsq(self.cost_s, self.p0, args=(x, y, V), full_output=True,
+                             ftol=1e-3)
+                             #Dfun=None, full_output=True, col_deriv=False,
+                             #maxfev=50, xtol=0.0001,
+                             #diag=None)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()
@@ -88,10 +92,12 @@ class SpatialLeastSquares(object):
 
     def calc_sxsy(self, x, y, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost_sxsy, self.p0, args=(x, y, V), full_output=True, ftol=1e-3)
-                         #Dfun=None, full_output=True, col_deriv=False,
-                         #maxfev=50, xtol=0.0001,
-                         #diag=None)
+        try:
+            result = leastsq(self.cost_sxsy, self.p0, args=(x, y, V), full_output=True,
+                             ftol=1e-3)
+                             #Dfun=None, full_output=True, col_deriv=False,
+                             #maxfev=50, xtol=0.0001,
+                             #diag=None)
         except Exception as err:
             print(err)
             import pdb; pdb.set_trace()

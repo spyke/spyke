@@ -1,0 +1,33 @@
+ptc15.87 spike 13668 at t=56703940 on chan 26 (neuron 66, which is incorrect) is localized way too far to the left, think it needs independent sx and sy to do proper localization? Weights themselves are probably fine, given the values for phasetis
+    - x0: -24.841694
+    - y0: 1619.6605
+    - sx: 67.2761
+    - phasetis:
+    array([[15, 41],
+           [21, 37],
+           [27, 44],
+           [25, 35],
+           [23, 35],
+           [24, 36],
+           [26, 35],
+           [30, 35],
+           [ 0,  0]], dtype=uint8)
+    - chans: array([22, 24, 25, 26, 27, 28, 29, 30,  0], dtype=uint8)
+    - chan: 26
+    - chani: 3
+w = np.array([  2598.,   7023.,   4447.,  13068.,   4955.,   6139.,  10247.,   3428.], dtype=float32)
+x = np.array([-28, -28, -28, -28,  28,  28,  28,  28])
+y = np.array([1495, 1690, 1755, 1625, 1722, 1657, 1592, 1527])
+
+    - after plotting the model fit to the data (sls.plot()), here are some conclusions:
+        - fixing Vpp as nothing more than the value on the maxchan really limits LM's ability to localize the spike any decent distance away from the peak chan. Maybe Vpp should be left free alongside sigma in the first fitting stage? Maybe sigma and y should be fit in the first stage (y never has problems getting a good value), and then Vpp and x should be fit in the 2nd stage
+            - what if I set Vpp to be something less than the maxchan, say 1/2 the max Vpp? I bet it wouldn't be quite so reluctant to localize a bit further from the maxchan, given that the error for the maxchan is already so great
+        - other option might be to try getting it to weight big signal as more important than the low signal. I don't care about big error on small chans as much as I do as equally big error on big chans. Maybe square the weights before fitting to them (but I think I tried this before). Maybe I should just exclude chans whose signal falls below some factor of the biggest chan. Maybe exclude those that fall below Vppthresh?
+        - try a different model, maybe something that can be more of a heavy-tailed gaussian, like skew or kurtosis.
+            - try Cauchy distrib! Looks a lot like Gaussian, and has two params (mean and gamma, gamma is like sigma), but is heavy tailed:
+                - 1/pi*(gamma/((x-x0)**2+gamma**2))
+                - technically doesn't have a mean, I guess cuz it's heavy-tailed, but x0 is both the mode and median
+                - not sure how to scale it to fit the spike, since the gamma values affect the amplitude and the width simultaneously
+                    - might just have to fit peak height simultaneously with the gamma value(s)
+
+fixed - ptc15.87 spike 690 at t=1183440 on chan 30
