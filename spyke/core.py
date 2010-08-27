@@ -1030,12 +1030,14 @@ def g3(x0, y0, z0, sx, sy, sz, x, y, z):
     return np.exp( -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2) - (z-z0)**2 / (2*sz**2) )
 
 def cauchy(x0, gx, x):
-    """1-D Cauchy"""
-    return INVPI * gx/((x-x0)**2+gx**2)
+    """1-D Cauchy. See http://en.wikipedia.org/wiki/Cauchy_distribution"""
+    #return INVPI * gx/((x-x0)**2+gx**2)
+    return gx**2 / ((x-x0)**2 + gx**2)
 
 def cauchy2(x0, y0, gx, gy, x, y):
     """2-D Cauchy"""
-    return INVPI * gx/((x-x0)**2+gx**2) * gy/((y-y0)**2+gy**2)
+    #return INVPI * gx/((x-x0)**2+gx**2) * gy/((y-y0)**2+gy**2)
+    return (gx*gy)**2 / ((x-x0)**2 + gx**2) / ((y-y0)**2 + gy**2)
 
 def Vf(Im, x0, y0, z0, sx, sy, sz, x, y, z):
     """1/r voltage decay function in 2D space

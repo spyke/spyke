@@ -945,9 +945,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # normalize each dimension
             data -= data.mean(axis=0)
             #data /= data.std(axis=0)
-            data /= data.std()
+            #data /= data.std()
             # or maybe normalize by the std of the dim with the biggest std, like this?:
-            #data /= data.std(axis=0).max()
+            data /= data.std(axis=0).max()
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do non-maxchan wavefrom clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]

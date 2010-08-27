@@ -16,7 +16,7 @@ import scipy.stats
 
 import pylab as pl
 
-from spyke.core import g, g2
+from spyke.core import g, g2, cauchy, cauchy2
 
 
 DEFSX = 50 # default spatial decay along x axis, in um
@@ -49,11 +49,12 @@ class SpatialLeastSquares(object):
         # 3 column data too
         self.debug = debug
 
-    def calc_x0y0(self, x, y, V):
+    def calc_x0y0(self, f, x, y, V):
         t0 = time.clock()
         try:
-            result = leastsq(self.cost_x0y0, self.p0, args=(x, y, V), full_output=True,
-                             ftol=1e-3)
+            result = leastsq(self.cost_x0y0, self.p0, args=(f, x, y, V),
+                             full_output=True,)
+                             #ftol=1e-3)
                              #Dfun=None, full_output=True, col_deriv=False,
                              #maxfev=50, xtol=0.0001,
                              #diag=None)
@@ -69,11 +70,12 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def calc_s(self, x, y, V):
+    def calc_s(self, f, x, y, V):
         t0 = time.clock()
         try:
-            result = leastsq(self.cost_s, self.p0, args=(x, y, V), full_output=True,
-                             ftol=1e-3)
+            result = leastsq(self.cost_s, self.p0, args=(f, x, y, V),
+                             full_output=True,)
+                             #ftol=1e-3)
                              #Dfun=None, full_output=True, col_deriv=False,
                              #maxfev=50, xtol=0.0001,
                              #diag=None)
@@ -90,11 +92,12 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def calc_sxsy(self, x, y, V):
+    def calc_sxsy(self, f, x, y, V):
         t0 = time.clock()
         try:
-            result = leastsq(self.cost_sxsy, self.p0, args=(x, y, V), full_output=True,
-                             ftol=1e-3)
+            result = leastsq(self.cost_sxsy, self.p0, args=(f, x, y, V),
+                             full_output=True,)
+                             #ftol=1e-3)
                              #Dfun=None, full_output=True, col_deriv=False,
                              #maxfev=50, xtol=0.0001,
                              #diag=None)
@@ -110,50 +113,50 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
-    def cost_x0y0(self, p, x, y, V):
+    def cost_x0y0(self, p, f, x, y, V):
         """Distance of each point to the model function"""
-        return self.model_x0y0(p, x, y) - V
+        return self.model_x0y0(p, f, x, y) - V
 
-    def cost_s(self, p, x, y, V):
+    def cost_s(self, p, f, x, y, V):
         """Distance of each point to the model function"""
-        return self.model_s(p, x, y) - V
+        return self.model_s(p, f, x, y) - V
 
-    def cost_sxsy(self, p, x, y, V):
+    def cost_sxsy(self, p, f, x, y, V):
         """Distance of each point to the model function"""
-        return self.model_sxsy(p, x, y) - V
+        return self.model_sxsy(p, f, x, y) - V
 
-    def model_x0y0(self, p, x, y):
-        """2D elliptical Gaussian, with x0 and y0 free"""
+    def model_x0y0(self, p, f, x, y):
+        """2D Gaussian, with x0 and y0 free"""
         x0, y0 = p
-        return self.A * g2(x0, y0, self.sx, self.sy, x, y)
+        return self.A * f(x0, y0, self.sx, self.sy, x, y)
 
-    def model_s(self, p, x, y):
-        """2D elliptical Gaussian, with s (sx == sy) free"""
+    def model_s(self, p, f, x, y):
+        """2D Gaussian, with s (sx == sy) free"""
         s, = p
-        return self.A * g2(self.x0, self.y0, s, s, x, y)
+        return self.A * f(self.x0, self.y0, s, s, x, y)
 
-    def model_sxsy(self, p, x, y):
-        """2D elliptical Gaussian, with sx and sy free"""
+    def model_sxsy(self, p, f, x, y):
+        """2D Gaussian, with sx and sy free"""
         sx, sy = p
-        return self.A * g2(self.x0, self.y0, sx, sy, x, y)
+        return self.A * f(self.x0, self.y0, sx, sy, x, y)
 
-    def staticmodel(self, x, y):
-        return self.A * g2(self.x0, self.y0, self.sx, self.sy, x, y)
+    def static_model(self, f, x, y):
+        return self.A * f(self.x0, self.y0, self.sx, self.sy, x, y)
 
-    def plot(self, x, y, w, spike):
+    def plot(self, f, x, y, w, spike):
         from mpl_toolkits.mplot3d import Axes3D
         from matplotlib import cm
         f = pl.figure()
         a = Axes3D(f)
-        model = self.staticmodel(x, y)
+        model = self.static_model(f, x, y)
         a.scatter(x, y, w, c='k') # actual
         a.scatter(x, y, model, c='r') # modelled
         #X, Y = np.meshgrid(x, y)
-        #a.plot_surface(X, Y, self.staticmodel(X, Y), color=(0.2, 0.2, 0.2, 0.5))
+        #a.plot_surface(X, Y, self.static_gaussian_model(X, Y), color=(0.2, 0.2, 0.2, 0.5))
         X = np.arange(x.min(), x.max(), 5)
         Y = np.arange(y.min(), y.max(), 5)
         X, Y = np.meshgrid(X, Y)
-        a.plot_surface(X, Y, self.staticmodel(X, Y), rstride=1, cstride=1, cmap=cm.jet)
+        a.plot_surface(X, Y, self.static_model(f, X, Y), rstride=1, cstride=1, cmap=cm.jet)
         a.set_xlabel('x')
         a.set_ylabel('y')
         a.set_zlabel('V')
@@ -443,7 +446,7 @@ class Extractor(object):
         #p0 = np.array([x[maxchani], y[maxchani]])
         return x, y, w, A, x0, y0
 
-    def spike2spatial(self, spike):
+    def spike2spatial(self, f, spike):
         """A convenient way of plotting spatial fits, one spike at a time.
         Fits location first, followed by spread, using a global constant intial guess for spread"""
         x, y, w, A, x0, y0 = self.spike2xyw(spike)
@@ -451,14 +454,14 @@ class Extractor(object):
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSY
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([x0, y0])
-        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        sls.calc_x0y0(f, x, y, w) # x0 and y0 free
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc_sxsy(x, y, w) # sx and sy free
+        sls.calc_sxsy(f, x, y, w) # sx and sy free
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
-        sls.plot(x, y, w, spike)
+        sls.plot(f, x, y, w, spike)
 
-    def spike2spatial2(self, spike):
+    def spike2spatial2(self, f, spike):
         """A convenient way of plotting spatial fits, one spike at a time.
         Fits spread first, followed by location, using spatialmean as intial guess for location"""
         x, y, w, A, x0, y0 = self.spike2xyw(spike)
@@ -466,14 +469,14 @@ class Extractor(object):
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSY
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc_sxsy(x, y, w) # sx and sy free
+        sls.calc_sxsy(f, x, y, w) # sx and sy free
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.x0, sls.y0])
-        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        sls.calc_x0y0(f, x, y, w) # x0 and y0 free
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
-        sls.plot(x, y, w, spike)
+        sls.plot(f, x, y, w, spike)
 
-    def spike2spatial3(self, spike):
+    def spike2spatial3(self, f, spike):
         """A convenient way of plotting spatial fits, one spike at a time.
         Fits spread first using just a single sigma, followed by location,
         using spatialmean as intial guess for location"""
@@ -482,12 +485,12 @@ class Extractor(object):
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSX
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx])
-        sls.calc_s(x, y, w) # s free (sx == sy)
+        sls.calc_s(f, x, y, w) # s free (sx == sy)
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.x0, sls.y0])
-        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        sls.calc_x0y0(f, x, y, w) # x0 and y0 free
         print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
-        sls.plot(x, y, w, spike)
+        sls.plot(f, x, y, w, spike)
 
     def extract_all_XY(self):
         """Extract XY parameters from all spikes, store them as spike attribs"""
@@ -610,7 +613,7 @@ class Extractor(object):
             weights = V0s - V1s
         return weights
 
-    def weights2spatialmean(self, w, x, y, maxchani):
+    def weights2spatialmean(self, w, x, y, maxchani=None):
         """Return weighted spatial mean of chans in spike according to their
         Vpp at the same timepoints as on the max chan, to use as rough
         spatial origin of spike. x and y are spatial coords of chans in wavedata"""
@@ -691,18 +694,42 @@ class Extractor(object):
             return int(x), int(y), DEFSX, DEFSY
 
         sls = self.sls
-        x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
+        x0, y0 = self.weights2spatialmean(w, x, y)
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
         '''
         # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
         sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc_sxsy(x, y, w) # sx and sy free
+        sls.calc_sxsy(g2, x, y, w) # sx and sy free
         '''
         sls.p0 = np.array([sls.sx])
-        sls.calc_s(x, y, w) # s free (sx == sy)
+        sls.calc_s(g2, x, y, w) # s free (sx == sy)
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
         sls.p0 = np.array([x0, y0])
-        sls.calc_x0y0(x, y, w) # x0 and y0 free
+        sls.calc_x0y0(g2, x, y, w) # x0 and y0 free
+
+        return sls.x0, sls.y0, sls.sx, sls.sy
+
+    def weights2cauchy(self, w, x, y, maxchani):
+        """Return spatial location and spread using a 2D Cauchy model,
+        with location initialized using spatial mean, and spread initialized
+        with constant global values"""
+        if len(w) == 1: # only one chan, return its coords and the default sigmas
+            return int(x), int(y), DEFSX, DEFSY
+
+        sls = self.sls
+        x0, y0 = self.weights2spatialmean(w, x, y)
+        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
+        '''
+        # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
+        sls.p0 = np.array([sls.sx, sls.sy])
+        sls.calc_sxsy(cauchy2, x, y, w) # sx and sy free
+        '''
+        sls.p0 = np.array([sls.sx])
+        sls.calc_s(cauchy2, x, y, w) # s free (sx == sy)
+
+        # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
+        sls.p0 = np.array([x0, y0])
+        sls.calc_x0y0(cauchy2, x, y, w) # x0 and y0 free
 
         return sls.x0, sls.y0, sls.sx, sls.sy
