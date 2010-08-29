@@ -10,7 +10,7 @@ pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
 from climbing import climb # .pyx file
 
-from scipy.stats import mode
+import scipy.stats
 import wx
 import wx.html
 import wx.py
@@ -926,7 +926,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # OLD METHOD:
             # decide which is the definitive maxchan for the selected spikes
             maxchans = spikes['chan'][sids]
-            clusterchan = mode(maxchans)[0] # cluster on most common maxchan
+            clusterchan = scipy.stats.mode(maxchans)[0] # cluster on most common maxchan
             # pop up dialog asking for chan to cluster on
             clusterchan = wx.GetNumberFromUser('Cluster on which channel?',
                                                'chan:', 'Waveform clustering', clusterchan)
@@ -951,29 +951,45 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             nchanss = spikes['nchans'][sids]
             chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
             chans = core.intersect1d(chanslist) # find intersection
+            print('clustering upon chans = %r' % list(chans))
             nspikes = len(sids)
             nchans = len(chans)
             nt = s.wavedata.shape[2]
-            # find mean waveform of selected spikes
-            # commonwavedata stores data from only the common chans from all spikes:
-            commonwavedata = np.zeros((nspikes, nchans, nt), dtype=np.float32)
+            # collect data from only the common chans from all spikes:
+            data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
             for sii, sid in enumerate(sids):
                 spikechans = chanslist[sii]
                 spikechanis = np.searchsorted(spikechans, chans)
-                commonwavedata[sii] = s.wavedata[sid, spikechanis]
+                data[sii] = s.wavedata[sid, spikechanis]
+            '''
+            # find mean waveform of selected spikes
             template = commonwavedata.mean(axis=0)
-            print('clustering upon chans = %r' % chans)
             # find peak times in mean waveform for each chan in chans
             peaktis = np.zeros((nchans, 2), dtype=int)
             for chani in range(nchans):
                 peaktis[chani] = template[chani].argmin(), template[chani].argmax() # order doesn't matter
             print('peaktis =')
             print(peaktis)
+            '''
+            ndims = nchans*nt
+            data.shape = nspikes, ndims # reshape to 2D, ie flatten across chans
+            ks = np.zeros(ndims)
+            p = np.zeros(ndims)
+            for i in range(ndims):
+                ks[i], p[i] = scipy.stats.kstest(data[:, i], 'norm')
+            ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
+            # kind of arbitrary, use 3 points per chan on avg, but some chans will be more clusterable than others
+            ndims = nchans * 3
+            data = data[:, ksis[:ndims]]
+            print('ks = %r' % ks)
+            print('p = %r' % p)
+            print('ksis = %r' % ksis)
+            '''
             # grab each spike's data at these peak times, using fancy indexing
             # see core.rowtake() or util.rowtake_cy() for indexing explanation
             data = commonwavedata[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
             data.shape = nspikes, nchans*2 # reshape to 2D, ie flatten across chans
-
+            '''
             # normalize each dimension (there are nchans*2 dimensions to cluster upon)
             data -= data.mean(axis=0)
             data /= data.std(axis=0)
@@ -981,7 +997,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # or maybe normalize by the std of the dim with the biggest std, like this?:
             #data /= data.std(axis=0).max()
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
-        else: # do non-maxchan wavefrom clustering
+        else: # do spike parameter (non-wavefrom) clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
 
         # grab climbing params and run it

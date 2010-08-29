@@ -389,6 +389,7 @@ class Detector(object):
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
             weights2gaussian = sort.extractor.weights2gaussian
+            #weights2cauchy = sort.extractor.weights2cauchy
             #wavedata2spatial = sort.extractor.wavedata2spatial
             #wavedata2wcs = sort.extractor.wavedata2wcs
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
@@ -592,6 +593,7 @@ class Detector(object):
                 x = self.siteloc[inclchanis, 0] # 1D array (row)
                 y = self.siteloc[inclchanis, 1]
                 s['x0'], s['y0'], s['sx'], s['sy'] = weights2gaussian(w, x, y, inclchani)
+                #s['x0'], s['y0'], s['sx'], s['sy'] = weights2cauchy(w, x, y, inclchani)
 
             if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
                             % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
