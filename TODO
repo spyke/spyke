@@ -23,9 +23,11 @@ RECENT:
 
 - doing best fit alignment, instead of aligning simply to a peak (see NVS advice above), probably helps improve cluster cleaning when reclustering by waveform, and might remove need to do any arbitrary weighting techniques for calculating error
 
-- or, find the set of chans all selected spikes have in common, then for each of those chans find the two peak times in the template, and extract voltages for each spike at those chans and times, and then cluster in 2 x nchans space
+- find the set of chans all selected spikes have in common, then for each of those chans find the two peak times in the template, and extract voltages for each spike at those chans and times, and then cluster in 2 x nchans space
 
-- capture Del key press in either both neuron and cluster lists
+- mess with Cauchy distrib
+
+- capture Del key press in both neuron and cluster lists
 
 - add simple merge button (^), so you don't have to a climb with a big sigma to get the same effect
 

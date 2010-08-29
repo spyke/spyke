@@ -1155,8 +1155,6 @@ def twoD1D(a):
     assert a.ndim == 1, "array has more than one non-singleton dimension"
     return a
 
-
-'''
 def intersect1d(arrays, assume_unique=False):
     """Find the intersection of any number of 1D arrays.
     Return the sorted, unique values that are in all of the input arrays.
@@ -1174,7 +1172,6 @@ def intersect1d(arrays, assume_unique=False):
         return aux
     shift = N-1
     return aux[aux[shift:] == aux[:-shift]]
-'''
 
 def rowtake(a, i):
     """For each row in a, return values according to column indices in the

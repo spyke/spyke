@@ -922,6 +922,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if waveclustering: # do maxchan wavefrom clustering
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
+            '''
+            # OLD METHOD:
             # decide which is the definitive maxchan for the selected spikes
             maxchans = spikes['chan'][sids]
             clusterchan = mode(maxchans)[0] # cluster on most common maxchan
@@ -941,13 +943,43 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 clusterchani = np.where(chans == clusterchan)[0]
                 if len(clusterchani) == 0:
                     raise RuntimeError("Chan %d isn't a part of spike %d" % (clusterchan, sid))
-                data[sii] = np.int32(s.wavedata[sid, clusterchani])
-            # normalize each dimension
+                data[sii] = np.int32(s.wavedata[sid, clusterchani]) # why am I calling int32() when data is float?
+            '''
+
+            # find which chans are common to all selected spikes
+            chanss = spikes['chans'][sids]
+            nchanss = spikes['nchans'][sids]
+            chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
+            chans = core.intersect1d(chanslist) # find intersection
+            nspikes = len(sids)
+            nchans = len(chans)
+            nt = s.wavedata.shape[2]
+            # find mean waveform of selected spikes
+            # commonwavedata stores data from only the common chans from all spikes:
+            commonwavedata = np.zeros((nspikes, nchans, nt), dtype=np.float32)
+            for sii, sid in enumerate(sids):
+                spikechans = chanslist[sii]
+                spikechanis = np.searchsorted(spikechans, chans)
+                commonwavedata[sii] = s.wavedata[sid, spikechanis]
+            template = commonwavedata.mean(axis=0)
+            print('clustering upon chans = %r' % chans)
+            # find peak times in mean waveform for each chan in chans
+            peaktis = np.zeros((nchans, 2), dtype=int)
+            for chani in range(nchans):
+                peaktis[chani] = template[chani].argmin(), template[chani].argmax() # order doesn't matter
+            print('peaktis =')
+            print(peaktis)
+            # grab each spike's data at these peak times, using fancy indexing
+            # see core.rowtake() or util.rowtake_cy() for indexing explanation
+            data = commonwavedata[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
+            data.shape = nspikes, nchans*2 # reshape to 2D, ie flatten across chans
+
+            # normalize each dimension (there are nchans*2 dimensions to cluster upon)
             data -= data.mean(axis=0)
-            #data /= data.std(axis=0)
+            data /= data.std(axis=0)
             #data /= data.std()
             # or maybe normalize by the std of the dim with the biggest std, like this?:
-            data /= data.std(axis=0).max()
+            #data /= data.std(axis=0).max()
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do non-maxchan wavefrom clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]

@@ -608,7 +608,7 @@ class Neuron(object):
         #t0 = time.time()
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
-        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
+        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
         chanpopulation = np.concatenate(chanslist)
         neuronchans = np.unique(chanpopulation)
         #print('first loop took %.3f sec' % (time.time()-t0))
