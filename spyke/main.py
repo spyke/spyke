@@ -1019,7 +1019,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         t0 = time.time()
         results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
                         rneighx=s.rneighx, nsamples=s.nsamples,
-                        calcpointdensities=True, calcscoutdensities=True,
+                        calcpointdensities=False, calcscoutdensities=False,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
         cids, scoutpositions, densities, scoutdensities, sampleis = results
@@ -1047,17 +1047,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         newclusters = []
         t0 = time.time()
         for nid, pos in zip(nids, scoutpositions): # nids come out sorted
-            scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            density_mask = densities/scoutdensity >= s.density_thresh
+            #scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
+            #density_mask = densities/scoutdensity >= s.density_thresh
             nid_mask = cids == nid
-            ii, = np.where(nid_mask & density_mask)
+            #ii, = np.where(nid_mask & density_mask)
+            ii, = np.where(nid_mask)
             nsids = sids[ii] # sids belonging to this nid
             cluster = self.OnAddCluster(update=False)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
-                print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
+                #print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
+                print('WARNING: neuron %d has no spikes for some reason' % neuron.id)
             if waveclustering and len(nsids) != 0:
                 # set pos and scale in plotdims using mean and std of points
                 for plotdimi, plotdim in enumerate(plotdims):
@@ -1079,7 +1081,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if oldclusters:
             # select newly created cluster(s)
             self.SelectClusters(newclusters, on=True)
-
+    '''
     def OnApplyDensityThresh(self, evt=None):
         """Cluster pane point density threshold Apply button click. Changes
         the points that are included/excluded from their cluster,
@@ -1125,7 +1127,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(s.clusters.values())
-
+    '''
     def update_sort_from_cluster_pane(self):
         s = self.sort
         s.sigma = float(self.sigma_text_ctrl.GetValue())

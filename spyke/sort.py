@@ -70,7 +70,7 @@ class Sort(object):
         self.nsamples = 10000
         self.maxstill = 100
         self.minpoints = 10
-        self.density_thresh = 0.1
+        self.density_thresh = 0.0
 
     def get_nextnid(self):
         """nextnid is used to retrieve the next unique neuron ID"""

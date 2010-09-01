@@ -35,7 +35,7 @@ RECENT:
 
 - capture Del key press in both neuron and cluster lists
 
-- add simple merge button (^), so you don't have to a climb with a big sigma to get the same effect
+- add simple merge button (^), so you don't have to do a climb with a big sigma to get the same effect
 
 - if doing a subclustering results in an overall reduction in the number of clusters, try and merge into the existing available cluster numbers - don't just delete the old ones and add new ones to the end
 
