@@ -700,12 +700,12 @@ class Neuron(object):
         dphases = spikes['dphase'][sids] # stored as +ve
 
         # for each spike, decide whether to add or subtract dphase to/from its temporal values
-        ordered =  dphasetis > 0 # in temporal order
+        ordered  = dphasetis > 0 # in temporal order
         reversed = dphasetis < 0 # in reversed temporal order
         alignis = spikes['aligni'][sids]
         alignis0 = alignis == 0
         alignis1 = alignis == 1
-        dphasei = np.zeros(len(alignis), dtype=int)
+        dphasei = np.zeros(n, dtype=int)
         # add dphase to temporal values to align to later phase
         dphasei[ordered & alignis0 | reversed & alignis1] = 1
         # subtact dphase from temporal values to align to earlier phase
@@ -713,7 +713,7 @@ class Neuron(object):
 
         #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
         dts = dphasei * dphases
-        dtis = dphasei * dphasetis
+        dtis = -dphasei * abs(dphasetis)
         # shift values
         spikes['t0'][sids] += dts
         spikes['t'][sids] += dts
