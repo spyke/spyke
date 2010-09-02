@@ -956,23 +956,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             nchans = len(chans)
             nt = s.wavedata.shape[2]
             # collect data from only the common chans from all spikes:
-            #data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
-            data = np.zeros((nspikes, nchans, 2), dtype=np.float32)
+            data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
+            #data = np.zeros((nspikes, nchans, 2), dtype=np.float32)
             #phasetis = np.zeros((nspikes, nchans*2), dtype=int)
             for sii, sid in enumerate(sids):
                 spikechans = chanslist[sii]
                 spikechanis = np.searchsorted(spikechans, chans)
-                #data[sii] = s.wavedata[sid, spikechanis]
+                data[sii] = s.wavedata[sid, spikechanis]
+                '''
+                # use each spike's phasetis to pick out the points to cluster upon:
                 wavedata = s.wavedata[sid, spikechanis] # nchans x nt
                 phasetis = spikes['phasetis'][sid, spikechanis] # nchans x 2
                 if phasetis[0].argmin() == 1: # if first chan not in temporal order
                     # (all chans are not in temporal order)
                     phasetis = phasetis[:, ::-1] # swap the columns
                 # grab spike's data at phasetis, using fancy indexing
-                # see core.rowtake() or util.rowtake_cy() for indexing explanation
                 data[sii] = wavedata[np.arange(nchans)[:, None], phasetis]
-
-            '''
+                '''
             # find mean waveform of selected spikes
             template = data.mean(axis=0)
             # find peak times in mean waveform for each chan in chans
@@ -981,7 +981,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 peaktis[chani] = template[chani].argmin(), template[chani].argmax() # order doesn't matter
             print('peaktis =')
             print(peaktis)
-            '''
+
             '''
             # use KS test to decide which chans and timepoints to use for clustering:
             ndims = nchans*nt
@@ -1000,7 +1000,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             '''
             # grab each spike's data at these peak times, using fancy indexing
             # see core.rowtake() or util.rowtake_cy() for indexing explanation
-            #data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
+            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
             data.shape = nspikes, nchans*2 # reshape to 2D, ie flatten across chans
             #data.shape = nspikes, nchans*nt
 

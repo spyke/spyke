@@ -64,7 +64,7 @@ class Sort(object):
 
         # cluster density climbing params
         self.sigma = 0.3
-        self.rmergex = 1.0
+        self.rmergex = 0.333
         self.alpha = 1.0
         self.rneighx = 4
         self.nsamples = 10000

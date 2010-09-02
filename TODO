@@ -23,13 +23,23 @@ RECENT:
     - or simply weight each spike by the cluster mean, so error in signal far from 0 is more important than same error close to 0
 
 - doing best fit alignment, instead of aligning simply to a peak (see NVS advice above), probably helps improve cluster cleaning when reclustering by waveform, and might remove need to do any arbitrary weighting techniques for calculating error
+    - maybe only align each spike by +/- dt/2, where dt is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
 - find the set of chans all selected spikes have in common, then for each of those chans find the two peak times in the template, and extract voltages for each spike at those chans and times, and then cluster in 2 x nchans space
     - or better: use KS test to determine which of the timepoints on which of the chans are the least gaussian and hence most useful for clustering - see extract_all_wcs()
     - KS test ain't so great - a distrib can be highly deviant from Guassian and have a high KS value, but can still be unimodal, and hence not very useful for clustering
         - measure multimodality somehow
-        - measure info: sum(p*log(p))
+        - measure entropy: -sum(p*log(p))
+            # the higher the entropy, the wider the distrib, since it takes more bits
+            # to encode it. But wider distrib doesn't necessarily mean more clusterable...
+            # maybe search around first and 2nd point for the
+            nbins = intround(10*log2(npoints))
+            p, b, l = hist(data[:, :, 25].ravel(), bins=50)
+            p, bins = np.histogram(data, nbins)
+            p = p[p != 0] # prevent singularities
+            p = np.float64(p)
         - measure DJS, but that's quite similar to KS test I think
+    - could be that including useless dimensions in waveform clustering allows gradient ascent clustering to use those crappy dimensions for climbing, and erroneously cluster spikes that are quite different on one or two chans, but very similar on other chans (which are the ones providing the useless dims). Need a clusterability measure to choose decent dims, and throwaway the rest. Maybe set some information threshold that each dim needs to meet in order to be used for clustering
 
 - mess with Cauchy distrib
 
