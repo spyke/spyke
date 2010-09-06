@@ -943,19 +943,35 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 clusterchani = np.where(chans == clusterchan)[0]
                 if len(clusterchani) == 0:
                     raise RuntimeError("Chan %d isn't a part of spike %d" % (clusterchan, sid))
-                data[sii] = np.int32(s.wavedata[sid, clusterchani]) # why am I calling int32() when data is float?
+                data[sii] = np.float64(s.wavedata[sid, clusterchani])
             '''
 
             # find which chans are common to all selected spikes
             chanss = spikes['chans'][sids]
             nchanss = spikes['nchans'][sids]
             chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
-            chans = core.intersect1d(chanslist) # find intersection
+            clusterable_chans = core.intersect1d(chanslist) # find intersection
+            try: chans = self.selected_chans
+            except AttributeError: chans = clusterable_chans
+
+            # pop up dialog asking for chans to cluster on
+            string = wx.GetTextFromUser('Cluster on which channel(s)?',
+                                        'Waveform clustering', str(list(chans)))
+            if string == '':
+                return # cancel was pressed
+            if string == '[]':
+                chans = clusterable_chans
+            else:
+                chans = np.asarray(eval(string))
+            for chan in chans:
+                assert chan in clusterable_chans, "chan %d not common to all spikes" % chan
+            self.selected_chans = chans # save for next time
+
             print('clustering upon chans = %r' % list(chans))
             nspikes = len(sids)
             nchans = len(chans)
             nt = s.wavedata.shape[2]
-            # collect data from only the common chans from all spikes:
+            # collect data from 'chans' from all spikes:
             data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
             #data = np.zeros((nspikes, nchans, 2), dtype=np.float32)
             #phasetis = np.zeros((nspikes, nchans*2), dtype=int)

@@ -23,7 +23,7 @@ RECENT:
     - or simply weight each spike by the cluster mean, so error in signal far from 0 is more important than same error close to 0
 
 - doing best fit alignment, instead of aligning simply to a peak (see NVS advice above), probably helps improve cluster cleaning when reclustering by waveform, and might remove need to do any arbitrary weighting techniques for calculating error
-    - maybe only align each spike by +/- dt/2, where dt is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
+    - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between pahses and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
 - find the set of chans all selected spikes have in common, then for each of those chans find the two peak times in the template, and extract voltages for each spike at those chans and times, and then cluster in 2 x nchans space
     - or better: use KS test to determine which of the timepoints on which of the chans are the least gaussian and hence most useful for clustering - see extract_all_wcs()
@@ -40,8 +40,13 @@ RECENT:
             p = np.float64(p)
         - measure DJS, but that's quite similar to KS test I think
     - could be that including useless dimensions in waveform clustering allows gradient ascent clustering to use those crappy dimensions for climbing, and erroneously cluster spikes that are quite different on one or two chans, but very similar on other chans (which are the ones providing the useless dims). Need a clusterability measure to choose decent dims, and throwaway the rest. Maybe set some information threshold that each dim needs to meet in order to be used for clustering
+        - in this spirit, go back to finding peak times in template, but have user choose which chans to cluster upon. So, you're clustering in an even lower dim space, but really only clustering using the best possible dimensions. See if this improves waveform clustering
 
 - mess with Cauchy distrib
+    - why not try adding an amplitude offset param to Gaussian model? This could be all the heavy tail I need...
+        - actually, I think I tried this (soff and toff), and presumably it didn't work very well
+
+- could try using Cauchy distrib for density estimation during the gradient ascent clustering, isntead of Gaussian, since it's a drop-in replacement
 
 - capture Del key press in both neuron and cluster lists
 
@@ -49,7 +54,10 @@ RECENT:
 
 - if doing a subclustering results in an overall reduction in the number of clusters, try and merge into the existing available cluster numbers - don't just delete the old ones and add new ones to the end
 
-- maybe mess with how wavefrom data is normalized before high-D clustering. Normalize by std of all data points, not just on a per data point basis? Or, normalize all dims by std of chan with biggest std?
+- add feature where you do a clustering of only the unclustered points in the data (unclustered is defined as cid=-1 or nid=-1, or both?
+    - refinement would be to do clustering of only those unclustered points near the current focus
+
+- maybe mess with how waveform data is normalized before high-D clustering. Normalize by std of all data points, not just on a per data point basis? Or, normalize all dims by std of chan with biggest std?
     - how does NVS normalize waveform data before clustering?
     - also, does NVS somehow enforce that at most only 2 clusters should result from waveform clustering? if so, how?
 
@@ -68,14 +76,17 @@ RECENT:
 
 - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
 
-- normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
-
 - clicking on blank part of listctrl, thereby deselecting all, doesn't trigger a selection event - try binding OnClistSelect and OnNlistSelect to each and every click in the list?
 
 - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
 
-- for temporal spike modelling, if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
-    - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is
+- temporal spike modelling
+    - try doing piecemeal modelling ala spatial modelling, see if that gives better values (or have I tried this already?)
+    - if either of the sigmas are say > 200 us, assume that such a sigma should be ignored, and that the spike is effectively monophasic
+        - luckily, it always seems to be the 2nd sigma (s1) that sometimes is fit at a really big value, so for clustering, the s0 value should be fairly reliable as is - is this really true?
+
+- normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
+    - not necessary now that I've turned off density thresh
 
 - discovered the bug in naming LFP chans in SURF has hit us again (see 2008-11-13 note): in ptc18.14, and probably lots of others. Crap! This probably means I'll have to go in and manually edit lots of .srf files, and all their copies. I thought I had this problem figured out a long time ago. Some kind of sloppy memory management in surf causes characters from the previous LFP chan to remain for the next LFP chan - think it's a single digit number vs a 2 digit number problem. Maybe I should be putting leading zeros in the LFP chan field names in the surf .cfg files...
     - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
