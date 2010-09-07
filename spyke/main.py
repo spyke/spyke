@@ -1021,11 +1021,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             #data.shape = nspikes, nchans*nt
 
             # normalize each dimension (there are nchans*2 dimensions to cluster upon)
-            data -= data.mean(axis=0)
-            data /= data.std(axis=0)
+            #data -= data.mean(axis=0) # not necessary, since we aren't plotting this data
+            #data /= data.std(axis=0)
             #data /= data.std()
-            # or maybe normalize by the std of the dim with the biggest std, like this?:
-            #data /= data.std(axis=0).max()
+            # normalize by the std of the dim with the biggest std - this allows use of reasonable
+            # value of sigma (~0.3), similar to param clustering, and independent of what the amplifier
+            # gain was during recording:
+            std = data.std(axis=0).max()
+            data /= std
+            print('normalized waveform data by %f' % std)
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do spike parameter (non-wavefrom) clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
@@ -1075,7 +1079,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
                 #print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
-                print('WARNING: neuron %d has no spikes for some reason' % neuron.id)
+                raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
             if waveclustering and len(nsids) != 0:
                 # set pos and scale in plotdims using mean and std of points
                 for plotdimi, plotdim in enumerate(plotdims):

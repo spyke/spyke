@@ -8,6 +8,7 @@ RECENT:
         - not sure if he does this on all chans in cluster, or just the maxchan
     - he compares the two most similar cluster templates, based I guess on their least squares difference, so you can decide if anything is oversplit, and you can merge them, and then look at the next two most similar cluster templates...
         - could do this more simply by sorting clusters in order of y location, and scrolling through them in order to see if consecutive-ish ones appear too similar
+        - or, could do this best of all by sorting by template maxchan - this would also help reduce possibility of having neighbouring clustsers having the same colour
     - should ask him if he calculates scout densities and point densities and applies a density threshold to reject points in really empty regions
     - what's his exit criteria again?
 
@@ -39,7 +40,7 @@ RECENT:
             p = p[p != 0] # prevent singularities
             p = np.float64(p)
         - measure DJS, but that's quite similar to KS test I think
-    - could be that including useless dimensions in waveform clustering allows gradient ascent clustering to use those crappy dimensions for climbing, and erroneously cluster spikes that are quite different on one or two chans, but very similar on other chans (which are the ones providing the useless dims). Need a clusterability measure to choose decent dims, and throwaway the rest. Maybe set some information threshold that each dim needs to meet in order to be used for clustering
+    - could be that including useless dimensions in waveform clustering allows gradient ascent clustering to use those crappy dimensions for climbing, and erroneously cluster spikes that are quite different on one or two chans, but very similar on other chans (which are the ones providing the useless dims). Need a clusterability measure to choose decent dims, and throw away the rest. Maybe set some information threshold that each dim needs to meet in order to be used for clustering
         - in this spirit, go back to finding peak times in template, but have user choose which chans to cluster upon. So, you're clustering in an even lower dim space, but really only clustering using the best possible dimensions. See if this improves waveform clustering
 
 - mess with Cauchy distrib

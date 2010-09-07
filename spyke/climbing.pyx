@@ -73,7 +73,7 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
     cdef int M # current num scout points (clusters)
-    cdef int npoints, nremoved
+    cdef int npoints, npointsremoved, nclustsremoved
     cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
     cdef np.ndarray[np.int32_t, ndim=1] cids = np.zeros(N, dtype=np.int32) # cluster indices into data
     cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
@@ -251,7 +251,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
         print('Assigning unclustered points took %.3f sec' % (time.time()-t0))
 
     # remove clusters with less than minpoints number of points
-    nremoved = 0
+    npointsremoved = 0
+    nclustsremoved = 0
     i = 0
     while i < M:
         npoints = 0 # reset
@@ -273,10 +274,12 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                 elif cids[clustii] > i:
                     cids[clustii] -= 1 # decr all clust indices above i
             M -= 1 # decr num of scouts, don't inc i, new value at i has just slid into view
-            nremoved += 1
+            npointsremoved += npoints
+            nclustsremoved += 1
         else:
             i += 1
-    print('%d clusters deleted for having less than %d points' % (nremoved, minpoints))
+    print('%d points and %d clusters deleted for having less than %d points each' %
+         (npointsremoved, nclustsremoved, minpoints))
 
     if calcpointdensities:
         # calculate the local density for each point, using potentially just subsampled data
