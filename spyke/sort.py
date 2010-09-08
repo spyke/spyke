@@ -266,7 +266,9 @@ class Sort(object):
                 else: # normalize all other dims by their std
                     d -= d.mean()
                     d /= d.std()
-
+            ndims = len(dims)
+            data /= np.sqrt(ndims)
+        
         return data
 
     def cut_cluster(self, cluster):

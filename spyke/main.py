@@ -28,7 +28,7 @@ sys.path.insert(0, spykepath)
 import spyke
 from spyke import core, surf, detect, extract
 from spyke.sort import Sort
-from spyke.core import toiter, MICRO
+from spyke.core import toiter, intround, MICRO
 from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
 from spyke.sort import SortFrame
 import wxglade_gui
@@ -109,11 +109,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
-        #os.chdir('/data/ptc18')
-        #srffname = '14-tr1-mseq32_40ms_7deg.srf'
-        #sortfname = os.getcwd() + '/87 testing.sort'
-        #self.OpenSurfFile(srffname)
-        #self.OpenSortFile(sortfname)
+        os.chdir('/data/ptc15')
+        srffname = '87 - track 7c spontaneous craziness.srf'
+        self.OpenSurfFile(srffname)
+        os.chdir('/data/ptc15/tr7c/87 - track 7c spontaneous craziness')
+        sortfname = '2010-09-01_18.35.32_test.sort'
+        self.OpenSortFile(sortfname)
 
     def set_detect_pane_defaults(self):
         """Set detect pane widget initial values"""
@@ -951,8 +952,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             nchanss = spikes['nchans'][sids]
             chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
             clusterable_chans = core.intersect1d(chanslist) # find intersection
-            try: chans = self.selected_chans
-            except AttributeError: chans = clusterable_chans
+
+            # decide which is the definitive maxchan for the selected spikes
+            maxchans = spikes['chan'][sids]
+            maxchan = int(scipy.stats.mode(maxchans)[0][0]) # cluster on most common maxchan
+            chans = [maxchan]
 
             # pop up dialog asking for chans to cluster on
             string = wx.GetTextFromUser('Cluster on which channel(s)?',
@@ -963,9 +967,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 chans = clusterable_chans
             else:
                 chans = np.asarray(eval(string))
+            assert maxchan in chans, "violated assumption that template maxchan is one of the chans"
             for chan in chans:
                 assert chan in clusterable_chans, "chan %d not common to all spikes" % chan
-            self.selected_chans = chans # save for next time
 
             print('clustering upon chans = %r' % list(chans))
             nspikes = len(sids)
@@ -979,46 +983,33 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 spikechans = chanslist[sii]
                 spikechanis = np.searchsorted(spikechans, chans)
                 data[sii] = s.wavedata[sid, spikechanis]
-                '''
-                # use each spike's phasetis to pick out the points to cluster upon:
-                wavedata = s.wavedata[sid, spikechanis] # nchans x nt
-                phasetis = spikes['phasetis'][sid, spikechanis] # nchans x 2
-                if phasetis[0].argmin() == 1: # if first chan not in temporal order
-                    # (all chans are not in temporal order)
-                    phasetis = phasetis[:, ::-1] # swap the columns
-                # grab spike's data at phasetis, using fancy indexing
-                data[sii] = wavedata[np.arange(nchans)[:, None], phasetis]
-                '''
+            
             # find mean waveform of selected spikes
             template = data.mean(axis=0)
+            '''
             # find peak times in mean waveform for each chan in chans
             peaktis = np.zeros((nchans, 2), dtype=int)
             for chani in range(nchans):
                 peaktis[chani] = template[chani].argmin(), template[chani].argmax() # order doesn't matter
             print('peaktis =')
             print(peaktis)
-
             '''
-            # use KS test to decide which chans and timepoints to use for clustering:
-            ndims = nchans*nt
-            data.shape = nspikes, ndims # reshape to 2D, ie flatten across chans
-            ks = np.zeros(ndims)
-            p = np.zeros(ndims)
-            for i in range(ndims):
-                ks[i], p[i] = scipy.stats.kstest(data[:, i], 'norm')
-            ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
-            # kind of arbitrary, use 3 points per chan on avg, but some chans will be more clusterable than others
-            ndims = nchans * 3
-            data = data[:, ksis[:ndims]]
-            print('ks = %r' % ks)
-            print('p = %r' % p)
-            print('ksis = %r' % ksis)
-            '''
+            maxchani, = np.where(chans == maxchan)
+            peaktis = np.asarray([template[maxchani].argmin(), template[maxchani].argmax()])
+            peaktis.sort() # keep in temporal order
+            halfdt = intround((peaktis[1] - peaktis[0]) / 2.0)
+            slicetis = np.asarray([max(peaktis[0]-halfdt, 0), peaktis[1]+halfdt+1])
+            # consider only data between slicetis, copy to make it contiguous
+            data = data[:, :, slicetis[0]:slicetis[1]].copy()
+            print('slicetis = %r' % slicetis)
+    
             # grab each spike's data at these peak times, using fancy indexing
             # see core.rowtake() or util.rowtake_cy() for indexing explanation
-            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
-            data.shape = nspikes, nchans*2 # reshape to 2D, ie flatten across chans
+            #data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
+            #data.shape = nspikes, nchans*2 # reshape to 2D, ie flatten across chans
             #data.shape = nspikes, nchans*nt
+            data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
+            ndims = data.shape[1]   
 
             # normalize each dimension (there are nchans*2 dimensions to cluster upon)
             #data -= data.mean(axis=0) # not necessary, since we aren't plotting this data
@@ -1026,10 +1017,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             #data /= data.std()
             # normalize by the std of the dim with the biggest std - this allows use of reasonable
             # value of sigma (~0.3), similar to param clustering, and independent of what the amplifier
-            # gain was during recording:
-            std = data.std(axis=0).max()
-            data /= std
-            print('normalized waveform data by %f' % std)
+            # gain was during recording. Also normalize by sqrt(ndims):
+            norm = data.std(axis=0).max() * np.sqrt(ndims)
+            data /= norm
+            print('ndims = %d' % ndims)
+            print('normalized waveform data by %f' % norm)
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do spike parameter (non-wavefrom) clustering
             data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
