@@ -18,6 +18,8 @@ RECENT:
         - but overall, I have a feeling that density thresh isn't really necessary any more, if good cleaning can take its place
     - NVS does something like this too (but only for splitting clusters based on waveforms), except he has a sort of preview mode where you have to hit apply to actually apply the new results. This makes more sense for the user, and means potentially less unnecessary data manipulation, but for spyke it would mean you now have the potential for the GUI to be out of synch with the actual state of the clustering, and I think this would be confusing to code, and confusing for the user too.
 
+    - only allow undo if oldclusters were selected?
+
 - error measures:
     - weight each spike in cluster by 2nd derivative of the cluster mean
     - take shortest distance (in voltage-time space) to template, instead of just voltage
