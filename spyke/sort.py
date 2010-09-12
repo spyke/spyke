@@ -268,7 +268,7 @@ class Sort(object):
                     d /= d.std()
             ndims = len(dims)
             data /= np.sqrt(ndims)
-        
+
         return data
 
     def cut_cluster(self, cluster):
@@ -350,9 +350,14 @@ class Sort(object):
         #spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
         return sids
 
-    def create_neuron(self):
+    def create_neuron(self, id=None):
         """Create and return a new Neuron with a unique ID"""
-        neuron = Neuron(self, self.nextnid)
+        if id:
+            if id in self.neurons:
+                raise RuntimeError('Neuron %d already exists' % id)
+            neuron = Neuron(self, id)
+        else:
+            neuron = Neuron(self, self.nextnid)
         self.neurons[neuron.id] = neuron # add neuron to self
         return neuron
 

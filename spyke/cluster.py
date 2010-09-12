@@ -80,6 +80,11 @@ class Cluster(object):
         self.ellipsoid = None # restore attrib, proper value is restored later
 
 
+class ClusterState(object):
+    """Empty class for storing info to undo changes to clusters"""
+    pass
+
+
 class SpykeMayaviScene(MayaviScene):
     def __init__(self, *args, **kwargs):
         MayaviScene.__init__(self, *args, **kwargs)
