@@ -1,20 +1,5 @@
 RECENT:
 
-- spoke with NVS:
-    - he uses only x0, y0, and Vpp as cluster dims, with sigma=0.3, alpha=2, rmerge=0.1, minpoints=50, although that's all for ptc15.tr7c
-    - so, maybe I should make rmergex=0.3 X sigma
-    - also, once he's got clusters, he aligns each spike to max or min and updates the template, iterates that a few times, then he aligns according to least squares best fit of each spike to the template, and iterates that a few times too. This gets him lower SD for each cluster template
-        - should try this least squares alignment, and should also calculate SD for each cluster
-        - not sure if he does this on all chans in cluster, or just the maxchan
-    - he compares the two most similar cluster templates, based I guess on their least squares difference, so you can decide if anything is oversplit, and you can merge them, and then look at the next two most similar cluster templates...
-        - could do this more simply by sorting clusters in order of y location, and scrolling through them in order to see if consecutive-ish ones appear too similar
-        - or, could do this best of all by sorting by template maxchan - this would also help reduce possibility of having neighbouring clustsers having the same colour
-
-- error measures:
-    - weight each spike in cluster by 2nd derivative of the cluster mean
-    - take shortest distance (in voltage-time space) to template, instead of just voltage
-    - or simply weight each spike by the cluster mean, so error in signal far from 0 is more important than same error close to 0
-
 - doing best fit alignment, instead of aligning simply to a peak (see NVS advice above), probably helps improve cluster cleaning when reclustering by waveform, and might remove need to do any arbitrary weighting techniques for calculating error
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between pahses and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
@@ -51,6 +36,11 @@ RECENT:
 - clicking on blank part of listctrl, thereby deselecting all, doesn't trigger a selection event - try binding OnClistSelect and OnNlistSelect to each and every click in the list?
 
 - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
+
+- error measure ideas:
+    - weight each spike in cluster by 2nd derivative of the cluster mean
+    - take shortest distance (in voltage-time space) to template, instead of just voltage
+    - or simply weight each spike by the cluster mean, so error in signal far from 0 is more important than same error close to 0
 
 - temporal spike modelling
     - try doing piecemeal modelling ala spatial modelling, see if that gives better values (or have I tried this already?)
@@ -754,6 +744,8 @@ DONE:
     - could be that including useless dimensions in waveform clustering allows gradient ascent clustering to use those crappy dimensions for climbing, and erroneously cluster spikes that are quite different on one or two chans, but very similar on other chans (which are the ones providing the useless dims). Need a clusterability measure to choose decent dims, and throw away the rest. Maybe set some information threshold that each dim needs to meet in order to be used for clustering
         - in this spirit, go back to finding peak times in template, but have user choose which chans to cluster upon. So, you're clustering in an even lower dim space, but really only clustering using the best possible dimensions. See if this improves waveform clustering
 - capture Del key press in both neuron and cluster lists
+- NVS compares the two most similar cluster templates, based I guess on their least squares difference, so you can decide if anything is oversplit, and you can merge them, and then look at the next two most similar cluster templates...
+    - could do this more simply by sorting clusters in order of y location, and scrolling through them in order to see if consecutive-ish ones appear too similar
 
 
 

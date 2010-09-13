@@ -581,19 +581,22 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cf.f.scene.disable_render = False
 
     def OnRenumberClusters(self, evt=None):
-        """Renumber clusters consecutively from 0, on "re#" button click"""
+        """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
+        Sorting by y position makes user inspection of clusters more orderly, makes the presence
+        of duplicate clusters more obvious, and allows for maximal spatial separation between
+        clusters of the same colour, reducing colour conflicts"""
         s = self.sort
         spikes = s.spikes
         # get lists of unique old cids and new cids
-        uoldcids = sorted(s.clusters.keys()) # make sure they're in order
-        unewcids = range(len(s.clusters))
-        if uoldcids == unewcids: # oldcids are contiguous, shuffle the newids to recolour clusters
-            random.shuffle(unewcids)
+        uoldcids = sorted(s.clusters) # make sure they're in order
+        # this is a bit confusing: find indices that would sort uoldcids by y pos, but then
+        # what you really want is to find the y pos *rank* of each uoldcid, so you need to
+        # take argsort again:
+        unewcids = np.asarray([ s.clusters[cid].pos['y0'] for cid in uoldcids ]).argsort().argsort()
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
-        oldnids = spikes['nid'].copy()
         oldcids = spikes['cid'].copy()
         s.clusters = {} # clear 'em
         s.neurons = {}
@@ -602,10 +605,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cluster = oldclusters[oldcid]
             cluster.id = newcid # this indirectly updates neuron.id
             # update cluster and neuron dicts
-            s.clusters[newcid] = oldclusters[oldcid]
-            s.neurons[newcid] = oldneurons[oldcid]
-            spikes['nid'][oldnids == oldcid] = newcid
-            spikes['cid'][oldcids == oldcid] = newcid
+            s.clusters[newcid] = cluster
+            s.neurons[newcid] = cluster.neuron
+            sids = cluster.neuron.sids
+            spikes['nid'][sids] = newcid
+            spikes['cid'][sids] = newcid
             # TODO: can't figure out how to change scalar value of existing ellipsoid (for
             # mouse hover tooltip), just delete it and make a new one. This is very innefficient
             cluster.ellipsoid.remove()
@@ -618,7 +622,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(s.clusters.values())
-        del self.clusterstate # last cluster state no longer applicable
+        try: del self.clusterstate # last cluster state no longer applicable
+        except AttributeError: pass
 
     def OnCListSelect(self, evt=None):
         """Cluster list box item selection. Update cluster param widgets
