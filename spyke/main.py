@@ -938,12 +938,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # grab dims and data
         dimselis = self.dimlist.getSelection()
-        if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
+        ndims = len(dimselis)
+        if ndims == 0: raise RuntimeError('No cluster dimensions selected')
         dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
         plotdims = self.GetClusterPlotDimNames()
         waveclustering = 'wave' in dims
         if waveclustering: # do maxchan wavefrom clustering
-            if len(dims) > 1:
+            if ndims > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
             data = self.get_waveclustering_data(sids)
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
@@ -952,8 +953,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # grab climbing params and run it
         self.update_sort_from_cluster_pane()
+        s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
         t0 = time.time()
-        results = climb(data, sigma=s.sigma, alpha=s.alpha, rmergex=s.rmergex,
+        results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
                         rneighx=s.rneighx, nsamples=s.nsamples,
                         calcpointdensities=False, calcscoutdensities=False,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
@@ -1165,16 +1167,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #data.shape = nspikes, nchans*2 # reshape to 2D, ie flatten across chans
         #data.shape = nspikes, nchans*nt
         data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
-        ndims = data.shape[1]
 
-        # normalize each dimension (there are nchans*2 dimensions to cluster upon)
-        #data -= data.mean(axis=0) # not necessary, since we aren't plotting this data
-        #data /= data.std(axis=0)
-        #data /= data.std()
         # normalize by the std of the dim with the biggest std - this allows use of reasonable
-        # value of sigma (~0.3), similar to param clustering, and independent of what the amplifier
-        # gain was during recording. Also normalize by sqrt(ndims):
-        norm = data.std(axis=0).max() * np.sqrt(ndims)
+        # value of sigma (~0.15), similar to param clustering, and independent of what the amplifier
+        # gain was during recording
+        norm = data.std(axis=0).max()
         data /= norm
         print('ndims = %d' % ndims)
         print('normalized waveform data by %f' % norm)

@@ -749,6 +749,7 @@ class NListCtrl(SpykeListCtrl):
         key = evt.GetKeyCode()
         if key == wx.WXK_DELETE:
             self.GetTopLevelParent().spykeframe.OnDelCluster()
+        evt.Skip()
 
     def OnGetItemText(self, row, col):
         sort = self.GetTopLevelParent().sort
@@ -771,6 +772,7 @@ class CListCtrl(SpykeListCtrl):
         key = evt.GetKeyCode()
         if key == wx.WXK_DELETE:
             self.GetTopLevelParent().OnDelCluster()
+        evt.Skip()
 
     def OnGetItemText(self, row, col):
         sort = self.GetTopLevelParent().sort

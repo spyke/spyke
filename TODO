@@ -24,8 +24,6 @@ RECENT:
 
 - could try using Cauchy distrib for density estimation during the gradient ascent clustering, isntead of Gaussian, since it's a drop-in replacement
 
-- capture Del key press in both neuron and cluster lists
-
 - add simple merge button (^), so you don't have to do a climb with a big sigma to get the same effect
 
 - if doing a subclustering results in an overall reduction in the number of clusters, try and merge into the existing available cluster numbers - don't just delete the old ones and add new ones to the end
@@ -755,6 +753,7 @@ DONE:
         - measure DJS, but that's quite similar to KS test I think
     - could be that including useless dimensions in waveform clustering allows gradient ascent clustering to use those crappy dimensions for climbing, and erroneously cluster spikes that are quite different on one or two chans, but very similar on other chans (which are the ones providing the useless dims). Need a clusterability measure to choose decent dims, and throw away the rest. Maybe set some information threshold that each dim needs to meet in order to be used for clustering
         - in this spirit, go back to finding peak times in template, but have user choose which chans to cluster upon. So, you're clustering in an even lower dim space, but really only clustering using the best possible dimensions. See if this improves waveform clustering
+- capture Del key press in both neuron and cluster lists
 
 
 
