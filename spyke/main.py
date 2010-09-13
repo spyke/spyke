@@ -587,7 +587,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         clusters of the same colour, reducing colour conflicts"""
 
         # TODO: deselect current selections, then after renum, reselect same clusters (but now
-        # renumbed)
+        # renumbered)
 
         s = self.sort
         spikes = s.spikes
@@ -922,28 +922,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort')
         cf = self.OpenFrame('cluster')
 
-        # stores stuff for undo
-        self.clusterstate = spyke.cluster.ClusterState()
-        cs = self.clusterstate
-
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
             clusters = oldclusters
             sids = [] # spikes to run climb() on
             for oldcluster in oldclusters:
-                sids.append(np.where(spikes['cid'] == oldcluster.id)[0])
+                #sids.append(np.where(spikes['cid'] == oldcluster.id)[0])
+                sids.append(oldcluster.neuron.sids)
             sids = np.concatenate(sids) # run climb() on selected spikes
         else: # no clusters selected
             clusters = s.clusters.values() # all clusters
             sids = spikes['id'] # run climb() on all spikes
-
-        # save undo stuff
-        cs.oldclusterids = [ cluster.id for cluster in clusters ]
-        cs.sids = sids
-        cs.oldcids = spikes['cid'][sids]
-        cs.oldnids = spikes['nid'][sids]
-        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
-        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
 
         # grab dims and data
         dimselis = self.dimlist.getSelection()
@@ -974,6 +963,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         try: nids.remove(-1)
         except ValueError: pass
         print('climb took %.3f sec' % (time.time()-t0))
+
+        # save undo stuff, this is done as late as possible to delay overwriting any
+        # previous cluster state for as long as possible
+        self.clusterstate = spyke.cluster.ClusterState() # overwrite any previous one
+        cs = self.clusterstate
+        cs.oldclusterids = [ cluster.id for cluster in clusters ]
+        cs.sids = sids
+        cs.oldcids = spikes['cid'][sids]
+        cs.oldnids = spikes['nid'][sids]
+        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
+        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
 
         if oldclusters: # some clusters selected
             self.SelectClusters(oldclusters, on=False) # deselect original clusters
@@ -1089,7 +1089,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             chans = np.asarray(eval(string))
         assert maxchan in chans, "violated assumption that template maxchan is one of the chans"
         for chan in chans:
-            assert chan in clusterable_chans, "chan %d not common to all spikes" % chan
+            if chan not in clusterable_chans:
+                print("chan %d not common to all spikes, pick from %r"
+                      % (chan, list(clusterable_chans)))
+                # TODO: sometimes get a mysterious bug where after a few cleanings, even
+                # the template's maxchan apparently isn't in clusterable_chans, although it
+                # was on the previous cleaning...
+                import pdb; pdb.set_trace()
 
         print('clustering upon chans = %r' % list(chans))
         nspikes = len(sids)
@@ -1131,8 +1137,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
 
         # normalize by the std of the dim with the biggest std - this allows use of reasonable
-        # value of sigma (~0.15), similar to param clustering, and independent of what the amplifier
-        # gain was during recording
+        # value of sigma (~0.15), similar to param clustering, and independent of what the
+        # amplifier gain was during recording
         norm = data.std(axis=0).max()
         data /= norm
         print('normalized waveform data by %f' % norm)
