@@ -938,13 +938,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # grab dims and data
         dimselis = self.dimlist.getSelection()
-        ndims = len(dimselis)
-        if ndims == 0: raise RuntimeError('No cluster dimensions selected')
         dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
+        if len(dims) == 0: raise RuntimeError('No cluster dimensions selected')
         plotdims = self.GetClusterPlotDimNames()
         waveclustering = 'wave' in dims
         if waveclustering: # do maxchan wavefrom clustering
-            if ndims > 1:
+            if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
             data = self.get_waveclustering_data(sids)
             plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
@@ -953,6 +952,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # grab climbing params and run it
         self.update_sort_from_cluster_pane()
+        ndims = data.shape[1]
         s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
         t0 = time.time()
         results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
@@ -1031,53 +1031,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # select newly created cluster(s)
             self.SelectClusters(newclusters, on=True)
 
-    def OnUndo(self, evt=None):
-        """Cluster pane Undo button click. Undo previous climb"""
-        # TODO: delete self.clusterstate when renumbering clusters. You do that,
-        # forfeit your ability to undo
-        s = self.sort
-        spikes = s.spikes
-        sf = self.OpenFrame('sort')
-        cf = self.OpenFrame('cluster')
-        try: cs = self.clusterstate
-        except AttributeError: raise RuntimeError('nothing to undo')
-        sids = cs.sids
-
-        # delete newly added clusters
-        newclusters = [ s.clusters[newcid] for newcid in cs.newclusterids ]
-        self.SelectClusters(newclusters, on=False) # deselect new clusters
-        cf.f.scene.disable_render = True # for speed
-        for newcluster in newclusters:
-            self.DelCluster(newcluster, update=False) # del new clusters
-        self.DeColourPoints(sids) # decolour all points belonging to new clusters
-
-        # restore relevant spike fields
-        spikes['cid'][sids] = cs.oldcids
-        spikes['nid'][sids] = cs.oldnids
-
-        # restore the old clusters
-        oldclusters = []
-        plotdims = self.GetClusterPlotDimNames()
-        t0 = time.time()
-        for cid, pos, scale in zip(cs.oldclusterids, cs.positions, cs.scales): # old cids are sorted????
-            ii, = np.where(cs.oldcids == cid)
-            nsids = sids[ii] # sids belonging to this nid
-            cluster = self.OnAddCluster(update=False, id=cid)
-            oldclusters.append(cluster)
-            neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
-            cluster.pos = pos
-            cluster.scale = scale
-            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        self.ColourPoints(oldclusters)
-        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
-        # select newly recreated oldclusters
-        self.SelectClusters(oldclusters, on=True)
-        del self.clusterstate # last cluster state no longer applicable
-
     def get_waveclustering_data(self, sids):
         s = self.sort
         spikes = s.spikes
@@ -1120,7 +1073,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         string = wx.GetTextFromUser('Cluster on which channel(s)?',
                                     'Waveform clustering', str(list(chans)))
         if string == '':
-            return # cancel was pressed
+            raise RuntimeError('cancelled') # cancel was pressed
         if string == '[]':
             chans = clusterable_chans
         else:
@@ -1173,9 +1126,56 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # gain was during recording
         norm = data.std(axis=0).max()
         data /= norm
-        print('ndims = %d' % ndims)
         print('normalized waveform data by %f' % norm)
         return data
+
+    def OnUndo(self, evt=None):
+        """Cluster pane Undo button click. Undo previous climb"""
+        # TODO: delete self.clusterstate when renumbering clusters. You do that,
+        # forfeit your ability to undo
+        s = self.sort
+        spikes = s.spikes
+        sf = self.OpenFrame('sort')
+        cf = self.OpenFrame('cluster')
+        try: cs = self.clusterstate
+        except AttributeError: raise RuntimeError('nothing to undo')
+        sids = cs.sids
+
+        # delete newly added clusters
+        newclusters = [ s.clusters[newcid] for newcid in cs.newclusterids ]
+        self.SelectClusters(newclusters, on=False) # deselect new clusters
+        cf.f.scene.disable_render = True # for speed
+        for newcluster in newclusters:
+            self.DelCluster(newcluster, update=False) # del new clusters
+        self.DeColourPoints(sids) # decolour all points belonging to new clusters
+
+        # restore relevant spike fields
+        spikes['cid'][sids] = cs.oldcids
+        spikes['nid'][sids] = cs.oldnids
+
+        # restore the old clusters
+        oldclusters = []
+        plotdims = self.GetClusterPlotDimNames()
+        t0 = time.time()
+        for cid, pos, scale in zip(cs.oldclusterids, cs.positions, cs.scales): # old cids are sorted????
+            ii, = np.where(cs.oldcids == cid)
+            nsids = sids[ii] # sids belonging to this nid
+            cluster = self.OnAddCluster(update=False, id=cid)
+            oldclusters.append(cluster)
+            neuron = cluster.neuron
+            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
+            cluster.pos = pos
+            cluster.scale = scale
+            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+
+        # now do some final updates
+        self.UpdateClustersGUI()
+        self.ColourPoints(oldclusters)
+        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        # select newly recreated oldclusters
+        self.SelectClusters(oldclusters, on=True)
+        del self.clusterstate # last cluster state no longer applicable
+
     '''
     def OnApplyDensityThresh(self, evt=None):
         """Cluster pane point density threshold Apply button click. Changes
