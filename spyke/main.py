@@ -147,7 +147,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.nsamples_spin_ctrl.SetValue(s.nsamples)
         self.maxstill_spin_ctrl.SetValue(s.maxstill)
         self.minpoints_spin_ctrl.SetValue(s.minpoints)
-        self.density_thresh_text_ctrl.SetValue(str(s.density_thresh))
+        #self.density_thresh_text_ctrl.SetValue(str(s.density_thresh))
 
     def OnNew(self, evt):
         self.CreateNewSort()
@@ -585,6 +585,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         Sorting by y position makes user inspection of clusters more orderly, makes the presence
         of duplicate clusters more obvious, and allows for maximal spatial separation between
         clusters of the same colour, reducing colour conflicts"""
+
+        # TODO: deselect current selections, then after renum, reselect same clusters (but now
+        # renumbed)
+
         s = self.sort
         spikes = s.spikes
         # get lists of unique old cids and new cids
@@ -1236,7 +1240,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         s.nsamples = self.nsamples_spin_ctrl.GetValue()
         s.maxstill = self.maxstill_spin_ctrl.GetValue()
         s.minpoints = self.minpoints_spin_ctrl.GetValue()
-        s.density_thresh = float(self.density_thresh_text_ctrl.GetValue())
+        #s.density_thresh = float(self.density_thresh_text_ctrl.GetValue())
 
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
