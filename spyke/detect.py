@@ -137,7 +137,7 @@ class Detector(object):
     DEFMAXNSPIKES = 0
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFLOCKR = 150 # spatial lockout radius, um
-    DEFINCLR = 100 # spatial include radius, um
+    DEFINCLR = 150 # spatial include radius, um
     DEFDT = 400 # max time between phases of a single spike, us
     DEFRANDOMSAMPLE = False
     DEFEXTRACTPARAMSONDETECT = True

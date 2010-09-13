@@ -63,7 +63,7 @@ class Sort(object):
         self.usids_reversed = False
 
         # cluster density climbing params
-        self.sigma = 0.3
+        self.sigma = 0.15
         self.rmergex = 0.333
         self.alpha = 1.0
         self.rneighx = 4

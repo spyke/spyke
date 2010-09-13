@@ -743,6 +743,12 @@ class NListCtrl(SpykeListCtrl):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         self.InsertColumn(0, 'nID')
         self.SetColumnWidth(0, 29)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+
+    def OnKeyDown(self, evt):
+        key = evt.GetKeyCode()
+        if key == wx.WXK_DELETE:
+            self.GetTopLevelParent().spykeframe.OnDelCluster()
 
     def OnGetItemText(self, row, col):
         sort = self.GetTopLevelParent().sort
@@ -759,12 +765,17 @@ class CListCtrl(SpykeListCtrl):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         #self.InsertColumn(0, 'nID')
         self.SetColumnWidth(0, 20)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+
+    def OnKeyDown(self, evt):
+        key = evt.GetKeyCode()
+        if key == wx.WXK_DELETE:
+            self.GetTopLevelParent().OnDelCluster()
 
     def OnGetItemText(self, row, col):
         sort = self.GetTopLevelParent().sort
         # TODO: could almost assume sort.clusters dict is ordered, since it always seems to be
-        cids = list(sort.clusters)
-        cids.sort()
+        cids = sorted(sort.clusters)
         return cids[row]
 
 

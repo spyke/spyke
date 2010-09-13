@@ -109,13 +109,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
 
         # for faster testing:
+        '''
         os.chdir('/data/ptc15')
         srffname = '87 - track 7c spontaneous craziness.srf'
         self.OpenSurfFile(srffname)
         os.chdir('/data/ptc15/tr7c/87 - track 7c spontaneous craziness')
         sortfname = '2010-09-09_17.06.14_test.sort'
         self.OpenSortFile(sortfname)
-
+        '''
     def set_detect_pane_defaults(self):
         """Set detect pane widget initial values"""
         self.METH2RADIOBTN = {'GlobalFixed': self.globalfixedthresh_radio_btn,
@@ -532,14 +533,28 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sids = []
         s = self.sort
         spikes = s.spikes
+        sids = []
+        for cluster in clusters:
+            sids.append(np.where(spikes['cid'] == cluster.id)[0])
+        sids = np.concatenate(sids)
+
+        # save stuff for undo
+        self.clusterstate = spyke.cluster.ClusterState()
+        cs = self.clusterstate
+        cs.oldclusterids = [ cluster.id for cluster in clusters ]
+        cs.sids = sids
+        cs.oldcids = spikes['cid'][sids]
+        cs.oldnids = spikes['nid'][sids]
+        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
+        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
+        cs.newclusterids = [] # no new ones added
+
         # deselect them all
         self.SelectClusters(clusters, on=False)
         for cluster in clusters:
-            sids.append(cluster.neuron.sids)
             self.DelCluster(cluster, update=False)
             # update spikes['cid']
             spikes['cid'][spikes['cid'] == cluster.id] = -1 # signifies no cluster
-        sids = np.concatenate(sids)
         self.DeColourPoints(sids) # decolour appropriate points
         self.UpdateClustersGUI()
         self.frames['cluster'].glyph.mlab_source.update()
@@ -898,7 +913,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sf = self.OpenFrame('sort')
         cf = self.OpenFrame('cluster')
 
-        # stores stuff for undoing
+        # stores stuff for undo
         self.clusterstate = spyke.cluster.ClusterState()
         cs = self.clusterstate
 
@@ -1049,9 +1064,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             oldclusters.append(cluster)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
-            if len(nsids) == 0:
-                #print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
-                raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
             cluster.pos = pos
             cluster.scale = scale
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)

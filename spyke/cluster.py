@@ -124,8 +124,8 @@ class SpykeMayaviScene(MayaviScene):
         sf = self._spykeframe
         if key == ord('a'):
             sf.OnAddCluster(); return
-        elif key == ord('d'):
-            sf.OnDelCluster(); return
+        #elif key == ord('d'):
+        #    sf.OnDelCluster(); return
         elif key == ord('x'):
             # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
             x = event.GetX()
