@@ -787,11 +787,11 @@ class DimListCtrl(SpykeListCtrl):
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         #self.SetColumnWidth(0, 20)
-        self.dims = ['x0', 'y0', 'sx', 'Vpp', 'dphase', 't', 'wave']
+        self.dims = ['x0', 'y0', 'sx', 'Vpp', 'dphase', 't', 'peaks', 'wave']
         # other possibilities might be: sy, V0, V1, s0, s1
         #self.InsertColumn(0, 'dim')
         self.SetItemCount(len(self.dims))
-        select = ['x0', 'y0', 'sx', 'Vpp'] # select these by default
+        select = ['x0', 'y0', 'Vpp'] # select these by default
         [ self.Select(self.dims.index(sel), on=True) for sel in select ]
 
     def OnGetItemText(self, row, col):

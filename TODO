@@ -1,13 +1,17 @@
 RECENT:
 
-- doing best fit alignment, instead of aligning simply to a peak (see NVS advice above), probably helps improve cluster cleaning when reclustering by waveform, and might remove need to do any arbitrary weighting techniques for calculating error
+- do best fit alignment, instead of aligning simply to a peak (see NVS advice above), should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between pahses and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
-- mess with Cauchy distrib
+- allow waveform clustering on chans excluding the template maxchan
+
+- implement multiple undo/redo, saving multiple clusterstates in a stack
+
+- sometimes weird spatial localizations going on - try Cauchy distrib instead of Gaussian
     - why not try adding an amplitude offset param to Gaussian model? This could be all the heavy tail I need...
         - actually, I think I tried this (soff and toff), and presumably it didn't work very well
 
-- could try using Cauchy distrib for density estimation during the gradient ascent clustering, isntead of Gaussian, since it's a drop-in replacement
+- could also try using Cauchy distrib for density estimation during the gradient ascent clustering, instead of Gaussian, since it's a drop-in replacement
 
 - if doing a subclustering results in an overall reduction in the number of clusters, try and merge into the existing available cluster numbers - don't just delete the old ones and add new ones to the end
 
@@ -16,22 +20,20 @@ RECENT:
 - add feature where you do a clustering of only the unclustered points in the data (unclustered is defined as cid=-1 or nid=-1, or both?
     - refinement would be to do clustering of only those unclustered points near the current focus
 
+- multithread scout movement step (.) if nscouts*ndims are sufficiently large, and hence each step sufficiently slow to make it worthwhile to split its for loop up
+
 - multithread assignment of unclustered points to nearest clustered point, and point density calculations
 
 - add ability to renumber clusters according to:
     - Vpp
     - nspikes
     - y location (which could be very very useful for renumbering clusters to match those in another file)
-    - to minimize their colour similarity for nearby (x-y-Vpp) space, like the map 4 colour problem
-    - maybe shift clicking the # sign brings up a dialog with a choice drop down box. Normal clicking it makes it do what it currently does (not sort according to anything, just renumber to fill in missing neuron ids, or to shuffle the colours)
 
 - add ability to cycle through plotting all of a cluster's waveforms, 50 or 100 at a time, ala NVS, to more thoroughly check how clean the cluster really is
 
 - spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
 
 - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
-
-- implementing multiple undo/redo shouldn't be too hard with a stack, especially if I save and restore all clusters, instead of just the ones changed in the last change
 
 - clicking on blank part of listctrl, thereby deselecting all, doesn't trigger a selection event
     - try binding OnClistSelect and OnNlistSelect to each and every click in the list?
