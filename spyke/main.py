@@ -1134,7 +1134,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         chans = [maxchan]
 
         # pop up dialog asking for chans to cluster on
-        string = wx.GetTextFromUser('Cluster on which channel(s)?',
+        string = wx.GetTextFromUser('Cluster on which channel(s)?\nChoose from: %r'
+                                    % list(clusterable_chans),
                                     'Waveform clustering', str(list(chans)))
         if string == '':
             raise RuntimeError('cancelled') # cancel was pressed
@@ -1151,6 +1152,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 # the template's maxchan apparently isn't in clusterable_chans, although it
                 # was on the previous cleaning...
                 import pdb; pdb.set_trace()
+
+        # copy selected chans as string to clipboard for easy user re-pasting next time
+        chans_string = wx.TextDataObject(str(sorted(chans)))
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(chans_string)
+            wx.TheClipboard.Close()
 
         print('clustering upon chans = %r' % list(chans))
         nspikes = len(sids)

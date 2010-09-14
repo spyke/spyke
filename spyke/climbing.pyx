@@ -278,8 +278,8 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
             nclustsremoved += 1
         else:
             i += 1
-    print('%d points and %d clusters deleted for having less than %d points each' %
-         (npointsremoved, nclustsremoved, minpoints))
+    print('%d points (%.1f%%) and %d clusters deleted for having less than %d points each' %
+         (npointsremoved, npointsremoved/float(N)*100, nclustsremoved, minpoints))
 
     if calcpointdensities:
         # calculate the local density for each point, using potentially just subsampled data
