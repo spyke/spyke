@@ -915,6 +915,62 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
 
+    def OnMerge(self, evt=None):
+        """Cluster pane merge button (^) click. For simple merging of clusters, easier to
+        use than running climb() on selected clusters using a really big sigma to force
+        them to all merge"""
+        s = self.sort
+        spikes = s.spikes
+        sf = self.OpenFrame('sort')
+        cf = self.OpenFrame('cluster')
+        clusters = self.GetClusters()
+        sids = [] # spikes to merge
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        sids = np.concatenate(sids)
+
+        # save undo stuff
+        self.clusterstate = spyke.cluster.ClusterState() # overwrite any previous one
+        cs = self.clusterstate
+        cs.oldclusterids = [ cluster.id for cluster in clusters ]
+        cs.sids = sids
+        cs.oldcids = spikes['cid'][sids]
+        cs.oldnids = spikes['nid'][sids]
+        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
+        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
+
+        # delete original clusters
+        self.SelectClusters(clusters, on=False) # deselect original clusters
+        cf.f.scene.disable_render = True # for speed
+        for cluster in clusters:
+            self.DelCluster(cluster, update=False) # del original clusters
+        self.DeColourPoints(sids) # decolour all points belonging to old clusters
+
+        # create new cluster
+        t0 = time.time()
+        newclusterid = min([ cid for cid in cs.oldclusterids ]) # merge into lowest cluster
+        newcluster = self.OnAddCluster(update=False, id=newclusterid)
+        neuron = newcluster.neuron
+        sf.MoveSpikes2Neuron(sids, neuron, update=False)
+        plotdims = self.GetClusterPlotDimNames()
+        plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
+        for plotdimi, plotdim in enumerate(plotdims):
+            points = plotdata[:, plotdimi]
+            newcluster.pos[plotdim] = points.mean()
+            newcluster.scale[plotdim] = points.std() or newcluster.scale[plotdim]
+        newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+
+        # save for undo
+        cs.newclusterids = [newclusterid]
+
+        # now do some final updates
+        self.UpdateClustersGUI()
+        self.ColourPoints(newcluster)
+        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        # select newly created cluster
+        self.SelectClusters(newcluster, on=True)
+        print('merged clusters %r into cluster %d' % (cs.oldclusterids, newclusterid))
+
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
         s = self.sort
@@ -927,7 +983,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             clusters = oldclusters
             sids = [] # spikes to run climb() on
             for oldcluster in oldclusters:
-                #sids.append(np.where(spikes['cid'] == oldcluster.id)[0])
                 sids.append(oldcluster.neuron.sids)
             sids = np.concatenate(sids) # run climb() on selected spikes
         else: # no clusters selected
@@ -944,9 +999,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
             data = self.get_waveclustering_data(sids)
-            plotdata = self.sort.get_param_matrix(dims=plotdims, scale=True)[sids]
+            plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do spike parameter (non-wavefrom) clustering
-            data = self.sort.get_param_matrix(dims=dims, scale=True)[sids]
+            data = s.get_param_matrix(dims=dims, scale=True)[sids]
 
         # grab climbing params and run it
         self.update_sort_from_cluster_pane()
