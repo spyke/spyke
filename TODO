@@ -1,5 +1,10 @@
 RECENT:
 
+- still a challenge: relating clusters from one recording to another, to get consistent neuron ids across various recordings (nat scenes, mseq, ori tuning, spontaneous, etc)
+    - somehow seed recording with clusters from a previous one? How could this work at the low level of the climbing algorithm?
+
+- (semi) automate cluster cleaning somehow
+
 - do best fit alignment, instead of aligning simply to a peak (see NVS advice above), should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between pahses and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
@@ -7,11 +12,14 @@ RECENT:
 
 - implement multiple undo/redo, saving multiple clusterstates in a stack
 
+- set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
+
 - sometimes weird spatial localizations going on - try Cauchy distrib instead of Gaussian
     - why not try adding an amplitude offset param to Gaussian model? This could be all the heavy tail I need...
         - actually, I think I tried this (soff and toff), and presumably it didn't work very well
 
 - could also try using Cauchy distrib for density estimation during the gradient ascent clustering, instead of Gaussian, since it's a drop-in replacement
+    - see spike_weight_issues.txt
 
 - if doing a subclustering results in an overall reduction in the number of clusters, try and merge into the existing available cluster numbers - don't just delete the old ones and add new ones to the end
 
@@ -24,10 +32,9 @@ RECENT:
 
 - multithread assignment of unclustered points to nearest clustered point, and point density calculations
 
-- add ability to renumber clusters according to:
+- in addition to y location, add ability to renumber clusters according to:
     - Vpp
     - nspikes
-    - y location (which could be very very useful for renumbering clusters to match those in another file)
 
 - add ability to cycle through plotting all of a cluster's waveforms, 50 or 100 at a time, ala NVS, to more thoroughly check how clean the cluster really is
 
@@ -37,8 +44,6 @@ RECENT:
 
 - clicking on blank part of listctrl, thereby deselecting all, doesn't trigger a selection event
     - try binding OnClistSelect and OnNlistSelect to each and every click in the list?
-
-- set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
 
 - error measure ideas:
     - weight each spike in cluster by 2nd derivative of the cluster mean

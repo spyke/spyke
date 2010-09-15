@@ -1112,9 +1112,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         chans = [maxchan]
 
         # pop up dialog asking for chans to cluster on
-        string = wx.GetTextFromUser('Cluster on which channel(s)?\nChoose from: %r'
-                                    % list(clusterable_chans),
-                                    'Waveform clustering', str(list(chans)))
+        string = wx.GetTextFromUser('Cluster by %s on which channel(s)?\nChoose from: %r'
+                                    % (wctype, list(clusterable_chans)),
+                                    'Waveform (%s) clustering' % wctype, str(list(chans)))
         if string == '':
             raise RuntimeError('cancelled') # cancel was pressed
         if string == '[]':
