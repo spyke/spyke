@@ -584,7 +584,8 @@ class Detector(object):
             s['chan'], s['chans'][:ninclchans], s['nchans'] = chan, inclchans, ninclchans
             s['chani'] = inclchani
             inclwindow = window[inclciis]
-            wavedata[nspikes, 0:ninclchans] = inclwindow
+            nt = inclwindow.shape[1] # isn't always full width if recording has gaps
+            wavedata[nspikes, :ninclchans, :nt] = inclwindow
             if self.extractparamsondetect:
                 # Get Vpp at each inclchan's phasetis, use as spatial weights:
                 # see core.rowtake() or util.rowtake_cy() for indexing explanation:

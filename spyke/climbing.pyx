@@ -19,8 +19,8 @@ cdef extern from "stdio.h":
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
-def climb(np.ndarray[np.float32_t, ndim=2] data,
-          np.ndarray[np.int32_t, ndim=1] sampleis=np.zeros(0, dtype=np.int32),
+def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
+          np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis=np.zeros(0, dtype=np.int32),
           double sigma=0.25, double alpha=1.0, double rmergex=1.0,
           double rneighx=4, int nsamples=0,
           bint calcpointdensities=True, bint calcscoutdensities=True,
@@ -74,9 +74,9 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef int ndims = data.shape[1] # num cols in data
     cdef int M # current num scout points (clusters)
     cdef int npoints, npointsremoved, nclustsremoved
-    cdef np.ndarray[np.float32_t, ndim=2] scouts # stores scout positions
-    cdef np.ndarray[np.int32_t, ndim=1] cids = np.zeros(N, dtype=np.int32) # cluster indices into data
-    cdef np.ndarray[np.uint8_t, ndim=1] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
+    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts # stores scout positions
+    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids = np.zeros(N, dtype=np.int32) # cluster indices into data
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
     cdef double sigma2 = sigma * sigma
     cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
@@ -85,10 +85,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
     cdef double d, d2, min_d2, move
-    cdef np.ndarray[np.float64_t, ndim=1] ds = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1] d2s = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1] v = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1] densities = np.zeros(0), scoutdensities = np.zeros(0)
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] d2s = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] v = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
     cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0
     cdef bint incstill
@@ -184,9 +184,10 @@ def climb(np.ndarray[np.float32_t, ndim=2] data,
                     continue # to next j
                 if d2 <= rneigh2: # do the calculation
                     for k in range(ndims):
-                        # v is ndim vector of sum of g-weighted distances between
+                        # v is ndim vector of sum of kernel-weighted distances between
                         # current scout point and all data within rneigh
-                        v[k] += ds[k] * exp(-d2s[k] / twosigma2)
+                        #v[k] += ds[k] * exp(-d2s[k] / twosigma2) # Gaussian kernel
+                        v[k] += ds[k] * sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
                     nneighs += 1
             # update scout position in direction of v, normalize by nneighs
             # nneighs will never be 0, because each scout point starts as a data point

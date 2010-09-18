@@ -2,8 +2,27 @@ RECENT:
 
 - still a challenge: relating clusters from one recording to another, to get consistent neuron ids across various recordings (nat scenes, mseq, ori tuning, spontaneous, etc)
     - somehow seed recording with clusters from a previous one? How could this work at the low level of the climbing algorithm?
+    - do one super huge spike sorting on all spikes from all recordings in a given track, but then export them back out one recording at a time, per usual
+        - how will you denote time gaps between recordings? Get time of last AD sample in recording 1, and time of first timestamp in recording 2, based on date-time stamp in file of when recording started? You'll end up with at least seconds long gaps in the time dimension which might prevent proper auto-clustering across recordings, but then you could manually merge such clusters. Some cells go quiet for minutes at a time anyway.
+        - to see if this is feasible (will sorting that many spikes cause clusters to be too smudged out over time? will clustering over time help enough?), open one file at a time (maybe only total of 2 or 3 at first), do detection on each, and then concatenate their spikes arrays, with appropriate inc of times of subsequent files. Also, need to make their sids consecutive, and need to set sort.usids to be a copy of that. Then try clustering.
+            - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
+            - plotting of millions of points in 3D might start to slow interface down. Should try plotting random set of millions of points (say up to 10 million), see how slow it gets
+            - how 'bout running climbing algorithm on only small regions of data (in 3 or 4D) at a time? That could greatly decrease the number of nearest neighbours you need to check. Demarcate regions using a huge ellipsoid, or just say "cluster set of all spikes that fall between these two values of y position", and choose borders where there's a clear separation apparent to the user. But alas, often this clear separation will exist nowhere in the data
+
+- try reducing number of points during 'wave' cleaning - test on clust 58, sigma = 0.15, chans = [6, 46, 47], you currently lose 172 (33.6%) spikes, some of which are quite big and definitely not noise to be thrown out
+
+- seem to still be triggering off the latter part of some spikes whose first real phase is, I guess, not sharp enough, or not big enough, and then these are thrown out during cluster cleaning
+
+- speed up climbing algorithm: why not reuse each point's local nhood defined during update step as the same nhood to iterate over when determining whether to merge? Trade increased memory use for speed
 
 - (semi) automate cluster cleaning somehow
+
+- when renumbering, should deselect the old number and reselect whatever number that cluster became
+
+- it would be nice to see the waveforms of spikes thrown away during climbing (for being part of a cluster with too few point)
+    - maybe add a "junk" button to sort window which toggles display of the latest junk thrown out by last run of climbing. It would need to grab a plot slot every time it was turned on? And after a run, if any junk has been discarded, it should depress the button automatically to plot it. Maybe line style should be dotted red or something? Should I just plot the mean of the junk waveforms, or some subset of them, or all of them? Maybe a random selection of up to 20 of them. Or the 20 of them with the biggest stdev.
+
+- demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
 
 - do best fit alignment, instead of aligning simply to a peak (see NVS advice above), should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between pahses and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
@@ -37,6 +56,7 @@ RECENT:
     - nspikes
 
 - add ability to cycle through plotting all of a cluster's waveforms, 50 or 100 at a time, ala NVS, to more thoroughly check how clean the cluster really is
+    - maybe select a range of spikes to display, and then have a keyboard command that lets you scroll that selection range up and down by half its length. So, for example, you select spikes 50-100 by hand, and then hit Alt+Pgdn (or Alt+down) to change selection to spikes 75-125. Or there could be no overlap too. If initial selection is less than say 25, make Alt+down select at least 25 at a time.
 
 - spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
 

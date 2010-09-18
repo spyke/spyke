@@ -1045,7 +1045,8 @@ def g3(x0, y0, z0, sx, sy, sz, x, y, z):
 def cauchy(x0, gx, x):
     """1-D Cauchy. See http://en.wikipedia.org/wiki/Cauchy_distribution"""
     #return INVPI * gx/((x-x0)**2+gx**2)
-    return gx**2 / ((x-x0)**2 + gx**2)
+    gx2 = gx * gx
+    return gx2 / ((x-x0)**2 + gx2)
 
 def cauchy2(x0, y0, gx, gy, x, y):
     """2-D Cauchy"""

@@ -37,7 +37,7 @@ GREY = '#555555' # reserve as junk cluster colour
 COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 
 data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
-data = data[:100000, :4] # limit npoints and ndims
+data = data[:100000, :4].copy() # limit npoints and ndims, copy to make it contig
 nd = data.shape[1]
 sampleis = np.load('10k_of_100k_sampleis.npy')
 sigma = 0.25
