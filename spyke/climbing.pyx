@@ -5,7 +5,6 @@ import numpy as np
 cimport numpy as np
 
 import random, time
-#from scipy.spatial import KDTree
 from spyke import threadpool
 from multiprocessing import cpu_count
 
@@ -87,7 +86,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
-    cdef double d, d2, min_d2
+    cdef double d, d2
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
@@ -186,51 +185,18 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     printf('\n')
 
-    pool.terminate()
-
-    if nsamples != N: # if we're subsampling
-        # for each unclusterd point, find the closest clustered point, and assign
-        # it to the same cluster
+    if nsamples != N: # if subsampling, assign unclustered points to nearest clustered point
         print('Finding nearest clustered point for each unclustered point')
         t0 = time.time()
-        '''
-        # Tried using kdtree for speed, results aren't right, and it's much slower:
-        kdtree = KDTree(data) # tree of clustered data points
-        # pick out unclustered data points
-        print('picking out unclustered data')
-        uciis = cids == -1
-        ucdata = data[uciis]
-        # query the tree for the closest clustered point for each unclustered data point
-        print('calling query')
-        nnd, nni = kdtree.query(ucdata)
-        print('assigning clusters')
-        cids[uciis] = cids[nni]
-        '''
-        for i in range(N): # iterate over all data points
-            if cids[i] != -1: # point already has a valid cluster index
-                continue
-            # point is unclustered, find nearest clustered point
-            min_d2 = 100e99
-            for j in range(nsamples): # iterate over all clustered points
-                # sampleis is an array of nsamples indices into data that were used as scouts,
-                # and therefore have been clustered
-                samplei = sampleis[j]
-                for k in range(ndims):
-                    ds[k] = data[i, k] - data[samplei, k]
-                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next i
-                        continuej = True
-                        break # out of k loop
-                if continuej:
-                    continuej = False # reset
-                    continue # to next i
-                d2 = 0.0 # reset
-                for k in range(ndims):
-                    d2 += ds[k] * ds[k]
-                if d2 < min_d2:
-                    # update this unclustered point's cluster index
-                    min_d2 = d2
-                    cids[i] = cids[samplei]
+        span(lohi, 0, N, ncpus) # modify lohi in place
+        for i in range(ncpus): # use multiple threads
+            args = (lohi[i], lohi[i+1], cids, sampleis, data, nsamples, ndims)
+            req = threadpool.WorkRequest(assign_unclustered, args)
+            pool.putRequest(req)
+        pool.wait()
         print('Assigning unclustered points took %.3f sec' % (time.time()-t0))
+
+    pool.terminate()
 
     # remove clusters with less than minpoints number of points
     npointsremoved = 0
@@ -339,13 +305,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 @cython.wraparound(False)
 @cython.cdivision(True)
 cpdef move_scouts(int lo, int hi,
-                np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
-                np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
-                np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
-                int ndims, int nsamples, double sigma2, double alpha,
-                double rneigh, double rneigh2, double minmove, int maxstill
-                ):
+                  np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
+                  np.ndarray[np.float32_t, ndim=2, mode='c'] data,
+                  np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
+                  np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
+                  int ndims, int nsamples, double sigma2, double alpha,
+                  double rneigh, double rneigh2, double minmove, int maxstill):
     """Move scouts up their local density gradient"""
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] d2s = np.zeros(ndims)
@@ -398,6 +363,48 @@ cpdef move_scouts(int lo, int hi,
                 still[i] += 1
             else:
                 still[i] = 0 # reset stillness counter for this scout
+
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+cpdef assign_unclustered(int lo, int hi,
+                         np.ndarray[np.int32_t, ndim=1, mode='c'] cids,
+                         np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
+                         np.ndarray[np.float32_t, ndim=2, mode='c'] data,
+                         int nsamples, int ndims):
+    """Assign each unclustered point to nearest clustered point. Uses brute force method.
+    Tried using kdtree, didn't seem to work"""
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
+    cdef Py_ssize_t i, j, k, samplei
+    cdef double min_d2, d2
+    cdef bint continuej=False
+    with nogil:
+        for i in range(lo, hi): # iterate over all data points
+            if cids[i] != -1: # point already has a valid cluster index
+                continue
+            # point is unclustered, find nearest clustered point
+            min_d2 = 100e99
+            for j in range(nsamples): # iterate over all clustered points
+                # sampleis is an array of nsamples indices into data that were used as scouts,
+                # and therefore have been clustered
+                samplei = sampleis[j]
+                for k in range(ndims):
+                    ds[k] = data[i, k] - data[samplei, k]
+                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next i
+                        continuej = True
+                        break # out of k loop
+                if continuej:
+                    continuej = False # reset
+                    continue # to next i
+                d2 = 0.0 # reset
+                for k in range(ndims):
+                    d2 += ds[k] * ds[k]
+                if d2 < min_d2: # update this unclustered point's cluster index
+                    min_d2 = d2
+                    cids[i] = cids[samplei]
+
 
 
 @cython.boundscheck(False)
