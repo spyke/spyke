@@ -7,8 +7,8 @@ cdef extern from "math.h":
     int abs(int x)
     float fabs(float x)
 
-#cdef extern from "stdio.h":
-#    int printf(char *, ...)
+cdef extern from "stdio.h":
+    int printf(char *, ...)
 
 
 cdef short select_short(short *a, int l, int r, int k):
@@ -42,6 +42,7 @@ cdef short select_short(short *a, int l, int r, int k):
         if i <= k: l = i+1
     return a[k] # return kth in 0-based
 
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def median_inplace_2Dshort(np.ndarray[np.int16_t, ndim=2, mode='c'] arr):
@@ -60,7 +61,6 @@ def median_inplace_2Dshort(np.ndarray[np.int16_t, ndim=2, mode='c'] arr):
     return result
 
 
-'''
 cdef double mean(short *a, int N):
     cdef Py_ssize_t i # recommended type for looping
     cdef double s=0
@@ -70,17 +70,17 @@ cdef double mean(short *a, int N):
     return s
 
 
-def mean2(np.ndarray[np.int16_t, ndim=1] a):
+def mean(np.ndarray[np.float64_t, ndim=1] a):
     """Uses new simpler numpy type notation for fast indexing, but is still a
     bit slower than the classical way, because you currently can't
     use the new notation with cdefs"""
-    cdef Py_ssize_t i
+    cdef Py_ssize_t i, N = len(a)
     cdef double s=0
-    for i in range(a.shape[0]):
+    for i in range(N):
         s += a[i]
-    s /= a.shape[0]
+    s /= N
     return s
-'''
+
 
 def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
     """Uses new simpler numpy type notation for fast indexing, but is still a
@@ -95,6 +95,44 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
             s[i] += a[i, j]
         s[i] /= nt # normalize
     return s
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+cpdef dostuff(np.ndarray[np.float64_t, ndim=1] a):
+    """Just a f'n to do some stuff in place with the GIL released"""
+    cdef Py_ssize_t i, N = len(a)
+    cdef float b = 1.2345
+    with nogil:
+        for i in range(N):
+            a[i] += a[i] * b / (a[i]**2 + b)
+            #a[i] *= 2.0
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def dostuffthreads(np.ndarray[np.float64_t, ndim=1] a):
+    """Demo use of multithreading pool from within Cython"""
+    from spyke import threadpool_alt
+    from multiprocessing import cpu_count
+    ncpus = cpu_count()
+    pool = threadpool_alt.Pool(ncpus)
+    units = np.split(a, ncpus)
+    pool.map(dostuff, units)
+    pool.terminate()
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def testrange(np.ndarray[np.int32_t, ndim=1] a,
+              int start, int end):
+    """Testing cython range f'n"""
+    cdef Py_ssize_t i, N = len(a)
+    for i in range(start, end):
+        printf('%d\n', i)
 
 
 @cython.boundscheck(False)

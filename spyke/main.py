@@ -1005,7 +1005,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             data = s.get_param_matrix(dims=dims, scale=True)[sids]
         data = data.copy() # copy to make it contiguous for climb()
 
-        # grab climbing params and run it
+        # grab climb() params and run it
         self.update_sort_from_cluster_pane()
         npoints, ndims = data.shape
         s.sigmasqrtndims = s.sigma * np.sqrt(ndims)

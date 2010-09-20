@@ -1,22 +1,53 @@
 """Tests threadpool code from http://code.activestate.com/recipes/576519,
 saved as spyke.threadpool. Threaded code runs about ncpus times faster than
 unthreaded code, yet unlike multiprocessing, allows for shared memory. Only
-when you're inside a numpy loop is the GIL released, and multithreading possible"""
+when you're inside a numpy loop is the GIL released, and multithreading possible.
+Or, same goes if you explicitlyl release the GIL inside Cython code"""
+
+import numpy as np
+import pyximport
+pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
 from spyke import threadpool
 from multiprocessing import cpu_count
-import numpy as np
 import time
+
+import spyke.util as util
+
+a = np.random.random(8*10000000)
+tmt = time.time()
+util.dostuffthreads(a)
+print('dostuffthreads took %.3f' % (time.time()-tmt))
+tst = time.time()
+util.dostuff(a)
+print('single thread took %.3f' % (time.time()-tst))
+
+'''
+tpool = time.time()
+ncpus = cpu_count()
+#ncpus = 4
+pool = threadpool.Pool(ncpus)
+print('pool creation took %.3f' % (time.time()-tpool))
+
+a = np.random.random(8*10000000)
+units = np.split(a, ncpus)
+
+tmt = time.time()
+pool.map(util.dostuff, units) # multithread over units
+print('%d thread took %.3f' % (ncpus, time.time()-tmt))
+tst = time.time()
+util.dostuff(a)
+print('single thread took %.3f' % (time.time()-tst))
+pool.terminate()
+'''
+
+
+
+'''
 
 def sort_inplace(data):
     """Sort data in-place along last axis"""
     data.sort()
-
-
-tpool = time.time()
-ncpus = cpu_count()
-pool = threadpool.Pool(ncpus)
-print('pool creation took %.3f' % (time.time()-tpool))
 
 sortdata1 = np.random.random((8, 1e7))
 sortdata2 = sortdata1.copy()
@@ -71,4 +102,4 @@ del data
 tpool = time.time()
 pool.terminate()
 print('pool termination took %.3f' % (time.time()-tpool))
-
+'''

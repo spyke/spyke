@@ -6,22 +6,19 @@ cimport numpy as np
 
 import random, time
 #from scipy.spatial import KDTree
-from spyke import threadpool
-from multiprocessing import cpu_count
 
 cdef extern from "math.h":
-    double sqrt(double x) nogil
-    double fabs(double x) nogil
-    double exp(double x) nogil
-    double ceil(double x) nogil
+    double sqrt(double x)
+    double fabs(double x)
+    double exp(double x)
 
 cdef extern from "stdio.h":
-    int printf(char *, ...) nogil
+    int printf(char *, ...)
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-@cython.cdivision(True)
+@cython.cdivision(True) # might be necessary to release the GIL?
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis=np.zeros(0, dtype=np.int32),
           double sigma=0.25, double alpha=1.0, double rmergex=1.0,
@@ -56,7 +53,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - multithreading/multiprocessing
             - NVS thinks you could leave the merging step as a thread running in parallel with the gradient step (which itself could be split up easily into multiple threads) - although now with subsampling, the slow steps are mostly the gradient calcs, since there are far fewer scouts to merge to begin with
 
-        - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation? - only applies to Gaussian kernel, not Cauchy
+        - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation?
 
         - try using the n nearest neighbours to calculate gradient, instead of a guassian with a sigma. This makes it scale free, but NVS says this often results in situations where the gradient is 0 for some reason
 
@@ -87,12 +84,14 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
-    cdef double d, d2, min_d2
+    cdef double d, d2, min_d2, move
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] d2s = np.zeros(ndims)
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] v = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
-    cdef int iteri=0, nnomerges=0, Mthresh, ncpus
-    cdef bint incstill, merged=False, continuej=False
+    cdef int iteri = 0, continuej = 0, merged = 0, nnomerges = 0
+    cdef bint incstill
 
     if len(sampleis) != 0: # sampleis arg trumps nsamples arg
         nsamples = len(sampleis)
@@ -103,7 +102,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         nsamples = N
         sampleis = np.arange(nsamples)
     M = nsamples # initially, but M will decrease over time
-    Mthresh = 300 / ndims
     scouts = data[sampleis].copy() # scouts will be modified
     cids.fill(-1) # -ve number indicates an unclustered data point
     cids[sampleis] = np.arange(M)
@@ -111,16 +109,13 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     if minmove == -1.0:
         minmove = 0.000001 * sigma * alpha # along a single dimension
 
-    ncpus = cpu_count()
-    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] lohi = np.zeros(ncpus+1, dtype=np.int32)
-    pool = threadpool.ThreadPool(ncpus)
-
     while True:
 
         if nnomerges == maxnnomerges:
             break
 
         # merge pairs of scout points sufficiently close to each other
+        merged = 0
         i = 0
         while i < M:
             j = i+1
@@ -133,11 +128,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 for k in range(ndims):
                     d = fabs(scouts[i, k] - scouts[j, k])
                     if d > rmerge: # break out of k loop, continue to next j
-                        continuej = True
+                        continuej = 1
                         break # out of k loop
                     d2 += d * d
-                if continuej:
-                    continuej = False # reset
+                if continuej == 1:
+                    continuej = 0 # reset
                     j += 1
                     continue # to next j loop
                 if d2 <= rmerge2:
@@ -156,37 +151,61 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                     M -= 1 # decr num of scouts, don't inc j, new value at j has just slid into view
                     #printf(' %d<-%d ', i, j)
                     printf('M')
-                    merged = True
+                    merged = 1
                 else:
                     j += 1
             i += 1
-        if merged: # at least one merger happened on this iter
-            nnomerges = 0 # reset
-            merged = False # reset
-        else: # no mergers happened on this iter
-            nnomerges += 1 # inc
+        if merged == 0:
+            nnomerges += 1
+        else:
+            nnomerges = 0
 
-        # move scouts up their local density gradient
-        if M < Mthresh: # use a single thread
-            move_scouts(0, M, scouts, data, sampleis, still,
-                        ndims, nsamples, sigma2, alpha,
-                        rneigh, rneigh2, minmove, maxstill)
-        else: # use multiple threads
-            span(lohi, 0, M, ncpus) # modify lohi in place
-            for i in range(ncpus):
-                args = (lohi[i], lohi[i+1], scouts, data, sampleis, still,
-                        ndims, nsamples, sigma2, alpha,
-                        rneigh, rneigh2, minmove, maxstill)
-                req = threadpool.WorkRequest(move_scouts, args)
-                pool.putRequest(req)
-            pool.wait()
+        # move each scout point up its local gradient
+        for i in range(M): # iterate over all scout points
+            # skip frozen scout points
+            if still[i] == maxstill:
+                continue
+            # measure gradient
+            nneighs = 0 # reset
+            for k in range(ndims):
+                v[k] = 0.0 # reset
+            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
+                samplei = sampleis[j]
+                d2 = 0.0 # reset
+                for k in range(ndims): # iterate over dims for each point
+                    ds[k] = data[samplei, k] - scouts[i, k]
+                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
+                        continuej = 1
+                        break # out of k loop
+                    d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
+                    d2 += d2s[k]
+                if continuej == 1:
+                    continuej = 0 # reset
+                    continue # to next j
+                if d2 <= rneigh2: # do the calculation
+                    for k in range(ndims):
+                        # v is ndim vector of sum of kernel-weighted distances between
+                        # current scout point and all data within rneigh
+                        #v[k] += ds[k] * exp(-d2s[k] / twosigma2) # Gaussian kernel
+                        v[k] += ds[k] * sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                    nneighs += 1
+            # update scout position in direction of v, normalize by nneighs
+            # nneighs will never be 0, because each scout point starts as a data point
+            incstill = True # reset
+            for k in range(ndims):
+                move = alpha / nneighs * v[k]
+                scouts[i, k] += move
+                if incstill and fabs(move) > minmove:
+                    incstill = False
+            if incstill:
+                still[i] += 1
+            else:
+                still[i] = 0 # reset stillness counter for this scout
+
         printf('.')
-
         iteri += 1
 
     printf('\n')
-
-    pool.terminate()
 
     if nsamples != N: # if we're subsampling
         # for each unclusterd point, find the closest clustered point, and assign
@@ -218,10 +237,10 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 for k in range(ndims):
                     ds[k] = data[i, k] - data[samplei, k]
                     if fabs(ds[k]) > min_d2: # break out of k loop, continue to next i
-                        continuej = True
+                        continuej = 1
                         break # out of k loop
-                if continuej:
-                    continuej = False # reset
+                if continuej == 1:
+                    continuej = 0 # reset
                     continue # to next i
                 d2 = 0.0 # reset
                 for k in range(ndims):
@@ -285,11 +304,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 for k in range(ndims): # iterate over dims for each point
                     ds[k] = data[i, k] - data[samplei, k]
                     if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = True
+                        continuej = 1
                         break # out of k loop
                     d2 += ds[k] * ds[k] # add to sum of squares for this sample
-                if continuej:
-                    continuej = False # reset
+                if continuej == 1:
+                    continuej = 0 # reset
                     continue # to next j
                 if d2 <= rneigh2: # include this point in the density calculation
                     d = sqrt(d2) # Euclidean distance
@@ -309,11 +328,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 for k in range(ndims): # iterate over dims for each point
                     ds[k] = scouts[i, k] - data[samplei, k]
                     if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = True
+                        continuej = 1
                         break # out of k loop
                     d2 += ds[k] * ds[k] # add to sum of squares for this sample
-                if continuej:
-                    continuej = False # reset
+                if continuej == 1:
+                    continuej = 0 # reset
                     continue # to next j
                 if d2 <= rneigh2: # include this point in the density calculation
                     d = sqrt(d2) # Euclidean distance
@@ -334,82 +353,3 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     print still[:M]
     return cids, scouts[:M], densities, scoutdensities, sampleis
 
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
-cpdef move_scouts(int lo, int hi,
-                np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
-                np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
-                np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
-                int ndims, int nsamples, double sigma2, double alpha,
-                double rneigh, double rneigh2, double minmove, int maxstill
-                ):
-    """Move scouts up their local density gradient"""
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] d2s = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] v = np.zeros(ndims)
-    cdef Py_ssize_t i, j, k, samplei
-    cdef int nneighs,
-    cdef bint incstill, continuej=False
-    cdef double d2, move
-    # TODO: make whole f'n nogil by manually sizing ds, d2s and v to 0 without
-    # calling np.zeros()
-    #print('%s: lo=%d, hi=%d' % (threading.current_thread().name, lo, hi))
-    with nogil:
-        for i in range(lo, hi): # iterate over lo to hi scout points
-            # skip frozen scout points
-            if still[i] == maxstill:
-                continue
-            # measure gradient
-            nneighs = 0 # reset
-            for k in range(ndims):
-                v[k] = 0.0 # reset
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
-                d2 = 0.0 # reset
-                for k in range(ndims): # iterate over dims for each point
-                    ds[k] = data[samplei, k] - scouts[i, k]
-                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = True
-                        break # out of k loop
-                    d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
-                    d2 += d2s[k]
-                if continuej:
-                    continuej = False # reset
-                    continue # to next j
-                if d2 <= rneigh2: # do the calculation
-                    for k in range(ndims):
-                        # v is ndim vector of sum of kernel-weighted distances between
-                        # current scout point and all data within rneigh
-                        #v[k] += ds[k] * exp(-d2s[k] / twosigma2) # Gaussian kernel
-                        v[k] += ds[k] * sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
-                    nneighs += 1
-            # update scout position in direction of v, normalize by nneighs
-            # nneighs will never be 0, because each scout point starts as a data point
-            incstill = True # reset
-            for k in range(ndims):
-                move = alpha / nneighs * v[k]
-                scouts[i, k] += move
-                if incstill and fabs(move) > minmove:
-                    incstill = False
-            if incstill:
-                still[i] += 1
-            else:
-                still[i] = 0 # reset stillness counter for this scout
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
-cpdef span(np.ndarray[np.int32_t, ndim=1, mode='c'] lohi,
-           int start, int end, int N):
-    """Fill len(N) lohi array with fairly equally spaced int
-    values, from start to end"""
-    cdef Py_ssize_t i
-    cdef int step
-    step = <int>ceil(<double>(end - start) / N) # round up
-    for i in range(N):
-        lohi[i] = start + step*i
-    lohi[N] = end

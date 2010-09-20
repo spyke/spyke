@@ -15,6 +15,8 @@ RECENT:
 
 - speed up climbing algorithm: why not reuse each point's local nhood defined during update step as the same nhood to iterate over when determining whether to merge? Trade increased memory use for speed
 
+- should really investigate if I'm freezing points too early/too late. I'm checking amount of movement per dimension, not total Euclidean d**2 movement. This is technically incorrect, although probably a bit faster. Look at usage of "minmove" variable in climbing.pyx
+
 - (semi) automate cluster cleaning somehow
 
 - when renumbering, should deselect the old number and reselect whatever number that cluster became
