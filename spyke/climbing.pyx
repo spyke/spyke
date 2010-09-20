@@ -102,7 +102,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         nsamples = N
         sampleis = np.arange(nsamples)
     M = nsamples # initially, but M will decrease over time
-    Mthresh = 300 / ndims
+    Mthresh = 3000000 / nsamples / ndims
+    print("Mthresh = %d" % Mthresh)
     scouts = data[sampleis].copy() # scouts will be modified
     cids.fill(-1) # -ve number indicates an unclustered data point
     cids[sampleis] = np.arange(M)
@@ -124,7 +125,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         while i < M:
             j = i+1
             while j < M:
-                if still[i] > maxstill and still[j] > maxstill: # both scouts are frozen
+                if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
                     j += 1
                     continue
                 # for each pair of scouts, check if any pair is within rmerge of each other
@@ -321,7 +322,6 @@ cpdef move_scouts(int lo, int hi,
     cdef double d2, move
     # TODO: make whole f'n nogil by manually sizing ds, d2s and v to 0 without
     # calling np.zeros()
-    #print('%s: lo=%d, hi=%d' % (threading.current_thread().name, lo, hi))
     with nogil:
         for i in range(lo, hi): # iterate over lo to hi scout points
             # skip frozen scout points
