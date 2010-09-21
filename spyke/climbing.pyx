@@ -86,7 +86,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
-    cdef double d, d2
+    cdef double d, d2, minmove2
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
@@ -109,7 +109,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cids[sampleis] = np.arange(M)
 
     if minmove == -1.0:
-        minmove = 0.000001 * sigma * alpha # along a single dimension
+        # TODO: should minmove also depend on sqrt(ndims)?
+        minmove = 0.000001 * sigma * alpha # in any direction in ndims space
+    minmove2 = minmove * minmove
 
     ncpus = cpu_count()
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] lohi = np.zeros(ncpus+1, dtype=np.int32)
@@ -170,13 +172,13 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         if M < Mthresh: # use a single thread
             move_scouts(0, M, scouts, data, sampleis, still,
                         ndims, nsamples, sigma2, alpha,
-                        rneigh, rneigh2, minmove, maxstill)
+                        rneigh, rneigh2, minmove2, maxstill)
         else: # use multiple threads
             span(lohi, 0, M, ncpus) # modify lohi in place
             for i in range(ncpus):
                 args = (lohi[i], lohi[i+1], scouts, data, sampleis, still,
                         ndims, nsamples, sigma2, alpha,
-                        rneigh, rneigh2, minmove, maxstill)
+                        rneigh, rneigh2, minmove2, maxstill)
                 req = threadpool.WorkRequest(move_scouts, args)
                 pool.putRequest(req)
             pool.wait()
@@ -311,15 +313,15 @@ cpdef move_scouts(int lo, int hi,
                   np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
                   np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
                   int ndims, int nsamples, double sigma2, double alpha,
-                  double rneigh, double rneigh2, double minmove, int maxstill):
+                  double rneigh, double rneigh2, double minmove2, int maxstill):
     """Move scouts up their local density gradient"""
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] d2s = np.zeros(ndims)
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] v = np.zeros(ndims)
     cdef Py_ssize_t i, j, k, samplei
     cdef int nneighs,
-    cdef bint incstill, continuej=False
-    cdef double d2, move
+    cdef bint continuej=False
+    cdef double d2, move, move2
     # TODO: make whole f'n nogil by manually sizing ds, d2s and v to 0 without
     # calling np.zeros()
     with nogil:
@@ -353,14 +355,13 @@ cpdef move_scouts(int lo, int hi,
                     nneighs += 1
             # update scout position in direction of v, normalize by nneighs
             # nneighs will never be 0, because each scout point starts as a data point
-            incstill = True # reset
+            move2 = 0.0 # reset
             for k in range(ndims):
                 move = alpha / nneighs * v[k]
                 scouts[i, k] += move
-                if incstill and fabs(move) > minmove:
-                    incstill = False
-            if incstill:
-                still[i] += 1
+                move2 += move * move
+            if move2 < minmove2:
+                still[i] += 1 # count scout as still during this iter
             else:
                 still[i] = 0 # reset stillness counter for this scout
 
