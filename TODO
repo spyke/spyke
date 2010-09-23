@@ -3,7 +3,7 @@ RECENT:
 - still a challenge: relating clusters from one recording to another, to get consistent neuron ids across various recordings (nat scenes, mseq, ori tuning, spontaneous, etc)
     - somehow seed recording with clusters from a previous one? How could this work at the low level of the climbing algorithm?
     - do one super huge spike sorting on all spikes from all recordings in a given track, but then export them back out one recording at a time, per usual
-        - how will you denote time gaps between recordings? Get time of last AD sample in recording 1, and time of first timestamp in recording 2, based on date-time stamp in file of when recording started? You'll end up with at least seconds long gaps in the time dimension which might prevent proper auto-clustering across recordings, but then you could manually merge such clusters. Some cells go quiet for minutes at a time anyway.
+        - how will you denote time gaps between recordings? Get time of last AD sample in recording 1, and time of first timestamp in recording 2, based on date-time stamp in file of when recording started? You'll end up with at least seconds long gaps in the time dimension which might prevent proper auto-clustering across recordings, but then you could manually merge such clusters. Some cells go quiet for minutes at a time anyway. When exporting, keep the offsetted timestamps intact, and offset the corresponding .din files appropriately
         - to see if this is feasible (will sorting that many spikes cause clusters to be too smudged out over time? will clustering over time help enough?), open one file at a time (maybe only total of 2 or 3 at first), do detection on each, and then concatenate their spikes arrays, with appropriate inc of times of subsequent files. Also, need to make their sids consecutive, and need to set sort.usids to be a copy of that. Then try clustering.
             - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
             - plotting of millions of points in 3D might start to slow interface down. Should try plotting random set of millions of points (say up to 10 million), see how slow it gets
@@ -32,8 +32,6 @@ RECENT:
 - seem to still be triggering off the latter part of some spikes whose first real phase is, I guess, not sharp enough, or not big enough, and then these are thrown out during cluster cleaning
 
 - (semi) automate cluster cleaning somehow
-
-- when renumbering, should deselect the old number and reselect whatever number that cluster became
 
 - demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
 
@@ -120,9 +118,6 @@ RECENT:
     - also, you can't go sortN.e0.sta(), since sort is below exp in the hierarchy - this is awkward - rethink the hierarchy?
     - tree printout should show the sorts and experiments?
 - get neuropy+dimstim working in Python 2.6
-
-- make neuron renumbering (to get rid of gaps in IDs) work again
-    - add a feature where you renumber the neurons according to their vertical spatial order - this would make STA plots come out vertically ordered, which would be nice for deducing layers and where you get lots of simple fields and complex fields
 
 - MAYBE: add ability to turn on/off a cluster (and its coloured points) temporarily, so you can see the uncoloured density of points within it, and maybe better decide how to adjust the cluster to match
     - cluster button: hide unselected clusters
@@ -789,6 +784,8 @@ DONE:
         - looks like the problem was the "cid" field was getting out of sync with "nid" field in spikes array, during cluster deletion, merger, etc. Really should just get rid of the "cid" field altogether, or at least stop using it
         - sid 1562 has 58 in its "nid" field but neuron 58 doesn't have 1562 in its sids array
         - strategy to fix existing data: set all nid and cid entries to -1, then iterate over neurons and set nid fields according to sids in each neuron. Leave cid field as -1 always, and eventually, remove it altogether from the spikes array
+- when renumbering, should deselect the old number and reselect whatever number that cluster became
+
 
 
 

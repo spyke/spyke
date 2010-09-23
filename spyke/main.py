@@ -583,8 +583,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         of duplicate clusters more obvious, and allows for maximal spatial separation between
         clusters of the same colour, reducing colour conflicts"""
 
-        # TODO: deselect current selections, then after renum, reselect same clusters (but now
-        # renumbered)
+        # deselect current selections
+        selclusters = self.GetClusters()
+        oldselcids = [ cluster.id for cluster in selclusters ]
+        self.SelectClusters(selclusters, on=False)
 
         s = self.sort
         spikes = s.spikes
@@ -618,6 +620,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(s.clusters.values())
+        # reselect the previously selected (but now renumbered) clusters - helps user keep track
+        newselcids = newucids[np.searchsorted(olducids, oldselcids)]
+        self.SelectClusters([s.clusters[cid] for cid in newselcids])
         try: del self.clusterstate # last cluster state no longer applicable
         except AttributeError: pass
 
