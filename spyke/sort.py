@@ -675,7 +675,8 @@ class Neuron(object):
     def align(self, to):
         """Align all of this neuron's spikes by their max or min
         TODO: make sure all temporal values are properly updated.
-        This includes modelled temporal means, if any"""
+        This includes modelled temporal means, if any.
+        TODO: allow best fit alignment of spikes to template"""
         s = self.sort
         spikes = s.spikes
         nsids = self.sids # ids of spikes that belong to this neuron

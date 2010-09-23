@@ -535,26 +535,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         spikes = s.spikes
         sids = []
         for cluster in clusters:
-            sids.append(np.where(spikes['cid'] == cluster.id)[0])
+            sids.append(cluster.neuron.sids)
         sids = np.concatenate(sids)
 
         # save stuff for undo
         self.clusterstate = spyke.cluster.ClusterState()
         cs = self.clusterstate
-        cs.oldclusterids = [ cluster.id for cluster in clusters ]
         cs.sids = sids
-        cs.oldcids = spikes['cid'][sids]
         cs.oldnids = spikes['nid'][sids]
+        cs.oldunids = [ cluster.id for cluster in clusters ]
         cs.positions = [ cluster.pos.copy() for cluster in clusters ]
         cs.scales = [ cluster.scale.copy() for cluster in clusters ]
-        cs.newclusterids = [] # no new ones added
+        cs.newunids = [] # no new ones added
 
         # deselect them all
         self.SelectClusters(clusters, on=False)
         for cluster in clusters:
             self.DelCluster(cluster, update=False)
-            # update spikes['cid']
-            spikes['cid'][spikes['cid'] == cluster.id] = -1 # signifies no cluster
         self.DeColourPoints(sids) # decolour appropriate points
         self.UpdateClustersGUI()
         self.frames['cluster'].glyph.mlab_source.update()
@@ -592,19 +589,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         s = self.sort
         spikes = s.spikes
         # get lists of unique old cids and new cids
-        uoldcids = sorted(s.clusters) # make sure they're in order
-        # this is a bit confusing: find indices that would sort uoldcids by y pos, but then
+        olducids = sorted(s.clusters) # make sure they're in order
+        # this is a bit confusing: find indices that would sort olducids by y pos, but then
         # what you really want is to find the y pos *rank* of each uoldcid, so you need to
         # take argsort again:
-        unewcids = np.asarray([ s.clusters[cid].pos['y0'] for cid in uoldcids ]).argsort().argsort()
+        newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
         cf = self.frames['cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
-        oldcids = spikes['cid'].copy()
         s.clusters = {} # clear 'em
         s.neurons = {}
-        for oldcid, newcid in zip(uoldcids, unewcids):
+        for oldcid, newcid in zip(olducids, newucids):
             # change all occurences of oldcid to newcid
             cluster = oldclusters[oldcid]
             cluster.id = newcid # this indirectly updates neuron.id
@@ -613,15 +609,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             s.neurons[newcid] = cluster.neuron
             sids = cluster.neuron.sids
             spikes['nid'][sids] = newcid
-            spikes['cid'][sids] = newcid
             # TODO: can't figure out how to change scalar value of existing ellipsoid (for
             # mouse hover tooltip), just delete it and make a new one. This is very innefficient
             cluster.ellipsoid.remove()
             dims = self.GetClusterPlotDimNames()
             cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
-
-        # repack a saved len(s.clusters) climb results array
-        #s.scoutdensities[unewcids] = s.scoutdensities[uoldcids]
 
         # now do some final updates
         self.UpdateClustersGUI()
@@ -932,10 +924,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # save undo stuff
         self.clusterstate = spyke.cluster.ClusterState() # overwrite any previous one
         cs = self.clusterstate
-        cs.oldclusterids = [ cluster.id for cluster in clusters ]
         cs.sids = sids
-        cs.oldcids = spikes['cid'][sids]
         cs.oldnids = spikes['nid'][sids]
+        cs.oldunids = [ cluster.id for cluster in clusters ]
         cs.positions = [ cluster.pos.copy() for cluster in clusters ]
         cs.scales = [ cluster.scale.copy() for cluster in clusters ]
 
@@ -948,8 +939,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # create new cluster
         t0 = time.time()
-        newclusterid = min([ cid for cid in cs.oldclusterids ]) # merge into lowest cluster
-        newcluster = self.OnAddCluster(update=False, id=newclusterid)
+        newnid = min([ nid for nid in cs.oldunids ]) # merge into lowest cluster
+        newcluster = self.OnAddCluster(update=False, id=newnid)
         neuron = newcluster.neuron
         sf.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = self.GetClusterPlotDimNames()
@@ -961,7 +952,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # save for undo
-        cs.newclusterids = [newclusterid]
+        cs.newunids = [newnid]
 
         # now do some final updates
         self.UpdateClustersGUI()
@@ -969,7 +960,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly created cluster
         self.SelectClusters(newcluster, on=True)
-        print('merged clusters %r into cluster %d' % (cs.oldclusterids, newclusterid))
+        print('merged clusters %r into cluster %d' % (cs.oldunids, newnid))
 
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
@@ -1026,10 +1017,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # previous cluster state for as long as possible
         self.clusterstate = spyke.cluster.ClusterState() # overwrite any previous one
         cs = self.clusterstate
-        cs.oldclusterids = [ cluster.id for cluster in clusters ]
         cs.sids = sids
-        cs.oldcids = spikes['cid'][sids]
         cs.oldnids = spikes['nid'][sids]
+        cs.oldunids = [ cluster.id for cluster in clusters ]
         cs.positions = [ cluster.pos.copy() for cluster in clusters ]
         cs.scales = [ cluster.scale.copy() for cluster in clusters ]
 
@@ -1039,42 +1029,27 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             for oldcluster in oldclusters:
                 self.DelCluster(oldcluster, update=False) # del original clusters
             self.DeColourPoints(sids) # decolour all points belonging to old clusters
-            spikes['cid'][sids] = np.int16(cids + s.nextnid)
-            #s.densities[sids] = densities
-            #s.scoutdensities = np.concatenate((s.scoutdensities, scoutdensities))
-        else: # no clusters selected
-            # delete all existing clusters (if any)
+        else: # no clusters selected, delete all existing clusters (if any)
             for cluster in s.clusters.values():
                 self.DelCluster(cluster, update=False)
-            #self.UpdateClustersGUI()
             try: cf.glyph
             except AttributeError: self.OnClusterPlot()
             self.DeColourAllPoints()
-            #cf.glyph.mlab_source.update()
-            spikes['cid'] = cids
-            #s.densities = densities
-            #s.scoutdensities = scoutdensities
             s.sampleis = sampleis
 
         # apply the clusters to the cluster plot
         newclusters = []
         t0 = time.time()
         for nid, pos in zip(nids, scoutpositions): # nids are sorted
-            #scoutdensity = scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            #density_mask = densities/scoutdensity >= s.density_thresh
-            nid_mask = cids == nid
-            #ii, = np.where(nid_mask & density_mask)
-            ii, = np.where(nid_mask)
+            ii, = np.where(cids == nid)
             nsids = sids[ii] # sids belonging to this nid
             cluster = self.OnAddCluster(update=False)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
-                #print('WARNING: neuron %d has no spikes due to density thresh' % neuron.id)
                 raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
-            if waveclustering: # and len(nsids) != 0:
-                # set pos and scale in plotdims using mean and std of points
+            if waveclustering: # set pos and scale in plotdims using mean and std of points
                 for plotdimi, plotdim in enumerate(plotdims):
                     points = plotdata[ii, plotdimi]
                     cluster.pos[plotdim] = points.mean()
@@ -1082,20 +1057,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             else: # set pos and scale in cluster dims using cluster pos and std of points
                 for dimi, dim in enumerate(dims):
                     cluster.pos[dim] = pos[dimi]
-                    #if len(nsids) != 0:
                     cluster.scale[dim] = data[ii, dimi].std() or cluster.scale[dim]
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # save more undo stuff
-        cs.newclusterids = [ newcluster.id for newcluster in newclusters ]
+        cs.newunids = [ newcluster.id for newcluster in newclusters ]
 
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(newclusters)
         print('applying clusters to plot took %.3f sec' % (time.time()-t0))
 
-        if oldclusters:
-            # select newly created cluster(s)
+        if oldclusters: # select newly created cluster(s)
             self.SelectClusters(newclusters, on=True)
 
     def get_waveclustering_data(self, sids, wctype='wave'):
@@ -1127,12 +1100,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             chans.sort()
         for chan in chans:
             if chan not in clusterable_chans:
-                print("chan %d not common to all spikes, pick from %r"
-                      % (chan, list(clusterable_chans)))
-                # TODO: sometimes get a mysterious bug where after a few cleanings, even
-                # the template's maxchan apparently isn't in clusterable_chans, although it
-                # was on the previous cleaning...
-                import pdb; pdb.set_trace()
+                raise RuntimeError("chan %d not common to all spikes, pick from %r"
+                                   % (chan, list(clusterable_chans)))
 
         # copy selected chans as string to clipboard for easy user re-pasting next time
         chans_string = wx.TextDataObject(str(list(chans)))
@@ -1211,8 +1180,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnUndo(self, evt=None):
         """Cluster pane Undo button click. Undo previous climb"""
-        # TODO: delete self.clusterstate when renumbering clusters. You do that,
-        # forfeit your ability to undo
         s = self.sort
         spikes = s.spikes
         sf = self.OpenFrame('sort')
@@ -1222,7 +1189,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         sids = cs.sids
 
         # delete newly added clusters
-        newclusters = [ s.clusters[newcid] for newcid in cs.newclusterids ]
+        newclusters = [ s.clusters[nid] for nid in cs.newunids ]
         self.SelectClusters(newclusters, on=False) # deselect new clusters
         cf.f.scene.disable_render = True # for speed
         for newcluster in newclusters:
@@ -1230,17 +1197,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.DeColourPoints(sids) # decolour all points belonging to new clusters
 
         # restore relevant spike fields
-        spikes['cid'][sids] = cs.oldcids
         spikes['nid'][sids] = cs.oldnids
 
         # restore the old clusters
         oldclusters = []
         plotdims = self.GetClusterPlotDimNames()
         t0 = time.time()
-        for cid, pos, scale in zip(cs.oldclusterids, cs.positions, cs.scales): # old cids are sorted????
-            ii, = np.where(cs.oldcids == cid)
-            nsids = sids[ii] # sids belonging to this nid
-            cluster = self.OnAddCluster(update=False, id=cid)
+        # NOTE: oldunids are not necessarily sorted
+        for nid, pos, scale in zip(cs.oldunids, cs.positions, cs.scales):
+            nsids = sids[cs.oldnids == nid] # sids belonging to this nid
+            cluster = self.OnAddCluster(update=False, id=nid)
             oldclusters.append(cluster)
             neuron = cluster.neuron
             sf.MoveSpikes2Neuron(nsids, neuron, update=False)
@@ -1255,55 +1221,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # select newly recreated oldclusters
         self.SelectClusters(oldclusters, on=True)
         del self.clusterstate # last cluster state no longer applicable
-        print('Undo complete')
+        print('undo complete')
 
-    '''
-    def OnApplyDensityThresh(self, evt=None):
-        """Cluster pane point density threshold Apply button click. Changes
-        the points that are included/excluded from their cluster,
-        and updates the cluster's ellipsoid size to reflect the change std
-        of the included points"""
-        s = self.sort
-        spikes = s.spikes
-        nids = list(np.unique(spikes['cid']))
-        try: nids.remove(-1)
-        except ValueError: pass
-        assert s.neurons.keys() == nids
-
-        # get dims and data
-        dimselis = self.dimlist.getSelection()
-        if len(dimselis) == 0: raise RuntimeError('No cluster dimensions selected')
-        dims = [ self.dimlist.dims[i] for i in dimselis ] # dim names to measure density upon
-        data = self.sort.get_param_matrix(dims=dims, scale=True)
-
-        s.density_thresh = float(self.density_thresh_text_ctrl.GetValue()) # update from GUI
-        sf = self.frames['sort']
-        plotdims = self.GetClusterPlotDimNames()
-        self.DeColourAllPoints()
-        print("Applying new density threshold")
-        cf = self.frames['cluster']
-        cf.f.scene.disable_render = True # turn rendering off for speed
-        for nid in nids: # nids come out sorted
-            scoutdensity = s.scoutdensities[nid] or 1e-99 # replace any 0s with a tiny number
-            density_mask = s.densities/scoutdensity >= s.density_thresh
-            sids, = np.where((spikes['cid'] == nid) & density_mask)
-            cluster = s.clusters[nid]
-            neuron = cluster.neuron
-            # remove existing spikes from neuron
-            sf.MoveSpikes2List(neuron, neuron.sids, update=False)
-            # add newly selected set to neuron
-            sf.MoveSpikes2Neuron(sids, neuron, update=False)
-            if len(sids) == 0:
-                print('WARNING: neuron %d has no spikes' % nid)
-            else:
-                for dimi, dim in enumerate(dims):
-                    cluster.scale[dim] = data[sids, dimi].std()
-            cluster.update_ellipsoid(params=['scale'], dims=plotdims)
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        self.ColourPoints(s.clusters.values())
-    '''
     def update_sort_from_cluster_pane(self):
         s = self.sort
         s.sigma = float(self.sigma_text_ctrl.GetValue())

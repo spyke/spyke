@@ -267,9 +267,9 @@ class Detector(object):
         stream.open()
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
-        # default -1 indicates no nid is set as of yet, reserve 0 for actual ids. Ditto for cid
+        # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
         spikes['nid'] = -1
-        spikes['cid'] = -1
+        spikes['cid'] = -1 # unused, always leave as -1
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         # spikes might come out slightly out of temporal order, due to the way

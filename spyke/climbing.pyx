@@ -35,8 +35,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - maybe some way of making sigma dynamic for each scout and for each iteration?
         - maybe annealing of alpha (decreasing it over time)? NVS sounds skeptical
 
-        - to speed up the first massive merge step, maybe sort all data according to y position, and then take advantage of that somehow when checking distances - check the distance along y first...
-
         - classify obvious wide flat areas as noise points that shouldn't be clustered:
             - track the distance each point has travelled during the course of the algorithm. When done, plot the distribution of travel distances, and maybe you'll get something bimodal, and choose a cutoff travel distance past which any point that travelled further is considered a noise point
             - or maybe plot distribution of travel times
@@ -52,8 +50,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that butt up against those of the other scout
 
         - try using simplex algorithm for scout position update step, though that might miss local maxima
-        - multithreading/multiprocessing
-            - NVS thinks you could leave the merging step as a thread running in parallel with the gradient step (which itself could be split up easily into multiple threads) - although now with subsampling, the slow steps are mostly the gradient calcs, since there are far fewer scouts to merge to begin with
 
         - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation? - only applies to Gaussian kernel, not Cauchy
 
@@ -71,6 +67,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - add subsampling to reduce initial number of scout points
         - NVS - to weed out potential noise spikes, for each cluster, find the local density of the scout point at the max, then reject all other data points in that cluster whose local density falls below, say, 1% of the max. Apply it as a mask, so you can tweak that 1% value as you wish, without having to run the whole algorithm all over again
         - delete scouts that have fewer than n points (at any point during iteration?)
+        - multithread scout update and assignment of unclustered points step
     """
     cdef int N = len(data) # total num data points
     cdef int ndims = data.shape[1] # num cols in data
@@ -155,7 +152,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                             cids[clustii] = i # overwrite all occurences of j with i
                         elif cids[clustii] > j:
                             cids[clustii] -= 1 # decr all clust indices above j
-                    M -= 1 # decr num of scouts, don't inc j, new value at j has just slid into view
+                    M -= 1 # decr num scouts, don't inc j, new value at j has just slid into view
                     #printf(' %d<-%d ', i, j)
                     printf('M')
                     merged = True
@@ -201,7 +198,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     pool.terminate()
 
-    # remove clusters with less than minpoints number of points
+    # remove clusters with less than minpoints
     npointsremoved = 0
     nclustsremoved = 0
     i = 0
@@ -407,12 +404,11 @@ cpdef assign_unclustered(int lo, int hi,
                     cids[i] = cids[samplei]
 
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cpdef span(np.ndarray[np.int32_t, ndim=1, mode='c'] lohi,
-           int start, int end, int N):
+cdef void span(np.ndarray[np.int32_t, ndim=1, mode='c'] lohi,
+               int start, int end, int N):
     """Fill len(N) lohi array with fairly equally spaced int
     values, from start to end"""
     cdef Py_ssize_t i

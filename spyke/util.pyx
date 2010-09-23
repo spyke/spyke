@@ -61,9 +61,9 @@ def median_inplace_2Dshort(np.ndarray[np.int16_t, ndim=2, mode='c'] arr):
     return result
 
 
-cdef double mean(short *a, int N):
+cdef double mean_short(short *a, int N):
     cdef Py_ssize_t i # recommended type for looping
-    cdef double s=0
+    cdef double s=0.0
     for i in range(N):
         s += a[i]
     s /= N

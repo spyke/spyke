@@ -765,7 +765,7 @@ class CListCtrl(SpykeListCtrl):
     def __init__(self, *args, **kwargs):
         SpykeListCtrl.__init__(self, *args, **kwargs)
         #self.InsertColumn(0, 'nID')
-        self.SetColumnWidth(0, 20)
+        self.SetColumnWidth(0, 22)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
     def OnKeyDown(self, evt):
