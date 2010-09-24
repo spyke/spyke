@@ -582,14 +582,14 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         Sorting by y position makes user inspection of clusters more orderly, makes the presence
         of duplicate clusters more obvious, and allows for maximal spatial separation between
         clusters of the same colour, reducing colour conflicts"""
+        s = self.sort
+        spikes = s.spikes
 
         # deselect current selections
         selclusters = self.GetClusters()
         oldselcids = [ cluster.id for cluster in selclusters ]
         self.SelectClusters(selclusters, on=False)
 
-        s = self.sort
-        spikes = s.spikes
         # get lists of unique old cids and new cids
         olducids = sorted(s.clusters) # make sure they're in order
         # this is a bit confusing: find indices that would sort olducids by y pos, but then
@@ -600,9 +600,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cf.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
-        s.clusters = {} # clear 'em
-        s.neurons = {}
         for oldcid, newcid in zip(olducids, newucids):
+            if oldcid == newcid:
+                continue # no need to waste time removing and recreating this cluster
             # change all occurences of oldcid to newcid
             cluster = oldclusters[oldcid]
             cluster.id = newcid # this indirectly updates neuron.id
@@ -616,6 +616,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cluster.ellipsoid.remove()
             dims = self.GetClusterPlotDimNames()
             cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
+        # remove any orphaned cluster ids
+        for oldcid in olducids:
+            if oldcid not in newucids:
+                del s.clusters[oldcid]
+                del s.neurons[oldcid]
 
         # now do some final updates
         self.UpdateClustersGUI()
