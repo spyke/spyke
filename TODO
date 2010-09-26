@@ -7,22 +7,25 @@ RECENT:
         - to see if this is feasible (will sorting that many spikes cause clusters to be too smudged out over time? will clustering over time help enough?), open one file at a time (maybe only total of 2 or 3 at first), do detection on each, and then concatenate their spikes arrays, with appropriate inc of times of subsequent files. Also, need to make their sids consecutive, and need to set sort.usids to be a copy of that. Then try clustering.
             - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
             - plotting of millions of points in 3D might start to slow interface down. Should try plotting random set of millions of points (say up to 10 million), see how slow it gets
+                - looks like plotting 10M points works. Movement is a bit slower, but adequate
             - how 'bout running climbing algorithm on only small regions of data (in 3 or 4D) at a time? That could greatly decrease the number of nearest neighbours you need to check. Demarcate regions using a huge ellipsoid, or just say "cluster set of all spikes that fall between these two values of y position", and choose borders where there's a clear separation apparent to the user. But alas, often this clear separation will exist nowhere in the data
-            - maybe make a HyperStream object that would hold several Stream (or ResampleStream) objects open at once, so at a higher level you could easily grab whatever waveform at whatever timepoint you need, based on "track timepoint" slices, which are timepoints from beginning of acquisition of first file in the track. Having multiple streams open would help get around issue of potentially multiple intgains, but I'd still have to store one Converter per .srf file
+            - maybe make a HyperStream object that would hold several Stream (or ResampleStream) objects open at once, so at a higher level you could easily grab whatever waveform at whatever timepoint you need, based on "track timepoint" slices, which are timepoints from beginning of acquisition of first file in the track. Having multiple streams open would help get around issue of potentially multiple intgains, but I'd still have to store one Converter per .srf file in the .sort file, and then index into it to get the correct converter for each spike's data
                 - you'd still have to convert everything to float32 uV, wouldn't you? Not sure if it would be possible to leave things in int16 AD units when intgains are different across files. I guess you could find the biggest intgain and scale everything else down accordingly (or vice versa or something?)
-            - realignment could be a challenge, unless I simultaneously hold open all streams from all files in the track
+            - spike realignment could be a challenge, unless I simultaneously hold open all streams from all files in the track
 
 - NVS: do best fit alignment, instead of aligning simply to a peak, should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
+- even with sorting by y, should still add "most similar pair of clusters" button to sort window, which would deselect all selected clusters, and select the two clusters most similar to each other, based on their overlapping chans, although it would be good to see other pairs that aren't as similar, just for testing the similarity measure. Or, just getting a more consistent y value for each cluster (based on median of points, and not on scout position) might work just as well
+
 - NVS: Nando said it would be good to get an energy f'n going for the gradient ascent clustering, so you can quantitatively evaluate which clustering is best, and therefore run the algorithm with multiple values of sigma (and maybe with different channel numbers) and automatically choose the one with the lowest energy
     - sounded like it could be some kind of measure like the sum of all the distances from each point to its scout point/cluster center
 
-- sort window status bar: for current cluster: cluster number, num spikes, SD
+- sort window status bar: for current cluster: cluster number, num spikes, SD on maxchan
 
 - NVS: store density function lookup table (with arbitrary fineness) for speed in move_scouts() - that way, you don't need to calculate d**2, or exp(), or anything. You just give it distance as input, and you get your density f'n value as output
 
-- do test for double triggers (sometimes a spike with a weird delay across channels will cause this): check each ISI across the whole list of sorted spike times. For each ISI that falls below, say, 0.5 ms, check the spatial separation of those two spikes, and if that falls below, say 100 um, or maybe 1 channel distance, then flag that as a double trigger, and maybe delete the second spike? Or keep the spike aligned to the biggest phase? This means resizing the spikes array each time, and probably some other stuff. All of this should really be done right after detection, and before any clustering
+- do test for double triggers (sometimes a spike with a weird delay across channels will cause this): check each ISI across the whole list of sorted spike times. For each ISI that falls below, say, 0.5 ms, check the spatial separation of those two spikes, and if that falls below, say 100 um, or maybe 1 channel distance, then flag that as a double trigger, and maybe delete the second spike? Or keep the spike that's aligned to the biggest phase? This means resizing the spikes array each time, and probably some other stuff. All of this should really be done right after detection, and before any clustering
     - another way to test for this would be to do best fit alignment on all spikes in each cluster, and then see if the waveform difference between any two temporally adjacent spikes is exactly 0. That would indicate you've counted the same spike twice.
     - see spikes 247217 and 247218 in ptc15.92 detection as an example (at t=1286824840 and t=1286824900 respectively). Should turn on detection debugging and figure out why the phasetis for 2ndary chan 21 for the first spike are only 3 timepoints apart (28 and 25), which almost certainly messes up the lockout on that chan, and causes the double trigger
 
@@ -37,8 +40,6 @@ RECENT:
 
 - maybe integrate STA into spyke for quick look at RFs of what you just clustered, and especially, how the RFs may have changed with the last clustering change - ie, keep previous RF plots open for comparison
 
-- implement multiple undo/redo, saving multiple clusterstates in a stack
-
 - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
 
 - sometimes weird spatial localizations going on - try Cauchy distrib instead of Gaussian
@@ -47,7 +48,7 @@ RECENT:
 
 - if doing a subclustering results in an overall reduction in the number of clusters, try and merge into the existing available cluster numbers - don't just delete the old ones and add new ones to the end
 
-- after happy with all clusters and their cleanliness, maybe go through all thrown out clusters, and do template matching of each one against each of the clusters. Set a very strict error threshold, but if an unclustered spike falls below it, move it to the cluster that matches best. Sometimes during waveform clustering (cleaning), good spikes can get thrown out by accident, though I don't think this is a very huge problem
+- after happy with all clusters and their cleanliness, maybe go through all thrown out spikes, and do template matching of each one against each of the clusters. Set a very strict error threshold, but if an unclustered spike falls below it, move it to the cluster that matches best. Sometimes during waveform clustering (cleaning), good spikes can get thrown out by accident, though I don't think this is a very huge problem
 
 - add feature where you do a clustering of only the unclustered points in the data (unclustered is defined as cid=-1 or nid=-1, or both?
     - refinement would be to do clustering of only those unclustered points near the current focus
@@ -785,6 +786,9 @@ DONE:
         - sid 1562 has 58 in its "nid" field but neuron 58 doesn't have 1562 in its sids array
         - strategy to fix existing data: set all nid and cid entries to -1, then iterate over neurons and set nid fields according to sids in each neuron. Leave cid field as -1 always, and eventually, remove it altogether from the spikes array
 - when renumbering, should deselect the old number and reselect whatever number that cluster became
+- implement multiple undo/redo, saving multiple clusterstates in a stack
+    - need to have full old/new symmetry for each cluster state attrib, and then need to reverse meaning of new and old on redo
+    - also need to keep an eye on the stack and trim it when it gets too long, to save memory
 
 
 

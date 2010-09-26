@@ -859,6 +859,14 @@ class SListCtrl(SpykeListCtrl):
             val = '%.1f' % val
         return val
 
+
+class Stack(list):
+    """A list that doesn't allow -ve indices"""
+    def __getitem__(self, key):
+        if key < 0:
+            raise IndexError('stack index %d out of range' % key)
+        return list.__getitem__(self, key)
+
 '''
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.

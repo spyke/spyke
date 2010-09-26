@@ -80,9 +80,27 @@ class Cluster(object):
         self.ellipsoid = None # restore attrib, proper value is restored later
 
 
-class ClusterState(object):
-    """Empty class for storing info to undo changes to clusters"""
-    pass
+class ClusterChange(object):
+    """Stores info for undoing/redoing a change to any set of clusters"""
+    def __init__(self, sids, spikes, message):
+        self.sids = sids
+        self.spikes = spikes
+        self.message = message
+
+    def __repr__(self):
+        return self.message
+
+    def save_old(self, oldclusters):
+        self.oldnids = self.spikes['nid'][self.sids] # this seems to create a copy
+        self.oldunids = [ cluster.id for cluster in oldclusters ]
+        self.oldpositions = [ cluster.pos.copy() for cluster in oldclusters ]
+        self.oldscales = [ cluster.scale.copy() for cluster in oldclusters ]
+
+    def save_new(self, newclusters):
+        self.newnids = self.spikes['nid'][self.sids] # this seems to create a copy
+        self.newunids = [ newcluster.id for newcluster in newclusters ]
+        self.newpositions = [ newcluster.pos.copy() for newcluster in newclusters ]
+        self.newscales = [ newcluster.scale.copy() for newcluster in newclusters ]
 
 
 class SpykeMayaviScene(MayaviScene):

@@ -85,6 +85,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.hpstream = None
         self.lpstream = None
 
+        self.cchanges = core.Stack() # cluster change stack, for undo/redo
+        self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
+
         #self.Bind(wx.EVT_MOVE, self.OnMove)
         self.Bind(wx.EVT_CLOSE, self.OnExit)
 
@@ -538,17 +541,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sids.append(cluster.neuron.sids)
         sids = np.concatenate(sids)
 
-        # save stuff for undo
-        self.clusterstate = spyke.cluster.ClusterState()
-        cs = self.clusterstate
-        cs.sids = sids
-        cs.oldnids = spikes['nid'][sids]
-        cs.oldunids = [ cluster.id for cluster in clusters ]
-        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
-        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
-        cs.newunids = [] # no new ones added
+        # save some undo/redo stuff
+        message = 'delete clusters %r' % [ c.id for c in clusters ]
+        cc = spyke.cluster.ClusterChange(sids, spikes, message)
+        cc.save_old(clusters)
 
-        # deselect them all
+        # deselect and delete clusters
         self.SelectClusters(clusters, on=False)
         for cluster in clusters:
             self.DelCluster(cluster, update=False)
@@ -557,8 +555,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.frames['cluster'].glyph.mlab_source.update()
         if len(self.sort.clusters) == 0:
             self.cluster_params_pane.Enable(False)
-        else:
-            self.SelectClusters(s.clusters[max(s.clusters)]) # select last one
+        else: # select cluster that's next highest than lowest of the deleted clusters
+            cids = np.asarray(s.clusters.keys())
+            ii, = np.where(cids > min(cc.oldunids))
+            selcid = min(cids[ii])
+            self.SelectClusters(s.clusters[selcid]) # TODO: this sets selection, but not focus
+
+        # save more undo/redo stuff
+        newclusters = []
+        cc.save_new(newclusters)
+        self.AddClusterChangeToStack(cc)
+        print(cc.message)
 
     def DelCluster(self, cluster, update=True):
         """Delete a cluster from the GUI, and delete the cluster
@@ -628,8 +635,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # reselect the previously selected (but now renumbered) clusters - helps user keep track
         newselcids = newucids[np.searchsorted(olducids, oldselcids)]
         self.SelectClusters([s.clusters[cid] for cid in newselcids])
-        try: del self.clusterstate # last cluster state no longer applicable
-        except AttributeError: pass
+        # all cluster changes in stack are no longer applicable, reset cchanges
+        self.cchanges = []
+        self.cci = -1
 
     def OnCListSelect(self, evt=None):
         """Cluster list box item selection. Update cluster param widgets
@@ -774,7 +782,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cf.glyph.mlab_source.scalars[neuron.sids] = neuron.id % len(CMAP)
         t0 = time.time()
         cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
-        print('glyph.mlab_source.update() call took %.3f sec' % ((time.time()-t0)))
+        #print('glyph.mlab_source.update() call took %.3f sec' % ((time.time()-t0)))
 
     def DeColourPoints(self, sids):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
@@ -931,14 +939,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             sids.append(cluster.neuron.sids)
         sids = np.concatenate(sids)
 
-        # save undo stuff
-        self.clusterstate = spyke.cluster.ClusterState() # overwrite any previous one
-        cs = self.clusterstate
-        cs.sids = sids
-        cs.oldnids = spikes['nid'][sids]
-        cs.oldunids = [ cluster.id for cluster in clusters ]
-        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
-        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
+        # save some undo/redo stuff
+        message = 'merge clusters %r' % [ c.id for c in clusters ]
+        cc = spyke.cluster.ClusterChange(sids, spikes, message)
+        cc.save_old(clusters)
 
         # delete original clusters
         self.SelectClusters(clusters, on=False) # deselect original clusters
@@ -949,7 +953,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         # create new cluster
         t0 = time.time()
-        newnid = min([ nid for nid in cs.oldunids ]) # merge into lowest cluster
+        newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest cluster
         newcluster = self.OnAddCluster(update=False, id=newnid)
         neuron = newcluster.neuron
         sf.MoveSpikes2Neuron(sids, neuron, update=False)
@@ -961,16 +965,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             newcluster.scale[plotdim] = points.std() or newcluster.scale[plotdim]
         newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
-        # save for undo
-        cs.newunids = [newnid]
+        # save more undo/redo stuff
+        cc.save_new([newcluster])
+        self.AddClusterChangeToStack(cc)
 
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(newcluster)
-        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly created cluster
         self.SelectClusters(newcluster, on=True)
-        print('merged clusters %r into cluster %d' % (cs.oldunids, newnid))
+        cc.message += ' into cluster %d' % newnid
+        print(cc.message)
 
     def OnClimb(self, evt=None):
         """Cluster pane Climb button click"""
@@ -1023,15 +1029,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except ValueError: pass
         print('climb took %.3f sec' % (time.time()-t0))
 
-        # save undo stuff, this is done as late as possible to delay overwriting any
-        # previous cluster state for as long as possible
-        self.clusterstate = spyke.cluster.ClusterState() # overwrite any previous one
-        cs = self.clusterstate
-        cs.sids = sids
-        cs.oldnids = spikes['nid'][sids]
-        cs.oldunids = [ cluster.id for cluster in clusters ]
-        cs.positions = [ cluster.pos.copy() for cluster in clusters ]
-        cs.scales = [ cluster.scale.copy() for cluster in clusters ]
+        # save some undo/redo stuff
+        message = 'climb clusters %r' % [ c.id for c in clusters ]
+        cc = spyke.cluster.ClusterChange(sids, spikes, message)
+        cc.save_old(clusters)
 
         if oldclusters: # some clusters selected
             self.SelectClusters(oldclusters, on=False) # deselect original clusters
@@ -1070,16 +1071,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     cluster.scale[dim] = data[ii, dimi].std() or cluster.scale[dim]
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
-        # save more undo stuff
-        cs.newunids = [ newcluster.id for newcluster in newclusters ]
+        # save more undo/redo stuff
+        cc.save_new(newclusters)
+        self.AddClusterChangeToStack(cc)
 
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(newclusters)
-        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
-
+        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         if oldclusters: # select newly created cluster(s)
             self.SelectClusters(newclusters, on=True)
+        cc.message += ' into %r' % [c.id for c in newclusters]
+        print(cc.message)
 
     def get_waveclustering_data(self, sids, wctype='wave'):
         s = self.sort
@@ -1188,18 +1191,59 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         print('normalized waveform data by %f' % norm)
         return data
 
+    def AddClusterChangeToStack(self, cc):
+        """Adds cc to the cluster change stack, removing any potential redo changes"""
+        self.cci += 1
+        del self.cchanges[self.cci::] # remove any existing redo cluster changes
+        self.cchanges.append(cc) # add to stack
+        # TODO: check if stack has gotten too long, if so, remove some from the start
+        # and update self.cci appropriately
+
     def OnUndo(self, evt=None):
-        """Cluster pane Undo button click. Undo previous climb"""
+        """Cluster pane Undo button click. Undo previous cluster change"""
+        try: cc = self.cchanges[self.cci]
+        except IndexError: raise RuntimeError('nothing to undo')
+        print('undoing: %s' % cc.message)
+        self.ApplyClusterChange(cc, direction='back')
+        self.cci -= 1 # move pointer one change back on the stack
+        print('undo complete')
+
+    def OnRedo(self, evt=None):
+        """Cluster pane Redo button click. Redo next cluster change"""
+        try: cc = self.cchanges[self.cci+1]
+        except IndexError: raise RuntimeError('nothing to redo')
+        print('redoing: %s' % cc.message)
+        self.ApplyClusterChange(cc, direction='forward')
+        self.cci += 1 # move pointer one change forward on the stack
+        print('redo complete')
+
+    def ApplyClusterChange(self, cc, direction):
+        """Apply cluster change described in cc, in either the forward or backward direction,
+        to the current set of clusters"""
         s = self.sort
         spikes = s.spikes
         sf = self.OpenFrame('sort')
         cf = self.OpenFrame('cluster')
-        try: cs = self.clusterstate
-        except AttributeError: raise RuntimeError('nothing to undo')
-        sids = cs.sids
+        sids = cc.sids
+
+        # reverse meaning of 'new' and 'old' if direction == 'forward', ie if redoing
+        if direction == 'back':
+            #newnids = cc.newnids # not needed
+            oldnids = cc.oldnids
+            newunids = cc.newunids
+            oldunids = cc.oldunids
+            positions = cc.oldpositions
+            scales = cc.oldscales
+        else: # direction == 'forward'
+            #newnids = cc.oldnids # not needed
+            oldnids = cc.newnids
+            newunids = cc.oldunids
+            oldunids = cc.newunids
+            positions = cc.newpositions
+            scales = cc.newscales
 
         # delete newly added clusters
-        newclusters = [ s.clusters[nid] for nid in cs.newunids ]
+        newclusters = [ s.clusters[nid] for nid in newunids ]
         self.SelectClusters(newclusters, on=False) # deselect new clusters
         cf.f.scene.disable_render = True # for speed
         for newcluster in newclusters:
@@ -1207,15 +1251,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.DeColourPoints(sids) # decolour all points belonging to new clusters
 
         # restore relevant spike fields
-        spikes['nid'][sids] = cs.oldnids
+        spikes['nid'][sids] = oldnids
 
         # restore the old clusters
         oldclusters = []
         plotdims = self.GetClusterPlotDimNames()
         t0 = time.time()
         # NOTE: oldunids are not necessarily sorted
-        for nid, pos, scale in zip(cs.oldunids, cs.positions, cs.scales):
-            nsids = sids[cs.oldnids == nid] # sids belonging to this nid
+        for nid, pos, scale in zip(oldunids, positions, scales):
+            nsids = sids[oldnids == nid] # sids belonging to this nid
             cluster = self.OnAddCluster(update=False, id=nid)
             oldclusters.append(cluster)
             neuron = cluster.neuron
@@ -1227,11 +1271,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(oldclusters)
-        print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly recreated oldclusters
         self.SelectClusters(oldclusters, on=True)
-        del self.clusterstate # last cluster state no longer applicable
-        print('undo complete')
 
     def update_sort_from_cluster_pane(self):
         s = self.sort
