@@ -636,7 +636,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         newselcids = newucids[np.searchsorted(olducids, oldselcids)]
         self.SelectClusters([s.clusters[cid] for cid in newselcids])
         # all cluster changes in stack are no longer applicable, reset cchanges
-        self.cchanges = []
+        del self.cchanges[:]
         self.cci = -1
 
     def OnCListSelect(self, evt=None):
@@ -1394,6 +1394,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             cf.f.scene.disable_render = False
         self.clist.SetItemCount(0)
         self.clist.RefreshItems()
+        del self.cchanges[:]
+        self.cci = -1
         self.total_nspikes_label.SetLabel(str(0))
         # make sure self.sort and especially self.sort.spikes is really gone
         # TODO: check if this is necessary once everything works with new streamlined
