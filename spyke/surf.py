@@ -4,17 +4,15 @@ Some field names and comments are copied from Tim Blanche's Delphi program "Surf
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
-import itertools
 import numpy as np
 import os
 import cPickle
-import cProfile
+#import cProfile
 from struct import Struct, unpack
-import unittest
 from copy import copy
 import re
 import time
-import weakref
+import datetime
 
 import wx
 
@@ -84,6 +82,12 @@ class File(object):
 
     def is_open(self):
         return self.filelock.is_locked
+
+    def get_datetime(self):
+        return self.fileheader.create.datetime()
+
+    datetime = property(get_datetime)
+
     '''
     def __getstate__(self):
         """Don't pickle open .srf file on pickle"""
@@ -486,9 +490,12 @@ class FileHeader(object):
 
 
 class TimeDate(object):
-    """TimeDate record, reverse of C'S DateTime"""
+    """TimeDate record, reverse of C's DateTime"""
     def __len__(self):
         return 18
+
+    def __repr__(self):
+        return str(self.datetime())
 
     def parse(self, f):
         # not really necessary, comment out to save memory
@@ -501,6 +508,11 @@ class TimeDate(object):
         self.year, = unpack('H', f.read(2))
         # hack to skip 6 bytes
         f.seek(6, 1)
+
+    def datetime(self):
+        """Convert to normal Python datetime object"""
+        return datetime.datetime(self.year, self.month, self.day,
+                                 self.hour, self.min, self.sec)
 
 
 class DRDB(object):
@@ -819,13 +831,6 @@ class StimulusHeader(object):
 def causalorder(records):
     """Checks to see if the timestamps of all the records are in
     causal (increasing) order. Returns True or False"""
-    '''
-    for record1, record2 in itertools.izip(records[:-1], records[1:]):
-        if record1.TimeStamp > record2.TimeStamp:
-            return False
-    return True
-    '''
-    # more straightforward using numpy:
     try:
         ts = np.asarray([ record.TimeStamp for record in records ])
     except AttributeError:

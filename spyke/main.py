@@ -638,6 +638,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # all cluster changes in stack are no longer applicable, reset cchanges
         del self.cchanges[:]
         self.cci = -1
+        print('renumbering complete')
 
     def OnCListSelect(self, evt=None):
         """Cluster list box item selection. Update cluster param widgets

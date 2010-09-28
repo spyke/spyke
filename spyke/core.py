@@ -1215,3 +1215,10 @@ def rowtake(a, i):
         return a[np.arange(a.shape[0]), i]
     else: # i.ndim == 2
         return a[np.arange(a.shape[0])[:, None], i]
+
+def timedelta2usec(delta):
+    """Convert datetime.timedelta to microseconds"""
+    sec = delta.days * 24 * 3600
+    sec += delta.seconds
+    usec = sec * 1000000 + delta.microseconds
+    return usec
