@@ -161,11 +161,19 @@ class WaveForm(object):
         return padded_data
     '''
 
+class TrackStream(Stream):
+    """A collection of streams, all from the same track. This is used to simultaneously
+    cluster all spikes from many (or all) recordings from the same track. Designed to have
+    as similar an interface as possible to a normal Stream"""
+    def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None):
+        pass
+
+
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk"""
-    def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None, endinclusive=False):
+    def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
@@ -200,7 +208,6 @@ class Stream(object):
             self.chans = self.layout.chans # probe chan values already parsed from LFP probe description
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
-        self.endinclusive = endinclusive
         self.rts = self.ctsrecords['TimeStamp'] # array of ctsrecord timestamps
         # check whether self.rts values are all equally spaced,
         # indicating there were no pauses in recording. Then, set a flag
@@ -290,27 +297,30 @@ class Stream(object):
         if key.step in [None, 1]:
             start, stop = key.start, key.stop
         elif key.step == -1:
-            start, stop = key.stop, key.start # reverse start and stop, now start should be < stop
+            start, stop = key.stop, key.start # swap start and stop, so start < stop
         else:
             raise ValueError('unsupported slice step size: %s' % key.step)
 
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
-            # excess data in us at either end, to eliminate interpolation distortion at our desired start and stop
+            # excess data in us at either end, to eliminate interpolation distortion at our
+            # desired start and stop
             xs = KERNELSIZE * self.rawtres
         else:
             xs = 0
 
         # Find the first and last records corresponding to the slice. If the start of the slice
-        # matches a record's timestamp, start with that record. If the end of the slice matches a record's
-        # timestamp, end with that record (even though you'll only potentially use the one timepoint from
-        # that record, depending on the value of 'endinclusive')"""
+        # matches a record's timestamp, start with that record. If the end of the slice matches
+        # a record's timestamp, end with that record (even though you'll only potentially use
+        # the one timepoint from that record"""
         #trts = time.time()
-        lorec, hirec = self.rts.searchsorted([start-xs, stop+xs], side='right') # TODO: this might need to be 'left' for step=-1
+        # TODO: this might need to be 'left' for step=-1
+        lorec, hirec = self.rts.searchsorted([start-xs, stop+xs], side='right')
         #print('rts.searchsorted() took %.3f sec' % (time.time()-trts)) # this takes 0 sec
 
-        # We always want to get back at least 1 record (ie records[0:1]). When slicing, we need to do
-        # lower bounds checking (don't go less than 0), but not upper bounds checking
+        # We always want to get back at least 1 record (ie records[0:1]). When slicing,
+        # we need to do lower bounds checking (don't go less than 0), but not upper bounds
+        # checking
         cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
 
         # TODO: check here if len(cutrecords) == 0, if so, return right away to save time
@@ -343,18 +353,20 @@ class Stream(object):
                 gapcounts.append((gaps == gap).sum())
         '''
         nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
-        totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last one might be shorter than nt
+        totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last might be shorter
         #print('record.load() took %.3f sec' % (time.time()-tload))
 
         #tcat = time.time()
-        #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1) # slow
+        # this is slow:
+        #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1)
         # init as int32 so we have space to rescale and zero, then convert back to int16
         data = np.empty((nchans, totalnt), dtype=np.int32)
         for recordi, recorddata in enumerate(recorddatas):
             i = recordi * nt
             data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
         #print('concatenate took %.3f sec' % (time.time()-tcat))
-        tres = self.layout.tres # actual tres of record data may not match self.tres due to interpolation
+        # actual tres of record data may not match self.tres due to interpolation
+        tres = self.layout.tres
 
         # build up waveform timepoints, taking into account any time gaps in
         # between records due to pauses in recording, assumes all records
@@ -375,8 +387,8 @@ class Stream(object):
         #print('ts building took %.3f sec' % (time.time()-ttsbuild))
         #ttrim = time.time()
         lo, hi = ts.searchsorted([start-xs, stop+xs])
-        data = data[:, lo:hi+self.endinclusive] # .take doesn't seem to be any faster
-        ts = ts[lo:hi+self.endinclusive] # .take doesn't seem to be any faster
+        data = data[:, lo:hi] # .take doesn't seem to be any faster
+        ts = ts[lo:hi] # .take doesn't seem to be any faster
         if data.size == 0:
             raise RuntimeError("no data to return, check slice key: %r" % key)
         #print('record data trimming took %.3f sec' % (time.time()-ttrim)) # this takes 0 sec
@@ -387,9 +399,11 @@ class Stream(object):
             ts = ts[::key.step]
 
         #tscaleandoffset = time.time()
-        #data *= 2**(16-12) # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
-        # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as * 2**(16-12) == 16
-        # this provides more fidelity for interpolation, reduces uV per AD to about 0.02
+        # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
+        #data *= 2**(16-12)
+        # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as
+        # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
+        # AD to about 0.02
         data <<= 4
         data -= 2**15 # offset values to center them around 0 AD == 0 V
         # data is still int32 at this point
@@ -402,15 +416,17 @@ class Stream(object):
             data, ts = self.resample(data, ts)
             #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
-            if range(nchans) != list(self.chans) and self.kind != 'lowpass': # some chans are disabled, this is a total hack!!!!!!!!
-                # TODO: BUG: this doesn't work right for lowpass Streams, because their ADchans and probe chans don't map 1 to 1
+            if range(nchans) != list(self.chans) and self.kind != 'lowpass':
+                # some chans are disabled, this is a total hack!!!!!!!!
+                # TODO: BUG: this doesn't work right for lowpass Streams, because their ADchans
+                # and probe chans don't map 1 to 1
                 data = data[self.chans]
         # now get rid of any excess
         if xs:
             #txs = time.time()
-            lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted really necessary?
-            data = data[:, lo:hi+self.endinclusive]
-            ts = ts[lo:hi+self.endinclusive]
+            lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted necessary?
+            data = data[:, lo:hi]
+            ts = ts[lo:hi]
             #print('xs took %.3f sec' % (time.time()-txs)) # this takes 0 sec
 
         #datamax = data.max()
@@ -426,7 +442,8 @@ class Stream(object):
         #print('Stream slice took %.3f sec' % (time.time()-tslice))
 
         # return a WaveForm object
-        assert len(data) == len(self.chans), "self.chans doesn't seem to correspond to rows in data"
+        assert len(data) == len(self.chans), ("self.chans doesn't seem to correspond to rows "
+                                              "in data")
         return WaveForm(data=data, ts=ts, chans=self.chans)
     '''
     def __setstate__(self, d):
@@ -437,18 +454,18 @@ class Stream(object):
     '''
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
-        data and timepoints. See Blanche & Swindale, 2006
-
-        TODO: should interpolation be multithreaded?
-        """
-        #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq, self.rawsampfreq, self.shcorrect)
+        data and timepoints. See Blanche & Swindale, 2006"""
+        #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq,
+        #                                                           self.rawsampfreq,
+        #                                                           self.shcorrect)
         rawtres = self.rawtres # us
         tres = self.tres # us
         resamplex = int(round(self.sampfreq / self.rawsampfreq)) # resample factor: n output resampled points per input raw point
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        #assert self.nchans == len(self.chans) == len(ADchans) # pretty basic assumption which might change if chans are disabled
+        # pretty basic assumption which might change if chans are disabled:
+        #assert self.nchans == len(self.chans) == len(ADchans)
         # check if kernels have been generated already
         try:
             self.kernels
@@ -467,7 +484,8 @@ class Stream(object):
         ts = np.arange(tstart, tstart+tres*nt, tres) # generate interpolated timepoints
         #print 'len(ts) is %r' % len(ts)
         assert len(ts) == nt
-        data = np.empty((self.nchans, nt), dtype=np.int32) # resampled data, leave as int32 for convolution, then convert to int16
+        # resampled data, leave as int32 for convolution, then convert to int16:
+        data = np.empty((self.nchans, nt), dtype=np.int32)
         #print 'data.shape = %r' % (data.shape,)
         #tconvolve = time.time()
         tconvolvesum = 0
@@ -486,9 +504,14 @@ class Stream(object):
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
                 # interleave by assigning from point to end in steps of resamplex
-                ti0 = (resamplex - point) % resamplex # index to start filling data from for this kernel's points
-                rowti0 = int(point > 0) # index of first data point to use from convolution result 'row'
-                data[chani, ti0::resamplex] = row[rowti0:] # discard the first data point from interpolant's convolutions, but not for raw data's convolutions, since interpolated values have to be bounded on both sides by raw values?
+                # index to start filling data from for this kernel's points:
+                ti0 = (resamplex - point) % resamplex
+                # index of first data point to use from convolution result 'row':
+                rowti0 = int(point > 0)
+                # discard the first data point from interpolant's convolutions, but not for
+                # raw data's convolutions, since interpolated values have to be bounded on both
+                # sides by raw values?
+                data[chani, ti0::resamplex] = row[rowti0:]
         #print('convolve loop took %.3f sec' % (time.time()-tconvolve))
         #print('convolve calls took %.3f sec total' % (tconvolvesum))
         #tundoscaling = time.time()
@@ -497,22 +520,25 @@ class Stream(object):
         return data, ts
 
     def get_kernels(self, ADchans, resamplex, N):
-        """Generate a different set of kernels for each ADchan to correct each ADchan's s+h delay.
+        """Generate a different set of kernels for each ADchan to correct each ADchan's
+        s+h delay.
 
         TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
         You don't need a kernel for the original raw data points. Those won't be shifted,
         so you can just interleave appropriately.
 
         TODO: take DIN channel into account, might need to shift all highpass ADchans
-        by 1us, see line 2412 in SurfBawdMain.pas. I think the layout.sh_delay_offset field may tell you
-        if and by how much you should take this into account
+        by 1us, see line 2412 in SurfBawdMain.pas. I think the layout.sh_delay_offset field
+        may tell you if and by how much you should take this into account
 
-        WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if it's preceded by AD chans
-        0, 1, 2 and 3 in the channel gain list - I suspect the latter is the case, but right now I'm coding the former
+        WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if
+        it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter
+        is the case, but right now I'm coding the former
         """
         i = ADchans % NCHANSPERBOARD # ordinal position of each chan in the hold queue
         if self.shcorrect:
-            dis = 1 * i # per channel delays, us. TODO: stop hard coding 1us delay per ordinal position
+            dis = 1 * i # per channel delays, us
+            # TODO: stop hard coding 1us delay per ordinal position
         else:
             dis = 0 * i
         ds = dis / self.rawtres # normalized per channel delays
@@ -526,10 +552,12 @@ class Stream(object):
                 t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
                 tend = tstart + (N+1)
-                # kernel sample timepoints, all of length N+1, float32s to match voltage data type
+                # kernel sample timepoints, all of length N+1, float32s to match voltage
+                # data type
                 t = np.arange(tstart, tend, 1, dtype=np.float32)
                 kernel = wh(t, N) * h(t) # windowed sinc, sums to 1.0, max val is 1.0
-                kernel = np.int32(np.round(kernel * 2**16)) # rescale to get values up to 2**16, convert to int32
+                # rescale to get values up to 2**16, convert to int32
+                kernel = np.int32(np.round(kernel * 2**16))
                 kernelrow.append(kernel)
             kernels.append(kernelrow)
         return kernels
