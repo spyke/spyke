@@ -168,19 +168,60 @@ class TrackStream(object):
     as similar an interface as possible to a normal Stream. srffs needs to be a list of
     surf.File objects, in temporal order"""
     def __init__(self, srffs, kind='highpass', sampfreq=None, shcorrect=None):
-        self.streams = []
+        self.srffs = srffs
+        self.kind = kind
+        streams = []
         for srff in srffs:
             streams.append(Stream(srff, kind=kind, sampfreq=sampfreq, shcorrect=shcorrect))
+        self.streams = streams
         datetimes = [ srff.datetime for srff in srffs ]
-        assert (np.diff(datetimes) >= datetime.timedelta(0)).all(), "selected .srf files aren't in temporal order"
+        if not (np.diff(datetimes) >= datetime.timedelta(0)).all():
+            raise RuntimeError(".srf files aren't in temporal order")
+        # not even necessary? just index into .srf files when you need ctsrecords?:
+        '''
         self.ctsrecords = []
         if kind == 'highpass':
+            # TODO: should I insert fake ctsrecords in between real ones? Or just a None, and when
+            # loadcontinuousrecord() is called in __getitem__, use the None as an indicator that
+            # I need to return the appropriate length array of zeros?
             for srff in srffs:
-                self.ctsrecords.extend(srff.highpassrecords)
+                self.ctsrecords.append(srff.highpassrecords)
         elif kind == 'lowpass':
             for srff in srffs:
-                self.ctsrecords.extend(srff.highpassrecords)
+                self.ctsrecords.append(srff.lowpassmultichanrecords)
         else: raise ValueError('Unknown stream kind %r' % kind)
+        '''
+        self.layout = streams[0].layout # assume they're identical
+        intgains = [ srff.converter.intgain for srff in srffs ]
+        if max(intgains) != min(intgains):
+            raise NotImplementedError("Not all .srf files have the same intgain")
+            # TODO: find recording with biggest intgain, call that value maxintgain. For each
+            # recording, scale its AD values by its intgain/maxintgain when returning a slice from
+            # its stream. Note that this ratio should always be a factor of 2, so all you have to
+            # do is bitshift, I think. Then, have a single converter for the trackstream whose
+            # intgain value is set to maxintgain
+        self.converter = srffs[0].converter # they're identical
+        self.srffname = None
+        self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
+        self.rawtres = streams[0].rawtres # assume they're identical
+        self.chans = streams[0].chans # assume they're identical
+        self.sampfreq = streams[0].sampfreq # they're identical
+        self.shcorrect = streams[0].shcorrect # they're identical
+
+        self.t0 = streams[0].t0
+        self.tend = stream[-1].tend
+        if not (np.diff([s.tres for stream in streams]) == 0).all():
+            raise RuntimeError("some .srf files have different tres")
+        self.tres = streams[0].tres # they're identical
+        contiguous = np.asarray([ stream.contiguous for stream in stream ])
+        if not contiguous.all():
+            raise NotImplementedError("some .srf files are non contiguous: %r" %
+                                      [s.srffname for s in streams[contiguous == False]])
+        #self.rts = np.arange(self.t0, self.tend, self.tres, dtype=np.int64) # all .srf files are contiguous
+        probe = streams[0].probe
+        if not np.all([type(probe) == type(s.probe) for s in streams]):
+            raise RuntimeError("some .srf files have different probe types")
+        self.probe = probe # they're identical
 
 
 class Stream(object):
@@ -200,10 +241,10 @@ class Stream(object):
             self.ctsrecords = srff.lowpassmultichanrecords
         else: raise ValueError('Unknown stream kind %r' % kind)
 
-        # assume layout for all ctsrecords of type "kind" are the same as the 1st one:
+        # assume same layout for all ctsrecords of type "kind"
         self.layout = self.srff.layoutrecords[self.ctsrecords['Probe'][0]]
         intgain = self.layout.intgain
-        extgain = int(self.layout.extgain[0]) # assume extgain is the same for all chans in this layout
+        extgain = int(self.layout.extgain[0]) # assume same extgain for all chans in layout
         self.converter = Converter(intgain, extgain)
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.rawsampfreq = self.layout.sampfreqperchan
@@ -551,7 +592,10 @@ class Stream(object):
 
         WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if
         it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter
-        is the case, but right now I'm coding the former
+        is the case, but right now I'm coding the former. Note that there's a
+        srff.layout.sh_delay_offset field that describes the sh delay for first chan of probe.
+        Should probably take this into account, although it doesn't affect relative delays
+        between chans, I think. I think it's usually 1us.
         """
         i = ADchans % NCHANSPERBOARD # ordinal position of each chan in the hold queue
         if self.shcorrect:
@@ -588,7 +632,9 @@ class Stream(object):
         then write. 'C' order means dump the data as C-contiguous, ie 1st
         timepoint, all channels, 2nd timepoint, etc. 'F' order means dump the
         data as Fortran-contiguous, ie 1st channel, all timepoints, 2nd channel, etc"""
-        assert self.contiguous, "data in .srf file isn't contiguous, best not to save resampled data to disk, at least for now"
+        if not self.contiguous:
+            raise RuntimeError("data in .srf file isn't contiguous, best not to save resampled
+                                data to disk, at least for now"
         # make sure we're pulling data from the original .srf file, not some other existing .resample file
         self.switch(to='normal')
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
@@ -619,9 +665,10 @@ class Stream(object):
             if order == 'F':
                 wave.data.T.tofile(f) # write in column order
             elif order == 'C': # have to do 1 chan at a time, with correct offset for current block of time
-                raise RuntimeError("***WARNING: this C order writing code is untested, and no code for reading it back exists")
+                raise RuntimeError("***WARNING: this C order writing code is untested, and no code for
+                                   reading it back exists")
                 for chani, chandata in enumerate(wave.data):
-                    pos = (CHANFIELDLEN + chani*totalnsamples + blocki*blocknsamples) * 2 # each sample is a 2 byte int16
+                    pos = (CHANFIELDLEN + chani*totalnsamples + blocki*blocknsamples) * 2 # 2 bytes/sample
                     f.seek(pos)
                     chandata.tofile(f) # write in row order
             sys.stdout.write('.')
@@ -1209,20 +1256,20 @@ def win2posixpath(path):
     path = path.replace('\\', '/')
     path = os.path.splitdrive(path)[-1] # remove drive name from start
     return path
-
+'''
 def oneD2D(a):
-    """Convert 1D array to 2D array"""
+    """Convert 1D array to 2D array. Can do this just as easily using a[None, :]"""
     a = a.squeeze()
     assert a.ndim == 1, "array has more than one non-singleton dimension"
     a.shape = 1, len(a) # make it 2D
     return a
 
 def twoD1D(a):
-    """Convert trivially 2D array to 1D array"""
+    """Convert trivially 2D array to 1D array. Seems unnecessary. Just call squeeze()"""
     a = a.squeeze()
     assert a.ndim == 1, "array has more than one non-singleton dimension"
     return a
-
+'''
 def intersect1d(arrays, assume_unique=False):
     """Find the intersection of any number of 1D arrays.
     Return the sorted, unique values that are in all of the input arrays.

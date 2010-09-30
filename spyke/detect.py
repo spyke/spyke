@@ -29,7 +29,7 @@ import spyke.surf
 from spyke.core import eucd
 
 #from spyke import threadpool
-from spyke.core import oneD2D, twoD1D #, WaveForm, toiter, argcut, intround, g, g2, RM
+#from spyke.core import  WaveForm, toiter, argcut, intround, g, g2, RM
 #from text import SimpleTable
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
