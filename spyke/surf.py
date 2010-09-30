@@ -27,6 +27,7 @@ DEFNDIGITALSVALRECORDS = 600000
 CTSRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('dataoffset', '<i8')]
 LPMCRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('lpreci', '<i4')]
 DIGITALSVALDTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
+EPOCH = datetime.datetime(1899, 12, 30, 0, 0, 0) # epoch for message and display record DateTime stamps
 
 # create a couple of Struct objects with compiled format strings
 # and call them as needed for the most common record types.
@@ -84,7 +85,25 @@ class File(object):
         return self.filelock.is_locked
 
     def get_datetime(self):
-        return self.fileheader.create.datetime()
+        """Return datetime stamp corresponding to t=0us timestamp. t=0 corresponds to either:
+        A) when the AD boards began acquisition while Surf was in record-pause mode, waiting
+        for the simulus to begin after clicking SHIFT-record;
+        OR
+        B) when the record button was clicked (without SHIFT), causing acquisition and
+        recording to both immediately begin (or reset).
+        """
+        # Any message record in the file could be used, since each has a TimeStamp with a
+        # corresponding datetime stamp. Could also use the display header record, since
+        # it too has a TimeStamp and a datetime stamp, but not all recordings have a
+        # display header record. But AFAIK, every recording *does* have at least 2 message
+        # records: "Recording started" and "Recording stopped".
+        # (Note that the first "Recording paused, waiting for stimulus to begin" message
+        # printed to screen by Surf while in pause-record mode isn't written to the file.)
+        # So, use the first message record by default (although to get the most accurate
+        # value, could take the average of all the messagerecords in the file, but the
+        # variation from one record to the next is < 100ms or so):
+        t0 = self.messagerecords[0].TimeStamp
+        return self.messagerecords[0].datetime - datetime.timedelta(microseconds=t0)
 
     datetime = property(get_datetime)
 
@@ -498,8 +517,6 @@ class TimeDate(object):
         return str(self.datetime())
 
     def parse(self, f):
-        # not really necessary, comment out to save memory
-        #self.offset = f.tell()
         self.sec, = unpack('H', f.read(2))
         self.min, = unpack('H', f.read(2))
         self.hour, = unpack('H', f.read(2))
@@ -618,8 +635,6 @@ class LayoutRecord(object):
         return 1725
 
     def parse(self, f):
-        # not really necessary, comment out to save memory
-        #self.offset = f.tell()
         # Record type 'L'
         self.UffType = f.read(1)
         # hack to skip next 7 bytes
@@ -712,8 +727,6 @@ class ProbeWinLayout(object):
         return 16
 
     def parse(self, f):
-        # not really necessary, comment out to save memory
-        #self.offset = f.tell()
         self.left, = unpack('i', f.read(4))
         self.top, = unpack('i', f.read(4))
         self.width, = unpack('i', f.read(4))
@@ -730,14 +743,20 @@ class AnalogSValRecord(object):
         raise NotImplementedError('Analog single value recordings currently unsupported')
 
 
-class MessageRecord(object):
+class DatedRecord(object):
+    """A record with a DateTime field in days since the EPOCH"""
+    def get_datetime(self):
+        return EPOCH + datetime.timedelta(days=self.DateTime)
+
+    datetime = property(get_datetime)
+
+
+class MessageRecord(DatedRecord):
     """Message record"""
     def __len__(self):
         return 28 + self.MsgLength
 
     def parse(self, f):
-        # not really necessary, comment out to save memory
-        #self.offset = f.tell()
         # 1 byte -- SURF_MSG_REC_UFFTYPE: 'M'
         self.UffType = f.read(1)
         # 1 byte -- 'U' user or 'S' Surf-generated
@@ -762,13 +781,12 @@ class UserMessageRecord(MessageRecord):
     """User generated message record"""
 
 
-class DisplayRecord(object):
+class DisplayRecord(DatedRecord):
     """Stimulus display header record"""
     def __len__(self):
         return 24 + len(self.Header) + 4
 
     def parse(self, f):
-        #self.offset = f.tell() # not really necessary, comment out to save memory
         # 1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
         self.UffType = f.read(1)
         # hack to skip next 7 bytes
@@ -798,7 +816,6 @@ class StimulusHeader(object):
             return 4 + self.STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + self.PYTHON_TBL_LEN + 28
 
     def parse(self, f):
-        #self.offset = f.tell() # not really necessary, comment out to save memory
         self.header = f.read(2).rstrip(NULL) # always 'DS'?
         self.version, = unpack('H', f.read(2))
         if self.version not in (100, 110): # Cat < 15, Cat >= 15

@@ -9,6 +9,7 @@ import cPickle
 import gzip
 import hashlib
 import time
+import datetime
 import os
 import sys
 
@@ -161,12 +162,25 @@ class WaveForm(object):
         return padded_data
     '''
 
-class TrackStream(Stream):
+class TrackStream(object):
     """A collection of streams, all from the same track. This is used to simultaneously
     cluster all spikes from many (or all) recordings from the same track. Designed to have
-    as similar an interface as possible to a normal Stream"""
-    def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None):
-        pass
+    as similar an interface as possible to a normal Stream. srffs needs to be a list of
+    surf.File objects, in temporal order"""
+    def __init__(self, srffs, kind='highpass', sampfreq=None, shcorrect=None):
+        self.streams = []
+        for srff in srffs:
+            streams.append(Stream(srff, kind=kind, sampfreq=sampfreq, shcorrect=shcorrect))
+        datetimes = [ srff.datetime for srff in srffs ]
+        assert (np.diff(datetimes) >= datetime.timedelta(0)).all(), "selected .srf files aren't in temporal order"
+        self.ctsrecords = []
+        if kind == 'highpass':
+            for srff in srffs:
+                self.ctsrecords.extend(srff.highpassrecords)
+        elif kind == 'lowpass':
+            for srff in srffs:
+                self.ctsrecords.extend(srff.highpassrecords)
+        else: raise ValueError('Unknown stream kind %r' % kind)
 
 
 class Stream(object):
@@ -184,8 +198,8 @@ class Stream(object):
             self.ctsrecords = srff.highpassrecords
         elif kind == 'lowpass':
             self.ctsrecords = srff.lowpassmultichanrecords
-        else:
-            raise ValueError('Unknown stream kind %r' % kind)
+        else: raise ValueError('Unknown stream kind %r' % kind)
+
         # assume layout for all ctsrecords of type "kind" are the same as the 1st one:
         self.layout = self.srff.layoutrecords[self.ctsrecords['Probe'][0]]
         intgain = self.layout.intgain
@@ -197,15 +211,19 @@ class Stream(object):
         if kind == 'highpass':
             ADchans = self.layout.ADchanlist
             nADchans = len(ADchans)
-            assert list(ADchans) == range(nADchans), ("ADchans aren't contiguous from 0, highpass recordings are "
-                                                      "nonstandard, and assumptions made for resampling are wrong")
+            assert list(ADchans) == range(nADchans), ("ADchans aren't contiguous from 0, "
+                                                      "highpass recordings are "
+                                                      "nonstandard, and assumptions made for "
+                                                      "resampling are wrong")
             nADchans = len(self.layout.ADchanlist)
-            self.chans = np.arange(nADchans) # probe chans, as opposed to AD chans, don't know yet of any probe
-                                             # type whose chans aren't contiguous from 0 (see probes.py)
+            # probe chans, as opposed to AD chans. Don't know yet of any probe
+            # type whose chans aren't contiguous from 0 (see probes.py)
+            self.chans = np.arange(nADchans)
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
             self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
         elif kind == 'lowpass':
-            self.chans = self.layout.chans # probe chan values already parsed from LFP probe description
+            # probe chan values are already parsed from LFP probe description
+            self.chans = self.layout.chans
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
         self.rts = self.ctsrecords['TimeStamp'] # array of ctsrecord timestamps
