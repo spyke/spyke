@@ -168,7 +168,7 @@ class TrackStream(object):
     as similar an interface as possible to a normal Stream. srffs needs to be a list of
     surf.File objects, in temporal order"""
     def __init__(self, srffs, kind='highpass', sampfreq=None, shcorrect=None):
-        self.srffs = srffs
+        #self.srffs = srffs # maybe don't bind so pickling won't be a problem?
         self.kind = kind
         streams = []
         for srff in srffs:
@@ -204,10 +204,6 @@ class TrackStream(object):
         self.srffname = None
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
-        self.chans = streams[0].chans # assume they're identical
-        self.sampfreq = streams[0].sampfreq # they're identical
-        self.shcorrect = streams[0].shcorrect # they're identical
-
         self.t0 = streams[0].t0
         self.tend = stream[-1].tend
         if not (np.diff([s.tres for stream in streams]) == 0).all():
@@ -222,6 +218,49 @@ class TrackStream(object):
         if not np.all([type(probe) == type(s.probe) for s in streams]):
             raise RuntimeError("some .srf files have different probe types")
         self.probe = probe # they're identical
+
+    def open(self):
+        for stream in self.streams:
+            stream.open()
+
+    def close(self):
+        for stream in self.streams:
+            stream.close()
+
+    def get_chans(self):
+        return self.streams[0].chans # assume they're identical
+
+    def set_chans(self, chans):
+        for stream in self.streams:
+            stream.chans = chans
+
+    chans = property(get_chans, set_chans)
+
+    def get_nchans(self):
+        return self.streams[0].nchans # assume they're identical
+
+    nchans = property(get_nchans)
+
+    def get_sampfreq(self):
+        return self.streams[0].sampfreq # they're identical
+
+    def set_sampfreq(self, sampfreq):
+        for stream in self.streams:
+            stream.sampfreq = sampfreq
+
+    sampfreq = property(get_sampfreq, set_sampfreq)
+
+    def get_shcorrect(self):
+        return self.streams[0].shcorrect # they're identical
+
+    def set_shcorrect(self, shcorrect):
+        for stream in self.streams:
+            stream.shcorrect = shcorrect
+
+    shcorrect = property(get_shcorrect, set_shcorrect)
+
+    def __getitem__(self, key):
+        pass
 
 
 class Stream(object):
