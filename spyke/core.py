@@ -174,25 +174,18 @@ class TrackStream(object):
         for srff in srffs:
             streams.append(Stream(srff, kind=kind, sampfreq=sampfreq, shcorrect=shcorrect))
         self.streams = streams
-        datetimes = [ srff.datetime for srff in srffs ]
+        datetimes = [stream.datetime for stream in streams]
         if not (np.diff(datetimes) >= datetime.timedelta(0)).all():
             raise RuntimeError(".srf files aren't in temporal order")
-        # not even necessary? just index into .srf files when you need ctsrecords?:
-        '''
-        self.ctsrecords = []
-        if kind == 'highpass':
-            # TODO: should I insert fake ctsrecords in between real ones? Or just a None, and when
-            # loadcontinuousrecord() is called in __getitem__, use the None as an indicator that
-            # I need to return the appropriate length array of zeros?
-            for srff in srffs:
-                self.ctsrecords.append(srff.highpassrecords)
-        elif kind == 'lowpass':
-            for srff in srffs:
-                self.ctsrecords.append(srff.lowpassmultichanrecords)
-        else: raise ValueError('Unknown stream kind %r' % kind)
-        '''
+        # generate list of stream timestamps, each of which represents the time in us of
+        # each stream's t0, relative to the start of acquisition (t=0) in the first stream
+        self.t0s = []
+        for stream in streams:
+            td = stream.datetime + datetime.timedelta(microseconds=stream.t0) - datetimes[0]
+            self.t0s.append(timedelta2usec(td))
+
         self.layout = streams[0].layout # assume they're identical
-        intgains = [ srff.converter.intgain for srff in srffs ]
+        intgains = [ stream.converter.intgain for stream in streams ]
         if max(intgains) != min(intgains):
             raise NotImplementedError("Not all .srf files have the same intgain")
             # TODO: find recording with biggest intgain, call that value maxintgain. For each
@@ -200,22 +193,22 @@ class TrackStream(object):
             # its stream. Note that this ratio should always be a factor of 2, so all you have to
             # do is bitshift, I think. Then, have a single converter for the trackstream whose
             # intgain value is set to maxintgain
-        self.converter = srffs[0].converter # they're identical
+        self.converter = streams[0].converter # they're identical
         self.srffname = None
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         self.t0 = streams[0].t0
-        self.tend = stream[-1].tend
-        if not (np.diff([s.tres for stream in streams]) == 0).all():
+        self.tend = streams[-1].tend
+        if not (np.diff([stream.tres for stream in streams]) == 0).all():
             raise RuntimeError("some .srf files have different tres")
         self.tres = streams[0].tres # they're identical
-        contiguous = np.asarray([ stream.contiguous for stream in stream ])
+        contiguous = np.asarray([stream.contiguous for stream in streams])
         if not contiguous.all():
             raise NotImplementedError("some .srf files are non contiguous: %r" %
                                       [s.srffname for s in streams[contiguous == False]])
         #self.rts = np.arange(self.t0, self.tend, self.tres, dtype=np.int64) # all .srf files are contiguous
         probe = streams[0].probe
-        if not np.all([type(probe) == type(s.probe) for s in streams]):
+        if not np.all([type(probe) == type(stream.probe) for stream in streams]):
             raise RuntimeError("some .srf files have different probe types")
         self.probe = probe # they're identical
 
@@ -260,8 +253,13 @@ class TrackStream(object):
     shcorrect = property(get_shcorrect, set_shcorrect)
 
     def __getitem__(self, key):
-        pass
-
+        # need to figure out which stream(s) the slice spans (usually just one, 2 would be
+        # corner case), send the request to the stream, increment the timestamps in the
+        # returned waveform appropriately, and then return the waveform. If it spans 2 or more
+        # streams, build up a new waveform from the two returned by the streams, and pad
+        # the gaps with zeros.
+        stream0 = self.t0s.searchsorted(key.start)
+        streamend = self.t0s.searchsorted(key.stop)
 
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
@@ -381,6 +379,11 @@ class Stream(object):
         self.try_switch()
 
     shcorrect = property(get_shcorrect, set_shcorrect)
+
+    def get_datetime(self):
+        return self.srff.datetime
+
+    datetime = property(get_datetime)
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating
@@ -672,8 +675,8 @@ class Stream(object):
         timepoint, all channels, 2nd timepoint, etc. 'F' order means dump the
         data as Fortran-contiguous, ie 1st channel, all timepoints, 2nd channel, etc"""
         if not self.contiguous:
-            raise RuntimeError("data in .srf file isn't contiguous, best not to save resampled
-                                data to disk, at least for now"
+            raise RuntimeError("data in .srf file isn't contiguous, best not to save resampled "
+                               "data to disk, at least for now")
         # make sure we're pulling data from the original .srf file, not some other existing .resample file
         self.switch(to='normal')
         totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
@@ -704,8 +707,8 @@ class Stream(object):
             if order == 'F':
                 wave.data.T.tofile(f) # write in column order
             elif order == 'C': # have to do 1 chan at a time, with correct offset for current block of time
-                raise RuntimeError("***WARNING: this C order writing code is untested, and no code for
-                                   reading it back exists")
+                raise RuntimeError("***WARNING: this C order writing code is untested, and no code for "
+                                   "reading it back exists")
                 for chani, chandata in enumerate(wave.data):
                     pos = (CHANFIELDLEN + chani*totalnsamples + blocki*blocknsamples) * 2 # 2 bytes/sample
                     f.seek(pos)
