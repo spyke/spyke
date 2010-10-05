@@ -179,10 +179,14 @@ class TrackStream(object):
             raise RuntimeError(".srf files aren't in temporal order")
         # generate list of stream timestamps, each of which represents the time in us of
         # each stream's t0, relative to the start of acquisition (t=0) in the first stream
-        self.t0s = np.zeros((len(streams)), dtype=np.int64)
+        self.tranges = np.zeros((len(streams), 2), dtype=np.int64)
         for streami, stream in enumerate(streams):
-            t0 = stream.datetime - datetimes[0] + datetime.timedelta(microseconds=stream.t0)
-            self.t0s[streami] = timedelta2usec(t0)
+            td = stream.datetime - datetimes[0] # time delta between streami and stream 0
+            t0 = td + datetime.timedelta(microseconds=stream.t0)
+            tend = td + datetime.timedelta(microseconds=stream.tend)
+            self.tranges[streami] = timedelta2usec(t0), timedelta2usec(tend)
+        self.t0 = self.tranges[0, 0]
+        self.tend = self.tranges[-1, 1]
 
         self.layout = streams[0].layout # assume they're identical
         intgains = [ stream.converter.intgain for stream in streams ]
@@ -197,8 +201,6 @@ class TrackStream(object):
         self.srffname = None
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
-        self.t0 = streams[0].t0
-        self.tend = streams[-1].tend
         contiguous = np.asarray([stream.contiguous for stream in streams])
         if not contiguous.all():
             raise NotImplementedError("some .srf files are non contiguous: %r" %
@@ -257,26 +259,37 @@ class TrackStream(object):
     shcorrect = property(get_shcorrect, set_shcorrect)
 
     def __getitem__(self, key):
-        # need to figure out which stream(s) the slice spans (usually just one, 2 would be
-        # corner case), send the request to the stream, increment the timestamps in the
-        # returned waveform appropriately, and then return the waveform. If it spans 2 or more
-        # streams, build up a new waveform from the two returned by the streams, and pad
-        # the gaps with zeros.
+        """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
+        2), send the request to the stream(s), generate the appropriate timestamps, and
+        return the waveform"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
-        s0i, sendi = self.t0s.searchsorted([key.start, key.stop], side='right') - 1
-        ts = np.arange(key.start, key.stop, self.tres)
+        assert key.start >=0 and key.stop >=0
+        #print('key = %r' % key)
+        #print('tranges:\n%r' % self.tranges)
+        start, stop = max(key.start, self.t0), min(key.stop, self.tend) # stay in bounds
+        #print('start, stop = %d, %d' % (start, stop))
+        streamis = []
+        for streami, trange in enumerate(self.tranges):
+            if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
+                streamis.append(streami)
+        #print('streamis = %r' % streamis)
+        ts = np.arange(start, stop, self.tres)
         data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # zeros in any gaps will remain
-        for streami in range(s0i, sendi+1):
+        for streami in streamis:
             stream = self.streams[streami]
-            t0 = self.t0s[streami] # absolute
-            sourcet0 = max(key.start - t0, stream.t0) # relative to stream
-            sourcetend = min(key.stop - t0, stream.tend) # relative to stream
-            destt0i = (t0 + sourcet0) // self.tres # absolute
-            desttendi = (t0 + sourcetend) // self.tres # absolute
-            print('destt0i, desttendi = %r, %r' % (destt0i, desttendi))
-            wave = stream[sourcet0:sourcetend]
-            data[:, destt0i:desttendi] = wave.data
+            abst0 = self.tranges[streami, 0] # absolute
+            # find start and end offsets relative to stream.t0
+            dt0 = max(start - abst0, 0) # stay within lower limit of stream
+            dtend = min(stop - abst0, stream.tend-stream.t0) # stay within upper limit of stream
+            #print('dt0, dtend = %r, %r' % (dt0, dtend))
+            slicet0, slicetend = dt0+stream.t0, dtend+stream.t0
+            #print('slicet0, slicetend = %r, %r' % (slicet0, slicetend))
+            t0i = (abst0 + dt0 - start) // self.tres # absolute index
+            tendi = (abst0 + dtend - start) // self.tres # absolute index
+            #print('t0i, tendi = %r, %r' % (t0i, tendi))
+            wave = stream[slicet0:slicetend]
+            data[:, t0i:tendi] = wave.data
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
 
