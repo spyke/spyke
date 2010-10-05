@@ -15,6 +15,7 @@ RECENT:
                 - you'd still have to convert everything to float32 uV, wouldn't you? Not sure if it would be possible to leave things in int16 AD units when intgains are different across files. I guess you could find the biggest intgain and scale everything else down accordingly (or vice versa or something?)
                 - find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
             - spike realignment could be a challenge, unless I simultaneously hold open all streams from all files in the track
+    - simplify Stream.__getitem__ by always returning the full num timepoints between start and end, even for non-contiguous recordings. Fill any timegaps with zeros. This will also remove currenty TrackStream requirement that all .srf files be contiguous
 
 - NVS: do best fit alignment, instead of aligning simply to a peak, should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice

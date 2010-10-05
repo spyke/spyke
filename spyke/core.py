@@ -179,38 +179,37 @@ class TrackStream(object):
             raise RuntimeError(".srf files aren't in temporal order")
         # generate list of stream timestamps, each of which represents the time in us of
         # each stream's t0, relative to the start of acquisition (t=0) in the first stream
-        self.t0s = []
-        for stream in streams:
-            td = stream.datetime + datetime.timedelta(microseconds=stream.t0) - datetimes[0]
-            self.t0s.append(timedelta2usec(td))
+        self.t0s = np.zeros((len(streams)), dtype=np.int64)
+        for streami, stream in enumerate(streams):
+            t0 = stream.datetime - datetimes[0] + datetime.timedelta(microseconds=stream.t0)
+            self.t0s[streami] = timedelta2usec(t0)
 
         self.layout = streams[0].layout # assume they're identical
         intgains = [ stream.converter.intgain for stream in streams ]
         if max(intgains) != min(intgains):
-            raise NotImplementedError("Not all .srf files have the same intgain")
+            raise NotImplementedError("not all .srf files have the same intgain")
             # TODO: find recording with biggest intgain, call that value maxintgain. For each
-            # recording, scale its AD values by its intgain/maxintgain when returning a slice from
-            # its stream. Note that this ratio should always be a factor of 2, so all you have to
-            # do is bitshift, I think. Then, have a single converter for the trackstream whose
-            # intgain value is set to maxintgain
+            # recording, scale its AD values by its intgain/maxintgain when returning a slice
+            # from its stream. Note that this ratio should always be a factor of 2, so all you
+            # have to do is bitshift, I think. Then, have a single converter for the
+            # trackstream whose intgain value is set to maxintgain
         self.converter = streams[0].converter # they're identical
         self.srffname = None
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         self.t0 = streams[0].t0
         self.tend = streams[-1].tend
-        if not (np.diff([stream.tres for stream in streams]) == 0).all():
-            raise RuntimeError("some .srf files have different tres")
-        self.tres = streams[0].tres # they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
         if not contiguous.all():
             raise NotImplementedError("some .srf files are non contiguous: %r" %
                                       [s.srffname for s in streams[contiguous == False]])
-        #self.rts = np.arange(self.t0, self.tend, self.tres, dtype=np.int64) # all .srf files are contiguous
         probe = streams[0].probe
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
             raise RuntimeError("some .srf files have different probe types")
         self.probe = probe # they're identical
+
+    def __del__(self):
+        self.close()
 
     def open(self):
         for stream in self.streams:
@@ -243,6 +242,11 @@ class TrackStream(object):
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
+    def get_tres(self):
+        return self.streams[0].tres # they're identical
+
+    tres = property(get_tres)
+
     def get_shcorrect(self):
         return self.streams[0].shcorrect # they're identical
 
@@ -258,8 +262,23 @@ class TrackStream(object):
         # returned waveform appropriately, and then return the waveform. If it spans 2 or more
         # streams, build up a new waveform from the two returned by the streams, and pad
         # the gaps with zeros.
-        stream0 = self.t0s.searchsorted(key.start)
-        streamend = self.t0s.searchsorted(key.stop)
+        if key.step not in [None, 1]:
+            raise ValueError('unsupported slice step size: %s' % key.step)
+        s0i, sendi = self.t0s.searchsorted([key.start, key.stop], side='right') - 1
+        ts = np.arange(key.start, key.stop, self.tres)
+        data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # zeros in any gaps will remain
+        for streami in range(s0i, sendi+1):
+            stream = self.streams[streami]
+            t0 = self.t0s[streami] # absolute
+            sourcet0 = max(key.start - t0, stream.t0) # relative to stream
+            sourcetend = min(key.stop - t0, stream.tend) # relative to stream
+            destt0i = (t0 + sourcet0) // self.tres # absolute
+            desttendi = (t0 + sourcetend) // self.tres # absolute
+            print('destt0i, desttendi = %r, %r' % (destt0i, desttendi))
+            wave = stream[sourcet0:sourcetend]
+            data[:, destt0i:desttendi] = wave.data
+        return WaveForm(data=data, ts=ts, chans=self.chans)
+
 
 class Stream(object):
     """Data stream object - provides convenient stream interface to .srf files.
@@ -319,6 +338,9 @@ class Stream(object):
         self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
         lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.layout.nchans)) # nsamples in last record
         self.tend = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
+
+    def __del__(self):
+        self.close()
 
     def open(self):
         self.srff.open()
