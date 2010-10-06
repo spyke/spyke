@@ -793,6 +793,7 @@ DONE:
 - implement multiple undo/redo, saving multiple clusterstates in a stack
     - need to have full old/new symmetry for each cluster state attrib, and then need to reverse meaning of new and old on redo
     - also need to keep an eye on the stack and trim it when it gets too long, to save memory
+- have an alternative export for Nick's use: single binary file with alternating spike time, spike channel, and spike cluster assignment values, all int64.
 
 
 

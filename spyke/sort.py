@@ -180,7 +180,11 @@ class Sort(object):
 
     def get_srffnameroot(self):
         """Return root name (without extension) of .srf file"""
-        if self.detector.srffname != self.stream.srffname:
+        try:
+            different = self.detector.srffname != self.stream.srffname
+        except AttributeError: # stream isn't available
+            different = False
+        if different:
             raise ValueError("Can't figure out srffnameroot, because currently open .srf "
                              "file doesn't match the one in the detector")
         srffnameroot = self.detector.srffname.partition('.srf')[0]
@@ -209,19 +213,19 @@ class Sort(object):
             return
         textheader = displayrecords[0].Header.python_tbl
         textheaderfname = srffnameroot + '.textheader'
-        print(textheaderfname)
         f = open(os.path.join(path, textheaderfname), 'w')
         f.write(textheader) # save it
         f.close()
+        print(textheaderfname)
 
     def exportdin(self, srffnameroot, path=''):
         """Export stimulus din to binary file in path"""
         dinfname = srffnameroot + '.din'
-        print(dinfname)
         dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
         # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
         digitalsvalrecords = self.stream.srff.digitalsvalrecords.astype(dinfiledtype)
         digitalsvalrecords.tofile(os.path.join(path, dinfname)) # save it
+        print(dinfname)
 
     def exportspikes(self, path=''):
         """Export spike data to binary files in path, one file per neuron"""
@@ -239,8 +243,24 @@ class Sort(object):
             # pad filename with leading zero to always make template (t) ID at
             # least 2 digits long
             neuronfname = '%s_t%02d.spk' % (dt, nid)
-            print(neuronfname)
             spikets.tofile(os.path.join(path, neuronfname)) # save it
+            print(neuronfname)
+
+    def exporttschid(self, srffnameroot, path=''):
+        """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
+        spikes = self.spikes[self.spikes['nid'] != -1] # probably shouldn't export unsorted spikes
+        dt = str(datetime.datetime.now()) # get an export timestamp
+        dt = dt.split('.')[0] # ditch the us
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        srffnameroot = srffnameroot.replace(' ', '_')
+        tschidfname = dt + '_' + srffnameroot + '.tschid'
+        tschid = np.empty((len(spikes), 3), dtype=np.int64)
+        tschid[:, 0] = spikes['t']
+        tschid[:, 1] = spikes['chan']
+        tschid[:, 2] = spikes['nid']
+        tschid.tofile(os.path.join(path, tschidfname)) # save it
+        print(tschidfname)
 
     def get_param_matrix(self, dims=None, scale=True):
         """Organize parameters in dims from all spikes into a

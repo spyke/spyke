@@ -156,9 +156,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.CreateNewSort()
 
     def OnOpen(self, evt):
-        dlg = wx.FileDialog(self, message="Open .srf, .sort or .wave file",
+        dlg = wx.FileDialog(self, message="Open .srf, .track or .sort file",
                             defaultDir=os.getcwd(), defaultFile='',
-                            #wildcard="All files (*.*)|*.*|Surf files (*.srf)|*.srf|Sort files (*.sort)|*.sort|Wave files (*.wave)|*.wave",
                             wildcard="Surf & sort files (*.srf, *.sort)|*.srf;*.sort|All files (*.*)|*.*",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
@@ -217,7 +216,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSaveResample(self, evt):
         self.hpstream.save_resampled()
-
+    '''
     def OnImportNeurons(self, evt):
         dlg = wx.FileDialog(self, message="Import neurons from .sort file",
                             defaultDir=os.getcwd(), defaultFile='',
@@ -228,7 +227,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             # don't update cwd
             self.ImportNeurons(fname)
         dlg.Destroy()
-
+    '''
     def OnExportSpikes(self, evt):
         dlg = wx.DirDialog(self, message="Export spikes to",
                            defaultPath=os.getcwd())
@@ -261,6 +260,15 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.sort.export(path=path)
+            # don't update cwd
+
+    def OnExportTsChId(self, evt):
+        srffnameroot = self.sort.get_srffnameroot()
+        dlg = wx.DirDialog(self, message="Export tschid to",
+                           defaultPath=os.getcwd())
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.sort.exporttschid(srffnameroot=srffnameroot, path=path)
             # don't update cwd
 
     def OnClose(self, evt):
@@ -1293,10 +1301,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.OpenSurfFile(fname)
         elif ext == '.sort':
             self.OpenSortFile(fname)
-        elif ext == '.wave':
-            self.sort.wavedata = self.OpenWaveFile(fname)
         else:
-            wx.MessageBox("%s is not a .srf, .sort or .wave file" % fname,
+            wx.MessageBox("%s is not a .srf, .track or .sort file" % fname,
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
     def OpenSurfFile(self, fname):
@@ -1600,7 +1606,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError: pass # no spikes
         self.OpenFrame('sort')
         self.notebook.SetSelection(2) # switch to the cluster pane
-
+    '''
     def ImportNeurons(self, fname):
         print('opening sort file %r to import neurons' % fname)
         t0 = time.time()
@@ -1629,7 +1635,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.sort.clusters = sort.clusters
         # TODO: import auto clustering output arrays too!
         self.RestoreClusters2GUI()
-
+    '''
     def SaveSortFile(self, fname):
         """Save sort to a .sort file"""
         s = self.sort
