@@ -68,8 +68,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         wxglade_gui.SpykeFrame.__init__(self, *args, **kwargs)
         self.SetPosition(wx.Point(x=0, y=0)) # upper left corner
         self.dpos = {} # positions of data frames relative to main spyke frame
-        self.srff = None # Surf File object
-        self.srffname = '' # used for setting title caption
+        self.caption = '' # used for setting title caption
         for d in ('/data', '/media/WinXP/data'):
             try: # use first existing path
                 os.chdir(os.path.abspath(d))
@@ -158,7 +157,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnOpen(self, evt):
         dlg = wx.FileDialog(self, message="Open .srf, .track or .sort file",
                             defaultDir=os.getcwd(), defaultFile='',
-                            wildcard="Surf & sort files (*.srf, *.sort)|*.srf;*.sort|All files (*.*)|*.*",
+                            wildcard="Surf, track & sort files (*.srf, *.track, *.sort)"
+                                     "|*.srf;*.track;*.sort|All files (*.*)|*.*",
                             style=wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
@@ -212,7 +212,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         dlg.Destroy()
 
     def OnSaveParse(self, evt):
-        self.srff.pickle()
+        self.hpstream.pickle()
 
     def OnSaveResample(self, evt):
         self.hpstream.save_resampled()
@@ -273,11 +273,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnClose(self, evt):
         # TODO: add confirmation dialog if Sort not saved
-        self.CloseSurfFile()
+        self.CloseSurfOrTrackFile()
 
     def OnExit(self, evt):
         # TODO: add confirmation dialog if Sort not saved
-        self.CloseSurfFile()
+        self.CloseSurfOrTrackFile()
         self.Destroy()
 
     def OnAbout(self, evt):
@@ -1297,26 +1297,38 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
         ext = os.path.splitext(fname)[1]
-        if ext == '.srf':
-            self.OpenSurfFile(fname)
+        if ext in ['.srf', '.track']:
+            self.OpenSurfOrTrackFile(fname)
         elif ext == '.sort':
             self.OpenSortFile(fname)
         else:
             wx.MessageBox("%s is not a .srf, .track or .sort file" % fname,
                           caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
 
-    def OpenSurfFile(self, fname):
-        """Open a .srf file, and update display accordingly"""
-        if self.srff != None:
-            self.CloseSurfFile() # in case a .srf file and frames are already open
-        self.srff = surf.File(fname)
-        # TODO: parsing progress dialog
-        self.srff.parse()
-        self.srffname = self.srff.fname # update
-        self.SetTitle(self.srffname) # update the caption
+    def OpenSurfOrTrackFile(self, fname):
+        """Open a .srf or .track file, and update display accordingly"""
+        if self.hpstream != None:
+            self.CloseSurfOrTrackFile() # in case a .srf or .track file and frames are already open
+        ext = os.path.splitext(fname)[1]
+        if ext == '.srf':
+            srff = surf.File(fname)
+            srff.parse() # TODO: parsing progress dialog
+            self.hpstream = srff.hpstream # highpass record (spike) stream
+            self.lpstream = srff.lpstream # lowpassmultichan record (LFP) stream
+        else: # ext == '.track'
+            srffs = []
+            with open(fname, 'r') as trackfile:
+                for srffname in trackfile: # one srf filename per line
+                    srffname = srffname.rstrip('\n')
+                    srff = surf.File(srffname)
+                    srff.parse()
+                    srffs.append(srff) # build up list of open and parsed surf File objects
+            self.hpstream = core.TrackStream(srffs, kind='highpass')
+            self.lpstream = core.TrackStream(srffs, kind='lowpass')
 
-        self.hpstream = self.srff.hpstream # highpass record (spike) stream
-        self.lpstream = self.srff.lpstream # lowpassmultichan record (LFP) stream
+        self.caption = fname # update
+        self.SetTitle(self.caption) # update the caption
+
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width
         self.t = int(round(self.hpstream.t0 + tww/2)) # set current time position in recording (us)
@@ -1326,23 +1338,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.SPIKEFRAMEWIDTH = self.hpstream.probe.ncols * SPIKEFRAMEWIDTHPERCOLUMN
         self.OpenFrame('spike')
-        #self.OpenFrame('chart')
-        #self.OpenFrame('lfp')
-        #self.OpenFrame('sort')
-        #self.OpenFrame('pyshell')
-        # these happen in callAfterFrameInit:
-        #self.ShowRef('tref')
-        #self.ShowRef('vref')
-        #self.ShowRef('caret')
-
-        # self has focus, but isn't in foreground after opening data frames
-        #self.Raise() # doesn't seem to bring self to foreground
-        #wx.GetApp().SetTopWindow(self) # neither does this
 
         self.str2t = {'start': self.hpstream.t0,
                       'now': self.t, # FIXME: this won't track self.t automatically
                       'end': self.hpstream.tend}
-
         self.range = (self.hpstream.t0, self.hpstream.tend) # us
         self.file_pos_combo_box.SetValue(str(self.t))
         self.file_min_label.SetLabel(str(self.hpstream.t0))
@@ -1354,9 +1353,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.slider.SetValue(self.t // tres)
         self.slider.SetLineSize(1)
         self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
-
-        self.SetSampfreq(spyke.core.DEFHIGHPASSSAMPFREQ)
-        self.SetSHCorrect(spyke.core.DEFHIGHPASSSHCORRECT)
 
         self.EnableSurfWidgets(True)
 
@@ -1470,16 +1466,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
-    def CloseSurfFile(self):
-        """Destroy data and sort frames, clean up, close .srf file,
+    def CloseSurfOrTrackFile(self):
+        """Destroy data and sort frames, clean up, close streams,
         and metaphorically, .sort file too"""
         # need to specifically get a list of keys, not an iterator,
         # since self.frames dict changes size during iteration
         for frametype in self.frames.keys():
             if frametype != 'pyshell': # leave pyshell frame alone
                 self.CloseFrame(frametype) # deletes from dict
-        for obj in [self.srff, self.hpstream, self.lpstream]:
-            if obj: obj.close()
+        for stream in [self.hpstream, self.lpstream]:
+            if stream: stream.close()
         self.hpstream = None
         self.lpstream = None
         self.chans_enabled = []
@@ -1490,8 +1486,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.ShowRasters(False) # reset
         self.SetTitle('spyke') # update caption
         self.EnableSurfWidgets(False)
-        self.srff = None
-        self.srffname = ''
+        self.caption = ''
         self.CloseSortFile()
 
     def CloseSortFile(self):
@@ -1526,7 +1521,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.SetSHCorrect(sort.shcorrect)
         self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
         self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
-        if self.srff == None: # no .srf file is open
+        if self.hpstream == None: # no stream is open
             self.notebook.Show(True) # lets us do stuff with the Sort
         self.total_nspikes_label.SetLabel(str(sort.nspikes))
         self.EnableSpikeWidgets(True)
@@ -1547,7 +1542,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except AttributeError: pass
         self.RestoreClusters2GUI()
 
-        self.SetTitle(self.srffname + ' | ' + self.sort.sortfname)
+        self.SetTitle(self.caption + ' | ' + self.sort.sortfname)
         if sort.detector != None:
             self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
@@ -1661,7 +1656,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
-        self.SetTitle(self.srffname + ' | ' + s.sortfname)
+        self.SetTitle(self.caption + ' | ' + s.sortfname)
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file"""

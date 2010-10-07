@@ -166,9 +166,9 @@ class TrackStream(object):
     """A collection of streams, all from the same track. This is used to simultaneously
     cluster all spikes from many (or all) recordings from the same track. Designed to have
     as similar an interface as possible to a normal Stream. srffs needs to be a list of
-    surf.File objects, in temporal order"""
+    open and parsed surf.File objects, in temporal order"""
     def __init__(self, srffs, kind='highpass', sampfreq=None, shcorrect=None):
-        #self.srffs = srffs # maybe don't bind so pickling won't be a problem?
+        # don't bind srffs pickling won't be a problem
         self.kind = kind
         streams = []
         for srff in srffs:
@@ -198,7 +198,7 @@ class TrackStream(object):
             # have to do is bitshift, I think. Then, have a single converter for the
             # trackstream whose intgain value is set to maxintgain
         self.converter = streams[0].converter # they're identical
-        self.srffname = None
+        self.srffname = [srff.fname for srff in srffs]
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
@@ -258,14 +258,24 @@ class TrackStream(object):
 
     shcorrect = property(get_shcorrect, set_shcorrect)
 
+    def pickle(self):
+        """Just a way to pickle all the .srf files associated with self"""
+        for stream in self.stream:
+            stream.pickle()
+
     def __getitem__(self, key):
         """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
         2), send the request to the stream(s), generate the appropriate timestamps, and
         return the waveform"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
-        assert key.start >=0 and key.stop >=0
-        #print('key = %r' % key)
+        '''
+        try: assert key.start >=0 and key.stop >=0
+        except AssertionError:
+            print('key out of bounds')
+            print('key = %r' % key)
+            raise RuntimeError
+        '''
         #print('tranges:\n%r' % self.tranges)
         start, stop = max(key.start, self.t0), min(key.stop, self.tend) # stay in bounds
         #print('start, stop = %d, %d' % (start, stop))
@@ -301,7 +311,7 @@ class Stream(object):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
-        to the same probe"""
+        to the same probe. srff must be open and parsed"""
         self.srff = srff
         self.kind = kind
         if kind == 'highpass':
@@ -419,6 +429,9 @@ class Stream(object):
         return self.srff.datetime
 
     datetime = property(get_datetime)
+
+    def pickle(self):
+        self.srff.pickle()
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating

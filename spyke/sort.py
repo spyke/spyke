@@ -209,8 +209,8 @@ class Sort(object):
         """Export stimulus text header to path"""
         displayrecords = self.stream.srff.displayrecords
         if len(displayrecords) != 1:
-            print("Can't figure out which display record to export stimulus text header from")
-            return
+            raise ValueError("Can't figure out which display record to export stimulus "
+                             "text header from")
         textheader = displayrecords[0].Header.python_tbl
         textheaderfname = srffnameroot + '.textheader'
         f = open(os.path.join(path, textheaderfname), 'w')
@@ -240,9 +240,8 @@ class Sort(object):
         for nid, neuron in self.neurons.items():
             sids = neuron.sids # should be sorted
             spikets = spikes['t'][sids]
-            # pad filename with leading zero to always make template (t) ID at
-            # least 2 digits long
-            neuronfname = '%s_t%02d.spk' % (dt, nid)
+            # pad filename with leading zeros to always make template (t) ID 3 digits long
+            neuronfname = '%s_t%03d.spk' % (dt, nid)
             spikets.tofile(os.path.join(path, neuronfname)) # save it
             print(neuronfname)
 
