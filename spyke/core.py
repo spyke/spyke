@@ -171,9 +171,16 @@ class TrackStream(object):
         # don't bind srffs pickling won't be a problem
         self.kind = kind
         streams = []
-        for srff in srffs:
-            streams.append(Stream(srff, kind=kind, sampfreq=sampfreq, shcorrect=shcorrect))
-        self.streams = streams
+        self.streams = streams # bind right away so setting sampfreq and shcorrect will work
+        # collect appropriate streams from srffs
+        if kind == 'highpass':
+            for srff in srffs:
+                streams.append(srff.hpstream)
+        elif kind == 'lowpass':
+            for srff in srffs:
+                streams.append(srff.lpstream)
+        else: raise ValueError('Unknown stream kind %r' % kind)
+
         datetimes = [stream.datetime for stream in streams]
         if not (np.diff(datetimes) >= datetime.timedelta(0)).all():
             raise RuntimeError(".srf files aren't in temporal order")
@@ -209,6 +216,15 @@ class TrackStream(object):
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
             raise RuntimeError("some .srf files have different probe types")
         self.probe = probe # they're identical
+
+        # set sampfreq and shcorrect for all streams
+        if kind == 'highpass':
+            self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
+            self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
+        else: # kind == 'lowpass'
+            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+            self.shcorrect = shcorrect or False # don't s+h correct by default
+
 
     def __del__(self):
         self.close()
@@ -260,7 +276,7 @@ class TrackStream(object):
 
     def pickle(self):
         """Just a way to pickle all the .srf files associated with self"""
-        for stream in self.stream:
+        for stream in self.streams:
             stream.pickle()
 
     def __getitem__(self, key):
@@ -269,13 +285,7 @@ class TrackStream(object):
         return the waveform"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
-        '''
-        try: assert key.start >=0 and key.stop >=0
-        except AssertionError:
-            print('key out of bounds')
-            print('key = %r' % key)
-            raise RuntimeError
-        '''
+        #print('key = %r' % key)
         #print('tranges:\n%r' % self.tranges)
         start, stop = max(key.start, self.t0), min(key.stop, self.tend) # stay in bounds
         #print('start, stop = %d, %d' % (start, stop))
