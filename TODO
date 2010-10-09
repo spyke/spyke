@@ -5,10 +5,10 @@ RECENT:
     - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
     - to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
     - fname stuff:
+        - prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
         - replace self.srffname with self.stream.fname, where fname is either the .track or the .srf fname?
         - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
         - maybe give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
-        - prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
     - remove direction arg for detection - will simplify code, and never use it anyway
     - maybe do the same for FoundEnoughSpikesError
     - maybe get rid of ResampleFileStream too, since I don't use it any more

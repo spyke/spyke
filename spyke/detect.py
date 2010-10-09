@@ -221,8 +221,6 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-        stream = self.sort.stream
-        stream.close() # make it picklable: close .srff, maybe .resample, and any file locks
         t0 = time.time()
 
         if not DEBUG:
@@ -263,7 +261,6 @@ class Detector(object):
 
                 self.nspikes += nblockspikes
 
-        stream.open()
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
@@ -335,14 +332,12 @@ class Detector(object):
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
-        stream.open() # (re)open file that stream depends on (.resample or .srf), engage file lock
         info('%s: wavetrange: %s, cutrange: %s' %
             (mp.current_process().name, wavetrange, cutrange))
         tslice = time.time()
         wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
         print('%s: Stream slice took %.3f sec' %
              (mp.current_process().name, time.time()-tslice))
-        stream.close() # close file that stream depends on (.resample or .srf), release file lock
         tres = stream.tres
 
         if self.randomsample:
