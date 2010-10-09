@@ -1653,8 +1653,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             s.view, s.roll = cf.view, cf.roll
         except KeyError: pass # cf hasn't been opened yet, no camera view to save
         s.sortfname = fname # bind it now that it's about to be saved
+        stream = s._stream # hold a reference
+        del s._stream # don't pickle the stream to file
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
+        s._stream = stream # restore the stream
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.SetTitle(self.caption + ' | ' + s.sortfname)
 

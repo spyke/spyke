@@ -17,7 +17,6 @@ import datetime
 import wx
 
 from spyke.core import Stream, iterable, toiter, win2posixpath
-from spyke.filelock import FileLock
 
 NULL = '\x00'
 
@@ -59,7 +58,6 @@ class File(object):
         fname = win2posixpath(os.path.abspath(fname)) # make this an absolute posix style path
         self.fname = fname
         self.fileSize = os.stat(fname)[6]
-        self.filelock = FileLock(fname)
         self.open()
         self._parseFileHeader()
         self.parsefname = fname + '.parse'
@@ -73,16 +71,14 @@ class File(object):
 
     def open(self):
         """(Re)open previously closed .srf file"""
-        self.filelock.acquire()
         self.f = open(self.fname, 'rb')
 
     def close(self):
         """Close the .srf file"""
         self.f.close()
-        self.filelock.release()
 
     def is_open(self):
-        return self.filelock.is_locked
+        return not self.f.closed
 
     def get_datetime(self):
         """Return datetime stamp corresponding to t=0us timestamp. t=0 corresponds to either:
@@ -107,18 +103,18 @@ class File(object):
 
     datetime = property(get_datetime)
 
-    '''
     def __getstate__(self):
-        """Don't pickle open .srf file on pickle"""
+        """Don't pickle open .srf file handle on pickle"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        #del d['f'] # exclude open .srf file
-        #del d['filelock'] # ditto for the filelock object
+        del d['f'] # exclude open .srf file handle
         # leave the streams be, since you need them for their enabled chans info
         return d
 
     def __setstate__(self, d):
-        """Do the stuff you might normally do here in self.unpickle() instead"""
-    '''
+        """Restore open .srf file handle on unpickle. Also, see self.unpickle"""
+        self.__dict__ = d
+        self.open()
+
     def _parseFileHeader(self):
         """Parse the Surf file header"""
         self.fileheader = FileHeader()
@@ -400,7 +396,7 @@ class File(object):
         if wasopen: self.close()
         cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
         pf.close()
-        if wasopen: self.open()
+        if wasopen: self.open() # reopen it
         print('Saved parse info to %r' % self.parsefname)
 
     def unpickle(self):
@@ -410,10 +406,6 @@ class File(object):
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
         pf.close()
-        #other.fname = self.fname # seems unnecessary
-        #other.parsefname = self.parsefname # ditto
-        other.f = self.f # restore open .srf file on unpickle
-        other.filelock = self.filelock # ditto for the filelock object
         for stream in [other.hpstream, other.lpstream]:
             if stream: stream.srff = self # rebind self to other's non-None streams
         self.__dict__ = other.__dict__ # set other's attribs to self

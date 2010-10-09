@@ -60,14 +60,13 @@ if DEBUG:
 
 
 def callsearchblock(args):
+    """Apply args to the Detector saved to the current process"""
     wavetrange, direction = args
     detector = mp.current_process().detector
     return detector.searchblock(wavetrange, direction)
 
-def initializer(detector, stream, srff):
-    #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
-    detector.sort.stream = stream
-    detector.sort.stream.srff = srff # restore .srff that was deleted from stream on pickling
+def initializer(detector):
+    """Save pickled copy of the Detector to the current process"""
     mp.current_process().detector = detector
 
 
@@ -227,18 +226,18 @@ class Detector(object):
         t0 = time.time()
 
         if not DEBUG:
-            # create a processing pool with as many processes as there are CPUs/cores
-            ncpus = min(mp.cpu_count(), 4) # 1 per core, max of 4, ie don't allow 8 "cores"
-            pool = mp.Pool(ncpus, initializer, (self, stream, stream.srff)) # sends pickled copies to each process
+            # create a processing pool with as many processes as there are cores
+            ncores = mp.cpu_count() # 1 per core
+            pool = mp.Pool(ncores, initializer, (self,)) # send pickled copy of self to each process
             directions = [direction]*len(wavetranges)
             args = zip(wavetranges, directions)
             # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
             results = pool.map(callsearchblock, args, chunksize=1)
             pool.close()
-            #pool.join() # unnecessary, I think
-            blockspikes, blockwavedata = zip(*results) # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
-            spikes = np.concatenate(blockspikes)
-            wavedata = np.concatenate(blockwavedata) # along sid axis, all other dims are identical
+            # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
+            spikeblocks, wavedatablocks = zip(*results)
+            spikes = np.concatenate(spikeblocks)
+            wavedata = np.concatenate(wavedatablocks) # along sid axis, other dims are identical
         else:
             # single process method, useful for debugging:
             spikes = np.zeros(0, self.SPIKEDTYPE) # init
@@ -702,8 +701,8 @@ class Detector(object):
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
         #print('calculating noise')
-        #ncpus = mp.cpu_count()
-        #pool = threadpool.Pool(ncpus)
+        #ncores = mp.cpu_count()
+        #pool = threadpool.Pool(ncores)
         if self.noisemethod == 'median':
             #noise = pool.map(self.get_median, data) # multithreads over rows in data
             #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004

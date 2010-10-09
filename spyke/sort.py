@@ -62,7 +62,7 @@ class Sort(object):
         self.usids_sorted_by = 't'
         self.usids_reversed = False
 
-        # cluster density climbing params
+        # cluster density gradient climbing params
         self.sigma = 0.15
         self.rmergex = 0.333
         self.alpha = 1.0
@@ -111,7 +111,9 @@ class Sort(object):
         # Don't pickle the stream, cuz it relies on an open .srf file.
         # Spikes and wavedata arrays are (potentially) saved separately.
         # usids can be regenerated from the spikes array.
-        for attr in ['_stream', 'spikes', 'wavedata', 'usids']:
+        for attr in ['spikes', 'wavedata', 'usids']:
+            # keep _stream during normal pickling for multiprocessing, but remove it
+            # manually when pickling to .sort
             try: del d[attr]
             except KeyError: pass
         return d

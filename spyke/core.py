@@ -33,7 +33,6 @@ np.seterr(all='raise')
 from matplotlib.colors import hex2color
 
 from spyke import probes
-from spyke.filelock import FileLock
 
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
@@ -185,7 +184,7 @@ class TrackStream(object):
         if not (np.diff(datetimes) >= datetime.timedelta(0)).all():
             raise RuntimeError(".srf files aren't in temporal order")
         # generate list of stream timestamps, each of which represents the time in us of
-        # each stream's t0, relative to the start of acquisition (t=0) in the first stream
+        # each stream's t0 and tend, relative to the start of acquisition (t=0) in the first stream
         self.tranges = np.zeros((len(streams), 2), dtype=np.int64)
         for streami, stream in enumerate(streams):
             td = stream.datetime - datetimes[0] # time delta between streami and stream 0
@@ -380,15 +379,6 @@ class Stream(object):
 
     def close(self):
         self.srff.close()
-
-    def __getstate__(self):
-        """Don't pickle surf.File object - this prevents situation during pickling of
-        srff, which pickles its srff.stream, which pickles its srff.stream.srff. Then
-        when an existing srff unpickles its previous version from disk, the associated
-        streams reference the wrong srff"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['srff']
-        return d
 
     def get_chans(self):
         return self._chans
@@ -799,20 +789,17 @@ class Stream(object):
             if eval(chanstr.split('= ')[-1]) != list(self.chans):
                 raise IOError("file %r doesn't have the right channels in it" % self.fname)
             Stream.close(self) # close parent stream.srff file and release its lock
-            # init filelock object for later use in ResampleFileStream
             self.__class__ = ResampleFileStream
-            self.filelock = FileLock(self.fname)
             self.open()
         elif to == 'normal': # use .srf file to get waveform data
             if type(self) == ResampleFileStream:
                 self.close()
                 try:
                     del self.f
-                    del self.filelock
                     del self.fname
                 except AttributeError:
                     pass
-                Stream.open(self) # open parent stream.srff file and acquire lock
+                Stream.open(self) # open parent stream.srff file
                 self.__class__ = Stream
 
     def try_switch(self):
@@ -869,12 +856,10 @@ class ResampleFileStream(Stream):
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
     def open(self):
-        self.filelock.acquire()
         self.f = open(self.fname, 'rb')
 
     def close(self):
         self.f.close()
-        self.filelock.release()
 
     def __getstate__(self):
         """Don't pickle open .resample file"""
