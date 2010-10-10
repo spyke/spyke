@@ -4,15 +4,13 @@ RECENT:
     - when exporting, keep the offsetted timestamps intact, and offset the corresponding .din files appropriately
     - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
     - to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
+    - use ts.tranges to skip over time gaps during detection - potentially do the same for plotting raw data
     - fname stuff:
         - prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
         - replace self.srffname with self.stream.fname, where fname is either the .track or the .srf fname?
         - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
         - maybe give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
-    - remove direction arg for detection - will simplify code, and never use it anyway
-    - maybe do the same for FoundEnoughSpikesError
     - maybe get rid of ResampleFileStream too, since I don't use it any more
-    - use ts.tranges to skip over time gaps during detection - potentially do the same for plotting raw data
 
 - simplify Stream.__getitem__ by always returning the full num timepoints between start and end, even for non-contiguous recordings. Fill any timegaps with zeros. This will also remove current TrackStream requirement that all .srf files be contiguous
 
@@ -797,6 +795,8 @@ DONE:
 - get rid of filelock, which won't really work 100% during multi-file detection, and is often very annoying for the user, and sometimes confusing in the code. Replace with process.acquire() and process.release() to allow a process to acquire and release a lock before and after it grabs data from its stream, to prevent multiple processes from accessing the disk at the same time, regardless of whether they're accessing the same file. This would also work very nicely in the single process case. Acquiring a lock on a single process doesn't do anything, I think. Just get the current process as usual, and call its appropriate methods
     - actually, what I'd really like is a disk lock. Not a file lock, or a process lock. I want other processes to continue crunching while up to 1 process is accessing the disk.
     - it looks like either my W510 disk is fast enough (compared to the desktop quad core's disk), or Win7 is smart enough, that concurrent disk access doesn't seem to happen at all anymore, even without any locking!
+- remove direction arg for detection - will simplify code, and never use it anyway
+    - maybe do the same for FoundEnoughSpikesError, maxnspikes, findspike, randomsample. Also, no need to update nspikes until detection is done
 
 
 

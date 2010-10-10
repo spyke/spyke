@@ -59,19 +59,14 @@ if DEBUG:
     debug = logger.debug
 
 
-def callsearchblock(args):
-    """Apply args to the Detector saved to the current process"""
-    wavetrange, direction = args
+def callsearchblock(wavetrange):
+    """Run current process' Detector on wavetrange"""
     detector = mp.current_process().detector
-    return detector.searchblock(wavetrange, direction)
+    return detector.searchblock(wavetrange)
 
 def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
     mp.current_process().detector = detector
-
-
-class FoundEnoughSpikesError(ValueError):
-    pass
 
 
 class RandomWaveTranges(object):
@@ -133,12 +128,10 @@ class Detector(object):
     DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
     DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
     DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
-    DEFMAXNSPIKES = 0
     DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
     DEFLOCKR = 150 # spatial lockout radius, um
     DEFINCLR = 150 # spatial include radius, um
     DEFDT = 400 # max time between phases of a single spike, us
-    DEFRANDOMSAMPLE = False
     DEFEXTRACTPARAMSONDETECT = True
 
     # us, extra data as buffer at start and end of a block while detecting spikes.
@@ -149,8 +142,7 @@ class Detector(object):
     def __init__(self, sort, chans=None,
                  threshmethod=None, noisemethod=None, noisemult=None, fixedthreshuV=None,
                  ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
-                 trange=None, maxnspikes=None, blocksize=None,
-                 lockr=None, inclr=None, dt=None, randomsample=None,
+                 trange=None, blocksize=None, lockr=None, inclr=None, dt=None,
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
@@ -164,12 +156,10 @@ class Detector(object):
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
         self.trange = trange or (sort.stream.t0, sort.stream.tend)
-        self.maxnspikes = maxnspikes or self.DEFMAXNSPIKES # return at most this many spikes
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.lockr = lockr or self.DEFLOCKR
         self.inclr = inclr or self.DEFINCLR
         self.dt = dt or self.DEFDT
-        self.randomsample = randomsample or self.DEFRANDOMSAMPLE
         self.extractparamsondetect = extractparamsondetect or self.DEFEXTRACTPARAMSONDETECT
 
         #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
@@ -210,7 +200,7 @@ class Detector(object):
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
-        wavetranges, (bs, bx, direction) = self.get_blockranges(bs, bx)
+        wavetranges, bs, bx = self.get_blockranges(bs, bx)
 
         self.nchans = len(self.chans) # number of enabled chans
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
@@ -223,43 +213,24 @@ class Detector(object):
 
         t0 = time.time()
 
-        if not DEBUG:
-            # create a processing pool with as many processes as there are cores
+        if not DEBUG: # use a pool of processes
             ncores = mp.cpu_count() # 1 per core
             pool = mp.Pool(ncores, initializer, (self,)) # send pickled copy of self to each process
-            directions = [direction]*len(wavetranges)
-            args = zip(wavetranges, directions)
-            # TODO: FoundEnoughSpikesError is no longer being caught in multiprocessor code
-            results = pool.map(callsearchblock, args, chunksize=1)
+            results = pool.map(callsearchblock, wavetranges, chunksize=1)
             pool.close()
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
-            spikeblocks, wavedatablocks = zip(*results)
-            spikes = np.concatenate(spikeblocks)
-            wavedata = np.concatenate(wavedatablocks) # along sid axis, other dims are identical
-        else:
-            # single process method, useful for debugging:
-            spikes = np.zeros(0, self.SPIKEDTYPE) # init
-            wavedata = np.zeros((0, 0, 0), np.int16) # init 3D array
+            spikes, wavedata = zip(*results)
+            spikes = np.concatenate(spikes)
+            wavedata = np.concatenate(wavedata) # along sid axis, other dims are identical
+        else: # use a single process, useful for debugging
+            spikes = []
+            wavedata = []
             for wavetrange in wavetranges:
-                try:
-                    blockspikes, blockwavedata = self.searchblock(wavetrange, direction)
-                except FoundEnoughSpikesError:
-                    break
-                nblockspikes = len(blockspikes)
-                sshape = list(spikes.shape)
-                sshape[0] += nblockspikes
-                spikes.resize(sshape, refcheck=False)
-                spikes[self.nspikes:self.nspikes+nblockspikes] = blockspikes
-
-                wshape = list(wavedata.shape)
-                if wshape == [0, 0, 0]:
-                    wshape = blockwavedata.shape # init shape
-                else:
-                    wshape[0] += nblockspikes # just inc length
-                wavedata.resize(wshape, refcheck=False)
-                wavedata[self.nspikes:self.nspikes+nblockspikes] = blockwavedata
-
-                self.nspikes += nblockspikes
+                blockspikes, blockwavedata = self.searchblock(wavetrange)
+                spikes.append(blockspikes)
+                wavedata.append(blockwavedata)
+            spikes = np.concatenate(spikes)
+            wavedata = np.concatenate(wavedata)
 
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
@@ -320,30 +291,23 @@ class Detector(object):
                            #('mdphase', np.float32),
                            ]
 
-    def searchblock(self, wavetrange, direction):
+    def searchblock(self, wavetrange):
         """Search a block of data, return a struct array of valid spikes,
         along with an array of their wavedata"""
         #info('searchblock():')
         stream = self.sort.stream
-        #info('self.nspikes=%d, self.maxnspikes=%d, wavetrange=%s, direction=%d' %
-        #     (self.nspikes, self.maxnspikes, wavetrange, direction))
-        if self.nspikes >= self.maxnspikes:
-            raise FoundEnoughSpikesError # skip this iteration
+        #info('self.nspikes=%d, wavetrange=%s, % (self.nspikes, wavetrange))
         tlo, thi = wavetrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
         info('%s: wavetrange: %s, cutrange: %s' %
             (mp.current_process().name, wavetrange, cutrange))
         tslice = time.time()
-        wave = stream[tlo:thi:direction] # a block (WaveForm) of multichan data, possibly reversed, ignores out of range data requests, returns up to stream limits
+        # get WaveForm of multichan data, ignores out of range data requests:
+        wave = stream[tlo:thi]
         print('%s: Stream slice took %.3f sec' %
              (mp.current_process().name, time.time()-tslice))
         tres = stream.tres
-
-        if self.randomsample:
-            maxnspikes = 1 # how many more we're looking for in the next block
-        else:
-            maxnspikes = self.maxnspikes - self.nspikes
 
         if self.threshmethod == 'Dynamic':
             # update thresh for each channel for this new block of data
@@ -615,7 +579,7 @@ class Detector(object):
             '''
             # give each chan a distinct lockout, based on how each chan's
             # sharpest phases line up with those of the maxchan. This fixes double
-            # triggers that happen about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
+            # triggers that happened about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
             lockouts[chanis] = t0i + phasetis.max(axis=1)
             if DEBUG: debug('lockouts=%r\nfor chans=%r' % (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
 
@@ -633,27 +597,16 @@ class Detector(object):
         wavetranges = []
         bs = abs(bs)
         bx = abs(bx)
-        if self.trange[1] >= self.trange[0]: # search forward
-            direction = 1
-        else: # self.trange[1] < self.trange[0], # search backward
-            bs = -bs
-            bx = -bx
-            direction = -1
+        if not self.trange[1] >= self.trange[0]: # not a forward search
+            raise RuntimeError('backward detection not allowed')
 
-        if self.randomsample:
-            # wavetranges is an iterator that spits out random ranges starting from within
-            # self.trange, and of width bs + 2bx
-            if direction == -1:
-                raise ValueError("Check trange - I'd rather not do a backwards random search")
-            wavetranges = RandomWaveTranges(self.trange, bs, bx)
-        else:
-            es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
-            for e in es:
-                wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
-            # limit wavetranges to self.trange
-            wavetranges[0] = self.trange[0], wavetranges[0][1]
-            wavetranges[-1] = wavetranges[-1][0], self.trange[1]
-        return wavetranges, (bs, bx, direction)
+        es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
+        for e in es:
+            wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
+        # limit wavetranges to self.trange
+        wavetranges[0] = self.trange[0], wavetranges[0][1]
+        wavetranges[-1] = wavetranges[-1][0], self.trange[1]
+        return wavetranges, bs, bx
 
     def get_thresh(self):
         """Return array of thresholds in AD units, one per chan in self.chans,

@@ -130,7 +130,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
         self.ppthreshmult_text_ctrl.SetValue(str(detect.Detector.DEFPPTHRESHMULT))
         self.dt_spin_ctrl.SetValue(detect.Detector.DEFDT)
-        self.nspikes_spin_ctrl.SetValue(detect.Detector.DEFMAXNSPIKES)
 
         # TODO: this is just temporary, for faster testing
         #self.range_start_combo_box.SetValue('0')
@@ -139,7 +138,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
         self.lockr_spin_ctrl.SetValue(detect.Detector.DEFLOCKR)
         self.inclr_spin_ctrl.SetValue(detect.Detector.DEFINCLR)
-        self.random_sample_checkbox.SetValue(detect.Detector.DEFRANDOMSAMPLE)
 
     def set_cluster_pane_defaults(self):
         s = self.sort
@@ -921,10 +919,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                 self.seek(self.t - (self.spiketw[1]-self.spiketw[0])) # go back 1 spike frame temporal window width
             elif key == wx.WXK_NEXT: # PGDN
                 self.seek(self.t + (self.spiketw[1]-self.spiketw[0])) # go forward 1 spike frame temporal window width
-            elif key == wx.WXK_F2: # search for previous spike
-                self.findspike(which='previous')
-            elif key == wx.WXK_F3: # search for next spike
-                self.findspike(which='next')
         else: # CTRL is down
             if key == wx.WXK_PRIOR: # PGUP
                 self.seek(self.t - (self.charttw[1]-self.charttw[0])) # go back 1 chart frame temporal window width
@@ -1924,11 +1918,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         det.ppthreshmult = float(self.ppthreshmult_text_ctrl.GetValue())
         det.dt = self.dt_spin_ctrl.GetValue()
         det.trange = self.get_detectortrange()
-        det.maxnspikes = self.nspikes_spin_ctrl.GetValue() or sys.maxint # if 0, use unlimited
         det.blocksize = int(self.blocksize_combo_box.GetValue())
         det.lockr = self.lockr_spin_ctrl.GetValue()
         det.inclr = self.inclr_spin_ctrl.GetValue()
-        det.randomsample = self.random_sample_checkbox.GetValue()
 
     def update_from_detector(self, det):
         """Update self from detector attribs"""
@@ -1939,14 +1931,9 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #self.noisewindow_spin_ctrl.SetValue(det.noisewindow) # not in the gui yet
         self.range_start_combo_box.SetValue(str(det.trange[0]))
         self.range_end_combo_box.SetValue(str(det.trange[1]))
-        if det.maxnspikes == sys.maxint:
-            self.nspikes_spin_ctrl.SetValue(0) # represent unlimited with 0
-        else:
-            self.nspikes_spin_ctrl.SetValue(det.maxnspikes)
         self.blocksize_combo_box.SetValue(str(det.blocksize))
         self.lockr_spin_ctrl.SetValue(det.lockr)
         self.inclr_spin_ctrl.SetValue(det.inclr)
-        self.random_sample_checkbox.SetValue(det.randomsample)
 
     def set_detectorthresh(self, det):
         """Update threshmethod radio buttons to match current Detector"""
@@ -1966,28 +1953,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         except KeyError:
             tend = int(float(tend))
         return tstart, tend
-
-    def findspike(self, which='next'):
-        """Find next or previous spike, depending on direction"""
-        det = self.sort.detector
-        self.update_detector(det)
-        det.maxnspikes = 1 # override whatever was in nspikes spin edit
-        det.blocksize = 50000 # smaller blocksize, since we're only looking for 1 spike
-        det.randomsample = False # ensure random sampling is turned off
-        if which == 'next':
-            det.trange = (self.t+1, self.hpstream.tend)
-        elif which == 'previous':
-            det.trange = (self.t-1, self.hpstream.t0)
-        else:
-            raise ValueError, which
-        spikes, wavedata = det.detect() # don't bother saving it, don't update total_nspikes_label
-        wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
-        try: # if a spike was found
-            spike = spikes[0]
-            self.seek(spike['t']) # seek to it
-            print('%r' % spike)
-        except IndexError: # if not, do nothing
-            pass
 
     def seek(self, offset=0):
         """Seek to position in surf file. offset is time in us"""
