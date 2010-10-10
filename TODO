@@ -10,7 +10,6 @@ RECENT:
         - replace self.srffname with self.stream.fname, where fname is either the .track or the .srf fname?
         - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
         - maybe give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
-    - maybe get rid of ResampleFileStream too, since I don't use it any more
 
 - simplify Stream.__getitem__ by always returning the full num timepoints between start and end, even for non-contiguous recordings. Fill any timegaps with zeros. This will also remove current TrackStream requirement that all .srf files be contiguous
 
@@ -797,6 +796,7 @@ DONE:
     - it looks like either my W510 disk is fast enough (compared to the desktop quad core's disk), or Win7 is smart enough, that concurrent disk access doesn't seem to happen at all anymore, even without any locking!
 - remove direction arg for detection - will simplify code, and never use it anyway
     - maybe do the same for FoundEnoughSpikesError, maxnspikes, findspike, randomsample. Also, no need to update nspikes until detection is done
+- get rid of ResampleFileStream too, since it isn't used any more
 
 
 

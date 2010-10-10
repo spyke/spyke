@@ -212,20 +212,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSaveParse(self, evt):
         self.hpstream.pickle()
 
-    def OnSaveResample(self, evt):
-        self.hpstream.save_resampled()
-    '''
-    def OnImportNeurons(self, evt):
-        dlg = wx.FileDialog(self, message="Import neurons from .sort file",
-                            defaultDir=os.getcwd(), defaultFile='',
-                            wildcard="Sort files (*.sort)|*.sort",
-                            style=wx.OPEN)
-        if dlg.ShowModal() == wx.ID_OK:
-            fname = dlg.GetPath()
-            # don't update cwd
-            self.ImportNeurons(fname)
-        dlg.Destroy()
-    '''
     def OnExportSpikes(self, evt):
         dlg = wx.DirDialog(self, message="Export spikes to",
                            defaultPath=os.getcwd())

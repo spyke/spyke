@@ -384,13 +384,11 @@ class Stream(object):
         return self._chans
 
     def set_chans(self, chans):
-        """On .chans changed, update .nchans, and try to switch
-        classes to use a .resample file with this exact set of chans in it.
+        """On .chans changed, update .nchans.
         No need to delete .kernels because the full set are indexed into
         according to which chans are enabled"""
         self._chans = chans
         self.nchans = len(self._chans)
-        self.try_switch()
 
     chans = property(get_chans, set_chans)
 
@@ -398,14 +396,12 @@ class Stream(object):
         return self._sampfreq
 
     def set_sampfreq(self, sampfreq):
-        """On .sampfreq change, delete .kernels (if set), try to switch
-        classes to use a .resample file (if available), and update .tres"""
+        """On .sampfreq change, delete .kernels (if set), and update .tres"""
         self._sampfreq = sampfreq
         try:
             del self.kernels
         except AttributeError:
             pass
-        self.try_switch()
         self.tres = int(round(1 / self.sampfreq * 1e6)) # us, for convenience
 
     sampfreq = property(get_sampfreq, set_sampfreq)
@@ -414,14 +410,12 @@ class Stream(object):
         return self._shcorrect
 
     def set_shcorrect(self, shcorrect):
-        """On .shcorrect change, deletes .kernels (if set), and try to
-        switch classes to use a .resample file (if available)"""
+        """On .shcorrect change, deletes .kernels (if set)"""
         self._shcorrect = shcorrect
         try:
             del self.kernels
         except AttributeError:
             pass
-        self.try_switch()
 
     shcorrect = property(get_shcorrect, set_shcorrect)
 
@@ -594,13 +588,7 @@ class Stream(object):
         assert len(data) == len(self.chans), ("self.chans doesn't seem to correspond to rows "
                                               "in data")
         return WaveForm(data=data, ts=ts, chans=self.chans)
-    '''
-    def __setstate__(self, d):
-        """Restore self on unpickle per usual, but also try switching
-        to a .resample file"""
-        self.__dict__ = d
-        self.try_switch()
-    '''
+
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints. See Blanche & Swindale, 2006"""
@@ -713,159 +701,6 @@ class Stream(object):
                 kernelrow.append(kernel)
             kernels.append(kernelrow)
         return kernels
-
-    def save_resampled(self, blocksize=5000000, order='F'):
-        """Save contiguous resampled data to temporary binary .resample file
-        on disk for quicker retrieval later. Do it in blocksize us slices of
-        data at a time, final file contents and ordering won't change, but there
-        should be a sweet spot for optimal block size to read, resample, and
-        then write. 'C' order means dump the data as C-contiguous, ie 1st
-        timepoint, all channels, 2nd timepoint, etc. 'F' order means dump the
-        data as Fortran-contiguous, ie 1st channel, all timepoints, 2nd channel, etc"""
-        if not self.contiguous:
-            raise RuntimeError("data in .srf file isn't contiguous, best not to save resampled "
-                               "data to disk, at least for now")
-        # make sure we're pulling data from the original .srf file, not some other existing .resample file
-        self.switch(to='normal')
-        totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # count is 1-based, ie end inclusive
-        blocknsamples = int(round(blocksize / self.tres))
-        nblocks = int(round(np.ceil(totalnsamples / blocknsamples))) # last block may not be full sized
-        fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
-        print('saving resampled data to %r' % fname)
-        tsave = time.time()
-        f = open(fname, 'wb')
-
-        # for speed, allocate the full file size by writing a NULL byte to the very end:
-        f.seek(CHANFIELDLEN + totalnsamples*self.nchans*2 - 1) # 0-based end of file position
-        np.int8(0).tofile(f)
-        f.flush() # this seems necessary to get the speedup
-        f.seek(0) # go back to start
-
-        # write the chans string field
-        chanstr = 'chans = %r' % list(self.chans)
-        assert len(chanstr) <= CHANFIELDLEN
-        f.write(chanstr) # write chans string field
-        nulls = np.zeros(CHANFIELDLEN-len(chanstr), dtype=np.int8)
-        nulls.tofile(f) # fill the rest of the field with null bytes
-
-        for blocki in xrange(nblocks):
-            tstart = self.t0 + blocki*blocksize
-            tend = tstart + blocksize # don't need to worry about out of bounds at end when slicing
-            wave = self[tstart:tend] # slicing in blocks of time
-            if order == 'F':
-                wave.data.T.tofile(f) # write in column order
-            elif order == 'C': # have to do 1 chan at a time, with correct offset for current block of time
-                raise RuntimeError("***WARNING: this C order writing code is untested, and no code for "
-                                   "reading it back exists")
-                for chani, chandata in enumerate(wave.data):
-                    pos = (CHANFIELDLEN + chani*totalnsamples + blocki*blocknsamples) * 2 # 2 bytes/sample
-                    f.seek(pos)
-                    chandata.tofile(f) # write in row order
-            sys.stdout.write('.')
-        f.close()
-        print('saving resampled data to disk took %.3f sec' % (time.time()-tsave))
-        self.try_switch() # switch to the .resample file, now that it's there
-
-    def switch(self, to=None):
-        """Switch self to be a ResampleFileStream, or a normal Stream"""
-        if to == None: # switch to the opposite type
-            if type(self) == Stream:
-                to = 'resample'
-            else: # type(self) == ResampleFileStream
-                to = 'normal'
-        if to == 'resample': # use .resample file to get waveform data
-            try:
-                self.srff
-                self.chans
-                self.sampfreq
-                self.shcorrect
-            except AttributeError: # self isn't fully __init__'d yet
-                return
-            self.fname = self.srff.fname + '.shcorrect=%s.%dkHz.resample' % (self.shcorrect, self.sampfreq // 1000)
-            f = open(self.fname, 'rb') # expect it to exist, otherwise propagate an IOError
-            # first CHANFIELDLEN bytes are a 'chans = [0, 1, 2, ...]' string indicating channels in the file
-            chanstr = f.read(CHANFIELDLEN).rstrip('\x00') # strip any null bytes off the end
-            f.close()
-            if eval(chanstr.split('= ')[-1]) != list(self.chans):
-                raise IOError("file %r doesn't have the right channels in it" % self.fname)
-            Stream.close(self) # close parent stream.srff file and release its lock
-            self.__class__ = ResampleFileStream
-            self.open()
-        elif to == 'normal': # use .srf file to get waveform data
-            if type(self) == ResampleFileStream:
-                self.close()
-                try:
-                    del self.f
-                    del self.fname
-                except AttributeError:
-                    pass
-                Stream.open(self) # open parent stream.srff file
-                self.__class__ = Stream
-
-    def try_switch(self):
-        """Try switching to using an appropriate .resample file"""
-        oldtype = type(self)
-        try:
-            self.switch(to='resample')
-        except IOError: # matching .resample file doesn't exist
-            self.switch(to='normal')
-        newtype = type(self)
-        if newtype != oldtype: print("switched to %r" % newtype)
-
-
-class ResampleFileStream(Stream):
-    """A Stream that pulls data from a .resample file, hopefully more quickly than having
-    to stitch it together and resample it from a .srf file. The current hpstream __class__
-    is modified to be ResampleFileStream as needed when using an existing .resample file
-    is possible. You can't just overwrite __getitem__ on the fly, that only works for
-    normal methods, not special __ methods. Instead, you have to switch the whole class.
-
-    Restore one sample per chan, all 54 chans, then move on to next sample. This way, retrieving
-    any stretch of resampled data is easy (takes a bit of reshaping and a transpose), but you
-    always have to get all 54 chans for it to be efficient.
-
-    TODO: use the key.step attrib to describe which channels you want returned. Can you do something like
-    hpstream[0:1000:[0,1,2,5,6]] ? I think so... That would be much more efficient than loading them all
-    and then just picking out the ones you want. Might even be doable in the base Stream class, but then
-    you'd have to add args to record.load() to load only specific chans from that record, which might be
-    slow enough to negate any speed benefit, but at least it should be possible to make it work
-    on both ResampleFileStream and Stream
-
-    """
-    def __getitem__(self, key):
-        #tslice = time.time()
-        if key.step in [None, 1]:
-            start, stop = key.start, key.stop
-        elif key.step == -1:
-            start, stop = key.stop, key.start # reverse start and stop, now start should be < stop
-        else:
-            raise ValueError('unsupported slice step size: %s' % key.step)
-
-        start = max(start, self.t0) # stay within limits of data in the file
-        stop = min(stop, self.tend+self.tres)
-        #totalnsamples = int(round((self.tend - self.t0) / self.tres) + 1) # in the whole file
-        nsamples = int(round((stop - start) / self.tres)) # in the desired slice of data
-        starti = int(round((start - self.t0) / self.tres)) # nsamples offset from start of recording
-        self.f.seek(CHANFIELDLEN + self.nchans*starti*2) # 2 bytes for each int16 sample
-        data = np.fromfile(self.f, dtype=np.int16, count=self.nchans*nsamples)
-        data.shape = (nsamples, self.nchans) # assume file is in Fortran order
-        # transpose it, just gets you a new view, but remember it won't be C-contiguous until you copy it!
-        data = data.T
-        ts = np.arange(start, stop, self.tres, dtype=np.int64)
-        #print('ResampleFileStream slice took %.3f sec' % (time.time()-tslice))
-        return WaveForm(data=data, ts=ts, chans=self.chans)
-
-    def open(self):
-        self.f = open(self.fname, 'rb')
-
-    def close(self):
-        self.f.close()
-
-    def __getstate__(self):
-        """Don't pickle open .resample file"""
-        d = Stream.__getstate__(self) # call parent's version
-        self.close() # close .resample file and its lock
-        return d
 
 
 class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
