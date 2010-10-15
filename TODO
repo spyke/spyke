@@ -13,12 +13,15 @@ RECENT:
 
 - simplify Stream.__getitem__ by always returning the full num timepoints between start and end, even for non-contiguous recordings. Fill any timegaps with zeros. This will also remove current TrackStream requirement that all .srf files be contiguous
 
+- add ability to export LFP to .lfp file
+    - use np.save of structured array with 2D array of all selected LFP chans, include chans field, and maybe float uVperAD field for conversion from int16 to float. Base name should be .srf or .track name
+
 - NVS: do best fit alignment, instead of aligning simply to a peak, should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
 
 - even with sorting by y, should still add "most similar pair of clusters" button to sort window, which would deselect all selected clusters, and select the two clusters most similar to each other, based on their overlapping chans, although it would be good to see other pairs that aren't as similar, just for testing the similarity measure. Or, just getting a more consistent y value for each cluster (based on median of points, and not on scout position) might work just as well
 
-- NVS: Nando said it would be good to get an energy f'n going for the gradient ascent clustering, so you can quantitatively evaluate which clustering is best, and therefore run the algorithm with multiple values of sigma (and maybe with different channel numbers) and automatically choose the one with the lowest energy
+- NVS: Nando said it would be good to get an energy f'n going for the gradient ascent clustering, so you can quantitatively evaluate which clustering is best, and therefore run the algorithm with multiple values of sigma (and maybe with different dimensions) and automatically choose the one with the lowest energy
     - sounded like it could be some kind of measure like the sum of all the distances from each point to its scout point/cluster center
 
 - sort window status bar: for current cluster: cluster number, num spikes, SD on maxchan

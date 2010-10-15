@@ -209,8 +209,8 @@ class TrackStream(object):
         self.rawtres = streams[0].rawtres # assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
         if not contiguous.all():
-            raise NotImplementedError("some .srf files are non contiguous: %r" %
-                                      [s.srffname for s in streams[contiguous == False]])
+            print("some .srf files are non contiguous: %r" %
+                  [s.srffname for s in streams[contiguous == False]])
         probe = streams[0].probe
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
             raise RuntimeError("some .srf files have different probe types")
@@ -246,7 +246,7 @@ class TrackStream(object):
     chans = property(get_chans, set_chans)
 
     def get_nchans(self):
-        return self.streams[0].nchans # assume they're identical
+        return len(self.chans)
 
     nchans = property(get_nchans)
 
@@ -289,26 +289,28 @@ class TrackStream(object):
         start, stop = max(key.start, self.t0), min(key.stop, self.tend) # stay in bounds
         #print('start, stop = %d, %d' % (start, stop))
         streamis = []
+        # TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
         #print('streamis = %r' % streamis)
         ts = np.arange(start, stop, self.tres)
-        data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # zeros in any gaps will remain
+        data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
             abst0 = self.tranges[streami, 0] # absolute
             # find start and end offsets relative to stream.t0
             dt0 = max(start - abst0, 0) # stay within lower limit of stream
-            dtend = min(stop - abst0, stream.tend-stream.t0) # stay within upper limit of stream
+            dtend = min(stop - abst0, stream.tend - stream.t0) # stay within upper limit of stream
             #print('dt0, dtend = %r, %r' % (dt0, dtend))
-            slicet0, slicetend = dt0+stream.t0, dtend+stream.t0
+            slicet0, slicetend = dt0 + stream.t0, dtend + stream.t0
             #print('slicet0, slicetend = %r, %r' % (slicet0, slicetend))
             t0i = (abst0 + dt0 - start) // self.tres # absolute index
             tendi = (abst0 + dtend - start) // self.tres # absolute index
             #print('t0i, tendi = %r, %r' % (t0i, tendi))
             wave = stream[slicet0:slicetend]
-            data[:, t0i:tendi] = wave.data
+            try: data[:, t0i:tendi] = wave.data
+            except: import pdb; pdb.set_trace()
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
 
@@ -335,22 +337,20 @@ class Stream(object):
         extgain = int(self.layout.extgain[0]) # assume same extgain for all chans in layout
         self.converter = Converter(intgain, extgain)
         self.srffname = os.path.basename(self.srff.fname) # filename excluding path
+        self.nADchans = self.layout.nchans # always constant
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
         if kind == 'highpass':
             ADchans = self.layout.ADchanlist
-            nADchans = len(ADchans)
-            assert list(ADchans) == range(nADchans), ("ADchans aren't contiguous from 0, "
-                                                      "highpass recordings are "
-                                                      "nonstandard, and assumptions made for "
-                                                      "resampling are wrong")
-            nADchans = len(self.layout.ADchanlist)
+            if list(self.layout.ADchanlist) != range(self.nADchans):
+                raise ValueError("ADchans aren't contiguous from 0, highpass recordings are "
+                                 "nonstandard, and assumptions made for resampling are wrong")
             # probe chans, as opposed to AD chans. Don't know yet of any probe
             # type whose chans aren't contiguous from 0 (see probes.py)
-            self.chans = np.arange(nADchans)
+            self.chans = np.arange(self.nADchans)
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
             self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
-        elif kind == 'lowpass':
+        else: # kind == 'lowpass'
             # probe chan values are already parsed from LFP probe description
             self.chans = self.layout.chans
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
@@ -360,8 +360,7 @@ class Stream(object):
         # indicating there were no pauses in recording. Then, set a flag
         self.contiguous = (np.diff(self.rts, n=2) == 0).all()
         if not self.contiguous:
-            wx.MessageBox('NOTE: time gaps exist in recording, possibly due to pauses',
-                          caption="Beware", style=wx.OK|wx.ICON_EXCLAMATION)
+            print('NOTE: time gaps exist in %s, possibly due to pauses' % self.srffname)
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
@@ -380,17 +379,10 @@ class Stream(object):
     def close(self):
         self.srff.close()
 
-    def get_chans(self):
-        return self._chans
+    def get_nchans(self):
+        return len(self.chans)
 
-    def set_chans(self, chans):
-        """On .chans changed, update .nchans.
-        No need to delete .kernels because the full set are indexed into
-        according to which chans are enabled"""
-        self._chans = chans
-        self.nchans = len(self._chans)
-
-    chans = property(get_chans, set_chans)
+    nchans = property(get_nchans)
 
     def get_sampfreq(self):
         return self._sampfreq
@@ -432,169 +424,115 @@ class Stream(object):
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
         its attribs the 2D multichannel waveform array as well as the timepoints, potentially
         spanning multiple ContinuousRecords"""
-        #tslice = time.time()
-        # for now, accept only slice objects as keys
-        #assert type(key) == slice
-        # key.step == -1 indicates we want the returned Waveform reversed in time
-        # key.step == None behaves the same as key.step == 1
-        if key.step in [None, 1]:
-            start, stop = key.start, key.stop
-        elif key.step == -1:
-            start, stop = key.stop, key.start # swap start and stop, so start < stop
-        else:
+        if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
 
+        nADchans = self.nADchans
+        rawtres = self.rawtres
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
-            # excess data in us at either end, to eliminate interpolation distortion at our
-            # desired start and stop
-            xs = KERNELSIZE * self.rawtres
+            # excess data in us at either end, to eliminate interpolation distortion at
+            # key.start and key.stop
+            xs = KERNELSIZE * rawtres
         else:
             xs = 0
+        startxs = key.start - xs
+        stopxs = key.stop + xs
+        startxsi = startxs // rawtres
+        stopxsi = stopxs // rawtres
+        tsxs = np.arange(startxs, stopxs, rawtres)
+        ntxs = len(tsxs)
+        # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
+        dataxs = np.zeros((nADchans, ntxs), dtype=np.int32) # any gaps will have zeros
+        # first and last record indices corresponding to the slice
+        loreci, hireci = self.rts.searchsorted([startxs, stopxs], side='right')
+        # always get back at least 1 record
+        records = self.ctsrecords[max(loreci-1, 0):max(hireci, 1)]
 
-        # Find the first and last records corresponding to the slice. If the start of the slice
-        # matches a record's timestamp, start with that record. If the end of the slice matches
-        # a record's timestamp, end with that record (even though you'll only potentially use
-        # the one timepoint from that record"""
-        #trts = time.time()
-        # TODO: this might need to be 'left' for step=-1
-        lorec, hirec = self.rts.searchsorted([start-xs, stop+xs], side='right')
-        #print('rts.searchsorted() took %.3f sec' % (time.time()-trts)) # this takes 0 sec
-
-        # We always want to get back at least 1 record (ie records[0:1]). When slicing,
-        # we need to do lower bounds checking (don't go less than 0), but not upper bounds
-        # checking
-        cutrecords = self.ctsrecords[max(lorec-1, 0):max(hirec, 1)]
-
-        # TODO: check here if len(cutrecords) == 0, if so, return right away to save time
-        # and potential errors that might arise below???
-
-        recorddatas = []
+        # TODO: fix code duplication
         #tload = time.time()
         if self.kind == 'highpass': # straightforward
-            for record in cutrecords:
-                recorddata = self.srff.loadContinuousRecord(record)
-                recorddatas.append(recorddata)
-        else: # kind == 'lowpass', need some trickiness
-            nchans = self.layout.nchans
-            for lpmcrec in cutrecords:
-                lpmcrecorddata = []
-                lpreci = lpmcrec['lpreci']
-                for chani in range(nchans):
-                    lprec = self.srff.lowpassrecords[lpreci+chani]
-                    lprecorddata = self.srff.loadContinuousRecord(lprec)
-                    lpmcrecorddata.append(lprecorddata)
-                lpmcrecorddata = np.reshape(lpmcrecorddata, (nchans, -1))
-                recorddatas.append(lpmcrecorddata)
-        '''
-        # don't really feel like dealing with this right now:
-        if not self.contiguous: # fill in gaps with zeros
-            gaps = np.diff(self.rts)
-            uniquegaps = list(set(allgaps))
-            gapcounts = []
-            for gap in uniquegaps:
-                gapcounts.append((gaps == gap).sum())
-        '''
-        nchans, nt = recorddatas[0].shape # assume all are same shape, except maybe last one
-        totalnt = nt*(len(recorddatas) - 1) + recorddatas[-1].shape[1] # last might be shorter
+            for record in records: # iterating over highpass records
+                d = self.srff.loadContinuousRecord(record) # get record's data
+                nt = d.shape[1]
+                t0i = record['TimeStamp'] // rawtres
+                tendi = t0i + nt
+                # source indices
+                st0i = max(startxsi - t0i, 0)
+                stendi = min(stopxsi - t0i, nt)
+                # destination indices
+                dt0i = max(t0i - startxsi, 0)
+                dtendi = min(tendi - startxsi, ntxs)
+                dataxs[:, dt0i:dtendi] = d[:, st0i:stendi]
+        else: # kind == 'lowpass', need to load chans from subsequent records
+            nt = records[0]['NumSamples'] # assume all lpmc records are same length
+            d = np.zeros((nADchans, nt), dtype=np.int32)
+            for record in records: # iterating over lowpassmultichan records
+                for chani in range(nADchans):
+                    lprec = self.srff.lowpassrecords[record['lpreci']+chani]
+                    d[chani] = self.srff.loadContinuousRecord(lprec)
+                t0i = record['TimeStamp'] // rawtres
+                tendi = t0i + nt
+                # source indices
+                st0i = max(startxsi - t0i, 0)
+                stendi = min(stopxsi - t0i, nt)
+                # destination indices
+                dt0i = max(t0i - startxsi, 0)
+                dtendi = min(tendi - startxsi, ntxs)
+                dataxs[:, dt0i:dtendi] = d[:, st0i:stendi]
         #print('record.load() took %.3f sec' % (time.time()-tload))
 
-        #tcat = time.time()
-        # this is slow:
-        #data = np.concatenate([np.int32(recorddata) for recorddata in recorddatas], axis=1)
-        # init as int32 so we have space to rescale and zero, then convert back to int16
-        data = np.empty((nchans, totalnt), dtype=np.int32)
-        for recordi, recorddata in enumerate(recorddatas):
-            i = recordi * nt
-            data[:, i:i+nt] = recorddata # no need to check upper out of bounds when slicing
-        #print('concatenate took %.3f sec' % (time.time()-tcat))
-        # actual tres of record data may not match self.tres due to interpolation
-        tres = self.layout.tres
-
-        # build up waveform timepoints, taking into account any time gaps in
-        # between records due to pauses in recording, assumes all records
-        # are the same length, except for maybe the last
-        # TODO: if self.contiguous, do this the easy way instead!
-        #ttsbuild = time.time()
-        ts = np.empty(totalnt, dtype=np.int64) # init
-        for recordi, (record, recorddata) in enumerate(zip(cutrecords, recorddatas)):
-            i = recordi * nt
-            tstart = record['TimeStamp']
-            tend = tstart + min(nt, totalnt-i)*tres # last record may be shorter
-            ts[i:i+nt] = np.arange(tstart, tend, tres, dtype=np.int64)
-        '''
-        # assumes no gaps between records, negligibly faster:
-        tstart = cutrecords['TimeStamp'][0]
-        ts = np.arange(tstart, tstart + totalnt*tres, tres, dtype=np.int64)
-        '''
-        #print('ts building took %.3f sec' % (time.time()-ttsbuild))
-        #ttrim = time.time()
-        lo, hi = ts.searchsorted([start-xs, stop+xs])
-        data = data[:, lo:hi] # .take doesn't seem to be any faster
-        ts = ts[lo:hi] # .take doesn't seem to be any faster
-        if data.size == 0:
-            raise RuntimeError("no data to return, check slice key: %r" % key)
-        #print('record data trimming took %.3f sec' % (time.time()-ttrim)) # this takes 0 sec
-
-        # reverse data if need be
-        if key.step == -1:
-            data = data[:, ::key.step]
-            ts = ts[::key.step]
-
-        #tscaleandoffset = time.time()
-        # scale 12 bit values to use full 16 bit dynamic range, 2**(16-12) == 16
-        #data *= 2**(16-12)
+        #tscale = time.time()
         # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as
         # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
         # AD to about 0.02
-        data <<= 4
-        data -= 2**15 # offset values to center them around 0 AD == 0 V
+        dataxs <<= 4
         # data is still int32 at this point
-        #print('scaling and offsetting data took %.3f sec' % (time.time()-tscaleandoffset))
+        #print('scaling data took %.3f sec' % (time.time()-tscale))
         #print('raw data shape before resample: %r' % (data.shape,))
 
         # do any resampling if necessary, returning only self.chans data
         if resample:
             #tresample = time.time()
-            data, ts = self.resample(data, ts)
+            dataxs, tsxs = self.resample(dataxs, tsxs)
             #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
-            if range(nchans) != list(self.chans) and self.kind != 'lowpass':
-                # some chans are disabled, this is a total hack!!!!!!!!
-                # TODO: BUG: this doesn't work right for lowpass Streams, because their ADchans
-                # and probe chans don't map 1 to 1
-                data = data[self.chans]
+            if self.kind == 'highpass':
+                if range(nchans) != list(self.chans):
+                    # some chans are disabled. This is kind of a hack, but works because
+                    # because ADchans map to probe chans 1 to 1, and both start from 0
+                    dataxs = dataxs[self.chans]
+            else: # self.kind == 'lowpass'
+                if nADchans != self.nchans:
+                    raise NotImplementedError("Can't deal with disabled LFP chans")
+                    # TODO: problem is there's no definitive list of all possible LFP chans,
+                    # only the set that are presently enabled, as described by self.chans.
+                    # Lowpass ADchans and probe chans don't map 1 to 1
+
         # now get rid of any excess
         if xs:
-            #txs = time.time()
-            lo, hi = ts.searchsorted([start, stop]) # TODO: is another searchsorted necessary?
-            data = data[:, lo:hi]
-            ts = ts[lo:hi]
-            #print('xs took %.3f sec' % (time.time()-txs)) # this takes 0 sec
+            xsi = xs // self.tres
+            data = dataxs[:, xsi:-xsi+1]
+            ts = tsxs[xsi:-xsi+1]
+        else:
+            data = dataxs
+            ts = tsxs
 
-        #datamax = data.max()
-        #datamin = data.min()
-        #print('data max=%d and min=%d' % (datamax, datamin))
-        #assert datamax < 2**15 - 1
-        #assert datamin > -2**15
         #tint16 = time.time()
         data = np.int16(data) # should be safe to convert back down to int16 now
         #print('int16() took %.3f sec' % (time.time()-tint16))
-
         #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
         #print('Stream slice took %.3f sec' % (time.time()-tslice))
-
         # return a WaveForm object
-        assert len(data) == len(self.chans), ("self.chans doesn't seem to correspond to rows "
-                                              "in data")
+        #if len(data) != self.nchans:
+        #    raise RuntimeError("self.chans doesn't seem to correspond to rows in data")
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
     def resample(self, rawdata, rawts):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints. See Blanche & Swindale, 2006"""
-        #print 'sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' % (self.sampfreq,
-        #                                                           self.rawsampfreq,
-        #                                                           self.shcorrect)
+        #print('sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' %
+        #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
         rawtres = self.rawtres # us
         tres = self.tres # us
         resamplex = int(round(self.sampfreq / self.rawsampfreq)) # resample factor: n output resampled points per input raw point

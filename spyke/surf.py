@@ -262,6 +262,7 @@ class File(object):
         # Using stuct.unpack for this is very slow:
         #self.data = np.asarray(unpack(str(record['NumSamples'])+'h', f.read(2*record['NumSamples'])), dtype=np.int16)
         data = np.fromfile(self.f, dtype=np.int16, count=record['NumSamples']) # load directly using numpy
+        data -= 2048 # offset 12 bit unsigned data to be centered around 0
         nchans = self.layoutrecords[record['Probe']].nchans
         data.shape = (nchans, -1) # reshape to have nchans rows, as indicated in layout
         return data
