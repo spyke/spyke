@@ -63,10 +63,11 @@ class Converter(object):
 
     def AD2uV(self, AD):
         """Convert rescaled AD values to float32 uV
-        Biggest +ve voltage is 10 million uV, biggest +ve rescaled signed int16 AD val is half of 16 bits,
-        then divide by internal and external gains
+        Biggest +ve voltage is 10 million uV, biggest +ve rescaled signed int16 AD val
+        is half of 16 bits, then divide by internal and external gains
 
-        TODO: unsure: does the DT3010 acquire from -10 to 10 V at intgain == 1 and encode that from 0 to 4095?
+        TODO: unsure: does the DT3010 acquire from -10 to 10 V at intgain == 1 and encode
+        that from 0 to 4095?
         """
         return np.float32(AD) * 10000000 / (2**15 * self.intgain * self.extgain)
 
@@ -818,7 +819,7 @@ class Stack(list):
             raise IndexError('stack index %d out of range' % key)
         return list.__getitem__(self, key)
 
-'''
+
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.
     Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
@@ -857,7 +858,6 @@ def savez(file, *args, **kwargs):
     zip.close()
     for name in todel:
         os.remove(name)
-'''
 
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of fname (with full path)"""

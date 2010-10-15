@@ -255,6 +255,18 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.sort.exporttschid(srffnameroot=srffnameroot, path=path)
             # don't update cwd
 
+    def OnExportLFP(self, evt):
+        if type(self.hpstream) == core.TrackStream:
+            raise RuntimeError("LFP can only be exported from a single .srf file")
+        srffnameroot = self.lpstream.srffname.partition('.srf')[0]
+        dlg = wx.DirDialog(self, message="Export LFP to",
+                           defaultPath=os.getcwd())
+        if dlg.ShowModal() == wx.ID_OK:
+            path = dlg.GetPath()
+            self.sort.exportlfp(lpstream=self.lpstream,
+                                srffnameroot=srffnameroot, path=path)
+            # don't update cwd
+
     def OnClose(self, evt):
         # TODO: add confirmation dialog if Sort not saved
         self.CloseSurfOrTrackFile()

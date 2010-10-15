@@ -18,7 +18,7 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from spyke.core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter
+from spyke.core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez
 from spyke import wxglade_gui
 
 MAXCHANTOLERANCE = 100 # um
@@ -262,6 +262,19 @@ class Sort(object):
         tschid[:, 2] = spikes['nid']
         tschid.tofile(os.path.join(path, tschidfname)) # save it
         print(tschidfname)
+
+    def exportlfp(self, lpstream, srffnameroot, path=''):
+        """Export LFP data to binary .lfp file"""
+        srffnameroot = srffnameroot.replace(' ', '_')
+        lfpfname = srffnameroot + '.lfp'
+        lps = lpstream
+        wave = lps[lps.t0:lps.tend]
+        uVperAD = lps.converter.AD2uV(1)
+        savez(os.path.join(path, lfpfname), compress=True,
+              data=wave.data, chans=wave.chans,
+              t0=lps.t0, tend=lps.tend, tres=lps.tres, # for easy ts reconstruction
+              uVperAD=uVperAD) # save it
+        print(lfpfname)
 
     def get_param_matrix(self, dims=None, scale=True):
         """Organize parameters in dims from all spikes into a
