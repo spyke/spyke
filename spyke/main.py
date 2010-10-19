@@ -367,7 +367,6 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         two slider events, and hence two plot events - mouse drag only generates one slider event"""
         nt = self.slider.GetValue()
         self.seek(nt * self.hpstream.tres)
-        #print time.time(), 'OnSlider()'
         #evt.Skip() # doesn't seem to be necessary
 
     def OnDetect(self, evt):
@@ -1341,7 +1340,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         # set all slider values in number of interploated timepoints
         tres = self.hpstream.tres
         self.slider.SetRange(self.range[0] // tres,
-                            (self.range[1]-self.range[0]) // tres) # shouldn't need to round
+                             self.range[1] // tres) # shouldn't need to round
         self.slider.SetValue(self.t // tres)
         self.slider.SetLineSize(1)
         self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
@@ -1816,7 +1815,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
             self.hpstream.sampfreq = sampfreq
             tres = self.hpstream.tres
             self.slider.SetRange(self.range[0] // tres,
-                                (self.range[1]-self.range[0]) // tres) # shouldn't need to round
+                                 self.range[1] // tres) # shouldn't need to round
             self.slider.SetValue(self.t // tres)
             #self.slider.SetLineSize(1) # doesn't change
             self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
@@ -1954,14 +1953,13 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def seek(self, offset=0):
         """Seek to position in surf file. offset is time in us"""
-        self.oldt = self.t
-        self.t = offset
-        self.t = int(round(self.t / self.hpstream.tres)) * self.hpstream.tres # round to nearest (possibly interpolated) sample
+        oldt = self.t
+        self.t = intround(offset / self.hpstream.tres) * self.hpstream.tres # round to nearest (possibly interpolated) sample
         self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
         self.str2t['now'] = self.t # update
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
-        if self.t != self.oldt:
+        if self.t != oldt:
             # update controls first so they don't lag
             self.file_pos_combo_box.SetValue(str(self.t)) # update file combo box
             self.slider.SetValue(self.t // self.hpstream.tres) # update slider

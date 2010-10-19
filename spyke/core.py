@@ -1173,3 +1173,10 @@ def timedelta2usec(delta):
     sec += delta.seconds
     usec = sec * 1000000 + delta.microseconds
     return usec
+
+def ordered(ts):
+    """Check if ts is ordered"""
+    # is difference between subsequent entries >= 0?
+    return (np.diff(ts) >= 0).all()
+    # or, you could compare the array to an explicitly sorted version of itself,
+    # and see if they're identical

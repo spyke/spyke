@@ -16,7 +16,7 @@ import datetime
 
 import wx
 
-from spyke.core import Stream, iterable, toiter, win2posixpath
+from spyke.core import Stream, iterable, toiter, win2posixpath, ordered
 
 NULL = '\x00'
 
@@ -350,8 +350,16 @@ class File(object):
         #print('Asserting increasing record order')
         for attrname, attr in self.__dict__.items():
             if attrname.endswith('records') and iterable(attr):
-                #print('Asserting %s are in causal order' % attrname)
-                assert causalorder(attr)
+                ts = get_record_timestamps(attr)
+                if not ordered(ts):
+                    print('sorting %s' % attrname)
+                    if type(attr) == list:
+                        attr = list(np.asarray(attr)[ts.argsort()])
+                    else:
+                        attr = attr[ts.argsort()]
+                    ts = get_record_timestamps(attr)
+                    assert ordered(ts)
+                    self.__dict__[attrname] = attr # update
 
     def get_LowPassMultiChanLayout(self, probes, probe):
         """Creates sort of a fake lowpassmultichan layout record, based on
@@ -838,14 +846,10 @@ class StimulusHeader(object):
         self.checksum, = unpack('H', f.read(2))
 
 
-def causalorder(records):
-    """Checks to see if the timestamps of all the records are in
-    causal (increasing) order. Returns True or False"""
+def get_record_timestamps(records):
+    """Return timestamps of records iterable"""
     try:
         ts = np.asarray([ record.TimeStamp for record in records ])
     except AttributeError:
         ts = np.asarray([ record['TimeStamp'] for record in records ])
-    # is ts in increasing order, ie is difference between subsequent entries >= 0?
-    return (np.diff(ts) >= 0).all()
-    # TODO: or, you could compare the array to an explicitly sorted version of itself,
-    # and see if they're identical
+    return ts
