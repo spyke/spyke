@@ -167,8 +167,9 @@ class TrackStream(object):
     cluster all spikes from many (or all) recordings from the same track. Designed to have
     as similar an interface as possible to a normal Stream. srffs needs to be a list of
     open and parsed surf.File objects, in temporal order"""
-    def __init__(self, srffs, kind='highpass', sampfreq=None, shcorrect=None):
+    def __init__(self, srffs, trackfname, kind='highpass', sampfreq=None, shcorrect=None):
         # don't bind srffs pickling won't be a problem
+        self.fname = os.path.basename(trackfname)
         self.kind = kind
         streams = []
         self.streams = streams # bind right away so setting sampfreq and shcorrect will work
@@ -205,7 +206,7 @@ class TrackStream(object):
             # have to do is bitshift, I think. Then, have a single converter for the
             # trackstream whose intgain value is set to maxintgain
         self.converter = streams[0].converter # they're identical
-        self.srffname = [srff.fname for srff in srffs]
+        self.srffnames = [srff.fname for srff in srffs]
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
@@ -333,7 +334,6 @@ class Stream(object):
         intgain = self.layout.intgain
         extgain = int(self.layout.extgain[0]) # assume same extgain for all chans in layout
         self.converter = Converter(intgain, extgain)
-        self.srffname = os.path.basename(self.srff.fname) # filename excluding path
         self.nADchans = self.layout.nchans # always constant
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
@@ -375,6 +375,16 @@ class Stream(object):
 
     def close(self):
         self.srff.close()
+
+    def get_fname(self):
+        return os.path.basename(self.srff.fname) # filename excluding path
+
+    fname = property(get_fname)
+
+    def get_srffnames(self):
+        return [self.srff.fname]
+
+    srffnames = property(get_srffnames)
 
     def get_nchans(self):
         return len(self.chans)

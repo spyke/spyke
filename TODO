@@ -7,11 +7,9 @@ RECENT:
     - use ts.tranges to skip over time gaps during detection - potentially do the same for plotting raw data
     - fname stuff:
         - prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
-        - replace self.srffname with self.stream.fname, where fname is either the .track or the .srf fname?
         - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
-        - maybe give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
 
-- fix shape mismatch when scrolling to far left or right in TrackStream
+- why does LFP now end about 75 or 100 ms too soon in the LFP frame?
 
 - NVS: do best fit alignment, instead of aligning simply to a peak, should help improve cluster cleaning when reclustering by waveform
     - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
@@ -800,6 +798,8 @@ DONE:
 - simplify Stream.__getitem__ by always returning the full num timepoints between start and end, even for non-contiguous recordings. Fill any timegaps with zeros. This will also remove current TrackStream requirement that all .srf files be contiguous
 - add ability to export LFP to .lfp file
     - use np.save of 2D array of all selected LFP chans, include chans field, and maybe float uVperAD field for conversion from int16 to float. Base name should be .srf name
+- fix shape mismatch when scrolling to far left or right in TrackStream
+- give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
 
 
 

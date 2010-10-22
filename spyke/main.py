@@ -1314,8 +1314,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
                     srff = surf.File(srffname)
                     srff.parse()
                     srffs.append(srff) # build up list of open and parsed surf File objects
-            self.hpstream = core.TrackStream(srffs, kind='highpass')
-            self.lpstream = core.TrackStream(srffs, kind='lowpass')
+            self.hpstream = core.TrackStream(srffs, fname,  kind='highpass')
+            self.lpstream = core.TrackStream(srffs, fname, kind='lowpass')
 
         self.caption = fname # update
         self.SetTitle(self.caption) # update the caption
