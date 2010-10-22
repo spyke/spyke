@@ -1319,6 +1319,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.caption = fname # update
         self.SetTitle(self.caption) # update the caption
+        self.menubar.Check(self.SAMPFREQ2ID[self.hpstream.sampfreq], True)
+        self.menubar.Check(wx.ID_SHCORRECT, self.hpstream.shcorrect)
 
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width

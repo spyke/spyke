@@ -285,33 +285,29 @@ class TrackStream(object):
         return the waveform"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
-        #print('key = %r' % key)
-        #print('tranges:\n%r' % self.tranges)
+        tres = self.tres
         start, stop = max(key.start, self.t0), min(key.stop, self.tend) # stay in bounds
-        #print('start, stop = %d, %d' % (start, stop))
         streamis = []
         # TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
-        #print('streamis = %r' % streamis)
-        ts = np.arange(start, stop, self.tres)
+        ts = np.arange(start, stop, tres)
         data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
-            abst0 = self.tranges[streami, 0] # absolute
-            # find start and end offsets relative to stream.t0
-            dt0 = max(start - abst0, 0) # stay within lower limit of stream
-            dtend = min(stop - abst0, stream.tend - stream.t0) # stay within upper limit of stream
-            #print('dt0, dtend = %r, %r' % (dt0, dtend))
-            slicet0, slicetend = dt0 + stream.t0, dtend + stream.t0
-            #print('slicet0, slicetend = %r, %r' % (slicet0, slicetend))
-            t0i = (abst0 + dt0 - start) // self.tres # absolute index
-            tendi = (abst0 + dtend - start) // self.tres # absolute index
-            #print('t0i, tendi = %r, %r' % (t0i, tendi))
-            wave = stream[slicet0:slicetend]
-            try: data[:, t0i:tendi] = wave.data
-            except: import pdb; pdb.set_trace()
+            abst0 = self.tranges[streami, 0] # absolute start time of stream
+            # find start and end offsets relative to abst0
+            relt0 = max(start - abst0, 0) # stay within stream's lower limit
+            reltend = min(stop - abst0, stream.tend - stream.t0) # stay within stream's upper limit
+            # source slice times:
+            st0 = relt0 + stream.t0
+            stend = reltend + stream.t0
+            sdata = stream[st0:stend].data # source data
+            # destination time indices:
+            dt0i = (abst0 + relt0 - start) // tres # absolute index
+            dtendi = dt0i + sdata.shape[1]
+            data[:, dt0i:dtendi] = sdata
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
 
@@ -437,10 +433,15 @@ class Stream(object):
             xs = KERNELSIZE * rawtres
         else:
             xs = 0
-        startxs = key.start - xs
-        stopxs = key.stop + xs
-        startxsi = startxs // rawtres
-        stopxsi = stopxs // rawtres
+        # get a slightly greater range of raw data (with xs) than might be needed:
+        startxsi = (key.start - xs) // rawtres # round down to nearest mult of rawtres
+        stopxsi = ((key.stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        # stay within stream limits, thereby avoiding interpolation edge effects:
+        startxsi = max(startxsi, self.t0 // rawtres)
+        stopxsi = min(stopxsi, self.tend // rawtres)
+        # convert back to us:
+        startxs = startxsi * rawtres
+        stopxs = stopxsi * rawtres
         tsxs = np.arange(startxs, stopxs, rawtres)
         ntxs = len(tsxs)
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
@@ -450,6 +451,7 @@ class Stream(object):
         # always get back at least 1 record
         records = self.ctsrecords[max(loreci-1, 0):max(hireci, 1)]
 
+        # load up data+excess, from all relevant records
         # TODO: fix code duplication
         #tload = time.time()
         if self.kind == 'highpass': # straightforward
@@ -483,14 +485,10 @@ class Stream(object):
                 dataxs[:, dt0i:dtendi] = d[:, st0i:stendi]
         #print('record.load() took %.3f sec' % (time.time()-tload))
 
-        #tscale = time.time()
         # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as
         # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
         # AD to about 0.02
-        dataxs <<= 4
-        # data is still int32 at this point
-        #print('scaling data took %.3f sec' % (time.time()-tscale))
-        #print('raw data shape before resample: %r' % (data.shape,))
+        dataxs <<= 4 # data is still int32 at this point
 
         # do any resampling if necessary, returning only self.chans data
         if resample:
@@ -499,7 +497,7 @@ class Stream(object):
             #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
             if self.kind == 'highpass':
-                if range(nchans) != list(self.chans):
+                if range(nADchans) != list(self.chans):
                     # some chans are disabled. This is kind of a hack, but works because
                     # because ADchans map to probe chans 1 to 1, and both start from 0
                     dataxs = dataxs[self.chans]
@@ -510,23 +508,12 @@ class Stream(object):
                     # only the set that are presently enabled, as described by self.chans.
                     # Lowpass ADchans and probe chans don't map 1 to 1
 
-        # now get rid of any excess
-        if xs:
-            xsi = xs // self.tres
-            data = dataxs[:, xsi:-xsi+1]
-            ts = tsxs[xsi:-xsi+1]
-        else:
-            data = dataxs
-            ts = tsxs
+        # now trim down to just the requested time range
+        lo, hi = tsxs.searchsorted([key.start, key.stop])
+        data = dataxs[:, lo:hi]
+        ts = tsxs[lo:hi]
 
-        #tint16 = time.time()
         data = np.int16(data) # should be safe to convert back down to int16 now
-        #print('int16() took %.3f sec' % (time.time()-tint16))
-        #print('data and ts shape after rid of xs: %r, %r' % (data.shape, ts.shape))
-        #print('Stream slice took %.3f sec' % (time.time()-tslice))
-        # return a WaveForm object
-        #if len(data) != self.nchans:
-        #    raise RuntimeError("self.chans doesn't seem to correspond to rows in data")
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
     def resample(self, rawdata, rawts):
@@ -991,11 +978,7 @@ def g(x0, sx, x):
 def g2(x0, y0, sx, sy, x, y):
     """2-D Gaussian"""
     arg = -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2)
-    #try:
     return np.exp(arg)
-    #except Exception as err:
-    #    print(err)
-    #    import pdb; pdb.set_trace()
 
 def g3(x0, y0, z0, sx, sy, sz, x, y, z):
     """3-D Gaussian"""
