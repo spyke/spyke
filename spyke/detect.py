@@ -146,7 +146,9 @@ class Detector(object):
                  extractparamsondetect=None):
         """Takes a parent Sort session and sets various parameters"""
         self.sort = sort
-        self.srffname = sort.stream.srffname # for reference, store which .srf file this Detector is run on
+        # for reference, store .srf/.track filename(s) this Detector is run on
+        self.fname = sort.stream.fname
+        self.srffnames = sort.stream.srffnames
         self.chans = np.asarray(chans) or np.arange(sort.stream.nchans) # None means search all channels
         self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
         self.noisemethod = noisemethod or self.DEFNOISEMETHOD

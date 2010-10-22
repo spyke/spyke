@@ -173,19 +173,23 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSaveAs(self, evt):
         """Save Sort to new .sort file"""
+        # prep default fname with hpstream.fname and datetime
+        fname = self.hpstream.fname.replace(' ', '_')
+        dt = str(datetime.datetime.now()) # get an export timestamp
+        dt = dt.split('.')[0] # ditch the us
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        defaultFile = fname + '_' + dt
         dlg = wx.FileDialog(self, message="Save sort as",
-                            defaultDir=os.getcwd(), defaultFile='',
+                            defaultDir=os.getcwd(), defaultFile=defaultFile,
                             wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
                             style=wx.SAVE | wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             fname = dlg.GetPath()
+            base, ext = os.path.splitext(fname)
+            if ext != '.sort':
+                fname = base + '.sort' # make sure it has .sort extension
             head, tail = os.path.split(fname)
-            # prepend datetime to tail:
-            dt = str(datetime.datetime.now()) # get an export timestamp
-            dt = dt.split('.')[0] # ditch the us
-            dt = dt.replace(' ', '_')
-            dt = dt.replace(':', '.')
-            tail = dt + '_' + tail
             os.chdir(head) # update cwd
             # make way for new .spike and .wave files
             try: del self.sort.spikefname
