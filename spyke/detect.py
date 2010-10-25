@@ -59,17 +59,17 @@ if DEBUG:
     debug = logger.debug
 
 
-def callsearchblock(wavetrange):
-    """Run current process' Detector on wavetrange"""
+def callsearchblock(blockrange):
+    """Run current process' Detector on blockrange"""
     detector = mp.current_process().detector
-    return detector.searchblock(wavetrange)
+    return detector.searchblock(blockrange)
 
 def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
     mp.current_process().detector = detector
 
 
-class RandomWaveTranges(object):
+class RandomBlockRanges(object):
     """Iterator that spits out time ranges of width bs with
     excess bx that begin randomly from within the given trange.
     Optionally spits out no more than maxntranges tranges"""
@@ -202,7 +202,7 @@ class Detector(object):
 
         bs = self.blocksize
         bx = self.BLOCKEXCESS
-        wavetranges, bs, bx = self.get_blockranges(bs, bx)
+        blockranges = self.get_blockranges(bs, bx)
 
         self.nchans = len(self.chans) # number of enabled chans
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
@@ -218,22 +218,20 @@ class Detector(object):
         if not DEBUG: # use a pool of processes
             ncores = mp.cpu_count() # 1 per core
             pool = mp.Pool(ncores, initializer, (self,)) # send pickled copy of self to each process
-            results = pool.map(callsearchblock, wavetranges, chunksize=1)
+            results = pool.map(callsearchblock, blockranges, chunksize=1)
             pool.close()
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
             spikes, wavedata = zip(*results)
-            spikes = np.concatenate(spikes)
-            wavedata = np.concatenate(wavedata) # along sid axis, other dims are identical
         else: # use a single process, useful for debugging
             spikes = []
             wavedata = []
-            for wavetrange in wavetranges:
-                blockspikes, blockwavedata = self.searchblock(wavetrange)
+            for blockrange in blockranges:
+                blockspikes, blockwavedata = self.searchblock(blockrange)
                 spikes.append(blockspikes)
                 wavedata.append(blockwavedata)
-            spikes = np.concatenate(spikes)
-            wavedata = np.concatenate(wavedata)
 
+        spikes = np.concatenate(spikes)
+        wavedata = np.concatenate(wavedata) # along sid axis, other dims are identical
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
@@ -293,17 +291,16 @@ class Detector(object):
                            #('mdphase', np.float32),
                            ]
 
-    def searchblock(self, wavetrange):
+    def searchblock(self, blockrange):
         """Search a block of data, return a struct array of valid spikes,
         along with an array of their wavedata"""
         #info('searchblock():')
         stream = self.sort.stream
-        #info('self.nspikes=%d, wavetrange=%s, % (self.nspikes, wavetrange))
-        tlo, thi = wavetrange # tlo could be > thi
+        tlo, thi = blockrange # tlo could be > thi
         bx = self.BLOCKEXCESS
         cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
-        info('%s: wavetrange: %s, cutrange: %s' %
-            (mp.current_process().name, wavetrange, cutrange))
+        info('%s: blockrange: %s, cutrange: %s' %
+            (mp.current_process().name, blockrange, cutrange))
         tslice = time.time()
         # get WaveForm of multichan data, ignores out of range data requests:
         wave = stream[tlo:thi]
@@ -559,32 +556,12 @@ class Detector(object):
             if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
                             % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
 
-            # Update lockouts for this spike.
-            # Lock out to the latest of the 3 sharpest significant extrema. Some spikes
-            # are more than biphasic, with a significant 3rd phase (see ptc18.14.24570980),
-            # but never more than 3 significant phases. If the 3rd phase exceeds
-            # threshold and falls within allowable dt of the previously considered last
-            # phase, lock out to it. Otherwise, just lock out to 2nd phase. Doing this
-            # reduces double triggers, yet maintains a minimalist lockout.
-            '''
-            if (phase2ti != lockout and
-                phase2ti - lockout <= dti and
-                abs(wave.data[chani, phase2ti]) >= self.thresh[chani]):
-                lockout = phase2ti # absolute
-            '''
-            # locking out to phase2ti no longer seems necessary, now that each chan
-            # has its own custom lockout
-            '''
-            p2ciis = (phase2tis - lockouts <= dti and
-                      abs(wave.data[chanis, phase2tis]) >= self.thresh[chanis])) # bool array
-            lockouts[p2ciis] = phase2tis[p2ciis]
-            '''
             # give each chan a distinct lockout, based on how each chan's
             # sharpest phases line up with those of the maxchan. This fixes double
             # triggers that happened about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
             lockouts[chanis] = t0i + phasetis.max(axis=1)
-            if DEBUG: debug('lockouts=%r\nfor chans=%r' % (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
-
+            if DEBUG: debug('lockouts=%r\nfor chans=%r' % (list(wave.ts[lockouts[chanis]]),
+                                                           list(self.chans[chanis])))
             nspikes += 1
 
         # shrink spikes and wavedata down to actual needed size
@@ -594,21 +571,37 @@ class Detector(object):
         return spikes, wavedata
 
     def get_blockranges(self, bs, bx):
-        """Generate time ranges for slightly overlapping blocks of data,
-        given blocksize and blockexcess"""
-        wavetranges = []
+        """Generate time ranges for slightly overlapping blocks of data that span
+        self.trange, given blocksize and blockexcess"""
+        stream = self.sort.stream
         bs = abs(bs)
         bx = abs(bx)
-        if not self.trange[1] >= self.trange[0]: # not a forward search
+        if not self.trange[0] <= self.trange[1]: # not a forward search
             raise RuntimeError('backward detection not allowed')
 
-        es = range(self.trange[0], self.trange[1], bs) # left (or right) edges of data blocks
-        for e in es:
-            wavetranges.append((e-bx, e+bs+bx)) # time range of waveform to give to .searchblock
-        # limit wavetranges to self.trange
-        wavetranges[0] = self.trange[0], wavetranges[0][1]
-        wavetranges[-1] = wavetranges[-1][0], self.trange[1]
-        return wavetranges, bs, bx
+        try:
+            tranges = stream.tranges # it's a TrackStream
+            # pick out all tranges that overlap with self.trange
+            trangesi = (self.trange[0] < tranges[:, 1]) & (tranges[:, 0] < self.trange[1])
+            tranges = tranges[trangesi]
+        except AttributeError:
+            tranges = np.asarray([self.trange]) # it's a normal Stream
+
+        blockranges = []
+        for trange in tranges:
+            br = [] # list of blockranges for this trange
+            es = range(trange[0], trange[1], bs) # left edges of data blocks
+            for e in es:
+                br.append([e-bx, e+bs+bx]) # time range to give to .searchblock()
+            br = np.asarray(br)
+            # limit br to trange
+            br[0, 0], br[-1, 1] = trange[0], trange[1]
+            blockranges.append(br)
+
+        blockranges = np.concatenate(blockranges)
+        # limit blockranges to self.trange
+        blockranges[0, 0], blockranges[-1, 1] = self.trange[0], self.trange[1]
+        return np.asarray(blockranges)
 
     def get_thresh(self):
         """Return array of thresholds in AD units, one per chan in self.chans,
@@ -622,15 +615,15 @@ class Detector(object):
             tload = time.time()
             print('loading data to calculate noise')
             if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
-                wavetranges = [self.trange] # use a single block of data, as defined by trange
+                blockranges = [self.trange] # use a single block of data, as defined by trange
             else:
                 nblocks = int(round(self.fixednoisewin / self.blocksize))
-                wavetranges = RandomWaveTranges(self.trange, bs=self.blocksize, bx=0,
+                blockranges = RandomBlockRanges(self.trange, bs=self.blocksize, bx=0,
                                                 maxntranges=nblocks, replacement=False)
             # preallocating memory doesn't seem to help here, all the time is in loading from stream:
             data = []
-            for wavetrange in wavetranges:
-                wave = self.sort.stream[wavetrange[0]:wavetrange[1]]
+            for blockrange in blockranges:
+                wave = self.sort.stream[blockrange[0]:blockrange[1]]
                 wave = wave[self.chans] # keep just the enabled chans
                 data.append(wave.data)
             data = np.concatenate(data, axis=1) # int16 AD units

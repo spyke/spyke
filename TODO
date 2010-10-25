@@ -2,12 +2,11 @@ RECENT:
 
 - create a TrackStream and do one super huge spike sorting on all spikes from all recordings in a given track, but then export them back out one recording at a time, per usual
     - when exporting, keep the offsetted timestamps intact, and offset the corresponding .din files appropriately
+        - problem: you'd need two sets of .din files if you also wanted to sort just a single or a few .srf files at a time, or if you wanted to sort a track starting from different .srf files
     - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
     - to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
     - use ts.tranges to skip over time gaps during detection - potentially do the same for plotting raw data
-    - fname stuff:
-        - prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
-        - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
+    - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
 
 - why does LFP now end about 75 or 100 ms too soon in the LFP frame?
 
@@ -800,6 +799,7 @@ DONE:
     - use np.save of 2D array of all selected LFP chans, include chans field, and maybe float uVperAD field for conversion from int16 to float. Base name should be .srf name
 - fix shape mismatch when scrolling to far left or right in TrackStream
 - give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
+- prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
 
 
 
