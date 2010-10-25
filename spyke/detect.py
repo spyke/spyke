@@ -217,7 +217,9 @@ class Detector(object):
 
         if not DEBUG: # use a pool of processes
             ncores = mp.cpu_count() # 1 per core
-            pool = mp.Pool(ncores, initializer, (self,)) # send pickled copy of self to each process
+            nprocesses = min(ncores, len(blockranges))
+            # send pickled copy of self to each process
+            pool = mp.Pool(nprocesses, initializer, (self,))
             results = pool.map(callsearchblock, blockranges, chunksize=1)
             pool.close()
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
@@ -296,14 +298,16 @@ class Detector(object):
         along with an array of their wavedata"""
         #info('searchblock():')
         stream = self.sort.stream
-        tlo, thi = blockrange # tlo could be > thi
+        cutrange = blockrange.copy() # trange of spikes to keep
         bx = self.BLOCKEXCESS
-        cutrange = (tlo+bx, thi-bx) # range without the excess, ie time range of spikes to actually keep
+        # if block doesn't falls at start or end of self.trange, remove excess:
+        if cutrange[0] != self.trange[0]: cutrange[0] += bx
+        if cutrange[1] != self.trange[1]: cutrange[1] -= bx
         info('%s: blockrange: %s, cutrange: %s' %
             (mp.current_process().name, blockrange, cutrange))
         tslice = time.time()
-        # get WaveForm of multichan data, ignores out of range data requests:
-        wave = stream[tlo:thi]
+        # get WaveForm of multichan data, including excess, ignores out of range data requests:
+        wave = stream[blockrange[0]:blockrange[1]]
         print('%s: Stream slice took %.3f sec' %
              (mp.current_process().name, time.time()-tslice))
         tres = stream.tres
@@ -588,9 +592,12 @@ class Detector(object):
             tranges = np.asarray([self.trange]) # it's a normal Stream
 
         blockranges = []
-        for trange in tranges:
+        for trange in tranges: # iterate over recordings
             br = [] # list of blockranges for this trange
-            es = range(trange[0], trange[1], bs) # left edges of data blocks
+            # constrain in case self.trange falls within trange of just one recording
+            t0 = max(trange[0], self.trange[0])
+            t1 = min(trange[1], self.trange[1])
+            es = range(t0, t1, bs) # left edges of data blocks
             for e in es:
                 br.append([e-bx, e+bs+bx]) # time range to give to .searchblock()
             br = np.asarray(br)

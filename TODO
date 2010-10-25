@@ -8,6 +8,12 @@ RECENT:
     - use ts.tranges to skip over time gaps during detection - potentially do the same for plotting raw data
     - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
 
+- localization of a very small fraction of spikes is way off for some reason - this makes cluster plot annoying because it's scaled to include them. Why are they so poorly localized?
+
+- replace tend everywhere with t1, more symmetric with t0
+
+- autosave .sort file every 10 min or so during detection? and then what, how would you resume detection if it messed up previously? Doesn't seem very feasible
+
 - why does LFP now end about 75 or 100 ms too soon in the LFP frame?
 
 - NVS: do best fit alignment, instead of aligning simply to a peak, should help improve cluster cleaning when reclustering by waveform
