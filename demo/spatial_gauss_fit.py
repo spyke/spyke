@@ -112,8 +112,8 @@ ls.calc(x, y, V)
 sf = spyke.surf.File('/data/ptc18/14-tr1-mseq32_40ms_7deg.srf')
 sf.parse()
 
-t0 =   19241520
-tend = 19242520
+t0 = 19241520
+t1 = 19242520
 phase1ti = 12
 phase2ti = 21
 #chans = [41, 11, 42, 10, 43, 9, 44, 8, 45, 7]
@@ -121,7 +121,7 @@ chans = [41, 11, 42, 10, 43, 9, 8, 45, 7]
 i = chans.index(43) #V.argmax() # index of maxchan
 
 t0 = 7252960
-tend = 7253960
+t1 = 7253960
 phase1ti = 12
 phase2ti = 22
 #chans = [ 7,  8,  9, 10, 11, 41, 42, 43, 44, 45]
@@ -130,7 +130,7 @@ chans = [ 7,  9, 10, 11, 41, 42, 43, 44]
 i = chans.index(9) #V.argmax() # index of maxchan
 
 dti = 340 / 2
-wavedata = np.float64(sf.hpstream[t0:tend][chans].data)
+wavedata = np.float64(sf.hpstream[t0:t1][chans].data)
 V1 = wavedata[:, max(phase1ti-dti,0):phase1ti+dti].min(axis=1)
 V2 = wavedata[:, max(phase2ti-dti,0):phase2ti+dti].max(axis=1)
 V = V2 - V1

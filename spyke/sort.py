@@ -158,10 +158,10 @@ class Sort(object):
         nchans = spikes['nchans'][sid]
         chans = spikes['chans'][sid, :nchans]
         t0 = spikes['t0'][sid]
-        tend = spikes['tend'][sid]
+        t1 = spikes['t1'][sid]
         try:
             wavedata = self.wavedata[sid, 0:nchans]
-            ts = np.arange(t0, tend, self.tres) # build them up
+            ts = np.arange(t0, t1, self.tres) # build them up
             return WaveForm(data=wavedata, ts=ts, chans=chans)
         except AttributeError: pass
 
@@ -177,7 +177,7 @@ class Sort(object):
                    (sid, det.srffname, self.stream.srffname, sid))
             wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
             raise RuntimeError(msg)
-        wave = self.stream[t0:tend]
+        wave = self.stream[t0:t1]
         return wave[chans]
 
     def get_srffnameroot(self):
@@ -268,11 +268,11 @@ class Sort(object):
         srffnameroot = srffnameroot.replace(' ', '_')
         lfpfname = srffnameroot + '.lfp'
         lps = lpstream
-        wave = lps[lps.t0:lps.tend]
+        wave = lps[lps.t0:lps.t1]
         uVperAD = lps.converter.AD2uV(1)
         savez(os.path.join(path, lfpfname), compress=True,
               data=wave.data, chans=wave.chans,
-              t0=lps.t0, tend=lps.tend, tres=lps.tres, # for easy ts reconstruction
+              t0=lps.t0, t1=lps.t1, tres=lps.tres, # for easy ts reconstruction
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
@@ -755,16 +755,16 @@ class Neuron(object):
         dts = dphasei * dphases
         dtis = -dphasei * abs(dphasetis)
         # shift values
-        spikes['t0'][sids] += dts
         spikes['t'][sids] += dts
-        spikes['tend'][sids] += dts
+        spikes['t0'][sids] += dts
+        spikes['t1'][sids] += dts
         spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
         spikes['aligni'][sids[alignis0]] = 1
         spikes['aligni'][sids[alignis1]] = 0
 
         # update wavedata for each shifted spike
         for sid, spike in zip(sids, spikes[sids]):
-            wave = s.stream[spike['t0']:spike['tend']]
+            wave = s.stream[spike['t0']:spike['t1']]
             nchans = spike['nchans']
             chans = spike['chans'][:nchans]
             wave = wave[chans]

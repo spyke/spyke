@@ -186,15 +186,15 @@ class TrackStream(object):
         if not (np.diff(datetimes) >= datetime.timedelta(0)).all():
             raise RuntimeError(".srf files aren't in temporal order")
         # generate list of stream timestamps, each of which represents the time in us of
-        # each stream's t0 and tend, relative to the start of acquisition (t=0) in the first stream
+        # each stream's t0 and t1, relative to the start of acquisition (t=0) in the first stream
         self.tranges = np.zeros((len(streams), 2), dtype=np.int64)
         for streami, stream in enumerate(streams):
             td = stream.datetime - datetimes[0] # time delta between streami and stream 0
             t0 = td + datetime.timedelta(microseconds=stream.t0)
-            tend = td + datetime.timedelta(microseconds=stream.tend)
-            self.tranges[streami] = timedelta2usec(t0), timedelta2usec(tend)
+            t1 = td + datetime.timedelta(microseconds=stream.t1)
+            self.tranges[streami] = timedelta2usec(t0), timedelta2usec(t1)
         self.t0 = self.tranges[0, 0]
-        self.tend = self.tranges[-1, 1]
+        self.t1 = self.tranges[-1, 1]
 
         self.layout = streams[0].layout # assume they're identical
         intgains = [ stream.converter.intgain for stream in streams ]
@@ -287,7 +287,7 @@ class TrackStream(object):
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
         tres = self.tres
-        start, stop = max(key.start, self.t0), min(key.stop, self.tend) # stay in bounds
+        start, stop = max(key.start, self.t0), min(key.stop, self.t1) # stay in bounds
         streamis = []
         # TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.tranges):
@@ -300,15 +300,15 @@ class TrackStream(object):
             abst0 = self.tranges[streami, 0] # absolute start time of stream
             # find start and end offsets relative to abst0
             relt0 = max(start - abst0, 0) # stay within stream's lower limit
-            reltend = min(stop - abst0, stream.tend - stream.t0) # stay within stream's upper limit
+            relt1 = min(stop - abst0, stream.t1 - stream.t0) # stay within stream's upper limit
             # source slice times:
             st0 = relt0 + stream.t0
-            stend = reltend + stream.t0
-            sdata = stream[st0:stend].data # source data
+            st1 = relt1 + stream.t0
+            sdata = stream[st0:st1].data # source data
             # destination time indices:
             dt0i = (abst0 + relt0 - start) // tres # absolute index
-            dtendi = dt0i + sdata.shape[1]
-            data[:, dt0i:dtendi] = sdata
+            dt1i = dt0i + sdata.shape[1]
+            data[:, dt0i:dt1i] = sdata
         return WaveForm(data=data, ts=ts, chans=self.chans)
 
 
@@ -365,7 +365,7 @@ class Stream(object):
 
         self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
         lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.layout.nchans)) # nsamples in last record
-        self.tend = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
+        self.t1 = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
 
     def __del__(self):
         self.close()
@@ -444,20 +444,20 @@ class Stream(object):
         else:
             xs = 0
         # get a slightly greater range of raw data (with xs) than might be needed:
-        startxsi = (key.start - xs) // rawtres # round down to nearest mult of rawtres
-        stopxsi = ((key.stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        t0xsi = (key.start - xs) // rawtres # round down to nearest mult of rawtres
+        t1xsi = ((key.stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
-        startxsi = max(startxsi, self.t0 // rawtres)
-        stopxsi = min(stopxsi, self.tend // rawtres)
+        t0xsi = max(t0xsi, self.t0 // rawtres)
+        t1xsi = min(t1xsi, self.t1 // rawtres)
         # convert back to us:
-        startxs = startxsi * rawtres
-        stopxs = stopxsi * rawtres
-        tsxs = np.arange(startxs, stopxs, rawtres)
+        t0xs = t0xsi * rawtres
+        t1xs = t1xsi * rawtres
+        tsxs = np.arange(t0xs, t1xs, rawtres)
         ntxs = len(tsxs)
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.zeros((nADchans, ntxs), dtype=np.int32) # any gaps will have zeros
         # first and last record indices corresponding to the slice
-        loreci, hireci = self.rts.searchsorted([startxs, stopxs], side='right')
+        loreci, hireci = self.rts.searchsorted([t0xs, t1xs], side='right')
         # always get back at least 1 record
         records = self.ctsrecords[max(loreci-1, 0):max(hireci, 1)]
 
@@ -469,14 +469,14 @@ class Stream(object):
                 d = self.srff.loadContinuousRecord(record) # get record's data
                 nt = d.shape[1]
                 t0i = record['TimeStamp'] // rawtres
-                tendi = t0i + nt
+                t1i = t0i + nt
                 # source indices
-                st0i = max(startxsi - t0i, 0)
-                stendi = min(stopxsi - t0i, nt)
+                st0i = max(t0xsi - t0i, 0)
+                st1i = min(t1xsi - t0i, nt)
                 # destination indices
-                dt0i = max(t0i - startxsi, 0)
-                dtendi = min(tendi - startxsi, ntxs)
-                dataxs[:, dt0i:dtendi] = d[:, st0i:stendi]
+                dt0i = max(t0i - t0xsi, 0)
+                dt1i = min(t1i - t0xsi, ntxs)
+                dataxs[:, dt0i:dt1i] = d[:, st0i:st1i]
         else: # kind == 'lowpass', need to load chans from subsequent records
             nt = records[0]['NumSamples'] # assume all lpmc records are same length
             d = np.zeros((nADchans, nt), dtype=np.int32)
@@ -485,14 +485,14 @@ class Stream(object):
                     lprec = self.srff.lowpassrecords[record['lpreci']+chani]
                     d[chani] = self.srff.loadContinuousRecord(lprec)
                 t0i = record['TimeStamp'] // rawtres
-                tendi = t0i + nt
+                t1i = t0i + nt
                 # source indices
-                st0i = max(startxsi - t0i, 0)
-                stendi = min(stopxsi - t0i, nt)
+                st0i = max(t0xsi - t0i, 0)
+                st1i = min(t1xsi - t0i, nt)
                 # destination indices
-                dt0i = max(t0i - startxsi, 0)
-                dtendi = min(tendi - startxsi, ntxs)
-                dataxs[:, dt0i:dtendi] = d[:, st0i:stendi]
+                dt0i = max(t0i - t0xsi, 0)
+                dt1i = min(t1i - t0xsi, ntxs)
+                dataxs[:, dt0i:dt1i] = d[:, st0i:st1i]
         #print('record.load() took %.3f sec' % (time.time()-tload))
 
         # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as

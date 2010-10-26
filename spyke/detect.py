@@ -99,9 +99,9 @@ class RandomBlockRanges(object):
             t0i = np.random.randint(low=0, high=len(self.t0pool)) # returns value < high
             t0 = self.t0pool[t0i]
             self.t0pool = np.delete(self.t0pool, t0i) # remove from pool
-        tend = t0 + self.bs
+        t1 = t0 + self.bs
         self.ntranges += 1
-        return (t0-self.bx, tend+self.bx)
+        return (t0-self.bx, t1+self.bx)
 
     def __iter__(self):
         return self
@@ -157,7 +157,7 @@ class Detector(object):
         self.ppthreshmult = ppthreshmult or self.DEFPPTHRESHMULT
         self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
         self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
-        self.trange = trange or (sort.stream.t0, sort.stream.tend)
+        self.trange = trange or (sort.stream.t0, sort.stream.t1)
         self.blocksize = blocksize or self.DEFBLOCKSIZE
         self.lockr = lockr or self.DEFLOCKR
         self.inclr = inclr or self.DEFINCLR
@@ -276,8 +276,8 @@ class Detector(object):
                            ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike),
                            ('nchans', np.uint8), ('chani', np.uint8),
                            # TODO: maybe it would be more efficient to store ti, t0i,
-                           # and tendi wrt start of surf file instead of times in us?
-                           ('t', np.int64), ('t0', np.int64), ('tend', np.int64),
+                           # and t1i wrt start of surf file instead of times in us?
+                           ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
                            ('V0', np.float32), ('V1', np.float32),
                            ('Vpp', np.float32),
                            ('phasetis', np.uint8, (self.maxnchansperspike, 2)),
@@ -387,13 +387,13 @@ class Detector(object):
 
             # get sharpness window DT on either side of this peak
             t0i = max(ti-dti, 0) # check for lockouts a bit later
-            tendi = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
-            window = wave.data[chanis, t0i:tendi] # multichan data window, might not be contig
+            t1i = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
+            window = wave.data[chanis, t0i:t1i] # multichan data window, might not be contig
 
             # collect peak-to-peak sharpness for all chans
             # save max and adjacent sharpness timepoints for each chan, and keep track
             # of which of the two adjacent non locked out peaks is the sharpest
-            localsharp = sharp[chanis, t0i:tendi]
+            localsharp = sharp[chanis, t0i:t1i]
             ppsharp = np.zeros(nchans, dtype=np.float32)
             maxsharpis = np.zeros(nchans, dtype=int)
             adjpeakis = np.zeros((nchans, 2), dtype=int)
@@ -468,8 +468,8 @@ class Detector(object):
             # cut new window
             oldt0i = t0i
             t0i = max(ti+twi[0], 0)
-            tendi = ti+twi[1]+1 # end inclusive
-            window = wave.data[chanis, t0i:tendi] # multichan data window, might not be contig
+            t1i = ti+twi[1]+1 # end inclusive
+            window = wave.data[chanis, t0i:t1i] # multichan data window, might not be contig
             maxcii, = np.where(chanis == chani)
             maxchanphasetis += oldt0i - t0i # relative to new t0i
             phasetis = np.zeros((nchans, 2), dtype=int) # holds phasetis for each lockchani
@@ -479,7 +479,7 @@ class Detector(object):
             # close they are to those on maxchan, Don't consider the sign of the peaks on each
             # chan, just their proximity in time. In other words, allow for spike inversion
             # across space
-            localsharp = sharp[chanis, t0i:tendi]
+            localsharp = sharp[chanis, t0i:t1i]
             phaset0i, phaset1i = maxchanphasetis
             for cii in range(nchans):
                 if cii == maxcii: # already set
@@ -524,8 +524,8 @@ class Detector(object):
             inclchani = int(np.where(inclchans == chan)[0]) # != chani!
             inclciis = chanis.searchsorted(inclchanis)
 
-            if DEBUG: debug("final window params: t0=%r, tend=%r, Vs=%r, phasets=\n%r"
-                            % (wave.ts[t0i], wave.ts[tendi], list(AD2uV(Vs)), wave.ts[t0i+phasetis]))
+            if DEBUG: debug("final window params: t0=%r, t1=%r, Vs=%r, phasets=\n%r"
+                            % (wave.ts[t0i], wave.ts[t1i], list(AD2uV(Vs)), wave.ts[t0i+phasetis]))
 
             # build up spike record
             s = spikes[nspikes]
@@ -533,9 +533,9 @@ class Detector(object):
             # leave each spike's chanis in sorted order, as they are in self.inclnbhdi,
             # important assumption used later on, like in sort.get_wave() and
             # Neuron.update_wave()
-            ts = wave.ts[t0i:tendi]
-            # use ts = np.arange(s['t0'], s['tend'], stream.tres) to reconstruct
-            s['t0'], s['tend'] = wave.ts[t0i], wave.ts[tendi]
+            ts = wave.ts[t0i:t1i]
+            # use ts = np.arange(s['t0'], s['t1'], stream.tres) to reconstruct
+            s['t0'], s['t1'] = wave.ts[t0i], wave.ts[t1i]
             inclphasetis = phasetis[inclciis]
             s['phasetis'][:ninclchans] = inclphasetis # wrt t0i
             s['aligni'] = aligni # 0 or 1

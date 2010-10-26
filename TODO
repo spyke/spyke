@@ -10,8 +10,6 @@ RECENT:
 
 - localization of a very small fraction of spikes is way off for some reason - this makes cluster plot annoying because it's scaled to include them. Why are they so poorly localized?
 
-- replace tend everywhere with t1, more symmetric with t0
-
 - autosave .sort file every 10 min or so during detection? and then what, how would you resume detection if it messed up previously? Doesn't seem very feasible
 
 - why does LFP now end about 75 or 100 ms too soon in the LFP frame?
@@ -806,7 +804,7 @@ DONE:
 - fix shape mismatch when scrolling to far left or right in TrackStream
 - give TrackStream a fname attrib, and same for Stream. These would store the .track and .srf fname respectively. Then, also give each a srffnames attrib, which would be a list of srf fnames (which for a Stream would be a degenerate case with length 1)
 - prepend .sort file with .srf or .track fname. Eg: track7c_test.track_2010-10-08_15.31.08_full.sort
-
+- replace tend everywhere with t1, more symmetric with t0
 
 
 

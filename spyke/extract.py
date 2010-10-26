@@ -402,7 +402,7 @@ class Extractor(object):
         sid = spike['id']
         V = self.sort.wavedata[sid, maxchani]
         # get timestamps relative to start of waveform
-        ts = np.arange(0, spike['tend'] - spike['t0'], self.sort.tres)
+        ts = np.arange(0, spike['t1'] - spike['t0'], self.sort.tres)
         t0, t1 = ts[[spike['phaset0i'], spike['phaset1i']]]
         V0, V1 = spike['V0'], spike['V1']
         tls = self.tls

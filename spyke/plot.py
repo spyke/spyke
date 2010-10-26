@@ -771,7 +771,7 @@ class PlotPanel(FigureCanvasWxAgg):
             xpos, ypos = self.pos[chan]
             t = evt.mouseevent.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
             v = (evt.mouseevent.ydata - ypos) / self.gain
-            if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
+            if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
                 t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
                 tip = 'ch%d\n' % chan + \
                       't=%d %s\n' % (t, MICRO+'s') + \
@@ -796,7 +796,7 @@ class PlotPanel(FigureCanvasWxAgg):
                 xpos, ypos = self.pos[line.chan]
                 t = evt.xdata - xpos + self.qrplt.tref
                 v = (evt.ydata - ypos) / self.gain
-                if t >= self.stream.t0 and t <= self.stream.tend: # in bounds
+                if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
                     t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
                     tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
                           't=%d %s\n' % (t, MICRO+'s') + \

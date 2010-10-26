@@ -173,13 +173,16 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSaveAs(self, evt):
         """Save Sort to new .sort file"""
-        # prep default fname with hpstream.fname and datetime
-        fname = self.hpstream.fname.replace(' ', '_')
-        dt = str(datetime.datetime.now()) # get an export timestamp
-        dt = dt.split('.')[0] # ditch the us
-        dt = dt.replace(' ', '_')
-        dt = dt.replace(':', '.')
-        defaultFile = fname + '_' + dt
+        try:
+            defaultFile = self.sort.sortfname
+        except AttributeError: # sort hasn't been previously saved
+            # generate default fname with hpstream.fname and datetime
+            fname = self.hpstream.fname.replace(' ', '_')
+            dt = str(datetime.datetime.now()) # get an export timestamp
+            dt = dt.split('.')[0] # ditch the us
+            dt = dt.replace(' ', '_')
+            dt = dt.replace(':', '.')
+            defaultFile = fname + '_' + dt
         dlg = wx.FileDialog(self, message="Save sort as",
                             defaultDir=os.getcwd(), defaultFile=defaultFile,
                             wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
@@ -201,7 +204,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
     def OnSaveWave(self, evt):
         """Save waveforms to a .wave file"""
-        defaultFile = os.path.splitext(self.sortfname)[0] + '.wave'
+        defaultFile = os.path.splitext(self.sort.sortfname)[0] + '.wave'
         dlg = wx.FileDialog(self, message="Save waveforms as",
                             defaultDir=os.getcwd(), defaultFile=defaultFile,
                             wildcard="Sort files (*.wave)|*.wave|All files (*.*)|*.*",
@@ -1338,11 +1341,11 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.str2t = {'start': self.hpstream.t0,
                       'now': self.t, # FIXME: this won't track self.t automatically
-                      'end': self.hpstream.tend}
-        self.range = (self.hpstream.t0, self.hpstream.tend) # us
+                      'end': self.hpstream.t1}
+        self.range = (self.hpstream.t0, self.hpstream.t1) # us
         self.file_pos_combo_box.SetValue(str(self.t))
         self.file_min_label.SetLabel(str(self.hpstream.t0))
-        self.file_max_label.SetLabel(str(self.hpstream.tend))
+        self.file_max_label.SetLabel(str(self.hpstream.t1))
         # set all slider values in number of interploated timepoints
         tres = self.hpstream.tres
         self.slider.SetRange(self.range[0] // tres,
@@ -1643,18 +1646,19 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         #    self.SaveSpikeFile(s.spikefname)
         print('saving sort file %r' % fname)
         t0 = time.time()
-        f = open(fname, 'wb')
         try:
             cf = self.frames['cluster']
-            # save camera view
-            s.view, s.roll = cf.view, cf.roll
+            s.view, s.roll = cf.view, cf.roll # save camera view
         except KeyError: pass # cf hasn't been opened yet, no camera view to save
         s.sortfname = fname # bind it now that it's about to be saved
-        stream = s._stream # hold a reference
-        del s._stream # don't pickle the stream to file
+        if hasattr(s, '_stream'):
+            stream = s._stream # hold a reference
+            del s._stream # don't pickle the stream to file
+        f = open(fname, 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
-        s._stream = stream # restore the stream
+        if hasattr(s, '_stream'):
+            s._stream = stream # restore the stream
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.SetTitle(self.caption + ' | ' + s.sortfname)
 
@@ -1945,17 +1949,17 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
         start, now, and end to appropriate vals"""
-        tstart = self.range_start_combo_box.GetValue()
-        tend = self.range_end_combo_box.GetValue()
+        t0 = self.range_start_combo_box.GetValue()
+        t1 = self.range_end_combo_box.GetValue()
         try:
-            tstart = self.str2t[tstart]
+            t0 = self.str2t[t0]
         except KeyError:
-            tstart = int(float(tstart)) # convert to float first so you can use exp notation as shorthand
+            t0 = int(float(t0)) # convert to float first so you can use exp notation as shorthand
         try:
-            tend = self.str2t[tend]
+            t1 = self.str2t[t1]
         except KeyError:
-            tend = int(float(tend))
-        return tstart, tend
+            t1 = int(float(t1))
+        return t0, t1
 
     def seek(self, offset=0):
         """Seek to position in surf file. offset is time in us"""
