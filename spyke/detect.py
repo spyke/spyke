@@ -349,10 +349,9 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
-            weights2gaussian = sort.extractor.weights2gaussian
-            #weights2cauchy = sort.extractor.weights2cauchy
-            #wavedata2spatial = sort.extractor.wavedata2spatial
-            #wavedata2wcs = sort.extractor.wavedata2wcs
+            weights2f = sort.extractor.weights2f
+            f = spyke.core.g2 # 2D Gaussian
+            #f = spyke.core.cauchy2 # 2D Cauchy
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
 
         tsharp = time.time()
@@ -554,8 +553,7 @@ class Detector(object):
                 w = abs(w).sum(axis=1)
                 x = self.siteloc[inclchanis, 0] # 1D array (row)
                 y = self.siteloc[inclchanis, 1]
-                s['x0'], s['y0'], s['sx'], s['sy'] = weights2gaussian(w, x, y, inclchani)
-                #s['x0'], s['y0'], s['sx'], s['sy'] = weights2cauchy(w, x, y, inclchani)
+                s['x0'], s['y0'], s['sx'], s['sy'] = weights2f(f, w, x, y, inclchani)
 
             if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
                             % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))

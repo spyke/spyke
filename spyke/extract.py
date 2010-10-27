@@ -16,7 +16,7 @@ import scipy.stats
 
 import pylab as pl
 
-from spyke.core import g, g2, cauchy, cauchy2
+from spyke.core import g
 
 
 DEFSX = 50 # default spatial decay along x axis, in um
@@ -217,11 +217,15 @@ class Extractor(object):
         self.choose_XY_fun()
         self.sls = SpatialLeastSquares(self.debug)
         self.tls = TemporalLeastSquares(self.debug)
+        xlims = sort.probe.get_unique_xcoords()[[0, -1]]
+        self.x0mintimes3 = xlims[0] * 3
+        self.x0maxtimes3 = xlims[1] * 3
+
         #self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
-            self.weights2spatial = self.weights2gaussian
+            self.weights2spatial = self.weights2f
         elif self.XYmethod.lower() == 'spatial mean':
             self.weights2spatial = self.weights2spatialmean
         elif self.XYmethod.lower() == 'splines 1d fit':
@@ -683,9 +687,9 @@ class Extractor(object):
         y0 = (yw * y0s).sum()
         return x0, y0
 
-    def weights2gaussian(self, w, x, y, maxchani):
-        """Return spatial location and spread using a 2D Gaussian model,
-        with location initialized using spatial mean, and spread initialized
+    def weights2f(self, f, w, x, y, maxchani):
+        """Use least squares to fit spatial location and spread of 2D function f
+        to the weights, with location initialized using spatial mean, and spread initialized
         with constant global values. Spread and location are fit sequentially, in that
         order, because there isn't enough data from a single spike to fit them both
         simultaneously and expect to get reasonable results. Otherwise, LM ends up using the
@@ -699,37 +703,17 @@ class Extractor(object):
         '''
         # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
         sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc_sxsy(g2, x, y, w) # sx and sy free
+        sls.calc_sxsy(f, x, y, w) # sx and sy free
         '''
         sls.p0 = np.array([sls.sx])
-        sls.calc_s(g2, x, y, w) # s free (sx == sy)
+        sls.calc_s(f, x, y, w) # s free (sx == sy)
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
         sls.p0 = np.array([x0, y0])
-        sls.calc_x0y0(g2, x, y, w) # x0 and y0 free
+        sls.calc_x0y0(f, x, y, w) # x0 and y0 free
 
-        return sls.x0, sls.y0, sls.sx, sls.sy
-
-    def weights2cauchy(self, w, x, y, maxchani):
-        """Return spatial location and spread using a 2D Cauchy model,
-        with location initialized using spatial mean, and spread initialized
-        with constant global values"""
-        if len(w) == 1: # only one chan, return its coords and the default sigmas
-            return int(x), int(y), DEFSX, DEFSY
-
-        sls = self.sls
-        x0, y0 = self.weights2spatialmean(w, x, y)
-        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
-        '''
-        # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
-        sls.p0 = np.array([sls.sx, sls.sy])
-        sls.calc_sxsy(cauchy2, x, y, w) # sx and sy free
-        '''
-        sls.p0 = np.array([sls.sx])
-        sls.calc_s(cauchy2, x, y, w) # s free (sx == sy)
-
-        # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
-        sls.p0 = np.array([x0, y0])
-        sls.calc_x0y0(cauchy2, x, y, w) # x0 and y0 free
-
-        return sls.x0, sls.y0, sls.sx, sls.sy
+        if not self.x0mintimes3 < sls.x0 < self.x0maxtimes3:
+            print("NOTE: Spatial localization was way off, falling back to spatial mean")
+            return x0, y0, DEFSX, DEFSY # y0 and sx and sy are probably way off too
+        else:
+            return sls.x0, sls.y0, sls.sx, sls.sy
