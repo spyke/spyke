@@ -13,28 +13,29 @@ import numpy as np
 
 class Probe(object):
     """self.SiteLoc maps probe chan id to (x, y) position of site in um"""
-    def get_siteloc_arr(self):
+    def siteloc_arr(self):
         return np.asarray(self.SiteLoc.values())
 
-    def get_unique_xcoords(self):
-        """Return sorted unique column xcoords"""
-        sa = self.get_siteloc_arr()
-        xcoords = np.unique(sa[:, 0]) # comes out sorted
-        return xcoords
+    def unique_coords(self, axis='x'):
+        """Return sorted unique xcoords or ycoords"""
+        axis2col = {'x': 0, 'y': 1}
+        sa = self.siteloc_arr()
+        coords = np.unique(sa[:, axis2col[axis]]) # comes out sorted
+        return coords
 
-    def get_xsep(self):
-        """Return x separation of columns, assuming uniform column spacing in x"""
-        xcoords = self.get_unique_xcoords()
-        xsep = np.unique(np.diff(xcoords))
-        if len(xsep) != 1:
-            raise ValueError("non-uniform column spacing, no single column x separation value")
+    def separation(self, axis='x'):
+        """Return x or y separation of columns, assuming uniform spacing along axis"""
+        coords = self.unique_coords(axis)
+        sep = np.unique(np.diff(coords))
+        if len(sep) != 1:
+            raise ValueError("non-uniform spacing along axis %r" % axis)
             # take mean maybe?
-        return xsep[0] # pull scalar out of array
+        return sep[0] # pull scalar out of array
 
-    def get_max_xsep(self):
-        """Return maximum x separation of columns"""
-        xcoords = self.get_unique_xcoords()
-        return xcoords[-1] - xcoords[0]
+    def maxseparation(self, axis='x'):
+        """Return maximum site separation along axis"""
+        coords = self.unique_coords(axis) # comes out sorted
+        return coords[-1] - coords[0]
 
 
 class uMap54_1a(Probe):

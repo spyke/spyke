@@ -21,6 +21,7 @@ from spyke.core import g
 
 DEFSX = 50 # default spatial decay along x axis, in um
 DEFSY = 50
+MAXSIGMA = DEFSX * 10 # any sigma that comes out greater than this is bogus
 
 
 def callspike2XY(args):
@@ -217,10 +218,8 @@ class Extractor(object):
         self.choose_XY_fun()
         self.sls = SpatialLeastSquares(self.debug)
         self.tls = TemporalLeastSquares(self.debug)
-        xlims = sort.probe.get_unique_xcoords()[[0, -1]]
-        self.x0mintimes3 = xlims[0] * 3
-        self.x0maxtimes3 = xlims[1] * 3
-
+        self.MAXX0 = max(abs(sort.probe.unique_coords('x'))) * 3
+        self.MAXY0 = max(abs(sort.probe.unique_coords('y'))) * 3
         #self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
 
     def choose_XY_fun(self):
@@ -707,13 +706,15 @@ class Extractor(object):
         '''
         sls.p0 = np.array([sls.sx])
         sls.calc_s(f, x, y, w) # s free (sx == sy)
+        if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
+            print("*** NOTE: Spatial sigma was way off, falling back to defaults ***")
+            sls.sx, sls.sy = DEFSX, DEFSY
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
         sls.p0 = np.array([x0, y0])
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
 
-        if not self.x0mintimes3 < sls.x0 < self.x0maxtimes3:
-            print("NOTE: Spatial localization was way off, falling back to spatial mean")
-            return x0, y0, DEFSX, DEFSY # y0 and sx and sy are probably way off too
-        else:
-            return sls.x0, sls.y0, sls.sx, sls.sy
+        if abs(sls.x0) > self.MAXX0 or abs(sls.y0) > self.MAXY0:
+            print("*** NOTE: Spatial location was way off, falling back to spatial mean ***")
+            sls.x0, sls.y0 = x0, y0
+        return sls.x0, sls.y0, sls.sx, sls.sy
