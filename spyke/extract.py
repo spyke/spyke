@@ -707,7 +707,8 @@ class Extractor(object):
         sls.p0 = np.array([sls.sx])
         sls.calc_s(f, x, y, w) # s free (sx == sy)
         if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
-            print("*** NOTE: Spatial sigma was way off, falling back to defaults ***")
+            print("%s: *** Spatial sigma was way off, falling back to defaults ***"
+                  % mp.current_process().name)
             sls.sx, sls.sy = DEFSX, DEFSY
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
@@ -715,6 +716,8 @@ class Extractor(object):
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
 
         if abs(sls.x0) > self.MAXX0 or abs(sls.y0) > self.MAXY0:
-            print("*** NOTE: Spatial location was way off, falling back to spatial mean ***")
+            print("%s: *** Spatial location was way off, falling back to spatial mean ***"
+                  % mp.current_process().name)
+
             sls.x0, sls.y0 = x0, y0
         return sls.x0, sls.y0, sls.sx, sls.sy

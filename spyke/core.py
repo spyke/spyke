@@ -357,7 +357,7 @@ class Stream(object):
         # indicating there were no pauses in recording. Then, set a flag
         self.contiguous = (np.diff(self.rts, n=2) == 0).all()
         if not self.contiguous:
-            print('NOTE: time gaps exist in %s, possibly due to pauses' % self.srffname)
+            print('NOTE: time gaps exist in %s, possibly due to pauses' % self.fname)
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?

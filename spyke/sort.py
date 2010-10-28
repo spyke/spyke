@@ -29,6 +29,8 @@ NSSPLITTERSASH = 45
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTFRAMEHEIGHT = 950
 
+MEANWAVESAMPLESIZE = 1000
+
 """
 TODO: before extracting features from events, first align all chans wrt maxchan.
 Keep tabs on how far and in what direction each chan had to be realigned. Maybe
@@ -643,24 +645,18 @@ class Neuron(object):
             #self.wave = WaveForm() # empty waveform
             #return self.wave
         sids = self.sids
+        if len(sids) > MEANWAVESAMPLESIZE:
+            print('Taking random sample of %d spikes instead of all %d of them'
+                  % (MEANWAVESAMPLESIZE, len(sids)))
+            sids = np.asarray(random.sample(sids, MEANWAVESAMPLESIZE))
 
-        #t0 = time.time()
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
         chanpopulation = np.concatenate(chanslist)
         neuronchans = np.unique(chanpopulation)
-        #print('first loop took %.3f sec' % (time.time()-t0))
 
-        #t0 = time.time()
-        try:
-            wavedata = sort.wavedata[sids]
-        except MemoryError:
-            # grab a random subset of spikes to use to calculate the mean
-            k = 200
-            print('Taking random sample of %d spikes instead of all of them' % k)
-            sids = random.sample(sids, k=k) # sids is now a list, not array, but that doesn't matter
-            wavedata = sort.wavedata[sids]
+        wavedata = sort.wavedata[sids]
         if wavedata.ndim == 2: # should be 3, get only 2 if len(sids) == 1
             wavedata.shape = 1, wavedata.shape[0], wavedata.shape[1] # give it a singleton 3rd dim
         maxnt = wavedata.shape[-1]
@@ -673,7 +669,6 @@ class Neuron(object):
             chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
             data[chanis] += wd[:len(chans)] # accumulate
             nspikes[chanis] += 1 # inc spike count for this spike's chans
-        #print('2nd loop took %.3f sec' % (time.time()-t0))
         #t0 = time.time()
         data /= nspikes # normalize all data points appropriately
         # keep only those chans that at least 1/2 the spikes contributed to
@@ -685,9 +680,6 @@ class Neuron(object):
         self.wave.data = data[chanis]
         self.wave.chans = newneuronchans
         self.wave.ts = sort.twts
-        #print('neuron[%d].wave.chans = %r' % (self.id, chans))
-        #print('neuron[%d].wave.ts = %r' % (self.id, ts))
-        #print('mean calc took %.3f sec' % (time.time()-t0))
         return self.wave
 
     def get_chans(self):
