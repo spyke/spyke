@@ -197,8 +197,9 @@ class TrackStream(object):
         self.t1 = self.tranges[-1, 1]
 
         self.layout = streams[0].layout # assume they're identical
-        intgains = [ stream.converter.intgain for stream in streams ]
+        intgains = np.asarray([ stream.converter.intgain for stream in streams ])
         if max(intgains) != min(intgains):
+            import pdb; pdb.set_trace() # investigate which are the deviant .srf files
             raise NotImplementedError("not all .srf files have the same intgain")
             # TODO: find recording with biggest intgain, call that value maxintgain. For each
             # recording, scale its AD values by its intgain/maxintgain when returning a slice
@@ -210,9 +211,11 @@ class TrackStream(object):
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
-        if not contiguous.all():
-            print("some .srf files are non contiguous: %r" %
-                  [s.srffname for s in streams[contiguous == False]])
+        if not contiguous.all() and kind == 'highpass': # don't bother reporting again for lowpass
+            fnames = [ s.fname for s, c in zip(streams, contiguous) if not c ]
+            print("some .srf files are non contiguous:")
+            for fname in fnames:
+                print(fname)
         probe = streams[0].probe
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
             raise RuntimeError("some .srf files have different probe types")
@@ -368,6 +371,8 @@ class Stream(object):
         self.t1 = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
 
     def __del__(self):
+        # doesn't seem to get called on a Ctrl-C event
+        print("Stream destructor called")
         self.close()
 
     def open(self):

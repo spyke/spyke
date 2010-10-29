@@ -36,6 +36,7 @@ import wxglade_gui
 DEFSPIKETW = -500, 500 # spike frame temporal window (us)
 DEFCHARTTW = -25000, 25000 # chart frame temporal window (us)
 DEFLFPTW = -500000, 500000 # lfp frame temporal window (us)
+SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
 SPIKEFRAMEWIDTHPERCOLUMN = 80
 SPIKEFRAMEHEIGHT = 700
@@ -114,7 +115,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         '''
         os.chdir('/data/ptc15')
         srffname = '87 - track 7c spontaneous craziness.srf'
-        self.OpenSurfFile(srffname)
+        self.OpenSurfOrTrackFile(srffname)
         os.chdir('/data/ptc15/tr7c/87 - track 7c spontaneous craziness')
         sortfname = '2010-09-09_17.06.14_test.sort'
         self.OpenSortFile(sortfname)
@@ -372,8 +373,8 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
     def OnSlider(self, evt):
         """Strange: keyboard press or page on mouse click when slider in focus generates
         two slider events, and hence two plot events - mouse drag only generates one slider event"""
-        nt = self.slider.GetValue()
-        self.seek(nt * self.hpstream.tres)
+        slideri = self.slider.GetValue()
+        self.seek(slideri * SLIDERTRES)
         #evt.Skip() # doesn't seem to be necessary
 
     def OnDetect(self, evt):
@@ -1316,8 +1317,10 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         else: # ext == '.track'
             srffs = []
             with open(fname, 'r') as trackfile:
-                for srffname in trackfile: # one srf filename per line
-                    srffname = srffname.rstrip('\n')
+                for line in trackfile: # one srf filename per line
+                    if line.startswith('#'): # it's a comment line
+                        continue # skip it
+                    srffname = line.rstrip('\n')
                     srff = surf.File(srffname)
                     srff.parse()
                     srffs.append(srff) # build up list of open and parsed surf File objects
@@ -1346,13 +1349,12 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         self.file_pos_combo_box.SetValue(str(self.t))
         self.file_min_label.SetLabel(str(self.hpstream.t0))
         self.file_max_label.SetLabel(str(self.hpstream.t1))
-        # set all slider values in number of interploated timepoints
-        tres = self.hpstream.tres
-        self.slider.SetRange(self.range[0] // tres,
-                             self.range[1] // tres) # shouldn't need to round
-        self.slider.SetValue(self.t // tres)
+        # set all slider values in multiples of SLIDERTRES
+        self.slider.SetRange(self.range[0] // SLIDERTRES,
+                             self.range[1] // SLIDERTRES) # no need to round
+        self.slider.SetValue(self.t // SLIDERTRES)
         self.slider.SetLineSize(1)
-        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
+        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
 
         self.EnableSurfWidgets(True)
 
@@ -1823,12 +1825,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         """Set highpass stream sampling frequency, update widgets"""
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
-            tres = self.hpstream.tres
-            self.slider.SetRange(self.range[0] // tres,
-                                 self.range[1] // tres) # shouldn't need to round
-            self.slider.SetValue(self.t // tres)
-            #self.slider.SetLineSize(1) # doesn't change
-            self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // tres)
+            # since slider is in multiples of SLIDERTRES, doesn't need to be updated
             self.plot()
         self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
 
@@ -1972,7 +1969,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
         if self.t != oldt:
             # update controls first so they don't lag
             self.file_pos_combo_box.SetValue(str(self.t)) # update file combo box
-            self.slider.SetValue(self.t // self.hpstream.tres) # update slider
+            self.slider.SetValue(self.t // SLIDERTRES) # update slider
             wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
             self.plot()
     '''

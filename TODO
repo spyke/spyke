@@ -7,6 +7,8 @@ RECENT:
     - to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
     - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
 
+- would be nice to have drag and drop of .srf and .track files onto the main spyke frame perform identically to the manual File/Open scenario, especially for files that are on an external drive, that File/Open doesn't default to
+
 - localization during detection makes detection take 60% longer, which seems like a lot. Maybe use Cython to speed up fitting of each spike's waveform? The passing of a Python f'n to LM and constantly calling it as it iterates is probably the slow bit. So, this means all of LM would have to be rewritten in Cython?
 
 - autosave .sort file every 10 min or so during detection? and then what, how would you resume detection if it messed up previously? Doesn't seem very feasible
