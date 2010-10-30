@@ -6,6 +6,7 @@ __authors__ = ['Martin Spacek']
 
 import time
 import multiprocessing as mp
+ps = mp.current_process
 
 import numpy as np
 np.seterr(under='warn') # don't halt on underflow during gaussian_fit
@@ -26,16 +27,16 @@ MAXSIGMA = DEFSX * 10 # any sigma that comes out greater than this is bogus
 
 def callspike2XY(args):
     spike, wavedata = args
-    ext = mp.current_process().extractor
-    det = mp.current_process().detector
+    ext = ps().extractor
+    det = ps().detector
     return ext.spike2XY(spike, wavedata, det)
 
 def initializer(extractor, detector):
     #stream.srff.open() # reopen the .srf file which was closed for pickling, engage file lock
     #detector.sort.stream = stream
     #detector.sort.stream.srff = srff # restore .srff that was deleted from stream on pickling
-    mp.current_process().extractor = extractor
-    mp.current_process().detector = detector
+    ps().extractor = extractor
+    ps().detector = detector
 
 
 class SpatialLeastSquares(object):
@@ -535,7 +536,7 @@ class Extractor(object):
 
     def spike2XY(self, spike, wavedata, det):
         if self.debug or spike['id'] % 1000 == 0:
-            print('%s: spike id: %d' % (mp.current_process().name, spike['id']))
+            print('%s: spike id: %d' % (ps().name, spike['id']))
         nchans = spike['nchans']
         chans = spike['chans'][:nchans]
         maxchan = spike['chan']
@@ -708,7 +709,7 @@ class Extractor(object):
         sls.calc_s(f, x, y, w) # s free (sx == sy)
         if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
             print("%s: *** Spatial sigma was way off, falling back to defaults ***"
-                  % mp.current_process().name)
+                  % ps().name)
             sls.sx, sls.sy = DEFSX, DEFSY
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
@@ -717,7 +718,6 @@ class Extractor(object):
 
         if abs(sls.x0) > self.MAXX0 or abs(sls.y0) > self.MAXY0:
             print("%s: *** Spatial location was way off, falling back to spatial mean ***"
-                  % mp.current_process().name)
-
+                  % ps().name)
             sls.x0, sls.y0 = x0, y0
         return sls.x0, sls.y0, sls.sx, sls.sy

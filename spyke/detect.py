@@ -15,6 +15,7 @@ import time
 import logging
 import datetime
 import multiprocessing as mp
+ps = mp.current_process
 from copy import copy
 
 import wx
@@ -26,7 +27,7 @@ from scipy.weave import inline
 #import nmpfit
 
 import spyke.surf
-from spyke.core import eucd
+from spyke.core import eucd, ordered, concatenate_destroy
 
 #from spyke import threadpool
 #from spyke.core import  WaveForm, toiter, argcut, intround, g, g2, RM
@@ -61,12 +62,12 @@ if DEBUG:
 
 def callsearchblock(blockrange):
     """Run current process' Detector on blockrange"""
-    detector = mp.current_process().detector
+    detector = ps().detector
     return detector.searchblock(blockrange)
 
 def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
-    mp.current_process().detector = detector
+    ps().detector = detector
 
 
 class RandomBlockRanges(object):
@@ -179,11 +180,7 @@ class Detector(object):
     def detect(self):
         """Search for spikes. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
-        then combines the results
-
-        TODO: remove any spikes that happen right at the first or last timepoint in the file,
-        since we can't say when an interrupted falling or rising edge would've reached peak
-        """
+        then combines the results"""
         self.calc_chans()
         sort = self.sort
         spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
@@ -232,8 +229,10 @@ class Detector(object):
                 spikes.append(blockspikes)
                 wavedata.append(blockwavedata)
 
-        spikes = np.concatenate(spikes)
-        wavedata = np.concatenate(wavedata) # along sid axis, other dims are identical
+        try: spikes = concatenate_destroy(spikes)
+        except: import pdb; pdb.set_trace()
+        try: wavedata = concatenate_destroy(wavedata) # along sid axis, other dims are identical
+        except: import pdb; pdb.set_trace()
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
@@ -241,14 +240,8 @@ class Detector(object):
         spikes['cid'] = -1 # unused, always leave as -1
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
-        # spikes might come out slightly out of temporal order, due to the way
-        # the best peak is searched for forward and backwards in time on each edge
-        t0 = time.time()
-        i = spikes['t'].argsort()
-        spikes = spikes[i] # ensure they're in temporal order
-        wavedata = wavedata[i] # ditto for wavedata
-        info("Sorting spikes and wavedata to ensure temporal order took %.3f sec" % (time.time()-t0))
-        spikes['id'] = np.arange(self.nspikes) # assign ids now that they're in temporal order
+        if not ordered(spikes['t']): import pdb; pdb.set_trace()
+        spikes['id'] = np.arange(self.nspikes) # assign ids (spikes should be in temporal order)
         self.datetime = datetime.datetime.now()
         return spikes, wavedata
 
@@ -303,20 +296,18 @@ class Detector(object):
         # if block doesn't falls at start or end of self.trange, remove excess:
         if cutrange[0] != self.trange[0]: cutrange[0] += bx
         if cutrange[1] != self.trange[1]: cutrange[1] -= bx
-        info('%s: blockrange: %s, cutrange: %s' %
-            (mp.current_process().name, blockrange, cutrange))
+        info('%s: blockrange: %s, cutrange: %s' % (ps().name, blockrange, cutrange))
         tslice = time.time()
         # get WaveForm of multichan data, including excess, ignores out of range data requests:
         wave = stream[blockrange[0]:blockrange[1]]
-        print('%s: Stream slice took %.3f sec' %
-             (mp.current_process().name, time.time()-tslice))
+        print('%s: Stream slice took %.3f sec' % (ps().name, time.time()-tslice))
         tres = stream.tres
 
         if self.threshmethod == 'Dynamic':
             # update thresh for each channel for this new block of data
             tnoise = time.time()
             noise = self.get_noise(wave.data) # float AD units
-            info('%s: get_noise took %.3f sec' % (mp.current_process().name, time.time()-tnoise))
+            info('%s: get_noise took %.3f sec' % (ps().name, time.time()-tnoise))
             self.thresh = noise * self.noisemult # float AD units
             self.thresh = np.int16(np.round(self.thresh)) # int16 AD units
             # clip so that fixedthresh <= self.thresh <= self.thresh.max()
@@ -324,14 +315,22 @@ class Detector(object):
             # peak-to-peak threshold, abs, in AD units
             self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult))
             AD2uV = self.sort.converter.AD2uV
-            info('%s: thresh:   %r' % (mp.current_process().name, AD2uV(self.thresh)))
-            #info('%s: ppthresh: %r' % (mp.current_process().name, AD2uV(self.ppthresh)))
+            #info('%s: thresh:   %r' % (ps().name, AD2uV(self.thresh)))
+            #info('%s: ppthresh: %r' % (ps().name, AD2uV(self.ppthresh)))
 
         tcheck_wave = time.time()
         spikes, wavedata = self.check_wave(wave, cutrange)
-        info('%s: checking wave took %.3f sec' %
-            (mp.current_process().name, time.time()-tcheck_wave))
-        print('%s: found %d spikes' % (mp.current_process().name, len(spikes)))
+        info('%s: checking wave took %.3f sec' % (ps().name, time.time()-tcheck_wave))
+
+        # spikes might come out slightly out of temporal order, due to the way
+        # the best peak is searched for forward and backwards in time on each edge
+        #ttsort = time.time()
+        i = spikes['t'].argsort()
+        spikes = spikes[i] # ensure they're in temporal order
+        wavedata = wavedata[i] # ditto for wavedata
+        #info("%s: temporal sorting took %.3f sec" % (ps().name, time.time()-ttsort))
+
+        print('%s: found %d spikes' % (ps().name, len(spikes)))
         #import cProfile
         #cProfile.runctx('spikes, wavedata = self.check_wave(wave, cutrange)', globals(), locals())
         #spikes, wavedata = [], []
@@ -356,12 +355,10 @@ class Detector(object):
 
         tsharp = time.time()
         sharp = spyke.util.sharpness2D(wave.data)
-        info('%s: sharpness2D() took %.3f sec' %
-            (mp.current_process().name, time.time()-tsharp))
+        info('%s: sharpness2D() took %.3f sec' % (ps().name, time.time()-tsharp))
         targthreshsharp = time.time()
         peakis = spyke.util.argthreshsharp(wave.data, self.thresh, sharp) # thresh exceeding peak indices
-        info('%s: argthreshsharp() took %.3f sec' %
-            (mp.current_process().name, time.time()-targthreshsharp))
+        info('%s: argthreshsharp() took %.3f sec' % (ps().name, time.time()-targthreshsharp))
 
         dti = self.dti
         twi = sort.twi
@@ -562,8 +559,8 @@ class Detector(object):
             # sharpest phases line up with those of the maxchan. This fixes double
             # triggers that happened about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
             lockouts[chanis] = t0i + phasetis.max(axis=1)
-            if DEBUG: debug('lockouts=%r\nfor chans=%r' % (list(wave.ts[lockouts[chanis]]),
-                                                           list(self.chans[chanis])))
+            if DEBUG: debug('lockouts=%r\nfor chans=%r' %
+                           (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
             nspikes += 1
 
         # shrink spikes and wavedata down to actual needed size

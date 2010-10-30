@@ -359,7 +359,7 @@ class Stream(object):
         # check whether self.rts values are all equally spaced,
         # indicating there were no pauses in recording. Then, set a flag
         self.contiguous = (np.diff(self.rts, n=2) == 0).all()
-        if not self.contiguous:
+        if not self.contiguous and kind == 'highpass': # don't bother reporting again for lowpass
             print('NOTE: time gaps exist in %s, possibly due to pauses' % self.fname)
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
@@ -1178,3 +1178,33 @@ def ordered(ts):
     return (np.diff(ts) >= 0).all()
     # or, you could compare the array to an explicitly sorted version of itself,
     # and see if they're identical
+
+def concatenate_destroy(arrays):
+    """Concatenate list of arrays along 0th axis, destroying them in the process.
+    Doesn't duplicate everything in arrays, as does numpy.concatenate. Only
+    temporarily duplicates one array at a time, saving memory"""
+    if type(arrays) not in (list, tuple):
+        raise TypeError('arrays must be list or tuple')
+    arrays = list(arrays)
+    nrows = 0
+    a0 = arrays[0]
+    subshape = a0.shape[1::] # dims excluding concatenation dim
+    dtype = a0.dtype
+    for i, a in enumerate(arrays):
+        nrows += len(a)
+        if a.shape[1::] != subshape:
+            raise TypeError("array %d has subshape %r instead of %r" % (a.shape[1::], subshape))
+        if a.dtype != dtype:
+            raise TypeError("array %d has type %r instead of %r" % (a.dtype, dtype))
+    shape = [nrows] + list(subshape)
+
+    # use np.empty to size up to memory + virtual memory before throwing MemoryError
+    a = np.empty(shape, dtype=dtype)
+    rowi = 0
+    narrays = len(arrays)
+    for i in range(narrays):
+        array = arrays.pop(0)
+        nrows = len(array)
+        a[rowi:rowi+nrows] = array # concatenate along 0th axis
+        rowi += nrows
+    return a
