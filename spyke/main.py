@@ -1334,7 +1334,7 @@ class SpykeFrame(wxglade_gui.SpykeFrame):
 
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width
-        self.t = int(round(self.hpstream.t0 + tww/2)) # set current time position in recording (us)
+        self.t = intround(self.hpstream.t0 + tww/2) # set current timepoint (us)
 
         self.CreateNewSort() # create a new Sort
         self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist

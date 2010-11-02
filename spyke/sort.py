@@ -18,7 +18,7 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from spyke.core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez
+from spyke.core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
 from spyke import wxglade_gui
 
 MAXCHANTOLERANCE = 100 # um
@@ -101,7 +101,7 @@ class Sort(object):
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twts = twts
         # time window indices wrt thresh xing or 1st phase:
-        self.twi = int(round(twts[0] / tres)), int(round(twts[-1] / tres))
+        self.twi = intround(twts[0] / tres), intround(twts[-1] / tres)
         #info('twi = %s' % (self.twi,))
 
     stream = property(get_stream, set_stream)
@@ -517,7 +517,7 @@ class Sort(object):
         assert np.log2(npoints) % 1 == 0, 'npoints is not a power of 2'
         # get ti - time index each spike is assumed to be centered on
         self.spikes[0].update_wave(self.stream) # make sure it has a wave
-        ti = int(round(self.spikes[0].wave.data.shape[-1] / 4)) # 13 for 50 kHz, 6 for 25 kHz
+        ti = intround(self.spikes[0].wave.data.shape[-1] / 4) # 13 for 50 kHz, 6 for 25 kHz
         dims = self.nspikes, 2+nchans*npoints
         output = np.empty(dims, dtype=np.float32)
         dm = self.detector.dm
@@ -610,7 +610,7 @@ class Sort(object):
                     weights = np.abs(np.asarray([templatewave.data, spikewave.data])).max(axis=0) # take elementwise max of abs of template and spike data
                 err = (templatewave.data - spikewave.data) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
-                template.err.append((spike.id, int(round(err))))
+                template.err.append((spike.id, intround(err)))
             template.err = np.asarray(template.err, dtype=np.int64)
             if sort and len(template.err) != 0:
                 i = template.err[:, 1].argsort() # row indices that sort by error

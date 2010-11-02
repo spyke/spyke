@@ -16,7 +16,7 @@ import datetime
 
 import wx
 
-from spyke.core import Stream, iterable, toiter, win2posixpath, ordered
+from spyke.core import Stream, iterable, toiter, win2posixpath, ordered, intround
 
 NULL = '\x00'
 
@@ -341,13 +341,12 @@ class File(object):
 
         self.lowpassmultichanrecords['TimeStamp'] = np.unique(rts)
         self.lowpassmultichanrecords['Probe'] = probe
-        self.lowpassmultichanrecords['NumSamples'] = NumSamples
+        self.lowpassmultichanrecords['NumSamples'] = NumSamples * lpmclayout.nchans
         self.lowpassmultichanrecords['lpreci'] = np.arange(0, self.nlowpassrecords, nchans)
 
     def _verifyParsing(self):
         """Make sure timestamps of all records are in causal (increasing)
-        order. If not, sort them I guess?"""
-        #print('Asserting increasing record order')
+        order. If not, sort them"""
         for attrname, attr in self.__dict__.items():
             if attrname.endswith('records') and iterable(attr):
                 ts = get_record_timestamps(attr)
@@ -687,7 +686,7 @@ class LayoutRecord(object):
         # if any) (25000, 1000)
         self.sampfreqperchan, = unpack('i', f.read(4))
         # us, store it here for convenience
-        self.tres = int(round(1 / float(self.sampfreqperchan) * 1e6)) # us
+        self.tres = intround(1 / float(self.sampfreqperchan) * 1e6) # us
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999
         # only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
         self.extgain = np.asarray(unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS)))

@@ -27,10 +27,9 @@ from scipy.weave import inline
 #import nmpfit
 
 import spyke.surf
-from spyke.core import eucd, ordered, concatenate_destroy
+from spyke.core import eucd, ordered, concatenate_destroy, intround
 
 #from spyke import threadpool
-#from spyke.core import  WaveForm, toiter, argcut, intround, g, g2, RM
 #from text import SimpleTable
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
@@ -229,10 +228,8 @@ class Detector(object):
                 spikes.append(blockspikes)
                 wavedata.append(blockwavedata)
 
-        try: spikes = concatenate_destroy(spikes)
-        except: import pdb; pdb.set_trace()
-        try: wavedata = concatenate_destroy(wavedata) # along sid axis, other dims are identical
-        except: import pdb; pdb.set_trace()
+        spikes = concatenate_destroy(spikes)
+        wavedata = concatenate_destroy(wavedata) # along sid axis, other dims are identical
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
@@ -570,26 +567,23 @@ class Detector(object):
         return spikes, wavedata
 
     def get_blockranges(self, bs, bx):
-        """Generate time ranges for slightly overlapping blocks of data that span
-        self.trange, given blocksize and blockexcess"""
+        """Generate time ranges for slightly overlapping blocks of contiguous data that
+        span self.trange, given blocksize and blockexcess"""
         stream = self.sort.stream
         bs = abs(bs)
         bx = abs(bx)
         if not self.trange[0] <= self.trange[1]: # not a forward search
             raise RuntimeError('backward detection not allowed')
 
-        try:
-            tranges = stream.tranges # it's a TrackStream
-            # pick out all tranges that overlap with self.trange
-            trangesi = (self.trange[0] < tranges[:, 1]) & (tranges[:, 0] < self.trange[1])
-            tranges = tranges[trangesi]
-        except AttributeError:
-            tranges = np.asarray([self.trange]) # it's a normal Stream
+        tranges = stream.tranges
+        # pick out all tranges that overlap with self.trange
+        trangesi = (self.trange[0] < tranges[:, 1]) & (tranges[:, 0] < self.trange[1])
+        tranges = tranges[trangesi]
 
         blockranges = []
-        for trange in tranges: # iterate over recordings
+        for trange in tranges: # iterate over contiguous time ranges
             br = [] # list of blockranges for this trange
-            # constrain in case self.trange falls within trange of just one recording
+            # constrain in case self.trange falls within just one trange
             t0 = max(trange[0], self.trange[0])
             t1 = min(trange[1], self.trange[1])
             es = range(t0, t1, bs) # left edges of data blocks
@@ -619,7 +613,7 @@ class Detector(object):
             if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
                 blockranges = [self.trange] # use a single block of data, as defined by trange
             else:
-                nblocks = int(round(self.fixednoisewin / self.blocksize))
+                nblocks = intround(self.fixednoisewin / self.blocksize)
                 blockranges = RandomBlockRanges(self.trange, bs=self.blocksize, bx=0,
                                                 maxntranges=nblocks, replacement=False)
             # preallocating memory doesn't seem to help here, all the time is in loading from stream:

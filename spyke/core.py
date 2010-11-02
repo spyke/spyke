@@ -9,7 +9,7 @@ import cPickle
 import gzip
 import hashlib
 import time
-import datetime
+from datetime import timedelta
 import os
 import sys
 
@@ -183,18 +183,27 @@ class TrackStream(object):
         else: raise ValueError('Unknown stream kind %r' % kind)
 
         datetimes = [stream.datetime for stream in streams]
-        if not (np.diff(datetimes) >= datetime.timedelta(0)).all():
+        if not (np.diff(datetimes) >= timedelta(0)).all():
             raise RuntimeError(".srf files aren't in temporal order")
-        # generate list of stream timestamps, each of which represents the time in us of
-        # each stream's t0 and t1, relative to the start of acquisition (t=0) in the first stream
-        self.tranges = np.zeros((len(streams), 2), dtype=np.int64)
-        for streami, stream in enumerate(streams):
+
+        """Generate tranges, an array of all the contiguous data ranges in all the
+        streams in self. These are relative to the start of acquisition (t=0) in the first
+        stream. Also generate streamtranges, an array of each stream's t0 and t1"""
+        tranges = []
+        streamtranges = []
+        for stream in streams:
             td = stream.datetime - datetimes[0] # time delta between streami and stream 0
-            t0 = td + datetime.timedelta(microseconds=stream.t0)
-            t1 = td + datetime.timedelta(microseconds=stream.t1)
-            self.tranges[streami] = timedelta2usec(t0), timedelta2usec(t1)
-        self.t0 = self.tranges[0, 0]
-        self.t1 = self.tranges[-1, 1]
+            for trange in stream.tranges:
+                t0 = timedelta2usec(td + timedelta(microseconds=int(trange[0])))
+                t1 = timedelta2usec(td + timedelta(microseconds=int(trange[1])))
+                tranges.append([t0, t1])
+            streamt0 = timedelta2usec(td + timedelta(microseconds=int(stream.t0)))
+            streamt1 = timedelta2usec(td + timedelta(microseconds=int(stream.t1)))
+            streamtranges.append([streamt0, streamt1])
+        self.tranges = np.int64(tranges)
+        self.streamtranges = np.int64(streamtranges)
+        self.t0 = self.streamtranges[0, 0]
+        self.t1 = self.streamtranges[-1, 1]
 
         self.layout = streams[0].layout # assume they're identical
         intgains = np.asarray([ stream.converter.intgain for stream in streams ])
@@ -293,14 +302,14 @@ class TrackStream(object):
         start, stop = max(key.start, self.t0), min(key.stop, self.t1) # stay in bounds
         streamis = []
         # TODO: this could probably be more efficient by not iterating over all streams:
-        for streami, trange in enumerate(self.tranges):
+        for streami, trange in enumerate(self.streamtranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
         ts = np.arange(start, stop, tres)
         data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
-            abst0 = self.tranges[streami, 0] # absolute start time of stream
+            abst0 = self.streamtranges[streami, 0] # absolute start time of stream
             # find start and end offsets relative to abst0
             relt0 = max(start - abst0, 0) # stay within stream's lower limit
             relt1 = min(stop - abst0, stream.t1 - stream.t0) # stay within stream's upper limit
@@ -327,19 +336,19 @@ class Stream(object):
         self.srff = srff
         self.kind = kind
         if kind == 'highpass':
-            self.ctsrecords = srff.highpassrecords
+            self.records = srff.highpassrecords
         elif kind == 'lowpass':
-            self.ctsrecords = srff.lowpassmultichanrecords
+            self.records = srff.lowpassmultichanrecords
         else: raise ValueError('Unknown stream kind %r' % kind)
 
-        # assume same layout for all ctsrecords of type "kind"
-        self.layout = self.srff.layoutrecords[self.ctsrecords['Probe'][0]]
+        # assume same layout for all records of type "kind"
+        self.layout = self.srff.layoutrecords[self.records['Probe'][0]]
         intgain = self.layout.intgain
         extgain = int(self.layout.extgain[0]) # assume same extgain for all chans in layout
         self.converter = Converter(intgain, extgain)
         self.nADchans = self.layout.nchans # always constant
         self.rawsampfreq = self.layout.sampfreqperchan
-        self.rawtres = int(round(1 / self.rawsampfreq * 1e6)) # us
+        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
         if kind == 'highpass':
             ADchans = self.layout.ADchanlist
             if list(self.layout.ADchanlist) != range(self.nADchans):
@@ -355,20 +364,37 @@ class Stream(object):
             self.chans = self.layout.chans
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
-        self.rts = self.ctsrecords['TimeStamp'] # array of ctsrecord timestamps
-        # check whether self.rts values are all equally spaced,
-        # indicating there were no pauses in recording. Then, set a flag
-        self.contiguous = (np.diff(self.rts, n=2) == 0).all()
-        if not self.contiguous and kind == 'highpass': # don't bother reporting again for lowpass
-            print('NOTE: time gaps exist in %s, possibly due to pauses' % self.fname)
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
         self.probe = probetype() # instantiate it
 
-        self.t0 = int(self.rts[0]) # us, time that recording began, time of first recorded data point
-        lastctsrecordnt = int(round(self.ctsrecords['NumSamples'][-1] / self.layout.nchans)) # nsamples in last record
-        self.t1 = int(self.rts[-1] + (lastctsrecordnt-1)*self.rawtres) # time of last recorded data point
+        rts = self.records['TimeStamp'] # array of record timestamps
+        NumSamples = np.unique(self.records['NumSamples'])
+        if len(NumSamples) > 1:
+            raise RuntimeError("Not all continuous records are of the same length. "
+                               "NumSamples = %r" % NumSamples)
+        rtlen = NumSamples / self.nADchans * self.rawtres
+        # Check whether rts values are all equally spaced, indicating there were no
+        # pauses in recording
+        diffrts = np.diff(rts)
+        self.contiguous = (np.diff(diffrts) == 0).all() # could also call diff(rts, n=2)
+        if self.contiguous:
+            try: assert np.unique(diffrts) == rtlen
+            except AssertionError: import pdb; pdb.set_trace()
+            self.tranges = np.int64([[rts[0], rts[-1]+rtlen]]) # keep it 2D
+        else:
+            if kind == 'highpass': # don't bother reporting again for lowpass
+                print('NOTE: time gaps exist in %s, possibly due to pauses' % self.fname)
+            # build up self.tranges
+            splitis = np.where(diffrts != rtlen)[0] + 1
+            splits = np.split(rts, splitis) # list of arrays of contiguous rts
+            tranges = []
+            for split in splits: # for each array of contiguous rts
+                tranges.append([split[0], split[-1]+rtlen])
+            self.tranges = np.int64(tranges)
+        self.t0 = self.tranges[0, 0]
+        self.t1 = self.tranges[-1, 1]
 
     def __del__(self):
         # doesn't seem to get called on a Ctrl-C event
@@ -406,7 +432,7 @@ class Stream(object):
             del self.kernels
         except AttributeError:
             pass
-        self.tres = int(round(1 / self.sampfreq * 1e6)) # us, for convenience
+        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
@@ -462,9 +488,9 @@ class Stream(object):
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.zeros((nADchans, ntxs), dtype=np.int32) # any gaps will have zeros
         # first and last record indices corresponding to the slice
-        loreci, hireci = self.rts.searchsorted([t0xs, t1xs], side='right')
+        loreci, hireci = self.records['TimeStamp'].searchsorted([t0xs, t1xs], side='right')
         # always get back at least 1 record
-        records = self.ctsrecords[max(loreci-1, 0):max(hireci, 1)]
+        records = self.records[max(loreci-1, 0):max(hireci, 1)]
 
         # load up data+excess, from all relevant records
         # TODO: fix code duplication
@@ -483,7 +509,7 @@ class Stream(object):
                 dt1i = min(t1i - t0xsi, ntxs)
                 dataxs[:, dt0i:dt1i] = d[:, st0i:st1i]
         else: # kind == 'lowpass', need to load chans from subsequent records
-            nt = records[0]['NumSamples'] # assume all lpmc records are same length
+            nt = records[0]['NumSamples'] / nADchans # assume all lpmc records are same length
             d = np.zeros((nADchans, nt), dtype=np.int32)
             for record in records: # iterating over lowpassmultichan records
                 for chani in range(nADchans):
@@ -538,7 +564,7 @@ class Stream(object):
         #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
         rawtres = self.rawtres # us
         tres = self.tres # us
-        resamplex = int(round(self.sampfreq / self.rawsampfreq)) # resample factor: n output resampled points per input raw point
+        resamplex = intround(self.sampfreq / self.rawsampfreq) # resample factor: n output resampled points per input raw point
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
