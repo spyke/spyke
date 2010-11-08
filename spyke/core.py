@@ -292,17 +292,7 @@ class TrackStream(object):
         """Just a way to pickle all the .srf files associated with self"""
         for stream in self.streams:
             stream.pickle()
-    '''
-    def pop_srff(self):
-        srffs = []
-        for stream in self.streams:
-            srffs.append(stream.pop_srff())
-        return srffs
 
-    def push_srff(self, srffs):
-        for srff, stream in zip(srffs, self.streams):
-            stream.push_srff(srff)
-    '''
     def __getitem__(self, key):
         """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
         2), send the request to the stream(s), generate the appropriate timestamps, and
@@ -467,15 +457,7 @@ class Stream(object):
 
     def pickle(self):
         self.srff.pickle()
-    '''
-    def pop_srff(self):
-        srff = self.srff
-        del self.srff
-        return srff
 
-    def push_srff(self, srff):
-        self.srff = srff
-    '''
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
