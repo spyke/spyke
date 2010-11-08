@@ -46,6 +46,7 @@ NCHANSPERBOARD = 32 # TODO: stop hard coding this
 TW = -500, 500 # spike time window range, us, centered on thresh xing or main phase of spike
 
 MAXLONGLONG = 2**63-1
+MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
@@ -291,7 +292,17 @@ class TrackStream(object):
         """Just a way to pickle all the .srf files associated with self"""
         for stream in self.streams:
             stream.pickle()
+    '''
+    def pop_srff(self):
+        srffs = []
+        for stream in self.streams:
+            srffs.append(stream.pop_srff())
+        return srffs
 
+    def push_srff(self, srffs):
+        for srff, stream in zip(srffs, self.streams):
+            stream.push_srff(srff)
+    '''
     def __getitem__(self, key):
         """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
         2), send the request to the stream(s), generate the appropriate timestamps, and
@@ -456,7 +467,15 @@ class Stream(object):
 
     def pickle(self):
         self.srff.pickle()
+    '''
+    def pop_srff(self):
+        srff = self.srff
+        del self.srff
+        return srff
 
+    def push_srff(self, srff):
+        self.srff = srff
+    '''
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object, indicating
         start and end timepoints in us. Returns the corresponding WaveForm object, which has as
@@ -847,6 +866,44 @@ class Stack(list):
             raise IndexError('stack index %d out of range' % key)
         return list.__getitem__(self, key)
 
+
+def save(fname, arr):
+    """Taken from np.lib.npyio.save and np.lib.format.write_array to write
+    a big array to a .npy file in reasonably sized chunks at a time so
+    as not to trigger msvc >= 2**31 byte fwrite() call problems which happen
+    even in win64. See http://projects.scipy.org/numpy/ticket/1660 and
+    http://bugs.python.org/issue9015.
+    Rendered unnecessary by Christoph Gohlke's numpy patch!
+
+    # test code:
+    fourgbplus = 2**32 + 2**16
+    testbytes = np.arange(8, dtype=np.int8).reshape(1, -1) # make it 2D
+    arr = testbytes.repeat(fourgbplus // testbytes.nbytes, axis=0)
+    save('test', arr)
+    np.save('test_np', arr) # compare the two files in hex editor
+    # files should have MD5 (128 bit) hash: 99BFB5B8E2FA2DB93092C5454AAF9388
+    """
+    if not arr.flags.c_contiguous:
+        if not arr.flags.f_contiguous:
+            raise ValueError("array is not contiguous")
+        raise NotImplementedError('saving f-contig arrays not tested')
+        arr = arr.T # transpose to convert from f-contig to c-contig
+
+    if not fname.endswith('.npy'):
+        fname = fname + '.npy'
+    f = open(fname, 'wb')
+
+    version = 1, 0 # .npy format version
+    format = np.lib.format
+    f.write(format.magic(*version))
+    format.write_array_header_1_0(f, format.header_data_from_array_1_0(arr))
+
+    nchunks = int(np.ceil(arr.nbytes / MAXNBYTESTOFILE))
+    arrravel = arr.ravel()
+    for chunki in range(nchunks):
+        lo, hi = MAXNBYTESTOFILE*chunki, MAXNBYTESTOFILE*(chunki+1)
+        arrravel[lo:hi].tofile(f) # these are contiguous views, not copies
+    f.close()
 
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.
