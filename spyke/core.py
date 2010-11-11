@@ -239,7 +239,6 @@ class TrackStream(object):
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
 
-
     def __del__(self):
         self.close()
 

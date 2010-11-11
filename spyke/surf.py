@@ -86,7 +86,9 @@ class File(object):
         for the simulus to begin after clicking SHIFT-record;
         OR
         B) when the record button was clicked (without SHIFT), causing acquisition and
-        recording to both immediately begin (or reset).
+        recording to both immediately begin (or reset). Note that hitting play, which starts
+        the boards acquiring (but not saving), followed by hitting record, quickly stops and
+        restarts the boards, so that the clock is reset back to 0.
         """
         # Any message record in the file could be used, since each has a TimeStamp with a
         # corresponding datetime stamp. Could also use the display header record, since
@@ -98,8 +100,19 @@ class File(object):
         # So, use the first message record by default (although to get the most accurate
         # value, could take the average of all the messagerecords in the file, but the
         # variation from one record to the next is < 100ms or so):
-        t0 = self.messagerecords[0].TimeStamp
-        return self.messagerecords[0].datetime - datetime.timedelta(microseconds=t0)
+        msgreciter = iter(self.messagerecords)
+        while True:
+            # find the first SurfMessageRecord, don't trust timestamps of
+            # UserMessageRecords, since UserMessageRecords generated before or after
+            # actual recording to disk, or during a pause in recording, have a
+            # misleading TimeStamp of 0
+            # There should always be at least 2 SurfMessageRecords, so no need to check
+            # for StopIteration:
+            rec = msgreciter.next()
+            if type(rec) == UserMessageRecord:
+                continue
+            break
+        return rec.datetime - datetime.timedelta(microseconds=rec.TimeStamp)
 
     datetime = property(get_datetime)
 
@@ -111,9 +124,14 @@ class File(object):
         return d
 
     def __setstate__(self, d):
-        """Restore open .srf file handle on unpickle. Also, see self.unpickle"""
+        """Try and restore open .srf file handle on unpickle. Also, see self.unpickle"""
         self.__dict__ = d
-        self.open()
+        try:
+            self.open()
+        except IOError:
+            # .srf file isn't available, perhaps I'm being unpickled from a .sort file
+            # instead of from a .parse file.
+            pass
 
     def _parseFileHeader(self):
         """Parse the Surf file header"""
@@ -846,7 +864,14 @@ class StimulusHeader(object):
 
 
 def get_record_timestamps(records):
-    """Return timestamps of records iterable"""
+    """Return timestamps of records iterable, used for sorting records in
+    temporal order"""
+    if isinstance(records[0], MessageRecord):
+        # UserMessageRecords generated before or after actual recording to disk,
+        # or during a pause in recording, have a misleading TimeStamp of 0, so
+        # instead use the DateTime for sorting MessageRecords in temporal order
+        ts = np.asarray([ record.DateTime for record in records ])
+        return ts
     try:
         ts = np.asarray([ record.TimeStamp for record in records ])
     except AttributeError:

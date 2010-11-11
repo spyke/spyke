@@ -7,8 +7,6 @@ RECENT:
     - to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
     - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
 
-- something's wrong with track7c, near the end. The tranges don't work out correctly. Do search from 62513902000 to 63376585960
-
 - would be nice to have drag and drop of .srf and .track files onto the main spyke frame perform identically to the manual File/Open scenario, especially for files that are on an external drive, that File/Open doesn't default to
 
 - localization during detection makes detection take 60% longer, which seems like a lot. Maybe use Cython to speed up fitting of each spike's waveform? The passing of a Python f'n to LM and constantly calling it as it iterates is probably the slow bit. So, this means all of LM would have to be rewritten in Cython?
@@ -819,6 +817,10 @@ DONE:
           IndexError: invalid index
     - this was due to not taking within-recording time gaps into account, and in this case, getting no spikes back from a detection blockrange that fell completely within one of these internal time gaps. In multiprocess detection, the error was not visible, because it doesn't halt execution, and it scrolled off the top of the command window buffer by the time detection had psudo-finished.
     - this is fixed by giving each Stream (not just each TrackStream) its own tranges, to allow detection to avoid
+- something's wrong with track7c, near the end. The tranges don't work out correctly. Do search from 62513902000 to 63376585960
+    - file 95c is the problem
+    - looks like timestamps of user message records generated during a period when data wasn't actively being recorded to disk are messed up in Surf, and given a TimeStamp of 0, even when the clock is still running during a pause. Their datetime stamps seem correct though. So, I shoud avoid using user message records to calculate the datetime of the start of acquisition in each .srf file
+
 
 
 
