@@ -1,15 +1,26 @@
 RECENT:
 
-- create a TrackStream and do one super huge spike sorting on all spikes from all recordings in a given track, but then export them back out one recording at a time, per usual
-    - when exporting, keep the offsetted timestamps intact, and offset the corresponding .din files appropriately
-        - problem: you'd need two sets of .din files if you also wanted to sort just a single or a few .srf files at a time, or if you wanted to sort a track starting from different .srf files
-    - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
-    - to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
-    - check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
+- consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records
+
+- demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
+
+- add DeleteAll for clusters, maybe Shift+'-'?
+    - this should also delete all undo/redo history, to save memory and time
+    - can't figure out how to check for Shift modifier on GUI button click, since the event is a CommandEvent, not a Mouse or Key event
+
+- TrackStream: when exporting, keep the offsetted timestamps intact, and offset the corresponding .din files appropriately?
+    - problem: you'd need two sets of .din files if you also wanted to sort just a single or a few .srf files at a time, or if you wanted to sort a track starting from different .srf files
+    - might be best then to export spike times not offsetted, ie relative to their respective .din files? Could also export the int64 us offset time for each recording in a separate file, say t0.bin. Then, if you really wanted to combine spikes from all recordings in a track in neuropy, you could use the relative t0.bin values to add the appropriate offsets back to the spike times
+
+- TrackStream: to deal with different intgains, find recording with biggest intgain, call that value maxintgain. For each recording, scale its values by its intgain/maxintgain when returning a slice from its stream. Note that this ratio should always be factors of 2, so all you have to do is bitshift, I think. Then, have a single converter for the trackstream whose intgain value is set to maxintgain
+
+- check that the sort file you're opening came from the srffname, or list of srffnames that are currently open
 
 - would be nice to have drag and drop of .srf and .track files onto the main spyke frame perform identically to the manual File/Open scenario, especially for files that are on an external drive, that File/Open doesn't default to
 
 - localization during detection makes detection take 60% longer, which seems like a lot. Maybe use Cython to speed up fitting of each spike's waveform? The passing of a Python f'n to LM and constantly calling it as it iterates is probably the slow bit. So, this means all of LM would have to be rewritten in Cython?
+    - yes, but only because the SciPy implementation is from LMPack, which is Fortran. If I could find a C version, I could easily interface into that with Cython, and not have to rewrite the algorithm.
+    - could also try specifying an analytical Jacobian instead of forcing it to be estimated on each call (ie for each spike that needs to be localized)
 
 - autosave .sort file every 10 min or so during detection? and then what, how would you resume detection if it messed up previously? Doesn't seem very feasible
 
@@ -36,8 +47,6 @@ RECENT:
 
 - (semi) automate cluster cleaning somehow
 
-- demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
-
 - maybe integrate STA into spyke for quick look at RFs of what you just clustered, and especially, how the RFs may have changed with the last clustering change - ie, keep previous RF plots open for comparison
 
 - set y site coords to be -ve, ie still starting from 0 at top of probe, but then decreasing to -ve numbers as you go down the probe - this would make plotting simpler - top of probe is at top, and bottom is at bottom - no need to reverse the y axis
@@ -59,8 +68,9 @@ RECENT:
 
 - add ability to cycle through plotting all of a cluster's waveforms, 50 or 100 at a time, ala NVS, to more thoroughly check how clean the cluster really is
     - maybe select a range of spikes to display, and then have a keyboard command that lets you scroll that selection range up and down by half its length. So, for example, you select spikes 50-100 by hand, and then hit Alt+Pgdn (or Alt+down) to change selection to spikes 75-125. Or there could be no overlap too. If initial selection is less than say 25, make Alt+down select at least 25 at a time.
+    - going Ctrl+PgDwn or PgUp in the sort window does the same thing, 50 at a time. Works well enough
 
-- spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
+- spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff which opens automatically after loading a .sort file. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
 
 - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
 
@@ -820,6 +830,8 @@ DONE:
 - something's wrong with track7c, near the end. The tranges don't work out correctly. Do search from 62513902000 to 63376585960
     - file 95c is the problem
     - looks like timestamps of user message records generated during a period when data wasn't actively being recorded to disk are messed up in Surf, and given a TimeStamp of 0, even when the clock is still running during a pause. Their datetime stamps seem correct though. So, I shoud avoid using user message records to calculate the datetime of the start of acquisition in each .srf file
+- create a TrackStream and do one super huge spike sorting on all spikes from all recordings in a given track, but then export them back out one recording at a time, per usual
+    - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
 
 
 

@@ -68,6 +68,7 @@ class File(object):
         self.nhighpassrecords = 0
         self.nlowpassrecords = 0
         self.ndigitalsvalrecords = 0
+        self._pickle_all_records = False # signal to __getstate__ whether to pickle all records
 
     def open(self):
         """(Re)open previously closed .srf file"""
@@ -117,9 +118,26 @@ class File(object):
     datetime = property(get_datetime)
 
     def __getstate__(self):
-        """Don't pickle open .srf file handle on pickle"""
+        """Don't pickle open .srf file handle on pickle. Also, save space (for .sort files)
+        by not pickling all records unless explicitly signalled to do so (for .parse files)
+        """
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['f'] # exclude open .srf file handle
+        try:
+            del d['f'] # exclude open .srf file handle, if any
+        except KeyError:
+            pass
+        if not hasattr(self, '_pickle_all_records'): # if pulled from old .parse file
+            self._pickle_all_records = d['_pickle_all_records'] = False
+        try:
+            if not self._pickle_all_records:
+                del d['lowpassrecords'] # these are hogs
+                del d['highpassrecords']
+                del d['lowpassmultichanrecords']
+                #del d['digitalsvalrecords'] # these are hogs too, but useful to keep
+        except KeyError:
+            # self was probably restored from a .sort, so all of these attribs have
+            # probably already been stripped
+            pass
         # leave the streams be, since you need them for their enabled chans info
         return d
 
@@ -418,11 +436,13 @@ class File(object):
         """Pickle self to a .parse file"""
         print('Saving parse info to %r' % self.parsefname)
         pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
+        self._pickle_all_records = True # signal to __getstate__ to pickle all records
         wasopen = self.is_open()
         if wasopen: self.close()
         cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
         pf.close()
         if wasopen: self.open() # reopen it
+        self._pickle_all_records = False # reset to not pickle all records by default
         print('Saved parse info to %r' % self.parsefname)
 
     def unpickle(self):

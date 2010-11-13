@@ -138,7 +138,6 @@ class SpykeMayaviScene(MayaviScene):
 
     def OnKeyDown(self, event):
         key = event.GetKeyCode()
-        #modifiers = event.HasModifiers()
         sf = self._spykeframe
         if key == ord('a'):
             sf.OnAddCluster(); return

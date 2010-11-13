@@ -239,9 +239,6 @@ class TrackStream(object):
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
 
-    def __del__(self):
-        self.close()
-
     def open(self):
         for stream in self.streams:
             stream.open()
@@ -395,11 +392,6 @@ class Stream(object):
             self.tranges = np.int64(tranges)
         self.t0 = self.tranges[0, 0]
         self.t1 = self.tranges[-1, 1]
-
-    def __del__(self):
-        # doesn't seem to get called on a Ctrl-C event
-        print("Stream destructor called")
-        self.close()
 
     def open(self):
         self.srff.open()
