@@ -2112,7 +2112,7 @@ class PyShellFrame(wx.MiniFrame,
         self.LoadSettings()
 
         self.CreateStatusBar()
-        wx.py.frame.Frame._Frame__createMenus(self) # stupid __ name mangling, see Python docs
+        #wx.py.frame.Frame._Frame__createMenus(self) # stupid __ name mangling, see Python docs
 
         self.iconized = False
         self.findDlg = None

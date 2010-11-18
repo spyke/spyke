@@ -294,11 +294,11 @@ class Sort(object):
                 if dim in ['x0', 'y0']:
                     d -= d.mean()
                     d /= x0std
-                elif dim == 't': # the longer the recording in hours, the greater the scaling in time
-                    trange = d.max() - d.min()
-                    tscale = trange / (60*60*1e6)
-                    d -= d.mean()
-                    d *= tscale / d.std()
+                #elif dim == 't': # the longer the recording in hours, the greater the scaling in time
+                #    trange = d.max() - d.min()
+                #    tscale = trange / (60*60*1e6)
+                #    d -= d.mean()
+                #    d *= tscale / d.std()
                 else: # normalize all other dims by their std
                     d -= d.mean()
                     d /= d.std()

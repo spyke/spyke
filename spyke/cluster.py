@@ -10,15 +10,25 @@ import numpy as np
 
 import wx
 
-from enthought.traits.api import HasTraits, Instance
-from enthought.traits.ui.api import View, Item
-from enthought.tvtk.pyface.scene_editor import SceneEditor
-from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel
-from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
-from enthought.mayavi import mlab
-from enthought.mayavi.tools.engine_manager import get_engine
+#import pdb; pdb.set_trace()
+print('starting mayavi imports')
 
+from enthought.traits.api import HasTraits, Instance
+print('1')
+from enthought.traits.ui.api import View, Item
+print('2')
+from enthought.tvtk.pyface.scene_editor import SceneEditor
+print('3')
+from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel
+print('4')
+from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
+print('5')
+from enthought.mayavi import mlab
+print('6')
+from enthought.mayavi.tools.engine_manager import get_engine
+print('7')
 from spyke.plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
+print('done mayavi imports')
 
 
 class Cluster(object):
@@ -343,6 +353,7 @@ class ClusterFrame(wx.MiniFrame):
                   'scale_factor': scale_factor,
                   'vmin': 0, # make sure mayavi respects full range of cmap indices
                   'vmax': len(cmap)-1}
+        print('about to call points3d')
         glyph = mlab.points3d(x, y, z, s, **kwargs)
         try:
             self.view, self.roll = view, roll
