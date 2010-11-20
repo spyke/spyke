@@ -45,7 +45,7 @@ class SpykeFrame(wx.Frame):
         # begin wxGlade: SpykeFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
-        
+
         # Menu Bar
         self.menubar = wx.MenuBar()
         wxglade_tmp_menu = wx.Menu()
@@ -100,7 +100,7 @@ class SpykeFrame(wx.Frame):
         self.menubar.Append(wxglade_tmp_menu, "&Help")
         self.SetMenuBar(self.menubar)
         # Menu Bar end
-        
+
         # Tool Bar
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL|wx.TB_FLAT)
         self.SetToolBar(self.toolbar)
@@ -108,8 +108,8 @@ class SpykeFrame(wx.Frame):
         self.toolbar.AddLabelTool(wx.ID_OPEN, "Open", wx.Bitmap("res/open.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open .srf, .sort or .wave file", "Open .srf, .sort or .wave file")
         self.toolbar.AddLabelTool(wx.ID_SAVE, "Save", wx.Bitmap("res/save.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Save sort session", "Save sort session")
         self.toolbar.AddSeparator()
-        self.toolbar.AddLabelTool(wx.ID_UNDO, "Undo", wx.Bitmap("C:\\bzr\\spyke\\dev\\spyke\\res\\undo.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Undo last clustering change", "Undo last clustering change")
-        self.toolbar.AddLabelTool(wx.ID_REDO, "Redo", wx.Bitmap("C:\\bzr\\spyke\\dev\\spyke\\res\\redo.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Redo last clustering change", "Redo last clustering change")
+        self.toolbar.AddLabelTool(wx.ID_UNDO, "Undo", wx.Bitmap("res/undo.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Undo last clustering change", "Undo last clustering change")
+        self.toolbar.AddLabelTool(wx.ID_REDO, "Redo", wx.Bitmap("res/redo.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Redo last clustering change", "Redo last clustering change")
         self.toolbar.AddSeparator()
         self.toolbar.AddLabelTool(wx.ID_SPIKEWIN, "Spike", wx.Bitmap("res/spike.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_CHECK, "Toggle spike window", "Toggle spike window")
         self.toolbar.AddLabelTool(wx.ID_CHARTWIN, "Chart", wx.Bitmap("res/chart.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_CHECK, "Toggle chart window", "Toggle chart window")
@@ -811,7 +811,7 @@ class SortFrame(wx.MiniFrame):
         # begin wxGlade: SortFrame.__init__
         kwds["style"] = wx.CAPTION|wx.CLOSE_BOX|wx.MAXIMIZE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW|wx.FRAME_NO_TASKBAR|wx.CLIP_CHILDREN
         wx.MiniFrame.__init__(self, *args, **kwds)
-        
+
         # Tool Bar
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL|wx.TB_FLAT|wx.TB_TEXT|wx.TB_NOICONS|wx.TB_HORZ_LAYOUT|wx.TB_HORZ_TEXT)
         self.SetToolBar(self.toolbar)
