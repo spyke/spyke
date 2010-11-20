@@ -5,7 +5,7 @@ import numpy as np
 cimport numpy as np
 
 import random, time
-from spyke import threadpool
+import threadpool
 from multiprocessing import cpu_count
 
 cdef extern from "math.h":

@@ -12,7 +12,7 @@ import numpy as np
 np.seterr(under='warn') # don't halt on underflow during gaussian_fit
 from scipy.optimize import leastsq
 from scipy.interpolate import UnivariateSpline
-import pywt
+#import pywt
 import scipy.stats
 
 import pylab as pl
