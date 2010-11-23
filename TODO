@@ -1,3 +1,9 @@
+QT rewrite:
+
+- maybe use dock widgets for each kind of window, instead of separate windows. Then, everything would be contained in a single maximizable window! Docks can be floated, resized, closed, and reopened, just like ordinary windows. This would simplify UI design, since you'd only have to create and layout everything within a single window. Also, this way, the menu could more logically apply to anything within any of the docks, not just to what currently is in wx the rather small spyke window
+    - actually, can't have more than one dock widget per window edge. Would make sense then to have console as dock along bottom of main. Spike, Chart, and LFP could all be in one window, since they're all the same height, but docks wouldn't work. You'd need to have subwindows within the window that could be enabled and disabled, which would then automatically trigger a resize of the parent window. Might be complicated, but maybe Qt can do this. And finally, the Sort and cluster windows window should remain separate.
+
+
 RECENT:
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records
