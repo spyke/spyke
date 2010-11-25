@@ -90,29 +90,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
         '''
-        #self.Bind(wx.EVT_MOVE, self.OnMove)
-        self.Bind(wx.EVT_CLOSE, self.OnExit)
-
-        self.slider.Bind(wx.EVT_SLIDER, self.OnSlider)
-
-        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-
-        self.set_detect_pane_defaults()
-
-        self.file_pos_combo_box_units_label.SetLabel(MICRO+'s') # can't seem to set mu symbol from within wxGlade
-        self.fixedthreshuV_units_label.SetLabel(MICRO+'V')
-        self.dt_units_label.SetLabel(MICRO+'s')
-        self.range_units_label.SetLabel(MICRO+'s')
-        self.blocksize_units_label.SetLabel(MICRO+'s')
-        self.lockout_units_label.SetLabel(MICRO+'m')
-        self.include_units_label.SetLabel(MICRO+'m')
-
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
         self.EnableSortWidgets(False)
         '''
-        # TODO: load recent file history and add it to menu (see wxGlade code that uses wx.FileHistory)
-
+        # TODO: load recent file history
         # for faster testing:
         '''
         os.chdir('/data/ptc15')
@@ -122,61 +104,27 @@ class SpykeWindow(QtGui.QMainWindow):
         sortfname = '2010-09-09_17.06.14_test.sort'
         self.OpenSortFile(sortfname)
         '''
-    @QtCore.pyqtSlot()
-    def on_actionOpen_triggered(self):
-        print('open')
-
     def on_slider_sliderMoved(self, pos):
         print('slider moved to %d' % pos)
 
     def on_detectButton_pressed(self):
         print('detect pressed')
 
-    def set_detect_pane_defaults(self):
-        """Set detect pane widget initial values"""
-        self.METH2RADIOBTN = {'GlobalFixed': self.globalfixedthresh_radio_btn,
-                              'ChanFixed': self.chanfixedthresh_radio_btn,
-                              'Dynamic': self.dynamicthresh_radio_btn}
-        self.METH2RADIOBTN[detect.Detector.DEFTHRESHMETHOD].SetValue(True) # enable the appropriate radio button
-        self.fixedthreshuV_spin_ctrl.SetValue(detect.Detector.DEFFIXEDTHRESHUV)
-        self.noisemult_text_ctrl.SetValue(str(detect.Detector.DEFNOISEMULT))
-        self.noise_method_choice.SetStringSelection(detect.Detector.DEFNOISEMETHOD)
-        self.ppthreshmult_text_ctrl.SetValue(str(detect.Detector.DEFPPTHRESHMULT))
-        self.dt_spin_ctrl.SetValue(detect.Detector.DEFDT)
-
-        # TODO: this is just temporary, for faster testing
-        #self.range_start_combo_box.SetValue('0')
-        #self.range_end_combo_box.SetValue('30e6')
-
-        self.blocksize_combo_box.SetValue(str(detect.Detector.DEFBLOCKSIZE))
-        self.lockr_spin_ctrl.SetValue(detect.Detector.DEFLOCKR)
-        self.inclr_spin_ctrl.SetValue(detect.Detector.DEFINCLR)
-
-    def set_cluster_pane_defaults(self):
-        s = self.sort
-        self.sigma_text_ctrl.SetValue(str(s.sigma))
-        self.rmergex_text_ctrl.SetValue(str(s.rmergex))
-        self.alpha_text_ctrl.SetValue(str(s.alpha))
-        self.nsamples_spin_ctrl.SetValue(s.nsamples)
-        self.maxstill_spin_ctrl.SetValue(s.maxstill)
-        self.minpoints_spin_ctrl.SetValue(s.minpoints)
-        #self.density_thresh_text_ctrl.SetValue(str(s.density_thresh))
-
-    def OnNew(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionNew_triggered(self):
         self.CreateNewSort()
 
-    def OnOpen(self, evt):
-        dlg = wx.FileDialog(self, message="Open .srf, .track or .sort file",
-                            defaultDir=os.getcwd(), defaultFile='',
-                            wildcard="Surf, track & sort files (*.srf, *.track, *.sort)"
-                                     "|*.srf;*.track;*.sort|All files (*.*)|*.*",
-                            style=wx.OPEN)
-        if dlg.ShowModal() == wx.ID_OK:
-            fname = dlg.GetPath()
+    @QtCore.pyqtSlot()
+    def on_actionOpen_triggered(self):
+        getOpenFileName = QtGui.QFileDialog.getOpenFileName
+        fname = getOpenFileName(self, caption="Open .srf, .track or .sort file",
+                                directory=os.getcwd(),
+                                filter="Surf, track & sort files (*.srf *.track *.sort)")
+        fname = str(fname)
+        if fname:
             head, tail = os.path.split(fname)
             os.chdir(head) # update cwd
             self.OpenFile(tail)
-        dlg.Destroy()
 
     def OnSave(self, evt):
         if not hasattr(self.sort, 'sortfname'):
@@ -1884,7 +1832,6 @@ class SpykeWindow(QtGui.QMainWindow):
         try: self.sort.extractor
         except AttributeError: enable = False # no params extracted, or .sort doesn't exist
         self.cluster_pane.Enable(enable)
-        if enable: self.set_cluster_pane_defaults()
         try:
             if len(self.sort.clusters) == 0: enable = False # no clusters exist yet
         except AttributeError: enable = False

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>502</width>
-    <height>630</height>
+    <width>505</width>
+    <height>366</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,6 +21,9 @@
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="spacing">
+       <number>5</number>
+      </property>
       <item>
        <widget class="QPushButton" name="pushButton">
         <property name="sizePolicy">
@@ -65,13 +68,20 @@
          </size>
         </property>
         <property name="text">
-         <string>0</string>
+         <string/>
         </property>
         <property name="frame">
          <bool>true</bool>
         </property>
         <property name="alignment">
          <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_15">
+        <property name="text">
+         <string>us</string>
         </property>
        </widget>
       </item>
@@ -181,7 +191,7 @@
         <property name="checked">
          <bool>false</bool>
         </property>
-        <widget class="QRadioButton" name="radioButton_2">
+        <widget class="QRadioButton" name="channelFixedRadioButton">
          <property name="geometry">
           <rect>
            <x>5</x>
@@ -197,7 +207,7 @@
           <bool>false</bool>
          </property>
         </widget>
-        <widget class="QRadioButton" name="radioButton">
+        <widget class="QRadioButton" name="globalFixedRadioButton">
          <property name="geometry">
           <rect>
            <x>5</x>
@@ -236,7 +246,7 @@
           <string>Vpp &gt;=</string>
          </property>
         </widget>
-        <widget class="QComboBox" name="comboBox_2">
+        <widget class="QComboBox" name="noiseMethodComboBox">
          <property name="geometry">
           <rect>
            <x>155</x>
@@ -262,7 +272,7 @@
           </property>
          </item>
         </widget>
-        <widget class="QRadioButton" name="radioButton_3">
+        <widget class="QRadioButton" name="dynamicRadioButton">
          <property name="geometry">
           <rect>
            <x>5</x>
@@ -310,7 +320,7 @@
           <string>us</string>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="doubleSpinBox_4">
+        <widget class="QDoubleSpinBox" name="globalFixedSpinBox">
          <property name="geometry">
           <rect>
            <x>100</x>
@@ -368,7 +378,7 @@
           <string>phasedt &lt;= </string>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="doubleSpinBox_5">
+        <widget class="QDoubleSpinBox" name="dynamicNoiseXSpinBox">
          <property name="geometry">
           <rect>
            <x>80</x>
@@ -387,7 +397,7 @@
           <double>6.000000000000000</double>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="doubleSpinBox_6">
+        <widget class="QDoubleSpinBox" name="vppThreshXSpinBox">
          <property name="geometry">
           <rect>
            <x>55</x>
@@ -638,7 +648,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>502</width>
+     <width>505</width>
      <height>23</height>
     </rect>
    </property>
@@ -646,21 +656,79 @@
     <property name="title">
      <string>&amp;File</string>
     </property>
+    <widget class="QMenu" name="menuExport">
+     <property name="title">
+      <string>&amp;Export</string>
+     </property>
+     <addaction name="actionExportSpikes"/>
+     <addaction name="actionExportDIN"/>
+     <addaction name="actionTextheader"/>
+     <addaction name="actionExportAll"/>
+     <addaction name="separator"/>
+     <addaction name="actionExportTsChID"/>
+     <addaction name="separator"/>
+     <addaction name="actionExportLFP"/>
+    </widget>
     <addaction name="actionNew"/>
     <addaction name="actionOpen"/>
-    <addaction name="actionSaveSort"/>
+    <addaction name="actionRecent"/>
     <addaction name="separator"/>
+    <addaction name="actionSaveSort"/>
     <addaction name="actionSaveParse"/>
     <addaction name="actionSaveWave"/>
+    <addaction name="menuExport"/>
+    <addaction name="separator"/>
+    <addaction name="actionClose"/>
+    <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
      <string>&amp;Edit</string>
     </property>
     <addaction name="actionUndo"/>
+    <addaction name="actionRedo"/>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>&amp;View</string>
+    </property>
+    <addaction name="actionSpikeWindow"/>
+    <addaction name="actionChartWindow"/>
+    <addaction name="actionLFPWindow"/>
+    <addaction name="separator"/>
+    <addaction name="actionSortWindow"/>
+    <addaction name="actionClusterWindow"/>
+    <addaction name="separator"/>
+    <addaction name="actionShell"/>
+    <addaction name="separator"/>
+    <addaction name="actionWaveforms"/>
+    <addaction name="actionRasters"/>
+    <addaction name="actionTimeRef"/>
+    <addaction name="actionVoltageRef"/>
+    <addaction name="actionCaret"/>
+   </widget>
+   <widget class="QMenu" name="menuSampling">
+    <property name="title">
+     <string>Sampling</string>
+    </property>
+    <addaction name="action25kHz"/>
+    <addaction name="action50kHz"/>
+    <addaction name="action100kHz"/>
+    <addaction name="separator"/>
+    <addaction name="actionSampleAndHoldCorrect"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAboutSpyke"/>
+    <addaction name="actionAboutQt"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
+   <addaction name="menuSampling"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QToolBar" name="toolBar">
    <property name="windowTitle">
@@ -689,6 +757,16 @@
    <addaction name="actionSaveSort"/>
    <addaction name="separator"/>
    <addaction name="actionUndo"/>
+   <addaction name="actionRedo"/>
+   <addaction name="separator"/>
+   <addaction name="actionSpikeWindow"/>
+   <addaction name="actionChartWindow"/>
+   <addaction name="actionLFPWindow"/>
+   <addaction name="separator"/>
+   <addaction name="actionSortWindow"/>
+   <addaction name="actionClusterWindow"/>
+   <addaction name="separator"/>
+   <addaction name="actionShell"/>
   </widget>
   <action name="actionOpen">
    <property name="icon">
@@ -718,6 +796,10 @@
    </property>
   </action>
   <action name="actionNew">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/new.png</normaloff>res/new.png</iconset>
+   </property>
    <property name="text">
     <string>&amp;New</string>
    </property>
@@ -726,6 +808,10 @@
    </property>
   </action>
   <action name="actionSaveSort">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/save.png</normaloff>res/save.png</iconset>
+   </property>
    <property name="text">
     <string>&amp;Save .sort</string>
    </property>
@@ -744,6 +830,241 @@
   <action name="actionSaveWave">
    <property name="text">
     <string>Save .&amp;wave</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/redo.png</normaloff>res/redo.png</iconset>
+   </property>
+   <property name="text">
+    <string>Redo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Y</string>
+   </property>
+  </action>
+  <action name="actionExportSpikes">
+   <property name="text">
+    <string>Spikes</string>
+   </property>
+  </action>
+  <action name="actionExportDIN">
+   <property name="text">
+    <string>DIN</string>
+   </property>
+  </action>
+  <action name="actionTextheader">
+   <property name="text">
+    <string>Textheader</string>
+   </property>
+  </action>
+  <action name="actionExportAll">
+   <property name="text">
+    <string>All</string>
+   </property>
+  </action>
+  <action name="actionExportTsChID">
+   <property name="text">
+    <string>TsChID</string>
+   </property>
+  </action>
+  <action name="actionExportLFP">
+   <property name="text">
+    <string>LFP</string>
+   </property>
+  </action>
+  <action name="actionClose">
+   <property name="text">
+    <string>&amp;Close</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+W</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>&amp;Quit</string>
+   </property>
+   <property name="toolTip">
+    <string>Quit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::QuitRole</enum>
+   </property>
+  </action>
+  <action name="actionSpikeWindow">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/spike.png</normaloff>res/spike.png</iconset>
+   </property>
+   <property name="text">
+    <string>Spike Window</string>
+   </property>
+  </action>
+  <action name="actionChartWindow">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/chart.png</normaloff>res/chart.png</iconset>
+   </property>
+   <property name="text">
+    <string>Chart Window</string>
+   </property>
+  </action>
+  <action name="actionLFPWindow">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/lfp.png</normaloff>res/lfp.png</iconset>
+   </property>
+   <property name="text">
+    <string>LFP Window</string>
+   </property>
+  </action>
+  <action name="actionSortWindow">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/sort.png</normaloff>res/sort.png</iconset>
+   </property>
+   <property name="text">
+    <string>Sort Window</string>
+   </property>
+  </action>
+  <action name="actionClusterWindow">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/cluster.png</normaloff>res/cluster.png</iconset>
+   </property>
+   <property name="text">
+    <string>Cluster Window</string>
+   </property>
+  </action>
+  <action name="actionShell">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/pyshell.png</normaloff>res/pyshell.png</iconset>
+   </property>
+   <property name="text">
+    <string>Shell</string>
+   </property>
+   <property name="toolTip">
+    <string>Shell</string>
+   </property>
+  </action>
+  <action name="actionRecent">
+   <property name="text">
+    <string>Recent</string>
+   </property>
+  </action>
+  <action name="actionWaveforms">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Waveforms</string>
+   </property>
+  </action>
+  <action name="actionRasters">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Rasters</string>
+   </property>
+  </action>
+  <action name="actionTimeRef">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Time Ref</string>
+   </property>
+  </action>
+  <action name="actionVoltageRef">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Voltage Ref</string>
+   </property>
+  </action>
+  <action name="actionCaret">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Caret</string>
+   </property>
+  </action>
+  <action name="action25kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>25 kHz</string>
+   </property>
+  </action>
+  <action name="action50kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>50 kHz</string>
+   </property>
+  </action>
+  <action name="action100kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>100 kHz</string>
+   </property>
+  </action>
+  <action name="actionSampleAndHoldCorrect">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Sample &amp;&amp; Hold Correct</string>
+   </property>
+  </action>
+  <action name="actionAboutSpyke">
+   <property name="text">
+    <string>About spyke</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::AboutRole</enum>
+   </property>
+  </action>
+  <action name="actionAboutQt">
+   <property name="text">
+    <string>About Qt</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::AboutQtRole</enum>
    </property>
   </action>
  </widget>
