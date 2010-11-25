@@ -122,6 +122,16 @@ class SpykeWindow(QtGui.QMainWindow):
         sortfname = '2010-09-09_17.06.14_test.sort'
         self.OpenSortFile(sortfname)
         '''
+    @QtCore.pyqtSlot()
+    def on_actionOpen_triggered(self):
+        print('open')
+
+    def on_slider_sliderMoved(self, pos):
+        print('slider moved to %d' % pos)
+
+    def on_detectButton_pressed(self):
+        print('detect pressed')
+
     def set_detect_pane_defaults(self):
         """Set detect pane widget initial values"""
         self.METH2RADIOBTN = {'GlobalFixed': self.globalfixedthresh_radio_btn,
