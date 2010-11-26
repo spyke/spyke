@@ -991,12 +991,18 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Rasters</string>
    </property>
   </action>
   <action name="actionTimeRef">
    <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
     <bool>true</bool>
    </property>
    <property name="text">
@@ -1007,12 +1013,18 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Voltage Ref</string>
    </property>
   </action>
   <action name="actionCaret">
    <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
     <bool>true</bool>
    </property>
    <property name="text">
@@ -1031,6 +1043,9 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>50 kHz</string>
    </property>
@@ -1047,13 +1062,16 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Sample &amp;&amp; Hold Correct</string>
    </property>
   </action>
   <action name="actionAboutSpyke">
    <property name="text">
-    <string>About spyke</string>
+    <string>About spyke...</string>
    </property>
    <property name="menuRole">
     <enum>QAction::AboutRole</enum>
@@ -1061,7 +1079,7 @@
   </action>
   <action name="actionAboutQt">
    <property name="text">
-    <string>About Qt</string>
+    <string>About Qt...</string>
    </property>
    <property name="menuRole">
     <enum>QAction::AboutQtRole</enum>

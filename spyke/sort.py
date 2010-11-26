@@ -1,4 +1,4 @@
-"""Spike sorting classes and frame"""
+"""Spike sorting classes and window"""
 
 from __future__ import division
 
@@ -27,7 +27,7 @@ SPLITTERSASH = 360
 SORTSPLITTERSASH = 117
 NSSPLITTERSASH = 45
 SPIKESORTPANELWIDTHPERCOLUMN = 120
-SORTFRAMEHEIGHT = 950
+SORTWINDOWHEIGHT = 950
 
 MEANWAVESAMPLESIZE = 1000
 
@@ -817,14 +817,14 @@ class Neuron(object):
     '''
 
 
-class SortFrame(wxglade_gui.SortFrame):
-    """Sort frame"""
+class SortWindow(wxglade_gui.SortFrame):
+    """Sort window"""
     def __init__(self, *args, **kwargs):
         wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
-        self.spykeframe = self.Parent
+        self.spykewindow = self.Parent
         ncols = self.sort.probe.ncols
         size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols,
-                SORTFRAMEHEIGHT)
+                SORTWINDOWHEIGHT)
         self.SetSize(size)
         self.splitter.SetSashPosition(SPLITTERSASH) # do this here because wxGlade keeps messing this up
         self.sort_splitter.SetSashPosition(SORTSPLITTERSASH)
@@ -837,15 +837,15 @@ class SortFrame(wxglade_gui.SortFrame):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def get_sort(self):
-        return self.spykeframe.sort
+        return self.spykewindow.sort
 
     def set_sort(self):
-        raise RuntimeError("SortFrame's .sort not settable")
+        raise RuntimeError("SortWindow's .sort not settable")
 
     sort = property(get_sort, set_sort) # make this a property for proper behaviour after unpickling
 
     def OnSize(self, evt):
-        """Re-save reflines_background after resizing the frame"""
+        """Re-save reflines_background after resizing the window"""
         # resize doesn't actually happen until after this handler exits,
         # so we have to CallAfter
         wx.CallAfter(self.DrawRefs)
@@ -853,14 +853,14 @@ class SortFrame(wxglade_gui.SortFrame):
 
     def OnSplitterSashChanged(self, evt):
         """Re-save reflines_background after resizing the SortPanel(s)
-        with the frame's primary splitter"""
+        with the window's primary splitter"""
         print('in OnSplitterSashChanged')
         wx.CallAfter(self.DrawRefs)
 
     def OnClose(self, evt):
-        # remove 'Frame' from class name
-        frametype = self.__class__.__name__.lower().replace('frame', '')
-        self.spykeframe.HideFrame(frametype)
+        # remove 'Window' from class name
+        windowtype = self.__class__.__name__.lower().replace('window', '')
+        self.spykewindow.HideWindow(windowtype)
 
     def OnNListSelect(self, evt):
         selectedRows = self.nlist.getSelection()
@@ -881,7 +881,7 @@ class SortFrame(wxglade_gui.SortFrame):
         add_nids = list(add_nids)
         deselect_rows = np.searchsorted(all_nids, remove_nids)
         select_rows = np.searchsorted(all_nids, add_nids)
-        clist = self.spykeframe.clist
+        clist = self.spykewindow.clist
         [ clist.Select(row, on=False) for row in deselect_rows ]
         [ clist.Select(row, on=True) for row in select_rows ]
 
