@@ -1,4 +1,4 @@
-"""wx.Panels with embedded mpl figures based on FigureCanvasWxAgg.
+"""wx.Panels with embedded mpl figures based on FigureCanvasQTAgg.
 Everything is plotted in units of uV and us"""
 
 from __future__ import division
@@ -15,7 +15,7 @@ from matplotlib import rcParams
 rcParams['lines.linestyle'] = '-'
 rcParams['lines.marker'] = ''
 
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -302,8 +302,8 @@ class Raster(Plot):
             self.panel.ax.draw_artist(line)
 
 
-class PlotPanel(FigureCanvasWxAgg):
-    """A wx.Panel with an embedded mpl figure.
+class PlotPanel(FigureCanvasQTAgg):
+    """A QtWidget with an embedded mpl figure.
     Base class for specific types of plot panels"""
 
     # not necessarily constants
@@ -312,8 +312,8 @@ class PlotPanel(FigureCanvasWxAgg):
                          # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
 
     def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
-        FigureCanvasWxAgg.__init__(self, parent, id, Figure())
-        self.spykeframe = self.GetTopLevelParent().Parent
+        FigureCanvasQTAgg.__init__(self, parent, id, Figure())
+        self.spykeframe = self.parent().parent()
         self.AD2uV = self.spykeframe.sort.converter.AD2uV # convenience for Plot objects to reference
 
         self.available_plots = [] # pool of available Plots
@@ -330,22 +330,22 @@ class PlotPanel(FigureCanvasWxAgg):
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
-        self.SetBackgroundColour(WXBACKGROUNDCOLOUR)
+        #self.SetBackgroundColour(WXBACKGROUNDCOLOUR)
 
-        tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
-        tooltip.Enable(False) # leave disabled for now
-        tooltip.SetDelay(0) # set popup delay in ms
-        self.SetToolTip(tooltip) # connect it to self
+        #tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
+        #tooltip.Enable(False) # leave disabled for now
+        #tooltip.SetDelay(0) # set popup delay in ms
+        #self.SetToolTip(tooltip) # connect it to self
 
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
         #self.mpl_connect('key_press_event', self.OnKeyPress)
         # TODO: mpl is doing something weird that prevents arrow key press events
         #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
-        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         #self.Bind(wx.EVT_NAVIGATION_KEY, self.OnNavigation)
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
-        self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
+        #self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
     def callAfterFrameInit(self, probe=None):
         """Panel tasks that need to be done after parent frame has been created (and shown?)"""
@@ -443,7 +443,7 @@ class PlotPanel(FigureCanvasWxAgg):
             shownplots[pltid] = shown
             plt.hide_chans(shown)
         self.show_rasters(False)
-        self.draw() # draw all the enabled refs - defined in FigureCanvasWxAgg
+        self.draw() # draw all the enabled refs - defined in FigureCanvasQTAgg
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
         for pltid, plt in self.used_plots.iteritems():
             shown = shownplots[pltid]
