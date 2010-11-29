@@ -9,13 +9,14 @@ import itertools
 from copy import copy
 import random
 import numpy as np
-import wx
+
+from PyQt4 import QtGui
 
 from matplotlib import rcParams
 rcParams['lines.linestyle'] = '-'
 rcParams['lines.marker'] = ''
 
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -42,7 +43,7 @@ DEFUSPERUM = 17
 
 #DEFAULTCHANCOLOUR = '#00FF00' # garish green
 BACKGROUNDCOLOUR = 'black'
-WXBACKGROUNDCOLOUR = wx.BLACK
+#WXBACKGROUNDCOLOUR = wx.BLACK
 
 RED = '#FF0000'
 ORANGE = '#FF7F00'
@@ -302,7 +303,7 @@ class Raster(Plot):
             self.panel.ax.draw_artist(line)
 
 
-class PlotPanel(FigureCanvasQTAgg):
+class PlotPanel(FigureCanvas):
     """A QtWidget with an embedded mpl figure.
     Base class for specific types of plot panels"""
 
@@ -311,9 +312,16 @@ class PlotPanel(FigureCanvasQTAgg):
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
                          # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
 
-    def __init__(self, parent, id=-1, stream=None, tw=None, cw=None):
-        FigureCanvasQTAgg.__init__(self, parent, id, Figure())
-        self.spykeframe = self.parent().parent()
+    def __init__(self, parent, stream=None, tw=None, cw=None):
+        self.figure = Figure() # resize later? can also set dpi here
+        FigureCanvas.__init__(self, self.figure)
+        self.setParent(parent)
+        FigureCanvas.setSizePolicy(self,
+                                   QtGui.QSizePolicy.Expanding,
+                                   QtGui.QSizePolicy.Expanding)
+        FigureCanvas.updateGeometry(self)
+
+        self.spykeframe = parent.parent()
         self.AD2uV = self.spykeframe.sort.converter.AD2uV # convenience for Plot objects to reference
 
         self.available_plots = [] # pool of available Plots
@@ -383,9 +391,9 @@ class PlotPanel(FigureCanvasQTAgg):
         self._show_tref(True) # call the _ methods directly, to prevent unnecessary draws
         self._show_vref(True)
         self._show_caret(True)
-        for ref in ['tref', 'vref', 'caret']:
+        for ref in ['TimeRef', 'VoltageRef', 'Caret']:
             # enforce menu item toggle state
-            self.spykeframe.menubar.Check(self.spykeframe.REFTYPE2ID[ref], True)
+            self.spykeframe.ui.__dict__['action%s' % ref].setChecked(True)
         self.draw() # do a full draw of the ref lines
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
         self.init_plots()
@@ -443,7 +451,7 @@ class PlotPanel(FigureCanvasQTAgg):
             shownplots[pltid] = shown
             plt.hide_chans(shown)
         self.show_rasters(False)
-        self.draw() # draw all the enabled refs - defined in FigureCanvasQTAgg
+        self.draw() # draw all the enabled refs - defined in FigureCanvas
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
         for pltid, plt in self.used_plots.iteritems():
             shown = shownplots[pltid]
@@ -640,7 +648,7 @@ class PlotPanel(FigureCanvasQTAgg):
         # update plots and rasters
         self.qrplt.update(wave, tref)
         self.qrplt.draw()
-        if self.spykeframe.menubar.IsChecked(wx.ID_RASTERS):
+        if self.spykeframe.ui.actionRasters.isChecked():
             self.update_rasters(tref)
             self.draw_rasters()
         self.blit(self.ax.bbox)
@@ -652,6 +660,8 @@ class PlotPanel(FigureCanvasQTAgg):
         """Update spike raster positions and visibility wrt tref"""
         # find out which spikes are within time window
         sort = self.spykeframe.sort
+        try: sort.spikes
+        except AttributeError: return # no spikes exist
         lo, hi = sort.spikes['t'].searchsorted((tref+self.tw[0], tref+self.tw[1]))
         spikes = sort.spikes[lo:hi] # spikes within range of current time window
         while len(spikes) > len(self.rasters):

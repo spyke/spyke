@@ -44,7 +44,7 @@ LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
 PYSHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWSIZE = 535, 535
 
-WINDOWUPDATEORDER = ['spike', 'lfp', 'chart'] # chart goes last cuz it's slowest
+WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 PYSHELLCFGFNAME = 'pyshell_cfg'
 
 # this will drop us into ipdb on any error, won't work in IPy 0.11?:
@@ -246,23 +246,23 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OnSpike(self, evt):
         """Spike window toggle menu/button event"""
-        self.ToggleWindow('spike')
+        self.ToggleWindow('Spike')
 
     def OnChart(self, evt):
         """Chart window toggle menu/button event"""
-        self.ToggleWindow('chart')
+        self.ToggleWindow('Chart')
 
     def OnLFP(self, evt):
         """LFP window toggle menu/button event"""
-        self.ToggleWindow('lfp')
+        self.ToggleWindow('LFP')
 
     def OnSort(self, evt):
         """Sort window toggle menu/button event"""
-        self.ToggleWindow('sort')
+        self.ToggleWindow('Sort')
 
     def OnCluster(self, evt):
         """Cluster window toggle menu/button event"""
-        self.ToggleWindow('cluster')
+        self.ToggleWindow('Cluster')
 
     @QtCore.pyqtSlot()
     def on_actionShell_triggered(self):
@@ -270,7 +270,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OnPyShell(self, evt):
         """PyShell window toggle menu/button event"""
-        self.ToggleWindow('pyshell')
+        self.ToggleWindow('PyShell')
 
     def OnWaveforms(self, evt):
         """Spike waveforms toggle menu event"""
@@ -301,7 +301,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OnSHCorrect(self, evt):
         """Sample & hold menu event"""
-        enable = self.menubar.IsChecked(wx.ID_SHCORRECT) # maybe not safe, but seems to work
+        enable = self.ui.actionSampleAndHoldCorrect.isChecked()
         self.SetSHCorrect(enable)
     '''
     def OnMove(self, evt):
@@ -365,12 +365,12 @@ class SpykeWindow(QtGui.QMainWindow):
         self.menubar.Enable(wx.ID_SAMPLING, False)
         self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open data windows
-        sf = self.OpenWindow('sort') # ensure it's open
+        sf = self.OpenWindow('Sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         # refresh spike virtual listctrl
         sf.slist.SetItemCount(len(sort.usids))
         sf.slist.RefreshItems()
-        #self.OpenWindow('pyshell') # for testing
+        #self.OpenWindow('PyShell') # for testing
 
     def init_extractor(self):
         """Initialize Extractor"""
@@ -392,7 +392,7 @@ class SpykeWindow(QtGui.QMainWindow):
         #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
 
         self.sort.extractor.extract_all_XY() # adds extracted XY params to sort.spikes
-        self.windows['sort'].slist.RefreshItems() # update any columns showing param values
+        self.windows['Sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnWaveletExtract(self, evt=None):
@@ -410,7 +410,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # extract coeffs of selected wavelet type, add coeffs to sort.spikes
         wavelet = self.wavelet_extract_radio_box.GetStringSelection()
         self.sort.extractor.extract_all_wcs(wavelet)
-        self.windows['sort'].slist.RefreshItems() # update any columns showing param values
+        self.windows['Sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnTemporalExtract(self, evt=None):
@@ -423,7 +423,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.init_extractor()
 
         self.sort.extractor.extract_all_temporal()
-        self.windows['sort'].slist.RefreshItems() # update any columns showing param values
+        self.windows['Sort'].slist.RefreshItems() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def GetClusters(self):
@@ -444,7 +444,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def GetSpikes(self):
         """Return IDs of currently selected spikes"""
-        sf = self.windows['sort']
+        sf = self.windows['Sort']
         nsrows = sf.nslist.getSelection()
         srows = sf.slist.getSelection()
         sids = []
@@ -474,7 +474,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def OnAddCluster(self, evt=None, update=True, id=None):
         """Cluster pane Add button click"""
         neuron = self.sort.create_neuron(id)
-        sf = self.windows['sort']
+        sf = self.windows['Sort']
         if update:
             sf.nlist.SetItemCount(len(self.sort.neurons))
             sf.nlist.RefreshItems()
@@ -482,7 +482,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
-        cf = self.OpenWindow('cluster')
+        cf = self.OpenWindow('Cluster')
         try: cf.glyph # glyph already plotted?
         except AttributeError: self.OnClusterPlot() # create glyph on first open
         self.AddCluster(cluster, update=update)
@@ -490,7 +490,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def AddCluster(self, cluster, update=True):
         """Add cluster to GUI"""
-        cf = self.OpenWindow('cluster')
+        cf = self.OpenWindow('Cluster')
         dims = self.GetClusterPlotDimNames()
         cf.add_ellipsoid(cluster, dims, update=update)
         if update:
@@ -522,7 +522,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.DelCluster(cluster, update=False)
         self.DeColourPoints(sids) # decolour appropriate points
         self.UpdateClustersGUI()
-        self.windows['cluster'].glyph.mlab_source.update()
+        self.windows['Cluster'].glyph.mlab_source.update()
         if len(self.sort.clusters) == 0:
             self.cluster_params_pane.Enable(False)
         else: # select cluster that's next highest than lowest of the deleted clusters
@@ -541,8 +541,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Delete a cluster from the GUI, and delete the cluster
         and its neuron from the Sort. Think you need to call
         mlab_source.update() afterwards"""
-        sf = self.windows['sort']
-        cf = self.windows['cluster']
+        sf = self.windows['Sort']
+        cf = self.windows['Cluster']
         cf.f.scene.disable_render = True # for speed
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
@@ -573,7 +573,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # what you really want is to find the y pos *rank* of each uoldcid, so you need to
         # take argsort again:
         newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         cf.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
@@ -623,7 +623,7 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             self.EnablePosOriScaleWidgets(False)
         # mirror selection changes to nlist
-        sf = self.windows['sort']
+        sf = self.windows['Sort']
         all_nids = sorted(self.sort.neurons)
         nids = set(np.asarray(all_nids)[selectedRows])
         remove_nids = list(sf.nlist.lastSelectedIDs.difference(nids))
@@ -638,7 +638,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update cluster widgets based on current cluster and dims,
         and replot the data in the (potentially) new projection, while
         maintaining the colour of each point"""
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         scalars = cf.glyph.mlab_source.scalars # save scalars
         self.OnClusterPlot() # replot
         cf.glyph.mlab_source.scalars = scalars # restore scalars
@@ -655,7 +655,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Focus button press in cluster_pane. Move focus to location
         of currently selected (single) cluster"""
         cluster = self.GetCluster()
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         dims = self.GetClusterPlotDimNames()
         fp = [ cluster.pos[dim] for dim in dims ]
         cf.f.scene.camera.focal_point = fp
@@ -666,7 +666,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Focus button press in sort_pane. Move focus to location
         of currently selected (single) spike"""
         sid = self.GetSpike()
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         dims = self.GetClusterPlotDimNames()
         fp = self.sort.get_param_matrix(dims=dims)[sid]
         cf.f.scene.camera.focal_point = fp
@@ -677,7 +677,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Sets the position of the currently selected cluster to
         the point in 3D where the scene's camera is currently focused"""
         cluster = self.GetCluster()
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         fp = cf.f.scene.camera.focal_point
         dims = self.GetClusterPlotDimNames()
         for dim, val in zip(dims, fp):
@@ -688,7 +688,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def OnClusterPlot(self, evt=None):
         """Plot button press in cluster_pane. Don't need the evt"""
         dims = self.GetClusterPlotDimNames()
-        cf = self.OpenWindow('cluster') # in case it isn't already open
+        cf = self.OpenWindow('Cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
@@ -714,7 +714,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def CutClusters(self, clusters):
         """Apply the cluster params to the spikes. Cut the spikes and
         update the plot"""
-        sf = self.windows['sort']
+        sf = self.windows['Sort']
         for cluster in toiter(clusters):
             neuron = cluster.neuron
             # reset scalar values for cluster's existing points
@@ -731,8 +731,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update lots of stuff after modifying clusters,
         here as a separate method for speed, only call when really needed"""
         s = self.sort
-        sf = self.windows['sort']
-        cf = self.windows['cluster']
+        sf = self.windows['Sort']
+        cf = self.windows['Cluster']
         cf.f.scene.disable_render = False # turn rendering back on
         self.clist.SetItemCount(len(s.clusters))
         self.clist.RefreshItems()
@@ -747,7 +747,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Colour the points that fall within each cluster (as specified
         by cluster.neuron.sids) the same colour as the cluster itself"""
         clusters = toiter(clusters)
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         for cluster in clusters:
             neuron = cluster.neuron
             cf.glyph.mlab_source.scalars[neuron.sids] = neuron.id % len(CMAP)
@@ -758,13 +758,13 @@ class SpykeWindow(QtGui.QMainWindow):
     def DeColourPoints(self, sids):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
         Don't forget to call cf.glyph.mlab_source.update() after calling this"""
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         cf.glyph.mlab_source.scalars[sids] = np.tile(TRANSWHITEI, len(sids))
 
     def DeColourAllPoints(self):
         """Restore all spike points in cluster plot to unclustered WHITE.
         Don't forget to call cf.glyph.mlab_source.update() after calling this"""
-        cf = self.windows['cluster']
+        cf = self.windows['Cluster']
         cf.glyph.mlab_source.scalars = np.tile(TRANSWHITEI, self.sort.nspikes)
 
     def GetClusterPlotDimNames(self):
@@ -898,8 +898,8 @@ class SpykeWindow(QtGui.QMainWindow):
         them to all merge"""
         s = self.sort
         spikes = s.spikes
-        sf = self.OpenWindow('sort')
-        cf = self.OpenWindow('cluster')
+        sf = self.OpenWindow('Sort')
+        cf = self.OpenWindow('Cluster')
         clusters = self.GetClusters()
         sids = [] # spikes to merge
         for cluster in clusters:
@@ -949,8 +949,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane Climb button click"""
         s = self.sort
         spikes = s.spikes
-        sf = self.OpenWindow('sort')
-        cf = self.OpenWindow('cluster')
+        sf = self.OpenWindow('Sort')
+        cf = self.OpenWindow('Cluster')
 
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
@@ -1189,8 +1189,8 @@ class SpykeWindow(QtGui.QMainWindow):
         to the current set of clusters"""
         s = self.sort
         spikes = s.spikes
-        sf = self.OpenWindow('sort')
-        cf = self.OpenWindow('cluster')
+        sf = self.OpenWindow('Sort')
+        cf = self.OpenWindow('Cluster')
         sids = cc.sids
 
         # reverse meaning of 'new' and 'old' if direction == 'forward', ie if redoing
@@ -1299,21 +1299,21 @@ class SpykeWindow(QtGui.QMainWindow):
         #self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
 
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
-        self.OpenWindow('spike')
+        self.OpenWindow('Spike')
 
         self.str2t = {'start': self.hpstream.t0,
                       'now': self.t, # FIXME: this won't track self.t automatically
                       'end': self.hpstream.t1}
         self.range = (self.hpstream.t0, self.hpstream.t1) # us
-        self.file_pos_combo_box.SetValue(str(self.t))
-        self.file_min_label.SetLabel(str(self.hpstream.t0))
-        self.file_max_label.SetLabel(str(self.hpstream.t1))
+        self.ui.filePosLineEdit.setText(str(self.t))
+        self.ui.filePosStartButton.setText(str(self.hpstream.t0))
+        self.ui.filePosEndButton.setText(str(self.hpstream.t1))
         # set all slider values in multiples of SLIDERTRES
-        self.slider.SetRange(self.range[0] // SLIDERTRES,
+        self.ui.slider.setRange(self.range[0] // SLIDERTRES,
                              self.range[1] // SLIDERTRES) # no need to round
-        self.slider.SetValue(self.t // SLIDERTRES)
-        self.slider.SetLineSize(1)
-        self.slider.SetPageSize((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
+        self.ui.slider.setValue(self.t // SLIDERTRES)
+        self.ui.slider.setSingleStep(1)
+        self.ui.slider.setPageStep((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
 
         self.EnableSurfWidgets(True)
 
@@ -1335,8 +1335,8 @@ class SpykeWindow(QtGui.QMainWindow):
             del self.sort
         except AttributeError:
             pass
-        if 'sort' in self.windows:
-            sf = self.windows['sort']
+        if 'Sort' in self.windows:
+            sf = self.windows['Sort']
             sf.nlist.DeleteAllItems()
             sf.nslist.DeleteAllItems()
             sf.slist.DeleteAllItems()
@@ -1345,8 +1345,8 @@ class SpykeWindow(QtGui.QMainWindow):
             sf.slist.lastSelectedIDs = set()
             sf.spikesortpanel.removeAllItems()
             #sf.chartsortpanel.removeAllItems()
-        if 'cluster' in self.windows:
-            cf = self.windows['cluster']
+        if 'Cluster' in self.windows:
+            cf = self.windows['Cluster']
             cf.f.scene.disable_render = True # for speed
             for cluster in clusters.values():
                 cluster.ellipsoid.remove() # from pipeline
@@ -1432,7 +1432,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
         for windowtype in self.windows.keys():
-            if windowtype != 'pyshell': # leave pyshell window alone
+            if windowtype != 'PyShell': # leave pyshell window alone
                 self.CloseWindow(windowtype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
             if stream: stream.close()
@@ -1487,14 +1487,14 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableSpikeWidgets(True)
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
-        sf = self.OpenWindow('sort') # ensure it's open
+        sf = self.OpenWindow('Sort') # ensure it's open
         # restore unsorted spike virtual listctrl
         sf.slist.SetItemCount(len(sort.usids))
         sf.slist.RefreshItems()
 
         # do this here first in case no clusters exist and hence self.AddCluster
         # is never called, yet you want spikes to be plotted in the cluster window:
-        cf = self.OpenWindow('cluster')
+        cf = self.OpenWindow('Cluster')
         try: cf.glyph # glyph already plotted?
         except AttributeError: self.OnClusterPlot() # create glyph on first open
         # try and reset camera view and roll to where it was last saved
@@ -1559,7 +1559,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.sort.spikes
             self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
         except AttributeError: pass # no spikes
-        self.OpenWindow('sort')
+        self.OpenWindow('Sort')
         self.notebook.SetSelection(2) # switch to the cluster pane
     '''
     def ImportNeurons(self, fname):
@@ -1577,11 +1577,11 @@ class SpykeWindow(QtGui.QMainWindow):
             self.DelCluster(cluster, update=False)
         self.UpdateClustersGUI()
         # reset all plotted spike points to white
-        cf = self.OpenWindow('cluster')
+        cf = self.OpenWindow('Cluster')
         try: # decolour any and all spikes
             cf.glyph # spikes glyph already plotted?
             self.DeColourAllPoints()
-            self.windows['cluster'].glyph.mlab_source.update()
+            self.windows['Cluster'].glyph.mlab_source.update()
         except AttributeError: pass # no spikes glyph to decolour
         for neuron in sort.neurons.values():
             neuron.sids = np.array([], dtype=int) # clear spike indices of all imported neurons
@@ -1607,7 +1607,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('saving sort file %r' % fname)
         t0 = time.time()
         try:
-            cf = self.windows['cluster']
+            cf = self.windows['Cluster']
             s.view, s.roll = cf.view, cf.roll # save camera view
         except KeyError: pass # cf hasn't been opened yet, no camera view to save
         s.sortfname = fname # bind it now that it's about to be saved
@@ -1672,38 +1672,38 @@ class SpykeWindow(QtGui.QMainWindow):
     def OpenWindow(self, windowtype):
         """Create and bind a window, show it, plot its data if applicable"""
         if windowtype not in self.windows: # check it doesn't already exist
-            if windowtype == 'spike':
-                x = self.pos()[0]
-                y = self.pos()[1] + self.size()[1]
+            if windowtype == 'Spike':
+                x = self.pos().x()
+                y = self.pos().y() + self.size().height()
                 window = SpikeWindow(parent=self, stream=self.hpstream,
                                      tw=self.spiketw,
                                      pos=(x, y), size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
                 window.panel.callAfterFrameInit() # post window creation tasks for panel
-            elif windowtype == 'chart':
+            elif windowtype == 'Chart':
                 x = self.GetPosition()[0] + self.SPIKEWINDOWWIDTH
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 window = ChartWindow(parent=self, stream=self.hpstream,
                                    tw=self.charttw, cw=self.spiketw,
                                    pos=wx.Point(x, y), size=CHARTWINDOWSIZE)
                 window.panel.callAfterFrameInit() # post window creation tasks for panel
-            elif windowtySpikePanelpe == 'lfp':
+            elif windowtype == 'LFP':
                 x = self.GetPosition()[0] + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 window = LFPWindow(parent=self, stream=self.lpstream,
                                  tw=self.lfptw, cw=self.charttw,
                                  pos=wx.Point(x, y), size=LFPWINDOWSIZE)
                 window.panel.callAfterFrameInit() # post window creation tasks for panel
-            elif windowtype == 'sort':
+            elif windowtype == 'Sort':
                 x = self.GetPosition()[0] + self.GetSize()[0]
                 y = self.GetPosition()[1]
                 window = SortWindow(parent=self, pos=wx.Point(x, y))
                 window.spikesortpanel.callAfterFrameInit(self.sort.probe) # post window creation tasks for panel
-            elif windowtype == 'cluster':
+            elif windowtype == 'Cluster':
                 x = self.GetPosition()[0] + self.SPIKEWINDOWWIDTH
                 y = self.GetPosition()[1] + self.GetSize()[1]
                 from spyke.cluster import ClusterWindow # can't delay this any longer
                 window = ClusterWindow(parent=self, pos=wx.Point(x, y), size=CLUSTERWINDOWSIZE)
-            elif windowtype == 'pyshell':
+            elif windowtype == 'PyShell':
                 try:
                     ncols = self.hpstream.probe.ncols
                 except AttributeError:
@@ -1712,17 +1712,19 @@ class SpykeWindow(QtGui.QMainWindow):
                 y = self.GetPosition()[1] + self.GetSize()[1] + SPIKEWINDOWHEIGHT - PYSHELLSIZE[1]
                 window = PyShellWindow(parent=self, pos=wx.Point(x, y), size=PYSHELLSIZE)
             self.windows[windowtype] = window
-            self.dpos[windowtype] = window.GetPosition() - self.GetPosition()
+            self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype)
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, windowtype, enable=True):
         """Show/hide a window, force menu and toolbar states to correspond"""
-        self.windows[windowtype].Show(enable)
-        id = self.WINDOWTYPE2ID[windowtype]
-        self.menubar.Check(id, enable)
-        self.toolbar.ToggleTool(id, enable)
-        if enable and windowtype not in ['sort', 'cluster', 'pyshell']:
+        if enable:
+            self.windows[windowtype].show()
+        else:
+            self.windows[windowtype].hide()
+        #self.menubar.Check(id, enable)
+        #self.toolbar.ToggleTool(id, enable)
+        if enable and windowtype not in ['Sort', 'Cluster', 'PyShell']:
             self.plot(windowtype) # update only the newly shown data window's data, in case self.t changed since it was last visible
 
     def HideWindow(self, windowtype):
@@ -1732,7 +1734,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Toggle visibility of a data window"""
         try:
             window = self.windows[windowtype]
-            self.ShowWindow(windowtype, not window.IsShown()) # toggle it
+            self.ShowWindow(windowtype, not window.isVisible()) # toggle it
         except KeyError: # window hasn't been opened yet
             self.OpenWindow(windowtype)
 
@@ -1747,29 +1749,29 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def ToggleRasters(self):
         """Toggle visibility of rasters"""
-        enable = self.menubar.IsChecked(wx.ID_RASTERS) # maybe not safe, but seems to work
+        enable = self.ui.actionRasters.isChecked()
         self.ShowRasters(enable)
 
     def ShowRasters(self, enable=True):
         """Show/hide rasters for all applicable windows. Force menu states to correspond"""
-        self.menubar.Check(wx.ID_RASTERS, enable)
+        self.ui.actionRasters.setChecked(enable)
         for windowtype, window in self.windows.iteritems():
-            if windowtype in ['spike', 'chart', 'lfp']:
+            if windowtype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_rasters(enable=enable)
                 self.plot(windowtype)
 
     def ToggleRef(self, ref):
         """Toggle visibility of tref, vref, or the caret"""
-        enable = self.menubar.IsChecked(self.REFTYPE2ID[ref]) # maybe not safe, but seems to work
+        enable = self.ui.__dict__['action%s' % ref].isChecked()
         self.ShowRef(ref, enable)
 
     def ShowRef(self, ref, enable=True):
         """Show/hide a tref, vref, or the caret. Force menu states to correspond"""
-        self.menubar.Check(self.REFTYPE2ID[ref], enable)
+        self.ui.__dict__['action%s' % ref].setChecked(enable)
         for windowtype, window in self.windows.iteritems():
-            if windowtype in ['spike', 'chart', 'lfp']:
+            if windowtype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_ref(ref, enable=enable)
-            elif windowtype == 'sort':
+            elif windowtype == 'Sort':
                 window.spikesortpanel.show_ref(ref, enable=enable)
                 #window.chartsortpanel.show_ref(ref, enable=enable)
 
@@ -1779,13 +1781,13 @@ class SpykeWindow(QtGui.QMainWindow):
             self.hpstream.sampfreq = sampfreq
             # since slider is in multiples of SLIDERTRES, doesn't need to be updated
             self.plot()
-        self.menubar.Check(self.SAMPFREQ2ID[sampfreq], True)
+        self.ui.__dict__['action%dkHz' % (sampfreq / 1000)].setChecked(True)
 
     def SetSHCorrect(self, enable):
         """Set highpass stream sample & hold correct flag, update widgets"""
         if self.hpstream != None:
             self.hpstream.shcorrect = enable
-        self.menubar.Check(wx.ID_SHCORRECT, enable)
+        self.ui.actionSampleAndHoldCorrect.setChecked(enable)
         self.plot()
 
     def EnableSurfWidgets(self, enable):
@@ -1952,12 +1954,12 @@ class SpykeWindow(QtGui.QMainWindow):
         windowtypes = [ windowtype for windowtype in WINDOWUPDATEORDER if windowtype in windowtypes ] # reorder
         windows = [ self.windows[windowtype] for windowtype in windowtypes ] # get windows in order
         for windowtype, window in zip(windowtypes, windows):
-            if window.IsShown(): # for performance, only update if window is shown
-                if windowtype == 'spike':
+            if window.isVisible(): # for performance, only update if window is shown
+                if windowtype == 'Spike':
                     wave = self.hpstream[self.t+self.spiketw[0] : self.t+self.spiketw[1]]
-                elif windowtype == 'chart':
+                elif windowtype == 'Chart':
                     wave = self.hpstream[self.t+self.charttw[0] : self.t+self.charttw[1]]
-                elif windowtype == 'lfp':
+                elif windowtype == 'LFP':
                     wave = self.lpstream[self.t+self.lfptw[0] : self.t+self.lfptw[1]]
                 window.panel.plot(wave, tref=self.t) # plot it
 
@@ -1968,7 +1970,7 @@ class DataWindow(QtGui.QFrame):
         #self.Bind(wx.EVT_SIZE, self.OnSize)
         #self.Bind(wx.EVT_CLOSE, self.OnClose)
         QtGui.QFrame.__init__(self, parent)
-        self.WindowTitle("data window")
+        self.setWindowTitle("data window")
 
     def do_layout(self):
         datawindow_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -1984,7 +1986,7 @@ class DataWindow(QtGui.QFrame):
         evt.Skip()
 
     def OnClose(self, evt):
-        windowtype = type(self).__name__.lower().replace('window', '') # remove 'Window' from class name
+        windowtype = type(self).__name__.replace('Window', '') # remove 'Window' from class name
         self.parent().HideWindow(windowtype)
 
     def DrawRefs(self):
@@ -1996,9 +1998,9 @@ class SpikeWindow(DataWindow):
     """Window to hold the custom spike panel widget"""
     def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
         DataWindow.__init__(self, parent)
-        self.panel = SpikePanel(self, -1, stream=stream, tw=tw, cw=cw)
+        self.panel = SpikePanel(self, stream=stream, tw=tw, cw=cw)
         # do layout here
-        self.SetTitle("spike window")
+        self.setWindowTitle("spike window")
         self.setWindowIcon(QtGui.QIcon('res/spike.png'))
 
 
@@ -2076,12 +2078,12 @@ class PyShellWindow(wx.MiniFrame,
         #self.shell.runfile(startupScript)
         #self.shell.run('from '+startupScript+' import *')
         self.shell.run('self = app.spykewindow')
-        #self.shell.run("sf = self.windows['sort']") # convenience
-        #self.shell.run("cf = self.windows['cluster']") # convenience
+        #self.shell.run("sf = self.windows['Sort']") # convenience
+        #self.shell.run("cf = self.windows['Cluster']") # convenience
         self.shell.run('s = self.sort') # convenience
 
     def OnClose(self, evt):
-        windowtype = self.__class__.__name__.lower().replace('window', '') # remove 'Window' from class name
+        windowtype = self.__class__.__name__.replace('Window', '') # remove 'Window' from class name
         self.Parent.HideWindow(windowtype)
 
 
