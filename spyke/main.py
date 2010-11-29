@@ -98,12 +98,6 @@ class SpykeWindow(QtGui.QMainWindow):
         sortfname = '2010-09-09_17.06.14_test.sort'
         self.OpenSortFile(sortfname)
         '''
-    def on_slider_sliderMoved(self, pos):
-        print('slider moved to %d' % pos)
-
-    def on_detectButton_pressed(self):
-        print('detect pressed')
-
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
         self.CreateNewSort()
@@ -329,12 +323,11 @@ class SpykeWindow(QtGui.QMainWindow):
             t = float(t)
         self.seek(t)
 
-    def OnSlider(self, evt):
-        """Strange: keyboard press or page on mouse click when slider in focus generates
-        two slider events, and hence two plot events - mouse drag only generates one slider event"""
-        slideri = self.slider.GetValue()
+    def on_slider_valueChanged(self, slideri):
         self.seek(slideri * SLIDERTRES)
-        #evt.Skip() # doesn't seem to be necessary
+
+    def on_detectButton_pressed(self):
+        print('detect pressed')
 
     def OnDetect(self, evt):
         """Detect pane Detect button click"""
@@ -1925,11 +1918,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.str2t['now'] = self.t # update
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
-        if self.t != oldt:
-            # update controls first so they don't lag
-            self.file_pos_combo_box.SetValue(str(self.t)) # update file combo box
-            self.slider.SetValue(self.t // SLIDERTRES) # update slider
-            wx.SafeYield(win=self, onlyIfNeeded=True) # allow controls to update
+        if self.t != oldt: # update controls first so they don't lag
+            self.ui.filePosLineEdit.setText(str(self.t))
+            self.ui.slider.setValue(self.t // SLIDERTRES)
             self.plot()
     '''
     def step(self, direction):
