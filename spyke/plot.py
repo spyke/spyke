@@ -1,4 +1,4 @@
-"""wx.Panels with embedded mpl figures based on FigureCanvasQTAgg.
+"""Panels with embedded mpl figures based on FigureCanvasQTAgg.
 Everything is plotted in units of uV and us"""
 
 from __future__ import division

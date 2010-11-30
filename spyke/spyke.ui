@@ -976,9 +976,6 @@
    </property>
   </action>
   <action name="actionShell">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
    <property name="icon">
     <iconset>
      <normaloff>res/pyshell.png</normaloff>res/pyshell.png</iconset>

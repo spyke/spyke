@@ -29,7 +29,7 @@ import spyke
 from spyke import core, surf, detect, extract
 from spyke.sort import Sort
 from spyke.core import toiter, intround, MICRO
-from spyke.plot import ChartPanel, LFPPanel, SpikePanel, CMAP, TRANSWHITEI
+from spyke.plot import SpikePanel, ChartPanel, LFPPanel, CMAP, TRANSWHITEI
 from spyke.sort import SortWindow
 
 DEFSPIKETW = -500, 500 # spike window temporal window (us)
@@ -63,7 +63,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
 
-        #self.SetPosition(wx.Point(x=0, y=0)) # upper left corner
         self.dpos = {} # positions of data windows relative to main spyke window
         self.caption = '' # used for setting title caption
         for d in ('/data', '/media/Win7/data'):
@@ -150,7 +149,7 @@ class SpykeWindow(QtGui.QMainWindow):
             try: del self.sort.wavefname
             except AttributeError: pass
             self.SaveSortFile(tail)
-        dlg.Destroy()
+        dlg.destroy()
 
     def OnSaveWave(self, evt):
         """Save waveforms to a .wave file"""
@@ -164,7 +163,7 @@ class SpykeWindow(QtGui.QMainWindow):
             head, tail = os.path.split(fname)
             os.chdir(head) # update cwd
             self.SaveWaveFile(tail)
-        dlg.Destroy()
+        dlg.destroy()
 
     def OnSaveParse(self, evt):
         self.hpstream.pickle()
@@ -224,37 +223,43 @@ class SpykeWindow(QtGui.QMainWindow):
                                 srffnameroot=srffnameroot, path=path)
             # don't update cwd
 
-    def OnClose(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionClose_triggered(self):
         # TODO: add confirmation dialog if Sort not saved
         self.CloseSurfOrTrackFile()
 
-    def OnExit(self, evt):
-        # TODO: add confirmation dialog if Sort not saved
-        self.CloseSurfOrTrackFile()
-        self.Destroy()
+    @QtCore.pyqtSlot()
+    def on_actionQuit_triggered(self):
+        self.on_actionClose_triggered()
+        self.destroy() # TODO: this segfaults for some reason
 
     def OnAbout(self, evt):
         dlg = SpykeAbout(self)
         dlg.ShowModal()
-        dlg.Destroy()
+        dlg.destroy()
 
-    def OnSpike(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionSpikeWindow_triggered(self):
         """Spike window toggle menu/button event"""
         self.ToggleWindow('Spike')
 
-    def OnChart(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionChartWindow_triggered(self):
         """Chart window toggle menu/button event"""
         self.ToggleWindow('Chart')
 
-    def OnLFP(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionLFPWindow_triggered(self):
         """LFP window toggle menu/button event"""
         self.ToggleWindow('LFP')
 
-    def OnSort(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionSortWindow_triggered(self):
         """Sort window toggle menu/button event"""
         self.ToggleWindow('Sort')
 
-    def OnCluster(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionClusterWindow_triggered(self):
         """Cluster window toggle menu/button event"""
         self.ToggleWindow('Cluster')
 
@@ -313,6 +318,12 @@ class SpykeWindow(QtGui.QMainWindow):
         except KeyError: # convert to float to allow exp notation shorthand
             t = float(text)
         self.seek(t)
+
+    def on_filePosStartButton_pressed(self):
+        self.seek(self.str2t['start'])
+
+    def on_filePosEndButton_pressed(self):
+        self.seek(self.str2t['end'])
 
     def on_slider_valueChanged(self, slideri):
         self.seek(slideri * SLIDERTRES)
@@ -1428,7 +1439,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.charttw = DEFCHARTTW
         self.lfptw = DEFLFPTW
         self.ShowRasters(False) # reset
-        self.SetTitle('spyke') # update caption
+        self.setWindowTitle('spyke') # update caption
         self.EnableSurfWidgets(False)
         self.caption = ''
         self.CloseSortFile()
@@ -1486,7 +1497,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: pass
         self.RestoreClusters2GUI()
 
-        self.SetTitle(self.caption + ' | ' + self.sort.sortfname)
+        self.setWindowTitle(self.caption + ' | ' + self.sort.sortfname)
         if sort.detector != None:
             self.update_from_detector(sort.detector)
         self.EnableSortWidgets(True)
@@ -1599,7 +1610,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
-        self.SetTitle(self.caption + ' | ' + s.sortfname)
+        self.setWindowTitle(self.caption + ' | ' + s.sortfname)
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file"""
@@ -1619,7 +1630,7 @@ class SpykeWindow(QtGui.QMainWindow):
             dlg = wx.MessageDialog(self, "Spike file %r already exists. Overwrite?" % fname,
                                    "Overwrite .spike file?", wx.YES_NO | wx.ICON_QUESTION)
             result = dlg.ShowModal()
-            dlg.Destroy()
+            dlg.destroy()
             if result == wx.ID_NO:
                 return
         '''
@@ -1642,7 +1653,7 @@ class SpykeWindow(QtGui.QMainWindow):
             dlg = wx.MessageDialog(self, "Wave file %r already exists. Overwrite?" % fname,
                                    "Overwrite .wave file?", wx.YES_NO | wx.ICON_QUESTION)
             result = dlg.ShowModal()
-            dlg.Destroy()
+            dlg.destroy()
             if result == wx.ID_NO:
                 return
         print('saving wave file %r' % fname)
@@ -1664,37 +1675,37 @@ class SpykeWindow(QtGui.QMainWindow):
                                      pos=(x, y), size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
                 window.panel.callAfterFrameInit() # post window creation tasks for panel
             elif windowtype == 'Chart':
-                x = self.GetPosition()[0] + self.SPIKEWINDOWWIDTH
-                y = self.GetPosition()[1] + self.GetSize()[1]
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH
+                y = self.pos().y() + self.size().height()
                 window = ChartWindow(parent=self, stream=self.hpstream,
-                                   tw=self.charttw, cw=self.spiketw,
-                                   pos=wx.Point(x, y), size=CHARTWINDOWSIZE)
+                                     tw=self.charttw, cw=self.spiketw,
+                                     pos=(x, y), size=CHARTWINDOWSIZE)
                 window.panel.callAfterFrameInit() # post window creation tasks for panel
             elif windowtype == 'LFP':
-                x = self.GetPosition()[0] + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
-                y = self.GetPosition()[1] + self.GetSize()[1]
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
+                y = self.pos().y() + self.size().height()
                 window = LFPWindow(parent=self, stream=self.lpstream,
-                                 tw=self.lfptw, cw=self.charttw,
-                                 pos=wx.Point(x, y), size=LFPWINDOWSIZE)
+                                   tw=self.lfptw, cw=self.charttw,
+                                   pos=(x, y), size=LFPWINDOWSIZE)
                 window.panel.callAfterFrameInit() # post window creation tasks for panel
             elif windowtype == 'Sort':
-                x = self.GetPosition()[0] + self.GetSize()[0]
-                y = self.GetPosition()[1]
-                window = SortWindow(parent=self, pos=wx.Point(x, y))
+                x = self.pos().x() + self.size().width()
+                y = self.pos().y()
+                window = SortWindow(parent=self, pos=(x, y))
                 window.spikesortpanel.callAfterFrameInit(self.sort.probe) # post window creation tasks for panel
             elif windowtype == 'Cluster':
-                x = self.GetPosition()[0] + self.SPIKEWINDOWWIDTH
-                y = self.GetPosition()[1] + self.GetSize()[1]
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH
+                y = self.pos().y() + self.size().height()
                 from spyke.cluster import ClusterWindow # can't delay this any longer
-                window = ClusterWindow(parent=self, pos=wx.Point(x, y), size=CLUSTERWINDOWSIZE)
+                window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
             elif windowtype == 'PyShell':
                 try:
                     ncols = self.hpstream.probe.ncols
                 except AttributeError:
                     ncols = 2 # assume 2 columns
-                x = self.GetPosition()[0] + ncols*SPIKEWINDOWWIDTHPERCOLUMN
-                y = self.GetPosition()[1] + self.GetSize()[1] + SPIKEWINDOWHEIGHT - PYSHELLSIZE[1]
-                window = PyShellWindow(parent=self, pos=wx.Point(x, y), size=PYSHELLSIZE)
+                x = self.pos().x() + ncols*SPIKEWINDOWWIDTHPERCOLUMN
+                y = self.pos().y() + self.size().height() + SPIKEWINDOWHEIGHT - PYSHELLSIZE[1]
+                window = PyShellWindow(parent=self, pos=(x, y), size=PYSHELLSIZE)
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype)
@@ -1706,10 +1717,11 @@ class SpykeWindow(QtGui.QMainWindow):
             self.windows[windowtype].show()
         else:
             self.windows[windowtype].hide()
-        #self.menubar.Check(id, enable)
-        #self.toolbar.ToggleTool(id, enable)
+        self.ui.__dict__['action%sWindow' % windowtype].setChecked(enable)
         if enable and windowtype not in ['Sort', 'Cluster', 'PyShell']:
-            self.plot(windowtype) # update only the newly shown data window's data, in case self.t changed since it was last visible
+            # update the newly shown data window's data, in case self.t changed since
+            # it was last visible
+            self.plot(windowtype)
 
     def HideWindow(self, windowtype):
         self.ShowWindow(windowtype, False)
@@ -1726,7 +1738,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Hide window, remove it from windows dict, destroy it"""
         self.HideWindow(windowtype)
         window = self.windows.pop(windowtype)
-        window.Destroy()
+        window.destroy()
 
     def ToggleWaveforms(self):
         raise NotImplementedError
@@ -1978,41 +1990,37 @@ class DataWindow(QtGui.QFrame):
 
 class SpikeWindow(DataWindow):
     """Window to hold the custom spike panel widget"""
-    def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
+    def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
         self.panel = SpikePanel(self, stream=stream, tw=tw, cw=cw)
         # do layout here
-        self.setWindowTitle("spike window")
+        self.setWindowTitle("Spike window")
         self.setWindowIcon(QtGui.QIcon('res/spike.png'))
+        # this seems to be wrong:
+        self.move(*pos)
+        self.resize(*size)
 
 
-'''
 class ChartWindow(DataWindow):
     """Window to hold the custom chart panel widget"""
-    def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
-        DataWindow.__init__(self, parent, *args, **kwds)
-        self.panel = ChartPanel(self, -1, stream=stream, tw=tw, cw=cw)
-
-        self.set_properties()
-        self.do_layout()
-
-    def set_properties(self):
-        self.SetTitle("chart window")
+    def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
+        DataWindow.__init__(self, parent)
+        self.panel = ChartPanel(self, stream=stream, tw=tw, cw=cw)
+        # do layout here
+        self.setWindowTitle("Chart window")
+        self.setWindowIcon(QtGui.QIcon('res/chart.png'))
 
 
 class LFPWindow(DataWindow):
     """Window to hold the custom LFP panel widget"""
-    def __init__(self, parent=None, stream=None, tw=None, cw=None, *args, **kwds):
-        DataWindow.__init__(self, parent, *args, **kwds)
-        self.panel = LFPPanel(self, -1, stream=stream, tw=tw, cw=cw)
+    def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
+        DataWindow.__init__(self, parent)
+        self.panel = LFPPanel(self, stream=stream, tw=tw, cw=cw)
+        # do layout here
+        self.setWindowTitle("LFP window")
+        self.setWindowIcon(QtGui.QIcon('res/lfp.png'))
 
-        self.set_properties()
-        self.do_layout()
-
-    def set_properties(self):
-        self.SetTitle("LFP window")
-
-
+'''
 class PyShellWindow(wx.MiniFrame,
                    wx.py.shell.ShellFrame,
                    wx.py.frame.Frame,
