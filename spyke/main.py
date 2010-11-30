@@ -305,22 +305,13 @@ class SpykeWindow(QtGui.QMainWindow):
         #evt.Skip() # apparently this isn't needed for a move event,
         # I guess the OS moves the window no matter what you do with the event
     '''
-    def OnFilePosComboBox(self, evt):
-        """Change file position using combo box control,
-        convert start, now, and end to appropriate vals"""
-        """
-        TODO: I set a value manually, but the OS overrides the value
-        after this handler finishes handling the event. Eg, I want 'start'
-        to be replaced with the actual self.t0 timestamp, which it is, but is then
-        immediately replaced back to 'start' by the OS. Don't know how to
-        prevent its propagation to the OS. ComboBoxEvent is a COMMAND event
-        """
-        t = self.file_pos_combo_box.GetValue()
+    #def onFilePosLineEdit_textChanged(self, text): # updates immediately
+    def on_filePosLineEdit_editingFinished(self): # updates on Enter/loss of focus
+        text = str(self.ui.filePosLineEdit.text())
         try:
-            t = self.str2t[t]
-        except KeyError:
-            # convert to float first so you can use exp notation as shorthand
-            t = float(t)
+            t = self.str2t[text]
+        except KeyError: # convert to float to allow exp notation shorthand
+            t = float(text)
         self.seek(t)
 
     def on_slider_valueChanged(self, slideri):

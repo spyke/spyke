@@ -435,7 +435,7 @@
         <widget class="QLineEdit" name="lineEdit_2">
          <property name="geometry">
           <rect>
-           <x>5</x>
+           <x>10</x>
            <y>20</y>
            <width>96</width>
            <height>25</height>
@@ -451,7 +451,7 @@
         <widget class="QLabel" name="label">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>110</x>
            <y>25</y>
            <width>13</width>
            <height>15</height>
@@ -464,7 +464,7 @@
         <widget class="QLineEdit" name="lineEdit_4">
          <property name="geometry">
           <rect>
-           <x>120</x>
+           <x>125</x>
            <y>20</y>
            <width>96</width>
            <height>25</height>
@@ -480,7 +480,7 @@
         <widget class="QLabel" name="label_2">
          <property name="geometry">
           <rect>
-           <x>220</x>
+           <x>225</x>
            <y>25</y>
            <width>13</width>
            <height>15</height>
