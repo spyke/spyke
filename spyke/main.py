@@ -62,10 +62,11 @@ class SpykeWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
+        self.move(0, 0) # top left corner, to make space for data windows
 
         self.dpos = {} # positions of data windows relative to main spyke window
         self.caption = '' # used for setting title caption
-        for d in ('/data', '/media/Win7/data'):
+        for d in ('/data', '/win/data'):
             try: # use first existing path
                 os.chdir(os.path.abspath(d))
                 break
@@ -231,7 +232,8 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
         self.on_actionClose_triggered()
-        self.destroy() # TODO: this segfaults for some reason
+        self.close() # call close() before destroy() to avoid segfault
+        self.destroy()
 
     def OnAbout(self, evt):
         dlg = SpykeAbout(self)
@@ -1958,32 +1960,31 @@ class SpykeWindow(QtGui.QMainWindow):
                 window.panel.plot(wave, tref=self.t) # plot it
 
 
-class DataWindow(QtGui.QFrame):
+class DataWindow(QtGui.QDockWidget):
     """Base data window to hold a custom spyke panel widget"""
     def __init__(self, parent=None):
         #self.Bind(wx.EVT_SIZE, self.OnSize)
         #self.Bind(wx.EVT_CLOSE, self.OnClose)
-        QtGui.QFrame.__init__(self, parent)
-        self.setWindowTitle("data window")
+        QtGui.QDockWidget.__init__(self, parent)
+        self.setFloating(True)
 
-    def do_layout(self):
-        datawindow_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        datawindow_sizer.Add(self.panel, 1, wx.EXPAND, 0)
-        self.SetSizer(datawindow_sizer)
-        self.Layout()
-
-    def OnSize(self, evt):
+    def setupUi(self, pos, size):
+        self.setWidget(self.panel)
+        self.parent().addDockWidget(QtCore.Qt.RightDockWidgetArea, self)
+        self.move(*pos)
+        self.resize(*size)
+    # TODO:
+    def onSize(self, evt):
         """Re-save reflines_background after resizing the window"""
         # resize doesn't actually happen until after this handler exits,
         # so we have to CallAfter
-        wx.CallAfter(self.DrawRefs)
-        evt.Skip()
-
-    def OnClose(self, evt):
+        self.drawRefs()
+    # TODO:
+    def onClose(self, evt):
         windowtype = type(self).__name__.replace('Window', '') # remove 'Window' from class name
         self.parent().HideWindow(windowtype)
 
-    def DrawRefs(self):
+    def drawRefs(self):
         """Redraws refs and resaves panel background"""
         self.panel.draw_refs()
 
@@ -1993,12 +1994,8 @@ class SpikeWindow(DataWindow):
     def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
         self.panel = SpikePanel(self, stream=stream, tw=tw, cw=cw)
-        # do layout here
-        self.setWindowTitle("Spike window")
-        self.setWindowIcon(QtGui.QIcon('res/spike.png'))
-        # this seems to be wrong:
-        self.move(*pos)
-        self.resize(*size)
+        self.setupUi(pos, size)
+        self.setWindowTitle("Spike Window")
 
 
 class ChartWindow(DataWindow):
@@ -2006,9 +2003,8 @@ class ChartWindow(DataWindow):
     def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
         self.panel = ChartPanel(self, stream=stream, tw=tw, cw=cw)
-        # do layout here
-        self.setWindowTitle("Chart window")
-        self.setWindowIcon(QtGui.QIcon('res/chart.png'))
+        self.setupUi(pos, size)
+        self.setWindowTitle("Chart Window")
 
 
 class LFPWindow(DataWindow):
@@ -2016,9 +2012,8 @@ class LFPWindow(DataWindow):
     def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
         self.panel = LFPPanel(self, stream=stream, tw=tw, cw=cw)
-        # do layout here
-        self.setWindowTitle("LFP window")
-        self.setWindowIcon(QtGui.QIcon('res/lfp.png'))
+        self.setupUi(pos, size)
+        self.setWindowTitle("LFP Window")
 
 '''
 class PyShellWindow(wx.MiniFrame,

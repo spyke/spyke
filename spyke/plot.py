@@ -316,10 +316,8 @@ class PlotPanel(FigureCanvas):
         self.figure = Figure() # resize later? can also set dpi here
         FigureCanvas.__init__(self, self.figure)
         self.setParent(parent)
-        FigureCanvas.setSizePolicy(self,
-                                   QtGui.QSizePolicy.Expanding,
-                                   QtGui.QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
+        self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.updateGeometry()
 
         self.spykeframe = parent.parent()
         self.AD2uV = self.spykeframe.sort.converter.AD2uV # convenience for Plot objects to reference
