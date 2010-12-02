@@ -90,14 +90,14 @@ class SpykeWindow(QtGui.QMainWindow):
         '''
         # TODO: load recent file history
         # for faster testing:
-        '''
-        os.chdir('/data/ptc15')
-        srffname = '87 - track 7c spontaneous craziness.srf'
-        self.OpenSurfOrTrackFile(srffname)
-        os.chdir('/data/ptc15/tr7c/87 - track 7c spontaneous craziness')
-        sortfname = '2010-09-09_17.06.14_test.sort'
-        self.OpenSortFile(sortfname)
-        '''
+
+        #srffname = 'ptc15/87 - track 7c spontaneous craziness.srf'
+        #self.OpenSurfOrTrackFile(srffname)
+
+        #os.chdir('/data/ptc15/tr7c/87 - track 7c spontaneous craziness')
+        #sortfname = '2010-09-09_17.06.14_test.sort'
+        #self.OpenSortFile(sortfname)
+
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
         self.CreateNewSort()
@@ -1668,33 +1668,30 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenWindow(self, windowtype):
         """Create and bind a window, show it, plot its data if applicable"""
-        if windowtype not in self.windows: # check it doesn't already exist
+        new = windowtype not in self.windows
+        if new:
             if windowtype == 'Spike':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height()
                 window = SpikeWindow(parent=self, stream=self.hpstream,
                                      tw=self.spiketw,
                                      pos=(x, y), size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
-                window.panel.callAfterFrameInit() # post window creation tasks for panel
             elif windowtype == 'Chart':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH
                 y = self.pos().y() + self.size().height()
                 window = ChartWindow(parent=self, stream=self.hpstream,
                                      tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
-                window.panel.callAfterFrameInit() # post window creation tasks for panel
             elif windowtype == 'LFP':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
                 y = self.pos().y() + self.size().height()
                 window = LFPWindow(parent=self, stream=self.lpstream,
                                    tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
-                window.panel.callAfterFrameInit() # post window creation tasks for panel
             elif windowtype == 'Sort':
                 x = self.pos().x() + self.size().width()
                 y = self.pos().y()
                 window = SortWindow(parent=self, pos=(x, y))
-                window.spikesortpanel.callAfterFrameInit(self.sort.probe) # post window creation tasks for panel
             elif windowtype == 'Cluster':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH
                 y = self.pos().y() + self.size().height()
@@ -1710,17 +1707,20 @@ class SpykeWindow(QtGui.QMainWindow):
                 window = PyShellWindow(parent=self, pos=(x, y), size=PYSHELLSIZE)
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
-        self.ShowWindow(windowtype)
+        self.ShowWindow(windowtype) # just show it
+        if new and isinstance(window, DataWindow):
+            window.panel.draw_refs() # do this after first show to prevent plot artifacts
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, windowtype, enable=True):
         """Show/hide a window, force menu and toolbar states to correspond"""
+        window = self.windows[windowtype]
         if enable:
-            self.windows[windowtype].show()
+            window.show()
         else:
-            self.windows[windowtype].hide()
+            window.hide()
         self.ui.__dict__['action%sWindow' % windowtype].setChecked(enable)
-        if enable and windowtype not in ['Sort', 'Cluster', 'PyShell']:
+        if enable and isinstance(window, DataWindow):
             # update the newly shown data window's data, in case self.t changed since
             # it was last visible
             self.plot(windowtype)
@@ -1962,31 +1962,21 @@ class SpykeWindow(QtGui.QMainWindow):
 
 class DataWindow(QtGui.QDockWidget):
     """Base data window to hold a custom spyke panel widget"""
-    def __init__(self, parent=None):
-        #self.Bind(wx.EVT_SIZE, self.OnSize)
-        #self.Bind(wx.EVT_CLOSE, self.OnClose)
-        QtGui.QDockWidget.__init__(self, parent)
-        self.setFloating(True)
-
     def setupUi(self, pos, size):
         self.setWidget(self.panel)
         self.parent().addDockWidget(QtCore.Qt.RightDockWidgetArea, self)
+        self.setFloating(True)
         self.move(*pos)
         self.resize(*size)
-    # TODO:
-    def onSize(self, evt):
-        """Re-save reflines_background after resizing the window"""
-        # resize doesn't actually happen until after this handler exits,
-        # so we have to CallAfter
-        self.drawRefs()
-    # TODO:
-    def onClose(self, evt):
+
+    def resizeEvent(self, event):
+        """Redraws refs and resaves panel background after resizing the window"""
+        QtGui.QDockWidget.resizeEvent(self, event)
+        self.panel.draw_refs()
+
+    def closeEvent(self, event):
         windowtype = type(self).__name__.replace('Window', '') # remove 'Window' from class name
         self.parent().HideWindow(windowtype)
-
-    def drawRefs(self):
-        """Redraws refs and resaves panel background"""
-        self.panel.draw_refs()
 
 
 class SpikeWindow(DataWindow):

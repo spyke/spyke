@@ -353,9 +353,9 @@ class PlotPanel(FigureCanvas):
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         #self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
-    def callAfterFrameInit(self, probe=None):
-        """Panel tasks that need to be done after parent frame has been created (and shown?)"""
-        if probe == None:
+        if type(self) == SortPanel:
+            probe = self.sort.probe
+        else:
             probe = self.stream.probe
         self.probe = probe
         self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
