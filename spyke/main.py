@@ -1,6 +1,7 @@
 """Main spyke window"""
 
 from __future__ import division
+from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
@@ -16,6 +17,7 @@ SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 import scipy.stats
 import os
 import sys
+import platform
 import time
 import datetime
 import gc
@@ -115,13 +117,15 @@ class SpykeWindow(QtGui.QMainWindow):
             os.chdir(head) # update cwd
             self.OpenFile(tail)
 
-    def OnSave(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionSave_triggered(self):
         if not hasattr(self.sort, 'sortfname'):
-            self.OnSaveAs(evt)
+            self.OnSaveAs()
         else:
             self.SaveSortFile(self.sort.sortfname) # save to existing sort fname
 
-    def OnSaveAs(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionSaveAs_triggered(self):
         """Save Sort to new .sort file"""
         try:
             defaultFile = self.sort.sortfname
@@ -166,7 +170,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.SaveWaveFile(tail)
         dlg.destroy()
 
-    def OnSaveParse(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionSaveParse_triggered(self):
         self.hpstream.pickle()
 
     def OnExportSpikes(self, evt):
@@ -235,10 +240,21 @@ class SpykeWindow(QtGui.QMainWindow):
         self.close() # call close() before destroy() to avoid segfault
         self.destroy()
 
-    def OnAbout(self, evt):
-        dlg = SpykeAbout(self)
-        dlg.ShowModal()
-        dlg.destroy()
+    @QtCore.pyqtSlot()
+    def on_actionAboutSpyke_triggered(self):
+        text = """
+        <b><h3>spyke %s</h3></b>
+        <p><b>A tool for neuronal waveform visualization and spike sorting</b></p>
+        <p>Copyright &copy; 2008-2010 Martin Spacek, Reza Lotun<br>
+           University of British Columbia</p>
+        <p>Python %s, Qt %s, PyQt %s<br>
+        %s</p>""" % (__version__, platform.python_version(),
+        QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR, platform.platform())
+        QtGui.QMessageBox.about(self, "About spyke", text)
+
+    @QtCore.pyqtSlot()
+    def on_actionAboutQt_triggered(self):
+        QtGui.QMessageBox.aboutQt(self)
 
     @QtCore.pyqtSlot()
     def on_actionSpikeWindow_triggered(self):
@@ -273,25 +289,30 @@ class SpykeWindow(QtGui.QMainWindow):
         """PyShell window toggle menu/button event"""
         self.ToggleWindow('PyShell')
 
-    def OnWaveforms(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionWaveforms_triggered(self):
         """Spike waveforms toggle menu event"""
         self.ToggleWaveforms()
 
-    def OnRasters(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionRasters_triggered(self):
         """Spike rasters toggle menu event"""
         self.ToggleRasters()
 
-    def OnTref(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionTimeRef_triggered(self):
         """Time reference toggle menu event"""
-        self.ToggleRef('tref')
+        self.ToggleRef('TimeRef')
 
-    def OnVref(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionVoltageRef_triggered(self):
         """Voltage reference toggle menu event"""
-        self.ToggleRef('vref')
+        self.ToggleRef('VoltageRef')
 
-    def OnCaret(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionCaret_triggered(self):
         """Caret toggle menu event"""
-        self.ToggleRef('caret')
+        self.ToggleRef('Caret')
 
     def OnSampling(self, evt):
         """Sampling frequency menu choice event"""
@@ -300,7 +321,8 @@ class SpykeWindow(QtGui.QMainWindow):
         sampfreq *= 1000 # convert from kHz to Hz
         self.SetSampfreq(sampfreq)
 
-    def OnSHCorrect(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionSampleAndHoldCorrect_triggered(self):
         """Sample & hold menu event"""
         enable = self.ui.actionSampleAndHoldCorrect.isChecked()
         self.SetSHCorrect(enable)
@@ -1759,14 +1781,14 @@ class SpykeWindow(QtGui.QMainWindow):
                 self.plot(windowtype)
 
     def ToggleRef(self, ref):
-        """Toggle visibility of tref, vref, or the caret"""
+        """Toggle visibility of TimeRef, VoltageRef, or the Caret"""
         enable = self.ui.__dict__['action%s' % ref].isChecked()
         self.ShowRef(ref, enable)
 
     def ShowRef(self, ref, enable=True):
-        """Show/hide a tref, vref, or the caret. Force menu states to correspond"""
+        """Show/hide a TimeRef, VoltageRef, or the Caret. Force menu states to correspond"""
         self.ui.__dict__['action%s' % ref].setChecked(enable)
-        for windowtype, window in self.windows.iteritems():
+        for windowtype, window in self.windows.items():
             if windowtype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_ref(ref, enable=enable)
             elif windowtype == 'Sort':
@@ -2060,40 +2082,6 @@ class PyShellWindow(wx.MiniFrame,
     def OnClose(self, evt):
         windowtype = self.__class__.__name__.replace('Window', '') # remove 'Window' from class name
         self.Parent.HideWindow(windowtype)
-
-
-class SpykeAbout(wx.Dialog):
-    text = """
-        <html>
-        <body bgcolor="#D4D0C8">
-        <center><table bgcolor="#000000" width="100%" cellspacing="0"
-        cellpadding="0" border="0">
-        <tr>
-            <td align="center"><h1><font color="#00FF00">spyke</font></h1></td>
-        </tr>
-        </table>
-        </center>
-        <p><b>spyke</b> is a tool for neuronal waveform visualization and spike sorting.
-        </p>
-
-        <p>Copyright &copy; 2008-2010 Martin Spacek, Reza Lotun<br>
-           University of British Columbia</p>
-        </body>
-        </html>"""
-
-    def __init__(self, parent):
-        wx.Dialog.__init__(self, parent, -1, 'About spyke', size=(350, 260))
-
-        html = wx.html.HtmlWindow(self)
-        html.SetPage(self.text)
-        button = wx.Button(self, wx.ID_OK, "OK")
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(html, 1, wx.EXPAND|wx.ALL, 5)
-        sizer.Add(button, 0, wx.ALIGN_CENTER|wx.ALL, 5)
-
-        self.SetSizer(sizer)
-        self.Layout()
 '''
 
 if __name__ == '__main__':

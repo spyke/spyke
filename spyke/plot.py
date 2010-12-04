@@ -420,22 +420,22 @@ class PlotPanel(FigureCanvas):
 
     def add_ref(self, ref):
         """Helper method for external use"""
-        if ref == 'tref':
+        if ref == 'TimeRef':
             self._add_tref()
-        elif ref == 'vref':
+        elif ref == 'VoltageRef':
             self._add_vref()
-        elif ref == 'caret':
+        elif ref == 'Caret':
             self._add_caret()
         else:
             raise ValueError, 'invalid ref: %r' % ref
 
     def show_ref(self, ref, enable=True):
         """Helper method for external use"""
-        if ref == 'tref':
+        if ref == 'TimeRef':
             self._show_tref(enable)
-        elif ref == 'vref':
+        elif ref == 'VoltageRef':
             self._show_vref(enable)
-        elif ref == 'caret':
+        elif ref == 'Caret':
             self._show_caret(enable)
         else:
             raise ValueError, 'invalid ref: %r' % ref
@@ -738,17 +738,17 @@ class PlotPanel(FigureCanvas):
         """Seek to timepoint as represented on chan closest to left mouse click,
         enable/disable specific chans on Ctrl+left click or right click, enable/disable
         all chans on Shift+left click"""
-        button = evt.guiEvent.GetButton()
-        ctrl = evt.guiEvent.ControlDown()
-        shift = evt.guiEvent.ShiftDown()
-        #dclick = evt.guiEvent.ButtonDClick(but=wx.MOUSE_BTN_LEFT)
-        if button == wx.MOUSE_BTN_LEFT and not ctrl and not shift:
-            # seek to timepoint
+        button = evt.button
+        # TODO: evt.key is supposed to give us the modifier, if any (like ctrl or shift)
+        # but doesn't seem to work in qt. Also, evt.guiEvent always seems to be None in qt.
+        # Also, up and down scroll events don't work.
+        if button == 1: # left click
+            # seek to clicked timepoint
             chan = self.get_closestchans(evt, n=1)
             xpos = self.pos[chan][0]
             t = evt.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
             self.spykeframe.seek(t) # call main spyke frame's seek method
-        elif button == wx.MOUSE_BTN_LEFT and ctrl and not shift: # or button == wx.MOUSE_BTN_RIGHT and not ctrl and not shift:
+        elif button == 3: # right click
             # enable/disable closest chan
             chan = self.get_closestchans(evt, n=1)
             line = self.qrplt.lines[chan]
@@ -757,13 +757,6 @@ class PlotPanel(FigureCanvas):
             else:
                 enable = False
             self.spykeframe.set_chans_enabled(line.chan, enable)
-        elif button == wx.MOUSE_BTN_LEFT and not ctrl and shift:
-            # enable/disable all chans
-            if len(self.spykeframe.chans_enabled) == 0:
-                enable = True
-            else:
-                enable = False
-            self.spykeframe.set_chans_enabled(None, enable) # None means all chans
 
     def enable_chans(self, chans, enable=True):
         """Enable/disable a specific set of channels in this plot panel"""
@@ -794,26 +787,24 @@ class PlotPanel(FigureCanvas):
     '''
     def OnMotion(self, evt):
         """Pop up a tooltip when figure mouse movement is over axes"""
-        tooltip = self.GetToolTip()
-        if evt.inaxes:
-            # or, maybe better to just post a pick event, and let the pointed to chan
-            # (instead of clicked chan) stand up for itself
-            #chan = self.get_closestchans(evt, n=1)
-            line = self.get_closestline(evt)
-            if line and line.get_visible():
-                xpos, ypos = self.pos[line.chan]
-                t = evt.xdata - xpos + self.qrplt.tref
-                v = (evt.ydata - ypos) / self.gain
-                if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
-                    t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
-                    tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
-                          't=%d %s\n' % (t, MICRO+'s') + \
-                          'V=%.1f %s\n' % (v, MICRO+'V') + \
-                          'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
-                    tooltip.SetTip(tip)
-                    tooltip.Enable(True)
-                    return
-        tooltip.Enable(False)
+        if not evt.inaxes:
+            self.setToolTip('')
+            return
+        # or, maybe better to just post a pick event, and let the pointed to chan
+        # (instead of clicked chan) stand up for itself
+        #chan = self.get_closestchans(evt, n=1)
+        line = self.get_closestline(evt)
+        if line and line.get_visible():
+            xpos, ypos = self.pos[line.chan]
+            t = evt.xdata - xpos + self.qrplt.tref
+            v = (evt.ydata - ypos) / self.gain
+            if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
+                t = int(round(t / self.stream.tres)) * self.stream.tres # nearest sample
+                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
+                      't=%d %s\n' % (t, MICRO+'s') + \
+                      'V=%.1f %s\n' % (v, MICRO+'V') + \
+                      'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
+                self.setToolTip(tip)
 
     def OnMouseWheel(self, evt):
         """Zoom horizontally on CTRL+mouse wheel scroll"""

@@ -32,7 +32,7 @@ np.seterr(all='raise')
 
 from matplotlib.colors import hex2color
 
-from spyke import probes
+import probes
 
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'

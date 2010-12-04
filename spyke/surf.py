@@ -16,7 +16,7 @@ import datetime
 
 import wx
 
-from spyke.core import Stream, iterable, toiter, win2posixpath, ordered, intround
+from core import Stream, iterable, toiter, win2posixpath, ordered, intround
 
 NULL = '\x00'
 

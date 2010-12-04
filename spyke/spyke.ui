@@ -1101,6 +1101,9 @@
    <property name="text">
     <string>About spyke...</string>
    </property>
+   <property name="shortcut">
+    <string>F1</string>
+   </property>
    <property name="menuRole">
     <enum>QAction::AboutRole</enum>
    </property>

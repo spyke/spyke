@@ -2,6 +2,11 @@
 """
 
 __authors__ = 'Martin Spacek, Reza Lotun'
+__version__ = '0.3'
+#__revision__ = "$Revision: 949 $"
+#__date__ = "$Date: 2009-10-07 05:41:27 +0200 (Wed, 07 Oct 2009) $"
+#__license__ = "BSD license"
+
 
 import core
 import surf

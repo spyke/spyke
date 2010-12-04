@@ -4,6 +4,8 @@ QT rewrite:
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this director in designer apparently)
 
+- themed icons - can do it now using QIcon.fromTheme(), but should be much easier once it's integrated into Qt Designer in 4.8: http://bugreports.qt.nokia.com/browse/QTBUG-7777
+
 RECENT:
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records

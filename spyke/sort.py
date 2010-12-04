@@ -1,6 +1,7 @@
 """Spike sorting classes and window"""
 
 from __future__ import division
+from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
@@ -50,7 +51,7 @@ class Sort(object):
     DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
     TW = TW # save a reference
     def __init__(self, detector=None, stream=None):
-        self.__version__ = 0.3
+        self.__version__ = __version__
         self.detector = detector # this Sort's current Detector object
         self.stream = stream
         self.probe = stream.probe # only one probe design per sort allowed
