@@ -353,9 +353,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.seek(slideri * SLIDERTRES)
 
     def on_detectButton_pressed(self):
-        print('detect pressed')
-
-    def OnDetect(self, evt):
         """Detect pane Detect button click"""
         sort = self.sort
         sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
@@ -377,12 +374,12 @@ class SpykeWindow(QtGui.QMainWindow):
         try: del sort.wavefname
         except AttributeError: pass
 
-        self.total_nspikes_label.SetLabel(str(sort.nspikes))
+        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSpikeWidgets(True)
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
         # now that we've had a detection run
-        self.menubar.Enable(wx.ID_SAMPLING, False)
-        self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
+        #self.ui.menuBar.something....  Enable(wx.ID_SAMPLING, False)
+        #self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open data windows
         sf = self.OpenWindow('Sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
@@ -393,7 +390,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def init_extractor(self):
         """Initialize Extractor"""
-        XYmethod = self.XY_extract_radio_box.GetStringSelection()
+        #XYmethod = self.XY_extract_radio_box.GetStringSelection()
+        XYmethod = 'Gaussian fit' # hard code for now, don't really need extract pane
         ext = extract.Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
         self.sort.extractor = ext
         #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
@@ -1885,25 +1883,25 @@ class SpykeWindow(QtGui.QMainWindow):
     def update_detector(self, det):
         """Update detector from detect pane widget values"""
         det.chans = self.chans_enabled
-        if self.globalfixedthresh_radio_btn.GetValue():
+        ui = self.ui
+        if ui.globalFixedRadioButton.isChecked():
             threshmethod = 'GlobalFixed'
-        elif self.chanfixedthresh_radio_btn.GetValue():
+        elif ui.channelFixedRadioButton.isChecked():
             threshmethod = 'ChanFixed'
-        elif self.dynamicthresh_radio_btn.GetValue():
+        elif ui.dynamicRadioButton.isChecked():
             threshmethod = 'Dynamic'
         else:
             raise ValueError
         det.threshmethod = threshmethod
-        det.fixedthreshuV = self.fixedthreshuV_spin_ctrl.GetValue()
-        det.noisemult = float(self.noisemult_text_ctrl.GetValue())
-        det.noisemethod = self.noise_method_choice.GetStringSelection()
-        #det.noisewindow = self.noisewindow_spin_ctrl # not in the gui yet
-        det.ppthreshmult = float(self.ppthreshmult_text_ctrl.GetValue())
-        det.dt = self.dt_spin_ctrl.GetValue()
+        det.fixedthreshuV = ui.globalFixedSpinBox.value()
+        det.noisemult = ui.dynamicNoiseXSpinBox.value()
+        det.noisemethod = str(ui.noiseMethodComboBox.currentText())
+        det.ppthreshmult = ui.vppThreshXSpinBox.value()
+        det.dt = ui.phaseDTSpinBox.value()
         det.trange = self.get_detectortrange()
-        det.blocksize = int(self.blocksize_combo_box.GetValue())
-        det.lockr = self.lockr_spin_ctrl.GetValue()
-        det.inclr = self.inclr_spin_ctrl.GetValue()
+        det.blocksize = int(float(ui.blockSizeLineEdit.text())) # allow exp notation
+        det.lockr = ui.lockRSpinBox.value()
+        det.inclr = ui.inclRSpinBox.value()
 
     def update_from_detector(self, det):
         """Update self from detector attribs"""
@@ -1925,12 +1923,12 @@ class SpykeWindow(QtGui.QMainWindow):
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
         start, now, and end to appropriate vals"""
-        t0 = self.range_start_combo_box.GetValue()
-        t1 = self.range_end_combo_box.GetValue()
+        t0 = str(self.ui.rangeStartLineEdit.text())
+        t1 = str(self.ui.rangeEndLineEdit.text())
         try:
             t0 = self.str2t[t0]
         except KeyError:
-            t0 = int(float(t0)) # convert to float first so you can use exp notation as shorthand
+            t0 = int(float(t0)) # convert to float to allow exp notation shorthand
         try:
             t1 = self.str2t[t1]
         except KeyError:

@@ -300,7 +300,7 @@
           <bool>true</bool>
          </property>
         </widget>
-        <widget class="QSpinBox" name="spinBox_3">
+        <widget class="QSpinBox" name="phaseDTSpinBox">
          <property name="geometry">
           <rect>
            <x>75</x>
@@ -444,7 +444,7 @@
         <property name="title">
          <string>Range</string>
         </property>
-        <widget class="QLineEdit" name="lineEdit_2">
+        <widget class="QLineEdit" name="rangeStartLineEdit">
          <property name="geometry">
           <rect>
            <x>10</x>
@@ -454,7 +454,7 @@
           </rect>
          </property>
          <property name="text">
-          <string/>
+          <string>start</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -473,7 +473,7 @@
           <string>to</string>
          </property>
         </widget>
-        <widget class="QLineEdit" name="lineEdit_4">
+        <widget class="QLineEdit" name="rangeEndLineEdit">
          <property name="geometry">
           <rect>
            <x>125</x>
@@ -483,7 +483,7 @@
           </rect>
          </property>
          <property name="text">
-          <string/>
+          <string>end</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -515,7 +515,7 @@
           <string>Blocksize:</string>
          </property>
         </widget>
-        <widget class="QLineEdit" name="lineEdit_3">
+        <widget class="QLineEdit" name="blockSizeLineEdit">
          <property name="geometry">
           <rect>
            <x>65</x>
@@ -560,7 +560,7 @@
         <property name="title">
          <string>Radii</string>
         </property>
-        <widget class="QSpinBox" name="spinBox">
+        <widget class="QSpinBox" name="lockRSpinBox">
          <property name="geometry">
           <rect>
            <x>60</x>
@@ -576,7 +576,7 @@
           <number>150</number>
          </property>
         </widget>
-        <widget class="QSpinBox" name="spinBox_2">
+        <widget class="QSpinBox" name="inclRSpinBox">
          <property name="geometry">
           <rect>
            <x>60</x>
