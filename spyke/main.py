@@ -378,9 +378,10 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableSpikeWidgets(True)
         # disable sampling menu, don't want to allow sampfreq or shcorrect changes
         # now that we've had a detection run
-        #self.ui.menuBar.something....  Enable(wx.ID_SAMPLING, False)
-        #self.menubar.Enable(wx.ID_RASTERS, True) # enable raster menu, now that spikes exist
+        self.ui.menuSampling.setEnabled(False)
+        self.ui.actionRasters.setEnabled(True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open data windows
+        return
         sf = self.OpenWindow('Sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         # refresh spike virtual listctrl
