@@ -13,7 +13,7 @@ from copy import copy
 import operator
 import random
 
-import wx
+from PyQt4 import QtCore, QtGui
 
 import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
@@ -818,24 +818,33 @@ class Neuron(object):
     '''
 
 
-class SortWindow(wxglade_gui.SortFrame):
+class SortWindow(QtGui.QDockWidget):
     """Sort window"""
-    def __init__(self, *args, **kwargs):
-        wxglade_gui.SortFrame.__init__(self, *args, **kwargs)
-        self.spykewindow = self.Parent
+    def __init__(self, parent, pos=None):
+        QtGui.QDockWidget.__init__(self, parent)
+        self.spykewindow = parent
         ncols = self.sort.probe.ncols
         size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols,
                 SORTWINDOWHEIGHT)
-        self.SetSize(size)
-        self.splitter.SetSashPosition(SPLITTERSASH) # do this here because wxGlade keeps messing this up
-        self.sort_splitter.SetSashPosition(SORTSPLITTERSASH)
-        self.ns_splitter.SetSashPosition(NSSPLITTERSASH)
+        self.setWindowTitle("Sort Window")
+        self.setFloating(True)
+        self.move(*pos)
+        self.resize(*size)
+
+        self.nlist = QtGui.QListView()
+        self.nslist = QtGui.QListView()
+        self.slist = QtGui.QListView()
+        self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.splitter.addWidget(self.nlist)
+        self.splitter.addWidget(self.nslist)
+        self.splitter.addWidget(self.slist)
+        self.setWidget(self.splitter)
 
         #self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
         #self.slist.Bind(wx.EVT_KEY_DOWN, self.OnSListKeyDown)
 
-        self.Bind(wx.EVT_SIZE, self.OnSize)
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        #self.Bind(wx.EVT_SIZE, self.OnSize)
+        #self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def get_sort(self):
         return self.spykewindow.sort
@@ -845,12 +854,10 @@ class SortWindow(wxglade_gui.SortFrame):
 
     sort = property(get_sort, set_sort) # make this a property for proper behaviour after unpickling
 
-    def OnSize(self, evt):
-        """Re-save reflines_background after resizing the window"""
-        # resize doesn't actually happen until after this handler exits,
-        # so we have to CallAfter
-        wx.CallAfter(self.DrawRefs)
-        evt.Skip()
+    def resizeEvent(self, event):
+        """Redraws refs and resaves panel background after resizing the window"""
+        QtGui.QDockWidget.resizeEvent(self, event)
+        #self.panel.draw_refs()
 
     def OnSplitterSashChanged(self, evt):
         """Re-save reflines_background after resizing the SortPanel(s)
@@ -858,9 +865,9 @@ class SortWindow(wxglade_gui.SortFrame):
         print('in OnSplitterSashChanged')
         wx.CallAfter(self.DrawRefs)
 
-    def OnClose(self, evt):
+    def closeEvent(self, event):
         # remove 'Window' from class name
-        windowtype = self.__class__.__name__.lower().replace('window', '')
+        windowtype = type(self).__name__.replace('Window', '')
         self.spykewindow.HideWindow(windowtype)
 
     def OnNListSelect(self, evt):

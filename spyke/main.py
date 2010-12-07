@@ -40,9 +40,10 @@ DEFLFPTW = -500000, 500000 # lfp window temporal window (us)
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
 SPIKEWINDOWWIDTHPERCOLUMN = 80
-SPIKEWINDOWHEIGHT = 700
+SPIKEWINDOWHEIGHT = 684
 CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
+METACITYHACK = 29 # metacity has dockwidget vertical placement issues
 PYSHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWSIZE = 535, 535
 
@@ -1693,19 +1694,19 @@ class SpykeWindow(QtGui.QMainWindow):
         if new:
             if windowtype == 'Spike':
                 x = self.pos().x()
-                y = self.pos().y() + self.size().height()
+                y = self.pos().y() + self.size().height() + METACITYHACK
                 window = SpikeWindow(parent=self, stream=self.hpstream,
                                      tw=self.spiketw,
                                      pos=(x, y), size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
             elif windowtype == 'Chart':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH
-                y = self.pos().y() + self.size().height()
+                y = self.pos().y() + self.size().height() + METACITYHACK
                 window = ChartWindow(parent=self, stream=self.hpstream,
                                      tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
             elif windowtype == 'LFP':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
-                y = self.pos().y() + self.size().height()
+                y = self.pos().y() + self.size().height() + METACITYHACK
                 window = LFPWindow(parent=self, stream=self.lpstream,
                                    tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
@@ -1985,7 +1986,7 @@ class DataWindow(QtGui.QDockWidget):
     """Base data window to hold a custom spyke panel widget"""
     def setupUi(self, pos, size):
         self.setWidget(self.panel)
-        self.parent().addDockWidget(QtCore.Qt.RightDockWidgetArea, self)
+        #self.parent().addDockWidget(QtCore.Qt.RightDockWidgetArea, self)
         self.setFloating(True)
         self.move(*pos)
         self.resize(*size)
@@ -1996,7 +1997,8 @@ class DataWindow(QtGui.QDockWidget):
         self.panel.draw_refs()
 
     def closeEvent(self, event):
-        windowtype = type(self).__name__.replace('Window', '') # remove 'Window' from class name
+        # remove 'Window' from class name
+        windowtype = type(self).__name__.replace('Window', '')
         self.parent().HideWindow(windowtype)
 
 
