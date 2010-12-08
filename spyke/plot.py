@@ -304,14 +304,11 @@ class Raster(Plot):
 
 
 class PlotPanel(FigureCanvas):
-    """A QtWidget with an embedded mpl figure.
-    Base class for specific types of plot panels"""
-
+    """A QtWidget with an embedded mpl figure. Base class for Data and Sort panels"""
     # not necessarily constants
     uVperum = DEFUVPERUM
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
                          # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
-
     def __init__(self, parent, stream=None, tw=None, cw=None):
         self.figure = Figure() # resize later? can also set dpi here
         FigureCanvas.__init__(self, self.figure)
@@ -320,7 +317,8 @@ class PlotPanel(FigureCanvas):
         self.updateGeometry()
 
         self.spykeframe = parent.parent()
-        self.AD2uV = self.spykeframe.sort.converter.AD2uV # convenience for Plot objects to reference
+        self.sort = self.spykeframe.sort
+        self.AD2uV = self.sort.converter.AD2uV # convenience for Plot objects to reference
 
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
@@ -353,9 +351,9 @@ class PlotPanel(FigureCanvas):
         #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
         #self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
-        if type(self) == SortPanel:
+        if isinstance(self, SortPanel):
             probe = self.sort.probe
-        else:
+        else: # it's a Spike/Chart/LFP panel
             probe = self.stream.probe
         self.probe = probe
         self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
@@ -794,17 +792,31 @@ class PlotPanel(FigureCanvas):
         # (instead of clicked chan) stand up for itself
         #chan = self.get_closestchans(evt, n=1)
         line = self.get_closestline(evt)
-        if line and line.get_visible():
-            xpos, ypos = self.pos[line.chan]
-            t = evt.xdata - xpos + self.qrplt.tref
-            v = (evt.ydata - ypos) / self.gain
-            if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
-                t = int(round(t / self.stream.tres)) * self.stream.tres # nearest sample
-                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
-                      't=%d %s\n' % (t, MICRO+'s') + \
-                      'V=%.1f %s\n' % (v, MICRO+'V') + \
-                      'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
-                self.setToolTip(tip)
+        sortpanel = isinstance(self, SortPanel)
+        if sortpanel:
+            linetest = line
+        else:
+            linetest = line and line.get_visible()
+        if not linetest:
+            self.setToolTip(''); return
+        xpos, ypos = self.pos[line.chan]
+        t = evt.xdata - xpos
+        if not sortpanel:
+            t += self.qrplt.tref
+        v = (evt.ydata - ypos) / self.gain
+        if sortpanel:
+            tres = self.sort.stream.tres
+        else:
+            if not (t >= self.stream.t0 and t <= self.stream.t1): # out of bounds
+                self.setToolTip(''); return
+            tres = self.stream.tres
+        t = int(round(t / tres)) * tres # nearest sample
+        tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
+              't=%d %s\n' % (t, MICRO+'s') + \
+              'V=%.1f %s\n' % (v, MICRO+'V') + \
+              'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
+        self.setToolTip(tip)
+
 
     def OnMouseWheel(self, evt):
         """Zoom horizontally on CTRL+mouse wheel scroll"""
@@ -1125,8 +1137,8 @@ class SortPanel(PlotPanel):
         plt.draw()
 
     def get_closestline(self, evt):
-        """Return line that's closest to mouse event coords
-        Slightly modified from PlotPanel's version"""
+        """Return line that's closest to mouse event coords, Slightly modified
+        from PlotPanel's version"""
         d2s = [] # sum squared distances
         hitlines = []
         closestchans = self.get_closestchans(evt, n=NCLOSESTCHANSTOSEARCH)
@@ -1148,36 +1160,11 @@ class SortPanel(PlotPanel):
         else:
             return None
 
-    def OnMotion(self, evt):
-        """Pop up a tooltip when figure mouse movement is over axes.
-        Slightly modified from PlotPanel's version"""
-        tooltip = self.GetToolTip()
-        if evt.inaxes:
-            # or, maybe better to just post a pick event, and let the pointed to chan
-            # (instead of clicked chan) stand up for itself
-            #chan = self.get_closestchans(evt, n=1)
-            line = self.get_closestline(evt) # get closest voltage ref line only
-            if line:
-                xpos, ypos = self.pos[line.chan]
-                try:
-                    tres = self.spykeframe.hpstream.tres
-                except AttributeError: # no srf file loaded in spyke
-                    tres = 1
-                t = evt.xdata - xpos # make it relative to the vertical tref line only, don't try to get absolute times
-                v = (evt.ydata - ypos) / self.gain
-                t = int(round(t / tres)) * tres # round to nearest (possibly interpolated) sample
-                tip = 'ch%d @ %r %s\n' % (line.chan, self.SiteLoc[line.chan], MICRO+'m') + \
-                      't=%d %s\n' % (t, MICRO+'s') + \
-                      'V=%.1f %s\n' % (v, MICRO+'V') + \
-                      'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
-                tooltip.SetTip(tip)
-                tooltip.Enable(True)
-                return
-        tooltip.Enable(False)
-
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):
         kwargs['tw'] = TW
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
+
+#class ChartSortPanel(SortPanel, ChartPanel):

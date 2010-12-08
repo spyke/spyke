@@ -19,8 +19,8 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from spyke.core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
-from spyke import wxglade_gui
+from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
+from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -834,10 +834,14 @@ class SortWindow(QtGui.QDockWidget):
         self.nlist = QtGui.QListView()
         self.nslist = QtGui.QListView()
         self.slist = QtGui.QListView()
+        self.panel = SpikeSortPanel(self)
+
         self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.splitter.addWidget(self.nlist)
         self.splitter.addWidget(self.nslist)
         self.splitter.addWidget(self.slist)
+        self.splitter.addWidget(self.panel)
+
         self.setWidget(self.splitter)
 
         #self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
