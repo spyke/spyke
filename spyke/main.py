@@ -244,8 +244,8 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionAboutSpyke_triggered(self):
         text = """
-        <b><h3>spyke %s</h3></b>
-        <p><b>A tool for neuronal waveform visualization and spike sorting</b></p>
+        <h2>spyke %s</h2>
+        <p>A tool for neuronal waveform visualization and spike sorting</p>
         <p>Copyright &copy; 2008-2010 Martin Spacek, Reza Lotun<br>
            University of British Columbia</p>
         <p>Python %s, Qt %s, PyQt %s<br>
@@ -382,13 +382,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.menuSampling.setEnabled(False)
         self.ui.actionRasters.setEnabled(True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open data windows
-        return
         sf = self.OpenWindow('Sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
-        # refresh spike virtual listctrl
-        sf.slist.SetItemCount(len(sort.usids))
-        sf.slist.RefreshItems()
-        #self.OpenWindow('PyShell') # for testing
 
     def init_extractor(self):
         """Initialize Extractor"""

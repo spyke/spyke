@@ -13,9 +13,7 @@ from datetime import timedelta
 import os
 import sys
 
-import wx
-#from wx.lib.mixins.treemixin import VirtualTree
-from wx.lib.mixins.listctrl import ListCtrlSelectionManagerMix
+from PyQt4 import QtCore
 
 import numpy as np
 from numpy import pi
@@ -661,7 +659,7 @@ class Stream(object):
             kernels.append(kernelrow)
         return kernels
 
-
+'''
 class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
     """ListCtrl with a couple of extra methods defined"""
     def __init__(self, *args, **kwargs):
@@ -673,15 +671,7 @@ class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
         flag set"""
         wx.ListCtrl.RefreshItems(self, 0, sys.maxint) # refresh all possible items
         self.Refresh() # repaint the listctrl
-    '''
-    def InsertRow(self, row, data):
-        """Insert data in list at row position.
-        data is a list of strings or numbers, one per column.
-        wx.ListCtrl lacks something like this as a method"""
-        row = self.InsertStringItem(row, str(data[0])) # inserts data's first column
-        for coli, val in enumerate(data[1:]): # insert the rest of data's columns
-            self.SetStringItem(row, coli+1, str(val))
-    '''
+
     def DeleteItemByData(self, data):
         """Delete first item whose first column matches data"""
         row = self.FindItem(0, str(data)) # start search from row 0
@@ -704,10 +694,70 @@ class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
         """De-select all items"""
         #rows = self.getSelection()
         #for row in rows:
-        #    self.Select(row, on=False)
+            #self.Select(row, on=False)
         self.Select(-1, on=False) # -1 signifies all
+'''
+
+# TODO: setting uniformItemSizes improves display performance. not sure what it means though
+# maybe icon size?
+
+class NListModel(QtCore.QAbstractListModel):
+    """Model for neuron list view"""
+    def __init__(self, parent):
+        QtCore.QAbstractListModel.__init__(self)
+        self.sortwin = parent
+
+    def rowCount(self, parent):
+        return len(self.sortwin.sort.neurons)
+
+    def data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            nids = sorted(self.sortwin.sort.neurons)
+            return nids[index.row()]
 
 
+class NSListModel(QtCore.QAbstractListModel):
+    """Model for neuron spikes list view"""
+    # TODO: this is untested!!!
+    def __init__(self, parent):
+        QtCore.QAbstractListModel.__init__(self)
+        self.sortwin = parent
+
+    def rowCount(self, parent):
+        nids = self.sortwin.nslist.selectedIndexes()
+        # TODO: might wanna use currentIndex() instead
+        if len(nids) == 1:
+            neuron = self.sorwin.neurons[nids[0]]
+            return neuron.nspikes
+        else:
+            return 0
+
+    def data(self, index, role):
+        nids = self.sortwin.nslist.selectedIndexes()
+        # TODO: might wanna use currentIndex() instead
+        if len(nids) == 1:
+            neuron = self.sorwin.neurons[nids[0]]
+        else:
+            neuron = None
+        if role == QtCore.Qt.DisplayRole and neuron:
+            return neuron.sids[index.row()]
+
+
+class SListModel(QtCore.QAbstractListModel):
+    """Model for spike list view"""
+    def __init__(self, parent):
+        QtCore.QAbstractListModel.__init__(self, parent)
+        self.sortwin = parent
+
+    def rowCount(self, parent):
+        return self.sortwin.sort.nspikes
+
+    def data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            return int(self.sortwin.sort.usids[index.row()])
+
+
+'''
 class NListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for displaying neurons.
     The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
@@ -728,8 +778,8 @@ class NListCtrl(SpykeListCtrl):
         # TODO: could almost assume sort.neurons dict is ordered, since it always seems to be
         nids = sorted(sort.neurons)
         return nids[row]
-
-
+'''
+'''
 class CListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for displaying clusters.
     (Clusters map 1 to 1 with neurons.)
@@ -751,8 +801,8 @@ class CListCtrl(SpykeListCtrl):
         # TODO: could almost assume sort.clusters dict is ordered, since it always seems to be
         cids = sorted(sort.clusters)
         return cids[row]
-
-
+'''
+'''
 class DimListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for selecting which dimensions to cluster upon.
     The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
@@ -768,8 +818,8 @@ class DimListCtrl(SpykeListCtrl):
 
     def OnGetItemText(self, row, col):
         return self.dims[row]
-
-
+'''
+'''
 class NSListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for displaying a neuron's spikes.
     The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
@@ -797,8 +847,8 @@ class NSListCtrl(SpykeListCtrl):
         self.RefreshItems()
 
     neuron = property(get_neuron, set_neuron)
-
-
+'''
+'''
 class SListCtrl(SpykeListCtrl):
     """A virtual ListCtrl for displaying unsorted spikes.
     The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
@@ -830,7 +880,7 @@ class SListCtrl(SpykeListCtrl):
         if type(val) == np.float32:
             val = '%.1f' % val
         return val
-
+'''
 
 class Stack(list):
     """A list that doesn't allow -ve indices"""

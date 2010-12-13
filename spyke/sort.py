@@ -20,6 +20,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
+from core import NListModel, NSListModel, SListModel
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -824,8 +825,7 @@ class SortWindow(QtGui.QDockWidget):
         QtGui.QDockWidget.__init__(self, parent)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
-        size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols,
-                SORTWINDOWHEIGHT)
+        size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
         self.setWindowTitle("Sort Window")
         self.setFloating(True)
         self.move(*pos)
@@ -833,8 +833,12 @@ class SortWindow(QtGui.QDockWidget):
 
         self.nlist = QtGui.QListView()
         self.nslist = QtGui.QListView()
-        self.slist = QtGui.QListView()
+        self.slist = QtGui.QListView() # should really be multicolumn tableview
         self.panel = SpikeSortPanel(self)
+
+        self.nlist.setModel(NListModel(self))
+        self.nslist.setModel(NSListModel(self))
+        self.slist.setModel(SListModel(self))
 
         self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.splitter.addWidget(self.nlist)
