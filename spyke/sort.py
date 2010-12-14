@@ -20,7 +20,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
-from core import NListModel, NSListModel, SListModel
+from core import NList, NSList, SList
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -831,14 +831,10 @@ class SortWindow(QtGui.QDockWidget):
         self.move(*pos)
         self.resize(*size)
 
-        self.nlist = QtGui.QListView()
-        self.nslist = QtGui.QListView()
-        self.slist = QtGui.QListView() # should really be multicolumn tableview
+        self.nlist = NList(self)
+        self.nslist = NSList(self)
+        self.slist = SList(self) # should really be multicolumn tableview
         self.panel = SpikeSortPanel(self)
-
-        self.nlist.setModel(NListModel(self))
-        self.nslist.setModel(NSListModel(self))
-        self.slist.setModel(SListModel(self))
 
         self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.splitter.addWidget(self.nlist)
@@ -865,7 +861,7 @@ class SortWindow(QtGui.QDockWidget):
     def resizeEvent(self, event):
         """Redraws refs and resaves panel background after resizing the window"""
         QtGui.QDockWidget.resizeEvent(self, event)
-        #self.panel.draw_refs()
+        self.panel.draw_refs()
 
     def OnSplitterSashChanged(self, evt):
         """Re-save reflines_background after resizing the SortPanel(s)

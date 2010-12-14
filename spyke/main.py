@@ -1714,18 +1714,10 @@ class SpykeWindow(QtGui.QMainWindow):
                 y = self.pos().y() + self.size().height()
                 from spyke.cluster import ClusterWindow # can't delay this any longer
                 window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
-            elif windowtype == 'PyShell':
-                try:
-                    ncols = self.hpstream.probe.ncols
-                except AttributeError:
-                    ncols = 2 # assume 2 columns
-                x = self.pos().x() + ncols*SPIKEWINDOWWIDTHPERCOLUMN
-                y = self.pos().y() + self.size().height() + SPIKEWINDOWHEIGHT - PYSHELLSIZE[1]
-                window = PyShellWindow(parent=self, pos=(x, y), size=PYSHELLSIZE)
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype) # just show it
-        if new and isinstance(window, DataWindow):
+        if new and windowtype != 'Cluster':
             window.panel.draw_refs() # do this after first show to prevent plot artifacts
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
@@ -2023,62 +2015,6 @@ class LFPWindow(DataWindow):
         self.setupUi(pos, size)
         self.setWindowTitle("LFP Window")
 
-'''
-class PyShellWindow(wx.MiniFrame,
-                   wx.py.shell.ShellFrame,
-                   wx.py.frame.Frame,
-                   wx.py.frame.ShellFrameMixin):
-    """PyShell window"""
-    STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.MAXIMIZE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW
-
-    def __init__(self, *args, **kwargs):
-        """TODO: get my startup script to actually run on startup"""
-        self.config = wx.FileConfig(localFilename=PYSHELLCFGFNAME) # get config fom file
-        self.config.SetRecordDefaults(True)
-        startupScript = 'pyshell_startup.py'
-        title = 'spyke PyShell'
-        kwargs['style'] = self.STYLE
-        kwargs['title'] = title
-
-        wx.MiniFrame.__init__(self, *args, **kwargs)
-        wx.py.frame.ShellFrameMixin.__init__(self, config=self.config, dataDir=os.path.dirname(PYSHELLCFGFNAME))
-        del kwargs['parent']
-        del kwargs['title']
-        self.shell = wx.py.shell.Shell(parent=self, id=-1, introText='',
-                                       locals=None, InterpClass=None,
-                                       startupScript=startupScript, # doesn't seem to work
-                                       execStartupScript=True,
-                                       *args, **kwargs)
-        # Override the shell so that status messages go to the status bar.
-        self.shell.setStatusText = self.SetStatusText
-
-        self.shell.SetFocus()
-        self.LoadSettings()
-
-        self.CreateStatusBar()
-        #wx.py.frame.Frame._Frame__createMenus(self) # stupid __ name mangling, see Python docs
-
-        self.iconized = False
-        self.findDlg = None
-        self.findData = wx.FindReplaceData()
-        self.findData.SetFlags(wx.FR_DOWN)
-
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-        self.Bind(wx.EVT_ICONIZE, self.OnIconize) # maybe this should be commented out?
-
-        #self.shell.run('from __future__ import division')
-        #self.shell.run('import numpy as np')
-        #self.shell.runfile(startupScript)
-        #self.shell.run('from '+startupScript+' import *')
-        self.shell.run('self = app.spykewindow')
-        #self.shell.run("sf = self.windows['Sort']") # convenience
-        #self.shell.run("cf = self.windows['Cluster']") # convenience
-        self.shell.run('s = self.sort') # convenience
-
-    def OnClose(self, evt):
-        windowtype = self.__class__.__name__.replace('Window', '') # remove 'Window' from class name
-        self.Parent.HideWindow(windowtype)
-'''
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)

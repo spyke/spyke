@@ -13,7 +13,7 @@ from datetime import timedelta
 import os
 import sys
 
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 
 import numpy as np
 from numpy import pi
@@ -700,6 +700,45 @@ class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
 
 # TODO: setting uniformItemSizes improves display performance. not sure what it means though
 # maybe icon size?
+
+class NList(QtGui.QListView):
+    """Neuron list view"""
+    def __init__(self, parent):
+        QtGui.QListView.__init__(self, parent)
+        self.sortwin = parent
+        #self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        self.setModel(NListModel(parent))
+
+
+class NSList(QtGui.QListView):
+    """Spike list view"""
+    def __init__(self, parent):
+        QtGui.QListView.__init__(self, parent)
+        self.sortwin = parent
+        #self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        self.setModel(NSListModel(parent))
+
+
+class SList(QtGui.QListView):
+    """Spike list view"""
+    def __init__(self, parent):
+        QtGui.QListView.__init__(self, parent)
+        self.sortwin = parent
+        #self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        self.setModel(SListModel(parent))
+
+    def selectionChanged(self, selected, deselected):
+        QtGui.QListView.selectionChanged(self, selected, deselected)
+        sort = self.sortwin.sort
+        panel = self.sortwin.panel
+        add_sids = sort.usids[[ index.row() for index in selected.indexes() ]]
+        rem_sids = sort.usids[[ index.row() for index in deselected.indexes() ]]
+        panel.removeItems([ 's'+str(sid) for sid in rem_sids ])
+        panel.addItems([ 's'+str(sid) for sid in add_sids ])
+
 
 class NListModel(QtCore.QAbstractListModel):
     """Model for neuron list view"""
