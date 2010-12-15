@@ -1370,7 +1370,6 @@ class SpykeWindow(QtGui.QMainWindow):
                 del cf.glyph # cluster window hangs around, so del its glyph
             except AttributeError: pass
             cf.f.scene.disable_render = False
-        self.ui.clist.setModel(None)
         del self.cchanges[:]
         self.cci = -1
         self.ui.progressBar.setFormat('0 spikes')

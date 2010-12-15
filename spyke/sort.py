@@ -831,24 +831,56 @@ class SortWindow(QtGui.QDockWidget):
         self.move(*pos)
         self.resize(*size)
 
+        toolbar = QtGui.QToolBar("toolbar", self)
+        toolbar.setFloatable(True)
+        toolbar.addAction(actionAddCluster)
+
+        actionAddCluster = QtGui.QAction("+", self)
+        actionAddCluster.setToolTip('Add cluster')
+        self.connect(actionAddCluster, QtCore.SIGNAL("triggered()"),
+                     self.on_actionAddCluster_triggered)
+
+
+
+
         self.nlist = NList(self)
         self.nslist = NSList(self)
         self.slist = SList(self) # should really be multicolumn tableview
         self.panel = SpikeSortPanel(self)
 
-        self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
-        self.splitter.addWidget(self.nlist)
-        self.splitter.addWidget(self.nslist)
-        self.splitter.addWidget(self.slist)
-        self.splitter.addWidget(self.panel)
+        self.nlist.setToolTip('Neuron list')
+        self.nslist.setToolTip('Sorted spike list')
+        self.slist.setToolTip('Unsorted spike list')
 
-        self.setWidget(self.splitter)
+        self.hsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.hsplitter.addWidget(self.nlist)
+        self.hsplitter.addWidget(self.nslist)
+
+        self.vsplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
+        self.vsplitter.addWidget(self.hsplitter)
+        self.vsplitter.addWidget(self.slist)
+
+        self.mainsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        #self.mainsplitter.addWidget(self.toolbar)
+        self.mainsplitter.addWidget(self.vsplitter)
+        self.mainsplitter.addWidget(self.panel)
+
+        mainwidget = QtGui.QWidget(self)
+        layout = QtGui.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(toolbar)
+        layout.addWidget(self.mainsplitter)
+        mainwidget.setLayout(layout)
+        self.setWidget(mainwidget)
+
+        #QtCore.QMetaObject.connectSlotsByName(self)
 
         #self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
         #self.slist.Bind(wx.EVT_KEY_DOWN, self.OnSListKeyDown)
 
         #self.Bind(wx.EVT_SIZE, self.OnSize)
         #self.Bind(wx.EVT_CLOSE, self.OnClose)
+
 
     def get_sort(self):
         return self.spykewindow.sort
@@ -960,6 +992,9 @@ class SortWindow(QtGui.QDockWidget):
             s.usids_sorted_by = field # update
             s.usids_reversed = False # update
         self.slist.RefreshItems()
+
+    def on_actionAddCluster_triggered(self):
+        print('clicked add')
 
     def OnAlignMax(self, evt):
         self.Align('max')

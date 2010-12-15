@@ -710,6 +710,9 @@ class NList(QtGui.QListView):
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
         self.setModel(NListModel(parent))
 
+    def selectionChanged(self, selected, deselected):
+        QtGui.QListView.selectionChanged(self, selected, deselected)
+        # TODO: insert stuff here
 
 class NSList(QtGui.QListView):
     """Spike list view"""
@@ -719,6 +722,10 @@ class NSList(QtGui.QListView):
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
         self.setModel(NSListModel(parent))
+
+    def selectionChanged(self, selected, deselected):
+        QtGui.QListView.selectionChanged(self, selected, deselected)
+        # TODO: insert stuff here
 
 
 class SList(QtGui.QListView):
@@ -886,39 +893,6 @@ class NSListCtrl(SpykeListCtrl):
         self.RefreshItems()
 
     neuron = property(get_neuron, set_neuron)
-'''
-'''
-class SListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl for displaying unsorted spikes.
-    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
-    def __init__(self, *args, **kwargs):
-        SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.COL2FIELD = {0:'id', 1:'x0', 2:'y0', 3:'t'} # col num to spikes field mapping
-
-        columnlabels = ['sID', 'x0', 'y0', 'time'] # spike list column labels
-        for coli, label in enumerate(columnlabels):
-            self.InsertColumn(coli, label)
-        #for coli in range(len(columnlabels)): # this needs to be in a separate loop it seems
-        #    self.slist.SetColumnWidth(coli, wx.LIST_AUTOSIZE_USEHEADER) # resize columns to fit
-        # hard code column widths for precise control, autosize seems buggy
-        for coli, width in {0:40, 1:40, 2:60, 3:80}.items(): # (sid, x0, y0, time)
-            self.SetColumnWidth(coli, width)
-
-    def OnGetItemText(self, row, col):
-        """For virtual list ctrl, return data string for the given item and its col"""
-        # index into usids list, in whatever order it was last sorted
-        sort = self.GetTopLevelParent().sort
-        sid = sort.usids[row]
-        spike = sort.spikes[sid]
-        field = self.COL2FIELD[col]
-        try:
-            val = spike[field]
-        except IndexError: # field isn't currently available
-            return ''
-        # this formatting step doesn't seem to have a performance cost:
-        if type(val) == np.float32:
-            val = '%.1f' % val
-        return val
 '''
 
 class Stack(list):

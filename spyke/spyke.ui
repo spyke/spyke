@@ -185,7 +185,7 @@
           <x>5</x>
           <y>5</y>
           <width>236</width>
-          <height>166</height>
+          <height>156</height>
          </rect>
         </property>
         <property name="autoFillBackground">
@@ -483,7 +483,7 @@
           </rect>
          </property>
          <property name="text">
-          <string>end</string>
+          <string>10e5</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -650,23 +650,327 @@
        <attribute name="title">
         <string>Cluster</string>
        </attribute>
-       <widget class="QListView" name="clist">
+       <widget class="QGroupBox" name="groupBox_4">
         <property name="geometry">
          <rect>
-          <x>145</x>
+          <x>5</x>
           <y>5</y>
-          <width>256</width>
-          <height>192</height>
+          <width>171</width>
+          <height>186</height>
          </rect>
         </property>
-        <property name="selectionMode">
-         <enum>QAbstractItemView::ExtendedSelection</enum>
+        <property name="autoFillBackground">
+         <bool>false</bool>
         </property>
-        <property name="flow">
-         <enum>QListView::LeftToRight</enum>
+        <property name="title">
+         <string>Auto clustering</string>
         </property>
-        <property name="viewMode">
-         <enum>QListView::IconMode</enum>
+        <property name="flat">
+         <bool>false</bool>
+        </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+        <widget class="QLabel" name="label_20">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>20</y>
+           <width>31</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Dims</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="climbButton">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>160</y>
+           <width>41</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Climb</string>
+         </property>
+        </widget>
+        <widget class="QListWidget" name="dimlist">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>35</y>
+           <width>46</width>
+           <height>121</height>
+          </rect>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_21">
+         <property name="geometry">
+          <rect>
+           <x>75</x>
+           <y>20</y>
+           <width>71</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Parameters</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_22">
+         <property name="geometry">
+          <rect>
+           <x>50</x>
+           <y>40</y>
+           <width>36</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>sigma:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="sigmaSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>35</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>3</number>
+         </property>
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.010000000000000</double>
+         </property>
+         <property name="value">
+          <double>0.300000000000000</double>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_23">
+         <property name="geometry">
+          <rect>
+           <x>50</x>
+           <y>65</y>
+           <width>51</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>rmergex:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="rmergeXSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>60</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.100000000000000</double>
+         </property>
+         <property name="value">
+          <double>5.000000000000000</double>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_24">
+         <property name="geometry">
+          <rect>
+           <x>50</x>
+           <y>90</y>
+           <width>36</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>alpha:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="alphaSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>85</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>2</number>
+         </property>
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.010000000000000</double>
+         </property>
+         <property name="value">
+          <double>0.100000000000000</double>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_25">
+         <property name="geometry">
+          <rect>
+           <x>50</x>
+           <y>115</y>
+           <width>56</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>nsamples:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="nsamplesSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>110</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>0</number>
+         </property>
+         <property name="maximum">
+          <double>999999999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>1000.000000000000000</double>
+         </property>
+         <property name="value">
+          <double>10000.000000000000000</double>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="maxstillSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>135</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>0</number>
+         </property>
+         <property name="maximum">
+          <double>999999999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>1.000000000000000</double>
+         </property>
+         <property name="value">
+          <double>200.000000000000000</double>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_26">
+         <property name="geometry">
+          <rect>
+           <x>50</x>
+           <y>140</y>
+           <width>56</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>maxstill:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="minpointsSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>160</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>0</number>
+         </property>
+         <property name="maximum">
+          <double>999999999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>1.000000000000000</double>
+         </property>
+         <property name="value">
+          <double>5.000000000000000</double>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_27">
+         <property name="geometry">
+          <rect>
+           <x>50</x>
+           <y>165</y>
+           <width>56</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>minpoints:</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QGroupBox" name="groupBox_5">
+        <property name="geometry">
+         <rect>
+          <x>180</x>
+          <y>5</y>
+          <width>116</width>
+          <height>186</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>Clusters</string>
+        </property>
+        <widget class="QPushButton" name="pushButton">
+         <property name="geometry">
+          <rect>
+           <x>10</x>
+           <y>20</y>
+           <width>21</width>
+           <height>26</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>+</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QGroupBox" name="groupBox_6">
+        <property name="geometry">
+         <rect>
+          <x>295</x>
+          <y>5</y>
+          <width>186</width>
+          <height>186</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>Cluster parameters</string>
         </property>
        </widget>
       </widget>
@@ -1101,6 +1405,10 @@
    </property>
   </action>
   <action name="actionAboutSpyke">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/chart.png</normaloff>res/chart.png</iconset>
+   </property>
    <property name="text">
     <string>About spyke...</string>
    </property>
