@@ -939,39 +939,95 @@
          <rect>
           <x>180</x>
           <y>5</y>
-          <width>116</width>
+          <width>301</width>
           <height>186</height>
          </rect>
         </property>
         <property name="title">
-         <string>Clusters</string>
+         <string>Cluster plotting</string>
         </property>
-        <widget class="QPushButton" name="pushButton">
+        <widget class="QLabel" name="label_28">
          <property name="geometry">
           <rect>
-           <x>10</x>
+           <x>60</x>
            <y>20</y>
-           <width>21</width>
-           <height>26</height>
+           <width>31</width>
+           <height>16</height>
           </rect>
          </property>
          <property name="text">
-          <string>+</string>
+          <string>Dims</string>
          </property>
         </widget>
-       </widget>
-       <widget class="QGroupBox" name="groupBox_6">
-        <property name="geometry">
-         <rect>
-          <x>295</x>
-          <y>5</y>
-          <width>186</width>
-          <height>186</height>
-         </rect>
-        </property>
-        <property name="title">
-         <string>Cluster parameters</string>
-        </property>
+        <widget class="QLabel" name="label_29">
+         <property name="geometry">
+          <rect>
+           <x>20</x>
+           <y>45</y>
+           <width>16</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>x:</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_30">
+         <property name="geometry">
+          <rect>
+           <x>20</x>
+           <y>70</y>
+           <width>16</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>y:</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_31">
+         <property name="geometry">
+          <rect>
+           <x>20</x>
+           <y>95</y>
+           <width>16</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>z:</string>
+         </property>
+        </widget>
+        <widget class="QComboBox" name="xDimComboBox">
+         <property name="geometry">
+          <rect>
+           <x>40</x>
+           <y>40</y>
+           <width>71</width>
+           <height>25</height>
+          </rect>
+         </property>
+        </widget>
+        <widget class="QComboBox" name="yDimcomboBox">
+         <property name="geometry">
+          <rect>
+           <x>40</x>
+           <y>65</y>
+           <width>71</width>
+           <height>25</height>
+          </rect>
+         </property>
+        </widget>
+        <widget class="QComboBox" name="zDimComboBox">
+         <property name="geometry">
+          <rect>
+           <x>40</x>
+           <y>90</y>
+           <width>71</width>
+           <height>25</height>
+          </rect>
+         </property>
+        </widget>
        </widget>
       </widget>
      </widget>

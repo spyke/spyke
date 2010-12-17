@@ -485,8 +485,8 @@ class SpykeWindow(QtGui.QMainWindow):
         rows = np.searchsorted(all_nids, sel_nids)
         [ self.clist.Select(row, on=on) for row in rows ]
 
-    def OnAddCluster(self, evt=None, update=True, id=None):
-        """Cluster pane Add button click"""
+    def OnAddCluster(self, update=True, id=None):
+        """Sort window Add button click"""
         neuron = self.sort.create_neuron(id)
         sf = self.windows['Sort']
         if update:
@@ -514,8 +514,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.clist.Select(len(self.sort.clusters) - 1) # select newly created item
         self.cluster_params_pane.Enable(True)
 
-    def OnDelCluster(self, evt=None):
-        """Cluster pane Del button click"""
+    def OnDelCluster(self):
+        """Sort window pane Del button click"""
         clusters = self.GetClusters()
         sids = []
         s = self.sort
@@ -568,7 +568,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.clist.RefreshItems()
             cf.f.scene.disable_render = False
 
-    def OnRenumberClusters(self, evt=None):
+    def OnRenumberClusters(self):
         """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
         Sorting by y position makes user inspection of clusters more orderly, makes the presence
         of duplicate clusters more obvious, and allows for maximal spatial separation between
@@ -665,7 +665,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # any clusters have been created
             pass
 
-    def OnFocusCurrentCluster(self, evt=None):
+    def OnFocusCurrentCluster(self):
         """Focus button press in cluster_pane. Move focus to location
         of currently selected (single) cluster"""
         cluster = self.GetCluster()
@@ -676,7 +676,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cf.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
         #cf.Refresh() # this also seems to work: repaint the window
 
-    def OnFocusCurrentSpike(self, evt=None):
+    def OnFocusCurrentSpike(self):
         """Focus button press in sort_pane. Move focus to location
         of currently selected (single) spike"""
         sid = self.GetSpike()
@@ -906,8 +906,8 @@ class SpykeWindow(QtGui.QMainWindow):
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
 
-    def OnMerge(self, evt=None):
-        """Cluster pane merge button (^) click. For simple merging of clusters, easier to
+    def OnMerge(self):
+        """Sort window merge button (^) click. For simple merging of clusters, easier to
         use than running climb() on selected clusters using a really big sigma to force
         them to all merge"""
         s = self.sort
@@ -1181,7 +1181,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # and update self.cci appropriately
 
     def OnUndo(self, evt=None):
-        """Cluster pane Undo button click. Undo previous cluster change"""
+        """Undo button click. Undo previous cluster change"""
         try: cc = self.cchanges[self.cci]
         except IndexError: raise RuntimeError('nothing to undo')
         print('undoing: %s' % cc.message)
@@ -1190,7 +1190,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('undo complete')
 
     def OnRedo(self, evt=None):
-        """Cluster pane Redo button click. Redo next cluster change"""
+        """Redo button click. Redo next cluster change"""
         try: cc = self.cchanges[self.cci+1]
         except IndexError: raise RuntimeError('nothing to redo')
         print('redoing: %s' % cc.message)

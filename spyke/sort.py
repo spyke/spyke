@@ -831,17 +831,7 @@ class SortWindow(QtGui.QDockWidget):
         self.move(*pos)
         self.resize(*size)
 
-        toolbar = QtGui.QToolBar("toolbar", self)
-        toolbar.setFloatable(True)
-        toolbar.addAction(actionAddCluster)
-
-        actionAddCluster = QtGui.QAction("+", self)
-        actionAddCluster.setToolTip('Add cluster')
-        self.connect(actionAddCluster, QtCore.SIGNAL("triggered()"),
-                     self.on_actionAddCluster_triggered)
-
-
-
+        toolbar = self.setupToolbar()
 
         self.nlist = NList(self)
         self.nslist = NSList(self)
@@ -861,7 +851,6 @@ class SortWindow(QtGui.QDockWidget):
         self.vsplitter.addWidget(self.slist)
 
         self.mainsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
-        #self.mainsplitter.addWidget(self.toolbar)
         self.mainsplitter.addWidget(self.vsplitter)
         self.mainsplitter.addWidget(self.panel)
 
@@ -881,6 +870,57 @@ class SortWindow(QtGui.QDockWidget):
         #self.Bind(wx.EVT_SIZE, self.OnSize)
         #self.Bind(wx.EVT_CLOSE, self.OnClose)
 
+    def setupToolbar(self):
+        toolbar = QtGui.QToolBar("toolbar", self)
+        toolbar.setFloatable(True)
+
+        actionAddCluster = QtGui.QAction("+", self)
+        actionAddCluster.setToolTip('Add cluster')
+        self.connect(actionAddCluster, QtCore.SIGNAL("triggered()"),
+                     self.on_actionAddCluster_triggered)
+        toolbar.addAction(actionAddCluster)
+
+        actionDeleteCluster = QtGui.QAction("-", self)
+        actionDeleteCluster.setToolTip('Delete cluster')
+        self.connect(actionDeleteCluster, QtCore.SIGNAL("triggered()"),
+                     self.on_actionDeleteCluster_triggered)
+        toolbar.addAction(actionDeleteCluster)
+
+        actionMergeClusters = QtGui.QAction("^", self)
+        actionMergeClusters.setToolTip('Merge clusters')
+        self.connect(actionMergeClusters, QtCore.SIGNAL("triggered()"),
+                     self.on_actionMergeClusters_triggered)
+        toolbar.addAction(actionMergeClusters)
+
+        toolbar.addSeparator()
+
+        actionFocusCurrentCluster = QtGui.QAction("O", self)
+        actionFocusCurrentCluster.setToolTip('Focus current cluster')
+        self.connect(actionFocusCurrentCluster, QtCore.SIGNAL("triggered()"),
+                     self.on_actionFocusCurrentCluster_triggered)
+        toolbar.addAction(actionFocusCurrentCluster)
+
+        actionFocusCurrentSpike = QtGui.QAction(".", self)
+        actionFocusCurrentSpike.setToolTip('Focus current spike')
+        self.connect(actionFocusCurrentSpike, QtCore.SIGNAL("triggered()"),
+                     self.on_actionFocusCurrentSpike_triggered)
+        toolbar.addAction(actionFocusCurrentSpike)
+
+        toolbar.addSeparator()
+
+        actionAlignMax = QtGui.QAction("Align max", self)
+        actionAlignMax.setToolTip("Align neurons' spikes to max")
+        self.connect(actionAlignMax, QtCore.SIGNAL("triggered()"),
+                     self.on_actionAlignMax_triggered)
+        toolbar.addAction(actionAlignMax)
+
+        actionAlignMin = QtGui.QAction("Align min", self)
+        actionAlignMin.setToolTip("Align neurons' spikes to min")
+        self.connect(actionAlignMin, QtCore.SIGNAL("triggered()"),
+                     self.on_actionAlignMin_triggered)
+        toolbar.addAction(actionAlignMin)
+
+        return toolbar
 
     def get_sort(self):
         return self.spykewindow.sort
@@ -994,12 +1034,24 @@ class SortWindow(QtGui.QDockWidget):
         self.slist.RefreshItems()
 
     def on_actionAddCluster_triggered(self):
-        print('clicked add')
+        self.parent().OnAddCluster()
 
-    def OnAlignMax(self, evt):
+    def on_actionDeleteCluster_triggered(self):
+        print('clicked delete')
+
+    def on_actionMergeClusters_triggered(self):
+        print('clicked merge')
+
+    def on_actionFocusCurrentCluster_triggered(self):
+        print('clicked focus cluster')
+
+    def on_actionFocusCurrentSpike_triggered(self):
+        print('clicked focus spike')
+
+    def on_actionAlignMax_triggered(self):
         self.Align('max')
 
-    def OnAlignMin(self, evt):
+    def on_actionAlignMin_triggered(self):
         self.Align('min')
 
     def Align(self, to):
