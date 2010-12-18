@@ -252,23 +252,15 @@ class SpykeMayaviScene(MayaviScene):
         # pass event to parent class
         MayaviScene.OnKeyUp(self, event)
 
-'''
-class Visualization(HasTraits):
-    """I don't understand this. See http://code.enthought.com/projects/mayavi/
-    docs/development/htm/mayavi/building_applications.html"""
-    scene = Instance(MlabSceneModel, ())
-    editor = SceneEditor(scene_class=SpykeMayaviScene)
-    item = Item('scene', editor=editor, show_label=False)
-    view = View(item)
-'''
-
-
 
 class Visualization(HasTraits):
     """Don't really understand this.
     Copied from http://code.enthought.com/projects/mayavi/docs/development/
     html/mayavi/_downloads/qt_embedding.py"""
     scene = Instance(MlabSceneModel, ())
+    editor = SceneEditor(scene_class=SpykeMayaviScene)
+    item = Item('scene', editor=editor, show_label=False)
+    view = View(item, resizable=True) # resize with the parent widget
     '''
     @on_trait_change('scene.activated')
     def update_plot(self):
@@ -276,14 +268,7 @@ class Visualization(HasTraits):
         is not yet open, as some VTK features require a GLContext."""
         # We can do normal mlab calls on the embedded scene.
         #self.scene.mlab.test_points3d()
-        x = range(10)
-        self.scene.mlab.points3d(x, x, x)
     '''
-    editor = SceneEditor(scene_class=SpykeMayaviScene)
-    item = Item('scene', editor=editor, show_label=True) # height=250, width=300
-    view = View(item, resizable=True) # resize with the parent widget
-
-
 
 class ClusterWindow(QtGui.QDockWidget):
     def __init__(self, parent, pos=None, size=None):
@@ -297,11 +282,7 @@ class ClusterWindow(QtGui.QDockWidget):
         # also copied from qt_embedding.py:
         self.vis = Visualization()
         self.ui = self.vis.edit_traits(parent=self, kind='subpanel').control # generates widget to embed
-        layout = QtGui.QVBoxLayout(self)
-        layout.setMargin(0)
-        layout.setSpacing(0)
-        layout.addWidget(self.ui)
-        self.ui.setParent(self)
+        self.setWidget(self.ui)
 
         # this is a hack to remove the vtkObserver that catches 'a' and 'c' VTK CharEvents
         # to see all registered observers, print the interactor

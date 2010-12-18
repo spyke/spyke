@@ -1714,7 +1714,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 window = SortWindow(parent=self, pos=(x, y))
             elif windowtype == 'Cluster':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH
-                y = self.pos().y() + self.size().height()
+                y = self.pos().y() + self.size().height() + METACITYHACK
                 from spyke.cluster import ClusterWindow # can't delay this any longer
                 window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
             self.windows[windowtype] = window
