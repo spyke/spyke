@@ -6,6 +6,10 @@ QT rewrite:
 
 - themed icons - can do it now using QIcon.fromTheme(), but should be much easier once it's integrated into Qt Designer in 4.8: http://bugreports.qt.nokia.com/browse/QTBUG-7777
 
+- remove "cid" as much as possible, maybe even altogether, maybe even from spikes array
+
+
+
 RECENT:
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records

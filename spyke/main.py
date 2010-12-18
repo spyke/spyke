@@ -5,6 +5,10 @@ from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+import os
+os.environ['ETS_TOOLKIT'] = 'qt4'
+from enthought.traits.api import HasTraits, Instance # somehow prevents segfault later in cluster.py
+
 import numpy as np
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
@@ -32,7 +36,7 @@ from spyke import core, surf, detect, extract
 from spyke.sort import Sort
 from spyke.core import toiter, intround, MICRO
 from spyke.plot import SpikePanel, ChartPanel, LFPPanel, CMAP, TRANSWHITEI
-from spyke.sort import SortWindow
+from spyke.sort import SortWindow, MAINSPLITTERPOS
 
 DEFSPIKETW = -500, 500 # spike window temporal window (us)
 DEFCHARTTW = -25000, 25000 # chart window temporal window (us)
@@ -344,16 +348,16 @@ class SpykeWindow(QtGui.QMainWindow):
             t = float(text)
         self.seek(t)
 
-    def on_filePosStartButton_pressed(self):
+    def on_filePosStartButton_clicked(self):
         self.seek(self.str2t['start'])
 
-    def on_filePosEndButton_pressed(self):
+    def on_filePosEndButton_clicked(self):
         self.seek(self.str2t['end'])
 
     def on_slider_valueChanged(self, slideri):
         self.seek(slideri * SLIDERTRES)
 
-    def on_detectButton_pressed(self):
+    def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
         sort = self.sort
         sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
@@ -476,6 +480,219 @@ class SpykeWindow(QtGui.QMainWindow):
             raise RuntimeError("can't figure out which of the %d selected spike IDs you want"
                                % nselected)
         return sids[0]
+
+    def on_climbButton_clicked(self):
+        """Cluster pane Climb button click"""
+        s = self.sort
+        spikes = s.spikes
+        sf = self.OpenWindow('Sort')
+        cf = self.OpenWindow('Cluster')
+
+        oldclusters = self.GetClusters()
+        if oldclusters: # some clusters selected
+            clusters = oldclusters
+            sids = [] # spikes to run climb() on
+            for oldcluster in oldclusters:
+                sids.append(oldcluster.neuron.sids)
+            sids = np.concatenate(sids) # run climb() on selected spikes
+        else: # no clusters selected
+            clusters = s.clusters.values() # all clusters
+            sids = spikes['id'] # run climb() on all spikes
+
+        # grab dims and data
+        dimselis = self.dimlist.getSelection()
+        dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
+        if len(dims) == 0: raise RuntimeError('No cluster dimensions selected')
+        plotdims = self.GetClusterPlotDimNames()
+        waveclustering = 'wave' in dims or 'peaks' in dims
+        if waveclustering: # do maxchan wavefrom clustering
+            if len(dims) > 1:
+                raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
+            wctype = dims[0] # 'wave' or 'peaks'
+            data = self.get_waveclustering_data(sids, wctype=wctype)
+            plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
+        else: # do spike parameter (non-wavefrom) clustering
+            data = s.get_param_matrix(dims=dims, scale=True)[sids]
+        data = data.copy() # copy to make it contiguous for climb()
+
+        # grab climb() params and run it
+        self.update_sort_from_cluster_pane()
+        npoints, ndims = data.shape
+        s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
+        print('clustering %d points in %d-D space' % (npoints, ndims))
+        t0 = time.time()
+        results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
+                        rneighx=s.rneighx, nsamples=s.nsamples,
+                        calcpointdensities=False, calcscoutdensities=False,
+                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
+                        minpoints=s.minpoints)
+        cids, scoutpositions, densities, scoutdensities, sampleis = results
+        nids = list(np.unique(cids))
+        try: nids.remove(-1)
+        except ValueError: pass
+        print('climb took %.3f sec' % (time.time()-t0))
+
+        # save some undo/redo stuff
+        message = 'climb clusters %r' % [ c.id for c in clusters ]
+        cc = spyke.cluster.ClusterChange(sids, spikes, message)
+        cc.save_old(clusters)
+
+        if oldclusters: # some clusters selected
+            self.SelectClusters(oldclusters, on=False) # deselect original clusters
+            cf.f.scene.disable_render = True # for speed
+            for oldcluster in oldclusters:
+                self.DelCluster(oldcluster, update=False) # del original clusters
+            self.DeColourPoints(sids) # decolour all points belonging to old clusters
+        else: # no clusters selected, delete all existing clusters (if any)
+            for cluster in s.clusters.values():
+                self.DelCluster(cluster, update=False)
+            try: cf.glyph
+            except AttributeError: self.OnClusterPlot()
+            self.DeColourAllPoints()
+            s.sampleis = sampleis
+
+        # apply the clusters to the cluster plot
+        newclusters = []
+        t0 = time.time()
+        for nid, pos in zip(nids, scoutpositions): # nids are sorted
+            ii, = np.where(cids == nid)
+            nsids = sids[ii] # sids belonging to this nid
+            cluster = self.OnAddCluster(update=False)
+            newclusters.append(cluster)
+            neuron = cluster.neuron
+            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
+            if len(nsids) == 0:
+                raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
+            if waveclustering: # set pos and scale in plotdims using mean and std of points
+                for plotdimi, plotdim in enumerate(plotdims):
+                    points = plotdata[ii, plotdimi]
+                    cluster.pos[plotdim] = points.mean()
+                    cluster.scale[plotdim] = points.std() or cluster.scale[plotdim]
+            else: # set pos and scale in cluster dims using cluster pos and std of points
+                for dimi, dim in enumerate(dims):
+                    cluster.pos[dim] = pos[dimi]
+                    cluster.scale[dim] = data[ii, dimi].std() or cluster.scale[dim]
+            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+
+        # save more undo/redo stuff
+        cc.save_new(newclusters)
+        self.AddClusterChangeToStack(cc)
+
+        # now do some final updates
+        self.UpdateClustersGUI()
+        self.ColourPoints(newclusters)
+        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        if oldclusters: # select newly created cluster(s)
+            self.SelectClusters(newclusters, on=True)
+        cc.message += ' into %r' % [c.id for c in newclusters]
+        print(cc.message)
+
+    def get_waveclustering_data(self, sids, wctype='wave'):
+        s = self.sort
+        spikes = s.spikes
+
+        # find which chans are common to all selected spikes
+        chanss = spikes['chans'][sids]
+        nchanss = spikes['nchans'][sids]
+        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
+        clusterable_chans = core.intersect1d(chanslist) # find intersection
+
+        # decide which is the definitive maxchan for the selected spikes
+        maxchans = spikes['chan'][sids]
+        # cluster by default on most common maxchan
+        maxchan = int(scipy.stats.mode(maxchans)[0][0])
+        chans = [maxchan]
+
+        # pop up dialog asking for chans to cluster on
+        string = wx.GetTextFromUser('Cluster by %s on which channel(s)?\nChoose from: %r'
+                                    % (wctype, list(clusterable_chans)),
+                                    'Waveform (%s) clustering' % wctype, str(chans))
+        if string == '':
+            raise RuntimeError('cancelled') # cancel was pressed
+        if string == '[]':
+            chans = clusterable_chans
+        else:
+            chans = np.asarray(eval(string))
+            chans.sort()
+        for chan in chans:
+            if chan not in clusterable_chans:
+                raise RuntimeError("chan %d not common to all spikes, pick from %r"
+                                   % (chan, list(clusterable_chans)))
+
+        # copy selected chans as string to clipboard for easy user re-pasting next time
+        chans_string = wx.TextDataObject(str(list(chans)))
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(chans_string)
+            wx.TheClipboard.Close()
+
+        print('clustering upon chans = %r' % list(chans))
+        nspikes = len(sids)
+        nchans = len(chans)
+        nt = s.wavedata.shape[2]
+        # collect data from 'chans' from all spikes:
+        data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
+        for sii, sid in enumerate(sids):
+            spikechans = chanslist[sii]
+            spikechanis = np.searchsorted(spikechans, chans)
+            data[sii] = s.wavedata[sid, spikechanis]
+
+        # find mean waveform of selected spikes
+        template = data.mean(axis=0)
+
+        if wctype == 'wave':
+            # use all data from dt/2 before 1st peak to dt/2 after 2nd peak
+            chani, = np.where(chans == maxchan)
+            if not chani: # maxchan wasn't included in chans,  find chan with biggest value
+                chani = np.unravel_index(template.argmax(), template.shape)[0]
+            peaktis = np.asarray([template[chani].argmin(), template[chani].argmax()])
+            peaktis.sort() # keep in temporal order
+            dt2 = intround((peaktis[1] - peaktis[0]) / 2.0)
+            wavetis = np.arange(max(peaktis[0]-dt2, 0), min(peaktis[1]+dt2, nt-1))
+            wavetis = list(wavetis[::2]) # take every other point
+            # ensure peak points remain in wavetis
+            if peaktis[0] not in wavetis:
+                wavetis.append(peaktis[0])
+            if peaktis[1] not in wavetis:
+                wavetis.append(peaktis[1])
+            wavetis = np.asarray(wavetis)
+            wavetis.sort()
+            print('peaktis = %r' % peaktis)
+            print('wavetis = %r' % wavetis)
+            # consider only data at wavetis
+            data = data[:, :, wavetis].copy()
+            #slicetis = np.asarray([max(peaktis[0]-dt2, 0), peaktis[1]+dt2+1])
+            #print('slicetis = %r' % slicetis)
+            # consider only data between slicetis, copy to make it contiguous
+            #data = data[:, :, slicetis[0]:slicetis[1]].copy()
+        elif wctype == 'peaks':
+            # use only data at peaks of template, and before and after each peak
+            # useful for faster clustering
+            peaktis = np.zeros((nchans, 6), dtype=int)
+            for chani in range(nchans):
+                t1, t4 = np.sort([template[chani].argmin(), template[chani].argmax()])
+                dt3 = intround((t4 - t1)/3.0) # 1/3 the distance between peaks
+                t0 = max(t1-dt3, 0)
+                t2 = min(t1+dt3, nt-1)
+                t3 = max(t4-dt3, 0)
+                t5 = min(t4+dt3, nt-1)
+                peaktis[chani] = t0, t1, t2, t3, t4, t5
+            print('peaktis =')
+            print(peaktis)
+            # grab each spike's data at these peak times, using fancy indexing
+            # see core.rowtake() or util.rowtake_cy() for indexing explanation
+            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
+        else:
+            raise RuntimeError('unknown wctype %r' % wctype)
+
+        data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
+
+        # normalize by the std of the dim with the biggest std - this allows use of reasonable
+        # value of sigma (~0.15), similar to param clustering, and independent of what the
+        # amplifier gain was during recording
+        norm = data.std(axis=0).max()
+        data /= norm
+        print('normalized waveform data by %f' % norm)
+        return data
 
     def SelectClusters(self, clusters, on=True):
         """Select/deselect clusters"""
@@ -959,219 +1176,6 @@ class SpykeWindow(QtGui.QMainWindow):
         cc.message += ' into cluster %d' % newnid
         print(cc.message)
 
-    def OnClimb(self, evt=None):
-        """Cluster pane Climb button click"""
-        s = self.sort
-        spikes = s.spikes
-        sf = self.OpenWindow('Sort')
-        cf = self.OpenWindow('Cluster')
-
-        oldclusters = self.GetClusters()
-        if oldclusters: # some clusters selected
-            clusters = oldclusters
-            sids = [] # spikes to run climb() on
-            for oldcluster in oldclusters:
-                sids.append(oldcluster.neuron.sids)
-            sids = np.concatenate(sids) # run climb() on selected spikes
-        else: # no clusters selected
-            clusters = s.clusters.values() # all clusters
-            sids = spikes['id'] # run climb() on all spikes
-
-        # grab dims and data
-        dimselis = self.dimlist.getSelection()
-        dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
-        if len(dims) == 0: raise RuntimeError('No cluster dimensions selected')
-        plotdims = self.GetClusterPlotDimNames()
-        waveclustering = 'wave' in dims or 'peaks' in dims
-        if waveclustering: # do maxchan wavefrom clustering
-            if len(dims) > 1:
-                raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
-            wctype = dims[0] # 'wave' or 'peaks'
-            data = self.get_waveclustering_data(sids, wctype=wctype)
-            plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
-        else: # do spike parameter (non-wavefrom) clustering
-            data = s.get_param_matrix(dims=dims, scale=True)[sids]
-        data = data.copy() # copy to make it contiguous for climb()
-
-        # grab climb() params and run it
-        self.update_sort_from_cluster_pane()
-        npoints, ndims = data.shape
-        s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
-        print('clustering %d points in %d-D space' % (npoints, ndims))
-        t0 = time.time()
-        results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
-                        rneighx=s.rneighx, nsamples=s.nsamples,
-                        calcpointdensities=False, calcscoutdensities=False,
-                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
-                        minpoints=s.minpoints)
-        cids, scoutpositions, densities, scoutdensities, sampleis = results
-        nids = list(np.unique(cids))
-        try: nids.remove(-1)
-        except ValueError: pass
-        print('climb took %.3f sec' % (time.time()-t0))
-
-        # save some undo/redo stuff
-        message = 'climb clusters %r' % [ c.id for c in clusters ]
-        cc = spyke.cluster.ClusterChange(sids, spikes, message)
-        cc.save_old(clusters)
-
-        if oldclusters: # some clusters selected
-            self.SelectClusters(oldclusters, on=False) # deselect original clusters
-            cf.f.scene.disable_render = True # for speed
-            for oldcluster in oldclusters:
-                self.DelCluster(oldcluster, update=False) # del original clusters
-            self.DeColourPoints(sids) # decolour all points belonging to old clusters
-        else: # no clusters selected, delete all existing clusters (if any)
-            for cluster in s.clusters.values():
-                self.DelCluster(cluster, update=False)
-            try: cf.glyph
-            except AttributeError: self.OnClusterPlot()
-            self.DeColourAllPoints()
-            s.sampleis = sampleis
-
-        # apply the clusters to the cluster plot
-        newclusters = []
-        t0 = time.time()
-        for nid, pos in zip(nids, scoutpositions): # nids are sorted
-            ii, = np.where(cids == nid)
-            nsids = sids[ii] # sids belonging to this nid
-            cluster = self.OnAddCluster(update=False)
-            newclusters.append(cluster)
-            neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
-            if len(nsids) == 0:
-                raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
-            if waveclustering: # set pos and scale in plotdims using mean and std of points
-                for plotdimi, plotdim in enumerate(plotdims):
-                    points = plotdata[ii, plotdimi]
-                    cluster.pos[plotdim] = points.mean()
-                    cluster.scale[plotdim] = points.std() or cluster.scale[plotdim]
-            else: # set pos and scale in cluster dims using cluster pos and std of points
-                for dimi, dim in enumerate(dims):
-                    cluster.pos[dim] = pos[dimi]
-                    cluster.scale[dim] = data[ii, dimi].std() or cluster.scale[dim]
-            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
-
-        # save more undo/redo stuff
-        cc.save_new(newclusters)
-        self.AddClusterChangeToStack(cc)
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        self.ColourPoints(newclusters)
-        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
-        if oldclusters: # select newly created cluster(s)
-            self.SelectClusters(newclusters, on=True)
-        cc.message += ' into %r' % [c.id for c in newclusters]
-        print(cc.message)
-
-    def get_waveclustering_data(self, sids, wctype='wave'):
-        s = self.sort
-        spikes = s.spikes
-
-        # find which chans are common to all selected spikes
-        chanss = spikes['chans'][sids]
-        nchanss = spikes['nchans'][sids]
-        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
-        clusterable_chans = core.intersect1d(chanslist) # find intersection
-
-        # decide which is the definitive maxchan for the selected spikes
-        maxchans = spikes['chan'][sids]
-        # cluster by default on most common maxchan
-        maxchan = int(scipy.stats.mode(maxchans)[0][0])
-        chans = [maxchan]
-
-        # pop up dialog asking for chans to cluster on
-        string = wx.GetTextFromUser('Cluster by %s on which channel(s)?\nChoose from: %r'
-                                    % (wctype, list(clusterable_chans)),
-                                    'Waveform (%s) clustering' % wctype, str(chans))
-        if string == '':
-            raise RuntimeError('cancelled') # cancel was pressed
-        if string == '[]':
-            chans = clusterable_chans
-        else:
-            chans = np.asarray(eval(string))
-            chans.sort()
-        for chan in chans:
-            if chan not in clusterable_chans:
-                raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                   % (chan, list(clusterable_chans)))
-
-        # copy selected chans as string to clipboard for easy user re-pasting next time
-        chans_string = wx.TextDataObject(str(list(chans)))
-        if wx.TheClipboard.Open():
-            wx.TheClipboard.SetData(chans_string)
-            wx.TheClipboard.Close()
-
-        print('clustering upon chans = %r' % list(chans))
-        nspikes = len(sids)
-        nchans = len(chans)
-        nt = s.wavedata.shape[2]
-        # collect data from 'chans' from all spikes:
-        data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
-        for sii, sid in enumerate(sids):
-            spikechans = chanslist[sii]
-            spikechanis = np.searchsorted(spikechans, chans)
-            data[sii] = s.wavedata[sid, spikechanis]
-
-        # find mean waveform of selected spikes
-        template = data.mean(axis=0)
-
-        if wctype == 'wave':
-            # use all data from dt/2 before 1st peak to dt/2 after 2nd peak
-            chani, = np.where(chans == maxchan)
-            if not chani: # maxchan wasn't included in chans,  find chan with biggest value
-                chani = np.unravel_index(template.argmax(), template.shape)[0]
-            peaktis = np.asarray([template[chani].argmin(), template[chani].argmax()])
-            peaktis.sort() # keep in temporal order
-            dt2 = intround((peaktis[1] - peaktis[0]) / 2.0)
-            wavetis = np.arange(max(peaktis[0]-dt2, 0), min(peaktis[1]+dt2, nt-1))
-            wavetis = list(wavetis[::2]) # take every other point
-            # ensure peak points remain in wavetis
-            if peaktis[0] not in wavetis:
-                wavetis.append(peaktis[0])
-            if peaktis[1] not in wavetis:
-                wavetis.append(peaktis[1])
-            wavetis = np.asarray(wavetis)
-            wavetis.sort()
-            print('peaktis = %r' % peaktis)
-            print('wavetis = %r' % wavetis)
-            # consider only data at wavetis
-            data = data[:, :, wavetis].copy()
-            #slicetis = np.asarray([max(peaktis[0]-dt2, 0), peaktis[1]+dt2+1])
-            #print('slicetis = %r' % slicetis)
-            # consider only data between slicetis, copy to make it contiguous
-            #data = data[:, :, slicetis[0]:slicetis[1]].copy()
-        elif wctype == 'peaks':
-            # use only data at peaks of template, and before and after each peak
-            # useful for faster clustering
-            peaktis = np.zeros((nchans, 6), dtype=int)
-            for chani in range(nchans):
-                t1, t4 = np.sort([template[chani].argmin(), template[chani].argmax()])
-                dt3 = intround((t4 - t1)/3.0) # 1/3 the distance between peaks
-                t0 = max(t1-dt3, 0)
-                t2 = min(t1+dt3, nt-1)
-                t3 = max(t4-dt3, 0)
-                t5 = min(t4+dt3, nt-1)
-                peaktis[chani] = t0, t1, t2, t3, t4, t5
-            print('peaktis =')
-            print(peaktis)
-            # grab each spike's data at these peak times, using fancy indexing
-            # see core.rowtake() or util.rowtake_cy() for indexing explanation
-            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
-        else:
-            raise RuntimeError('unknown wctype %r' % wctype)
-
-        data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
-
-        # normalize by the std of the dim with the biggest std - this allows use of reasonable
-        # value of sigma (~0.15), similar to param clustering, and independent of what the
-        # amplifier gain was during recording
-        norm = data.std(axis=0).max()
-        data /= norm
-        print('normalized waveform data by %f' % norm)
-        return data
-
     def AddClusterChangeToStack(self, cc):
         """Adds cc to the cluster change stack, removing any potential redo changes"""
         self.cci += 1
@@ -1334,7 +1338,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def CreateNewSort(self):
         """Create a new Sort and bind it to self"""
         self.DeleteSort()
-        self.sort = Sort(detector=None, # detector is assigned in OnDetect
+        self.sort = Sort(detector=None, # detector is assigned in on_detectButton_clicked
                          stream=self.hpstream)
         self.EnableSortWidgets(True)
 
@@ -1716,8 +1720,11 @@ class SpykeWindow(QtGui.QMainWindow):
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype) # just show it
-        if new and windowtype != 'Cluster':
-            window.panel.draw_refs() # do this after first show to prevent plot artifacts
+        if new: # do stuff that only works after first show
+            if windowtype != 'Cluster':
+                window.panel.draw_refs() # prevent plot artifacts
+            if windowtype == 'Sort':
+                window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, windowtype, enable=True):

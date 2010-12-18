@@ -4,30 +4,23 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek']
 
+#import os
+#os.environ['ETS_TOOLKIT'] = 'qt4'
 import sys
 import time
 import numpy as np
 
-import wx
+from PyQt4 import QtCore, QtGui
 
-#import pdb; pdb.set_trace()
 print('starting mayavi imports')
-
 from enthought.traits.api import HasTraits, Instance
-print('1')
 from enthought.traits.ui.api import View, Item
-print('2')
-from enthought.tvtk.pyface.scene_editor import SceneEditor
-print('3')
-from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel
-print('4')
+from enthought.tvtk.pyface.scene_editor import SceneEditor # this takes forever
+from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel # so does this
 from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
-print('5')
 from enthought.mayavi import mlab
-print('6')
 from enthought.mayavi.tools.engine_manager import get_engine
-print('7')
-from spyke.plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
+from plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
 print('done mayavi imports')
 
 
@@ -116,13 +109,13 @@ class ClusterChange(object):
 class SpykeMayaviScene(MayaviScene):
     def __init__(self, *args, **kwargs):
         MayaviScene.__init__(self, *args, **kwargs)
-        tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
-        tooltip.Enable(False) # leave disabled for now
-        tooltip.SetDelay(0) # set popup delay in ms
-        self._vtk_control.SetToolTip(tooltip) # connect it to self
+        #tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
+        #tooltip.Enable(False) # leave disabled for now
+        #tooltip.SetDelay(0) # set popup delay in ms
+        #self._vtk_control.SetToolTip(tooltip) # connect it to self
 
-        self._vtk_control.Bind(wx.EVT_MOTION, self.OnMotion)
-        self._spykeframe = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
+        #self._vtk_control.Bind(wx.EVT_MOTION, self.OnMotion)
+        #self._spykeframe = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
 
     def OnMotion(self, event):
         """Pop up a nid tooltip on mouse movement"""
@@ -259,7 +252,7 @@ class SpykeMayaviScene(MayaviScene):
         # pass event to parent class
         MayaviScene.OnKeyUp(self, event)
 
-
+'''
 class Visualization(HasTraits):
     """I don't understand this. See http://code.enthought.com/projects/mayavi/
     docs/development/htm/mayavi/building_applications.html"""
@@ -267,35 +260,61 @@ class Visualization(HasTraits):
     editor = SceneEditor(scene_class=SpykeMayaviScene)
     item = Item('scene', editor=editor, show_label=False)
     view = View(item)
+'''
 
 
-class ClusterFrame(wx.MiniFrame):
 
-    STYLE = wx.CAPTION|wx.CLOSE_BOX|wx.MAXIMIZE_BOX|wx.SYSTEM_MENU|wx.RESIZE_BORDER|wx.FRAME_TOOL_WINDOW
+class Visualization(HasTraits):
+    """Don't really understand this.
+    Copied from http://code.enthought.com/projects/mayavi/docs/development/
+    html/mayavi/_downloads/qt_embedding.py"""
+    scene = Instance(MlabSceneModel, ())
+    '''
+    @on_trait_change('scene.activated')
+    def update_plot(self):
+        """Called when the view is opened. We don't populate the scene when the view
+        is not yet open, as some VTK features require a GLContext."""
+        # We can do normal mlab calls on the embedded scene.
+        #self.scene.mlab.test_points3d()
+        x = range(10)
+        self.scene.mlab.points3d(x, x, x)
+    '''
+    editor = SceneEditor(scene_class=SpykeMayaviScene)
+    item = Item('scene', editor=editor, show_label=True) # height=250, width=300
+    view = View(item, resizable=True) # resize with the parent widget
 
-    def __init__(self, *args, **kwds):
-        kwds["style"] = self.STYLE
-        wx.MiniFrame.__init__(self, *args, **kwds)
 
+
+class ClusterWindow(QtGui.QDockWidget):
+    def __init__(self, parent, pos=None, size=None):
+        QtGui.QDockWidget.__init__(self, parent)
+        self.spykewindow = parent
+        self.setWindowTitle("Cluster Window")
+        self.setFloating(True)
+        self.move(*pos)
+        self.resize(*size)
+
+        # also copied from qt_embedding.py:
         self.vis = Visualization()
-        self.control = self.vis.edit_traits(parent=self, kind='subpanel').control
-        self.SetTitle("cluster window")
-        #self.Show(True)
+        self.ui = self.vis.edit_traits(parent=self, kind='subpanel').control # generates widget to embed
+        layout = QtGui.QVBoxLayout(self)
+        layout.setMargin(0)
+        layout.setSpacing(0)
+        layout.addWidget(self.ui)
+        self.ui.setParent(self)
+
         # this is a hack to remove the vtkObserver that catches 'a' and 'c' VTK CharEvents
         # to see all registered observers, print the interactor
         self.vis.scene.interactor.remove_observer(1)
         # here's how to add your own observer to catch vtk keypress events
         #self.vis.scene.interactor.add_observer('KeyPressEvent', self.on_vtkkeypress)
 
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-
         self.f = get_engine().current_scene
         self.f.scene.background = 0, 0, 0 # set it to black
         self.f.scene.picker.tolerance = 0.0025
 
-    def OnClose(self, evt):
-        frametype = type(self).__name__.lower().replace('frame', '') # remove 'Frame' from class name
-        self.Parent.HideFrame(frametype)
+    def closeEvent(self, event):
+        self.spykewindow.HideWindow('Cluster')
     '''
     def on_vtkkeypress(self, obj, evt):
         """Custom VTK key press event. Here just for instructive purposes.

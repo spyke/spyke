@@ -25,11 +25,9 @@ from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
 
-SPLITTERSASH = 360
-SORTSPLITTERSASH = 117
-NSSPLITTERSASH = 45
+MAINSPLITTERPOS = 300
 SPIKESORTPANELWIDTHPERCOLUMN = 120
-SORTWINDOWHEIGHT = 950
+SORTWINDOWHEIGHT = 1080
 
 MEANWAVESAMPLESIZE = 1000
 
@@ -825,7 +823,7 @@ class SortWindow(QtGui.QDockWidget):
         QtGui.QDockWidget.__init__(self, parent)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
-        size = (SPLITTERSASH + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
+        size = (MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
         self.setWindowTitle("Sort Window")
         self.setFloating(True)
         self.move(*pos)
@@ -834,13 +832,12 @@ class SortWindow(QtGui.QDockWidget):
         toolbar = self.setupToolbar()
 
         self.nlist = NList(self)
-        self.nslist = NSList(self)
-        self.slist = SList(self) # should really be multicolumn tableview
-        self.panel = SpikeSortPanel(self)
-
         self.nlist.setToolTip('Neuron list')
+        self.nslist = NSList(self)
         self.nslist.setToolTip('Sorted spike list')
+        self.slist = SList(self) # should really be multicolumn tableview
         self.slist.setToolTip('Unsorted spike list')
+        self.panel = SpikeSortPanel(self)
 
         self.hsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.hsplitter.addWidget(self.nlist)
@@ -853,12 +850,14 @@ class SortWindow(QtGui.QDockWidget):
         self.mainsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
         self.mainsplitter.addWidget(self.panel)
+        #self.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1) # only works after self is shown
 
-        mainwidget = QtGui.QWidget(self)
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(toolbar)
         layout.addWidget(self.mainsplitter)
+
+        mainwidget = QtGui.QWidget(self)
         mainwidget.setLayout(layout)
         self.setWidget(mainwidget)
 
@@ -942,9 +941,7 @@ class SortWindow(QtGui.QDockWidget):
         wx.CallAfter(self.DrawRefs)
 
     def closeEvent(self, event):
-        # remove 'Window' from class name
-        windowtype = type(self).__name__.replace('Window', '')
-        self.spykewindow.HideWindow(windowtype)
+        self.spykewindow.HideWindow('Sort')
 
     def OnNListSelect(self, evt):
         selectedRows = self.nlist.getSelection()
