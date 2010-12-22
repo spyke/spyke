@@ -90,6 +90,11 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
+
+        for rowi in range(3): # select the first 3 dims in dimlist
+            # there really should be an easier way, but .setSelection(QRect, ...) doesn't work?
+            self.ui.dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
+
         '''
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -348,15 +353,18 @@ class SpykeWindow(QtGui.QMainWindow):
             t = float(text)
         self.seek(t)
 
+    @QtCore.pyqtSlot()
     def on_filePosStartButton_clicked(self):
         self.seek(self.str2t['start'])
 
+    @QtCore.pyqtSlot()
     def on_filePosEndButton_clicked(self):
         self.seek(self.str2t['end'])
 
     def on_slider_valueChanged(self, slideri):
         self.seek(slideri * SLIDERTRES)
 
+    @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
         sort = self.sort
@@ -410,7 +418,7 @@ class SpykeWindow(QtGui.QMainWindow):
         #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
 
         self.sort.extractor.extract_all_XY() # adds extracted XY params to sort.spikes
-        self.windows['Sort'].slist.RefreshItems() # update any columns showing param values
+        self.windows['Sort'].slist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnWaveletExtract(self, evt=None):
@@ -428,7 +436,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # extract coeffs of selected wavelet type, add coeffs to sort.spikes
         wavelet = self.wavelet_extract_radio_box.GetStringSelection()
         self.sort.extractor.extract_all_wcs(wavelet)
-        self.windows['Sort'].slist.RefreshItems() # update any columns showing param values
+        self.windows['Sort'].slist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnTemporalExtract(self, evt=None):
@@ -441,15 +449,18 @@ class SpykeWindow(QtGui.QMainWindow):
             self.init_extractor()
 
         self.sort.extractor.extract_all_temporal()
-        self.windows['Sort'].slist.RefreshItems() # update any columns showing param values
+        self.windows['Sort'].slist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def GetClusters(self):
         """Return currently selected clusters"""
-        print("WARNING: notrivial use of GetClusters() hasn't been tested yet")
+        print("WARNING: nontrivial use of GetClusters() hasn't been tested yet")
         sf = self.windows['Sort']
-        rows = [ i.row() for i in sf.nlist.selectedIndexes() ]
-        cids = np.asarray(sorted(self.sort.clusters))[rows]
+        # might not be the right way to do this, what happens when nlist isn't contig?:
+        #rows = [ i.row() for i in sf.nlist.selectedIndexes() ]
+        #cids = np.asarray(sorted(self.sort.clusters))[rows]
+        # maybe better to call i.data().toInt()[0] or something to get cids directly
+        cids = [ i.data().toInt()[0] for i in sf.nlist.selectedIndexes() ]
         clusters = [ self.sort.clusters[cid] for cid in cids ]
         return clusters
 
@@ -483,6 +494,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                % nselected)
         return sids[0]
 
+    @QtCore.pyqtSlot()
     def on_clusterButton_clicked(self):
         """Cluster pane Cluster button click"""
         s = self.sort
@@ -502,9 +514,9 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = spikes['id'] # run climb() on all spikes
 
         # grab dims and data
-        dimselis = self.dimlist.getSelection()
-        dims = [ self.dimlist.dims[dimi] for dimi in dimselis ] # dim names to cluster upon
-        if len(dims) == 0: raise RuntimeError('No cluster dimensions selected')
+        items = self.ui.dimlist.selectedItems()
+        if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
+        dims = [ str(item.text()) for item in items ] # dim names to cluster upon
         plotdims = self.GetClusterPlotDimNames()
         waveclustering = 'wave' in dims or 'peaks' in dims
         if waveclustering: # do maxchan wavefrom clustering
@@ -549,7 +561,7 @@ class SpykeWindow(QtGui.QMainWindow):
             for cluster in s.clusters.values():
                 self.DelCluster(cluster, update=False)
             try: cf.glyph
-            except AttributeError: self.OnClusterPlot()
+            except AttributeError: self.on_plotButton_clicked()
             self.DeColourAllPoints()
             s.sampleis = sampleis
 
@@ -709,29 +721,27 @@ class SpykeWindow(QtGui.QMainWindow):
         neuron = self.sort.create_neuron(id)
         sf = self.windows['Sort']
         if update:
-            sf.nlist.SetItemCount(len(self.sort.neurons))
-            sf.nlist.RefreshItems()
+            sf.nlist.updateAll()
         from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
         cf = self.OpenWindow('Cluster')
         try: cf.glyph # glyph already plotted?
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
+        except AttributeError: self.on_plotButton_clicked() # create glyph on first open
         self.AddCluster(cluster, update=update)
         return cluster
 
     def AddCluster(self, cluster, update=True):
         """Add cluster to GUI"""
+        sf = self.windows['Sort']
         cf = self.OpenWindow('Cluster')
         dims = self.GetClusterPlotDimNames()
         cf.add_ellipsoid(cluster, dims, update=update)
         if update:
-            self.clist.SetItemCount(len(self.sort.clusters))
-            self.clist.RefreshItems()
-            self.clist.DeSelectAll()
-            self.clist.Select(len(self.sort.clusters) - 1) # select newly created item
-        self.cluster_params_pane.Enable(True)
+            sf.nlist.updateAll()
+            sf.nlist.DeSelectAll()
+            sf.nlist.Select(len(self.sort.clusters) - 1) # select newly created item
 
     def OnDelCluster(self):
         """Sort window pane Del button click"""
@@ -756,9 +766,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.DeColourPoints(sids) # decolour appropriate points
         self.UpdateClustersGUI()
         self.windows['Cluster'].glyph.mlab_source.update()
-        if len(self.sort.clusters) == 0:
-            self.cluster_params_pane.Enable(False)
-        else: # select cluster that's next highest than lowest of the deleted clusters
+        if len(self.sort.clusters) > 0:
+            # select cluster that's next highest than lowest of the deleted clusters
             cids = np.asarray(s.clusters.keys())
             ii, = np.where(cids > min(cc.oldunids))
             selcid = min(cids[ii])
@@ -783,8 +792,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
         sf.RemoveNeuron(cluster.neuron, update=update)
         if update:
-            self.clist.SetItemCount(len(self.sort.clusters))
-            self.clist.RefreshItems()
+            sf.nlist.updateAll()
             cf.f.scene.disable_render = False
 
     def OnRenumberClusters(self):
@@ -873,7 +881,7 @@ class SpykeWindow(QtGui.QMainWindow):
         maintaining the colour of each point"""
         cf = self.windows['Cluster']
         scalars = cf.glyph.mlab_source.scalars # save scalars
-        self.OnClusterPlot() # replot
+        self.on_plotButton_clicked() # replot
         cf.glyph.mlab_source.scalars = scalars # restore scalars
         cf.glyph.mlab_source.update() # make scalar changes visible
         try:
@@ -918,6 +926,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cluster.update_ellipsoid('pos', dims=dims)
         self.UpdateParamWidgets(cluster)
 
+    @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
         """Cluster pane plot button click"""
         dims = self.GetClusterPlotDimNames()
@@ -966,14 +975,9 @@ class SpykeWindow(QtGui.QMainWindow):
         sf = self.windows['Sort']
         cf = self.windows['Cluster']
         cf.f.scene.disable_render = False # turn rendering back on
-        self.clist.SetItemCount(len(s.clusters))
-        self.clist.RefreshItems()
-        #self.clist.DeSelectAll() # not sure why this was here
-        sf.nlist.SetItemCount(len(s.neurons))
-        sf.nlist.RefreshItems()
+        sf.nlist.updateAll()
         s.update_usids()
-        sf.slist.SetItemCount(len(s.usids))
-        sf.slist.RefreshItems() # refresh the list
+        sf.slist.updateAll()
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
@@ -1263,13 +1267,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def update_sort_from_cluster_pane(self):
         s = self.sort
-        s.sigma = float(self.sigma_text_ctrl.GetValue())
-        s.rmergex = float(self.rmergex_text_ctrl.GetValue())
-        s.alpha = float(self.alpha_text_ctrl.GetValue())
-        s.nsamples = self.nsamples_spin_ctrl.GetValue()
-        s.maxstill = self.maxstill_spin_ctrl.GetValue()
-        s.minpoints = self.minpoints_spin_ctrl.GetValue()
-        #s.density_thresh = float(self.density_thresh_text_ctrl.GetValue())
+        s.sigma = self.ui.sigmaSpinBox.value()
+        s.rmergex = self.ui.rmergeXSpinBox.value()
+        s.alpha = self.ui.alphaSpinBox.value()
+        s.nsamples = self.ui.nsamplesSpinBox.value()
+        s.maxstill = self.ui.maxstillSpinBox.value()
+        s.minpoints = self.ui.minpointsSpinBox.value()
 
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
@@ -1507,14 +1510,13 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         sf = self.OpenWindow('Sort') # ensure it's open
         # restore unsorted spike virtual listctrl
-        sf.slist.SetItemCount(len(sort.usids))
-        sf.slist.RefreshItems()
+        sf.slist.updateAll()
 
         # do this here first in case no clusters exist and hence self.AddCluster
         # is never called, yet you want spikes to be plotted in the cluster window:
         cf = self.OpenWindow('Cluster')
         try: cf.glyph # glyph already plotted?
-        except AttributeError: self.OnClusterPlot() # create glyph on first open
+        except AttributeError: self.on_plotButton_clicked() # create glyph on first open
         # try and reset camera view and roll to where it was last saved
         try: cf.view, cf.roll = sort.view, sort.roll
         except AttributeError: pass

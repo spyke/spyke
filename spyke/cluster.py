@@ -12,7 +12,6 @@ import numpy as np
 
 from PyQt4 import QtCore, QtGui
 
-print('starting mayavi imports')
 from enthought.traits.api import HasTraits, Instance
 from enthought.traits.ui.api import View, Item
 from enthought.tvtk.pyface.scene_editor import SceneEditor # this takes forever
@@ -21,7 +20,6 @@ from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 from enthought.mayavi import mlab
 from enthought.mayavi.tools.engine_manager import get_engine
 from plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
-print('done mayavi imports')
 
 
 class Cluster(object):

@@ -94,16 +94,16 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         nsamples = len(sampleis)
     elif 0 < nsamples < N: # nsamples == 0 means use all points
         # subsample with nsamples to get a reasonable number of scouts
-        sampleis = np.asarray(random.sample(xrange(N), nsamples))
+        sampleis = np.asarray(random.sample(xrange(N), nsamples), dtype=np.int32)
     else: # nsamples == 0, or nsamples >= N, use all N points
         nsamples = N
-        sampleis = np.arange(nsamples)
+        sampleis = np.arange(nsamples, dtype=np.int32)
     M = nsamples # initially, but M will decrease over time
     Mthresh = 3000000 / nsamples / ndims
     print("Mthresh = %d" % Mthresh)
     scouts = data[sampleis].copy() # scouts will be modified
     cids.fill(-1) # -ve number indicates an unclustered data point
-    cids[sampleis] = np.arange(M)
+    cids[sampleis] = np.arange(M, dtype=np.int32)
 
     if minmove == -1.0:
         # TODO: should minmove also depend on sqrt(ndims)?

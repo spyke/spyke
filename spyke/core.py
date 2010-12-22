@@ -701,44 +701,52 @@ class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
 # TODO: setting uniformItemSizes improves display performance. not sure what it means though
 # maybe icon size?
 
-class NList(QtGui.QListView):
-    """Neuron list view"""
+class SpykeListView(QtGui.QListView):
     def __init__(self, parent):
         QtGui.QListView.__init__(self, parent)
         self.sortwin = parent
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+
+    def updateAll(self):
+        self.model().updateAll()
+
+
+class NList(SpykeListView):
+    """Neuron list view"""
+    def __init__(self, parent):
+        SpykeListView.__init__(self, parent)
         self.setModel(NListModel(parent))
 
     def selectionChanged(self, selected, deselected):
-        QtGui.QListView.selectionChanged(self, selected, deselected)
+        SpykeListView.selectionChanged(self, selected, deselected)
         # TODO: insert stuff here
 
-class NSList(QtGui.QListView):
+
+class NSList(SpykeListView):
     """Spike list view"""
     def __init__(self, parent):
-        QtGui.QListView.__init__(self, parent)
-        self.sortwin = parent
-        #self.setSelectionBehavior(QTableWidget.SelectRows)
-        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        SpykeListView.__init__(self, parent)
         self.setModel(NSListModel(parent))
 
     def selectionChanged(self, selected, deselected):
-        QtGui.QListView.selectionChanged(self, selected, deselected)
+        SpykeListView.selectionChanged(self, selected, deselected)
         # TODO: insert stuff here
 
+    def get_neuron(self):
+        return self.model().neuron
 
-class SList(QtGui.QListView):
-    """Spike list view"""
+    neuron = property(get_neuron)
+
+
+class SList(SpykeListView):
+    """Unsorted spike list view"""
     def __init__(self, parent):
-        QtGui.QListView.__init__(self, parent)
-        self.sortwin = parent
-        #self.setSelectionBehavior(QTableWidget.SelectRows)
-        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        SpykeListView.__init__(self, parent)
         self.setModel(SListModel(parent))
 
     def selectionChanged(self, selected, deselected):
-        QtGui.QListView.selectionChanged(self, selected, deselected)
+        SpykeListView.selectionChanged(self, selected, deselected)
         sort = self.sortwin.sort
         panel = self.sortwin.panel
         add_sids = sort.usids[[ index.row() for index in selected.indexes() ]]
@@ -747,11 +755,23 @@ class SList(QtGui.QListView):
         panel.addItems([ 's'+str(sid) for sid in add_sids ])
 
 
-class NListModel(QtCore.QAbstractListModel):
+class SpykeAbstractListModel(QtCore.QAbstractListModel):
+    def __init__(self, parent):
+        QtCore.QAbstractListModel.__init__(self, parent)
+        self.sortwin = parent
+
+    def updateAll(self):
+        """Emit dataChanged signal so that view updates itself immediately.
+        Hard to believe this doesn't already exist in some form"""
+        i0 = self.createIndex(0, 0) # row, col
+        #i1 = self.createIndex(self.rowCount(None)-1, 0) # seems this isn't necessary
+        self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
+
+
+class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def __init__(self, parent):
-        QtCore.QAbstractListModel.__init__(self)
-        self.sortwin = parent
+        SpykeAbstractListModel.__init__(self, parent)
 
     def rowCount(self, parent):
         return len(self.sortwin.sort.neurons)
@@ -762,41 +782,40 @@ class NListModel(QtCore.QAbstractListModel):
             return nids[index.row()]
 
 
-class NSListModel(QtCore.QAbstractListModel):
+class NSListModel(SpykeAbstractListModel):
     """Model for neuron spikes list view"""
-    # TODO: this is untested!!!
     def __init__(self, parent):
-        QtCore.QAbstractListModel.__init__(self)
-        self.sortwin = parent
+        SpykeAbstractListModel.__init__(self, parent)
+        self._neuron = None # .neuron needs to be set externally every time neuron selection changes
+
+    def get_neuron(self):
+        return self._neuron
+
+    def set_neuron(self, neuron):
+        """Automatically update when neuron is bound"""
+        self._neuron = neuron
+        self.updateAll()
+
+    neuron = property(get_neuron, set_neuron)
 
     def rowCount(self, parent):
-        nids = self.sortwin.nslist.selectedIndexes()
-        # TODO: might wanna use currentIndex() instead
-        if len(nids) == 1:
-            neuron = self.sorwin.neurons[nids[0]]
-            return neuron.nspikes
+        if self.neuron:
+            return self.neuron.spikes
         else:
             return 0
 
     def data(self, index, role):
-        nids = self.sortwin.nslist.selectedIndexes()
-        # TODO: might wanna use currentIndex() instead
-        if len(nids) == 1:
-            neuron = self.sorwin.neurons[nids[0]]
-        else:
-            neuron = None
-        if role == QtCore.Qt.DisplayRole and neuron:
-            return neuron.sids[index.row()]
+        if role == QtCore.Qt.DisplayRole and self.neuron:
+            return self.neuron.sids[index.row()]
 
 
-class SListModel(QtCore.QAbstractListModel):
-    """Model for spike list view"""
+class SListModel(SpykeAbstractListModel):
+    """Model for unsorted spike list view"""
     def __init__(self, parent):
-        QtCore.QAbstractListModel.__init__(self, parent)
-        self.sortwin = parent
+        SpykeAbstractListModel.__init__(self, parent)
 
     def rowCount(self, parent):
-        return self.sortwin.sort.nspikes
+        return len(self.sortwin.sort.usids)
 
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
@@ -847,52 +866,6 @@ class CListCtrl(SpykeListCtrl):
         # TODO: could almost assume sort.clusters dict is ordered, since it always seems to be
         cids = sorted(sort.clusters)
         return cids[row]
-'''
-'''
-class DimListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl for selecting which dimensions to cluster upon.
-    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
-    def __init__(self, *args, **kwargs):
-        SpykeListCtrl.__init__(self, *args, **kwargs)
-        #self.SetColumnWidth(0, 20)
-        self.dims = ['x0', 'y0', 'sx', 'Vpp', 'dphase', 't', 'peaks', 'wave']
-        # other possibilities might be: sy, V0, V1, s0, s1
-        #self.InsertColumn(0, 'dim')
-        self.SetItemCount(len(self.dims))
-        select = ['x0', 'y0', 'Vpp'] # select these by default
-        [ self.Select(self.dims.index(sel), on=True) for sel in select ]
-
-    def OnGetItemText(self, row, col):
-        return self.dims[row]
-'''
-'''
-class NSListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl for displaying a neuron's spikes.
-    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
-    def __init__(self, *args, **kwargs):
-        SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.InsertColumn(0, 'sID')
-        self.SetColumnWidth(0, 53)
-        self._neuron = None
-
-    def OnGetItemText(self, row, col):
-        if self.neuron == None:
-            return
-        return self.neuron.sids[row]
-
-    def get_neuron(self):
-        return self._neuron
-
-    def set_neuron(self, neuron):
-        """Automatically refresh when neuron is bound"""
-        self._neuron = neuron
-        if neuron == None:
-            self.SetItemCount(0)
-        else:
-            self.SetItemCount(neuron.nspikes)
-        self.RefreshItems()
-
-    neuron = property(get_neuron, set_neuron)
 '''
 
 class Stack(list):

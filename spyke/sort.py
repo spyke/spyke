@@ -863,12 +863,6 @@ class SortWindow(QtGui.QDockWidget):
 
         #QtCore.QMetaObject.connectSlotsByName(self)
 
-        #self.slist.Bind(wx.EVT_RIGHT_DOWN, self.OnSListRightDown)
-        #self.slist.Bind(wx.EVT_KEY_DOWN, self.OnSListKeyDown)
-
-        #self.Bind(wx.EVT_SIZE, self.OnSize)
-        #self.Bind(wx.EVT_CLOSE, self.OnClose)
-
     def setupToolbar(self):
         toolbar = QtGui.QToolBar("toolbar", self)
         toolbar.setFloatable(True)
@@ -934,15 +928,9 @@ class SortWindow(QtGui.QDockWidget):
         QtGui.QDockWidget.resizeEvent(self, event)
         self.panel.draw_refs()
 
-    def OnSplitterSashChanged(self, evt):
-        """Re-save reflines_background after resizing the SortPanel(s)
-        with the window's primary splitter"""
-        print('in OnSplitterSashChanged')
-        wx.CallAfter(self.DrawRefs)
-
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Sort')
-
+    '''
     def OnNListSelect(self, evt):
         selectedRows = self.nlist.getSelection()
         all_nids = sorted(self.sort.neurons)
@@ -976,39 +964,6 @@ class SortWindow(QtGui.QDockWidget):
         self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
         self.nslist.lastSelectedIDs = sids # save for next time
 
-    def OnSListSelect(self, evt):
-        sort = self.sort
-        selectedRows = self.slist.getSelection()
-        sids = set(sort.usids[selectedRows])
-        remove_sids = self.slist.lastSelectedIDs.difference(sids)
-        add_sids = sids.difference(self.slist.lastSelectedIDs)
-        self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
-        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
-        self.slist.lastSelectedIDs = sids # save for next time
-    '''
-    def OnSListRightDown(self, evt):
-        """Toggle selection of the clicked list item, without changing selection
-        status of any other items. This is a nasty hack required to get around
-        the selection ListEvent happening before the MouseEvent, or something"""
-        print('in OnSListRightDown')
-        pt = evt.GetPosition()
-        row, flags = self.slist.HitTest(pt)
-        sid = self.sort.spikes['id'][self.sort.usids[row]]
-        print('sid: %r' % sid)
-        # this would be nice, but doesn't work (?) cuz apparently somehow the
-        # selection ListEvent happens before MouseEvent that caused it:
-        #selected = not self.slist.IsSelected(row)
-        #self.slist.Select(row, on=int(not selected))
-        # here is a yucky workaround:
-        try:
-            self.spikesortpanel.used_plots['s'+str(sid)] # is it plotted?
-            selected = True # if so, item must be selected
-            print('spike %d in used_plots' % sid)
-        except KeyError:
-            selected = False # item is not selected
-            print('spike %d not in used_plots' % sid)
-        self.slist.Select(row, on=not selected) # toggle selection, this fires sel spike, which updates the plot
-    '''
     def OnSListColClick(self, evt):
         """Sort .usids according to column clicked.
 
@@ -1029,7 +984,7 @@ class SortWindow(QtGui.QDockWidget):
             s.usids_sorted_by = field # update
             s.usids_reversed = False # update
         self.slist.RefreshItems()
-
+    '''
     def on_actionAddCluster_triggered(self):
         self.parent().OnAddCluster()
 
@@ -1086,8 +1041,7 @@ class SortWindow(QtGui.QDockWidget):
         except KeyError:
             pass
         if update:
-            self.nlist.SetItemCount(len(self.sort.neurons))
-            self.nlist.RefreshItems()
+            self.nlist.updateAll()
         if neuron == self.nslist.neuron:
             self.nslist.neuron = None
 
@@ -1103,8 +1057,7 @@ class SortWindow(QtGui.QDockWidget):
         spikes['nid'][sids] = neuron.id
         if update:
             self.sort.update_usids()
-            self.slist.SetItemCount(len(self.sort.usids))
-            self.slist.RefreshItems() # refresh the list
+            self.slist.updateAll()
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list
@@ -1125,8 +1078,7 @@ class SortWindow(QtGui.QDockWidget):
         spikes['nid'][sids] = -1 # unbind neuron id of sids in struct array
         if update:
             self.sort.update_usids()
-            self.slist.SetItemCount(len(self.sort.usids))
-            self.slist.RefreshItems() # refresh the spike list
+            self.slist.updateAll()
         # this only makes sense if the neuron is currently selected in the nlist:
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
@@ -1137,7 +1089,7 @@ class SortWindow(QtGui.QDockWidget):
             neuron = self.GetFirstSelectedNeuron()
         elif which == 'new':
             neuron = None # indicates we want a new neuron
-        selected_rows = self.slist.getSelection()
+        selected_rows = [ i.row() for i in self.slist.selectedIndexes() ]
         # remove from the bottom to top, so each removal doesn't affect the remaining selections
         selected_rows.reverse()
         selected_usids = self.sort.usids[selected_rows]
