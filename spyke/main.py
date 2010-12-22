@@ -73,9 +73,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.dpos = {} # positions of data windows relative to main spyke window
         self.caption = '' # used for setting title caption
-        for d in ('/data', '/win/data'):
+        for d in ('~/data', '/data'):
             try: # use first existing path
-                os.chdir(os.path.abspath(d))
+                os.chdir(os.path.expanduser(d))
                 break
             except: # path doesn't exist
                 pass
@@ -446,7 +446,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def GetClusters(self):
         """Return currently selected clusters"""
-        rows = self.clist.getSelection()
+        print("WARNING: notrivial use of GetClusters() hasn't been tested yet")
+        sf = self.windows['Sort']
+        rows = [ i.row() for i in sf.nlist.selectedIndexes() ]
         cids = np.asarray(sorted(self.sort.clusters))[rows]
         clusters = [ self.sort.clusters[cid] for cid in cids ]
         return clusters
@@ -481,8 +483,8 @@ class SpykeWindow(QtGui.QMainWindow):
                                % nselected)
         return sids[0]
 
-    def on_climbButton_clicked(self):
-        """Cluster pane Climb button click"""
+    def on_clusterButton_clicked(self):
+        """Cluster pane Cluster button click"""
         s = self.sort
         spikes = s.spikes
         sf = self.OpenWindow('Sort')
@@ -916,8 +918,8 @@ class SpykeWindow(QtGui.QMainWindow):
         cluster.update_ellipsoid('pos', dims=dims)
         self.UpdateParamWidgets(cluster)
 
-    def OnClusterPlot(self, evt=None):
-        """Plot button press in cluster_pane. Don't need the evt"""
+    def on_plotButton_clicked(self):
+        """Cluster pane plot button click"""
         dims = self.GetClusterPlotDimNames()
         cf = self.OpenWindow('Cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
@@ -930,8 +932,7 @@ class SpykeWindow(QtGui.QMainWindow):
         clusters = self.sort.clusters.values()
         for cluster in clusters:
             cluster.update_ellipsoid(dims=dims)
-        self.UpdateClustersGUI()
-        self.cluster_params_pane.Enable(True)
+        #self.UpdateClustersGUI()
 
     def OnCutCluster(self, evt=None):
         """Cut (cluster) button press in cluster_pane. Don't need the evt"""
@@ -1000,9 +1001,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def GetClusterPlotDimNames(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
-        x = self.xdim.GetStringSelection()
-        y = self.ydim.GetStringSelection()
-        z = self.zdim.GetStringSelection()
+        x = str(self.ui.xDimComboBox.currentText())
+        y = str(self.ui.yDimComboBox.currentText())
+        z = str(self.ui.zDimComboBox.currentText())
         return x, y, z
 
     def UpdateParamWidgets(self, cluster):
