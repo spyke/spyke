@@ -12,11 +12,15 @@ QT rewrite:
 
 - should really rename slist to uslist
 
+- search for all occurrences of getSelection()
+
 - rename sf to sw, cf to cw, etc (if possible)
 
 - make cluster points smaller
 
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
+
+- TODO: allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons
 
 ---------------
 QT rewrite DONE:

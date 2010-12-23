@@ -351,7 +351,6 @@ class ClusterWindow(QtGui.QDockWidget):
                   'scale_factor': scale_factor,
                   'vmin': 0, # make sure mayavi respects full range of cmap indices
                   'vmax': len(cmap)-1}
-        print('about to call points3d')
         glyph = mlab.points3d(x, y, z, s, **kwargs)
         try:
             self.view, self.roll = view, roll

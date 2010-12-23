@@ -708,6 +708,14 @@ class SpykeListView(QtGui.QListView):
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
 
+    def selectionChanged(self, selected, deselected, prefix=None):
+        QtGui.QListView.selectionChanged(self, selected, deselected)
+        panel = self.sortwin.panel
+        addis = [ i.data().toInt()[0] for i in selected.indexes() ]
+        remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
+        panel.removeItems([ prefix+str(i) for i in remis ])
+        panel.addItems([ prefix+str(i) for i in addis ])
+
     def updateAll(self):
         self.model().updateAll()
 
@@ -719,8 +727,13 @@ class NList(SpykeListView):
         self.setModel(NListModel(parent))
 
     def selectionChanged(self, selected, deselected):
-        SpykeListView.selectionChanged(self, selected, deselected)
-        # TODO: insert stuff here
+        SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
+        self.sortwin.nslist.clearSelection() # remove any plotted sids in nslist, at least for now
+        selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
+        if len(selnids) == 1:
+            self.sortwin.nslist.neuron = self.sortwin.sort.neurons[selnids[0]]
+        else:
+            self.sortwin.nslist.neuron = None
 
 
 class NSList(SpykeListView):
@@ -730,13 +743,15 @@ class NSList(SpykeListView):
         self.setModel(NSListModel(parent))
 
     def selectionChanged(self, selected, deselected):
-        SpykeListView.selectionChanged(self, selected, deselected)
-        # TODO: insert stuff here
+        SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
 
     def get_neuron(self):
         return self.model().neuron
 
-    neuron = property(get_neuron)
+    def set_neuron(self, neuron):
+        self.model().neuron = neuron
+
+    neuron = property(get_neuron, set_neuron)
 
 
 class SList(SpykeListView):
@@ -746,13 +761,7 @@ class SList(SpykeListView):
         self.setModel(SListModel(parent))
 
     def selectionChanged(self, selected, deselected):
-        SpykeListView.selectionChanged(self, selected, deselected)
-        sort = self.sortwin.sort
-        panel = self.sortwin.panel
-        add_sids = sort.usids[[ index.row() for index in selected.indexes() ]]
-        rem_sids = sort.usids[[ index.row() for index in deselected.indexes() ]]
-        panel.removeItems([ 's'+str(sid) for sid in rem_sids ])
-        panel.addItems([ 's'+str(sid) for sid in add_sids ])
+        SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
 
 
 class SpykeAbstractListModel(QtCore.QAbstractListModel):
@@ -799,14 +808,14 @@ class NSListModel(SpykeAbstractListModel):
     neuron = property(get_neuron, set_neuron)
 
     def rowCount(self, parent):
-        if self.neuron:
-            return self.neuron.spikes
+        if self.neuron: # not None
+            return len(self.neuron.sids)
         else:
             return 0
 
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole and self.neuron:
-            return self.neuron.sids[index.row()]
+            return int(self.neuron.sids[index.row()])
 
 
 class SListModel(SpykeAbstractListModel):

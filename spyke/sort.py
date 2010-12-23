@@ -931,29 +931,6 @@ class SortWindow(QtGui.QDockWidget):
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Sort')
     '''
-    def OnNListSelect(self, evt):
-        selectedRows = self.nlist.getSelection()
-        all_nids = sorted(self.sort.neurons)
-        nids = set(np.asarray(all_nids)[selectedRows])
-        remove_nids = self.nlist.lastSelectedIDs.difference(nids)
-        add_nids = nids.difference(self.nlist.lastSelectedIDs)
-        self.RemoveItemsFromPlot([ 'n'+str(nid) for nid in remove_nids ])
-        self.AddItems2Plot([ 'n'+str(nid) for nid in add_nids ])
-        self.nlist.lastSelectedIDs = nids # save for next time
-        if self.nslist.neuron != None and self.nslist.neuron.id in remove_nids:
-            self.nslist.neuron = None
-        elif len(nids) == 1:
-            nid = list(nids)[0]
-            self.nslist.neuron = self.sort.neurons[nid]
-        # mirror selection changes to clist
-        remove_nids = list(remove_nids)
-        add_nids = list(add_nids)
-        deselect_rows = np.searchsorted(all_nids, remove_nids)
-        select_rows = np.searchsorted(all_nids, add_nids)
-        clist = self.spykewindow.clist
-        [ clist.Select(row, on=False) for row in deselect_rows ]
-        [ clist.Select(row, on=True) for row in select_rows ]
-
     def OnNSListSelect(self, evt):
         sort = self.sort
         selectedRows = self.nslist.getSelection()
@@ -1083,16 +1060,18 @@ class SortWindow(QtGui.QDockWidget):
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
-
+'''
     def MoveCurrentSpikes2Neuron(self, which='selected'):
         if which == 'selected':
             neuron = self.GetFirstSelectedNeuron()
         elif which == 'new':
             neuron = None # indicates we want a new neuron
-        selected_rows = [ i.row() for i in self.slist.selectedIndexes() ]
+        selected_usids = [ i.data().toInt()[0] for i in self.slist.selectedIndexes() ]
         # remove from the bottom to top, so each removal doesn't affect the remaining selections
-        selected_rows.reverse()
-        selected_usids = self.sort.usids[selected_rows]
+        print("TODO: WARNING: selected_usids might not be sorted! They might be in "
+              "selection order, not spatial order from top to bottom.")
+        selected_usids.reverse()
         neuron = self.MoveSpikes2Neuron(selected_usids, neuron) # if neuron was None, it isn't any more
         if neuron != None and neuron.plt != None: # if it exists and it's plotted
             self.UpdateItemsInPlot(['n'+str(neuron.id)]) # update its plot
+'''

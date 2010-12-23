@@ -456,10 +456,6 @@ class SpykeWindow(QtGui.QMainWindow):
         """Return currently selected clusters"""
         print("WARNING: nontrivial use of GetClusters() hasn't been tested yet")
         sf = self.windows['Sort']
-        # might not be the right way to do this, what happens when nlist isn't contig?:
-        #rows = [ i.row() for i in sf.nlist.selectedIndexes() ]
-        #cids = np.asarray(sorted(self.sort.clusters))[rows]
-        # maybe better to call i.data().toInt()[0] or something to get cids directly
         cids = [ i.data().toInt()[0] for i in sf.nlist.selectedIndexes() ]
         clusters = [ self.sort.clusters[cid] for cid in cids ]
         return clusters
@@ -502,6 +498,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sf = self.OpenWindow('Sort')
         cf = self.OpenWindow('Cluster')
 
+        sf.slist.clearSelection() # clear slist selection, since many usids will disappear
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
             clusters = oldclusters
