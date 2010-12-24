@@ -112,7 +112,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
-        self.CreateNewSort()
+        self.DeleteSort() # don't create a new one until spikes exist
 
     @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
@@ -367,7 +367,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
-        sort = self.sort
+        sort = self.CreateNewSort() # create a new Sort
         sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
@@ -376,16 +376,6 @@ class SpykeWindow(QtGui.QMainWindow):
         sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
         sort.shcorrect = sort.stream.shcorrect
         sort.tres = sort.stream.tres # for convenience
-
-        # every time a new detection is run, need to clear sort, spike
-        # and wave fnames. Want to (re)ask user for sort fname, and that will
-        # in turn require regenerating the spike and wave fnames
-        try: del sort.sortfname
-        except AttributeError: pass
-        try: del sort.spikefname
-        except AttributeError: pass
-        try: del sort.wavefname
-        except AttributeError: pass
 
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSpikeWidgets(True)
@@ -1314,9 +1304,6 @@ class SpykeWindow(QtGui.QMainWindow):
         tww = self.spiketw[1]-self.spiketw[0] # window width
         self.t = intround(self.hpstream.t0 + tww/2) # set current timepoint (us)
 
-        self.CreateNewSort() # create a new Sort
-        #self.menubar.Enable(wx.ID_RASTERS, False) # disable until spikes exist
-
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         self.OpenWindow('Spike')
 
@@ -1337,11 +1324,12 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableSurfWidgets(True)
 
     def CreateNewSort(self):
-        """Create a new Sort and bind it to self"""
+        """Create a new Sort, bind it to self, and return it"""
         self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in on_detectButton_clicked
                          stream=self.hpstream)
         self.EnableSortWidgets(True)
+        return self.sort
 
     def DeleteSort(self):
         """Delete any existing Sort"""
@@ -1353,17 +1341,13 @@ class SpykeWindow(QtGui.QMainWindow):
             #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
             del self.sort
         except AttributeError:
-            pass
+            clusters = {}
         if 'Sort' in self.windows:
             sf = self.windows['Sort']
-            sf.nlist.DeleteAllItems()
-            sf.nslist.DeleteAllItems()
-            sf.slist.DeleteAllItems()
-            sf.nlist.lastSelectedIDs = set()
-            sf.nslist.lastSelectedIDs = set()
-            sf.slist.lastSelectedIDs = set()
-            sf.spikesortpanel.removeAllItems()
-            #sf.chartsortpanel.removeAllItems()
+            sf.nlist.reset()
+            sf.nslist.reset()
+            sf.slist.reset()
+            sf.panel.removeAllItems()
         if 'Cluster' in self.windows:
             cf = self.windows['Cluster']
             cf.f.scene.disable_render = True # for speed
@@ -1693,20 +1677,17 @@ class SpykeWindow(QtGui.QMainWindow):
             if windowtype == 'Spike':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height() + METACITYHACK
-                window = SpikeWindow(parent=self, stream=self.hpstream,
-                                     tw=self.spiketw,
-                                     pos=(x, y), size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
+                window = SpikeWindow(parent=self, tw=self.spiketw, pos=(x, y),
+                                     size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
             elif windowtype == 'Chart':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH
                 y = self.pos().y() + self.size().height() + METACITYHACK
-                window = ChartWindow(parent=self, stream=self.hpstream,
-                                     tw=self.charttw, cw=self.spiketw,
+                window = ChartWindow(parent=self, tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
             elif windowtype == 'LFP':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
                 y = self.pos().y() + self.size().height() + METACITYHACK
-                window = LFPWindow(parent=self, stream=self.lpstream,
-                                   tw=self.lfptw, cw=self.charttw,
+                window = LFPWindow(parent=self, tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
             elif windowtype == 'Sort':
                 x = self.pos().x() + self.size().width()
@@ -1997,27 +1978,27 @@ class DataWindow(QtGui.QDockWidget):
 
 class SpikeWindow(DataWindow):
     """Window to hold the custom spike panel widget"""
-    def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
+    def __init__(self, parent=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
-        self.panel = SpikePanel(self, stream=stream, tw=tw, cw=cw)
+        self.panel = SpikePanel(self, tw=tw, cw=cw)
         self.setupUi(pos, size)
         self.setWindowTitle("Spike Window")
 
 
 class ChartWindow(DataWindow):
     """Window to hold the custom chart panel widget"""
-    def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
+    def __init__(self, parent=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
-        self.panel = ChartPanel(self, stream=stream, tw=tw, cw=cw)
+        self.panel = ChartPanel(self, tw=tw, cw=cw)
         self.setupUi(pos, size)
         self.setWindowTitle("Chart Window")
 
 
 class LFPWindow(DataWindow):
     """Window to hold the custom LFP panel widget"""
-    def __init__(self, parent=None, stream=None, tw=None, cw=None, pos=None, size=None):
+    def __init__(self, parent=None, tw=None, cw=None, pos=None, size=None):
         DataWindow.__init__(self, parent)
-        self.panel = LFPPanel(self, stream=stream, tw=tw, cw=cw)
+        self.panel = LFPPanel(self, tw=tw, cw=cw)
         self.setupUi(pos, size)
         self.setWindowTitle("LFP Window")
 

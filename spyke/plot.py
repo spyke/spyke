@@ -275,7 +275,6 @@ class Raster(Plot):
 
     def show(self, enable=True):
         """Show/hide lines on all of spike's chans"""
-        sort = self.panel.spykeframe.sort
         try:
             spike = self.spike
             nchans = spike['nchans']
@@ -309,7 +308,7 @@ class PlotPanel(FigureCanvas):
     uVperum = DEFUVPERUM
     usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
                          # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
-    def __init__(self, parent, stream=None, tw=None, cw=None):
+    def __init__(self, parent, tw=None, cw=None):
         self.figure = Figure() # resize later? can also set dpi here
         FigureCanvas.__init__(self, self.figure)
         self.setParent(parent)
@@ -317,8 +316,6 @@ class PlotPanel(FigureCanvas):
         self.updateGeometry()
 
         self.spykeframe = parent.parent()
-        self.sort = self.spykeframe.sort
-        self.AD2uV = self.sort.converter.AD2uV # convenience for Plot objects to reference
 
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
@@ -326,8 +323,6 @@ class PlotPanel(FigureCanvas):
 
         self.rasters = [] # pool of available Rasters
 
-        if stream != None:
-            self.stream = stream # only bind for those frames that actually use a stream (ie DataFrames)
         self.tw = tw # temporal window of each channel, in plot units (us ostensibly)
         self.cw = cw # temporal window of caret, in plot units
 
@@ -352,7 +347,7 @@ class PlotPanel(FigureCanvas):
         #self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
 
         if isinstance(self, SortPanel):
-            probe = self.sort.probe
+            probe = self.sort.probe # sort must exist by now if sort panel is being used
         else: # it's a Spike/Chart/LFP panel
             probe = self.stream.probe
         self.probe = probe
@@ -394,6 +389,24 @@ class PlotPanel(FigureCanvas):
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
         self.init_plots()
         self.init_rasters()
+
+    def get_stream(self):
+        return self.spykeframe.hpstream # overridden for LFPPanel
+
+    stream = property(get_stream)
+
+    def get_sort(self):
+        return self.spykeframe.sort
+
+    sort = property(get_sort)
+
+    def get_AD2uV(self):
+        try:
+            return self.sort.converter.AD2uV
+        except AttributeError: # sort doesn't exist yet
+            return self.stream.converter.AD2uV
+
+    AD2uV = property(get_AD2uV) # convenience for Plot objects to reference
 
     def init_axes(self):
         """Init the axes and ref lines"""
@@ -655,9 +668,10 @@ class PlotPanel(FigureCanvas):
     def update_rasters(self, tref):
         """Update spike raster positions and visibility wrt tref"""
         # find out which spikes are within time window
-        sort = self.spykeframe.sort
-        try: sort.spikes
-        except AttributeError: return # no spikes exist
+        try:
+            sort = self.spykeframe.sort
+            sort.spikes
+        except AttributeError: return # no sort/spikes exist yet
         lo, hi = sort.spikes['t'].searchsorted((tref+self.tw[0], tref+self.tw[1]))
         spikes = sort.spikes[lo:hi] # spikes within range of current time window
         while len(spikes) > len(self.rasters):
@@ -805,7 +819,10 @@ class PlotPanel(FigureCanvas):
             t += self.qrplt.tref
         v = (evt.ydata - ypos) / self.gain
         if sortpanel:
-            tres = self.sort.stream.tres
+            try:
+                tres = self.sort.stream.tres
+            except AttributeError: # sort doesn't exist
+                tres = self.stream.tres
         else:
             if not (t >= self.stream.t0 and t <= self.stream.t1): # out of bounds
                 self.setToolTip(''); return
@@ -935,6 +952,11 @@ class LFPPanel(ChartPanel):
     def __init__(self, *args, **kwargs):
         ChartPanel.__init__(self, *args, **kwargs)
         self.gain = 1
+
+    def get_stream(self):
+        return self.spykeframe.lpstream # override ChartPanel(PlotPanel)'s hpstream
+
+    stream = property(get_stream)
 
     def do_layout(self):
         ChartPanel.do_layout(self)

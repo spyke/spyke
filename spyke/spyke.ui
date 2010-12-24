@@ -1259,6 +1259,9 @@
    <property name="text">
     <string>&amp;Open</string>
    </property>
+   <property name="toolTip">
+    <string>Open .srf, .track or .sort</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
    </property>
@@ -1285,6 +1288,9 @@
    </property>
    <property name="text">
     <string>&amp;New</string>
+   </property>
+   <property name="toolTip">
+    <string>New sort</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+N</string>

@@ -745,6 +745,10 @@ class NSList(SpykeListView):
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
 
+    def reset(self):
+        SpykeListView.reset(self)
+        self.neuron = None
+
     def get_neuron(self):
         return self.model().neuron
 
@@ -783,7 +787,10 @@ class NListModel(SpykeAbstractListModel):
         SpykeAbstractListModel.__init__(self, parent)
 
     def rowCount(self, parent):
-        return len(self.sortwin.sort.neurons)
+        try:
+            return len(self.sortwin.sort.neurons)
+        except AttributeError: # sort doesn't exist
+            return 0
 
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
@@ -824,7 +831,10 @@ class SListModel(SpykeAbstractListModel):
         SpykeAbstractListModel.__init__(self, parent)
 
     def rowCount(self, parent):
-        return len(self.sortwin.sort.usids)
+        try:
+            return len(self.sortwin.sort.usids)
+        except AttributeError: # sort doesn't exist
+            return 0
 
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
