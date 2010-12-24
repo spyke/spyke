@@ -822,7 +822,8 @@ class PlotPanel(FigureCanvas):
             try:
                 tres = self.sort.stream.tres
             except AttributeError: # sort doesn't exist
-                tres = self.stream.tres
+                self.setToolTip('')
+                return
         else:
             if not (t >= self.stream.t0 and t <= self.stream.t1): # out of bounds
                 self.setToolTip(''); return

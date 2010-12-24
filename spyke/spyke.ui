@@ -280,7 +280,7 @@
          </item>
          <item>
           <property name="text">
-           <string>mean</string>
+           <string>stdev</string>
           </property>
          </item>
         </widget>
@@ -655,7 +655,7 @@
          <rect>
           <x>5</x>
           <y>5</y>
-          <width>196</width>
+          <width>266</width>
           <height>186</height>
          </rect>
         </property>
@@ -663,7 +663,7 @@
          <bool>false</bool>
         </property>
         <property name="title">
-         <string>Auto clustering</string>
+         <string>Clustering</string>
         </property>
         <property name="flat">
          <bool>false</bool>
@@ -678,7 +678,7 @@
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>20</y>
+           <y>25</y>
            <width>31</width>
            <height>16</height>
           </rect>
@@ -691,7 +691,7 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>35</y>
+           <y>40</y>
            <width>66</width>
            <height>146</height>
           </rect>
@@ -740,25 +740,12 @@
           </property>
          </item>
         </widget>
-        <widget class="QLabel" name="label_21">
-         <property name="geometry">
-          <rect>
-           <x>100</x>
-           <y>20</y>
-           <width>71</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Parameters</string>
-         </property>
-        </widget>
         <widget class="QLabel" name="label_22">
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>40</y>
-           <width>36</width>
+           <y>17</y>
+           <width>56</width>
            <height>16</height>
           </rect>
          </property>
@@ -770,7 +757,7 @@
          <property name="geometry">
           <rect>
            <x>135</x>
-           <y>35</y>
+           <y>12</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -792,8 +779,8 @@
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>65</y>
-           <width>51</width>
+           <y>42</y>
+           <width>56</width>
            <height>16</height>
           </rect>
          </property>
@@ -805,7 +792,7 @@
          <property name="geometry">
           <rect>
            <x>135</x>
-           <y>60</y>
+           <y>37</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -827,8 +814,8 @@
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>90</y>
-           <width>36</width>
+           <y>92</y>
+           <width>56</width>
            <height>16</height>
           </rect>
          </property>
@@ -840,7 +827,7 @@
          <property name="geometry">
           <rect>
            <x>135</x>
-           <y>85</y>
+           <y>87</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -862,7 +849,7 @@
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>115</y>
+           <y>117</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -875,7 +862,7 @@
          <property name="geometry">
           <rect>
            <x>135</x>
-           <y>110</y>
+           <y>112</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -894,7 +881,7 @@
          <property name="geometry">
           <rect>
            <x>135</x>
-           <y>135</y>
+           <y>137</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -910,7 +897,7 @@
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>140</y>
+           <y>142</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -923,7 +910,7 @@
          <property name="geometry">
           <rect>
            <x>135</x>
-           <y>160</y>
+           <y>162</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -939,7 +926,7 @@
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>165</y>
+           <y>167</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -948,18 +935,66 @@
           <string>minpoints:</string>
          </property>
         </widget>
+        <widget class="QLabel" name="label_32">
+         <property name="geometry">
+          <rect>
+           <x>75</x>
+           <y>67</y>
+           <width>56</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>rneighx:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="rneighXSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>135</x>
+           <y>62</y>
+           <width>62</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.100000000000000</double>
+         </property>
+         <property name="value">
+          <double>4.000000000000000</double>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="clusterButton">
+         <property name="geometry">
+          <rect>
+           <x>205</x>
+           <y>160</y>
+           <width>56</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Cluster</string>
+         </property>
+        </widget>
        </widget>
        <widget class="QGroupBox" name="groupBox_5">
         <property name="geometry">
          <rect>
-          <x>270</x>
+          <x>275</x>
           <y>5</y>
           <width>116</width>
           <height>186</height>
          </rect>
         </property>
         <property name="title">
-         <string>Cluster plotting</string>
+         <string>Plotting</string>
         </property>
         <widget class="QLabel" name="label_28">
          <property name="geometry">
@@ -1108,19 +1143,6 @@
          </property>
         </widget>
        </widget>
-       <widget class="QPushButton" name="clusterButton">
-        <property name="geometry">
-         <rect>
-          <x>205</x>
-          <y>165</y>
-          <width>56</width>
-          <height>27</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Cluster</string>
-        </property>
-       </widget>
       </widget>
      </widget>
     </item>
@@ -1157,6 +1179,7 @@
     <addaction name="actionRecent"/>
     <addaction name="separator"/>
     <addaction name="actionSaveSort"/>
+    <addaction name="actionSaveSortAs"/>
     <addaction name="actionSaveParse"/>
     <addaction name="actionSaveWave"/>
     <addaction name="menuExport"/>
@@ -1302,7 +1325,7 @@
      <normaloff>res/save.png</normaloff>res/save.png</iconset>
    </property>
    <property name="text">
-    <string>&amp;Save .sort</string>
+    <string>&amp;Save</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
@@ -1579,6 +1602,18 @@
    </property>
    <property name="menuRole">
     <enum>QAction::AboutQtRole</enum>
+   </property>
+  </action>
+  <action name="actionSaveSortAs">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/save.png</normaloff>res/save.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Save As</string>
+   </property>
+   <property name="toolTip">
+    <string>Save .sort as</string>
    </property>
   </action>
  </widget>

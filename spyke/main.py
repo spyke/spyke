@@ -128,14 +128,14 @@ class SpykeWindow(QtGui.QMainWindow):
             self.OpenFile(tail)
 
     @QtCore.pyqtSlot()
-    def on_actionSave_triggered(self):
-        if not hasattr(self.sort, 'sortfname'):
-            self.OnSaveAs()
-        else:
+    def on_actionSaveSort_triggered(self):
+        try:
             self.SaveSortFile(self.sort.sortfname) # save to existing sort fname
+        except AttributeError: # sort or sort.sortfname don't exist
+            self.on_actionSaveSortAs_triggered()
 
     @QtCore.pyqtSlot()
-    def on_actionSaveAs_triggered(self):
+    def on_actionSaveSortAs_triggered(self):
         """Save Sort to new .sort file"""
         try:
             defaultFile = self.sort.sortfname
@@ -147,12 +147,13 @@ class SpykeWindow(QtGui.QMainWindow):
             dt = dt.replace(' ', '_')
             dt = dt.replace(':', '.')
             defaultFile = fname + '_' + dt
-        dlg = wx.FileDialog(self, message="Save sort as",
-                            defaultDir=os.getcwd(), defaultFile=defaultFile,
-                            wildcard="Sort files (*.sort)|*.sort|All files (*.*)|*.*",
-                            style=wx.SAVE | wx.OVERWRITE_PROMPT)
-        if dlg.ShowModal() == wx.ID_OK:
-            fname = dlg.GetPath()
+        getSaveFileName = QtGui.QFileDialog.getSaveFileName
+        fname = getSaveFileName(self, caption="Save .sort file",
+                                directory=os.getcwd(),
+                                filter="Sort files (*.sort);;"
+                                       "All files (*.*)")
+        fname = str(fname)
+        if fname:
             base, ext = os.path.splitext(fname)
             if ext != '.sort':
                 fname = base + '.sort' # make sure it has .sort extension
@@ -164,77 +165,89 @@ class SpykeWindow(QtGui.QMainWindow):
             try: del self.sort.wavefname
             except AttributeError: pass
             self.SaveSortFile(tail)
-        dlg.destroy()
-
-    def OnSaveWave(self, evt):
-        """Save waveforms to a .wave file"""
-        defaultFile = os.path.splitext(self.sort.sortfname)[0] + '.wave'
-        dlg = wx.FileDialog(self, message="Save waveforms as",
-                            defaultDir=os.getcwd(), defaultFile=defaultFile,
-                            wildcard="Sort files (*.wave)|*.wave|All files (*.*)|*.*",
-                            style=wx.SAVE | wx.OVERWRITE_PROMPT)
-        if dlg.ShowModal() == wx.ID_OK:
-            fname = dlg.GetPath()
-            head, tail = os.path.split(fname)
-            os.chdir(head) # update cwd
-            self.SaveWaveFile(tail)
-        dlg.destroy()
 
     @QtCore.pyqtSlot()
     def on_actionSaveParse_triggered(self):
         self.hpstream.pickle()
 
-    def OnExportSpikes(self, evt):
-        dlg = wx.DirDialog(self, message="Export spikes to",
-                           defaultPath=os.getcwd())
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
+    @QtCore.pyqtSlot()
+    def on_actionSaveWave_triggered(self):
+        """Save waveforms to a .wave file"""
+        defaultFile = os.path.splitext(self.sort.sortfname)[0] + '.wave'
+        getSaveFileName = QtGui.QFileDialog.getSaveFileName
+        fname = getSaveFileName(self, caption="Save .wave file",
+                                directory=os.getcwd(),
+                                filter="Wave files (*.wave);;"
+                                       "All files (*.*)")
+        fname = str(fname)
+        if fname:
+            head, tail = os.path.split(fname)
+            os.chdir(head) # update cwd
+            self.SaveWaveFile(tail)
+
+    @QtCore.pyqtSlot()
+    def on_actionExportSpikes_triggered(self):
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export spikes to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
             self.sort.exportspikes(path=path)
             # don't update cwd
 
-    def OnExportDIN(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionExportDIN_triggered(self):
         srffnameroot = self.sort.get_srffnameroot()
-        dlg = wx.DirDialog(self, message="Export DIN to",
-                           defaultPath=os.getcwd())
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export DIN to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
             self.sort.exportdin(srffnameroot=srffnameroot, path=path)
             # don't update cwd
 
-    def OnExportTextheader(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionExportTextheader_triggered(self):
         srffnameroot = self.sort.get_srffnameroot()
-        dlg = wx.DirDialog(self, message="Export textheader to",
-                           defaultPath=os.getcwd())
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export textheader to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
             self.sort.exporttextheader(srffnameroot=srffnameroot, path=path)
             # don't update cwd
 
-    def OnExportAll(self, evt):
-        dlg = wx.DirDialog(self, message="Export spikes, DIN and textheader to",
-                           defaultPath=os.getcwd())
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
+    @QtCore.pyqtSlot()
+    def on_actionExportAll_triggered(self):
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export spikes, DIN and textheader to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
             self.sort.export(path=path)
             # don't update cwd
 
-    def OnExportTsChId(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionExportTsChId_triggered(self):
         srffnameroot = self.sort.get_srffnameroot()
-        dlg = wx.DirDialog(self, message="Export tschid to",
-                           defaultPath=os.getcwd())
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export tschid to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
             self.sort.exporttschid(srffnameroot=srffnameroot, path=path)
             # don't update cwd
 
-    def OnExportLFP(self, evt):
+    @QtCore.pyqtSlot()
+    def on_actionExportLFP_triggered(self):
         if type(self.hpstream) == core.TrackStream:
             raise RuntimeError("LFP can only be exported from a single .srf file")
         srffnameroot = self.lpstream.srffname.partition('.srf')[0]
-        dlg = wx.DirDialog(self, message="Export LFP to",
-                           defaultPath=os.getcwd())
-        if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export LFP to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
             self.sort.exportlfp(lpstream=self.lpstream,
                                 srffnameroot=srffnameroot, path=path)
             # don't update cwd
@@ -368,7 +381,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
         sort = self.CreateNewSort() # create a new Sort
-        sort.detector = self.get_detector() # update Sort's current detector with new one from widgets
+        self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
         sort.spikes, sort.wavedata = sort.detector.detect() # struct array of spikes, 3D array
@@ -1252,15 +1265,6 @@ class SpykeWindow(QtGui.QMainWindow):
         # select newly recreated oldclusters
         self.SelectClusters(oldclusters, on=True)
 
-    def update_sort_from_cluster_pane(self):
-        s = self.sort
-        s.sigma = self.ui.sigmaSpinBox.value()
-        s.rmergex = self.ui.rmergeXSpinBox.value()
-        s.alpha = self.ui.alphaSpinBox.value()
-        s.nsamples = self.ui.nsamplesSpinBox.value()
-        s.maxstill = self.ui.maxstillSpinBox.value()
-        s.minpoints = self.ui.minpointsSpinBox.value()
-
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
         ext = os.path.splitext(fname)[1]
@@ -1269,8 +1273,8 @@ class SpykeWindow(QtGui.QMainWindow):
         elif ext == '.sort':
             self.OpenSortFile(fname)
         else:
-            wx.MessageBox("%s is not a .srf, .track or .sort file" % fname,
-                          caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
+            critical = QtGui.QMessageBox.critical
+            critical(self, "Error", "%s is not a .srf, .track or .sort file" % fname)
 
     def OpenSurfOrTrackFile(self, fname):
         """Open a .srf or .track file, and update display accordingly"""
@@ -1482,10 +1486,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
         self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
-        self.menubar.Enable(wx.ID_SAMPLING, False) # disable sampling menu
-        if self.hpstream == None: # no stream is open
-            self.notebook.Show(True) # lets us do stuff with the Sort
-        self.total_nspikes_label.SetLabel(str(sort.nspikes))
+        self.ui.menuSampling.setEnabled(False) # disable sampling menu
+        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSpikeWidgets(True)
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
@@ -1504,8 +1506,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.RestoreClusters2GUI()
 
         self.setWindowTitle(self.caption + ' | ' + self.sort.sortfname)
-        if sort.detector != None:
-            self.update_from_detector(sort.detector)
+        self.update_gui_from_sort()
         self.EnableSortWidgets(True)
 
     def OpenSpikeFile(self, fname):
@@ -1545,8 +1546,9 @@ class SpykeWindow(QtGui.QMainWindow):
         print('wave file was %d bytes long' % f.tell())
         f.close()
         if len(wavedata) != sort.nspikes:
-            wx.MessageBox('.wave file has a different number of spikes from the current Sort',
-                          caption="Beware", style=wx.OK|wx.ICON_EXCLAMATION)
+            critical = QtGui.QMessageBox.critical
+            critical(self, "Error",
+                     ".wave file has a different number of spikes from the current Sort")
             raise RuntimeError
         return wavedata
 
@@ -1561,7 +1563,6 @@ class SpykeWindow(QtGui.QMainWindow):
             self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
         except AttributeError: pass # no spikes
         self.OpenWindow('Sort')
-        self.notebook.SetSelection(2) # switch to the cluster pane
     '''
     def ImportNeurons(self, fname):
         print('opening sort file %r to import neurons' % fname)
@@ -1603,8 +1604,6 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: # corresponding .spike filename hasn't been gemerated yet
             s.spikefname = os.path.splitext(fname)[0] + '.spike'
         self.SaveSpikeFile(s.spikefname) # always (re)save .spike when saving .sort
-        #if not os.path.exists(s.spikefname): # corresponding .spike file was saved, but isn't there any more
-        #    self.SaveSpikeFile(s.spikefname)
         print('saving sort file %r' % fname)
         t0 = time.time()
         try:
@@ -1629,17 +1628,6 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: # corresponding .wave filename hasn't been generated yet
             wavefname = os.path.splitext(fname)[0] + '.wave'
             self.SaveWaveFile(wavefname) # only (re)save .wave if missing s.wavefname attrib
-        #if not os.path.exists(s.wavefname): # corresponding .wave file is missing
-        #    self.SaveWaveFile(s.wavefname)
-        '''
-        if os.path.exists(fname):
-            dlg = wx.MessageDialog(self, "Spike file %r already exists. Overwrite?" % fname,
-                                   "Overwrite .spike file?", wx.YES_NO | wx.ICON_QUESTION)
-            result = dlg.ShowModal()
-            dlg.destroy()
-            if result == wx.ID_NO:
-                return
-        '''
         print('saving spike file %r' % fname)
         t0 = time.time()
         f = open(fname, 'wb')
@@ -1655,13 +1643,6 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: return # no wavedata to save
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.wave'
-        if os.path.exists(fname):
-            dlg = wx.MessageDialog(self, "Wave file %r already exists. Overwrite?" % fname,
-                                   "Overwrite .wave file?", wx.YES_NO | wx.ICON_QUESTION)
-            result = dlg.ShowModal()
-            dlg.destroy()
-            if result == wx.ID_NO:
-                return
         print('saving wave file %r' % fname)
         t0 = time.time()
         f = open(fname, 'wb')
@@ -1851,15 +1832,18 @@ class SpykeWindow(QtGui.QMainWindow):
             widget.Enable(enable)
 
     def get_detector(self):
-        """Create a Detector object based on widget values"""
-        det = detect.Detector(sort=self.sort)
-        self.update_detector(det)
-        return det
+        """Create and bind Detector object, update sort from gui"""
+        self.sort.detector = detect.Detector(sort=self.sort)
+        self.update_sort_from_gui()
 
-    def update_detector(self, det):
-        """Update detector from detect pane widget values"""
-        det.chans = self.chans_enabled
+    def update_sort_from_gui(self):
+        self.update_sort_from_detector_pane()
+        self.update_sort_from_cluster_pane()
+
+    def update_sort_from_detector_pane(self):
         ui = self.ui
+        det = self.sort.detector
+        det.chans = self.chans_enabled
         if ui.globalFixedRadioButton.isChecked():
             threshmethod = 'GlobalFixed'
         elif ui.channelFixedRadioButton.isChecked():
@@ -1879,22 +1863,45 @@ class SpykeWindow(QtGui.QMainWindow):
         det.lockr = ui.lockRSpinBox.value()
         det.inclr = ui.inclRSpinBox.value()
 
-    def update_from_detector(self, det):
-        """Update self from detector attribs"""
-        self.set_detectorthresh(det)
-        self.chans_enabled = det.chans
-        self.fixedthreshuV_spin_ctrl.SetValue(det.fixedthreshuV)
-        self.noisemult_text_ctrl.SetValue(str(det.noisemult))
-        #self.noisewindow_spin_ctrl.SetValue(det.noisewindow) # not in the gui yet
-        self.range_start_combo_box.SetValue(str(det.trange[0]))
-        self.range_end_combo_box.SetValue(str(det.trange[1]))
-        self.blocksize_combo_box.SetValue(str(det.blocksize))
-        self.lockr_spin_ctrl.SetValue(det.lockr)
-        self.inclr_spin_ctrl.SetValue(det.inclr)
+    def update_sort_from_cluster_pane(self):
+        ui = self.ui
+        s = self.sort
+        s.sigma = ui.sigmaSpinBox.value()
+        s.rmergex = ui.rmergeXSpinBox.value()
+        s.rneighx = ui.rneighXSpinBox.value()
+        s.alpha = ui.alphaSpinBox.value()
+        s.nsamples = ui.nsamplesSpinBox.value()
+        s.maxstill = ui.maxstillSpinBox.value()
+        s.minpoints = ui.minpointsSpinBox.value()
 
-    def set_detectorthresh(self, det):
-        """Update threshmethod radio buttons to match current Detector"""
-        self.METH2RADIOBTN[det.threshmethod].SetValue(True) # enable the appropriate radio button
+    def update_gui_from_sort(self):
+        ui = self.ui
+        s = self.sort
+        det = s.detector
+        self.chans_enabled = det.chans
+        # update detector pane
+        meth2widget = {'GlobalFixed': ui.globalFixedRadioButton,
+                       'ChanFixed': ui.channelFixedRadioButton,
+                       'Dynamic': ui.dynamicRadioButton}
+        meth2widget[det.threshmethod].setChecked(True)
+        ui.globalFixedSpinBox.setValue(det.fixedthreshuV)
+        ui.dynamicNoiseXSpinBox.setValue(det.noisemult)
+        ui.noiseMethodComboBox.setCurrentIndex(ui.noiseMethodComboBox.findText(det.noisemethod))
+        ui.vppThreshXSpinBox.setValue(det.ppthreshmult)
+        ui.phaseDTSpinBox.setValue(det.dt)
+        ui.rangeStartLineEdit.setText(str(det.trange[0]))
+        ui.rangeEndLineEdit.setText(str(det.trange[1]))
+        ui.blockSizeLineEdit.setText(str(det.blocksize))
+        ui.lockRSpinBox.setValue(det.lockr)
+        ui.inclRSpinBox.setValue(det.inclr)
+        # update cluster pane
+        ui.sigmaSpinBox.setValue(s.sigma)
+        ui.rmergeXSpinBox.setValue(s.rmergex)
+        ui.rneighXSpinBox.setValue(s.rneighx)
+        ui.alphaSpinBox.setValue(s.alpha)
+        ui.nsamplesSpinBox.setValue(s.nsamples)
+        ui.maxstillSpinBox.setValue(s.maxstill)
+        ui.minpointsSpinBox.setValue(s.minpoints)
 
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert

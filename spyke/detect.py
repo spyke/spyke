@@ -121,51 +121,19 @@ class DistanceMatrix(object):
 
 class Detector(object):
     """Spike detector base class"""
-    DEFTHRESHMETHOD = 'Dynamic' # GlobalFixed, ChanFixed, or Dynamic
-    DEFNOISEMETHOD = 'median' # median or stdev
-    DEFNOISEMULT = 6
-    DEFFIXEDTHRESHUV = 50 # uV, used by GlobalFixed, and as min thresh for ChanFixed
-    DEFPPTHRESHMULT = 1.5 # peak-to-peak threshold is this times thresh
-    DEFFIXEDNOISEWIN = 30000000 # 30s, used by ChanFixed - this should really be a % of self.trange
-    DEFDYNAMICNOISEWIN = 10000 # 10ms, used by Dynamic
-    DEFBLOCKSIZE = 10000000 # 10s, waveform data block size
-    DEFLOCKR = 150 # spatial lockout radius, um
-    DEFINCLR = 150 # spatial include radius, um
-    DEFDT = 400 # max time between phases of a single spike, us
-    DEFEXTRACTPARAMSONDETECT = True
-
-    # us, extra data as buffer at start and end of a block while detecting spikes.
-    # Only useful for ensuring spike times within the actual block time range are
-    # accurate. Spikes detected in the excess are discarded
-    BLOCKEXCESS = 1000
-
-    def __init__(self, sort, chans=None,
-                 threshmethod=None, noisemethod=None, noisemult=None, fixedthreshuV=None,
-                 ppthreshmult=None, fixednoisewin=None, dynamicnoisewin=None,
-                 trange=None, blocksize=None, lockr=None, inclr=None, dt=None,
-                 extractparamsondetect=None):
-        """Takes a parent Sort session and sets various parameters"""
+    def __init__(self, sort=None):
+        """Takes a parent Sort session and sets some parameters"""
         self.sort = sort
         # for reference, store .srf/.track filename(s) this Detector is run on
         self.fname = sort.stream.fname
         self.srffnames = sort.stream.srffnames
-        self.chans = np.asarray(chans) or np.arange(sort.stream.nchans) # None means search all channels
-        self.threshmethod = threshmethod or self.DEFTHRESHMETHOD
-        self.noisemethod = noisemethod or self.DEFNOISEMETHOD
-        self.noisemult = noisemult or self.DEFNOISEMULT
-        self.fixedthreshuV = fixedthreshuV or self.DEFFIXEDTHRESHUV
-        self.ppthreshmult = ppthreshmult or self.DEFPPTHRESHMULT
-        self.fixednoisewin = fixednoisewin or self.DEFFIXEDNOISEWIN # us
-        self.dynamicnoisewin = dynamicnoisewin or self.DEFDYNAMICNOISEWIN # us
-        self.trange = trange or (sort.stream.t0, sort.stream.t1)
-        self.blocksize = blocksize or self.DEFBLOCKSIZE
-        self.lockr = lockr or self.DEFLOCKR
-        self.inclr = inclr or self.DEFINCLR
-        self.dt = dt or self.DEFDT
-        self.extractparamsondetect = extractparamsondetect or self.DEFEXTRACTPARAMSONDETECT
-
-        #self.dmurange = DMURANGE # allowed time difference between peaks of modelled spike
+        self.fixednoisewin = 30000000 # us, used by ChanFixed, should really be % of self.trange
+        self.extractparamsondetect = True
         self.datetime = None # date and time of last detect() call
+        # us, extra data as buffer at start and end of a block while detecting spikes.
+        # Only useful for ensuring spike times within the actual block time range are
+        # accurate. Spikes detected in the excess are discarded
+        self.blockexcess = 1000
 
     def get_chans(self):
         return self._chans
@@ -197,7 +165,7 @@ class Detector(object):
         info('ppthresh = %s' % AD2uV(self.ppthresh))
 
         bs = self.blocksize
-        bx = self.BLOCKEXCESS
+        bx = self.blockexcess
         blockranges = self.get_blockranges(bs, bx)
 
         self.nchans = len(self.chans) # number of enabled chans
@@ -289,7 +257,7 @@ class Detector(object):
         #info('searchblock():')
         stream = self.sort.stream
         cutrange = blockrange.copy() # trange of spikes to keep
-        bx = self.BLOCKEXCESS
+        bx = self.blockexcess
         # if block doesn't falls at start or end of self.trange, remove excess:
         if cutrange[0] != self.trange[0]: cutrange[0] += bx
         if cutrange[1] != self.trange[1]: cutrange[1] -= bx

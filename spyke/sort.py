@@ -64,16 +64,6 @@ class Sort(object):
         self.usids_sorted_by = 't'
         self.usids_reversed = False
 
-        # cluster density gradient climbing params
-        self.sigma = 0.15
-        self.rmergex = 0.333
-        self.alpha = 1.0
-        self.rneighx = 4
-        self.nsamples = 10000
-        self.maxstill = 100
-        self.minpoints = 10
-        self.density_thresh = 0.0
-
     def get_nextnid(self):
         """nextnid is used to retrieve the next unique neuron ID"""
         nids = self.neurons.keys()
