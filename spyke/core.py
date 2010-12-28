@@ -758,11 +758,11 @@ class NSList(SpykeListView):
     neuron = property(get_neuron, set_neuron)
 
 
-class SList(SpykeListView):
+class USList(SpykeListView):
     """Unsorted spike list view"""
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
-        self.setModel(SListModel(parent))
+        self.setModel(USListModel(parent))
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
@@ -825,7 +825,7 @@ class NSListModel(SpykeAbstractListModel):
             return int(self.neuron.sids[index.row()])
 
 
-class SListModel(SpykeAbstractListModel):
+class USListModel(SpykeAbstractListModel):
     """Model for unsorted spike list view"""
     def __init__(self, parent):
         SpykeAbstractListModel.__init__(self, parent)

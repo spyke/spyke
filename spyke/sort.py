@@ -20,7 +20,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
-from core import NList, NSList, SList
+from core import NList, NSList, USList
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -825,8 +825,8 @@ class SortWindow(QtGui.QDockWidget):
         self.nlist.setToolTip('Neuron list')
         self.nslist = NSList(self)
         self.nslist.setToolTip('Sorted spike list')
-        self.slist = SList(self) # should really be multicolumn tableview
-        self.slist.setToolTip('Unsorted spike list')
+        self.uslist = USList(self) # should really be multicolumn tableview
+        self.uslist.setToolTip('Unsorted spike list')
         self.panel = SpikeSortPanel(self)
 
         self.hsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
@@ -835,7 +835,7 @@ class SortWindow(QtGui.QDockWidget):
 
         self.vsplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
         self.vsplitter.addWidget(self.hsplitter)
-        self.vsplitter.addWidget(self.slist)
+        self.vsplitter.addWidget(self.uslist)
 
         self.mainsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
@@ -931,7 +931,7 @@ class SortWindow(QtGui.QDockWidget):
         self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
         self.nslist.lastSelectedIDs = sids # save for next time
 
-    def OnSListColClick(self, evt):
+    def OnUSListColClick(self, evt):
         """Sort .usids according to column clicked.
 
         TODO: keep track of currently selected spikes and currently focused spike,
@@ -940,7 +940,7 @@ class SortWindow(QtGui.QDockWidget):
         that happens automatically). Right now, the selection remains in the list
         as-is, regardless of the entries that change beneath it"""
         col = evt.GetColumn()
-        field = self.slist.COL2FIELD[col]
+        field = self.uslist.COL2FIELD[col]
         s = self.sort
         # for speed, check if already sorted by field
         if s.usids_sorted_by == field: # already sorted, reverse the order
@@ -950,7 +950,7 @@ class SortWindow(QtGui.QDockWidget):
             s.sort_usids(field)
             s.usids_sorted_by = field # update
             s.usids_reversed = False # update
-        self.slist.RefreshItems()
+        self.uslist.RefreshItems()
     '''
     def on_actionAddCluster_triggered(self):
         self.parent().OnAddCluster()
@@ -1024,11 +1024,11 @@ class SortWindow(QtGui.QDockWidget):
         spikes['nid'][sids] = neuron.id
         if update:
             self.sort.update_usids()
-            self.slist.updateAll()
+            self.uslist.updateAll()
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list
-        #self.slist.Select(row) # automatically select the new item at that position
+        #self.uslist.Select(row) # automatically select the new item at that position
         neuron.wave.data = None # triggers an update when it's actually needed
         #neuron.update_wave() # update mean neuron waveform
         return neuron
@@ -1045,7 +1045,7 @@ class SortWindow(QtGui.QDockWidget):
         spikes['nid'][sids] = -1 # unbind neuron id of sids in struct array
         if update:
             self.sort.update_usids()
-            self.slist.updateAll()
+            self.uslist.updateAll()
         # this only makes sense if the neuron is currently selected in the nlist:
         if neuron == self.nslist.neuron:
             self.nslist.neuron = neuron # this triggers a refresh
@@ -1056,7 +1056,7 @@ class SortWindow(QtGui.QDockWidget):
             neuron = self.GetFirstSelectedNeuron()
         elif which == 'new':
             neuron = None # indicates we want a new neuron
-        selected_usids = [ i.data().toInt()[0] for i in self.slist.selectedIndexes() ]
+        selected_usids = [ i.data().toInt()[0] for i in self.uslist.selectedIndexes() ]
         # remove from the bottom to top, so each removal doesn't affect the remaining selections
         print("TODO: WARNING: selected_usids might not be sorted! They might be in "
               "selection order, not spatial order from top to bottom.")

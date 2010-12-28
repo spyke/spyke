@@ -421,7 +421,7 @@ class SpykeWindow(QtGui.QMainWindow):
         #cProfile.runctx('self.sort.extractor.extract_all_XY()', globals(), locals())
 
         self.sort.extractor.extract_all_XY() # adds extracted XY params to sort.spikes
-        self.windows['Sort'].slist.updateAll() # update any columns showing param values
+        self.windows['Sort'].uslist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnWaveletExtract(self, evt=None):
@@ -439,7 +439,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # extract coeffs of selected wavelet type, add coeffs to sort.spikes
         wavelet = self.wavelet_extract_radio_box.GetStringSelection()
         self.sort.extractor.extract_all_wcs(wavelet)
-        self.windows['Sort'].slist.updateAll() # update any columns showing param values
+        self.windows['Sort'].uslist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def OnTemporalExtract(self, evt=None):
@@ -452,7 +452,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.init_extractor()
 
         self.sort.extractor.extract_all_temporal()
-        self.windows['Sort'].slist.updateAll() # update any columns showing param values
+        self.windows['Sort'].uslist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
     def GetClusters(self):
@@ -476,7 +476,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Return IDs of currently selected spikes"""
         sf = self.windows['Sort']
         nsrows = sf.nslist.getSelection()
-        srows = sf.slist.getSelection()
+        srows = sf.uslist.getSelection()
         sids = []
         try:
             sids.extend(sf.nslist.neuron.sids[nsrows])
@@ -485,7 +485,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return sids
 
     def GetSpike(self):
-        """Return Id of just one selected spike, from nslist or slist"""
+        """Return Id of just one selected spike, from nslist or uslist"""
         sids = self.GetSpikes()
         nselected = len(sids)
         if nselected != 1:
@@ -501,7 +501,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sf = self.OpenWindow('Sort')
         cf = self.OpenWindow('Cluster')
 
-        sf.slist.clearSelection() # clear slist selection, since many usids will disappear
+        sf.uslist.clearSelection() # clear uslist selection, since many usids will disappear
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
             clusters = oldclusters
@@ -977,7 +977,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cf.f.scene.disable_render = False # turn rendering back on
         sf.nlist.updateAll()
         s.update_usids()
-        sf.slist.updateAll()
+        sf.uslist.updateAll()
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
@@ -1350,7 +1350,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sf = self.windows['Sort']
             sf.nlist.reset()
             sf.nslist.reset()
-            sf.slist.reset()
+            sf.uslist.reset()
             sf.panel.removeAllItems()
         if 'Cluster' in self.windows:
             cf = self.windows['Cluster']
@@ -1492,8 +1492,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         sf = self.OpenWindow('Sort') # ensure it's open
-        # restore unsorted spike virtual listctrl
-        sf.slist.updateAll()
+        # restore unsorted spike listview
+        sf.uslist.updateAll()
 
         # do this here first in case no clusters exist and hence self.AddCluster
         # is never called, yet you want spikes to be plotted in the cluster window:
