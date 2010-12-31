@@ -93,8 +93,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
         for rowi in range(3): # select the first 3 dims in dimlist
             # there really should be an easier way, but .setSelection(QRect, ...) doesn't work?
-            self.ui.dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
-
+            #self.ui.dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
+            self.ui.dimlist.item(rowi).setSelected(True) # a little nicer
         '''
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -475,8 +475,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def GetSpikes(self):
         """Return IDs of currently selected spikes"""
         sf = self.windows['Sort']
-        nsrows = sf.nslist.getSelection()
-        srows = sf.uslist.getSelection()
+        nsrows = sf.nslist.selectedRows()
+        srows = sf.uslist.selectedRows()
         sids = []
         try:
             sids.extend(sf.nslist.neuron.sids[nsrows])
@@ -714,7 +714,8 @@ class SpykeWindow(QtGui.QMainWindow):
         all_nids = sorted(self.sort.neurons)
         sel_nids = [ cluster.id for cluster in clusters ]
         rows = np.searchsorted(all_nids, sel_nids)
-        [ self.clist.Select(row, on=on) for row in rows ]
+        nlist = self.windows['Sort'].nlist
+        nlist.selectRows(rows, on)
 
     def OnAddCluster(self, update=True, id=None):
         """Sort window Add button click"""
@@ -850,13 +851,13 @@ class SpykeWindow(QtGui.QMainWindow):
         del self.cchanges[:]
         self.cci = -1
         print('renumbering complete')
-
+    '''
     def OnCListSelect(self, evt=None):
         """Cluster list box item selection. Update cluster param widgets
         given current dims"""
         # TODO: this method isn't triggered when clicking in empty space to deselect all items
         #print('in OnCListSelect()')
-        selectedRows = self.clist.getSelection()
+        selectedRows = self.clist.selectedRows()
         if len(selectedRows) == 1:
             cluster = self.GetCluster()
             self.EnablePosOriScaleWidgets(True)
@@ -874,7 +875,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nlist = sf.nlist
         [ nlist.Select(row, on=False) for row in deselect_rows ]
         [ nlist.Select(row, on=True) for row in select_rows ]
-
+    '''
     def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,
         and replot the data in the (potentially) new projection, while

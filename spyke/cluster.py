@@ -176,8 +176,8 @@ class SpykeMayaviScene(MayaviScene):
                     row, = np.where(all_nids == nid)
                     assert len(row) == 1
                     row = row[0] # pull it out of the array
-                    on = not sf.clist.IsSelected(row) # toggle
-                    sf.clist.Select(row, on=on)
+                    on = not sf.nlist.rowSelected(row) # toggle
+                    sf.nlist.selectRows(row, on=on)
             return
         #self._vtk_control.OnKeyDown(event)
 

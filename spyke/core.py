@@ -719,6 +719,25 @@ class SpykeListView(QtGui.QListView):
     def updateAll(self):
         self.model().updateAll()
 
+    def selectRows(self, rows, on=True):
+        """Row selection in listview is complex. This makes it simpler"""
+        rows = toiter(rows)
+        m = self.model()
+        sm = self.selectionModel()
+        if on:
+            flag = sm.Select
+        else:
+            flag = sm.Deselect
+        [ sm.select(m.index(row), flag) for row in rows ]
+
+    def selectedRows(self):
+        """Return list of selected rows"""
+        return [ i.row() for i in self.selectedIndexes() ]
+
+    def rowSelected(self, row):
+        """Simple way to check if a row is selected"""
+        return self.model().index(row) in self.selectedIndexes()
+
 
 class NList(SpykeListView):
     """Neuron list view"""

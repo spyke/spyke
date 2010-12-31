@@ -10,17 +10,12 @@ QT rewrite:
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
 
-- replace all clist with nlist
-
-- should really rename slist to uslist
-
-- search for all occurrences of getSelection()
-
 - rename sf to sw, cf to cw, etc (if possible)
 
 - make cluster points smaller
 
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
+    - hm, or why can't you just check for clusters and auto colour them each time plot is hit?
 
 - TODO: allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons
 
@@ -36,7 +31,9 @@ QT rewrite DONE:
         i2 = model.createIndex(row2, 0)
         model.dataChanged.emit(i1, i2)
 - delete all SetItemCount() calls
-
+- should really rename slist to uslist
+- replace all clist with nlist
+- search for all occurrences of getSelection()
 
 ----------------
 RECENT:
