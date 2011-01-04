@@ -17,7 +17,7 @@ import scipy.stats
 
 import pylab as pl
 
-from spyke.core import g
+from core import g
 
 
 DEFSX = 50 # default spatial decay along x axis, in um

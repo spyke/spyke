@@ -8,7 +8,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import numpy as np
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
-import spyke.util # .pyx file
+import util # .pyx file
 
 import sys
 import time
@@ -26,10 +26,9 @@ from scipy.weave import inline
 #import openopt
 #import nmpfit
 
-import spyke.surf
-from spyke.core import eucd, ordered, concatenate_destroy, intround
+from core import eucd, ordered, concatenate_destroy, intround, g2, cauchy2
 
-#from spyke import threadpool
+#import threadpool
 #from text import SimpleTable
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
@@ -314,15 +313,15 @@ class Detector(object):
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
             weights2f = sort.extractor.weights2f
-            f = spyke.core.g2 # 2D Gaussian
-            #f = spyke.core.cauchy2 # 2D Cauchy
+            f = g2 # 2D Gaussian
+            #f = cauchy2 # 2D Cauchy
         lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
 
         tsharp = time.time()
-        sharp = spyke.util.sharpness2D(wave.data)
+        sharp = util.sharpness2D(wave.data)
         info('%s: sharpness2D() took %.3f sec' % (ps().name, time.time()-tsharp))
         targthreshsharp = time.time()
-        peakis = spyke.util.argthreshsharp(wave.data, self.thresh, sharp) # thresh exceeding peak indices
+        peakis = util.argthreshsharp(wave.data, self.thresh, sharp) # thresh exceeding peak indices
         info('%s: argthreshsharp() took %.3f sec' % (ps().name, time.time()-targthreshsharp))
 
         dti = self.dti
@@ -613,7 +612,7 @@ class Detector(object):
         if self.noisemethod == 'median':
             #noise = pool.map(self.get_median, data) # multithreads over rows in data
             #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
-            noise = spyke.util.median_inplace_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
+            noise = util.median_inplace_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
             #noise = np.mean(np.abs(data), axis=-1) / 0.6745 / 1.2
             #noise = util.mean_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':

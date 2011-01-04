@@ -28,15 +28,17 @@ import gc
 import cPickle
 import random
 
-spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
-sys.path.insert(0, spykepath)
+# seems unnecessary: automatically add spyke to path
+#spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
+#sys.path.insert(0, spykepath)
 
-import spyke
-from spyke import core, surf, detect, extract
-from spyke.sort import Sort
-from spyke.core import toiter, intround, MICRO
-from spyke.plot import SpikePanel, ChartPanel, LFPPanel, CMAP, TRANSWHITEI
-from spyke.sort import SortWindow, MAINSPLITTERPOS
+import core
+from core import toiter, intround, MICRO, ClusterChange
+import surf
+from sort import Sort, SortWindow, MAINSPLITTERPOS
+from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, TRANSWHITEI
+from detect import Detector
+from extract import Extractor
 
 DEFSPIKETW = -500, 500 # spike window temporal window (us)
 DEFCHARTTW = -25000, 25000 # chart window temporal window (us)
@@ -264,20 +266,24 @@ class SpykeWindow(QtGui.QMainWindow):
         self.destroy()
 
     @QtCore.pyqtSlot()
-    def on_actionAboutSpyke_triggered(self):
-        text = """
-        <h2>spyke %s</h2>
-        <p>A tool for neuronal waveform visualization and spike sorting</p>
-        <p>Copyright &copy; 2008-2010 Martin Spacek, Reza Lotun<br>
-           University of British Columbia</p>
-        <p>Python %s, Qt %s, PyQt %s<br>
-        %s</p>""" % (__version__, platform.python_version(),
-        QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR, platform.platform())
-        QtGui.QMessageBox.about(self, "About spyke", text)
+    def on_actionUndo_triggered(self):
+        """Undo button click. Undo previous cluster change"""
+        try: cc = self.cchanges[self.cci]
+        except IndexError: raise RuntimeError('nothing to undo')
+        print('undoing: %s' % cc.message)
+        self.ApplyClusterChange(cc, direction='back')
+        self.cci -= 1 # move pointer one change back on the stack
+        print('undo complete')
 
     @QtCore.pyqtSlot()
-    def on_actionAboutQt_triggered(self):
-        QtGui.QMessageBox.aboutQt(self)
+    def on_actionRedo_triggered(self):
+        """Redo button click. Redo next cluster change"""
+        try: cc = self.cchanges[self.cci+1]
+        except IndexError: raise RuntimeError('nothing to redo')
+        print('redoing: %s' % cc.message)
+        self.ApplyClusterChange(cc, direction='forward')
+        self.cci += 1 # move pointer one change forward on the stack
+        print('redo complete')
 
     @QtCore.pyqtSlot()
     def on_actionSpikeWindow_triggered(self):
@@ -367,6 +373,22 @@ class SpykeWindow(QtGui.QMainWindow):
         self.seek(t)
 
     @QtCore.pyqtSlot()
+    def on_actionAboutSpyke_triggered(self):
+        text = """
+        <h2>spyke %s</h2>
+        <p>A tool for neuronal waveform visualization and spike sorting</p>
+        <p>Copyright &copy; 2008-2011 Martin Spacek, Reza Lotun<br>
+           University of British Columbia</p>
+        <p>Python %s, Qt %s, PyQt %s<br>
+        %s</p>""" % (__version__, platform.python_version(),
+        QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR, platform.platform())
+        QtGui.QMessageBox.about(self, "About spyke", text)
+
+    @QtCore.pyqtSlot()
+    def on_actionAboutQt_triggered(self):
+        QtGui.QMessageBox.aboutQt(self)
+
+    @QtCore.pyqtSlot()
     def on_filePosStartButton_clicked(self):
         self.seek(self.str2t['start'])
 
@@ -404,7 +426,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Initialize Extractor"""
         #XYmethod = self.XY_extract_radio_box.GetStringSelection()
         XYmethod = 'Gaussian fit' # hard code for now, don't really need extract pane
-        ext = extract.Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
+        ext = Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
         self.sort.extractor = ext
         #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
 
@@ -548,7 +570,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # save some undo/redo stuff
         message = 'climb clusters %r' % [ c.id for c in clusters ]
-        cc = spyke.cluster.ClusterChange(sids, spikes, message)
+        cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters)
 
         if oldclusters: # some clusters selected
@@ -743,42 +765,6 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.nlist.updateAll()
             sw.nlist.DeSelectAll()
             sw.nlist.Select(len(self.sort.clusters) - 1) # select newly created item
-
-    def OnDelCluster(self):
-        """Sort window pane Del button click"""
-        clusters = self.GetClusters()
-        sids = []
-        s = self.sort
-        spikes = s.spikes
-        sids = []
-        for cluster in clusters:
-            sids.append(cluster.neuron.sids)
-        sids = np.concatenate(sids)
-
-        # save some undo/redo stuff
-        message = 'delete clusters %r' % [ c.id for c in clusters ]
-        cc = spyke.cluster.ClusterChange(sids, spikes, message)
-        cc.save_old(clusters)
-
-        # deselect and delete clusters
-        self.SelectClusters(clusters, on=False)
-        for cluster in clusters:
-            self.DelCluster(cluster, update=False)
-        self.DeColourPoints(sids) # decolour appropriate points
-        self.UpdateClustersGUI()
-        self.windows['Cluster'].glyph.mlab_source.update()
-        if len(self.sort.clusters) > 0:
-            # select cluster that's next highest than lowest of the deleted clusters
-            cids = np.asarray(s.clusters.keys())
-            ii, = np.where(cids > min(cc.oldunids))
-            selcid = min(cids[ii])
-            self.SelectClusters(s.clusters[selcid]) # TODO: this sets selection, but not focus
-
-        # save more undo/redo stuff
-        newclusters = []
-        cc.save_new(newclusters)
-        self.AddClusterChangeToStack(cc)
-        print(cc.message)
 
     def DelCluster(self, cluster, update=True):
         """Delete a cluster from the GUI, and delete the cluster
@@ -1029,7 +1015,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.xscale.SetValue(str(cluster.scale[x]))
         self.yscale.SetValue(str(cluster.scale[y]))
         self.zscale.SetValue(str(cluster.scale[z]))
-
+    '''
     """Update parameters for currently selected cluster, and associated ellipsoid"""
     def OnXPos(self, evt):
         cluster = self.GetCluster()
@@ -1102,7 +1088,7 @@ class SpykeWindow(QtGui.QMainWindow):
         val = float(evt.GetString())
         cluster.scale[z] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
-
+    '''
     def OnKeyDown(self, evt):
         """Handle key presses
         TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
@@ -1145,7 +1131,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # save some undo/redo stuff
         message = 'merge clusters %r' % [ c.id for c in clusters ]
-        cc = spyke.cluster.ClusterChange(sids, spikes, message)
+        cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters)
 
         # delete original clusters
@@ -1189,24 +1175,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges.append(cc) # add to stack
         # TODO: check if stack has gotten too long, if so, remove some from the start
         # and update self.cci appropriately
-
-    def OnUndo(self, evt=None):
-        """Undo button click. Undo previous cluster change"""
-        try: cc = self.cchanges[self.cci]
-        except IndexError: raise RuntimeError('nothing to undo')
-        print('undoing: %s' % cc.message)
-        self.ApplyClusterChange(cc, direction='back')
-        self.cci -= 1 # move pointer one change back on the stack
-        print('undo complete')
-
-    def OnRedo(self, evt=None):
-        """Redo button click. Redo next cluster change"""
-        try: cc = self.cchanges[self.cci+1]
-        except IndexError: raise RuntimeError('nothing to redo')
-        print('redoing: %s' % cc.message)
-        self.ApplyClusterChange(cc, direction='forward')
-        self.cci += 1 # move pointer one change forward on the stack
-        print('redo complete')
 
     def ApplyClusterChange(self, cc, direction):
         """Apply cluster change described in cc, in either the forward or backward direction,
@@ -1678,7 +1646,7 @@ class SpykeWindow(QtGui.QMainWindow):
             elif windowtype == 'Cluster':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH
                 y = self.pos().y() + self.size().height() + METACITYHACK
-                from spyke.cluster import ClusterWindow # can't delay this any longer
+                from cluster import ClusterWindow # can't delay this any longer
                 window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
@@ -1834,7 +1802,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def get_detector(self):
         """Create and bind Detector object, update sort from gui"""
-        self.sort.detector = detect.Detector(sort=self.sort)
+        self.sort.detector = Detector(sort=self.sort)
         self.update_sort_from_gui()
 
     def update_sort_from_gui(self):

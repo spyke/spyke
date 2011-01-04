@@ -20,7 +20,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
-from core import NList, NSList, USList
+from core import NList, NSList, USList, ClusterChange
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -955,7 +955,40 @@ class SortWindow(QtGui.QDockWidget):
         self.uslist.RefreshItems()
     '''
     def on_actionDeleteCluster_triggered(self):
-        print('clicked delete')
+        """Del button click"""
+        spw = self.spykewindow
+        clusters = spw.GetClusters()
+        s = self.sort
+        spikes = s.spikes
+        sids = []
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        sids = np.concatenate(sids)
+
+        # save some undo/redo stuff
+        message = 'delete clusters %r' % [ c.id for c in clusters ]
+        cc = ClusterChange(sids, spikes, message)
+        cc.save_old(clusters)
+
+        # deselect and delete clusters
+        spw.SelectClusters(clusters, on=False)
+        for cluster in clusters:
+            spw.DelCluster(cluster, update=False)
+        spw.DeColourPoints(sids) # decolour appropriate points
+        spw.UpdateClustersGUI()
+        spw.windows['Cluster'].glyph.mlab_source.update()
+        if len(s.clusters) > 0:
+            # select cluster that's next highest than lowest of the deleted clusters
+            cids = np.asarray(s.clusters.keys())
+            ii, = np.where(cids > min(cc.oldunids))
+            selcid = min(cids[ii])
+            spw.SelectClusters(s.clusters[selcid]) # TODO: this sets selection, but not focus
+
+        # save more undo/redo stuff
+        newclusters = []
+        cc.save_new(newclusters)
+        spw.AddClusterChangeToStack(cc)
+        print(cc.message)
 
     def on_actionMergeClusters_triggered(self):
         print('clicked merge')

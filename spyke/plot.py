@@ -22,7 +22,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from spyke.core import MICRO, TW, hex2cmap, toiter
+from core import MICRO, TW, hex2cmap, toiter
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
