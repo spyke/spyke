@@ -857,12 +857,6 @@ class SortWindow(QtGui.QDockWidget):
         toolbar = QtGui.QToolBar("toolbar", self)
         toolbar.setFloatable(True)
 
-        actionAddCluster = QtGui.QAction("+", self)
-        actionAddCluster.setToolTip('Add cluster')
-        self.connect(actionAddCluster, QtCore.SIGNAL("triggered()"),
-                     self.on_actionAddCluster_triggered)
-        toolbar.addAction(actionAddCluster)
-
         actionDeleteCluster = QtGui.QAction("-", self)
         actionDeleteCluster.setToolTip('Delete cluster')
         self.connect(actionDeleteCluster, QtCore.SIGNAL("triggered()"),
@@ -874,6 +868,14 @@ class SortWindow(QtGui.QDockWidget):
         self.connect(actionMergeClusters, QtCore.SIGNAL("triggered()"),
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
+
+        toolbar.addSeparator()
+
+        actionRenumberClusters = QtGui.QAction("#", self)
+        actionRenumberClusters.setToolTip('Renumber clusters')
+        self.connect(actionRenumberClusters, QtCore.SIGNAL("triggered()"),
+                     self.on_actionRenumberClusters_triggered)
+        toolbar.addAction(actionRenumberClusters)
 
         toolbar.addSeparator()
 
@@ -952,14 +954,14 @@ class SortWindow(QtGui.QDockWidget):
             s.usids_reversed = False # update
         self.uslist.RefreshItems()
     '''
-    def on_actionAddCluster_triggered(self):
-        self.parent().OnAddCluster()
-
     def on_actionDeleteCluster_triggered(self):
         print('clicked delete')
 
     def on_actionMergeClusters_triggered(self):
         print('clicked merge')
+
+    def on_actionRenumberClusters_triggered(self):
+        print('clicked renumber')
 
     def on_actionFocusCurrentCluster_triggered(self):
         print('clicked focus cluster')

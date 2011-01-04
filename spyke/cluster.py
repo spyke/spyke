@@ -113,7 +113,7 @@ class SpykeMayaviScene(MayaviScene):
         #self._vtk_control.SetToolTip(tooltip) # connect it to self
 
         #self._vtk_control.Bind(wx.EVT_MOTION, self.OnMotion)
-        #self._spykeframe = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
+        #self._spykewindow = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
 
     def OnMotion(self, event):
         """Pop up a nid tooltip on mouse movement"""
@@ -139,11 +139,12 @@ class SpykeMayaviScene(MayaviScene):
 
     def OnKeyDown(self, event):
         key = event.GetKeyCode()
-        sf = self._spykeframe
+        spw = self._spykewindow
+        sw = spw.windows['Spike']
         if key == ord('a'):
-            sf.OnAddCluster(); return
+            spw.OnAddCluster(); return
         #elif key == ord('d'):
-        #    sf.OnDelCluster(); return
+        #    spw.OnDelCluster(); return
         elif key == ord('x'):
             # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
             x = event.GetX()
@@ -156,10 +157,10 @@ class SpykeMayaviScene(MayaviScene):
                 self.render()
                 self._record_methods('camera.focal_point = %r\n'\
                                      'render()'%list(coord))
-            sf.MoveCurrentCluster2Focus()
+            spw.MoveCurrentCluster2Focus()
             return
         elif key == ord('c'):
-            sf.OnCutCluster(); return
+            spw.OnCutCluster(); return
         elif key in [ord('s'), wx.WXK_SPACE]:
             # toggle selection of cluster under the cursor
             pos = event.GetPosition()
@@ -172,20 +173,20 @@ class SpykeMayaviScene(MayaviScene):
                 scalar = data.data.scalars[0] # just grab the first value
                 if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
                     nid = int(-(scalar + 1))
-                    all_nids = np.asarray(sorted(sf.sort.neurons))
+                    all_nids = np.asarray(sorted(spw.sort.neurons))
                     row, = np.where(all_nids == nid)
                     assert len(row) == 1
                     row = row[0] # pull it out of the array
-                    on = not sf.nlist.rowSelected(row) # toggle
-                    sf.nlist.selectRows(row, on=on)
+                    on = not sw.nlist.rowSelected(row) # toggle
+                    sw.nlist.selectRows(row, on=on)
             return
         #self._vtk_control.OnKeyDown(event)
 
-        try: cluster = sf.GetCluster()
+        try: cluster = spw.GetCluster()
         except RuntimeError:
             # pass event to parent class
             MayaviScene.OnKeyDown(self, event)
-        x, y, z = sf.GetClusterPlotDimNames()
+        x, y, z = spw.GetClusterPlotDimNames()
         dim, sign = None, None
         modifiers = event.GetModifiers()
         if key == wx.WXK_PAGEDOWN: # inc xdim
@@ -244,9 +245,9 @@ class SpykeMayaviScene(MayaviScene):
         if key in [wx.WXK_PAGEDOWN, wx.WXK_DELETE,
                    wx.WXK_HOME, wx.WXK_END,
                    wx.WXK_PAGEUP, wx.WXK_INSERT]:
-            sf = self._spykeframe
-            cluster = sf.GetCluster()
-            sf.UpdateParamWidgets(cluster)
+            spw = self._spykewindow
+            cluster = spw.GetCluster()
+            spw.UpdateParamWidgets(cluster)
         # pass event to parent class
         MayaviScene.OnKeyUp(self, event)
 

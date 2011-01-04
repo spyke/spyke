@@ -397,7 +397,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.menuSampling.setEnabled(False)
         self.ui.actionRasters.setEnabled(True) # enable raster menu, now that spikes exist
         self.ShowRasters() # show spike rasters for open data windows
-        sf = self.OpenWindow('Sort') # ensure it's open
+        sw = self.OpenWindow('Sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
 
     def init_extractor(self):
@@ -458,8 +458,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def GetClusters(self):
         """Return currently selected clusters"""
         print("WARNING: nontrivial use of GetClusters() hasn't been tested yet")
-        sf = self.windows['Sort']
-        cids = [ i.data().toInt()[0] for i in sf.nlist.selectedIndexes() ]
+        sw = self.windows['Sort']
+        cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
         clusters = [ self.sort.clusters[cid] for cid in cids ]
         return clusters
 
@@ -474,12 +474,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def GetSpikes(self):
         """Return IDs of currently selected spikes"""
-        sf = self.windows['Sort']
-        nsrows = sf.nslist.selectedRows()
-        srows = sf.uslist.selectedRows()
+        sw = self.windows['Sort']
+        nsrows = sw.nslist.selectedRows()
+        srows = sw.uslist.selectedRows()
         sids = []
         try:
-            sids.extend(sf.nslist.neuron.sids[nsrows])
+            sids.extend(sw.nslist.neuron.sids[nsrows])
         except AttributeError: pass # nslist has neuron=None, with no sids
         sids.extend(self.sort.usids[srows])
         return sids
@@ -498,10 +498,10 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane Cluster button click"""
         s = self.sort
         spikes = s.spikes
-        sf = self.OpenWindow('Sort')
-        cf = self.OpenWindow('Cluster')
+        sw = self.OpenWindow('Sort')
+        cw = self.OpenWindow('Cluster')
 
-        sf.uslist.clearSelection() # clear uslist selection, since many usids will disappear
+        sw.uslist.clearSelection() # clear uslist selection, since many usids will disappear
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
             clusters = oldclusters
@@ -553,14 +553,14 @@ class SpykeWindow(QtGui.QMainWindow):
 
         if oldclusters: # some clusters selected
             self.SelectClusters(oldclusters, on=False) # deselect original clusters
-            cf.f.scene.disable_render = True # for speed
+            cw.f.scene.disable_render = True # for speed
             for oldcluster in oldclusters:
                 self.DelCluster(oldcluster, update=False) # del original clusters
             self.DeColourPoints(sids) # decolour all points belonging to old clusters
         else: # no clusters selected, delete all existing clusters (if any)
             for cluster in s.clusters.values():
                 self.DelCluster(cluster, update=False)
-            try: cf.glyph
+            try: cw.glyph
             except AttributeError: self.on_plotButton_clicked()
             self.DeColourAllPoints()
             s.sampleis = sampleis
@@ -574,7 +574,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cluster = self.OnAddCluster(update=False)
             newclusters.append(cluster)
             neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
+            sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
                 raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
             if waveclustering: # set pos and scale in plotdims using mean and std of points
@@ -720,29 +720,29 @@ class SpykeWindow(QtGui.QMainWindow):
     def OnAddCluster(self, update=True, id=None):
         """Sort window Add button click"""
         neuron = self.sort.create_neuron(id)
-        sf = self.windows['Sort']
+        sw = self.windows['Sort']
         if update:
-            sf.nlist.updateAll()
+            sw.nlist.updateAll()
         from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
-        cf = self.OpenWindow('Cluster')
-        try: cf.glyph # glyph already plotted?
+        cw = self.OpenWindow('Cluster')
+        try: cw.glyph # glyph already plotted?
         except AttributeError: self.on_plotButton_clicked() # create glyph on first open
         self.AddCluster(cluster, update=update)
         return cluster
 
     def AddCluster(self, cluster, update=True):
         """Add cluster to GUI"""
-        sf = self.windows['Sort']
-        cf = self.OpenWindow('Cluster')
+        sw = self.windows['Sort']
+        cw = self.OpenWindow('Cluster')
         dims = self.GetClusterPlotDimNames()
-        cf.add_ellipsoid(cluster, dims, update=update)
+        cw.add_ellipsoid(cluster, dims, update=update)
         if update:
-            sf.nlist.updateAll()
-            sf.nlist.DeSelectAll()
-            sf.nlist.Select(len(self.sort.clusters) - 1) # select newly created item
+            sw.nlist.updateAll()
+            sw.nlist.DeSelectAll()
+            sw.nlist.Select(len(self.sort.clusters) - 1) # select newly created item
 
     def OnDelCluster(self):
         """Sort window pane Del button click"""
@@ -784,17 +784,17 @@ class SpykeWindow(QtGui.QMainWindow):
         """Delete a cluster from the GUI, and delete the cluster
         and its neuron from the Sort. Think you need to call
         mlab_source.update() afterwards"""
-        sf = self.windows['Sort']
-        cf = self.windows['Cluster']
-        cf.f.scene.disable_render = True # for speed
+        sw = self.windows['Sort']
+        cw = self.windows['Cluster']
+        cw.f.scene.disable_render = True # for speed
         cluster.ellipsoid.remove() # from pipeline
         cluster.ellipsoid = None
         if update:
             self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
-        sf.RemoveNeuron(cluster.neuron, update=update)
+        sw.RemoveNeuron(cluster.neuron, update=update)
         if update:
-            sf.nlist.updateAll()
-            cf.f.scene.disable_render = False
+            sw.nlist.updateAll()
+            cw.f.scene.disable_render = False
 
     def OnRenumberClusters(self):
         """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
@@ -815,8 +815,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # what you really want is to find the y pos *rank* of each uoldcid, so you need to
         # take argsort again:
         newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
-        cf = self.windows['Cluster']
-        cf.f.scene.disable_render = True # turn rendering off for speed
+        cw = self.windows['Cluster']
+        cw.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
         for oldcid, newcid in zip(olducids, newucids):
@@ -834,7 +834,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # mouse hover tooltip), just delete it and make a new one. This is very innefficient
             cluster.ellipsoid.remove()
             dims = self.GetClusterPlotDimNames()
-            cf.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
+            cw.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
         # remove any orphaned cluster ids
         for oldcid in olducids:
             if oldcid not in newucids:
@@ -865,14 +865,14 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             self.EnablePosOriScaleWidgets(False)
         # mirror selection changes to nlist
-        sf = self.windows['Sort']
+        sw = self.windows['Sort']
         all_nids = sorted(self.sort.neurons)
         nids = set(np.asarray(all_nids)[selectedRows])
-        remove_nids = list(sf.nlist.lastSelectedIDs.difference(nids))
-        add_nids = list(nids.difference(sf.nlist.lastSelectedIDs))
+        remove_nids = list(sw.nlist.lastSelectedIDs.difference(nids))
+        add_nids = list(nids.difference(sw.nlist.lastSelectedIDs))
         deselect_rows = np.searchsorted(all_nids, remove_nids)
         select_rows = np.searchsorted(all_nids, add_nids)
-        nlist = sf.nlist
+        nlist = sw.nlist
         [ nlist.Select(row, on=False) for row in deselect_rows ]
         [ nlist.Select(row, on=True) for row in select_rows ]
     '''
@@ -880,11 +880,11 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update cluster widgets based on current cluster and dims,
         and replot the data in the (potentially) new projection, while
         maintaining the colour of each point"""
-        cf = self.windows['Cluster']
-        scalars = cf.glyph.mlab_source.scalars # save scalars
+        cw = self.windows['Cluster']
+        scalars = cw.glyph.mlab_source.scalars # save scalars
         self.on_plotButton_clicked() # replot
-        cf.glyph.mlab_source.scalars = scalars # restore scalars
-        cf.glyph.mlab_source.update() # make scalar changes visible
+        cw.glyph.mlab_source.scalars = scalars # restore scalars
+        cw.glyph.mlab_source.update() # make scalar changes visible
         try:
             cluster = self.GetCluster()
             self.UpdateParamWidgets(cluster)
@@ -897,30 +897,30 @@ class SpykeWindow(QtGui.QMainWindow):
         """Focus button press in cluster_pane. Move focus to location
         of currently selected (single) cluster"""
         cluster = self.GetCluster()
-        cf = self.windows['Cluster']
+        cw = self.windows['Cluster']
         dims = self.GetClusterPlotDimNames()
         fp = [ cluster.pos[dim] for dim in dims ]
-        cf.f.scene.camera.focal_point = fp
-        cf.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
-        #cf.Refresh() # this also seems to work: repaint the window
+        cw.f.scene.camera.focal_point = fp
+        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
+        #cw.Refresh() # this also seems to work: repaint the window
 
     def OnFocusCurrentSpike(self):
         """Focus button press in sort_pane. Move focus to location
         of currently selected (single) spike"""
         sid = self.GetSpike()
-        cf = self.windows['Cluster']
+        cw = self.windows['Cluster']
         dims = self.GetClusterPlotDimNames()
         fp = self.sort.get_param_matrix(dims=dims)[sid]
-        cf.f.scene.camera.focal_point = fp
-        cf.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
-        #cf.Refresh() # this also seems to work: repaint the window
+        cw.f.scene.camera.focal_point = fp
+        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
+        #cw.Refresh() # this also seems to work: repaint the window
 
     def MoveCurrentCluster2Focus(self):
         """Sets the position of the currently selected cluster to
         the point in 3D where the scene's camera is currently focused"""
         cluster = self.GetCluster()
-        cf = self.windows['Cluster']
-        fp = cf.f.scene.camera.focal_point
+        cw = self.windows['Cluster']
+        fp = cw.f.scene.camera.focal_point
         dims = self.GetClusterPlotDimNames()
         for dim, val in zip(dims, fp):
             cluster.pos[dim] = val
@@ -931,14 +931,14 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_plotButton_clicked(self):
         """Cluster pane plot button click"""
         dims = self.GetClusterPlotDimNames()
-        cf = self.OpenWindow('Cluster') # in case it isn't already open
+        cw = self.OpenWindow('Cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot
-        cf.glyph = cf.plot(X)
+        cw.glyph = cw.plot(X)
         # update all ellipsoids
-        cf.f.scene.disable_render = True # turn rendering off for speed
+        cw.f.scene.disable_render = True # turn rendering off for speed
         clusters = self.sort.clusters.values()
         for cluster in clusters:
             cluster.update_ellipsoid(dims=dims)
@@ -956,16 +956,16 @@ class SpykeWindow(QtGui.QMainWindow):
     def CutClusters(self, clusters):
         """Apply the cluster params to the spikes. Cut the spikes and
         update the plot"""
-        sf = self.windows['Sort']
+        sw = self.windows['Sort']
         for cluster in toiter(clusters):
             neuron = cluster.neuron
             # reset scalar values for cluster's existing points
             # TODO: decolour only those points that are being removed
             self.DeColourPoints(neuron.sids)
             # remove any existing spikes from neuron and restore them to spike listctrl:
-            sf.MoveSpikes2List(neuron, neuron.sids)
+            sw.MoveSpikes2List(neuron, neuron.sids)
             sids = self.sort.cut_cluster(cluster)
-            sf.MoveSpikes2Neuron(sids, neuron)
+            sw.MoveSpikes2Neuron(sids, neuron)
         # TODO: colour only those points that have been added
         self.ColourPoints(clusters)
 
@@ -973,36 +973,36 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update lots of stuff after modifying clusters,
         here as a separate method for speed, only call when really needed"""
         s = self.sort
-        sf = self.windows['Sort']
-        cf = self.windows['Cluster']
-        cf.f.scene.disable_render = False # turn rendering back on
-        sf.nlist.updateAll()
+        sw = self.windows['Sort']
+        cw = self.windows['Cluster']
+        cw.f.scene.disable_render = False # turn rendering back on
+        sw.nlist.updateAll()
         s.update_usids()
-        sf.uslist.updateAll()
+        sw.uslist.updateAll()
 
     def ColourPoints(self, clusters):
         """Colour the points that fall within each cluster (as specified
         by cluster.neuron.sids) the same colour as the cluster itself"""
         clusters = toiter(clusters)
-        cf = self.windows['Cluster']
+        cw = self.windows['Cluster']
         for cluster in clusters:
             neuron = cluster.neuron
-            cf.glyph.mlab_source.scalars[neuron.sids] = neuron.id % len(CMAP)
+            cw.glyph.mlab_source.scalars[neuron.sids] = neuron.id % len(CMAP)
         t0 = time.time()
-        cf.glyph.mlab_source.update() # make the trait update, only call it once to save time
+        cw.glyph.mlab_source.update() # make the trait update, only call it once to save time
         #print('glyph.mlab_source.update() call took %.3f sec' % ((time.time()-t0)))
 
     def DeColourPoints(self, sids):
         """Restore spike point colour in cluster plot at spike indices to unclustered WHITE.
-        Don't forget to call cf.glyph.mlab_source.update() after calling this"""
-        cf = self.windows['Cluster']
-        cf.glyph.mlab_source.scalars[sids] = np.tile(TRANSWHITEI, len(sids))
+        Don't forget to call cw.glyph.mlab_source.update() after calling this"""
+        cw = self.windows['Cluster']
+        cw.glyph.mlab_source.scalars[sids] = np.tile(TRANSWHITEI, len(sids))
 
     def DeColourAllPoints(self):
         """Restore all spike points in cluster plot to unclustered WHITE.
-        Don't forget to call cf.glyph.mlab_source.update() after calling this"""
-        cf = self.windows['Cluster']
-        cf.glyph.mlab_source.scalars = np.tile(TRANSWHITEI, self.sort.nspikes)
+        Don't forget to call cw.glyph.mlab_source.update() after calling this"""
+        cw = self.windows['Cluster']
+        cw.glyph.mlab_source.scalars = np.tile(TRANSWHITEI, self.sort.nspikes)
 
     def GetClusterPlotDimNames(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
@@ -1135,8 +1135,8 @@ class SpykeWindow(QtGui.QMainWindow):
         them to all merge"""
         s = self.sort
         spikes = s.spikes
-        sf = self.OpenWindow('Sort')
-        cf = self.OpenWindow('Cluster')
+        sw = self.OpenWindow('Sort')
+        cw = self.OpenWindow('Cluster')
         clusters = self.GetClusters()
         sids = [] # spikes to merge
         for cluster in clusters:
@@ -1150,7 +1150,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # delete original clusters
         self.SelectClusters(clusters, on=False) # deselect original clusters
-        cf.f.scene.disable_render = True # for speed
+        cw.f.scene.disable_render = True # for speed
         for cluster in clusters:
             self.DelCluster(cluster, update=False) # del original clusters
         self.DeColourPoints(sids) # decolour all points belonging to old clusters
@@ -1160,7 +1160,7 @@ class SpykeWindow(QtGui.QMainWindow):
         newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest cluster
         newcluster = self.OnAddCluster(update=False, id=newnid)
         neuron = newcluster.neuron
-        sf.MoveSpikes2Neuron(sids, neuron, update=False)
+        sw.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = self.GetClusterPlotDimNames()
         plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
         for plotdimi, plotdim in enumerate(plotdims):
@@ -1213,8 +1213,8 @@ class SpykeWindow(QtGui.QMainWindow):
         to the current set of clusters"""
         s = self.sort
         spikes = s.spikes
-        sf = self.OpenWindow('Sort')
-        cf = self.OpenWindow('Cluster')
+        sw = self.OpenWindow('Sort')
+        cw = self.OpenWindow('Cluster')
         sids = cc.sids
 
         # reverse meaning of 'new' and 'old' if direction == 'forward', ie if redoing
@@ -1236,7 +1236,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # delete newly added clusters
         newclusters = [ s.clusters[nid] for nid in newunids ]
         self.SelectClusters(newclusters, on=False) # deselect new clusters
-        cf.f.scene.disable_render = True # for speed
+        cw.f.scene.disable_render = True # for speed
         for newcluster in newclusters:
             self.DelCluster(newcluster, update=False) # del new clusters
         self.DeColourPoints(sids) # decolour all points belonging to new clusters
@@ -1254,7 +1254,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cluster = self.OnAddCluster(update=False, id=nid)
             oldclusters.append(cluster)
             neuron = cluster.neuron
-            sf.MoveSpikes2Neuron(nsids, neuron, update=False)
+            sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             cluster.pos = pos
             cluster.scale = scale
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
@@ -1348,22 +1348,22 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError:
             clusters = {}
         if 'Sort' in self.windows:
-            sf = self.windows['Sort']
-            sf.nlist.reset()
-            sf.nslist.reset()
-            sf.uslist.reset()
-            sf.panel.removeAllItems()
+            sw = self.windows['Sort']
+            sw.nlist.reset()
+            sw.nslist.reset()
+            sw.uslist.reset()
+            sw.panel.removeAllItems()
         if 'Cluster' in self.windows:
-            cf = self.windows['Cluster']
-            cf.f.scene.disable_render = True # for speed
+            cw = self.windows['Cluster']
+            cw.f.scene.disable_render = True # for speed
             for cluster in clusters.values():
                 cluster.ellipsoid.remove() # from pipeline
                 # no need to del cluster.ellipsoid, since all clusters are deleted when sort is deleted
             try:
-                cf.glyph.remove() # from pipeline
-                del cf.glyph # cluster window hangs around, so del its glyph
+                cw.glyph.remove() # from pipeline
+                del cw.glyph # cluster window hangs around, so del its glyph
             except AttributeError: pass
-            cf.f.scene.disable_render = False
+            cw.f.scene.disable_render = False
         del self.cchanges[:]
         self.cci = -1
         self.ui.progressBar.setFormat('0 spikes')
@@ -1492,17 +1492,17 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableSpikeWidgets(True)
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
-        sf = self.OpenWindow('Sort') # ensure it's open
+        sw = self.OpenWindow('Sort') # ensure it's open
         # restore unsorted spike listview
-        sf.uslist.updateAll()
+        sw.uslist.updateAll()
 
         # do this here first in case no clusters exist and hence self.AddCluster
         # is never called, yet you want spikes to be plotted in the cluster window:
-        cf = self.OpenWindow('Cluster')
-        try: cf.glyph # glyph already plotted?
+        cw = self.OpenWindow('Cluster')
+        try: cw.glyph # glyph already plotted?
         except AttributeError: self.on_plotButton_clicked() # create glyph on first open
         # try and reset camera view and roll to where it was last saved
-        try: cf.view, cf.roll = sort.view, sort.roll
+        try: cw.view, cw.roll = sort.view, sort.roll
         except AttributeError: pass
         self.RestoreClusters2GUI()
 
@@ -1580,9 +1580,9 @@ class SpykeWindow(QtGui.QMainWindow):
             self.DelCluster(cluster, update=False)
         self.UpdateClustersGUI()
         # reset all plotted spike points to white
-        cf = self.OpenWindow('Cluster')
+        cw = self.OpenWindow('Cluster')
         try: # decolour any and all spikes
-            cf.glyph # spikes glyph already plotted?
+            cw.glyph # spikes glyph already plotted?
             self.DeColourAllPoints()
             self.windows['Cluster'].glyph.mlab_source.update()
         except AttributeError: pass # no spikes glyph to decolour
@@ -1608,9 +1608,9 @@ class SpykeWindow(QtGui.QMainWindow):
         print('saving sort file %r' % fname)
         t0 = time.time()
         try:
-            cf = self.windows['Cluster']
-            s.view, s.roll = cf.view, cf.roll # save camera view
-        except KeyError: pass # cf hasn't been opened yet, no camera view to save
+            cw = self.windows['Cluster']
+            s.view, s.roll = cw.view, cw.roll # save camera view
+        except KeyError: pass # cw hasn't been opened yet, no camera view to save
         s.sortfname = fname # bind it now that it's about to be saved
         f = open(fname, 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
