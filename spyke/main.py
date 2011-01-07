@@ -479,7 +479,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def GetClusters(self):
         """Return currently selected clusters"""
-        print("WARNING: nontrivial use of GetClusters() hasn't been tested yet")
         sw = self.windows['Sort']
         cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
         clusters = [ self.sort.clusters[cid] for cid in cids ]
@@ -619,7 +618,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ColourPoints(newclusters)
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         if oldclusters: # select newly created cluster(s)
-            self.SelectClusters(newclusters, on=True)
+            self.SelectClusters(newclusters)
         cc.message += ' into %r' % [c.id for c in newclusters]
         print(cc.message)
 
@@ -738,6 +737,7 @@ class SpykeWindow(QtGui.QMainWindow):
         rows = np.searchsorted(all_nids, sel_nids)
         nlist = self.windows['Sort'].nlist
         nlist.selectRows(rows, on)
+        print('set rows %r to %r' % (rows, on))
 
     def OnAddCluster(self, update=True, id=None):
         """Sort window Add button click"""
@@ -762,6 +762,7 @@ class SpykeWindow(QtGui.QMainWindow):
         dims = self.GetClusterPlotDimNames()
         cw.add_ellipsoid(cluster, dims, update=update)
         if update:
+            raise RuntimeError('this code block should maybe be removed?')
             sw.nlist.updateAll()
             sw.nlist.DeSelectAll()
             sw.nlist.Select(len(self.sort.clusters) - 1) # select newly created item
@@ -1164,7 +1165,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ColourPoints(newcluster)
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly created cluster
-        self.SelectClusters(newcluster, on=True)
+        self.SelectClusters(newcluster)
         cc.message += ' into cluster %d' % newnid
         print(cc.message)
 
@@ -1204,6 +1205,11 @@ class SpykeWindow(QtGui.QMainWindow):
         # delete newly added clusters
         newclusters = [ s.clusters[nid] for nid in newunids ]
         self.SelectClusters(newclusters, on=False) # deselect new clusters
+        # temporarily deselect any bystander clusters to get around fact that
+        # selections are row-based in Qt, not value-based, which means selection
+        # changes happen without a selectionChanged event when the rowcount changes
+        bystanders = self.GetClusters()
+        self.SelectClusters(bystanders, on=False)
         cw.f.scene.disable_render = True # for speed
         for newcluster in newclusters:
             self.DelCluster(newcluster, update=False) # del new clusters
@@ -1232,7 +1238,13 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ColourPoints(oldclusters)
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly recreated oldclusters
-        self.SelectClusters(oldclusters, on=True)
+        self.SelectClusters(oldclusters)
+        # restore bystander selections
+        self.SelectClusters(bystanders)
+        print('oldclusters: %r' % [c.id for c in oldclusters])
+        print('newclusters: %r' % [c.id for c in newclusters])
+        print('bystanders: %r' % [c.id for c in bystanders])
+
 
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""

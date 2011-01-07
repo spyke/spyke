@@ -715,6 +715,7 @@ class SpykeListView(QtGui.QListView):
         remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
         panel.addItems([ prefix+str(i) for i in addis ])
+        print("selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):
         self.model().updateAll()
@@ -796,22 +797,23 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
         """Emit dataChanged signal so that view updates itself immediately.
         Hard to believe this doesn't already exist in some form"""
         i0 = self.createIndex(0, 0) # row, col
-        #i1 = self.createIndex(self.rowCount(None)-1, 0) # seems this isn't necessary
-        self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
-
+        i1 = self.createIndex(self.rowCount(None)-1, 0) # seems this isn't necessary
+        #self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
+        self.dataChanged.emit(i0, i1) # refresh all
 
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def __init__(self, parent):
         SpykeAbstractListModel.__init__(self, parent)
 
-    def rowCount(self, parent):
+    def rowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.neurons)
         except AttributeError: # sort doesn't exist
             return 0
 
     def data(self, index, role):
+        #if role == QtCore.Qt.DisplayRole and (0 <= index.row() < self.rowCount()):
         if role == QtCore.Qt.DisplayRole:
             nids = sorted(self.sortwin.sort.neurons)
             return nids[index.row()]
@@ -821,7 +823,7 @@ class NSListModel(SpykeAbstractListModel):
     """Model for neuron spikes list view"""
     def __init__(self, parent):
         SpykeAbstractListModel.__init__(self, parent)
-        self._neuron = None # .neuron needs to be set externally every time neuron selection changes
+        self._neuron = None # needs to be set externally every time neuron selection changes
 
     def get_neuron(self):
         return self._neuron
