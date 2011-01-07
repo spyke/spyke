@@ -1116,59 +1116,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
 
-    def OnMerge(self):
-        """Sort window merge button (^) click. For simple merging of clusters, easier to
-        use than running climb() on selected clusters using a really big sigma to force
-        them to all merge"""
-        s = self.sort
-        spikes = s.spikes
-        sw = self.OpenWindow('Sort')
-        cw = self.OpenWindow('Cluster')
-        clusters = self.GetClusters()
-        sids = [] # spikes to merge
-        for cluster in clusters:
-            sids.append(cluster.neuron.sids)
-        sids = np.concatenate(sids)
-
-        # save some undo/redo stuff
-        message = 'merge clusters %r' % [ c.id for c in clusters ]
-        cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters)
-
-        # delete original clusters
-        self.SelectClusters(clusters, on=False) # deselect original clusters
-        cw.f.scene.disable_render = True # for speed
-        for cluster in clusters:
-            self.DelCluster(cluster, update=False) # del original clusters
-        self.DeColourPoints(sids) # decolour all points belonging to old clusters
-
-        # create new cluster
-        t0 = time.time()
-        newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest cluster
-        newcluster = self.OnAddCluster(update=False, id=newnid)
-        neuron = newcluster.neuron
-        sw.MoveSpikes2Neuron(sids, neuron, update=False)
-        plotdims = self.GetClusterPlotDimNames()
-        plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
-        for plotdimi, plotdim in enumerate(plotdims):
-            points = plotdata[:, plotdimi]
-            newcluster.pos[plotdim] = points.mean()
-            newcluster.scale[plotdim] = points.std() or newcluster.scale[plotdim]
-        newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
-
-        # save more undo/redo stuff
-        cc.save_new([newcluster])
-        self.AddClusterChangeToStack(cc)
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        self.ColourPoints(newcluster)
-        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
-        # select newly created cluster
-        self.SelectClusters(newcluster)
-        cc.message += ' into cluster %d' % newnid
-        print(cc.message)
-
     def AddClusterChangeToStack(self, cc):
         """Adds cc to the cluster change stack, removing any potential redo changes"""
         self.cci += 1

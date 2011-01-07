@@ -991,7 +991,56 @@ class SortWindow(QtGui.QDockWidget):
         print(cc.message)
 
     def on_actionMergeClusters_triggered(self):
-        print('clicked merge')
+        """Merge button (^) click. For simple merging of clusters, easier to
+        use than running climb() on selected clusters using a really big sigma to force
+        them to all merge"""
+        spw = self.spykewindow
+        clusters = spw.GetClusters()
+        s = self.sort
+        spikes = s.spikes
+        sids = [] # spikes to merge
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        sids = np.concatenate(sids)
+
+        # save some undo/redo stuff
+        message = 'merge clusters %r' % [ c.id for c in clusters ]
+        cc = ClusterChange(sids, spikes, message)
+        cc.save_old(clusters)
+
+        # delete original clusters
+        spw.SelectClusters(clusters, on=False) # deselect original clusters
+        spw.windows['Cluster'].f.scene.disable_render = True # for speed
+        for cluster in clusters:
+            spw.DelCluster(cluster, update=False) # del original clusters
+        spw.DeColourPoints(sids) # decolour all points belonging to old clusters
+
+        # create new cluster
+        t0 = time.time()
+        newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest cluster
+        newcluster = spw.OnAddCluster(update=False, id=newnid)
+        neuron = newcluster.neuron
+        self.MoveSpikes2Neuron(sids, neuron, update=False)
+        plotdims = spw.GetClusterPlotDimNames()
+        plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
+        for plotdimi, plotdim in enumerate(plotdims):
+            points = plotdata[:, plotdimi]
+            newcluster.pos[plotdim] = points.mean()
+            newcluster.scale[plotdim] = points.std() or newcluster.scale[plotdim]
+        newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+
+        # save more undo/redo stuff
+        cc.save_new([newcluster])
+        spw.AddClusterChangeToStack(cc)
+
+        # now do some final updates
+        spw.UpdateClustersGUI()
+        spw.ColourPoints(newcluster)
+        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        # select newly created cluster
+        spw.SelectClusters(newcluster)
+        cc.message += ' into cluster %d' % newnid
+        print(cc.message)
 
     def on_actionRenumberClusters_triggered(self):
         print('clicked renumber')

@@ -14,6 +14,8 @@ QT rewrite:
         - in fact, even happens when you split, undo, then leaving the selection as is and split again (as opposed to redoing). If instead of leaving selection as is, you change selection, then change back, then resplit or redo, it works fine. Very mysterious. Qt bug? Something to do with focused item, not just selected items?
         - if you have another unrelated cluster selected, or if you have no clusters selected whatsoever, you can undo/redo the split as many times as you like without the keyerror. Mysterious.
 
+- maybe combine AddCluster and OnAddCluster
+
 - test .sort file saving and loading
 
 - turn uslist (and maybe nslist) into multicolumn table
