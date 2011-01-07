@@ -119,7 +119,7 @@ class SpykeMayaviScene(MayaviScene):
         spw = self._spykewindow
         sw = spw.windows['Spike']
         if key == ord('a'):
-            spw.OnAddCluster(); return
+            spw.CreateCluster(); return
         #elif key == ord('d'):
         #    spw.OnDelCluster(); return
         elif key == ord('x'):

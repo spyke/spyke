@@ -1018,7 +1018,7 @@ class SortWindow(QtGui.QDockWidget):
         # create new cluster
         t0 = time.time()
         newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest cluster
-        newcluster = spw.OnAddCluster(update=False, id=newnid)
+        newcluster = spw.CreateCluster(update=False, id=newnid)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = spw.GetClusterPlotDimNames()

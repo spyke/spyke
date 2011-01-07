@@ -592,7 +592,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for nid, pos in zip(nids, scoutpositions): # nids are sorted
             ii, = np.where(cids == nid)
             nsids = sids[ii] # sids belonging to this nid
-            cluster = self.OnAddCluster(update=False)
+            cluster = self.CreateCluster(update=False)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
@@ -739,8 +739,8 @@ class SpykeWindow(QtGui.QMainWindow):
         nlist.selectRows(rows, on)
         print('set rows %r to %r' % (rows, on))
 
-    def OnAddCluster(self, update=True, id=None):
-        """Sort window Add button click"""
+    def CreateCluster(self, update=True, id=None):
+        """Create a new cluster, add it to the GUI, return it"""
         neuron = self.sort.create_neuron(id)
         sw = self.windows['Sort']
         if update:
@@ -752,10 +752,10 @@ class SpykeWindow(QtGui.QMainWindow):
         cw = self.OpenWindow('Cluster')
         try: cw.glyph # glyph already plotted?
         except AttributeError: self.on_plotButton_clicked() # create glyph on first open
-        self.AddCluster(cluster, update=update)
+        self.AddCluster2GUI(cluster, update=update)
         return cluster
 
-    def AddCluster(self, cluster, update=True):
+    def AddCluster2GUI(self, cluster, update=True):
         """Add cluster to GUI"""
         sw = self.windows['Sort']
         cw = self.OpenWindow('Cluster')
@@ -1172,7 +1172,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # NOTE: oldunids are not necessarily sorted
         for nid, pos, scale in zip(oldunids, positions, scales):
             nsids = sids[oldnids == nid] # sids belonging to this nid
-            cluster = self.OnAddCluster(update=False, id=nid)
+            cluster = self.CreateCluster(update=False, id=nid)
             oldclusters.append(cluster)
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
@@ -1423,7 +1423,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # restore unsorted spike listview
         sw.uslist.updateAll()
 
-        # do this here first in case no clusters exist and hence self.AddCluster
+        # do this here first in case no clusters exist and hence self.AddClusters2GUI
         # is never called, yet you want spikes to be plotted in the cluster window:
         cw = self.OpenWindow('Cluster')
         try: cw.glyph # glyph already plotted?
@@ -1484,7 +1484,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
         # restore neuron clusters and the neuron listctrl
         for cluster in self.sort.clusters.values():
-            self.AddCluster(cluster, update=False)
+            self.AddCluster2GUI(cluster, update=False)
         self.UpdateClustersGUI()
         try:
             self.sort.spikes
