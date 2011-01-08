@@ -20,7 +20,7 @@ QT rewrite:
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
 
-- make cluster points smaller
+- make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
 
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
     - hm, or why can't you just check for clusters and auto colour them each time plot is hit?

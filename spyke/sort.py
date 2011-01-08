@@ -1098,10 +1098,26 @@ class SortWindow(QtGui.QDockWidget):
         print('renumbering complete')
 
     def on_actionFocusCurrentCluster_triggered(self):
-        print('clicked focus cluster')
+        """Move focus to location focus of currently selected (single) cluster"""
+        spw = self.spykewindow
+        cluster = spw.GetCluster()
+        cw = spw.windows['Cluster']
+        dims = spw.GetClusterPlotDimNames()
+        fp = [ cluster.pos[dim] for dim in dims ]
+        cw.f.scene.camera.focal_point = fp
+        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
+        #cw.Refresh() # this also seems to work: repaint the window
 
     def on_actionFocusCurrentSpike_triggered(self):
-        print('clicked focus spike')
+        """Move focus to location of currently selected (single) spike"""
+        spw = self.spykewindow
+        sid = spw.GetSpike()
+        cw = spw.windows['Cluster']
+        dims = spw.GetClusterPlotDimNames()
+        fp = self.sort.get_param_matrix(dims=dims)[sid]
+        cw.f.scene.camera.focal_point = fp
+        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
+        #cw.Refresh() # this also seems to work: repaint the window
 
     def on_actionAlignMax_triggered(self):
         self.Align('max')

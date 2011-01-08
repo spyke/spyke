@@ -783,30 +783,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.nlist.updateAll()
             cw.f.scene.disable_render = False
     '''
-    def OnCListSelect(self, evt=None):
-        """Cluster list box item selection. Update cluster param widgets
-        given current dims"""
-        # TODO: this method isn't triggered when clicking in empty space to deselect all items
-        #print('in OnCListSelect()')
-        selectedRows = self.clist.selectedRows()
-        if len(selectedRows) == 1:
-            cluster = self.GetCluster()
-            self.EnablePosOriScaleWidgets(True)
-            self.UpdateParamWidgets(cluster)
-        else:
-            self.EnablePosOriScaleWidgets(False)
-        # mirror selection changes to nlist
-        sw = self.windows['Sort']
-        all_nids = sorted(self.sort.neurons)
-        nids = set(np.asarray(all_nids)[selectedRows])
-        remove_nids = list(sw.nlist.lastSelectedIDs.difference(nids))
-        add_nids = list(nids.difference(sw.nlist.lastSelectedIDs))
-        deselect_rows = np.searchsorted(all_nids, remove_nids)
-        select_rows = np.searchsorted(all_nids, add_nids)
-        nlist = sw.nlist
-        [ nlist.Select(row, on=False) for row in deselect_rows ]
-        [ nlist.Select(row, on=True) for row in select_rows ]
-    '''
+    # TODO: this should be converted to Qt and used whenever a dim choice changes
     def OnDim(self, evt=None):
         """Update cluster widgets based on current cluster and dims,
         and replot the data in the (potentially) new projection, while
@@ -823,29 +800,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # no cluster currently selected, like when changing dim before
             # any clusters have been created
             pass
-
-    def OnFocusCurrentCluster(self):
-        """Focus button press in cluster_pane. Move focus to location
-        of currently selected (single) cluster"""
-        cluster = self.GetCluster()
-        cw = self.windows['Cluster']
-        dims = self.GetClusterPlotDimNames()
-        fp = [ cluster.pos[dim] for dim in dims ]
-        cw.f.scene.camera.focal_point = fp
-        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
-        #cw.Refresh() # this also seems to work: repaint the window
-
-    def OnFocusCurrentSpike(self):
-        """Focus button press in sort_pane. Move focus to location
-        of currently selected (single) spike"""
-        sid = self.GetSpike()
-        cw = self.windows['Cluster']
-        dims = self.GetClusterPlotDimNames()
-        fp = self.sort.get_param_matrix(dims=dims)[sid]
-        cw.f.scene.camera.focal_point = fp
-        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
-        #cw.Refresh() # this also seems to work: repaint the window
-
+    '''
     def MoveCurrentCluster2Focus(self):
         """Sets the position of the currently selected cluster to
         the point in 3D where the scene's camera is currently focused"""
