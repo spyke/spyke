@@ -8,14 +8,6 @@ QT rewrite:
 
 - keyboard commands for clustering and cluster selection
 
-- bind sort window buttons
-    - keyerror when undoing deletion of cluster - has to do with cluster selection and plotting, which is slightly different from what it was under wx
-    - split a cluster, works fine, undo works fine, on redo, new clusters are restored and selected, but for some reason, the mean waveform of the last of the new clusters isn't plotted. This causes a plot keyerror on subsequent selection changes (such as another undo)
-        - in fact, even happens when you split, undo, then leaving the selection as is and split again (as opposed to redoing). If instead of leaving selection as is, you change selection, then change back, then resplit or redo, it works fine. Very mysterious. Qt bug? Something to do with focused item, not just selected items?
-        - if you have another unrelated cluster selected, or if you have no clusters selected whatsoever, you can undo/redo the split as many times as you like without the keyerror. Mysterious.
-
-- test .sort file saving and loading
-
 - turn uslist (and maybe nslist) into multicolumn table
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
@@ -43,6 +35,12 @@ QT rewrite DONE:
 - replace all clist with nlist
 - search for all occurrences of getSelection()
 - rename sf to sw, cf to cw, etc (if possible)
+- test .sort file saving and loading
+- bind sort window buttons
+    - keyerror when undoing deletion of cluster - has to do with cluster selection and plotting, which is slightly different from what it was under wx
+    - split a cluster, works fine, undo works fine, on redo, new clusters are restored and selected, but for some reason, the mean waveform of the last of the new clusters isn't plotted. This causes a plot keyerror on subsequent selection changes (such as another undo)
+        - in fact, even happens when you split, undo, then leaving the selection as is and split again (as opposed to redoing). If instead of leaving selection as is, you change selection, then change back, then resplit or redo, it works fine. Very mysterious. Qt bug? Something to do with focused item, not just selected items?
+        - if you have another unrelated cluster selected, or if you have no clusters selected whatsoever, you can undo/redo the split as many times as you like without the keyerror. Mysterious.
 
 ----------------
 RECENT:

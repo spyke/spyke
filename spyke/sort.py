@@ -1126,8 +1126,8 @@ class SortWindow(QtGui.QDockWidget):
         self.Align('min')
 
     def Align(self, to):
-        rowis = self.nlist.getSelection()
-        nids = np.asarray(list(self.sort.neurons))[rowis]
+        selclusters = self.spykewindow.GetClusters()
+        nids = [ cluster.id for cluster in selclusters ]
         for nid in nids:
             self.sort.neurons[nid].align(to)
 
