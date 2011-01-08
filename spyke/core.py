@@ -715,7 +715,7 @@ class SpykeListView(QtGui.QListView):
         remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
         panel.addItems([ prefix+str(i) for i in addis ])
-        print("selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
+        #print("selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):
         self.model().updateAll()
@@ -801,22 +801,20 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
         #self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
         self.dataChanged.emit(i0, i1) # refresh all
 
+
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
-    def __init__(self, parent):
-        SpykeAbstractListModel.__init__(self, parent)
-
     def rowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.neurons)
         except AttributeError: # sort doesn't exist
             return 0
 
-    def data(self, index, role):
-        #if role == QtCore.Qt.DisplayRole and (0 <= index.row() < self.rowCount()):
-        if role == QtCore.Qt.DisplayRole:
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        if role == QtCore.Qt.DisplayRole and index.isValid():
             nids = sorted(self.sortwin.sort.neurons)
-            return nids[index.row()]
+            #print('.data(): row=%d, val=%d' % (index.row(), nids[index.row()]))
+            return int(nids[index.row()]) # no need to use QVariant() apparently
 
 
 class NSListModel(SpykeAbstractListModel):
@@ -842,15 +840,12 @@ class NSListModel(SpykeAbstractListModel):
             return 0
 
     def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole and self.neuron:
+        if role == QtCore.Qt.DisplayRole and index.isValid() and self.neuron:
             return int(self.neuron.sids[index.row()])
 
 
 class USListModel(SpykeAbstractListModel):
     """Model for unsorted spike list view"""
-    def __init__(self, parent):
-        SpykeAbstractListModel.__init__(self, parent)
-
     def rowCount(self, parent):
         try:
             return len(self.sortwin.sort.usids)
@@ -858,7 +853,7 @@ class USListModel(SpykeAbstractListModel):
             return 0
 
     def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole and index.isValid():
             return int(self.sortwin.sort.usids[index.row()])
 
 

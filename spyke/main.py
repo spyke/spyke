@@ -737,7 +737,7 @@ class SpykeWindow(QtGui.QMainWindow):
         rows = np.searchsorted(all_nids, sel_nids)
         nlist = self.windows['Sort'].nlist
         nlist.selectRows(rows, on)
-        print('set rows %r to %r' % (rows, on))
+        #print('set rows %r to %r' % (rows, on))
 
     def CreateCluster(self, update=True, id=None):
         """Create a new cluster, add it to the GUI, return it"""
@@ -782,62 +782,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if update:
             sw.nlist.updateAll()
             cw.f.scene.disable_render = False
-
-    def OnRenumberClusters(self):
-        """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
-        Sorting by y position makes user inspection of clusters more orderly, makes the presence
-        of duplicate clusters more obvious, and allows for maximal spatial separation between
-        clusters of the same colour, reducing colour conflicts"""
-        s = self.sort
-        spikes = s.spikes
-
-        # deselect current selections
-        selclusters = self.GetClusters()
-        oldselcids = [ cluster.id for cluster in selclusters ]
-        self.SelectClusters(selclusters, on=False)
-
-        # get lists of unique old cids and new cids
-        olducids = sorted(s.clusters) # make sure they're in order
-        # this is a bit confusing: find indices that would sort olducids by y pos, but then
-        # what you really want is to find the y pos *rank* of each uoldcid, so you need to
-        # take argsort again:
-        newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
-        cw = self.windows['Cluster']
-        cw.f.scene.disable_render = True # turn rendering off for speed
-        oldclusters = s.clusters.copy()
-        oldneurons = s.neurons.copy()
-        for oldcid, newcid in zip(olducids, newucids):
-            if oldcid == newcid:
-                continue # no need to waste time removing and recreating this cluster
-            # change all occurences of oldcid to newcid
-            cluster = oldclusters[oldcid]
-            cluster.id = newcid # this indirectly updates neuron.id
-            # update cluster and neuron dicts
-            s.clusters[newcid] = cluster
-            s.neurons[newcid] = cluster.neuron
-            sids = cluster.neuron.sids
-            spikes['nid'][sids] = newcid
-            # TODO: can't figure out how to change scalar value of existing ellipsoid (for
-            # mouse hover tooltip), just delete it and make a new one. This is very innefficient
-            cluster.ellipsoid.remove()
-            dims = self.GetClusterPlotDimNames()
-            cw.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
-        # remove any orphaned cluster ids
-        for oldcid in olducids:
-            if oldcid not in newucids:
-                del s.clusters[oldcid]
-                del s.neurons[oldcid]
-
-        # now do some final updates
-        self.UpdateClustersGUI()
-        self.ColourPoints(s.clusters.values())
-        # reselect the previously selected (but now renumbered) clusters - helps user keep track
-        newselcids = newucids[np.searchsorted(olducids, oldselcids)]
-        self.SelectClusters([s.clusters[cid] for cid in newselcids])
-        # all cluster changes in stack are no longer applicable, reset cchanges
-        del self.cchanges[:]
-        self.cci = -1
-        print('renumbering complete')
     '''
     def OnCListSelect(self, evt=None):
         """Cluster list box item selection. Update cluster param widgets
