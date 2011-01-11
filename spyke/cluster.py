@@ -84,35 +84,34 @@ class Cluster(object):
 class SpykeMayaviScene(MayaviScene):
     def __init__(self, *args, **kwargs):
         MayaviScene.__init__(self, *args, **kwargs)
-        #tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
-        #tooltip.Enable(False) # leave disabled for now
-        #tooltip.SetDelay(0) # set popup delay in ms
-        #self._vtk_control.SetToolTip(tooltip) # connect it to self
-
-        #self._vtk_control.Bind(wx.EVT_MOTION, self.OnMotion)
         #self._spykewindow = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
+        '''
+        # doesn't work
+        self._vtk_control.connect(self._vtk_control, QtCore.SIGNAL("mouseMoveEvent"),
+                                  self.mouseMoveEvent)
+        '''
+        # probably not the best way to do this, but works:
+        self._vtk_control.mouseMoveEvent = self.mouseMoveEvent
+        #self._vtk_control.setMouseTracking(True) # unnecessary
 
-    def OnMotion(self, event):
+    def mouseMoveEvent(self, event):
         """Pop up a nid tooltip on mouse movement"""
-        if event.LeftIsDown() or event.MiddleIsDown() or event.RightIsDown():
-            event.Skip() # leave button down cases for navigation
-
-        pos = event.GetPosition()
-        x = pos.x
-        y = self._vtk_control.GetSize()[1] - pos.y
-        #x = event.GetX()
-        #y = self._vtk_control.GetSize()[1] - event.GetY()
+        #QtGui.QToolTip.hideText() # first hide if you want tooltip to move even when text is unchanged
+        pos = event.pos()
+        x = pos.x()
+        y = self._vtk_control.size().height() - pos.y()
         data = self.picker.pick_point(x, y)
-        tooltip = self._vtk_control.GetToolTip()
         if data.data != None:
             scalar = data.data.scalars[0] # just grab the first value
             if scalar < 0:
                 nid = -(scalar + 1)
                 tip = 'nid: %d' % nid
-                tooltip.SetTip(tip)
-                tooltip.Enable(True)
-            return
-        tooltip.Enable(False)
+                QtGui.QToolTip.showText(event.globalPos(), tip)
+            else:
+                QtGui.QToolTip.hideText()
+        else:
+            QtGui.QToolTip.hideText()
+        super(self._vtk_control.__class__, self._vtk_control).mouseMoveEvent(event) # pass the event on
 
     def OnKeyDown(self, event):
         key = event.GetKeyCode()

@@ -17,6 +17,8 @@ QT rewrite:
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
     - hm, or why can't you just check for clusters and auto colour them each time plot is hit?
 
+- update cluster plot immediately on dim change (fix OnDim)
+
 - TODO: allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons
 
 ---------------
@@ -41,6 +43,10 @@ QT rewrite DONE:
     - split a cluster, works fine, undo works fine, on redo, new clusters are restored and selected, but for some reason, the mean waveform of the last of the new clusters isn't plotted. This causes a plot keyerror on subsequent selection changes (such as another undo)
         - in fact, even happens when you split, undo, then leaving the selection as is and split again (as opposed to redoing). If instead of leaving selection as is, you change selection, then change back, then resplit or redo, it works fine. Very mysterious. Qt bug? Something to do with focused item, not just selected items?
         - if you have another unrelated cluster selected, or if you have no clusters selected whatsoever, you can undo/redo the split as many times as you like without the keyerror. Mysterious.
+- cluster tooltips
+    - do i really need to use mouse events? can't I just grab the current mouse position every time a tooltip is requested for the cluster window? ie, can't i just override the tooltip event, set the toltip text, and then allow the tooltip event to continue?
+    - alternative is catch mouse movement events, set tooltip text, then raise tooltip event. This would have the benefit of raising the tooltip immediately, instead of having to wait for the delay to expire. Delay isn't adjustable it seems.
+        - If you want to show a tooltip immediately, while the mouse is moving (e.g., to get the mouse coordinates with QMouseEvent::pos() and show them as a tooltip), you must first enable mouse tracking as described above (setMouseTracking(True)). Then, to ensure that the tooltip is updated immediately, you must call QToolTip::showText() instead of setToolTip() in your implementation of mouseMoveEvent().
 
 ----------------
 RECENT:

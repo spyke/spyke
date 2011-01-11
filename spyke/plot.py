@@ -835,7 +835,6 @@ class PlotPanel(FigureCanvas):
               'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
         self.setToolTip(tip)
 
-
     def OnMouseWheel(self, evt):
         """Zoom horizontally on CTRL+mouse wheel scroll"""
         if evt.ControlDown():
