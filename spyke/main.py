@@ -477,43 +477,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.windows['Sort'].uslist.updateAll() # update any columns showing param values
         self.EnableSpikeWidgets(True) # enable cluster_pane
 
-    def GetClusters(self):
-        """Return currently selected clusters"""
-        sw = self.windows['Sort']
-        cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
-        clusters = [ self.sort.clusters[cid] for cid in cids ]
-        return clusters
-
-    def GetCluster(self):
-        """Return just one selected cluster"""
-        clusters = self.GetClusters()
-        nselected = len(clusters)
-        if nselected != 1:
-            raise RuntimeError("can't figure out which of the %d selected clusters you want"
-                               % nselected)
-        return clusters[0]
-
-    def GetSpikes(self):
-        """Return IDs of currently selected spikes"""
-        sw = self.windows['Sort']
-        nsrows = sw.nslist.selectedRows()
-        srows = sw.uslist.selectedRows()
-        sids = []
-        try:
-            sids.extend(sw.nslist.neuron.sids[nsrows])
-        except AttributeError: pass # nslist has neuron=None, with no sids
-        sids.extend(self.sort.usids[srows])
-        return sids
-
-    def GetSpike(self):
-        """Return Id of just one selected spike, from nslist or uslist"""
-        sids = self.GetSpikes()
-        nselected = len(sids)
-        if nselected != 1:
-            raise RuntimeError("can't figure out which of the %d selected spike IDs you want"
-                               % nselected)
-        return sids[0]
-
     @QtCore.pyqtSlot()
     def on_clusterButton_clicked(self):
         """Cluster pane Cluster button click"""
@@ -728,6 +691,43 @@ class SpykeWindow(QtGui.QMainWindow):
         data /= norm
         print('normalized waveform data by %f' % norm)
         return data
+
+    def GetSpikes(self):
+        """Return IDs of currently selected spikes"""
+        sw = self.windows['Sort']
+        nsrows = sw.nslist.selectedRows()
+        srows = sw.uslist.selectedRows()
+        sids = []
+        try:
+            sids.extend(sw.nslist.neuron.sids[nsrows])
+        except AttributeError: pass # nslist has neuron=None, with no sids
+        sids.extend(self.sort.usids[srows])
+        return sids
+
+    def GetSpike(self):
+        """Return Id of just one selected spike, from nslist or uslist"""
+        sids = self.GetSpikes()
+        nselected = len(sids)
+        if nselected != 1:
+            raise RuntimeError("can't figure out which of the %d selected spike IDs you want"
+                               % nselected)
+        return sids[0]
+
+    def GetClusters(self):
+        """Return currently selected clusters"""
+        sw = self.windows['Sort']
+        cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
+        clusters = [ self.sort.clusters[cid] for cid in cids ]
+        return clusters
+
+    def GetCluster(self):
+        """Return just one selected cluster"""
+        clusters = self.GetClusters()
+        nselected = len(clusters)
+        if nselected != 1:
+            raise RuntimeError("can't figure out which of the %d selected clusters you want"
+                               % nselected)
+        return clusters[0]
 
     def SelectClusters(self, clusters, on=True):
         """Select/deselect clusters"""
