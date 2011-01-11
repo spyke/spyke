@@ -733,11 +733,26 @@ class SpykeWindow(QtGui.QMainWindow):
         """Select/deselect clusters"""
         clusters = toiter(clusters)
         all_nids = sorted(self.sort.neurons)
-        sel_nids = [ cluster.id for cluster in clusters ]
+        try:
+            sel_nids = [ cluster.id for cluster in clusters ]
+        except AttributeError: # assumer they're ints
+            sel_nids = [ cluster for cluster in clusters ]
         rows = np.searchsorted(all_nids, sel_nids)
         nlist = self.windows['Sort'].nlist
         nlist.selectRows(rows, on)
         #print('set rows %r to %r' % (rows, on))
+
+    def ToggleCluster(self, cluster):
+        """Toggle selection of given cluster"""
+        try:
+            nid = cluster.id
+        except AttributeError: # assume it's an int
+            nid = cluster
+        all_nids = sorted(self.sort.neurons)
+        row = all_nids.index(nid)
+        nlist = self.windows['Sort'].nlist
+        on = not nlist.rowSelected(row)
+        nlist.selectRows(row, on=on)
 
     def CreateCluster(self, update=True, id=None):
         """Create a new cluster, add it to the GUI, return it"""

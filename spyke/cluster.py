@@ -84,34 +84,53 @@ class Cluster(object):
 class SpykeMayaviScene(MayaviScene):
     def __init__(self, *args, **kwargs):
         MayaviScene.__init__(self, *args, **kwargs)
-        #self._spykewindow = self._vtk_control.TopLevelParent.Parent # need _ to bypass traits check
-        '''
-        # doesn't work
-        self._vtk_control.connect(self._vtk_control, QtCore.SIGNAL("mouseMoveEvent"),
-                                  self.mouseMoveEvent)
-        '''
+        qw = self._vtk_control # QWidget
+        #qw.setMouseTracking(True) # unnecessary
         # probably not the best way to do this, but works:
-        self._vtk_control.mouseMoveEvent = self.mouseMoveEvent
-        #self._vtk_control.setMouseTracking(True) # unnecessary
+        qw.mouseMoveEvent = self.mouseMoveEvent
+        qw.keyPressEvent = self.keyPressEvent
 
     def mouseMoveEvent(self, event):
         """Pop up a nid tooltip on mouse movement"""
-        #QtGui.QToolTip.hideText() # first hide if you want tooltip to move even when text is unchanged
+        #QtGui.QToolTip.hideText() # hide first if you want tooltip to move even when text is unchanged
+        qw = self._vtk_control
+        if event.buttons() != QtCore.Qt.NoButton: # don't show tooltip if mouse buttons are pressed
+            QtGui.QToolTip.hideText()
+            super(qw.__class__, qw).mouseMoveEvent(event) # pass the event on
+            return
         pos = event.pos()
         x = pos.x()
-        y = self._vtk_control.size().height() - pos.y()
+        y = qw.size().height() - pos.y()
         data = self.picker.pick_point(x, y)
         if data.data != None:
             scalar = data.data.scalars[0] # just grab the first value
-            if scalar < 0:
-                nid = -(scalar + 1)
+            if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+                nid = int(-(scalar + 1))
                 tip = 'nid: %d' % nid
                 QtGui.QToolTip.showText(event.globalPos(), tip)
             else:
                 QtGui.QToolTip.hideText()
         else:
             QtGui.QToolTip.hideText()
-        super(self._vtk_control.__class__, self._vtk_control).mouseMoveEvent(event) # pass the event on
+        super(qw.__class__, qw).mouseMoveEvent(event) # pass the event on
+
+    def keyPressEvent(self, event):
+        qw = self._vtk_control
+        spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
+        key = event.key()
+        if key in [QtCore.Qt.Key_S, QtCore.Qt.Key_Space]:
+            # toggle selection of cluster under the cursor
+            globalPos = QtGui.QCursor.pos()
+            pos = qw.mapFromGlobal(globalPos)
+            x = pos.x()
+            y = qw.size().height() - pos.y()
+            data = self.picker.pick_point(x, y)
+            if data.data != None:
+                scalar = data.data.scalars[0] # just grab the first value
+                if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+                    nid = int(-(scalar + 1))
+                    spw.ToggleCluster(nid)
+        super(qw.__class__, qw).keyPressEvent(event) # pass the event on
 
     def OnKeyDown(self, event):
         key = event.GetKeyCode()
@@ -261,7 +280,7 @@ class ClusterWindow(QtGui.QDockWidget):
 
         # this is a hack to remove the vtkObserver that catches 'a' and 'c' VTK CharEvents
         # to see all registered observers, print the interactor
-        self.vis.scene.interactor.remove_observer(1)
+        #self.vis.scene.interactor.remove_observer(1)
         # here's how to add your own observer to catch vtk keypress events
         #self.vis.scene.interactor.add_observer('KeyPressEvent', self.on_vtkkeypress)
 
