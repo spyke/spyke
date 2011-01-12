@@ -115,8 +115,10 @@ class SpykeMayaviScene(MayaviScene):
         super(qw.__class__, qw).mouseMoveEvent(event) # pass the event on
 
     def keyPressEvent(self, event):
+        # TODO: standard mayavi/vtk keypress events aren't registering for some reason
         qw = self._vtk_control
         spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
+        sw = spw.windows['Sort']
         key = event.key()
         if key in [QtCore.Qt.Key_S, QtCore.Qt.Key_Space]:
             # toggle selection of cluster under the cursor
@@ -130,8 +132,10 @@ class SpykeMayaviScene(MayaviScene):
                 if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
                     nid = int(-(scalar + 1))
                     spw.ToggleCluster(nid)
+        elif key == QtCore.Qt.Key_Delete:
+            sw.on_actionDeleteClusters_triggered()
         super(qw.__class__, qw).keyPressEvent(event) # pass the event on
-
+    '''
     def OnKeyDown(self, event):
         key = event.GetKeyCode()
         spw = self._spykewindow
@@ -245,7 +249,7 @@ class SpykeMayaviScene(MayaviScene):
             spw.UpdateParamWidgets(cluster)
         # pass event to parent class
         MayaviScene.OnKeyUp(self, event)
-
+    '''
 
 class Visualization(HasTraits):
     """Don't really understand this.

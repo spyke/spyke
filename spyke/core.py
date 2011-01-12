@@ -814,7 +814,10 @@ class NListModel(SpykeAbstractListModel):
         if role == QtCore.Qt.DisplayRole and index.isValid():
             nids = sorted(self.sortwin.sort.neurons)
             #print('.data(): row=%d, val=%d' % (index.row(), nids[index.row()]))
-            return int(nids[index.row()]) # no need to use QVariant() apparently
+            try:
+                return int(nids[index.row()]) # no need to use QVariant() apparently
+            except IndexError:
+                print('WARNING: tried to index non-existent row %d' % index.row())
 
 
 class NSListModel(SpykeAbstractListModel):

@@ -269,7 +269,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionUndo_triggered(self):
         """Undo button click. Undo previous cluster change"""
         try: cc = self.cchanges[self.cci]
-        except IndexError: raise RuntimeError('nothing to undo')
+        except IndexError: print('nothing to undo')
         print('undoing: %s' % cc.message)
         self.ApplyClusterChange(cc, direction='back')
         self.cci -= 1 # move pointer one change back on the stack
@@ -279,7 +279,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionRedo_triggered(self):
         """Redo button click. Redo next cluster change"""
         try: cc = self.cchanges[self.cci+1]
-        except IndexError: raise RuntimeError('nothing to redo')
+        except IndexError: print('nothing to redo')
         print('redoing: %s' % cc.message)
         self.ApplyClusterChange(cc, direction='forward')
         self.cci += 1 # move pointer one change forward on the stack
@@ -536,17 +536,12 @@ class SpykeWindow(QtGui.QMainWindow):
         cc.save_old(clusters)
 
         if oldclusters: # some clusters selected
-            self.SelectClusters(oldclusters, on=False) # deselect original clusters
-            cw.f.scene.disable_render = True # for speed
-            for oldcluster in oldclusters:
-                self.DelCluster(oldcluster, update=False) # del original clusters
-            self.DeColourPoints(sids) # decolour all points belonging to old clusters
+            spw.DelClusters(oldclusters, update=False)
         else: # no clusters selected, delete all existing clusters (if any)
-            for cluster in s.clusters.values():
-                self.DelCluster(cluster, update=False)
+            allclusters = s.clusters.values()
+            self.DelClusters(allclusters, update=False)
             try: cw.glyph
             except AttributeError: self.on_plotButton_clicked()
-            self.DeColourAllPoints()
             s.sampleis = sampleis
 
         # apply the clusters to the cluster plot
@@ -782,21 +777,21 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.nlist.DeSelectAll()
             sw.nlist.Select(len(self.sort.clusters) - 1) # select newly created item
 
-    def DelCluster(self, cluster, update=True):
-        """Delete a cluster from the GUI, and delete the cluster
-        and its neuron from the Sort. Think you need to call
-        mlab_source.update() afterwards"""
+    def DelClusters(self, clusters, update=True):
+        """Delete clusters from the GUI, and delete clusters
+        and their neurons from the Sort."""
+        clusters = toiter(clusters)
+        self.SelectClusters(clusters, on=False) # first deselect them all
         sw = self.windows['Sort']
         cw = self.windows['Cluster']
         cw.f.scene.disable_render = True # for speed
-        cluster.ellipsoid.remove() # from pipeline
-        cluster.ellipsoid = None
-        if update:
+        for cluster in clusters:
+            cluster.ellipsoid.remove() # from pipeline
+            cluster.ellipsoid = None
             self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
-        sw.RemoveNeuron(cluster.neuron, update=update)
+            sw.RemoveNeuron(cluster.neuron, update=update)
         if update:
-            sw.nlist.updateAll()
-            cw.f.scene.disable_render = False
+            self.UpdateClustersGUI()
     '''
     # TODO: this should be converted to Qt and used whenever a dim choice changes
     def OnDim(self, evt=None):
@@ -877,6 +872,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.windows['Sort']
         cw = self.windows['Cluster']
         cw.f.scene.disable_render = False # turn rendering back on
+        cw.glyph.mlab_source.update()
         sw.nlist.updateAll()
         s.update_usids()
         sw.uslist.updateAll()
@@ -1003,7 +999,7 @@ class SpykeWindow(QtGui.QMainWindow):
         val = float(evt.GetString())
         cluster.scale[z] = val
         cluster.update_ellipsoid('scale', dims=(x, y, z))
-    '''
+
     def OnKeyDown(self, evt):
         """Handle key presses
         TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
@@ -1029,7 +1025,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # when key event comes from file_pos_combo_box, reserve down/up for seeking through file
         if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
             evt.Skip() # pass event on to OS to handle cursor movement
-
+    '''
     def AddClusterChangeToStack(self, cc):
         """Adds cc to the cluster change stack, removing any potential redo changes"""
         self.cci += 1
@@ -1071,10 +1067,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # changes happen without a selectionChanged event when the rowcount changes
         bystanders = self.GetClusters()
         self.SelectClusters(bystanders, on=False)
-        cw.f.scene.disable_render = True # for speed
-        for newcluster in newclusters:
-            self.DelCluster(newcluster, update=False) # del new clusters
-        self.DeColourPoints(sids) # decolour all points belonging to new clusters
+        self.DelClusters(newclusters, update=False) # del new clusters
 
         # restore relevant spike fields
         spikes['nid'][sids] = oldnids

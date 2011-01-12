@@ -376,12 +376,12 @@ class Sort(object):
 
     def create_neuron(self, id=None):
         """Create and return a new Neuron with a unique ID"""
-        if id:
+        if id == None:
+            neuron = Neuron(self, self.nextnid)
+        else:
             if id in self.neurons:
                 raise RuntimeError('Neuron %d already exists' % id)
             neuron = Neuron(self, id)
-        else:
-            neuron = Neuron(self, self.nextnid)
         self.neurons[neuron.id] = neuron # add neuron to self
         return neuron
 
@@ -857,11 +857,11 @@ class SortWindow(QtGui.QDockWidget):
         toolbar = QtGui.QToolBar("toolbar", self)
         toolbar.setFloatable(True)
 
-        actionDeleteCluster = QtGui.QAction("-", self)
-        actionDeleteCluster.setToolTip('Delete cluster')
-        self.connect(actionDeleteCluster, QtCore.SIGNAL("triggered()"),
-                     self.on_actionDeleteCluster_triggered)
-        toolbar.addAction(actionDeleteCluster)
+        actionDeleteClusters = QtGui.QAction("-", self)
+        actionDeleteClusters.setToolTip('Delete cluster')
+        self.connect(actionDeleteClusters, QtCore.SIGNAL("triggered()"),
+                     self.on_actionDeleteClusters_triggered)
+        toolbar.addAction(actionDeleteClusters)
 
         actionMergeClusters = QtGui.QAction("^", self)
         actionMergeClusters.setToolTip('Merge clusters')
@@ -951,7 +951,7 @@ class SortWindow(QtGui.QDockWidget):
             s.usids_reversed = False # update
         self.uslist.RefreshItems()
     '''
-    def on_actionDeleteCluster_triggered(self):
+    def on_actionDeleteClusters_triggered(self):
         """Del button click"""
         spw = self.spykewindow
         clusters = spw.GetClusters()
@@ -968,18 +968,15 @@ class SortWindow(QtGui.QDockWidget):
         cc.save_old(clusters)
 
         # deselect and delete clusters
-        spw.SelectClusters(clusters, on=False)
-        for cluster in clusters:
-            spw.DelCluster(cluster, update=False)
-        spw.DeColourPoints(sids) # decolour appropriate points
-        spw.UpdateClustersGUI()
-        spw.windows['Cluster'].glyph.mlab_source.update()
+        spw.DelClusters(clusters)
         if len(s.clusters) > 0:
             # select cluster that's next highest than lowest of the deleted clusters
-            cids = np.asarray(s.clusters.keys())
-            ii, = np.where(cids > min(cc.oldunids))
-            selcid = min(cids[ii])
-            spw.SelectClusters(s.clusters[selcid]) # TODO: this sets selection, but not focus
+            cids = np.asarray(list(s.clusters))
+            ii = cids > min(cc.oldunids)
+            if ii.any():
+                selcid = min(cids[ii])
+                spw.SelectClusters(s.clusters[selcid]) # TODO: this sets selection, but not focus
+            #else: # lowest of deleted clusters was highest cluster
 
         # save more undo/redo stuff
         newclusters = []
@@ -1006,11 +1003,7 @@ class SortWindow(QtGui.QDockWidget):
         cc.save_old(clusters)
 
         # delete original clusters
-        spw.SelectClusters(clusters, on=False) # deselect original clusters
-        spw.windows['Cluster'].f.scene.disable_render = True # for speed
-        for cluster in clusters:
-            spw.DelCluster(cluster, update=False) # del original clusters
-        spw.DeColourPoints(sids) # decolour all points belonging to old clusters
+        spw.DelClusters(clusters, update=False)
 
         # create new cluster
         t0 = time.time()

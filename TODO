@@ -7,6 +7,7 @@ QT rewrite:
 - themed icons - can do it now using QIcon.fromTheme(), but should be much easier once it's integrated into Qt Designer in 4.8: http://bugreports.qt.nokia.com/browse/QTBUG-7777
 
 - keyboard commands for clustering and cluster selection
+    - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
 
 - turn uslist (and maybe nslist) into multicolumn table
 
