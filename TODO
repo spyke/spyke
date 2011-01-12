@@ -6,9 +6,6 @@ QT rewrite:
 
 - themed icons - can do it now using QIcon.fromTheme(), but should be much easier once it's integrated into Qt Designer in 4.8: http://bugreports.qt.nokia.com/browse/QTBUG-7777
 
-- keyboard commands for clustering and cluster selection
-    - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
-
 - turn uslist (and maybe nslist) into multicolumn table
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
@@ -48,6 +45,9 @@ QT rewrite DONE:
     - do i really need to use mouse events? can't I just grab the current mouse position every time a tooltip is requested for the cluster window? ie, can't i just override the tooltip event, set the toltip text, and then allow the tooltip event to continue?
     - alternative is catch mouse movement events, set tooltip text, then raise tooltip event. This would have the benefit of raising the tooltip immediately, instead of having to wait for the delay to expire. Delay isn't adjustable it seems.
         - If you want to show a tooltip immediately, while the mouse is moving (e.g., to get the mouse coordinates with QMouseEvent::pos() and show them as a tooltip), you must first enable mouse tracking as described above (setMouseTracking(True)). Then, to ensure that the tooltip is updated immediately, you must call QToolTip::showText() instead of setToolTip() in your implementation of mouseMoveEvent().
+- keyboard commands for clustering and cluster selection
+    - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
+    - using direct base class calling instead of super() fixed this
 
 ----------------
 RECENT:

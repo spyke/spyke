@@ -14,6 +14,7 @@ import operator
 import random
 
 from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import Qt
 
 import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
@@ -829,15 +830,15 @@ class SortWindow(QtGui.QDockWidget):
         self.uslist.setToolTip('Unsorted spike list')
         self.panel = SpikeSortPanel(self)
 
-        self.hsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.hsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.hsplitter.addWidget(self.nlist)
         self.hsplitter.addWidget(self.nslist)
 
-        self.vsplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
+        self.vsplitter = QtGui.QSplitter(Qt.Vertical)
         self.vsplitter.addWidget(self.hsplitter)
         self.vsplitter.addWidget(self.uslist)
 
-        self.mainsplitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.mainsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
         self.mainsplitter.addWidget(self.panel)
         #self.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1) # only works after self is shown
@@ -919,20 +920,21 @@ class SortWindow(QtGui.QDockWidget):
 
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Sort')
-    '''
-    def OnNSListSelect(self, evt):
-        sort = self.sort
-        selectedRows = self.nslist.getSelection()
-        sids = set(self.nslist.neuron.sids[selectedRows])
-        remove_sids = self.nslist.lastSelectedIDs.difference(sids)
-        add_sids = sids.difference(self.nslist.lastSelectedIDs)
-        self.RemoveItemsFromPlot([ 's'+str(sid) for sid in remove_sids ])
-        self.AddItems2Plot([ 's'+str(sid) for sid in add_sids ])
-        self.nslist.lastSelectedIDs = sids # save for next time
 
+    def keyPressEvent(self, event):
+        """Simple ASCII keypresses (A-Z, 0-9) are by default caught by the child lists for quickly
+        scrolling down to and selecting list items. However, they do work with modifiers, and
+        alpha keypresses have been overridden to be ignored, so they propagate up to here"""
+        key = event.key()
+        if key == Qt.Key_Delete:
+            self.on_actionDeleteClusters_triggered()
+        elif key == Qt.Key_M:
+            self.on_actionMergeClusters_triggered()
+        else:
+            QtGui.QDockWidget.keyPressEvent(self, event) # pass the event on
+    '''
     def OnUSListColClick(self, evt):
         """Sort .usids according to column clicked.
-
         TODO: keep track of currently selected spikes and currently focused spike,
         clear the selection, then reselect those same spikes after sorting is done,
         and re-focus the same spike. Scroll into view of the focused spike (maybe

@@ -11,6 +11,7 @@ import time
 import numpy as np
 
 from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import Qt
 
 from enthought.traits.api import HasTraits, Instance
 from enthought.traits.ui.api import View, Item
@@ -94,9 +95,9 @@ class SpykeMayaviScene(MayaviScene):
         """Pop up a nid tooltip on mouse movement"""
         #QtGui.QToolTip.hideText() # hide first if you want tooltip to move even when text is unchanged
         qw = self._vtk_control
-        if event.buttons() != QtCore.Qt.NoButton: # don't show tooltip if mouse buttons are pressed
+        if event.buttons() != Qt.NoButton: # don't show tooltip if mouse buttons are pressed
             QtGui.QToolTip.hideText()
-            super(qw.__class__, qw).mouseMoveEvent(event) # pass the event on
+            qw.__class__.mouseMoveEvent(qw, event) # pass the event on
             return
         pos = event.pos()
         x = pos.x()
@@ -112,7 +113,7 @@ class SpykeMayaviScene(MayaviScene):
                 QtGui.QToolTip.hideText()
         else:
             QtGui.QToolTip.hideText()
-        super(qw.__class__, qw).mouseMoveEvent(event) # pass the event on
+        qw.__class__.mouseMoveEvent(qw, event) # pass the event on
 
     def keyPressEvent(self, event):
         # TODO: standard mayavi/vtk keypress events aren't registering for some reason
@@ -120,7 +121,7 @@ class SpykeMayaviScene(MayaviScene):
         spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
         sw = spw.windows['Sort']
         key = event.key()
-        if key in [QtCore.Qt.Key_S, QtCore.Qt.Key_Space]:
+        if key in [Qt.Key_S, Qt.Key_Space]:
             # toggle selection of cluster under the cursor
             globalPos = QtGui.QCursor.pos()
             pos = qw.mapFromGlobal(globalPos)
@@ -132,9 +133,12 @@ class SpykeMayaviScene(MayaviScene):
                 if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
                     nid = int(-(scalar + 1))
                     spw.ToggleCluster(nid)
-        elif key == QtCore.Qt.Key_Delete:
+        elif key == Qt.Key_Delete:
             sw.on_actionDeleteClusters_triggered()
-        super(qw.__class__, qw).keyPressEvent(event) # pass the event on
+        elif key == Qt.Key_M:
+            sw.on_actionMergeClusters_triggered()
+        else:
+            qw.__class__.keyPressEvent(qw, event) # pass the event on
     '''
     def OnKeyDown(self, event):
         key = event.GetKeyCode()

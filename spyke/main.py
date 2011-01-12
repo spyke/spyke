@@ -268,8 +268,11 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):
         """Undo button click. Undo previous cluster change"""
-        try: cc = self.cchanges[self.cci]
-        except IndexError: print('nothing to undo')
+        try:
+            cc = self.cchanges[self.cci]
+        except IndexError:
+            print('nothing to undo')
+            return
         print('undoing: %s' % cc.message)
         self.ApplyClusterChange(cc, direction='back')
         self.cci -= 1 # move pointer one change back on the stack
@@ -278,8 +281,11 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionRedo_triggered(self):
         """Redo button click. Redo next cluster change"""
-        try: cc = self.cchanges[self.cci+1]
-        except IndexError: print('nothing to redo')
+        try:
+            cc = self.cchanges[self.cci+1]
+        except IndexError:
+            print('nothing to redo')
+            return
         print('redoing: %s' % cc.message)
         self.ApplyClusterChange(cc, direction='forward')
         self.cci += 1 # move pointer one change forward on the stack

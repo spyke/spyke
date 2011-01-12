@@ -1315,9 +1315,6 @@
    <property name="toolTip">
     <string>New sort</string>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+N</string>
-   </property>
   </action>
   <action name="actionSaveSort">
    <property name="icon">

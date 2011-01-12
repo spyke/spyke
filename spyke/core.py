@@ -14,6 +14,7 @@ import os
 import sys
 
 from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import Qt
 
 import numpy as np
 from numpy import pi
@@ -708,6 +709,12 @@ class SpykeListView(QtGui.QListView):
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
 
+    def keyPressEvent(self, event):
+        if Qt.Key_A <= event.key() <= Qt.Key_Z: # it's alpha
+            event.ignore() # pass it on up to the parent
+        else:
+            QtGui.QListView.keyPressEvent(self, event) # handle it as usual
+
     def selectionChanged(self, selected, deselected, prefix=None):
         QtGui.QListView.selectionChanged(self, selected, deselected)
         panel = self.sortwin.panel
@@ -810,8 +817,8 @@ class NListModel(SpykeAbstractListModel):
         except AttributeError: # sort doesn't exist
             return 0
 
-    def data(self, index, role=QtCore.Qt.DisplayRole):
-        if role == QtCore.Qt.DisplayRole and index.isValid():
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole and index.isValid():
             nids = sorted(self.sortwin.sort.neurons)
             #print('.data(): row=%d, val=%d' % (index.row(), nids[index.row()]))
             try:
@@ -842,8 +849,8 @@ class NSListModel(SpykeAbstractListModel):
         else:
             return 0
 
-    def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole and index.isValid() and self.neuron:
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole and index.isValid() and self.neuron:
             return int(self.neuron.sids[index.row()])
 
 
@@ -855,8 +862,8 @@ class USListModel(SpykeAbstractListModel):
         except AttributeError: # sort doesn't exist
             return 0
 
-    def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole and index.isValid():
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole and index.isValid():
             return int(self.sortwin.sort.usids[index.row()])
 
 
