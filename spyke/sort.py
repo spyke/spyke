@@ -923,13 +923,21 @@ class SortWindow(QtGui.QDockWidget):
 
     def keyPressEvent(self, event):
         """Simple ASCII keypresses (A-Z, 0-9) are by default caught by the child lists for quickly
-        scrolling down to and selecting list items. However, they do work with modifiers, and
-        alpha keypresses have been overridden to be ignored, so they propagate up to here"""
+        scrolling down to and selecting list items. However, the appropriate alpha keypresses have
+        been set in the child lists to be ignored, so they propagate up to here"""
         key = event.key()
-        if key == Qt.Key_Delete:
+        if key == Qt.Key_Escape: # deselect all clusters
+            self.nlist.clearSelection()
+        elif key == Qt.Key_Delete:
             self.on_actionDeleteClusters_triggered()
-        elif key == Qt.Key_M:
+        elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
+        elif key == Qt.Key_NumberSign:
+            self.on_actionRenumberClusters_triggered()
+        elif key == Qt.Key_O:
+            self.on_actionFocusCurrentCluster_triggered()
+        elif key == Qt.Key_Period:
+            self.on_actionFocusCurrentSpike_triggered()
         else:
             QtGui.QDockWidget.keyPressEvent(self, event) # pass the event on
     '''

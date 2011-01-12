@@ -542,7 +542,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cc.save_old(clusters)
 
         if oldclusters: # some clusters selected
-            spw.DelClusters(oldclusters, update=False)
+            self.DelClusters(oldclusters, update=False)
         else: # no clusters selected, delete all existing clusters (if any)
             allclusters = s.clusters.values()
             self.DelClusters(allclusters, update=False)

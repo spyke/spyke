@@ -133,10 +133,9 @@ class SpykeMayaviScene(MayaviScene):
                 if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
                     nid = int(-(scalar + 1))
                     spw.ToggleCluster(nid)
-        elif key == Qt.Key_Delete:
-            sw.on_actionDeleteClusters_triggered()
-        elif key == Qt.Key_M:
-            sw.on_actionMergeClusters_triggered()
+        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_NumberSign,
+                     Qt.Key_O, Qt.Key_Period]:
+            sw.keyPressEvent(event) # pass it on to Sort window
         else:
             qw.__class__.keyPressEvent(qw, event) # pass the event on
     '''

@@ -710,7 +710,7 @@ class SpykeListView(QtGui.QListView):
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
 
     def keyPressEvent(self, event):
-        if Qt.Key_A <= event.key() <= Qt.Key_Z: # it's alpha
+        if event.key() in [Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period]:
             event.ignore() # pass it on up to the parent
         else:
             QtGui.QListView.keyPressEvent(self, event) # handle it as usual
