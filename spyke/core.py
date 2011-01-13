@@ -711,7 +711,7 @@ class SpykeListView(QtGui.QListView):
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
 
     def keyPressEvent(self, event):
-        if event.key() in [Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period]:
+        if event.key() in [Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
             event.ignore() # pass it on up to the parent
         else:
             QtGui.QListView.keyPressEvent(self, event) # handle it as usual
@@ -728,6 +728,11 @@ class SpykeListView(QtGui.QListView):
 
     def updateAll(self):
         self.model().updateAll()
+
+    def get_nrows(self):
+        return self.model().rowCount()
+
+    nrows = property(get_nrows)
 
     def selectRows(self, rows, on=True):
         """Row selection in listview is complex. This makes it simpler"""
@@ -747,6 +752,12 @@ class SpykeListView(QtGui.QListView):
     def rowSelected(self, row):
         """Simple way to check if a row is selected"""
         return self.model().index(row) in self.selectedIndexes()
+
+    def selectRandom(self, nsamples):
+        """Select random sample of rows"""
+        nsamples = min(nsamples, self.nrows)
+        rows = random.sample(xrange(self.nrows), nsamples)
+        self.selectRows(rows)
 
 
 class NList(SpykeListView):
@@ -781,15 +792,9 @@ class NSList(SpykeListView):
         return self.model().neuron
 
     def set_neuron(self, neuron):
-        """Every time neuron is set, clear any existing selection, update data model,
-        and randomly select a sample of sids"""
+        """Every time neuron is set, clear any existing selection and update data model"""
         self.clearSelection() # remove any plotted sids, at least for now
         self.model().neuron = neuron
-        if neuron:
-            SELECTSAMPLESIZE = 10
-            nsamples = min(SELECTSAMPLESIZE, neuron.nspikes)
-            rows = random.sample(xrange(neuron.nspikes), nsamples)
-            self.selectRows(rows)
 
     neuron = property(get_neuron, set_neuron)
 
@@ -813,7 +818,7 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
         """Emit dataChanged signal so that view updates itself immediately.
         Hard to believe this doesn't already exist in some form"""
         i0 = self.createIndex(0, 0) # row, col
-        i1 = self.createIndex(self.rowCount(None)-1, 0) # seems this isn't necessary
+        i1 = self.createIndex(self.rowCount()-1, 0) # seems this isn't necessary
         #self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
         self.dataChanged.emit(i0, i1) # refresh all
 
@@ -852,7 +857,7 @@ class NSListModel(SpykeAbstractListModel):
 
     neuron = property(get_neuron, set_neuron)
 
-    def rowCount(self, parent):
+    def rowCount(self, parent=None):
         if self.neuron: # not None
             return len(self.neuron.sids)
         else:
@@ -865,7 +870,7 @@ class NSListModel(SpykeAbstractListModel):
 
 class USListModel(SpykeAbstractListModel):
     """Model for unsorted spike list view"""
-    def rowCount(self, parent):
+    def rowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.usids)
         except AttributeError: # sort doesn't exist

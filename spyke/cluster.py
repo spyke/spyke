@@ -134,7 +134,7 @@ class SpykeMayaviScene(MayaviScene):
                     nid = int(-(scalar + 1))
                     spw.ToggleCluster(nid)
         elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_NumberSign,
-                     Qt.Key_O, Qt.Key_Period]:
+                     Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
             sw.keyPressEvent(event) # pass it on to Sort window
         else:
             qw.__class__.keyPressEvent(qw, event) # pass the event on

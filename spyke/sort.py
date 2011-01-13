@@ -31,6 +31,7 @@ SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1080
 
 MEANWAVESAMPLESIZE = 1000
+SPIKESELECTSAMPLESIZE = 25
 
 """
 TODO: before extracting features from events, first align all chans wrt maxchan.
@@ -892,6 +893,13 @@ class SortWindow(QtGui.QDockWidget):
                      self.on_actionFocusCurrentSpike_triggered)
         toolbar.addAction(actionFocusCurrentSpike)
 
+        actionSelectRandomSpikes = QtGui.QAction("R", self)
+        actionSelectRandomSpikes.setToolTip('Select random sample of spikes of current cluster')
+        self.connect(actionSelectRandomSpikes, QtCore.SIGNAL("triggered()"),
+                     self.on_actionSelectRandomSpikes_triggered)
+        toolbar.addAction(actionSelectRandomSpikes)
+
+
         toolbar.addSeparator()
 
         actionAlignMax = QtGui.QAction("Align max", self)
@@ -938,6 +946,8 @@ class SortWindow(QtGui.QDockWidget):
             self.on_actionFocusCurrentCluster_triggered()
         elif key == Qt.Key_Period:
             self.on_actionFocusCurrentSpike_triggered()
+        elif key == Qt.Key_R:
+            self.on_actionSelectRandomSpikes_triggered()
         else:
             QtGui.QDockWidget.keyPressEvent(self, event) # pass the event on
     '''
@@ -1121,6 +1131,12 @@ class SortWindow(QtGui.QDockWidget):
         cw.f.scene.camera.focal_point = fp
         cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
         #cw.Refresh() # this also seems to work: repaint the window
+
+    def on_actionSelectRandomSpikes_triggered(self):
+        """Select random sample of spikes in current cluster"""
+        if self.nslist.neuron:
+            self.nslist.clearSelection()
+            self.nslist.selectRandom(SPIKESELECTSAMPLESIZE)
 
     def on_actionAlignMax_triggered(self):
         self.Align('max')

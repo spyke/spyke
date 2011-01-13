@@ -9,9 +9,9 @@ QT rewrite:
 - turn uslist (and maybe nslist) into multicolumn table
 
 - make data and sort pane tooltips instantaneous, ie use mouseMoveEvent like for cluster pane
-    - this would also remove need to set focus to the appropriate window to get the tooltip
+    - this would also remove need to set focus to the appropriate window to get the tooltip. All you'd need to do is hover
 
-- on nlist selection event, if only a single neuron is selected, take random sample of neuron's sids and select those in the nslist. This way you don't have to go manually selecting some spikes to evaluate cluster cleanliness. Also, this way, every time you reselect just that neuron, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
+- maybe autoscroll nlist to most recently selected cluster?
 
 - allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
 
@@ -19,6 +19,8 @@ QT rewrite:
 
 - make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
     - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
+    - programatically resize the cluster window to take up the full screen on F11. Maybe override the little dock/undock button to do the same. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
+    - maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
 
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
     - hm, or why can't you just check for clusters and auto colour them each time plot is hit?
@@ -55,6 +57,8 @@ QT rewrite DONE:
 - keyboard commands for clustering and cluster selection
     - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
     - using direct base class calling instead of super() fixed this
+    - on R keypress, select random sample of current cluster's spikes. This way you don't have to go manually selecting spikes to evaluate cluster cleanliness. Also, this way, every time you hit R, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
+
 
 ----------------
 RECENT:

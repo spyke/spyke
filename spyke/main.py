@@ -1073,7 +1073,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SelectClusters(newclusters, on=False) # deselect new clusters
         # temporarily deselect any bystander clusters to get around fact that
         # selections are row-based in Qt, not value-based, which means selection
-        # changes happen without a selectionChanged event when the rowcount changes
+        # changes happen without a selectionChanged event when the rowCount changes
         bystanders = self.GetClusters()
         self.SelectClusters(bystanders, on=False)
         self.DelClusters(newclusters, update=False) # del new clusters
