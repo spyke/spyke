@@ -12,6 +12,7 @@ import time
 from datetime import timedelta
 import os
 import sys
+import random
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -716,6 +717,7 @@ class SpykeListView(QtGui.QListView):
             QtGui.QListView.keyPressEvent(self, event) # handle it as usual
 
     def selectionChanged(self, selected, deselected, prefix=None):
+        """Plot neurons or spikes on list item selection"""
         QtGui.QListView.selectionChanged(self, selected, deselected)
         panel = self.sortwin.panel
         addis = [ i.data().toInt()[0] for i in selected.indexes() ]
@@ -755,7 +757,6 @@ class NList(SpykeListView):
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
-        self.sortwin.nslist.clearSelection() # remove any plotted sids in nslist, at least for now
         selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
         if len(selnids) == 1:
             self.sortwin.nslist.neuron = self.sortwin.sort.neurons[selnids[0]]
@@ -780,7 +781,15 @@ class NSList(SpykeListView):
         return self.model().neuron
 
     def set_neuron(self, neuron):
+        """Every time neuron is set, clear any existing selection, update data model,
+        and randomly select a sample of sids"""
+        self.clearSelection() # remove any plotted sids, at least for now
         self.model().neuron = neuron
+        if neuron:
+            SELECTSAMPLESIZE = 10
+            nsamples = min(SELECTSAMPLESIZE, neuron.nspikes)
+            rows = random.sample(xrange(neuron.nspikes), nsamples)
+            self.selectRows(rows)
 
     neuron = property(get_neuron, set_neuron)
 

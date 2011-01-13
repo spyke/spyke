@@ -11,7 +11,9 @@ QT rewrite:
 - make data and sort pane tooltips instantaneous, ie use mouseMoveEvent like for cluster pane
     - this would also remove need to set focus to the appropriate window to get the tooltip
 
-- on nlist selection event, if only a single neuron is selected, take random sample of neuron's sids and select those in the nslist. This way you don't have to go manually selecting some spikes to evaluate cluster cleanliness
+- on nlist selection event, if only a single neuron is selected, take random sample of neuron's sids and select those in the nslist. This way you don't have to go manually selecting some spikes to evaluate cluster cleanliness. Also, this way, every time you reselect just that neuron, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
+
+- allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
 
@@ -23,7 +25,6 @@ QT rewrite:
 
 - update cluster plot immediately on dim change (fix OnDim)
 
-- allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
 
 ---------------
 QT rewrite DONE:
