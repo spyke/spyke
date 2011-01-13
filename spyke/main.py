@@ -513,7 +513,11 @@ class SpykeWindow(QtGui.QMainWindow):
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
             wctype = dims[0] # 'wave' or 'peaks'
-            data = self.get_waveclustering_data(sids, wctype=wctype)
+            try:
+                data = self.get_waveclustering_data(sids, wctype=wctype)
+            except RuntimeError as msg:
+                print(msg)
+                return
             plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do spike parameter (non-wavefrom) clustering
             data = s.get_param_matrix(dims=dims, scale=True)[sids]
@@ -603,15 +607,16 @@ class SpykeWindow(QtGui.QMainWindow):
         chans = [maxchan]
 
         # pop up dialog asking for chans to cluster on
-        string = wx.GetTextFromUser('Cluster by %s on which channel(s)?\nChoose from: %r'
-                                    % (wctype, list(clusterable_chans)),
-                                    'Waveform (%s) clustering' % wctype, str(chans))
-        if string == '':
-            raise RuntimeError('cancelled') # cancel was pressed
-        if string == '[]':
-            chans = clusterable_chans
+        getText = QtGui.QInputDialog.getText
+        string, ok = getText(self, 'Waveform (%s) clustering' % wctype,
+                             'Cluster by %s on which channel(s)?\nChoose from: %s'
+                             % (wctype, str(list(clusterable_chans)).strip('[]')),
+                             text=str(chans).strip('[]'))
+        string = str(string)
+        if not ok or not string:
+            raise RuntimeError('cancelled') # cancel was pressed, or empty string
         else:
-            chans = np.asarray(eval(string))
+            chans = np.asarray(toiter(eval(string))) # eval turns CSV string into tuple
             chans.sort()
         for chan in chans:
             if chan not in clusterable_chans:
@@ -619,10 +624,8 @@ class SpykeWindow(QtGui.QMainWindow):
                                    % (chan, list(clusterable_chans)))
 
         # copy selected chans as string to clipboard for easy user re-pasting next time
-        chans_string = wx.TextDataObject(str(list(chans)))
-        if wx.TheClipboard.Open():
-            wx.TheClipboard.SetData(chans_string)
-            wx.TheClipboard.Close()
+        clipboard = QtGui.QApplication.clipboard()
+        clipboard.setText(str(list(chans)).strip('[]'))
 
         print('clustering upon chans = %r' % list(chans))
         nspikes = len(sids)
@@ -664,7 +667,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # consider only data between slicetis, copy to make it contiguous
             #data = data[:, :, slicetis[0]:slicetis[1]].copy()
         elif wctype == 'peaks':
-            # use only data at peaks of template, and before and after each peak
+            # use only data at peaks of template, and before and after each peak,
             # useful for faster clustering
             peaktis = np.zeros((nchans, 6), dtype=int)
             for chani in range(nchans):
@@ -679,7 +682,7 @@ class SpykeWindow(QtGui.QMainWindow):
             print(peaktis)
             # grab each spike's data at these peak times, using fancy indexing
             # see core.rowtake() or util.rowtake_cy() for indexing explanation
-            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, 2
+            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, len(peaktis)
         else:
             raise RuntimeError('unknown wctype %r' % wctype)
 
@@ -1101,10 +1104,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SelectClusters(oldclusters)
         # restore bystander selections
         self.SelectClusters(bystanders)
-        print('oldclusters: %r' % [c.id for c in oldclusters])
-        print('newclusters: %r' % [c.id for c in newclusters])
-        print('bystanders: %r' % [c.id for c in bystanders])
-
+        #print('oldclusters: %r' % [c.id for c in oldclusters])
+        #print('newclusters: %r' % [c.id for c in newclusters])
+        #print('bystanders: %r' % [c.id for c in bystanders])
 
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""

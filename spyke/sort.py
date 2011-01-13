@@ -858,13 +858,13 @@ class SortWindow(QtGui.QDockWidget):
         toolbar = QtGui.QToolBar("toolbar", self)
         toolbar.setFloatable(True)
 
-        actionDeleteClusters = QtGui.QAction("-", self)
+        actionDeleteClusters = QtGui.QAction("Del", self)
         actionDeleteClusters.setToolTip('Delete cluster')
         self.connect(actionDeleteClusters, QtCore.SIGNAL("triggered()"),
                      self.on_actionDeleteClusters_triggered)
         toolbar.addAction(actionDeleteClusters)
 
-        actionMergeClusters = QtGui.QAction("^", self)
+        actionMergeClusters = QtGui.QAction("M", self)
         actionMergeClusters.setToolTip('Merge clusters')
         self.connect(actionMergeClusters, QtCore.SIGNAL("triggered()"),
                      self.on_actionMergeClusters_triggered)
