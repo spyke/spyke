@@ -140,7 +140,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionSaveSortAs_triggered(self):
         """Save Sort to new .sort file"""
         try:
-            defaultFile = self.sort.sortfname
+            defaultfname = self.sort.sortfname
         except AttributeError: # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
             fname = self.hpstream.fname.replace(' ', '_')
@@ -148,10 +148,11 @@ class SpykeWindow(QtGui.QMainWindow):
             dt = dt.split('.')[0] # ditch the us
             dt = dt.replace(' ', '_')
             dt = dt.replace(':', '.')
-            defaultFile = fname + '_' + dt
+            defaultfname = fname + '_' + dt + '.sort'
+        #defaultfname = os.path.join(os.getcwd(), defaultfname) # add path to it
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption="Save .sort file",
-                                directory=os.getcwd(),
+                                directory=defaultfname,
                                 filter="Sort files (*.sort);;"
                                        "All files (*.*)")
         fname = str(fname)
@@ -175,10 +176,11 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveWave_triggered(self):
         """Save waveforms to a .wave file"""
-        defaultFile = os.path.splitext(self.sort.sortfname)[0] + '.wave'
+        defaultfname = os.path.splitext(self.sort.sortfname)[0] + '.wave'
+        #defaultfname = os.path.join(os.getcwd(), defaultfname) # add path to it
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption="Save .wave file",
-                                directory=os.getcwd(),
+                                directory=defaultfname,
                                 filter="Wave files (*.wave);;"
                                        "All files (*.*)")
         fname = str(fname)

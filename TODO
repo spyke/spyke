@@ -11,7 +11,7 @@ QT rewrite:
 - make data and sort pane tooltips instantaneous, ie use mouseMoveEvent like for cluster pane
     - this would also remove need to set focus to the appropriate window to get the tooltip. All you'd need to do is hover
 
-- maybe autoscroll nlist to most recently selected cluster?
+- maybe autoscroll nlist to most recently programatically selected cluster?
 
 - allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
 
@@ -21,6 +21,7 @@ QT rewrite:
     - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
     - programatically resize the cluster window to take up the full screen on F11. Maybe override the little dock/undock button to do the same. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
     - maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
+    - for ease of setting fullscreen or maximized state, might need to change window type to proper window, ie QDialog, or widget with Qt::Window flag set
 
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
     - hm, or why can't you just check for clusters and auto colour them each time plot is hit?
