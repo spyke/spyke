@@ -46,10 +46,10 @@ DEFLFPTW = -500000, 500000 # lfp window temporal window (us)
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
 SPIKEWINDOWWIDTHPERCOLUMN = 80
-SPIKEWINDOWHEIGHT = 684
+SPIKEWINDOWHEIGHT = 655
 CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
-METACITYHACK = 29 # metacity has dockwidget vertical placement issues
+METACITYHACK = 29 # metacity has vertical placement issues
 PYSHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWSIZE = 535, 535
 
@@ -363,14 +363,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Sample & hold menu event"""
         enable = self.ui.actionSampleAndHoldCorrect.isChecked()
         self.SetSHCorrect(enable)
-    '''
-    def OnMove(self, evt):
-        """Move window, and all datawindows as well, like docked windows"""
-        for windowtype, window in self.windows.iteritems():
-            window.Move(self.GetPosition() + self.dpos[windowtype])
-        #evt.Skip() # apparently this isn't needed for a move event,
-        # I guess the OS moves the window no matter what you do with the event
-    '''
+
     #def onFilePosLineEdit_textChanged(self, text): # updates immediately
     def on_filePosLineEdit_editingFinished(self): # updates on Enter/loss of focus
         text = str(self.ui.filePosLineEdit.text())
@@ -1808,18 +1801,19 @@ class SpykeWindow(QtGui.QMainWindow):
                 window.panel.plot(wave, tref=self.t) # plot it
 
 
-class DataWindow(QtGui.QDockWidget):
+class DataWindow(QtGui.QMainWindow):
     """Base data window to hold a custom spyke panel widget"""
+    def __init__(self, parent, flags=QtCore.Qt.Tool):
+        QtGui.QMainWindow.__init__(self, parent, flags)
+
     def setupUi(self, pos, size):
-        self.setWidget(self.panel)
-        #self.parent().addDockWidget(QtCore.Qt.RightDockWidgetArea, self)
-        self.setFloating(True)
+        self.setCentralWidget(self.panel)
         self.move(*pos)
         self.resize(*size)
 
     def resizeEvent(self, event):
         """Redraws refs and resaves panel background after resizing the window"""
-        QtGui.QDockWidget.resizeEvent(self, event)
+        QtGui.QMainWindow.resizeEvent(self, event)
         self.panel.draw_refs()
 
     def closeEvent(self, event):

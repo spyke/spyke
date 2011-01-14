@@ -271,19 +271,18 @@ class Visualization(HasTraits):
         #self.scene.mlab.test_points3d()
     '''
 
-class ClusterWindow(QtGui.QDockWidget):
+class ClusterWindow(QtGui.QMainWindow):
     def __init__(self, parent, pos=None, size=None):
-        QtGui.QDockWidget.__init__(self, parent)
+        QtGui.QMainWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         self.setWindowTitle("Cluster Window")
-        self.setFloating(True)
         self.move(*pos)
         self.resize(*size)
 
         # also copied from qt_embedding.py:
         self.vis = Visualization()
         self.ui = self.vis.edit_traits(parent=self, kind='subpanel').control # generates widget to embed
-        self.setWidget(self.ui)
+        self.setCentralWidget(self.ui)
 
         # this is a hack to remove the vtkObserver that catches 'a' and 'c' VTK CharEvents
         # to see all registered observers, print the interactor

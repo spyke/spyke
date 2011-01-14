@@ -809,15 +809,14 @@ class Neuron(object):
     '''
 
 
-class SortWindow(QtGui.QDockWidget):
+class SortWindow(QtGui.QMainWindow):
     """Sort window"""
     def __init__(self, parent, pos=None):
-        QtGui.QDockWidget.__init__(self, parent)
+        QtGui.QMainWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
         size = (MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
         self.setWindowTitle("Sort Window")
-        self.setFloating(True)
         self.move(*pos)
         self.resize(*size)
 
@@ -851,7 +850,7 @@ class SortWindow(QtGui.QDockWidget):
 
         mainwidget = QtGui.QWidget(self)
         mainwidget.setLayout(layout)
-        self.setWidget(mainwidget)
+        self.setCentralWidget(mainwidget)
 
         #QtCore.QMetaObject.connectSlotsByName(self)
 
@@ -923,7 +922,7 @@ class SortWindow(QtGui.QDockWidget):
 
     def resizeEvent(self, event):
         """Redraws refs and resaves panel background after resizing the window"""
-        QtGui.QDockWidget.resizeEvent(self, event)
+        QtGui.QMainWindow.resizeEvent(self, event)
         self.panel.draw_refs()
 
     def closeEvent(self, event):
@@ -949,7 +948,7 @@ class SortWindow(QtGui.QDockWidget):
         elif key == Qt.Key_R:
             self.on_actionSelectRandomSpikes_triggered()
         else:
-            QtGui.QDockWidget.keyPressEvent(self, event) # pass the event on
+            QtGui.QMainWindow.keyPressEvent(self, event) # pass the event on
     '''
     def OnUSListColClick(self, evt):
         """Sort .usids according to column clicked.
