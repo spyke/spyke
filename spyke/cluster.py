@@ -20,6 +20,8 @@ from enthought.mayavi.tools.mlab_scene_model import MlabSceneModel # so does thi
 from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 from enthought.mayavi import mlab
 from enthought.mayavi.tools.engine_manager import get_engine
+
+from core import SpykeToolWindow
 from plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 
@@ -116,10 +118,10 @@ class SpykeMayaviScene(MayaviScene):
         qw.__class__.mouseMoveEvent(qw, event) # pass the event on
 
     def keyPressEvent(self, event):
-        # TODO: standard mayavi/vtk keypress events aren't registering for some reason
-        qw = self._vtk_control
+        qw = self._vtk_control # QWidget
         spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
         sw = spw.windows['Sort']
+        cw = spw.windows['Cluster']
         key = event.key()
         if key in [Qt.Key_S, Qt.Key_Space]:
             # toggle selection of cluster under the cursor
@@ -136,123 +138,11 @@ class SpykeMayaviScene(MayaviScene):
         elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_NumberSign,
                      Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
             sw.keyPressEvent(event) # pass it on to Sort window
+        elif key == Qt.Key_F11:
+            cw.keyPressEvent(event) # pass it on
         else:
-            qw.__class__.keyPressEvent(qw, event) # pass the event on
-    '''
-    def OnKeyDown(self, event):
-        key = event.GetKeyCode()
-        spw = self._spykewindow
-        sw = spw.windows['Spike']
-        if key == ord('a'):
-            spw.CreateCluster(); return
-        #elif key == ord('d'):
-        #    spw.OnDelCluster(); return
-        elif key == ord('x'):
-            # copied over from tvtk.pyface.ui.wx.scene.OnKeyUp
-            x = event.GetX()
-            y = self._vtk_control.GetSize()[1] - event.GetY()
-            # set camera focal point and move current cluster to that point
-            data = self.picker.pick_world(x, y)
-            coord = data.coordinate
-            if coord is not None:
-                self.camera.focal_point = coord
-                self.render()
-                self._record_methods('camera.focal_point = %r\n'\
-                                     'render()'%list(coord))
-            spw.MoveCurrentCluster2Focus()
-            return
-        elif key == ord('c'):
-            spw.OnCutCluster(); return
-        elif key in [ord('s'), wx.WXK_SPACE]:
-            # toggle selection of cluster under the cursor
-            pos = event.GetPosition()
-            x = pos.x
-            y = self._vtk_control.GetSize()[1] - pos.y
-            #x = event.GetX()
-            #y = self._vtk_control.GetSize()[1] - event.GetY()
-            data = self.picker.pick_point(x, y)
-            if data.data != None:
-                scalar = data.data.scalars[0] # just grab the first value
-                if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
-                    nid = int(-(scalar + 1))
-                    all_nids = np.asarray(sorted(spw.sort.neurons))
-                    row, = np.where(all_nids == nid)
-                    assert len(row) == 1
-                    row = row[0] # pull it out of the array
-                    on = not sw.nlist.rowSelected(row) # toggle
-                    sw.nlist.selectRows(row, on=on)
-            return
-        #self._vtk_control.OnKeyDown(event)
+            qw.__class__.keyPressEvent(qw, event) # pass it on
 
-        try: cluster = spw.GetCluster()
-        except RuntimeError:
-            # pass event to parent class
-            MayaviScene.OnKeyDown(self, event)
-        x, y, z = spw.GetClusterPlotDimNames()
-        dim, sign = None, None
-        modifiers = event.GetModifiers()
-        if key == wx.WXK_PAGEDOWN: # inc xdim
-            dim, sign = x, 1
-        elif key == wx.WXK_DELETE: # dec xdim
-            dim, sign = x, -1
-        elif key == wx.WXK_HOME: # inc ydim
-            dim, sign = y, 1
-        elif key == wx.WXK_END: # dec ydim
-            dim, sign = y, -1
-        elif key == wx.WXK_PAGEUP: # inc zdim
-            dim, sign = z, 1
-        elif key == wx.WXK_INSERT: # dec zdim
-            dim, sign = z, -1
-
-        if dim != None and sign != None:
-            if modifiers == wx.MOD_NONE: # adjust pos slowly
-                cluster.pos[dim] += sign * 0.05
-                cluster.update_ellipsoid('pos', dims=(x, y, z))
-            elif modifiers == wx.MOD_NONE|wx.MOD_ALT: # adjust pos quickly
-                cluster.pos[dim] += sign * 0.25
-                cluster.update_ellipsoid('pos', dims=(x, y, z))
-            elif modifiers == wx.MOD_SHIFT: # adjust scale slowly
-                cluster.scale[dim] += sign * 0.05
-                cluster.update_ellipsoid('scale', dims=(x, y, z))
-            elif modifiers == wx.MOD_SHIFT|wx.MOD_ALT: # adjust scale quickly
-                cluster.scale[dim] += sign * 0.25
-                cluster.update_ellipsoid('scale', dims=(x, y, z))
-            elif event.ControlDown(): # adjust ori
-                axes    = {x:(y, z), y:(z, x), z:(x, y)}
-                revaxes = {x:(z, y), y:(x, z), z:(y, x)}
-                if modifiers == wx.MOD_CONTROL: # adjust ori slowly
-                    step = 1
-                elif modifiers == wx.MOD_CONTROL|wx.MOD_ALT: # adjust ori quickly
-                    step = 5
-                if revaxes[dim] in cluster.ori[dim]: # reversed axes already used as a key
-                    cluster.ori[dim][revaxes[dim]] -= sign * step # reverse the ori
-                else:
-                    try:
-                        cluster.ori[dim][axes[dim]] += sign * step # update non-reversed axes entry
-                    except KeyError:
-                        cluster.ori[dim][axes[dim]] = sign * step # add non-reversed axes entry
-                cluster.update_ellipsoid('ori', dims=(x, y, z))
-            # NOTE: wx.MOD_CONTROL in combination with a numeric key press
-            # doesn't seem to trigger a KeyDown event - maybe it triggers
-            # some other kind of event?
-        else:
-            # pass event to parent class
-            MayaviScene.OnKeyDown(self, event)
-
-    def OnKeyUp(self, event):
-        """Update param widgets when param modifying key is released,
-        don't bother updating them when a param modification
-        key is being held down"""
-        key = event.GetKeyCode()
-        if key in [wx.WXK_PAGEDOWN, wx.WXK_DELETE,
-                   wx.WXK_HOME, wx.WXK_END,
-                   wx.WXK_PAGEUP, wx.WXK_INSERT]:
-            spw = self._spykewindow
-            cluster = spw.GetCluster()
-            spw.UpdateParamWidgets(cluster)
-        # pass event to parent class
-        MayaviScene.OnKeyUp(self, event)
-    '''
 
 class Visualization(HasTraits):
     """Don't really understand this.
@@ -271,9 +161,9 @@ class Visualization(HasTraits):
         #self.scene.mlab.test_points3d()
     '''
 
-class ClusterWindow(QtGui.QMainWindow):
+class ClusterWindow(SpykeToolWindow):
     def __init__(self, parent, pos=None, size=None):
-        QtGui.QMainWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
+        SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         self.setWindowTitle("Cluster Window")
         self.move(*pos)
@@ -296,6 +186,11 @@ class ClusterWindow(QtGui.QMainWindow):
 
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Cluster')
+    '''
+    def keyPressEvent(self, event):
+        print('keyPressEvent in cluster window')
+        SpykeToolWindow.keyPressEvent(self, event) # pass it on
+    '''
     '''
     def on_vtkkeypress(self, obj, evt):
         """Custom VTK key press event. Here just for instructive purposes.

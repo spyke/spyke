@@ -661,46 +661,33 @@ class Stream(object):
             kernels.append(kernelrow)
         return kernels
 
-'''
-class SpykeListCtrl(wx.ListCtrl, ListCtrlSelectionManagerMix):
-    """ListCtrl with a couple of extra methods defined"""
-    def __init__(self, *args, **kwargs):
-        wx.ListCtrl.__init__(self, *args, **kwargs)
-        self.lastSelectedIDs = set()
 
-    def RefreshItems(self):
-        """Convenience function - only applicable if self has its wx.LC_VIRTUAL
-        flag set"""
-        wx.ListCtrl.RefreshItems(self, 0, sys.maxint) # refresh all possible items
-        self.Refresh() # repaint the listctrl
+class SpykeToolWindow(QtGui.QMainWindow):
+    """Base class for all of spyke's tool windows"""
+    def __init__(self, parent, flags=Qt.Tool):
+        QtGui.QMainWindow.__init__(self, parent, flags)
+        self.maximized = False
 
-    def DeleteItemByData(self, data):
-        """Delete first item whose first column matches data"""
-        row = self.FindItem(0, str(data)) # start search from row 0
-        assert row != -1, "couldn't find data %r in SpykeListCtrl" % str(data)
-        success = self.DeleteItem(row) # remove from spike listctrl
-        assert success, "couldn't delete data %r from SpykeListCtrl" % str(data)
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_F11:
+            self.toggleMaximized()
+        else:
+            QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
 
-    def ToggleFocusedItem(self):
-        """Toggles selection of focused list item"""
-        itemID = self.GetFocusedItem()
-        if itemID == -1: # no item focused
-            return
-        selectedIDs = self.getSelection()
-        if itemID in selectedIDs: # is already selected
-            self.Select(itemID, on=0) # deselect it
-        else: # isn't selected
-            self.Select(itemID, on=1)
+    def toggleMaximized(self):
+        if not self.maximized:
+            self.normalPos, self.normalSize = self.pos(), self.size()
+            dw = QtGui.QDesktopWidget()
+            rect = dw.availableGeometry(self)
+            self.setGeometry(rect)
+            self.maximized = True
+        else: # restore
+            self.resize(self.normalSize)
+            self.move(self.normalPos)
+            self.maximized = False
 
-    def DeSelectAll(self):
-        """De-select all items"""
-        #rows = self.getSelection()
-        #for row in rows:
-            #self.Select(row, on=False)
-        self.Select(-1, on=False) # -1 signifies all
-'''
-
-# TODO: setting uniformItemSizes improves display performance. not sure what it means though
+# TODO: setting uniformItemSizes improves display performance. not sure what it means though,
 # maybe icon size?
 
 class SpykeListView(QtGui.QListView):

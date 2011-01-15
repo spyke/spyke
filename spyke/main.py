@@ -16,6 +16,7 @@ pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 from climbing import climb # .pyx file
 
 from PyQt4 import QtCore, QtGui, uic
+from PyQt4.QtCore import Qt
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 
 import scipy.stats
@@ -33,7 +34,7 @@ import random
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, intround, MICRO, ClusterChange
+from core import toiter, intround, MICRO, ClusterChange, SpykeToolWindow
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, TRANSWHITEI
@@ -1801,19 +1802,16 @@ class SpykeWindow(QtGui.QMainWindow):
                 window.panel.plot(wave, tref=self.t) # plot it
 
 
-class DataWindow(QtGui.QMainWindow):
+class DataWindow(SpykeToolWindow):
     """Base data window to hold a custom spyke panel widget"""
-    def __init__(self, parent, flags=QtCore.Qt.Tool):
-        QtGui.QMainWindow.__init__(self, parent, flags)
-
     def setupUi(self, pos, size):
         self.setCentralWidget(self.panel)
-        self.move(*pos)
         self.resize(*size)
+        self.move(*pos)
 
     def resizeEvent(self, event):
         """Redraws refs and resaves panel background after resizing the window"""
-        QtGui.QMainWindow.resizeEvent(self, event)
+        SpykeToolWindow.resizeEvent(self, event)
         self.panel.draw_refs()
 
     def closeEvent(self, event):

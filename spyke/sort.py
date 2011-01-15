@@ -21,7 +21,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
-from core import NList, NSList, USList, ClusterChange
+from core import SpykeToolWindow, NList, NSList, USList, ClusterChange
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -809,10 +809,10 @@ class Neuron(object):
     '''
 
 
-class SortWindow(QtGui.QMainWindow):
+class SortWindow(SpykeToolWindow):
     """Sort window"""
     def __init__(self, parent, pos=None):
-        QtGui.QMainWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
+        SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
         size = (MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
@@ -922,7 +922,7 @@ class SortWindow(QtGui.QMainWindow):
 
     def resizeEvent(self, event):
         """Redraws refs and resaves panel background after resizing the window"""
-        QtGui.QMainWindow.resizeEvent(self, event)
+        SpykeToolWindow.resizeEvent(self, event)
         self.panel.draw_refs()
 
     def closeEvent(self, event):
@@ -948,7 +948,7 @@ class SortWindow(QtGui.QMainWindow):
         elif key == Qt.Key_R:
             self.on_actionSelectRandomSpikes_triggered()
         else:
-            QtGui.QMainWindow.keyPressEvent(self, event) # pass the event on
+            SpykeToolWindow.keyPressEvent(self, event) # pass it on
     '''
     def OnUSListColClick(self, evt):
         """Sort .usids according to column clicked.
