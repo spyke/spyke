@@ -92,6 +92,7 @@ class SpykeMayaviScene(MayaviScene):
         # probably not the best way to do this, but works:
         qw.mouseMoveEvent = self.mouseMoveEvent
         qw.keyPressEvent = self.keyPressEvent
+        qw.mouseDoubleClickEvent = self.mouseDoubleClickEvent
 
     def mouseMoveEvent(self, event):
         """Pop up a nid tooltip on mouse movement"""
@@ -142,6 +143,23 @@ class SpykeMayaviScene(MayaviScene):
             cw.keyPressEvent(event) # pass it on
         else:
             qw.__class__.keyPressEvent(qw, event) # pass it on
+
+    def mouseDoubleClickEvent(self, event):
+        """Clear selection and select cluster under the cursor, if any"""
+        qw = self._vtk_control # QWidget
+        spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
+        sw = spw.windows['Sort']
+        sw.nlist.clearSelection()
+        globalPos = QtGui.QCursor.pos()
+        pos = qw.mapFromGlobal(globalPos)
+        x = pos.x()
+        y = qw.size().height() - pos.y()
+        data = self.picker.pick_point(x, y)
+        if data.data != None:
+            scalar = data.data.scalars[0] # just grab the first value
+            if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+                nid = int(-(scalar + 1))
+                spw.SelectClusters(nid)
 
 
 class Visualization(HasTraits):

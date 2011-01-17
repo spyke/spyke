@@ -1615,5 +1615,54 @@
   </action>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>xDimComboBox</sender>
+   <signal>currentIndexChanged(QString)</signal>
+   <receiver>plotButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>357</x>
+     <y>197</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>369</x>
+     <y>278</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>yDimComboBox</sender>
+   <signal>currentIndexChanged(QString)</signal>
+   <receiver>plotButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>357</x>
+     <y>222</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>369</x>
+     <y>278</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>zDimComboBox</sender>
+   <signal>currentIndexChanged(QString)</signal>
+   <receiver>plotButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>357</x>
+     <y>247</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>369</x>
+     <y>278</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

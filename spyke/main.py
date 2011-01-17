@@ -52,7 +52,7 @@ CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
 METACITYHACK = 29 # metacity has vertical placement issues
 PYSHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
-CLUSTERWINDOWSIZE = 535, 535
+CLUSTERWINDOWSIZE = 879, 687
 
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 PYSHELLCFGFNAME = 'pyshell_cfg'
@@ -830,7 +830,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
-        """Cluster pane plot button click"""
+        """Cluster pane plot button click. Plot points, cluster ellipsoids,
+        and colour the points according to their clusters."""
         dims = self.GetClusterPlotDimNames()
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         X = self.sort.get_param_matrix(dims=dims)
@@ -843,6 +844,7 @@ class SpykeWindow(QtGui.QMainWindow):
         clusters = self.sort.clusters.values()
         for cluster in clusters:
             cluster.update_ellipsoid(dims=dims)
+        self.ColourPoints(clusters)
         #self.UpdateClustersGUI()
 
     def OnCutCluster(self, evt=None):
@@ -1514,8 +1516,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 y = self.pos().y()
                 window = SortWindow(parent=self, pos=(x, y))
             elif windowtype == 'Cluster':
-                x = self.pos().x() + self.SPIKEWINDOWWIDTH
-                y = self.pos().y() + self.size().height() + METACITYHACK
+                x = self.pos().x() + self.size().width() + self.windows['Sort'].size().height()
+                y = self.pos().y()
                 from cluster import ClusterWindow # can't delay this any longer
                 window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
             self.windows[windowtype] = window

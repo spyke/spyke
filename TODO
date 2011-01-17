@@ -6,7 +6,7 @@ QT rewrite:
 
 - themed icons - can do it now using QIcon.fromTheme(), but should be much easier once it's integrated into Qt Designer in 4.8: http://bugreports.qt.nokia.com/browse/QTBUG-7777
 
-- turn uslist (and maybe nslist) into multicolumn table
+- turn uslist (and maybe nslist) into multicolumn table, or just use tooltips to display other params, and a context menu to allow you to sort by those params
 
 - make data and sort pane tooltips instantaneous, ie use mouseMoveEvent like for cluster pane
     - this would also remove need to set focus to the appropriate window to get the tooltip. All you'd need to do is hover
@@ -17,16 +17,9 @@ QT rewrite:
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
 
-- make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
-    - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
-    - programatically resize the cluster window to take up the full screen on F11. Maybe override the little dock/undock button to do the same. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
-    - maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
-    - for ease of setting fullscreen or maximized state, might need to change window type to proper window, ie QDialog, or widget with Qt::Window flag set
 
-- add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
-    - hm, or why can't you just check for clusters and auto colour them each time plot is hit?
 
-- update cluster plot immediately on dim change (fix OnDim)
+
 
 
 ---------------
@@ -59,6 +52,14 @@ QT rewrite DONE:
     - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
     - using direct base class calling instead of super() fixed this
     - on R keypress, select random sample of current cluster's spikes. This way you don't have to go manually selecting spikes to evaluate cluster cleanliness. Also, this way, every time you hit R, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
+- make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
+    - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
+    - programatically resize the cluster window to take up the full screen on F11. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
+    - for ease of setting fullscreen or maximized state, might need to change window type to proper window, ie QDialog, or widget with Qt::Window flag set
+- update cluster plot immediately on dim change
+- add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
+    - hm, or why can't you just check for clusters and auto colour them each time plot is hit? Indeed!
+- maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
 
 
 ----------------

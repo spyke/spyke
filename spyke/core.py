@@ -675,6 +675,11 @@ class SpykeToolWindow(QtGui.QMainWindow):
         else:
             QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
 
+    def mouseDoubleClickEvent(self, event):
+        """Doesn't catch window titlebar doubleclicks for some reason. Have to
+        doubleclick on a part of the window with no widgets in it"""
+        self.toggleMaximized()
+
     def toggleMaximized(self):
         if not self.maximized:
             self.normalPos, self.normalSize = self.pos(), self.size()
