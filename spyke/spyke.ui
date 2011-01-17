@@ -1072,6 +1072,21 @@
            <string>Vpp</string>
           </property>
          </item>
+         <item>
+          <property name="text">
+           <string>t</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>sx</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>dphase</string>
+          </property>
+         </item>
         </widget>
         <widget class="QComboBox" name="yDimComboBox">
          <property name="geometry">
@@ -1100,6 +1115,21 @@
            <string>Vpp</string>
           </property>
          </item>
+         <item>
+          <property name="text">
+           <string>t</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>sx</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>dphase</string>
+          </property>
+         </item>
         </widget>
         <widget class="QComboBox" name="zDimComboBox">
          <property name="geometry">
@@ -1126,6 +1156,21 @@
          <item>
           <property name="text">
            <string>Vpp</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>t</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>sx</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>dphase</string>
           </property>
          </item>
         </widget>
