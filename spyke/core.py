@@ -52,6 +52,9 @@ CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
 INVPI = 1 / pi
 
+INITIALFETCHSIZE = 500
+FETCHSIZE = 500
+
 
 class Converter(object):
     """Simple object to store intgain and extgain values and
@@ -692,8 +695,6 @@ class SpykeToolWindow(QtGui.QMainWindow):
             self.move(self.normalPos)
             self.maximized = False
 
-# TODO: setting uniformItemSizes improves display performance. not sure what it means though,
-# maybe icon size?
 
 class SpykeListView(QtGui.QListView):
     def __init__(self, parent):
@@ -701,6 +702,9 @@ class SpykeListView(QtGui.QListView):
         self.sortwin = parent
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        #self.setLayoutMode(self.Batched) # makes scrollbar wonky in combination with fetchMore
+        #self.setResizeMode(self.Adjust)
+        self.setUniformItemSizes(True) # speeds up listview
 
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
@@ -722,7 +726,7 @@ class SpykeListView(QtGui.QListView):
         self.model().updateAll()
 
     def get_nrows(self):
-        return self.model().rowCount()
+        return self.model().trueRowCount()
 
     nrows = property(get_nrows)
 
@@ -761,7 +765,7 @@ class NList(SpykeListView):
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
         selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
-        if len(selnids) == 1:
+        if len(selnids) == 1: # populate nslist if exactly 1 neuron is selected
             self.sortwin.nslist.neuron = self.sortwin.sort.neurons[selnids[0]]
         else:
             self.sortwin.nslist.neuron = None
@@ -775,10 +779,6 @@ class NSList(SpykeListView):
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
-
-    def reset(self):
-        SpykeListView.reset(self)
-        self.neuron = None
 
     def get_neuron(self):
         return self.model().neuron
@@ -805,6 +805,12 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
     def __init__(self, parent):
         QtCore.QAbstractListModel.__init__(self, parent)
         self.sortwin = parent
+        self.nfetched = 0 # should be reset to 0 in self.reset(), maybe between being and end
+
+    def reset(self):
+        self.beginResetModel()
+        self.nfetched = 0
+        self.endResetModel()
 
     def updateAll(self):
         """Emit dataChanged signal so that view updates itself immediately.
@@ -813,11 +819,38 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
         i1 = self.createIndex(self.rowCount()-1, 0) # seems this isn't necessary
         #self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
         self.dataChanged.emit(i0, i1) # refresh all
+    """
+    All this fetchMore stuff is crap: you need to artificially have rowCount() return only
+    the number of items you've fetched so far, and inc it every time you fetch another batch.
+    This sucks, cuz the scrollbar length doesn't correspond to the actual number of items in the
+    list, and there's no way for the user to quickly scroll to the end of the list - not even
+    END works. I can't believe Qt doesn't have something equivalent to Wx's virtual list
+    """
+    def rowCount(self, parent=None):
+        return self.nfetched
+
+    def canFetchMore(self, index):
+        if self.nfetched < self.trueRowCount():
+            return True
+        else:
+            return False
+
+    def fetchMore(self, index):
+        remaining = self.trueRowCount() - self.nfetched
+        if self.nfetched == 0:
+            fetchsize = INITIALFETCHSIZE
+        else:
+            fetchsize = FETCHSIZE
+        ntofetch = min(fetchsize, remaining)
+        self.beginInsertRows(index, self.nfetched, self.nfetched+ntofetch)
+        self.nfetched += ntofetch
+        self.endInsertRows()
+        #print('done fetchmore: fetched: %d, self.nfetched: %d, remaining: %d' % (ntofetch, self.nfetched, self.trueRowCount() - self.nfetched))
 
 
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
-    def rowCount(self, parent=None):
+    def trueRowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.neurons)
         except AttributeError: # sort doesn't exist
@@ -845,11 +878,11 @@ class NSListModel(SpykeAbstractListModel):
     def set_neuron(self, neuron):
         """Automatically update when neuron is bound"""
         self._neuron = neuron
-        self.updateAll()
+        self.reset()
 
     neuron = property(get_neuron, set_neuron)
 
-    def rowCount(self, parent=None):
+    def trueRowCount(self, parent=None):
         if self.neuron: # not None
             return len(self.neuron.sids)
         else:
@@ -862,7 +895,7 @@ class NSListModel(SpykeAbstractListModel):
 
 class USListModel(SpykeAbstractListModel):
     """Model for unsorted spike list view"""
-    def rowCount(self, parent=None):
+    def trueRowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.usids)
         except AttributeError: # sort doesn't exist
@@ -872,52 +905,6 @@ class USListModel(SpykeAbstractListModel):
         if role == Qt.DisplayRole and index.isValid():
             return int(self.sortwin.sort.usids[index.row()])
 
-
-'''
-class NListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl for displaying neurons.
-    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
-    def __init__(self, *args, **kwargs):
-        SpykeListCtrl.__init__(self, *args, **kwargs)
-        self.InsertColumn(0, 'nID')
-        self.SetColumnWidth(0, 29)
-        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-
-    def OnKeyDown(self, evt):
-        key = evt.GetKeyCode()
-        if key == wx.WXK_DELETE:
-            self.GetTopLevelParent().spykeframe.OnDelCluster()
-        evt.Skip()
-
-    def OnGetItemText(self, row, col):
-        sort = self.GetTopLevelParent().sort
-        # TODO: could almost assume sort.neurons dict is ordered, since it always seems to be
-        nids = sorted(sort.neurons)
-        return nids[row]
-'''
-'''
-class CListCtrl(SpykeListCtrl):
-    """A virtual ListCtrl for displaying clusters.
-    (Clusters map 1 to 1 with neurons.)
-    The wx.LC_VIRTUAL flag is set in wxglade_gui.py"""
-    def __init__(self, *args, **kwargs):
-        SpykeListCtrl.__init__(self, *args, **kwargs)
-        #self.InsertColumn(0, 'nID')
-        self.SetColumnWidth(0, 22)
-        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-
-    def OnKeyDown(self, evt):
-        key = evt.GetKeyCode()
-        if key == wx.WXK_DELETE:
-            self.GetTopLevelParent().OnDelCluster()
-        evt.Skip()
-
-    def OnGetItemText(self, row, col):
-        sort = self.GetTopLevelParent().sort
-        # TODO: could almost assume sort.clusters dict is ordered, since it always seems to be
-        cids = sorted(sort.clusters)
-        return cids[row]
-'''
 
 class Stack(list):
     """A list that doesn't allow -ve indices"""

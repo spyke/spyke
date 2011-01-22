@@ -84,7 +84,6 @@ PLOTZORDER = 4
 def get_wave(obj, sort=None):
     """Return object's waveform, whether a spike record or a neuron,
     taken from sort.wavedata or sort.stream"""
-    assert sort != None
     if type(obj) != np.void: # it's a Neuron
         n = obj
         if n.wave == None or n.wave.data == None:
@@ -93,6 +92,7 @@ def get_wave(obj, sort=None):
         else:
             return n.wave # return existing neuron waveform
     # it's a spike record
+    assert sort != None
     s = obj
     sid = int(s['id'])
     wave = sort.get_wave(sid)
@@ -1063,7 +1063,7 @@ class SortPanel(PlotPanel):
             width = NEURONLINEWIDTH
             n.plt = plt # bind plot to neuron
             plt.n = n # bind neuron to plot
-            wave = get_wave(n, sort=self.spykeframe.sort) # calls n.update_wave() if necessary
+            wave = get_wave(n) # calls n.update_wave() if necessary
         else: # item[0] == 's' # it's a spike
             t = sort.spikes['t'][id]
             nid = sort.spikes['nid'][id]

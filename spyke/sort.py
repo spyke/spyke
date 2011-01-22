@@ -638,8 +638,8 @@ class Neuron(object):
             #return self.wave
         sids = self.sids
         if len(sids) > MEANWAVESAMPLESIZE:
-            print('Taking random sample of %d spikes instead of all %d of them'
-                  % (MEANWAVESAMPLESIZE, len(sids)))
+            print('neuron %d: taking random sample of %d spikes instead of all %d of them'
+                  % (self.id, MEANWAVESAMPLESIZE, len(sids)))
             sids = np.asarray(random.sample(sids, MEANWAVESAMPLESIZE))
 
         chanss = spikes['chans'][sids]
@@ -1004,7 +1004,7 @@ class SortWindow(SpykeToolWindow):
         print(cc.message)
 
     def on_actionMergeClusters_triggered(self):
-        """Merge button (^) click. For simple merging of clusters, easier to
+        """Merge button (M) click. For simple merging of clusters, easier to
         use than running climb() on selected clusters using a really big sigma to force
         them to all merge"""
         spw = self.spykewindow
