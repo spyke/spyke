@@ -95,9 +95,10 @@ class SpykeMayaviScene(MayaviScene):
         qw.mouseDoubleClickEvent = self.mouseDoubleClickEvent
 
     def mouseMoveEvent(self, event):
-        """Pop up a nid tooltip on mouse movement"""
+        """Pop up a nid or sid tooltip on mouse movement"""
         #QtGui.QToolTip.hideText() # hide first if you want tooltip to move even when text is unchanged
         qw = self._vtk_control
+        spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
         if event.buttons() != Qt.NoButton: # don't show tooltip if mouse buttons are pressed
             QtGui.QToolTip.hideText()
             qw.__class__.mouseMoveEvent(qw, event) # pass the event on
@@ -107,13 +108,19 @@ class SpykeMayaviScene(MayaviScene):
         y = qw.size().height() - pos.y()
         data = self.picker.pick_point(x, y)
         if data.data != None:
-            scalar = data.data.scalars[0] # just grab the first value
-            if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+            # points making up ellipsoid glyph have identical scalars, grab the first value
+            scalar = data.data.scalars[0]
+            dims = spw.GetClusterPlotDimNames()
+            if scalar < 0: # -ve scalars signify clusters
                 nid = int(-(scalar + 1))
-                tip = 'nid: %d' % nid
-                QtGui.QToolTip.showText(event.globalPos(), tip)
-            else:
-                QtGui.QToolTip.hideText()
+                tip = 'nid: %d\n' % nid
+                tip += 'normed %r: %r' % (dims, [ spw.sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+            else: # +ve scalars signify plotted points
+                sid = data.point_id
+                tip = 'sid: %d\n' % sid
+                tip += 'nid: %d\n' % spw.sort.spikes[sid]['nid']
+                tip += '%r: %r' % (dims, [ spw.sort.spikes[sid][dim] for dim in dims ])
+            QtGui.QToolTip.showText(event.globalPos(), tip)
         else:
             QtGui.QToolTip.hideText()
         qw.__class__.mouseMoveEvent(qw, event) # pass the event on
@@ -132,15 +139,19 @@ class SpykeMayaviScene(MayaviScene):
             y = qw.size().height() - pos.y()
             data = self.picker.pick_point(x, y)
             if data.data != None:
-                scalar = data.data.scalars[0] # just grab the first value
-                if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+                # points making up ellipsoid glyph have identical scalars, grab the first value
+                scalar = data.data.scalars[0]
+                if scalar < 0: # -ve scalars signify clusters
                     nid = int(-(scalar + 1))
                     spw.ToggleCluster(nid)
+                else: # +ve scalars signify plotted points
+                    sid = data.point_id
+                    spw.ToggleSpike(sid) # toggle its cluster too, if any
         elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_NumberSign,
                      Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
             sw.keyPressEvent(event) # pass it on to Sort window
         elif key == Qt.Key_F11:
-            cw.keyPressEvent(event) # pass it on
+            cw.keyPressEvent(event) # pass it on to Cluster window
         else:
             qw.__class__.keyPressEvent(qw, event) # pass it on
 
@@ -200,7 +211,7 @@ class ClusterWindow(SpykeToolWindow):
 
         self.f = get_engine().current_scene
         self.f.scene.background = 0, 0, 0 # set it to black
-        self.f.scene.picker.tolerance = 0.0025
+        self.f.scene.picker.tolerance = 0.0012
 
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Cluster')

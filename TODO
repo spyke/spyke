@@ -30,7 +30,7 @@ RECENT:
 
 - add a "cluster unsampled spikes" option (default checked) to allow fast test clustering with low sampling using various params, without wasting time assigning unsampled spikes after gradient ascent is done
 
-- gradient vector calculation step doesn't appear to be multithreaded in track wide sort for some reason, MTthresh is wrong?
+- gradient vector calculation step doesn't appear to be multithreaded in track-wide sort for some reason, MTthresh is wrong?
 
 - I know I've been through this before, but why are neuron.sids int64? int32 should be enough, no?
 
@@ -916,6 +916,9 @@ QT rewrite DONE:
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
     - hm, or why can't you just check for clusters and auto colour them each time plot is hit? Indeed!
 - maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
+- if the nearest glyph is a point and not an ellipsoid, and if that point belongs to a cluster, select that cluster - getting too many mis-hits when selecting clusters, especially dense clusters
+    - same goes for cluster tooltips
+
 
 
 

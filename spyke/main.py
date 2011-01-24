@@ -744,15 +744,35 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def ToggleCluster(self, cluster):
         """Toggle selection of given cluster"""
+        sw = self.windows['Sort']
         try:
             nid = cluster.id
         except AttributeError: # assume it's an int
             nid = cluster
         all_nids = sorted(self.sort.neurons)
         row = all_nids.index(nid)
-        nlist = self.windows['Sort'].nlist
-        on = not nlist.rowSelected(row)
-        nlist.selectRows(row, on=on)
+        on = not sw.nlist.rowSelected(row)
+        sw.nlist.selectRows(row, on=on)
+        return on
+
+    def ToggleSpike(self, sid):
+        """Toggle selection of given spike, as well as its current cluster, if any"""
+        sw = self.windows['Sort']
+        nid = self.sort.spikes[sid]['nid']
+        if nid == -1: # it's unclustered
+            row, = np.where(self.sort.usids == sid)
+            #row = int(row)
+            on = not sw.uslist.rowSelected(row)
+            sw.uslist.selectRows(row, on=on)
+        else: # it's clustered
+            all_nids = sorted(self.sort.neurons)
+            row = all_nids.index(nid)
+            on = not sw.nlist.rowSelected(row)
+            sw.nlist.selectRows(row, on=on)
+            if on: # select the spike in the nslist as well
+                row, = np.where(self.sort.neurons[nid].sids == sid)
+                sw.nslist.selectRows(row, on=on)
+        return on
 
     def CreateCluster(self, update=True, id=None):
         """Create a new cluster, add it to the GUI, return it"""
