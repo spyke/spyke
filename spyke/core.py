@@ -52,9 +52,6 @@ CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
 INVPI = 1 / pi
 
-INITIALFETCHSIZE = 500
-FETCHSIZE = 500
-
 
 class Converter(object):
     """Simple object to store intgain and extgain values and
@@ -679,8 +676,8 @@ class SpykeToolWindow(QtGui.QMainWindow):
             QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
 
     def mouseDoubleClickEvent(self, event):
-        """Doesn't catch window titlebar doubleclicks for some reason. Have to
-        doubleclick on a part of the window with no widgets in it"""
+        """Doesn't catch window titlebar doubleclicks for some reason (window manager
+        catches them?). Have to doubleclick on a part of the window with no widgets in it"""
         self.toggleMaximized()
 
     def toggleMaximized(self):
@@ -702,7 +699,7 @@ class SpykeListView(QtGui.QListView):
         self.sortwin = parent
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
-        #self.setLayoutMode(self.Batched) # makes scrollbar wonky in combination with fetchMore
+        self.setLayoutMode(self.Batched)
         #self.setResizeMode(self.Adjust)
         self.setUniformItemSizes(True) # speeds up listview
 
@@ -726,7 +723,7 @@ class SpykeListView(QtGui.QListView):
         self.model().updateAll()
 
     def get_nrows(self):
-        return self.model().trueRowCount()
+        return self.model().rowCount()
 
     nrows = property(get_nrows)
 
@@ -769,6 +766,7 @@ class NList(SpykeListView):
             self.sortwin.nslist.neuron = self.sortwin.sort.neurons[selnids[0]]
         else:
             self.sortwin.nslist.neuron = None
+        self.sortwin.nslist.model().reset()
 
 
 class NSList(SpykeListView):
@@ -805,12 +803,6 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
     def __init__(self, parent):
         QtCore.QAbstractListModel.__init__(self, parent)
         self.sortwin = parent
-        self.nfetched = 0 # should be reset to 0 in self.reset(), maybe between being and end
-
-    def reset(self):
-        self.beginResetModel()
-        self.nfetched = 0
-        self.endResetModel()
 
     def updateAll(self):
         """Emit dataChanged signal so that view updates itself immediately.
@@ -819,38 +811,11 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
         i1 = self.createIndex(self.rowCount()-1, 0) # seems this isn't necessary
         #self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
         self.dataChanged.emit(i0, i1) # refresh all
-    """
-    All this fetchMore stuff is crap: you need to artificially have rowCount() return only
-    the number of items you've fetched so far, and inc it every time you fetch another batch.
-    This sucks, cuz the scrollbar length doesn't correspond to the actual number of items in the
-    list, and there's no way for the user to quickly scroll to the end of the list - not even
-    END works. I can't believe Qt doesn't have something equivalent to Wx's virtual list
-    """
-    def rowCount(self, parent=None):
-        return self.nfetched
-
-    def canFetchMore(self, index):
-        if self.nfetched < self.trueRowCount():
-            return True
-        else:
-            return False
-
-    def fetchMore(self, index):
-        remaining = self.trueRowCount() - self.nfetched
-        if self.nfetched == 0:
-            fetchsize = INITIALFETCHSIZE
-        else:
-            fetchsize = FETCHSIZE
-        ntofetch = min(fetchsize, remaining)
-        self.beginInsertRows(index, self.nfetched, self.nfetched+ntofetch)
-        self.nfetched += ntofetch
-        self.endInsertRows()
-        #print('done fetchmore: fetched: %d, self.nfetched: %d, remaining: %d' % (ntofetch, self.nfetched, self.trueRowCount() - self.nfetched))
 
 
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
-    def trueRowCount(self, parent=None):
+    def rowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.neurons)
         except AttributeError: # sort doesn't exist
@@ -870,19 +835,12 @@ class NSListModel(SpykeAbstractListModel):
     """Model for neuron spikes list view"""
     def __init__(self, parent):
         SpykeAbstractListModel.__init__(self, parent)
-        self._neuron = None # needs to be set externally every time neuron selection changes
+        # needs to be set externally every time neuron selection changes
+        # don't use a property to do this automatically, since that slows
+        # down populating the nslist
+        self.neuron = None
 
-    def get_neuron(self):
-        return self._neuron
-
-    def set_neuron(self, neuron):
-        """Automatically update when neuron is bound"""
-        self._neuron = neuron
-        self.reset()
-
-    neuron = property(get_neuron, set_neuron)
-
-    def trueRowCount(self, parent=None):
+    def rowCount(self, parent=None):
         if self.neuron: # not None
             return len(self.neuron.sids)
         else:
@@ -895,7 +853,7 @@ class NSListModel(SpykeAbstractListModel):
 
 class USListModel(SpykeAbstractListModel):
     """Model for unsorted spike list view"""
-    def trueRowCount(self, parent=None):
+    def rowCount(self, parent=None):
         try:
             return len(self.sortwin.sort.usids)
         except AttributeError: # sort doesn't exist

@@ -3,16 +3,16 @@ import sys
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 
-NITEMS = 400000
-INITIALFETCHSIZE = 5000
-FETCHSIZE = 2000
+NITEMS = 729863
+#INITIALFETCHSIZE = 5000
+#FETCHSIZE = 2000
 
 class TestWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QMainWindow.__init__(self)
         self.list = TestListView(self)
         self.setCentralWidget(self.list)
-
+        self.resize(150, 500)
 
 class TestListView(QtGui.QListView):
     def __init__(self, parent):
@@ -20,7 +20,7 @@ class TestListView(QtGui.QListView):
         self.setModel(TestListModel(parent))
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
-        #self.setLayoutMode(self.Batched)
+        self.setLayoutMode(self.Batched)
         #self.setResizeMode(self.Adjust)
         self.setUniformItemSizes(True) # speeds up listview
 
@@ -28,7 +28,7 @@ class TestListView(QtGui.QListView):
 class TestListModel(QtCore.QAbstractListModel):
     def __init__(self, parent):
         QtCore.QAbstractListModel.__init__(self, parent)
-        self.nfetched = 0 # should be reset to 0 in self.reset(), maybe between begin and end
+        #self.nfetched = 0 # should be reset to 0 in self.reset(), maybe between begin and end
 
     '''
     def updateAll(self):
@@ -41,16 +41,16 @@ class TestListModel(QtCore.QAbstractListModel):
         self.dataChanged.emit(i0, i1) # refresh all
     '''
     def rowCount(self, parent=None):
-        #return NITEMS
-        return self.nfetched
-
+        return NITEMS
+        #return self.nfetched
+    '''
     def trueRowCount(self):
         return NITEMS
-
+    '''
     def data(self, index, role=Qt.DisplayRole):
         if role == Qt.DisplayRole and index.isValid():
             return index.row()
-
+    '''
     def canFetchMore(self, index):
         if self.nfetched < self.trueRowCount():
             return True
@@ -68,7 +68,7 @@ class TestListModel(QtCore.QAbstractListModel):
         self.nfetched += nitemstofetch
         self.endInsertRows()
         print('done fetchmore: fetched: %d, self.nfetched: %d, remaining: %d' % (nitemstofetch, self.nfetched, self.trueRowCount() - self.nfetched))
-
+    '''
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)

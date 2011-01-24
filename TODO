@@ -18,6 +18,7 @@ QT rewrite:
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
 
 - yup, populating an nslist with 100s of thousands of entries is slow, and uses 100% CPU. setting UniformItemSizes to True and layoutMode to Batched helps. Messed around with fetchMore and canFetchMore and rowCount, but that's just a shitty hack (see fetchMore Qt example - scrollbar doesn't work properly, can't easily scroll to the end). It seems there's no way to display a huge list immediately, irrespective of the number of entries in it, like you can with Wx's virtual list. Very disappointing.
+    - why does nslist take longer to populate than a same-sized demo listview in listview_test.py?
 
 
 
