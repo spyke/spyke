@@ -655,7 +655,7 @@
          <rect>
           <x>5</x>
           <y>5</y>
-          <width>266</width>
+          <width>291</width>
           <height>186</height>
          </rect>
         </property>
@@ -974,7 +974,7 @@
          <property name="geometry">
           <rect>
            <x>205</x>
-           <y>160</y>
+           <y>115</y>
            <width>56</width>
            <height>27</height>
           </rect>
@@ -983,11 +983,33 @@
           <string>Cluster</string>
          </property>
         </widget>
+        <widget class="QCheckBox" name="clusterunsampledspikesCheckBox">
+         <property name="geometry">
+          <rect>
+           <x>205</x>
+           <y>65</y>
+           <width>86</width>
+           <height>51</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Clearing this is useful for quickly finding optimal
+parameter values when you have a lot of spikes</string>
+         </property>
+         <property name="text">
+          <string>cluster
+unsampled 
+spikes</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
        </widget>
        <widget class="QGroupBox" name="groupBox_5">
         <property name="geometry">
          <rect>
-          <x>275</x>
+          <x>300</x>
           <y>5</y>
           <width>116</width>
           <height>186</height>

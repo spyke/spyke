@@ -527,6 +527,7 @@ class SpykeWindow(QtGui.QMainWindow):
         results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
                         rneighx=s.rneighx, nsamples=s.nsamples,
                         calcpointdensities=False, calcscoutdensities=False,
+                        clusterunsampledpoints=s.clusterunsampledspikes,
                         minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
         cids, scoutpositions, densities, scoutdensities, sampleis = results
@@ -1589,6 +1590,7 @@ class SpykeWindow(QtGui.QMainWindow):
         s.nsamples = ui.nsamplesSpinBox.value()
         s.maxstill = ui.maxstillSpinBox.value()
         s.minpoints = ui.minpointsSpinBox.value()
+        s.clusterunsampledspikes = ui.clusterunsampledspikesCheckBox.isChecked()
 
     def update_gui_from_sort(self):
         ui = self.ui

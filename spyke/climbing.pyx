@@ -24,8 +24,8 @@ cdef extern from "stdio.h":
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis=np.zeros(0, dtype=np.int32),
           double sigma=0.25, double alpha=1.0, double rmergex=1.0,
-          double rneighx=4, int nsamples=0,
-          bint calcpointdensities=True, bint calcscoutdensities=True,
+          double rneighx=4, int nsamples=0, bint clusterunsampledpoints=True,
+          bint calcpointdensities=False, bint calcscoutdensities=False,
           double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
@@ -185,7 +185,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     printf('\n')
 
-    if nsamples != N: # if subsampling, assign unclustered points to nearest clustered point
+    # if subsampling yet still want to cluster all points, assign unclustered
+    # points to nearest clustered point
+    if nsamples != N and clusterunsampledpoints:
         print('Finding nearest clustered point for each unclustered point')
         t0 = time.time()
         span(lohi, 0, N, ncpus) # modify lohi in place

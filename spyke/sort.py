@@ -931,7 +931,8 @@ class SortWindow(SpykeToolWindow):
         scrolling down to and selecting list items. However, the appropriate alpha keypresses have
         been set in the child lists to be ignored, so they propagate up to here"""
         key = event.key()
-        if key == Qt.Key_Escape: # deselect all clusters
+        if key == Qt.Key_Escape: # deselect all spikes and all clusters
+            self.uslist.clearSelection()
             self.nlist.clearSelection()
         elif key == Qt.Key_Delete:
             self.on_actionDeleteClusters_triggered()
