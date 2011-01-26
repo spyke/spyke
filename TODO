@@ -36,8 +36,6 @@ RECENT:
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records
 
-- demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
-
 - add DeleteAll for clusters, maybe Shift+'-'?
     - this should also delete all undo/redo history, to save memory and time
     - can't figure out how to check for Shift modifier on GUI button click, since the event is a CommandEvent, not a Mouse or Key event
@@ -866,6 +864,8 @@ DONE:
     - looks like timestamps of user message records generated during a period when data wasn't actively being recorded to disk are messed up in Surf, and given a TimeStamp of 0, even when the clock is still running during a pause. Their datetime stamps seem correct though. So, I shoud avoid using user message records to calculate the datetime of the start of acquisition in each .srf file
 - create a TrackStream and do one super huge spike sorting on all spikes from all recordings in a given track, but then export them back out one recording at a time, per usual
     - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
+- demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
+    - add a cluster.updatePosScale() method for updating both raw and normalized pos and size based on median and stdev of up to samplesize spikes belonging to neuron. Call this after clustering, reclustering, and merging
 
 
 

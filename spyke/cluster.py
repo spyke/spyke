@@ -8,6 +8,7 @@ __authors__ = ['Martin Spacek']
 #os.environ['ETS_TOOLKIT'] = 'qt4'
 import sys
 import time
+import random
 import numpy as np
 
 from PyQt4 import QtCore, QtGui
@@ -24,6 +25,8 @@ from enthought.mayavi.tools.engine_manager import get_engine
 from core import SpykeToolWindow
 from plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
+CLUSTERPARAMSAMPLESIZE = 1000
+
 
 class Cluster(object):
     """Just a simple container for multidim ellipsoid parameters. A
@@ -32,13 +35,13 @@ class Cluster(object):
         self.neuron = neuron
         self.ellipsoid = ellipsoid
         # cluster attribs store true values of each dim
-        self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
+        self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'dphase':0, 't':0, 's0':0, 's1':0}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
-        self.ori = {'x0':{}, 'y0':{}, 'sx':{}, 'sy':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'w0':{}, 'w1':{}, 'w2':{}, 'w3':{}, 'w4':{}, 'dphase':{}, 't':{}, 's0':{}, 's1':{}, 'mVpp':{}, 'mV0':{}, 'mV1':{}, 'mdphase':{}}
+        self.ori = {'x0':{}, 'y0':{}, 'sx':{}, 'sy':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'dphase':{}, 't':{}, 's0':{}, 's1':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':0.25, 'y0':0.25, 'sx':0, 'sy':0, 'Vpp':0.25, 'V0':0, 'V1':0, 'w0':0, 'w1':0, 'w2':0, 'w3':0, 'w4':0, 'dphase':0, 't':0, 's0':0, 's1':0, 'mVpp':0, 'mV0':0, 'mV1':0, 'mdphase':0}
+        self.scale = {'x0':0.25, 'y0':0.25, 'sx':0, 'sy':0, 'Vpp':0.25, 'V0':0, 'V1':0, 'dphase':0, 't':0, 's0':0, 's1':0}
 
     def get_id(self):
         return self.neuron.id
@@ -47,6 +50,58 @@ class Cluster(object):
         self.neuron.id = id
 
     id = property(get_id, set_id)
+
+    def updatePosScale(self, dims=None, nsamples=CLUSTERPARAMSAMPLESIZE):
+        """Update normalized cluster position and scale for specified dims. Use median
+        instead of mean to reduce influence of outliers on cluster position.
+        Subsample for speed"""
+        sort = self.neuron.sort
+        spikes = sort.spikes
+        if dims == None: # use all of them
+            dims = list(self.pos) # some of these might not exist in spikes array
+        sids = self.neuron.sids
+        if nsamples and len(sids) > nsamples: # subsample spikes
+            print('neuron %d: updatePosScale() taking random sample of %d spikes instead '
+                  'of all %d of them' % (self.id, nsamples, len(sids)))
+            sids = np.asarray(random.sample(sids, nsamples))
+
+        # check for pre-calculated spike param means and stds
+        try: sort.means
+        except AttributeError: sort.means = {}
+        try: sort.stds
+        except AttributeError: sort.stds = {}
+
+        for dim in dims:
+            try:
+                spikes[dim]
+            except ValueError:
+                continue # this dim doesn't exist in spikes record array, ignore it
+            # create normalized copy of all samples for this dim, sort of duplicating code
+            # in sort.get_param_matrix()
+            data = spikes[dim]
+            subdata = data[sids].copy() # subsampled data, copied for in-place normalization
+            # calculate mean and std for normalization
+            try: mean = sort.means[dim]
+            except KeyError:
+                mean = data.mean()
+                sort.means[dim] = mean # save to pre-calc
+            if dim in ['x0', 'y0']: # normalize spatial params by x0 std
+                try: std = sort.stds['x0']
+                except KeyError:
+                    std = spikes['x0'].std()
+                    sort.stds['x0'] = std # save to pre-calc
+            else: # normalize all other params by their std
+                try: std = sort.stds[dim]
+                except KeyError:
+                    std = data.std()
+                    sort.stds[dim] = std # save to pre-calc
+            # now do the actual normalization
+            subdata -= mean
+            if std != 0:
+                subdata /= std
+            # update position and scale
+            self.pos[dim] = np.median(subdata)
+            self.scale[dim] = subdata.std() or self.scale[dim] # never update scale to 0
 
     def update_ellipsoid(self, params=None, dims=None):
         ellipsoid = self.ellipsoid
@@ -99,6 +154,7 @@ class SpykeMayaviScene(MayaviScene):
         #QtGui.QToolTip.hideText() # hide first if you want tooltip to move even when text is unchanged
         qw = self._vtk_control
         spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
+        sort = spw.sort
         if event.buttons() != Qt.NoButton: # don't show tooltip if mouse buttons are pressed
             QtGui.QToolTip.hideText()
             qw.__class__.mouseMoveEvent(qw, event) # pass the event on
@@ -114,12 +170,15 @@ class SpykeMayaviScene(MayaviScene):
             if scalar < 0: # -ve scalars signify clusters
                 nid = int(-(scalar + 1))
                 tip = 'nid: %d\n' % nid
-                tip += 'normed %r: %r' % (dims, [ spw.sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                tip += 'normed %r: %r' % (dims, [ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
             else: # +ve scalars signify plotted points
                 sid = data.point_id
+                nid = sort.spikes[sid]['nid']
                 tip = 'sid: %d\n' % sid
-                tip += 'nid: %d\n' % spw.sort.spikes[sid]['nid']
-                tip += '%r: %r' % (dims, [ spw.sort.spikes[sid][dim] for dim in dims ])
+                tip += '%r: %r' % (dims, [ sort.spikes[sid][dim] for dim in dims ])
+                if nid >= 0:
+                    tip += '\nnid: %d\n' % nid
+                    tip += 'normed %r: %r' % (dims, [ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
             QtGui.QToolTip.showText(event.globalPos(), tip)
         else:
             QtGui.QToolTip.hideText()

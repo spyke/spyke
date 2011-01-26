@@ -514,7 +514,6 @@ class SpykeWindow(QtGui.QMainWindow):
             except RuntimeError as msg:
                 print(msg)
                 return
-            plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
         else: # do spike parameter (non-wavefrom) clustering
             data = s.get_param_matrix(dims=dims, scale=True)[sids]
         data = data.copy() # copy to make it contiguous for climb()
@@ -562,15 +561,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
                 raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
-            if waveclustering: # set pos and scale in plotdims using mean and std of points
-                for plotdimi, plotdim in enumerate(plotdims):
-                    points = plotdata[ii, plotdimi]
-                    cluster.pos[plotdim] = points.mean()
-                    cluster.scale[plotdim] = points.std() or cluster.scale[plotdim]
-            else: # set pos and scale in cluster dims using cluster pos and std of points
-                for dimi, dim in enumerate(dims):
-                    cluster.pos[dim] = pos[dimi]
-                    cluster.scale[dim] = data[ii, dimi].std() or cluster.scale[dim]
+            cluster.updatePosScale()
             cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # save more undo/redo stuff
@@ -818,24 +809,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if update:
             self.UpdateClustersGUI()
     '''
-    # TODO: this should be converted to Qt and used whenever a dim choice changes
-    def OnDim(self, evt=None):
-        """Update cluster widgets based on current cluster and dims,
-        and replot the data in the (potentially) new projection, while
-        maintaining the colour of each point"""
-        cw = self.windows['Cluster']
-        scalars = cw.glyph.mlab_source.scalars # save scalars
-        self.on_plotButton_clicked() # replot
-        cw.glyph.mlab_source.scalars = scalars # restore scalars
-        cw.glyph.mlab_source.update() # make scalar changes visible
-        try:
-            cluster = self.GetCluster()
-            self.UpdateParamWidgets(cluster)
-        except RuntimeError:
-            # no cluster currently selected, like when changing dim before
-            # any clusters have been created
-            pass
-    '''
+    # unused:
     def MoveCurrentCluster2Focus(self):
         """Sets the position of the currently selected cluster to
         the point in 3D where the scene's camera is currently focused"""
@@ -846,8 +820,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for dim, val in zip(dims, fp):
             cluster.pos[dim] = val
         cluster.update_ellipsoid('pos', dims=dims)
-        self.UpdateParamWidgets(cluster)
-
+    '''
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
         """Cluster pane plot button click. Plot points, cluster ellipsoids,
@@ -935,124 +908,6 @@ class SpykeWindow(QtGui.QMainWindow):
         z = str(self.ui.zDimComboBox.currentText())
         return x, y, z
 
-    def UpdateParamWidgets(self, cluster):
-        """Update 3x3 grid of cluster param widgets from values in cluster"""
-        x, y, z = self.GetClusterPlotDimNames() # tuple of dim names, in (x, y, z) order
-        self.xpos.SetValue(str(cluster.pos[x]))
-        self.ypos.SetValue(str(cluster.pos[y]))
-        self.zpos.SetValue(str(cluster.pos[z]))
-        if (y, z) in cluster.ori[x]: self.xori.SetValue(str(cluster.ori[x][(y, z)]))
-        elif (z, y) in cluster.ori[x]: self.xori.SetValue(str(-cluster.ori[x][(z, y)]))
-        else: self.xori.SetValue(str(0))
-        if (z, x) in cluster.ori[y]: self.yori.SetValue(str(cluster.ori[y][(z, x)]))
-        elif (x, z) in cluster.ori[y]: self.yori.SetValue(str(-cluster.ori[y][(x, z)]))
-        else: self.yori.SetValue(str(0))
-        if (x, y) in cluster.ori[z]: self.zori.SetValue(str(cluster.ori[z][(x, y)]))
-        elif (y, x) in cluster.ori[z]: self.zori.SetValue(str(-cluster.ori[z][(y, x)]))
-        else: self.zori.SetValue(str(0))
-        self.xscale.SetValue(str(cluster.scale[x]))
-        self.yscale.SetValue(str(cluster.scale[y]))
-        self.zscale.SetValue(str(cluster.scale[z]))
-    '''
-    """Update parameters for currently selected cluster, and associated ellipsoid"""
-    def OnXPos(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        cluster.pos[x] = val
-        cluster.update_ellipsoid('pos', dims=(x, y, z))
-
-    def OnYPos(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        cluster.pos[y] = val
-        cluster.update_ellipsoid('pos', dims=(x, y, z))
-
-    def OnZPos(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        cluster.pos[z] = val
-        cluster.update_ellipsoid('pos', dims=(x, y, z))
-
-    def OnXOri(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        if (z, y) in cluster.ori[x]: # reversed axes already used as a key
-            cluster.ori[x][(z, y)] = -val # reverse the ori
-        else:
-            cluster.ori[x][(y, z)] = val # add or overwrite non-reversed axes entry
-        cluster.update_ellipsoid('ori', dims=(x, y, z))
-
-    def OnYOri(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        if (x, z) in cluster.ori[y]:
-            cluster.ori[y][(x, z)] = -val
-        else:
-            cluster.ori[y][(z, x)] = val
-        cluster.update_ellipsoid('ori', dims=(x, y, z))
-
-    def OnZOri(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        if (y, x) in cluster.ori[z]:
-            cluster.ori[z][(y, x)] = -val
-        else:
-            cluster.ori[z][(x, y)] = val
-        cluster.update_ellipsoid('ori', dims=(x, y, z))
-
-    def OnXScale(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        cluster.scale[x] = val
-        cluster.update_ellipsoid('scale', dims=(x, y, z))
-
-    def OnYScale(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        cluster.scale[y] = val
-        cluster.update_ellipsoid('scale', dims=(x, y, z))
-
-    def OnZScale(self, evt):
-        cluster = self.GetCluster()
-        x, y, z = self.GetClusterPlotDimNames()
-        val = float(evt.GetString())
-        cluster.scale[z] = val
-        cluster.update_ellipsoid('scale', dims=(x, y, z))
-
-    def OnKeyDown(self, evt):
-        """Handle key presses
-        TODO: might be able to clean this up by having a handler for wx.EVT_NAVIGATION_KEY
-        """
-        key = evt.GetKeyCode()
-        #print 'key: %r' % key
-        in_widget = evt.GetEventObject().ClassName in ['wxComboBox', 'wxSpinCtrl', 'wxSlider']
-        in_file_pos_combo_box = evt.GetEventObject() == self.file_pos_combo_box
-        if not evt.ControlDown():
-            if key == wx.WXK_LEFT and not in_widget or key == wx.WXK_DOWN and in_file_pos_combo_box:
-                    self.seek(self.t - self.hpstream.tres)
-            elif key == wx.WXK_RIGHT and not in_widget or key == wx.WXK_UP and in_file_pos_combo_box:
-                    self.seek(self.t + self.hpstream.tres)
-            elif key == wx.WXK_PRIOR: # PGUP
-                self.seek(self.t - (self.spiketw[1]-self.spiketw[0])) # go back 1 spike window width
-            elif key == wx.WXK_NEXT: # PGDN
-                self.seek(self.t + (self.spiketw[1]-self.spiketw[0])) # go forward 1 spike window width
-        else: # CTRL is down
-            if key == wx.WXK_PRIOR: # PGUP
-                self.seek(self.t - (self.charttw[1]-self.charttw[0])) # go back 1 chart window width
-            elif key == wx.WXK_NEXT: # PGDN
-                self.seek(self.t + (self.charttw[1]-self.charttw[0])) # go forward 1 chart window width
-        # when key event comes from file_pos_combo_box, reserve down/up for seeking through file
-        if in_widget and not in_file_pos_combo_box or in_file_pos_combo_box and key not in [wx.WXK_DOWN, wx.WXK_UP]:
-            evt.Skip() # pass event on to OS to handle cursor movement
-    '''
     def AddClusterChangeToStack(self, cc):
         """Adds cc to the cluster change stack, removing any potential redo changes"""
         self.cci += 1
@@ -1101,7 +956,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # restore the old clusters
         oldclusters = []
-        plotdims = self.GetClusterPlotDimNames()
+        dims = self.GetClusterPlotDimNames()
         t0 = time.time()
         # NOTE: oldunids are not necessarily sorted
         for nid, pos, scale in zip(oldunids, positions, scales):
@@ -1112,7 +967,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             cluster.pos = pos
             cluster.scale = scale
-            cluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
+            cluster.update_ellipsoid(params=['pos', 'scale'], dims=dims)
 
         # now do some final updates
         self.UpdateClustersGUI()

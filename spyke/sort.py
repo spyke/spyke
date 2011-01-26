@@ -283,16 +283,14 @@ class Sort(object):
             x0std = self.spikes['x0'].std()
             assert x0std != 0
             for dim, d in zip(dims, data.T):
+                d -= d.mean()
                 if dim in ['x0', 'y0']:
-                    d -= d.mean()
                     d /= x0std
                 #elif dim == 't': # the longer the recording in hours, the greater the scaling in time
                 #    trange = d.max() - d.min()
                 #    tscale = trange / (60*60*1e6)
-                #    d -= d.mean()
                 #    d *= tscale / d.std()
                 else: # normalize all other dims by their std
-                    d -= d.mean()
                     d /= d.std()
 
         return data
@@ -625,6 +623,22 @@ class Neuron(object):
         self.cluster = None
         #self.srffname # not here, let's allow neurons to have spikes from different files?
 
+    def get_chans(self):
+        return self.wave.chans # self.chans just refers to self.wave.chans
+
+    chans = property(get_chans)
+
+    def get_nspikes(self):
+        return len(self.sids)
+
+    nspikes = property(get_nspikes)
+
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy()
+        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        return d
+
     def update_wave(self):
         """Update mean waveform, should call this every time .spikes are modified.
         Setting .spikes as a property to do so automatically doesn't work, because
@@ -638,8 +652,8 @@ class Neuron(object):
             #return self.wave
         sids = self.sids
         if len(sids) > MEANWAVESAMPLESIZE:
-            print('neuron %d: taking random sample of %d spikes instead of all %d of them'
-                  % (self.id, MEANWAVESAMPLESIZE, len(sids)))
+            print('neuron %d: update_wave() taking random sample of %d spikes instead '
+                  'of all %d of them' % (self.id, MEANWAVESAMPLESIZE, len(sids)))
             sids = np.asarray(random.sample(sids, MEANWAVESAMPLESIZE))
 
         chanss = spikes['chans'][sids]
@@ -673,22 +687,6 @@ class Neuron(object):
         self.wave.chans = newneuronchans
         self.wave.ts = sort.twts
         return self.wave
-
-    def get_chans(self):
-        return self.wave.chans # self.chans just refers to self.wave.chans
-
-    chans = property(get_chans)
-
-    def get_nspikes(self):
-        return len(self.sids)
-
-    nspikes = property(get_nspikes)
-
-    def __getstate__(self):
-        """Get object state for pickling"""
-        d = self.__dict__.copy()
-        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
-        return d
 
     def align(self, to):
         """Align all of this neuron's spikes by their max or min
@@ -1031,11 +1029,7 @@ class SortWindow(SpykeToolWindow):
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = spw.GetClusterPlotDimNames()
-        plotdata = s.get_param_matrix(dims=plotdims, scale=True)[sids]
-        for plotdimi, plotdim in enumerate(plotdims):
-            points = plotdata[:, plotdimi]
-            newcluster.pos[plotdim] = points.mean()
-            newcluster.scale[plotdim] = points.std() or newcluster.scale[plotdim]
+        newcluster.updatePosScale()
         newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # save more undo/redo stuff

@@ -7,12 +7,14 @@ NITEMS = 729863
 #INITIALFETCHSIZE = 5000
 #FETCHSIZE = 2000
 
+
 class TestWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QMainWindow.__init__(self)
         self.list = TestListView(self)
         self.setCentralWidget(self.list)
         self.resize(150, 500)
+
 
 class TestListView(QtGui.QListView):
     def __init__(self, parent):
