@@ -13,6 +13,7 @@ from datetime import timedelta
 import os
 import sys
 import random
+import string
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -1319,3 +1320,19 @@ def concatenate_destroy(arrays):
         a[rowi:rowi+nrows] = array # concatenate along 0th axis
         rowi += nrows
     return a
+
+def lst2shrtstr(lst, sigfigs=4, brackets=False):
+    """Return string representation of list, replacing any floats with potentially
+    shorter representations with fewer sig figs. Any string items in list will be
+    simplified by having their quotes removed"""
+    gnumfrmt = string.join(['%.', str(sigfigs), 'g'], sep='')
+    strlst = []
+    for val in lst:
+        try:
+            strlst.append(gnumfrmt % val)
+        except TypeError:
+            strlst.append(val) # val isn't a general number
+    s = string.join(strlst, sep=', ')
+    if brackets:
+        s = string.join(['[', s, ']'], sep='')
+    return s

@@ -22,7 +22,7 @@ from enthought.mayavi.core.ui.mayavi_scene import MayaviScene
 from enthought.mayavi import mlab
 from enthought.mayavi.tools.engine_manager import get_engine
 
-from core import SpykeToolWindow
+from core import SpykeToolWindow, lst2shrtstr
 from plot import CMAP, CMAPPLUSTRANSWHITE, TRANSWHITEI
 
 CLUSTERPARAMSAMPLESIZE = 1000
@@ -170,15 +170,18 @@ class SpykeMayaviScene(MayaviScene):
             if scalar < 0: # -ve scalars signify clusters
                 nid = int(-(scalar + 1))
                 tip = 'nid: %d\n' % nid
-                tip += 'normed %r: %r' % (dims, [ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                nposstr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                tip += 'normed %s: %s' % (lst2shrtstr(dims), nposstr)
             else: # +ve scalars signify plotted points
                 sid = data.point_id
                 nid = sort.spikes[sid]['nid']
                 tip = 'sid: %d\n' % sid
-                tip += '%r: %r' % (dims, [ sort.spikes[sid][dim] for dim in dims ])
+                sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
+                tip += '%s: %s' % (lst2shrtstr(dims), sposstr)
                 if nid >= 0:
                     tip += '\nnid: %d\n' % nid
-                    tip += 'normed %r: %r' % (dims, [ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                    npoststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                    tip += 'normed %s: %s' % (lst2shrtstr(dims), npoststr)
             QtGui.QToolTip.showText(event.globalPos(), tip)
         else:
             QtGui.QToolTip.hideText()
