@@ -193,23 +193,11 @@ class SpykeMayaviScene(MayaviScene):
         sw = spw.windows['Sort']
         cw = spw.windows['Cluster']
         key = event.key()
-        if key in [Qt.Key_S, Qt.Key_Space]:
-            # toggle selection of cluster under the cursor
-            globalPos = QtGui.QCursor.pos()
-            pos = qw.mapFromGlobal(globalPos)
-            x = pos.x()
-            y = qw.size().height() - pos.y()
-            data = self.picker.pick_point(x, y)
-            if data.data != None:
-                # points making up ellipsoid glyph have identical scalars, grab the first value
-                scalar = data.data.scalars[0]
-                if scalar < 0: # -ve scalars signify clusters
-                    nid = int(-(scalar + 1))
-                    spw.ToggleCluster(nid)
-                else: # +ve scalars signify plotted points
-                    sid = data.point_id
-                    spw.ToggleSpike(sid) # toggle its cluster too, if any
-        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_NumberSign,
+        if key == Qt.Key_S: # toggle item under the cursor, if any
+            self.selectItemUnderCursor(clear=False)
+        elif key == Qt.Key_Space: # clear and select item under cursor, if any
+            self.selectItemUnderCursor(clear=True)
+        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_D, Qt.Key_M, Qt.Key_NumberSign,
                      Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
             sw.keyPressEvent(event) # pass it on to Sort window
         elif key == Qt.Key_F11:
@@ -218,21 +206,30 @@ class SpykeMayaviScene(MayaviScene):
             qw.__class__.keyPressEvent(qw, event) # pass it on
 
     def mouseDoubleClickEvent(self, event):
-        """Clear selection and select cluster under the cursor, if any"""
+        """Clear selection and select spike and/or cluster under the cursor, if any"""
+        self.selectItemUnderCursor(clear=True)
+
+    def selectItemUnderCursor(self, clear=False):
         qw = self._vtk_control # QWidget
         spw = qw.topLevelWidget().spykewindow # can't do this in __init__ due to mayavi weirdness
         sw = spw.windows['Sort']
-        sw.nlist.clearSelection()
+        if clear:
+            sw.uslist.clearSelection()
+            sw.nlist.clearSelection()
         globalPos = QtGui.QCursor.pos()
         pos = qw.mapFromGlobal(globalPos)
         x = pos.x()
         y = qw.size().height() - pos.y()
         data = self.picker.pick_point(x, y)
         if data.data != None:
-            scalar = data.data.scalars[0] # just grab the first value
-            if scalar < 0: # -ve vals are clusters, +ve vals are plotted points
+            # points making up ellipsoid glyph have identical scalars, grab the first value
+            scalar = data.data.scalars[0]
+            if scalar < 0: # -ve scalars signify clusters
                 nid = int(-(scalar + 1))
-                spw.SelectClusters(nid)
+                spw.ToggleCluster(nid)
+            else: # +ve scalars signify plotted points
+                sid = data.point_id
+                spw.ToggleSpike(sid) # toggle its cluster too, if any
 
 
 class Visualization(HasTraits):

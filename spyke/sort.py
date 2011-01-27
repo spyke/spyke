@@ -934,7 +934,7 @@ class SortWindow(SpykeToolWindow):
         if key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.uslist.clearSelection()
             self.nlist.clearSelection()
-        elif key == Qt.Key_Delete:
+        elif key in [Qt.Key_Delete, Qt.Key_D]:
             self.on_actionDeleteClusters_triggered()
         elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
