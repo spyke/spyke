@@ -705,7 +705,7 @@ class SpykeListView(QtGui.QListView):
         self.setUniformItemSizes(True) # speeds up listview
 
     def keyPressEvent(self, event):
-        if event.key() in [Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
+        if event.key() in [Qt.Key_D, Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
             event.ignore() # pass it on up to the parent
         else:
             QtGui.QListView.keyPressEvent(self, event) # handle it as usual
