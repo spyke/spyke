@@ -392,12 +392,12 @@ cpdef assign_unclustered(int lo, int hi,
                 samplei = sampleis[j]
                 for k in range(ndims):
                     ds[k] = data[i, k] - data[samplei, k]
-                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next i
+                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next j
                         continuej = True
                         break # out of k loop
                 if continuej:
                     continuej = False # reset
-                    continue # to next i
+                    continue # to next j
                 d2 = 0.0 # reset
                 for k in range(ndims):
                     d2 += ds[k] * ds[k]

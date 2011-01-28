@@ -1003,7 +1003,7 @@ class SpykeWindow(QtGui.QMainWindow):
             srff.parse() # TODO: parsing progress dialog
             self.hpstream = srff.hpstream # highpass record (spike) stream
             self.lpstream = srff.lpstream # lowpassmultichan record (LFP) stream
-        else: # ext == '.track'
+        elif ext == '.track':
             srffs = []
             with open(fname, 'r') as trackfile:
                 for line in trackfile: # one srf filename per line
@@ -1013,8 +1013,10 @@ class SpykeWindow(QtGui.QMainWindow):
                     srff = surf.File(srffname)
                     srff.parse()
                     srffs.append(srff) # build up list of open and parsed surf File objects
-            self.hpstream = core.TrackStream(srffs, fname,  kind='highpass')
+            self.hpstream = core.TrackStream(srffs, fname, kind='highpass')
             self.lpstream = core.TrackStream(srffs, fname, kind='lowpass')
+        else:
+            raise ValueError('unknown extension %r' % ext)
 
         self.caption = fname # update
         self.setWindowTitle(self.caption) # update the caption

@@ -27,18 +27,19 @@ QT rewrite:
 ----------------
 RECENT:
 
-
-- add a "cluster unsampled spikes" option (default checked) to allow fast test clustering with low sampling using various params, without wasting time assigning unsampled spikes after gradient ascent is done
-
 - gradient vector calculation step doesn't appear to be multithreaded in track-wide sort for some reason, MTthresh is wrong?
+    - it is multithreaded. vector calculation is just fine. What's super slow for some reason is the merge step. Even with only 50000 spikes, it's really slow. At 10000 samples, it should be as fast as the same number of samples in file 87, yet it isn't for some reason... This is a new problem, isn't it? Or maybe I just never noticed it before?
+    - does this have something to do with not properly deleting all old clusters upon reclustering?
+    - aha, figured it out. I had rmergex set really low, to only 0.3, instead of the default 5.0. Oops. Also, alpha was 1.0 instead of 0.1. maxstill was 100 and minpoints was 10 instead of 200 and 5 respectively
+    - hm, still seems slower than it should be. annoying how printed cython output seems to hang and lag in linux terminal
+    - should probably try sigma = 0.1 for track7c
 
 - I know I've been through this before, but why are neuron.sids int64? int32 should be enough, no?
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records
 
-- add DeleteAll for clusters, maybe Shift+'-'?
+- add DeleteAll for clusters, maybe Shift+Del. Same for Shift+Del GUI button?
     - this should also delete all undo/redo history, to save memory and time
-    - can't figure out how to check for Shift modifier on GUI button click, since the event is a CommandEvent, not a Mouse or Key event
 
 - TrackStream: when exporting, keep the offsetted timestamps intact, and offset the corresponding .din files appropriately?
     - problem: you'd need two sets of .din files if you also wanted to sort just a single or a few .srf files at a time, or if you wanted to sort a track starting from different .srf files
@@ -866,6 +867,7 @@ DONE:
     - 10 million spikes would be about 10GB of waveform data + 1GB of spike param data - might need more RAM!
 - demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
     - add a cluster.updatePosScale() method for updating both raw and normalized pos and size based on median and stdev of up to samplesize spikes belonging to neuron. Call this after clustering, reclustering, and merging
+- add a "cluster unsampled spikes" option (default checked) to allow fast test clustering with low sampling using various params, without wasting time assigning unsampled spikes after gradient ascent is done
 
 
 
