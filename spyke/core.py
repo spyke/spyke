@@ -194,7 +194,7 @@ class TrackStream(object):
         tranges = []
         streamtranges = []
         for stream in streams:
-            td = stream.datetime - datetimes[0] # time delta between streami and stream 0
+            td = stream.datetime - datetimes[0] # time delta between stream i and stream 0
             for trange in stream.tranges:
                 t0 = timedelta2usec(td + timedelta(microseconds=int(trange[0])))
                 t1 = timedelta2usec(td + timedelta(microseconds=int(trange[1])))

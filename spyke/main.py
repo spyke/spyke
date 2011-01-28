@@ -1690,11 +1690,6 @@ class DataWindow(SpykeToolWindow):
         self.resize(*size)
         self.move(*pos)
 
-    def resizeEvent(self, event):
-        """Redraws refs and resaves panel background after resizing the window"""
-        SpykeToolWindow.resizeEvent(self, event)
-        self.panel.draw_refs()
-
     def closeEvent(self, event):
         # remove 'Window' from class name
         windowtype = type(self).__name__.replace('Window', '')

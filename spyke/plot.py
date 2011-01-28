@@ -408,6 +408,11 @@ class PlotPanel(FigureCanvas):
 
     AD2uV = property(get_AD2uV) # convenience for Plot objects to reference
 
+    def resizeEvent(self, event):
+        """Redraw refs and resave background after resizing"""
+        FigureCanvas.resizeEvent(self, event)
+        self.draw_refs()
+
     def init_axes(self):
         """Init the axes and ref lines"""
         self.ax = self.figure.add_axes([0, 0, 1, 1], # lbwh relative to figure?
@@ -729,12 +734,6 @@ class PlotPanel(FigureCanvas):
         """Convert from us to um"""
         return us / self.usperum
 
-    def OnKeyDown(self, evt):
-        """Let main spyke frame handle keypress events"""
-        self.spykeframe.OnKeyDown(evt)
-        #key = evt.GetKeyCode()
-        #print 'in dataframe.onkeypress !!: ', key
-        #evt.guiEvent.Skip()
     '''
     def OnNavigation(self, evt):
         """Navigation key press"""
@@ -834,7 +833,7 @@ class PlotPanel(FigureCanvas):
               'V=%.1f %s\n' % (v, MICRO+'V') + \
               'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
         self.setToolTip(tip)
-
+    '''
     def OnMouseWheel(self, evt):
         """Zoom horizontally on CTRL+mouse wheel scroll"""
         if evt.ControlDown():
@@ -843,7 +842,7 @@ class PlotPanel(FigureCanvas):
             #self._zoomx(x)
             sign = np.sign(evt.GetWheelRotation())
             self._zoomx(1.5**sign)
-
+    '''
 
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels

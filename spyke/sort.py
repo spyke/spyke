@@ -918,11 +918,6 @@ class SortWindow(SpykeToolWindow):
 
     sort = property(get_sort) # make this a property for proper behaviour after unpickling
 
-    def resizeEvent(self, event):
-        """Redraws refs and resaves panel background after resizing the window"""
-        SpykeToolWindow.resizeEvent(self, event)
-        self.panel.draw_refs()
-
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Sort')
 
