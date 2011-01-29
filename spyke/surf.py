@@ -53,9 +53,6 @@ class File(object):
         - stimulus display header records
         - stimulus digital single val records"""
     def __init__(self, fname):
-        # ensure fname is a full path name, so that there won't be issues
-        # finding the file if self is ever unpickled
-        fname = win2posixpath(os.path.abspath(fname)) # make this an absolute posix style path
         self.fname = fname
         self.fileSize = os.stat(fname)[6]
         self.open()

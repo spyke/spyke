@@ -170,8 +170,8 @@ class TrackStream(object):
     as similar an interface as possible to a normal Stream. srffs needs to be a list of
     open and parsed surf.File objects, in temporal order"""
     def __init__(self, srffs, trackfname, kind='highpass', sampfreq=None, shcorrect=None):
-        # don't bind srffs pickling won't be a problem
-        self.fname = os.path.basename(trackfname)
+        # to prevent pickling problems, don't bind srffs
+        self.fname = trackfname
         self.kind = kind
         streams = []
         self.streams = streams # bind right away so setting sampfreq and shcorrect will work
@@ -401,7 +401,7 @@ class Stream(object):
         self.srff.close()
 
     def get_fname(self):
-        return os.path.basename(self.srff.fname) # filename excluding path
+        return self.srff.fname
 
     fname = property(get_fname)
 

@@ -125,7 +125,6 @@ class Detector(object):
         self.sort = sort
         # for reference, store .srf/.track filename(s) this Detector is run on
         self.fname = sort.stream.fname
-        self.srffnames = sort.stream.srffnames
         self.fixednoisewin = 30000000 # us, used by ChanFixed, should really be % of self.trange
         self.extractparamsondetect = True
         self.datetime = None # date and time of last detect() call
@@ -142,6 +141,11 @@ class Detector(object):
         self._chans = np.int8(chans) # ensure they're always int8
 
     chans = property(get_chans, set_chans)
+
+    def get_srffnames(self):
+        return self.sort.stream.srffnames
+
+    srffnames = property(get_srffnames)
 
     def detect(self):
         """Search for spikes. Divides large searches into more manageable
