@@ -20,6 +20,7 @@ QT rewrite:
 
 - when hitting 'o' or '.' to focus current cluster or spike, if more than one is selected (for either type), take average position of all those selected and focus that average position
 
+- if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
 
 
 ----------------
@@ -34,6 +35,7 @@ RECENT:
 
 - I know I've been through this before, but why are neuron.sids int64? int32 should be enough, no?
     - this could make the 30MB difference between November's track7c sort and today's track7c sort
+    - nope, November's sort used int64 sids as well. And now the recent sort is even bigger for some reason. Don't know what's causing the difference - more clusters maybe?
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records
 

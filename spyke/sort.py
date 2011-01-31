@@ -1163,7 +1163,7 @@ class SortWindow(SpykeToolWindow):
         #self.RemoveNeuronFromTree(neuron)
         self.MoveSpikes2List(neuron, neuron.sids, update=update)
         try:
-            del self.sort.neurons[neuron.id] # maybe already be removed due to recursive call
+            del self.sort.neurons[neuron.id] # may already be removed due to recursive call
             del self.sort.clusters[neuron.id] # may or may not exist
         except KeyError:
             pass

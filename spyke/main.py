@@ -55,7 +55,6 @@ PYSHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWSIZE = 879, 687
 
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
-PYSHELLCFGFNAME = 'pyshell_cfg'
 
 # this will drop us into ipdb on any error, won't work in IPy 0.11?:
 QtCore.pyqtRemoveInputHook()
@@ -484,8 +483,11 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane Cluster button click"""
         s = self.sort
         spikes = s.spikes
-        sw = self.OpenWindow('Sort')
-        cw = self.OpenWindow('Cluster')
+        sw = self.windows['Sort']
+        try:
+            cw = self.windows['Cluster'] # don't force its display by default
+        except KeyError:
+            cw = self.OpenWindow('Cluster')
 
         sw.uslist.clearSelection() # clear uslist selection, since many usids will disappear
         oldclusters = self.GetClusters()
@@ -776,7 +778,10 @@ class SpykeWindow(QtGui.QMainWindow):
         cluster = Cluster(neuron)
         self.sort.clusters[cluster.id] = cluster
         neuron.cluster = cluster
-        cw = self.OpenWindow('Cluster')
+        try:
+            cw = self.windows['Cluster'] # don't force its display by default
+        except KeyError:
+            cw = self.OpenWindow('Cluster')
         try: cw.glyph # glyph already plotted?
         except AttributeError: self.on_plotButton_clicked() # create glyph on first open
         self.AddCluster2GUI(cluster, update=update)
@@ -785,7 +790,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def AddCluster2GUI(self, cluster, update=True):
         """Add cluster to GUI"""
         sw = self.windows['Sort']
-        cw = self.OpenWindow('Cluster')
+        cw = self.windows['Cluster']
         dims = self.GetClusterPlotDimNames()
         cw.add_ellipsoid(cluster, dims, update=update)
         if update:
@@ -922,8 +927,8 @@ class SpykeWindow(QtGui.QMainWindow):
         to the current set of clusters"""
         s = self.sort
         spikes = s.spikes
-        sw = self.OpenWindow('Sort')
-        cw = self.OpenWindow('Cluster')
+        sw = self.windows['Sort']
+        cw = self.windows['Cluster']
         sids = cc.sids
 
         # reverse meaning of 'new' and 'old' if direction == 'forward', ie if redoing
