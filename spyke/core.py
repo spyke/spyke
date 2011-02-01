@@ -703,6 +703,9 @@ class SpykeListView(QtGui.QListView):
         self.setLayoutMode(self.Batched)
         #self.setResizeMode(self.Adjust)
         self.setUniformItemSizes(True) # speeds up listview
+        self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
+        self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
+        self.setWrapping(True)
 
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_D, Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
