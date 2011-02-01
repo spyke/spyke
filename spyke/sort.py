@@ -61,7 +61,7 @@ class Sort(object):
         # most neurons will have an associated cluster, but not necessarily all -
         # some neurons may be purely hand sorted, one spike at a time
         self.neurons = {}
-        self.clusters = {} # dict of multidim ellipsoid params
+        self.clusters = {} # neurons with multidm params scaled for plotting
 
         self.usids_sorted_by = 't'
         self.usids_reversed = False
@@ -384,7 +384,6 @@ class Sort(object):
             neuron = Neuron(self, id)
         self.neurons[neuron.id] = neuron # add neuron to self
         return neuron
-
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -1026,7 +1025,6 @@ class SortWindow(SpykeToolWindow):
         self.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = spw.GetClusterPlotDimNames()
         newcluster.updatePosScale()
-        newcluster.update_ellipsoid(params=['pos', 'scale'], dims=plotdims)
 
         # save more undo/redo stuff
         cc.save_new([newcluster])
@@ -1078,10 +1076,6 @@ class SortWindow(SpykeToolWindow):
             s.neurons[newcid] = cluster.neuron
             sids = cluster.neuron.sids
             spikes['nid'][sids] = newcid
-            # TODO: can't figure out how to change scalar value of existing ellipsoid (for
-            # mouse hover tooltip), just delete it and make a new one. This is very innefficient
-            cluster.ellipsoid.remove()
-            cw.add_ellipsoid(cluster, dims=dims, update=False) # this overwrites cluster.ellipsoid
         # remove any orphaned cluster ids
         for oldcid in olducids:
             if oldcid not in newucids:

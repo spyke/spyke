@@ -1,4 +1,4 @@
-"""Define the cluster frame, with methods for dealing with ellipsoids"""
+"""Define the Cluster object and cluster window"""
 
 from __future__ import division
 
@@ -29,12 +29,11 @@ CLUSTERPARAMSAMPLESIZE = 1000
 
 
 class Cluster(object):
-    """Just a simple container for multidim ellipsoid parameters. A
+    """Just a simple container for scaled multidim cluster parameters. A
     Cluster will always correspond to a Neuron"""
-    def __init__(self, neuron, ellipsoid=None):
+    def __init__(self, neuron):
         self.neuron = neuron
-        self.ellipsoid = ellipsoid
-        # cluster attribs store true values of each dim
+        # cluster attribs store scaled values of each dim, suitable for plotting
         self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'dphase':0, 't':0, 's0':0, 's1':0}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
@@ -103,41 +102,6 @@ class Cluster(object):
             self.pos[dim] = np.median(subdata)
             self.scale[dim] = subdata.std() or self.scale[dim] # never update scale to 0
 
-    def update_ellipsoid(self, params=None, dims=None):
-        ellipsoid = self.ellipsoid
-        if ellipsoid == None:
-            return
-        if params == None:
-            params = ['pos', 'ori', 'scale']
-        if 'pos' in params:
-            ellipsoid.actor.actor.position = [ self.pos[dim] for dim in dims ]
-        if 'ori' in params:
-            oris = []
-            for dimi, dim in enumerate(dims):
-                # pick the two next highest dims, in that order,
-                # wrapping back to lowest one when out of bounds
-                # len(dims) is always 3, so mod by 3 for the wrap around
-                otherdims = dims[(dimi+1)%3], dims[(dimi+2)%3]
-                rotherdims = otherdims[1], otherdims[0] # reversed
-                if otherdims in self.ori[dim]:
-                    oris.append(self.ori[dim][otherdims])
-                elif rotherdims in self.ori[dim]:
-                    oris.append(-self.ori[dim][rotherdims])
-                else: # otherdims/rotherdims is not a key, ori for this combination hasn't been set
-                    oris.append(0)
-            ellipsoid.actor.actor.orientation = oris
-        if 'scale' in params:
-            ellipsoid.actor.actor.scale = [ self.scale[dim] for dim in dims ]
-
-    def __getstate__(self):
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['ellipsoid'] # remove Mayavi ellipsoid surface, recreate on unpickle
-        return d
-
-    def __setstate__(self, d):
-        self.__dict__ = d
-        self.ellipsoid = None # restore attrib, proper value is restored later
-
 
 class SpykeMayaviScene(MayaviScene):
     def __init__(self, *args, **kwargs):
@@ -164,24 +128,16 @@ class SpykeMayaviScene(MayaviScene):
         y = qw.size().height() - pos.y()
         data = self.picker.pick_point(x, y)
         if data.data != None:
-            # points making up ellipsoid glyph have identical scalars, grab the first value
-            scalar = data.data.scalars[0]
             dims = spw.GetClusterPlotDimNames()
-            if scalar < 0: # -ve scalars signify clusters
-                nid = int(-(scalar + 1))
-                tip = 'nid: %d\n' % nid
-                nposstr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
-                tip += 'normed %s: %s' % (lst2shrtstr(dims), nposstr)
-            else: # +ve scalars signify plotted points
-                sid = data.point_id
-                nid = sort.spikes[sid]['nid']
-                tip = 'sid: %d\n' % sid
-                sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
-                tip += '%s: %s' % (lst2shrtstr(dims), sposstr)
-                if nid >= 0:
-                    tip += '\nnid: %d\n' % nid
-                    npoststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
-                    tip += 'normed %s: %s' % (lst2shrtstr(dims), npoststr)
+            sid = data.point_id
+            nid = sort.spikes[sid]['nid']
+            tip = 'sid: %d\n' % sid
+            sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
+            tip += '%s: %s' % (lst2shrtstr(dims), sposstr)
+            if nid > -1:
+                tip += '\nnid: %d\n' % nid
+                npoststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                tip += 'normed %s: %s' % (lst2shrtstr(dims), npoststr)
             QtGui.QToolTip.showText(event.globalPos(), tip)
         else:
             QtGui.QToolTip.hideText()
@@ -222,14 +178,8 @@ class SpykeMayaviScene(MayaviScene):
         y = qw.size().height() - pos.y()
         data = self.picker.pick_point(x, y)
         if data.data != None:
-            # points making up ellipsoid glyph have identical scalars, grab the first value
-            scalar = data.data.scalars[0]
-            if scalar < 0: # -ve scalars signify clusters
-                nid = int(-(scalar + 1))
-                spw.ToggleCluster(nid)
-            else: # +ve scalars signify plotted points
-                sid = data.point_id
-                spw.ToggleSpike(sid) # toggle its cluster too, if any
+            sid = data.point_id
+            spw.ToggleSpike(sid) # toggle its cluster too, if any
 
 
 class Visualization(HasTraits):
@@ -319,7 +269,7 @@ class ClusterWindow(SpykeToolWindow):
         t0 = time.time()
         f = self.f
         f.scene.disable_render = True # for speed
-        # clear just the plotted glyph representing the points, not the whole scene including the ellipsoids
+        # clear just the plotted glyph representing the points
         try:
             f.scene.remove_actor(self.glyph.actor.actor)
             view, roll = self.view, self.roll
@@ -347,57 +297,6 @@ class ClusterWindow(SpykeToolWindow):
         f.scene.disable_render = False
         print("Plotting took %.3f sec" % (time.time()-t0))
         return glyph
-
-    def add_ellipsoid(self, cluster, dims, alpha=0.5, update=True):
-        """Add an ellipsoid to figure self.f, given its corresponding cluster
-        TODO: turn on 4th light source - looks great!
-        """
-        #from enthought.mayavi.sources.api import ParametricSurface
-        #from enthought.mayavi.modules.api import Surface
-        from enthought.tvtk.api import tvtk
-
-        f = self.f # the current scene
-        #x, y, z = dims # dimension names
-        #engine = f.parent
-        f.scene.disable_render = True # for speed
-
-        #source = ParametricSurface()
-        #source.function = 'ellipsoid'
-        #engine.add_source(source)
-        #ellipsoid = Surface() # the surface is the ellipsoid
-        #source.add_module(ellipsoid)
-        point = np.array([0, 0, 0])
-        # tensor seems to require 20 along the diagonal for the glyph to be the expected size
-        tensor = np.array([20, 0, 0,
-                           0, 20, 0,
-                           0, 0, 20])
-        data = tvtk.PolyData(points=[point])
-        data.point_data.tensors = [tensor]
-        data.point_data.tensors.name = 'some_name'
-        data.point_data.scalars = [-cluster.id-1] # make them all -ve to distinguish them from plotted points
-        # save camera view and roll
-        view, roll = self.view, self.roll
-        glyph = mlab.pipeline.tensor_glyph(data) # resets camera view and roll unfortunately
-        # restore camera view and roll
-        self.view, self.roll = view, roll
-        glyph.glyph.glyph_source.glyph_source.theta_resolution = 50
-        glyph.glyph.glyph_source.glyph_source.phi_resolution = 50
-
-        #actor = ellipsoid.actor # mayavi actor, actor.actor is tvtk actor
-        actor = glyph.actor # mayavi actor, actor.actor is tvtk actor
-        actor.property.opacity = alpha
-        # use cluster id (from associated neuron) as index into CMAP to colour the ellipse
-        actor.property.color = tuple(CMAP[cluster.id % len(CMAP)][0:3]) # leave out alpha
-        # don't colour ellipsoids by their scalar indices into builtin colour map
-        actor.mapper.scalar_visibility = False
-        # get rid of weird rendering artifact when opacity is < 1:
-        actor.property.backface_culling = True
-        #actor.property.frontface_culling = True
-        #actor.actor.origin = 0, 0, 0
-        cluster.ellipsoid = glyph
-        cluster.update_ellipsoid(dims=dims) # update all params
-        if update:
-            f.scene.disable_render = False
 
     def get_view(self):
         return mlab.view()

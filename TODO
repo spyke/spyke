@@ -22,6 +22,7 @@ QT rewrite:
 
 - if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
 
+- maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
 
 ----------------
 RECENT:
