@@ -815,31 +815,6 @@ class SpykeWindow(QtGui.QMainWindow):
         clusters = self.sort.clusters.values()
         self.ColourPoints(clusters)
 
-    def OnCutCluster(self, evt=None):
-        """Cut (cluster) button press in cluster_pane. Don't need the evt"""
-        cluster = self.GetCluster()
-        self.CutClusters(cluster)
-
-    def OnCutAllClusters(self, evt=None):
-        """Cut all (cluster) button press in cluster_pane. Don't need the evt"""
-        self.CutClusters(self.sort.clusters.values())
-
-    def CutClusters(self, clusters):
-        """Apply the cluster params to the spikes. Cut the spikes and
-        update the plot"""
-        sw = self.windows['Sort']
-        for cluster in toiter(clusters):
-            neuron = cluster.neuron
-            # reset scalar values for cluster's existing points
-            # TODO: decolour only those points that are being removed
-            self.DeColourPoints(neuron.sids)
-            # remove any existing spikes from neuron and restore them to spike listctrl:
-            sw.MoveSpikes2List(neuron, neuron.sids)
-            sids = self.sort.cut_cluster(cluster)
-            sw.MoveSpikes2Neuron(sids, neuron)
-        # TODO: colour only those points that have been added
-        self.ColourPoints(clusters)
-
     def UpdateClustersGUI(self):
         """Update lots of stuff after modifying clusters,
         here as a separate method for speed, only call when really needed"""

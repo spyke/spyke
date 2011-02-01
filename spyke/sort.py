@@ -278,7 +278,6 @@ class Sort(object):
         for dim in dims:
             data.append( np.float32(self.spikes[dim]) )
         data = np.column_stack(data)
-
         if scale:
             x0std = self.spikes['x0'].std()
             assert x0std != 0
@@ -292,87 +291,7 @@ class Sort(object):
                 #    d *= tscale / d.std()
                 else: # normalize all other dims by their std
                     d /= d.std()
-
         return data
-
-    def cut_cluster(self, cluster):
-        """Apply cluster to spike data - calculate which spikes fall within the
-        cluster's multidimensional ellipsoid. Return spike indices in an array view"""
-
-        # consider all the dimensions in this cluster that have non-zero scale
-        dims = [ dim for dim, val in cluster.scale.items() if val != 0 ]
-        # get same X that was used for visualization
-        X = self.get_param_matrix(dims=dims)
-
-        # To find which points fall within the ellipsoid, need to do the inverse of all
-        # the operations that translate and rotate the ellipsoid, in the correct order.
-        # Need to do those operations on the points, not on the ellipsoid parameters.
-        # That way, we can figure out which points to pick out, and then we
-        # pick them out of the original set of unmodified points
-
-        # undo the translation, in place
-        dim2coli = {}
-        for i, dim in enumerate(dims):
-            X[:, i] -= cluster.pos[dim]
-            dim2coli[dim] = i # build up dim to X column index mapping while we're at it
-
-        # build up dict of groups of rotations which not only have the same set of 3 dims,
-        # but are also ordered according to the right hand rule
-        rotgroups = {} # key is ordered tuple of dims, value is list of corresponding ori values
-        nonrotdims = copy(dims) # dims that aren't in any rotated projection, init to all dims and remove one by one
-        for dim in dims:
-            val = cluster.ori[dim]
-            if val == {}: # this dim has an empty orientation value
-                continue
-            for reldims, ori in val.items():
-                rotdim = dim, reldims[0], reldims[1] # tuple of rotated dim and the (ordered) 2 dims it was done wrt
-                for d in rotdim:
-                    try: nonrotdims.remove(d) # remove dim from nonrotdims
-                    except ValueError: pass
-                if rotdim in rotgroups: # is rotdim already in rotgroups?
-                    raise RuntimeError("can't have more than one rotation value for a given dim and its relative dims")
-                elif (rotdim[2], rotdim[0], rotdim[1]) in rotgroups: # same set of dims exist, but are rotated around rotdim[2]
-                    rotgroups[(rotdim[2], rotdim[0], rotdim[1])][1] = ori
-                elif (rotdim[1], rotdim[2], rotdim[0]) in rotgroups: # same set of dims exist, but are rotated around rotdim[1]
-                    rotgroups[(rotdim[1], rotdim[2], rotdim[0])][2] = ori
-                else: # no ring permutation of these dims is in rotgroups, add it
-                    rotgroups[rotdim] = [ori, 0, 0] # leave the other two slots available for ring permutations
-
-        # TODO: check at start of method to make sure if a cluster.ori[dim] != {},
-        # that its entries all have non-zero ori values. This might not be the case
-        # if an ori value is set to something, then set back to 0 in the GUI. Fixing
-        # this will stop unnecessary plugging in of values into the rotation matrix,
-        # though this isn't really a big performance hit it seems
-
-        # First take the non-oriented dims, however many there are, and plug them
-        # into the ellipsoid eq'n. That'll init your trutharray. Then go
-        # through each rotgroup in succession and AND its results to the trutharray,
-        # and you're done!
-        sumterms = np.zeros(len(X)) # ellipsoid eq'n sum of terms over non-rotated dimensions
-        for dim in nonrotdims:
-            x = X[:, dim2coli[dim]] # pull correct column out of X for this non-rotated dim
-            A = cluster.scale[dim]
-            sumterms += x**2/A**2
-        trutharray = (sumterms <= 1) # which points in nonrotdims space fall inside the ellipsoid?
-
-        # for each rotation group, undo the rotation by taking product of inverse of
-        # rotation matrix (which == its transpose) with the detranslated points
-        for rotdims, oris in rotgroups.items():
-            Xrot = np.column_stack([ X[:, dim2coli[dim]] for dim in rotdims ]) # pull correct columns out of X for this rotgroup
-            Xrot = (R(oris[0], oris[1], oris[2]).T * Xrot.T).T
-            Xrot = np.asarray(Xrot) # convert from np.matrix back to np.array to prevent from taking matrix power
-            # which points are inside the ellipsoid?
-            x = Xrot[:, 0]; A = cluster.scale[rotdims[0]]
-            y = Xrot[:, 1]; B = cluster.scale[rotdims[1]]
-            z = Xrot[:, 2]; C = cluster.scale[rotdims[2]]
-            trutharray *= (x**2/A**2 + y**2/B**2 + z**2/C**2 <= 1) # AND with interior points from any previous rotgroups
-
-        # spikes indices of points that fall within ellipsoids of all rotgroups
-        sids, = np.where(trutharray)
-        #assert len(i) > 0, "no points fall within the ellipsoid"
-        #Xin = X[i] # pick out those points
-        #spikes = np.asarray(self.get_spikes_sortedby('id'))[i]
-        return sids
 
     def create_neuron(self, id=None):
         """Create and return a new Neuron with a unique ID"""
