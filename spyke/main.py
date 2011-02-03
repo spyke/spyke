@@ -690,12 +690,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.windows['Sort']
         nsrows = sw.nslist.selectedRows()
         srows = sw.uslist.selectedRows()
-        sids = []
-        try:
-            sids.extend(sw.nslist.neuron.sids[nsrows])
-        except AttributeError: pass # nslist has neuron=None, with no sids
-        sids.extend(self.sort.usids[srows])
-        return sids
+        return np.concatenate([ np.asarray(sw.nslist.sids)[nsrows], self.sort.usids[srows] ])
 
     def GetSpike(self):
         """Return Id of just one selected spike, from nslist or uslist"""

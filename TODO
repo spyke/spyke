@@ -24,6 +24,12 @@ QT rewrite:
 
 - maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
 
+- QT bug: setting both QListView.setLayoutMode(QtGui.QListView.Batched) and QListView.setResizeMode(QtGui.QListView.Adjust) at the same time often causes endless recalculating of layout with flickering and 100% CPU, until you happen to resize the list to a point where it stops doing so
+    - maybe setting batch size to something bigger will work around this
+
+- QListView: keyboard navigation doesn't wrap when Wrapping is enabled
+    - see http://www.qtcentre.org/threads/38355-QListView-keyboard-navigation-doesn-t-wrap-when-Wrapping-is-enabled
+
 ----------------
 RECENT:
 

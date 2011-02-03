@@ -700,12 +700,12 @@ class SpykeListView(QtGui.QListView):
         self.sortwin = parent
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
-        self.setLayoutMode(self.Batched)
-        #self.setResizeMode(self.Adjust)
-        self.setUniformItemSizes(True) # speeds up listview
+        self.setLayoutMode(QtGui.QListView.Batched) # prevents lockup during huge layout ops
         self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
+        self.setUniformItemSizes(True) # speeds up listview
         self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
         self.setWrapping(True)
+        #self.setViewMode(QtGui.QListView.IconMode)
 
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_D, Qt.Key_M, Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
@@ -766,11 +766,10 @@ class NList(SpykeListView):
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
         selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
-        if len(selnids) == 1: # populate nslist if exactly 1 neuron is selected
-            self.sortwin.nslist.neuron = self.sortwin.sort.neurons[selnids[0]]
+        if 1 <= len(selnids) <= 2: # populate nslist if exactly 1 or 2 neurons selected
+            self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
         else:
-            self.sortwin.nslist.neuron = None
-        self.sortwin.nslist.model().reset()
+            self.sortwin.nslist.neurons = []
 
 
 class NSList(SpykeListView):
@@ -782,15 +781,20 @@ class NSList(SpykeListView):
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
 
-    def get_neuron(self):
-        return self.model().neuron
+    def get_neurons(self):
+        return self.model().neurons
 
-    def set_neuron(self, neuron):
-        """Every time neuron is set, clear any existing selection and update data model"""
+    def set_neurons(self, neurons):
+        """Every time neurons are set, clear any existing selection and update data model"""
         self.clearSelection() # remove any plotted sids, at least for now
-        self.model().neuron = neuron
+        self.model().neurons = neurons
 
-    neuron = property(get_neuron, set_neuron)
+    neurons = property(get_neurons, set_neurons)
+
+    def get_sids(self):
+        return self.model().sids
+
+    sids = property(get_sids)
 
 
 class USList(SpykeListView):
@@ -839,20 +843,28 @@ class NSListModel(SpykeAbstractListModel):
     """Model for neuron spikes list view"""
     def __init__(self, parent):
         SpykeAbstractListModel.__init__(self, parent)
-        # needs to be set externally every time neuron selection changes
-        # don't use a property to do this automatically, since that slows
-        # down populating the nslist
-        self.neuron = None
+        self.neurons = []
+
+    def get_neurons(self):
+        return self._neurons
+
+    def set_neurons(self, neurons):
+        self._neurons = neurons
+        if neurons:
+            self.sids = np.concatenate([ neuron.sids for neuron in neurons ])
+        else:
+            self.sids = []
+        self.nspikes = len(self.sids)
+        self.reset() # triggers new calls to rowCount() and data()
+
+    neurons = property(get_neurons, set_neurons)
 
     def rowCount(self, parent=None):
-        if self.neuron: # not None
-            return len(self.neuron.sids)
-        else:
-            return 0
+        return self.nspikes
 
     def data(self, index, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and index.isValid() and self.neuron:
-            return int(self.neuron.sids[index.row()])
+        if role == Qt.DisplayRole and index.isValid() and self.sids != []:
+            return int(self.sids[index.row()])
 
 
 class USListModel(SpykeAbstractListModel):

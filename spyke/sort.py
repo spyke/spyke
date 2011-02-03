@@ -1015,7 +1015,11 @@ class SortWindow(SpykeToolWindow):
     def on_actionFocusCurrentCluster_triggered(self):
         """Move focus to location focus of currently selected (single) cluster"""
         spw = self.spykewindow
-        cluster = spw.GetCluster()
+        try:
+            cluster = spw.GetCluster()
+        except RuntimeError, msg:
+            print(msg)
+            return
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
         fp = [ cluster.pos[dim] for dim in dims ]
@@ -1026,7 +1030,11 @@ class SortWindow(SpykeToolWindow):
     def on_actionFocusCurrentSpike_triggered(self):
         """Move focus to location of currently selected (single) spike"""
         spw = self.spykewindow
-        sid = spw.GetSpike()
+        try:
+            sid = spw.GetSpike()
+        except RuntimeError, msg:
+            print(msg)
+            return
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
         fp = self.sort.get_param_matrix(dims=dims)[sid]
@@ -1036,7 +1044,7 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionSelectRandomSpikes_triggered(self):
         """Select random sample of spikes in current cluster"""
-        if self.nslist.neuron:
+        if self.nslist.neurons != []:
             self.nslist.clearSelection()
             self.nslist.selectRandom(SPIKESELECTSAMPLESIZE)
 
@@ -1082,8 +1090,9 @@ class SortWindow(SpykeToolWindow):
             pass
         if update:
             self.nlist.updateAll()
-        if neuron == self.nslist.neuron:
-            self.nslist.neuron = None
+        if neuron in self.nslist.neurons:
+            self.nlist.neurons.remove(neuron)
+            self.nlist.neurons = self.nlist.neurons # triggers nslist refresh
 
     def MoveSpikes2Neuron(self, sids, neuron=None, update=True):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.
@@ -1098,8 +1107,8 @@ class SortWindow(SpykeToolWindow):
         if update:
             self.sort.update_usids()
             self.uslist.updateAll()
-        if neuron == self.nslist.neuron:
-            self.nslist.neuron = neuron # this triggers a refresh
+        if neuron in self.nslist.neurons:
+            self.nslist.neurons = self.nslist.neurons # triggers nslist refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.uslist.Select(row) # automatically select the new item at that position
         neuron.wave.data = None # triggers an update when it's actually needed
@@ -1120,8 +1129,8 @@ class SortWindow(SpykeToolWindow):
             self.sort.update_usids()
             self.uslist.updateAll()
         # this only makes sense if the neuron is currently selected in the nlist:
-        if neuron == self.nslist.neuron:
-            self.nslist.neuron = neuron # this triggers a refresh
+        if neuron in self.nslist.neurons:
+            self.nslist.neurons = self.nslist.neurons # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
 '''
     def MoveCurrentSpikes2Neuron(self, which='selected'):

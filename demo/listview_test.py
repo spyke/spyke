@@ -3,7 +3,7 @@ import sys
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 
-NITEMS = 729863
+NITEMS = 1000
 #INITIALFETCHSIZE = 5000
 #FETCHSIZE = 2000
 
@@ -13,7 +13,7 @@ class TestWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.list = TestListView(self)
         self.setCentralWidget(self.list)
-        self.resize(150, 500)
+        self.resize(500, 500)
 
 
 class TestListView(QtGui.QListView):
@@ -22,9 +22,12 @@ class TestListView(QtGui.QListView):
         self.setModel(TestListModel(parent))
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
-        self.setLayoutMode(self.Batched)
-        #self.setResizeMode(self.Adjust)
+        #self.setLayoutMode(QtGui.QListView.Batched) # prevents lockup during huge layout ops
+        #self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
         self.setUniformItemSizes(True) # speeds up listview
+        self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
+        self.setWrapping(True)
+        #self.setViewMode(QtGui.QListView.IconMode)
 
 
 class TestListModel(QtCore.QAbstractListModel):
