@@ -11,6 +11,15 @@ from OpenGL import GL
 import numpy as np
 
 
+BLACK = 0., 0., 0., 1
+WHITE = 1., 1., 1., 1.
+RED = 1., 0., 0., 1.
+GREEN = 0., 1., 0., 1.
+BLUE = 0., 0., 1., 1.
+YELLOW = 1., 1., 0., 1.
+MAGENTA = 1., 0., 1., 1.
+
+
 class Window(QtGui.QWidget):
     def __init__(self, parent=None):
         QtGui.QWidget.__init__(self, parent)
@@ -78,39 +87,57 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.updateGL()
 
     def initializeGL(self):
-        GL.glClearColor(0., 0., 0., 1.)
+        GL.glClearColor(*BLACK)
         #self.qglClearColor(self.BLACK)
-        GL.glColor(1., 1., 1., 1.)
+        #GL.glColor(*WHITE)
+        #GL.glPointSize(2) # truncs to the nearest pixel
         #self.qglColor(self.WHITE)
         # float32 is much faster than float64
         self.points = (np.float32(np.random.random((100000, 3))) - 0.5) * 4
         #self.points[:, 2] += 10
         #self.points[:, 2] *= 4
         #self.points = np.random.random((7000000, 3)) - 0.5
-        self.i = np.arange(len(self.points), dtype=np.int32)
-        #self.i0 = np.arange(len(self.points)/2, dtype=np.int32)
-        #self.i1 = np.arange(len(self.points)/2, len(self.points), dtype=np.int32)
-
+        #self.i = np.arange(len(self.points), dtype=np.int32)
+        npoints = len(self.points)/5
+        self.i0 = np.arange(npoints, dtype=np.int32)
+        self.i1 = np.arange(npoints, 2*npoints, dtype=np.int32)
+        self.i2 = np.arange(2*npoints, 3*npoints, dtype=np.int32)
+        self.i3 = np.arange(3*npoints, 4*npoints, dtype=np.int32)
+        self.i4 = np.arange(4*npoints, 5*npoints, dtype=np.int32)
 
         #self.object = self.makeObject()
         #GL.glShadeModel(GL.GL_FLAT)
-        #GL.glEnable(GL.GL_DEPTH_TEST)
-        #GL.glEnable(GL.GL_CULL_FACE)
+        GL.glEnable(GL.GL_DEPTH_TEST) # displays points according to occlusion, not order of plotting
+        #GL.glEnable(GL.GL_CULL_FACE) # only useful for solids
 
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+        # this rotation and translation stuff seems wasteful here.
+        # can't we just do this only on mouse/keyboard input, update the modelview
+        # matrix, and then leave it as is in self.paintGL?
         GL.glLoadIdentity()
         GL.glTranslated(0.0, 0.0, -8.0) # zval zooms you in and out
         #GL.glTranslated(0, 0, -13.)
         GL.glRotated(self.xRot / 16.0, 1.0, 0.0, 0.0)
         GL.glRotated(self.yRot / 16.0, 0.0, 1.0, 0.0)
         GL.glRotated(self.zRot / 16.0, 0.0, 0.0, 1.0)
+
         #GL.glCallList(self.object)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        #GL.glDrawArrays() sounds promising as an alternative
         GL.glVertexPointerf(self.points)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i)
-        #self.qglColor(self.GREEN)
-        #GL.glDrawElementsui(GL.GL_POINTS, self.i1)
+        GL.glColor(*RED)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i0)
+        GL.glColor(*GREEN)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i1)
+        GL.glColor(*BLUE)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i2)
+        GL.glColor(*YELLOW)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i3)
+        GL.glColor(*MAGENTA)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i4)
+
 
     def resizeGL(self, width, height):
         side = max(width, height)
@@ -120,6 +147,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glMatrixMode(GL.GL_PROJECTION)
         GL.glLoadIdentity()
         GL.glFrustum(-5, 5, -5, 5, 5, 20.) # nearz (2nd last arg) also zooms you in and out?
+        # might use GLTools::GLFrustum::SetPerspective(fov, aspect, near, far) instead
+
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
         # specify clipping box for orthonormal projection
@@ -144,6 +173,9 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         self.lastPos = QtCore.QPoint(event.pos())
     '''
+    # this specifies a display list, which is sent once, compiled, and then simply referenced
+    # later every time the display needs to be updated. However, display lists are static once
+    # compiled - none of their attributes can be changed
     def makeObject(self):
         genList = GL.glGenLists(1)
         GL.glNewList(genList, GL.GL_COMPILE)
