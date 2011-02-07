@@ -119,13 +119,13 @@ class Sort(object):
     nspikes = property(get_nspikes)
 
     def update_usids(self):
-        """Update usids, which is an array of struct array indices of unsorted spikes,
-        used by spike virtual listctrl"""
+        """Update usids, which is an array of struct array indices of unsorted spikes"""
         nids = self.spikes['nid']
         self.usids, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
+        # FIXME: disable sorting for now
         # order it by .usids_sorted_by and .usids_reversed
-        if self.usids_sorted_by != 't': self.sort_usids('t')
-        if self.usids_reversed: self.reverse_usids()
+        #if self.usids_sorted_by != 't': self.sort_usids('t')
+        #if self.usids_reversed: self.reverse_usids()
 
     def sort_usids(self, sort_by):
         """Sort struct array row indices of unsorted spikes according to

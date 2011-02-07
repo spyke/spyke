@@ -1,23 +1,33 @@
-#!/usr/bin/env python
+"""PyQt OpenGL example, modified from PySide example, which was a port of the opengl/hellogl
+example from Qt v4.x"""
+from __future__ import division
 
-"""PySide port of the opengl/hellogl example from Qt v4.x"""
 
 import sys
 import math
-#from PySide import QtCore, QtGui, QtOpenGL
 from PyQt4 import QtCore, QtGui, QtOpenGL
+from PyQt4.QtCore import Qt
 
-from OpenGL import GL
+from OpenGL import GL, GLU
 import numpy as np
 
 
-BLACK = 0., 0., 0., 1
-WHITE = 1., 1., 1., 1.
-RED = 1., 0., 0., 1.
-GREEN = 0., 1., 0., 1.
-BLUE = 0., 0., 1., 1.
-YELLOW = 1., 1., 0., 1.
-MAGENTA = 1., 0., 1., 1.
+BLACK = 0., 0., 0., 1.
+WHITE = 1., 1., 1.
+RED = 1., 0., 0.
+GREEN = 0., 1., 0.
+BLUE = 0., 0., 1.
+YELLOW = 1., 1., 0.
+MAGENTA = 1., 0., 1.
+
+
+def norm(angle):
+    while angle < 0:
+        angle += 360 * 16
+    while angle > 360 * 16:
+        angle -= 360 * 16
+    return angle
+
 
 
 class Window(QtGui.QWidget):
@@ -35,20 +45,134 @@ class GLWidget(QtOpenGL.QGLWidget):
         QtOpenGL.QGLWidget.__init__(self, parent)
 
         #self.object = 0
-        self.xRot = 0
-        self.yRot = 0
-        self.zRot = 0
+        self.x = 0.0
+        self.y = 0.0
+        self.z = -2.0
+        self.xrot = 0
+        self.yrot = 0
+        self.zrot = 0
 
         self.lastPos = QtCore.QPoint()
-
-        #self.RED = QtGui.QColor.fromRgb(1.0, 0.0, 0.0)
-        #self.BLACK = QtGui.QColor.fromRgb(0.0, 0.0, 0.0)
-        #self.RED = QtGui.QColor.fromCmykF(0, 0, 1, 0)
-        #self.GREEN = QtGui.QColor.fromCmykF(0, 1, 1, 0)
-        #self.BLACK = QtGui.QColor.fromCmykF(0, 0, 0, 1)
-        #self.WHITE = QtGui.QColor.fromCmykF(0, 0, 0, 0)
         #self.trolltechGreen = QtGui.QColor.fromCmykF(0.40, 0.0, 1.0, 0.0)
         #self.trolltechPurple = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0)
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(50, 50)
+
+    def sizeHint(self):
+        return QtCore.QSize(400, 400)
+
+    def initializeGL(self):
+        GL.glClearColor(*BLACK) # seems to default to black anyway
+
+        # TODO: maybe I should do something like this too:
+        #GL.glClearDepth(1.0)
+
+        #GL.glColor(*WHITE)
+        #GL.glPointSize(2) # truncs to the nearest pixel
+        # float32 is much faster than float64
+        self.points = np.float32(np.random.random((100000, 3))) - 0.5
+        npoints = len(self.points)/5
+        self.i0 = np.arange(npoints, dtype=np.int32)
+        self.i1 = np.arange(npoints, 2*npoints, dtype=np.int32)
+        self.i2 = np.arange(2*npoints, 3*npoints, dtype=np.int32)
+        self.i3 = np.arange(3*npoints, 4*npoints, dtype=np.int32)
+        self.i4 = np.arange(4*npoints, 5*npoints, dtype=np.int32)
+
+        #self.object = self.makeObject()
+        #GL.glShadeModel(GL.GL_FLAT)
+        GL.glEnable(GL.GL_DEPTH_TEST) # displays points according to occlusion, not order of plotting
+        #GL.glEnable(GL.GL_CULL_FACE) # only useful for solids
+
+    def paintGL(self):
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+        # TODO: try storing vertex array in buffer object on server side (graphics memory?)
+        # for faster rendering?
+
+        # TODO: make rotation relative to eye coords, not modelview coords
+
+        # this rotation and translation stuff seems wasteful here.
+        # can't we just do this only on mouse/keyboard input, update the modelview
+        # matrix, and then leave it as is in self.paintGL?
+        GL.glLoadIdentity() # loads identity matrix into top of matrix stack
+        GL.glTranslate(self.x, self.y, self.z) # zval zooms you in and out
+        #GL.glTranslated(0, 0, -13.)
+        GL.glRotate(self.xrot / 16.0, 1.0, 0.0, 0.0) # anles in deg
+        GL.glRotate(self.yrot / 16.0, 0.0, 1.0, 0.0)
+        GL.glRotate(self.zrot / 16.0, 0.0, 0.0, 1.0)
+
+        #GL.glCallList(self.object)
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        #GL.glDrawArrays() sounds promising as an alternative
+        GL.glVertexPointerf(self.points)
+        GL.glColor(*RED)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i0)
+        GL.glColor(*GREEN)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i1)
+        GL.glColor(*BLUE)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i2)
+        GL.glColor(*YELLOW)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i3)
+        GL.glColor(*MAGENTA)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i4)
+
+        #GL.glFlush() # forces drawing to begin, only makes difference for client-server?
+        #self.swapBuffers()
+
+    def resizeGL(self, width, height):
+        #side = max(width, height)
+        #GL.glViewport((width-side)/2, (height-side)/2, side, side)
+        GL.glViewport(0, 0, width, height)
+        # specify clipping box for perspective projection
+        GL.glMatrixMode(GL.GL_PROJECTION)
+        GL.glLoadIdentity()
+        #GL.glFrustum(-5, 5, -5, 5, 5, 20.) # nearz (2nd last arg) also zooms you in and out?
+        GLU.gluPerspective(45, width/height, 0.0001, 50) # alternative
+        GL.glMatrixMode(GL.GL_MODELVIEW)
+
+        # specify clipping box for orthonormal projection
+        #GL.glMatrixMode(GL.GL_PROJECTION)
+        #GL.glLoadIdentity()
+        #GL.glOrtho(-0.5, +0.5, +0.5, -0.5, 4.0, 15.0)
+        #GL.glMatrixMode(GL.GL_MODELVIEW)
+
+    def mousePressEvent(self, event):
+        self.lastPos = QtCore.QPoint(event.pos())
+
+    def mouseMoveEvent(self, event):
+        modifiers = event.modifiers()
+        dx = event.x() - self.lastPos.x()
+        dy = event.y() - self.lastPos.y()
+
+        if event.buttons() == QtCore.Qt.LeftButton:
+            if modifiers == Qt.ControlModifier: # rotate around z
+                self.zrot = norm(self.zrot - 8*dx - 8*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
+            elif modifiers == Qt.ShiftModifier: # translate in x and y
+                self.x += dx / 100
+                self.y -= dy / 100
+            else: # rotate around x and y
+                self.xrot = norm(self.xrot + 8*dy)
+                self.yrot = norm(self.yrot + 8*dx)
+        elif event.buttons() == QtCore.Qt.RightButton: # zoom
+            self.z -= dy / 40
+
+        self.updateGL()
+        self.lastPos = QtCore.QPoint(event.pos())
+
+    def wheelEvent(self, event):
+        self.z += event.delta() / 500 # zoom
+        self.updateGL()
+
+
+    '''
+
+    def normalizeAngle(self, angle):
+        while angle < 0:
+            angle += 360 * 16
+        while angle > 360 * 16:
+            angle -= 360 * 16
+        return angle
 
     def xRotation(self):
         return self.xRot
@@ -58,12 +182,6 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def zRotation(self):
         return self.zRot
-
-    def minimumSizeHint(self):
-        return QtCore.QSize(50, 50)
-
-    def sizeHint(self):
-        return QtCore.QSize(400, 400)
 
     def setXRotation(self, angle):
         angle = self.normalizeAngle(angle)
@@ -85,94 +203,6 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.zRot = angle
             #self.emit(QtCore.SIGNAL("zRotationChanged(int)"), angle)
             self.updateGL()
-
-    def initializeGL(self):
-        GL.glClearColor(*BLACK)
-        #self.qglClearColor(self.BLACK)
-        #GL.glColor(*WHITE)
-        #GL.glPointSize(2) # truncs to the nearest pixel
-        #self.qglColor(self.WHITE)
-        # float32 is much faster than float64
-        self.points = (np.float32(np.random.random((100000, 3))) - 0.5) * 4
-        #self.points[:, 2] += 10
-        #self.points[:, 2] *= 4
-        #self.points = np.random.random((7000000, 3)) - 0.5
-        #self.i = np.arange(len(self.points), dtype=np.int32)
-        npoints = len(self.points)/5
-        self.i0 = np.arange(npoints, dtype=np.int32)
-        self.i1 = np.arange(npoints, 2*npoints, dtype=np.int32)
-        self.i2 = np.arange(2*npoints, 3*npoints, dtype=np.int32)
-        self.i3 = np.arange(3*npoints, 4*npoints, dtype=np.int32)
-        self.i4 = np.arange(4*npoints, 5*npoints, dtype=np.int32)
-
-        #self.object = self.makeObject()
-        #GL.glShadeModel(GL.GL_FLAT)
-        GL.glEnable(GL.GL_DEPTH_TEST) # displays points according to occlusion, not order of plotting
-        #GL.glEnable(GL.GL_CULL_FACE) # only useful for solids
-
-    def paintGL(self):
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-
-        # this rotation and translation stuff seems wasteful here.
-        # can't we just do this only on mouse/keyboard input, update the modelview
-        # matrix, and then leave it as is in self.paintGL?
-        GL.glLoadIdentity()
-        GL.glTranslated(0.0, 0.0, -8.0) # zval zooms you in and out
-        #GL.glTranslated(0, 0, -13.)
-        GL.glRotated(self.xRot / 16.0, 1.0, 0.0, 0.0)
-        GL.glRotated(self.yRot / 16.0, 0.0, 1.0, 0.0)
-        GL.glRotated(self.zRot / 16.0, 0.0, 0.0, 1.0)
-
-        #GL.glCallList(self.object)
-        GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
-        #GL.glDrawArrays() sounds promising as an alternative
-        GL.glVertexPointerf(self.points)
-        GL.glColor(*RED)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i0)
-        GL.glColor(*GREEN)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i1)
-        GL.glColor(*BLUE)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i2)
-        GL.glColor(*YELLOW)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i3)
-        GL.glColor(*MAGENTA)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i4)
-
-
-    def resizeGL(self, width, height):
-        side = max(width, height)
-        GL.glViewport((width - side) / 2, (height - side) / 2, side, side)
-
-        # specify clipping box for perspective projection
-        GL.glMatrixMode(GL.GL_PROJECTION)
-        GL.glLoadIdentity()
-        GL.glFrustum(-5, 5, -5, 5, 5, 20.) # nearz (2nd last arg) also zooms you in and out?
-        # might use GLTools::GLFrustum::SetPerspective(fov, aspect, near, far) instead
-
-        GL.glMatrixMode(GL.GL_MODELVIEW)
-
-        # specify clipping box for orthonormal projection
-        #GL.glMatrixMode(GL.GL_PROJECTION)
-        #GL.glLoadIdentity()
-        #GL.glOrtho(-0.5, +0.5, +0.5, -0.5, 4.0, 15.0)
-        #GL.glMatrixMode(GL.GL_MODELVIEW)
-
-    def mousePressEvent(self, event):
-        self.lastPos = QtCore.QPoint(event.pos())
-
-    def mouseMoveEvent(self, event):
-        dx = event.x() - self.lastPos.x()
-        dy = event.y() - self.lastPos.y()
-
-        if event.buttons() & QtCore.Qt.LeftButton:
-            self.setXRotation(self.xRot + 8 * dy)
-            self.setYRotation(self.yRot + 8 * dx)
-        elif event.buttons() & QtCore.Qt.RightButton:
-            #self.setXRotation(self.xRot - 8 * dy)
-            self.setZRotation(self.zRot + 8 * dx + 8 * dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
-
-        self.lastPos = QtCore.QPoint(event.pos())
-    '''
     # this specifies a display list, which is sent once, compiled, and then simply referenced
     # later every time the display needs to be updated. However, display lists are static once
     # compiled - none of their attributes can be changed
@@ -249,12 +279,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glVertex3d(x2, y2, -0.05)
         GL.glVertex3d(x1, y1, -0.05)
     '''
-    def normalizeAngle(self, angle):
-        while angle < 0:
-            angle += 360 * 16
-        while angle > 360 * 16:
-            angle -= 360 * 16
-        return angle
 
 
 if __name__ == '__main__':
