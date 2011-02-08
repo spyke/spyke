@@ -83,19 +83,17 @@ class GLWidget(QtOpenGL.QGLWidget):
         return QtCore.QSize(400, 400)
 
     def initializeGL(self):
-        #GL.glClearColor(*BLACK) # seems to default to black anyway
+        # these are the defaults anyway, but just to be thorough
+        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+        GL.glClearDepth(1.0)
 
-        # TODO: maybe I should do something like this too:
-        #GL.glClearDepth(1.0)
-
-        #GL.glColor(*WHITE)
         #GL.glEnable(GL.GL_POINT_SMOOTH) # doesn't seem to work right, proper way to antialiase?
         #GL.glEnable(GL.GL_LINE_SMOOTH) # works better
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         # float32 is much faster than float64
-        self.npoints = 3000000
+        self.npoints = 7000000
         self.points = np.float32(np.random.random((self.npoints, 3))) - 0.5
-        self.cis = np.int32(np.random.randint(5, size=self.npoints))
+        self.cis = np.uint8(np.random.randint(5, size=self.npoints))
         self.colors = CMAP[self.cis] # uint8
         #n = int(self.npoints / 5)
         #self.n = n
@@ -139,18 +137,12 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         #GL.glColor(*RED)
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
-
-
-
-        # TODO: might use colormap instead, and call glIndex() instead of glColor()
-        # Actually, should be able to use a color index array...
+        # might consider using buffer objects for even more speed (less unnecessary vertex
+        # data from ram to vram, I think). Apparently, buffer objects don't work with
+        # color arrays?
 
         #GL.glColor(*RED)
         #GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints) # faster than glDrawElements?
-
-        # glMultiDrawArrays might be even faster than glDrawArrays
-        # might consider using buffer objects for even more speed (less unnecessary vertex
-        # data from ram to vram, I think)
 
         '''
         # glDrawArrays is a lot faster than glDrawElements:
@@ -166,7 +158,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glColor(*MAGENTA)
         GL.glDrawArrays(GL.GL_POINTS, 4*n, n)
         '''
-
         '''
         GL.glColor(*RED)
         GL.glDrawElementsui(GL.GL_POINTS, self.i0) # treat array indices as unsigned int
@@ -342,8 +333,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glVertex3d(x2, y2, -0.05)
         GL.glVertex3d(x1, y1, -0.05)
     '''
-
-
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     window = Window()
