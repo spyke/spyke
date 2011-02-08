@@ -21,13 +21,16 @@ YELLOW = 1., 1., 0.
 MAGENTA = 1., 0., 1.
 
 
+'''
 def norm(angle):
-    while angle < 0:
-        angle += 360 * 16
-    while angle > 360 * 16:
-        angle -= 360 * 16
+    if angle < 0:
+        angle += 360
+    elif angle > 360:
+        angle -= 360
     return angle
-
+'''
+def norm(angle):
+    return angle % 360 # mod isn't expensive, is it?
 
 
 class Window(QtGui.QWidget):
@@ -103,9 +106,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glLoadIdentity() # loads identity matrix into top of matrix stack
         GL.glTranslate(self.x, self.y, self.z) # zval zooms you in and out
         #GL.glTranslated(0, 0, -13.)
-        GL.glRotate(self.xrot / 16.0, 1.0, 0.0, 0.0) # anles in deg
-        GL.glRotate(self.yrot / 16.0, 0.0, 1.0, 0.0)
-        GL.glRotate(self.zrot / 16.0, 0.0, 0.0, 1.0)
+        GL.glRotate(self.xrot, 1.0, 0.0, 0.0) # angles in deg
+        GL.glRotate(self.yrot, 0.0, 1.0, 0.0)
+        GL.glRotate(self.zrot, 0.0, 0.0, 1.0)
 
         #GL.glCallList(self.object)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
@@ -160,13 +163,13 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         if buttons == QtCore.Qt.LeftButton:
             if modifiers == Qt.ControlModifier: # rotate around z
-                self.zrot = norm(self.zrot - 8*dx - 8*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
+                self.zrot = norm(self.zrot - 0.5*dx - 0.5*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
             elif modifiers == Qt.ShiftModifier: # translate in x and y
                 self.x += dx / 100
                 self.y -= dy / 100
             else: # rotate around x and y
-                self.xrot = norm(self.xrot + 8*dy)
-                self.yrot = norm(self.yrot + 8*dx)
+                self.xrot = norm(self.xrot + 0.5*dy)
+                self.yrot = norm(self.yrot + 0.5*dx)
         elif buttons == QtCore.Qt.RightButton: # zoom
             self.z -= dy / 40
 
@@ -183,9 +186,9 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         if modifiers == Qt.ControlModifier: # rotate around z, or zoom along z
             if key == Qt.Key_Left:
-                self.zrot = norm(self.zrot + 16*5)
+                self.zrot = norm(self.zrot + 5)
             elif key == Qt.Key_Right:
-                self.zrot = norm(self.zrot - 16*5)
+                self.zrot = norm(self.zrot - 5)
             if key == Qt.Key_Up:
                 self.z += 0.2
             elif key == Qt.Key_Down:
@@ -201,13 +204,13 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.y -= 0.2
         else: # rotate around x and y
             if key == Qt.Key_Left:
-                self.yrot = norm(self.yrot - 16*5)
+                self.yrot = norm(self.yrot - 5)
             elif key == Qt.Key_Right:
-                self.yrot = norm(self.yrot + 16*5)
+                self.yrot = norm(self.yrot + 5)
             elif key == Qt.Key_Up:
-                self.xrot = norm(self.xrot - 16*5)
+                self.xrot = norm(self.xrot - 5)
             elif key == Qt.Key_Down:
-                self.xrot = norm(self.xrot + 16*5)
+                self.xrot = norm(self.xrot + 5)
 
         self.updateGL()
 
