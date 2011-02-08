@@ -39,6 +39,9 @@ class Window(QtGui.QWidget):
         self.setLayout(mainLayout)
         self.setWindowTitle(self.tr("OpenGL test"))
 
+    def keyPressEvent(self, event):
+        self.glWidget.keyPressEvent(event) # pass it down
+
 
 class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
@@ -69,7 +72,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         #GL.glClearDepth(1.0)
 
         #GL.glColor(*WHITE)
-        #GL.glPointSize(2) # truncs to the nearest pixel
+        #GL.glEnable(GL.GL_POINT_SMOOTH) # doesn't seem to work right, proper way to antialiase?
+        #GL.glEnable(GL.GL_LINE_SMOOTH) # works better
+        #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         # float32 is much faster than float64
         self.points = np.float32(np.random.random((100000, 3))) - 0.5
         npoints = len(self.points)/5
@@ -104,8 +109,15 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         #GL.glCallList(self.object)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        #GL.glEnableClientState(GL.GL_INDEX_ARRAY);
         #GL.glDrawArrays() sounds promising as an alternative
-        GL.glVertexPointerf(self.points)
+        GL.glVertexPointerf(self.points) # float32
+        #GL.glIndexPointeri() # int or short?
+
+
+
+        # TODO: might use colormap instead, and call glIndex() instead of glColor()
+        # Actually, should be able to use a color index array...
         GL.glColor(*RED)
         GL.glDrawElementsui(GL.GL_POINTS, self.i0)
         GL.glColor(*GREEN)
@@ -141,11 +153,12 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint(event.pos())
 
     def mouseMoveEvent(self, event):
+        buttons = event.buttons()
         modifiers = event.modifiers()
         dx = event.x() - self.lastPos.x()
         dy = event.y() - self.lastPos.y()
 
-        if event.buttons() == QtCore.Qt.LeftButton:
+        if buttons == QtCore.Qt.LeftButton:
             if modifiers == Qt.ControlModifier: # rotate around z
                 self.zrot = norm(self.zrot - 8*dx - 8*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
             elif modifiers == Qt.ShiftModifier: # translate in x and y
@@ -154,7 +167,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             else: # rotate around x and y
                 self.xrot = norm(self.xrot + 8*dy)
                 self.yrot = norm(self.yrot + 8*dx)
-        elif event.buttons() == QtCore.Qt.RightButton: # zoom
+        elif buttons == QtCore.Qt.RightButton: # zoom
             self.z -= dy / 40
 
         self.updateGL()
@@ -164,6 +177,39 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.z += event.delta() / 500 # zoom
         self.updateGL()
 
+    def keyPressEvent(self, event):
+        key = event.key()
+        modifiers = event.modifiers()
+
+        if modifiers == Qt.ControlModifier: # rotate around z, or zoom along z
+            if key == Qt.Key_Left:
+                self.zrot = norm(self.zrot + 16*5)
+            elif key == Qt.Key_Right:
+                self.zrot = norm(self.zrot - 16*5)
+            if key == Qt.Key_Up:
+                self.z += 0.2
+            elif key == Qt.Key_Down:
+                self.z -= 0.2
+        elif modifiers == Qt.ShiftModifier: # translate in x and y
+            if key == Qt.Key_Left:
+                self.x -= 0.2
+            elif key == Qt.Key_Right:
+                self.x += 0.2
+            if key == Qt.Key_Up:
+                self.y += 0.2
+            elif key == Qt.Key_Down:
+                self.y -= 0.2
+        else: # rotate around x and y
+            if key == Qt.Key_Left:
+                self.yrot = norm(self.yrot - 16*5)
+            elif key == Qt.Key_Right:
+                self.yrot = norm(self.yrot + 16*5)
+            elif key == Qt.Key_Up:
+                self.xrot = norm(self.xrot - 16*5)
+            elif key == Qt.Key_Down:
+                self.xrot = norm(self.xrot + 16*5)
+
+        self.updateGL()
 
     '''
 
