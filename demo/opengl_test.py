@@ -11,7 +11,7 @@ from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 import numpy as np
 
-
+'''
 BLACK = 0., 0., 0., 1.
 WHITE = 1., 1., 1.
 RED = 1., 0., 0.
@@ -19,24 +19,24 @@ GREEN = 0., 1., 0.
 BLUE = 0., 0., 1.
 YELLOW = 1., 1., 0.
 MAGENTA = 1., 0., 1.
+'''
+RED = 255, 0, 0
+GREEN = 0, 255, 0
+BLUE = 0, 0, 255
+YELLOW = 255, 255, 0
+MAGENTA = 255, 0, 255
+
+CMAP = np.array([RED, GREEN, BLUE, YELLOW, MAGENTA], dtype=np.uint8)
 
 
-'''
 def norm(angle):
-    if angle < 0:
-        angle += 360
-    elif angle > 360:
-        angle -= 360
-    return angle
-'''
-def norm(angle):
-    return angle % 360 # mod isn't expensive, is it?
+    return angle % 360
 
 
 class Window(QtGui.QWidget):
     def __init__(self, parent=None):
         QtGui.QWidget.__init__(self, parent)
-        self.glWidget = GLWidget()
+        self.glWidget = GLWidget(parent=self)
         mainLayout = QtGui.QHBoxLayout()
         mainLayout.addWidget(self.glWidget)
         self.setLayout(mainLayout)
@@ -53,15 +53,29 @@ class GLWidget(QtOpenGL.QGLWidget):
         #self.object = 0
         self.x = 0.0
         self.y = 0.0
-        self.z = -2.0
+        self.z = -2.0 # 0 would put us directly inside the random cube of points
         self.xrot = 0
         self.yrot = 0
         self.zrot = 0
 
         self.lastPos = QtCore.QPoint()
-        #self.trolltechGreen = QtGui.QColor.fromCmykF(0.40, 0.0, 1.0, 0.0)
-        #self.trolltechPurple = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0)
+        '''
+        format = QtOpenGL.QGLFormat()
+        #format.setVersion(3, 0) # not available in PyQt 4.7.4
+        # set to color index mode, unsupported in OpenGL >= 3.1, don't know how to load
+        # GL_ARB_compatibility extension, and for now, can't force OpenGL 3.0 mode.
+        # Gives "QGLContext::makeCurrent(): Cannot make invalid context current." error:
+        format.setRgba(False)
+        #format.setDoubleBuffer(True) # works fine
+        self.setFormat(format)
+        #QtOpenGL.QGLFormat.setDefaultFormat(format)
 
+        c = QtGui.qRgb
+        cmap = [c(255, 0, 0), c(0, 255, 0), c(0, 0, 255), c(255, 255, 0), c(255, 0, 255)]
+        colormap = QtOpenGL.QGLColormap()
+        colormap.setEntries(cmap)
+        self.setColormap(colormap)
+        '''
     def minimumSizeHint(self):
         return QtCore.QSize(50, 50)
 
@@ -69,7 +83,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         return QtCore.QSize(400, 400)
 
     def initializeGL(self):
-        GL.glClearColor(*BLACK) # seems to default to black anyway
+        #GL.glClearColor(*BLACK) # seems to default to black anyway
 
         # TODO: maybe I should do something like this too:
         #GL.glClearDepth(1.0)
@@ -79,17 +93,23 @@ class GLWidget(QtOpenGL.QGLWidget):
         #GL.glEnable(GL.GL_LINE_SMOOTH) # works better
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         # float32 is much faster than float64
-        self.points = np.float32(np.random.random((100000, 3))) - 0.5
-        npoints = len(self.points)/5
-        self.i0 = np.arange(npoints, dtype=np.int32)
-        self.i1 = np.arange(npoints, 2*npoints, dtype=np.int32)
-        self.i2 = np.arange(2*npoints, 3*npoints, dtype=np.int32)
-        self.i3 = np.arange(3*npoints, 4*npoints, dtype=np.int32)
-        self.i4 = np.arange(4*npoints, 5*npoints, dtype=np.int32)
+        self.npoints = 3000000
+        self.points = np.float32(np.random.random((self.npoints, 3))) - 0.5
+        self.cis = np.int32(np.random.randint(5, size=self.npoints))
+        self.colors = CMAP[self.cis] # uint8
+        #n = int(self.npoints / 5)
+        #self.n = n
+        #self.i0 = np.arange(n, dtype=np.int32)
+        #self.i1 = np.arange(n, 2*n, dtype=np.int32)
+        #self.i2 = np.arange(2*n, 3*n, dtype=np.int32)
+        #self.i3 = np.arange(3*n, 4*n, dtype=np.int32)
+        #self.i4 = np.arange(4*n, 5*n, dtype=np.int32)
+
+
+        GL.glEnable(GL.GL_DEPTH_TEST) # display points according to occlusion, not order of plotting
 
         #self.object = self.makeObject()
         #GL.glShadeModel(GL.GL_FLAT)
-        GL.glEnable(GL.GL_DEPTH_TEST) # displays points according to occlusion, not order of plotting
         #GL.glEnable(GL.GL_CULL_FACE) # only useful for solids
 
     def paintGL(self):
@@ -105,24 +125,51 @@ class GLWidget(QtOpenGL.QGLWidget):
         # matrix, and then leave it as is in self.paintGL?
         GL.glLoadIdentity() # loads identity matrix into top of matrix stack
         GL.glTranslate(self.x, self.y, self.z) # zval zooms you in and out
-        #GL.glTranslated(0, 0, -13.)
         GL.glRotate(self.xrot, 1.0, 0.0, 0.0) # angles in deg
         GL.glRotate(self.yrot, 0.0, 1.0, 0.0)
         GL.glRotate(self.zrot, 0.0, 0.0, 1.0)
 
         #GL.glCallList(self.object)
+        GL.glEnableClientState(GL.GL_COLOR_ARRAY);
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
         #GL.glEnableClientState(GL.GL_INDEX_ARRAY);
-        #GL.glDrawArrays() sounds promising as an alternative
+        GL.glColorPointerub(self.colors) # usigned byte, ie uint8
         GL.glVertexPointerf(self.points) # float32
-        #GL.glIndexPointeri() # int or short?
+        #GL.glIndexPointeri(self.cis) # int32
+
+        #GL.glColor(*RED)
+        GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
 
 
 
         # TODO: might use colormap instead, and call glIndex() instead of glColor()
         # Actually, should be able to use a color index array...
+
+        #GL.glColor(*RED)
+        #GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints) # faster than glDrawElements?
+
+        # glMultiDrawArrays might be even faster than glDrawArrays
+        # might consider using buffer objects for even more speed (less unnecessary vertex
+        # data from ram to vram, I think)
+
+        '''
+        # glDrawArrays is a lot faster than glDrawElements:
+        n = self.n
         GL.glColor(*RED)
-        GL.glDrawElementsui(GL.GL_POINTS, self.i0)
+        GL.glDrawArrays(GL.GL_POINTS, 0, n)
+        GL.glColor(*GREEN)
+        GL.glDrawArrays(GL.GL_POINTS, n, n)
+        GL.glColor(*BLUE)
+        GL.glDrawArrays(GL.GL_POINTS, 2*n, n)
+        GL.glColor(*YELLOW)
+        GL.glDrawArrays(GL.GL_POINTS, 3*n, n)
+        GL.glColor(*MAGENTA)
+        GL.glDrawArrays(GL.GL_POINTS, 4*n, n)
+        '''
+
+        '''
+        GL.glColor(*RED)
+        GL.glDrawElementsui(GL.GL_POINTS, self.i0) # treat array indices as unsigned int
         GL.glColor(*GREEN)
         GL.glDrawElementsui(GL.GL_POINTS, self.i1)
         GL.glColor(*BLUE)
@@ -131,7 +178,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glDrawElementsui(GL.GL_POINTS, self.i3)
         GL.glColor(*MAGENTA)
         GL.glDrawElementsui(GL.GL_POINTS, self.i4)
-
+        '''
         #GL.glFlush() # forces drawing to begin, only makes difference for client-server?
         #self.swapBuffers()
 
@@ -143,7 +190,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glMatrixMode(GL.GL_PROJECTION)
         GL.glLoadIdentity()
         #GL.glFrustum(-5, 5, -5, 5, 5, 20.) # nearz (2nd last arg) also zooms you in and out?
-        GLU.gluPerspective(45, width/height, 0.0001, 50) # alternative
+        # fov (deg) controls amount of perspective, and as a side effect initial apparent size
+        GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
         # specify clipping box for orthonormal projection
@@ -189,7 +237,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.zrot = norm(self.zrot + 5)
             elif key == Qt.Key_Right:
                 self.zrot = norm(self.zrot - 5)
-            if key == Qt.Key_Up:
+            elif key == Qt.Key_Up:
                 self.z += 0.2
             elif key == Qt.Key_Down:
                 self.z -= 0.2
@@ -198,7 +246,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.x -= 0.2
             elif key == Qt.Key_Right:
                 self.x += 0.2
-            if key == Qt.Key_Up:
+            elif key == Qt.Key_Up:
                 self.y += 0.2
             elif key == Qt.Key_Down:
                 self.y -= 0.2
@@ -212,46 +260,12 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_Down:
                 self.xrot = norm(self.xrot + 5)
 
+        if key == Qt.Key_0: # reset focus
+            self.x, self.y = 0.0, 0.0
+
         self.updateGL()
 
     '''
-
-    def normalizeAngle(self, angle):
-        while angle < 0:
-            angle += 360 * 16
-        while angle > 360 * 16:
-            angle -= 360 * 16
-        return angle
-
-    def xRotation(self):
-        return self.xRot
-
-    def yRotation(self):
-        return self.yRot
-
-    def zRotation(self):
-        return self.zRot
-
-    def setXRotation(self, angle):
-        angle = self.normalizeAngle(angle)
-        if angle != self.xRot:
-            self.xRot = angle
-            #self.emit(QtCore.SIGNAL("xRotationChanged(int)"), angle)
-            self.updateGL()
-
-    def setYRotation(self, angle):
-        angle = self.normalizeAngle(angle)
-        if angle != self.yRot:
-            self.yRot = angle
-            #self.emit(QtCore.SIGNAL("yRotationChanged(int)"), angle)
-            self.updateGL()
-
-    def setZRotation(self, angle):
-        angle = self.normalizeAngle(angle)
-        if angle != self.zRot:
-            self.zRot = angle
-            #self.emit(QtCore.SIGNAL("zRotationChanged(int)"), angle)
-            self.updateGL()
     # this specifies a display list, which is sent once, compiled, and then simply referenced
     # later every time the display needs to be updated. However, display lists are static once
     # compiled - none of their attributes can be changed
