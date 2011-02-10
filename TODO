@@ -1,4 +1,37 @@
+GL rewrite:
+
+- replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
+- search for mlab, glyph, disable_render, scene
+- maybe I can restore the usual mouse navigation by calculating dx and dy relative to the center of the viewport, instead of just relative to the mouse position on button down
+    - this doesn't explain why key commands have the same navigation problems
+
+- translation should simply move the viewport dx and dy in pixels, not in plot coords
+- zoom should be more consistent speed
+
+- implement saving and restoring of position and orientation of camera (search for view and roll keywords)
+- implement focus to point
+- implement tooltips and point selection
+    - need reverse mapping from viewport coords to point coords (and ideally, to point index)
+
+DONE:
+
+- for some reason, plotting 7m actual data points gives really slow rendering
+    - it's not the colouring - decolouring all has same problem, and setting them all to white doesn't help either
+    - zooming in or out, or rotating so that most points are obscured, also doesn't seem to help - quite mysterious
+    - must be the values themselves - nope, scaling them all down so they're between -1 and 1 doesn't help.
+    - strange, hiding and then showing the cluster window helps speed it up a little, but it still sucks
+    - reducing npoints to 10k speeds it up a fair bit, but its still strangely slow. Something in the python process is using 100% CPU during idle
+    - better on restart, but still strangely slow.
+    - switching back to 7m cube data after plotting real data restores normal rendering speed. Setting to exactly 7282567 points in cube doesn't change that. Very strange.
+    - it's actually slower than mayavi
+    - ah, maybe it's cuz array X isn't contig! yes, it isn't contig! Yes, copying solved it!
+
+----------------
 QT rewrite:
+
+- LOOKS LIKE A BIG BUG: the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
+
+- color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this directly in designer apparently)
 

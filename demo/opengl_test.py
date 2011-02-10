@@ -2,7 +2,6 @@
 example from Qt v4.x"""
 from __future__ import division
 
-
 import sys
 import math
 from PyQt4 import QtCore, QtGui, QtOpenGL
@@ -11,25 +10,14 @@ from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 import numpy as np
 
-'''
-BLACK = 0., 0., 0., 1.
-WHITE = 1., 1., 1.
-RED = 1., 0., 0.
-GREEN = 0., 1., 0.
-BLUE = 0., 0., 1.
-YELLOW = 1., 1., 0.
-MAGENTA = 1., 0., 1.
-'''
 RED = 255, 0, 0
 GREEN = 0, 255, 0
 BLUE = 0, 0, 255
 YELLOW = 255, 255, 0
 MAGENTA = 255, 0, 255
-
 CMAP = np.array([RED, GREEN, BLUE, YELLOW, MAGENTA], dtype=np.uint8)
 
-
-def norm(angle):
+def normdeg(angle):
     return angle % 360
 
 
@@ -202,13 +190,13 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         if buttons == QtCore.Qt.LeftButton:
             if modifiers == Qt.ControlModifier: # rotate around z
-                self.zrot = norm(self.zrot - 0.5*dx - 0.5*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
+                self.zrot = normdeg(self.zrot - 0.5*dx - 0.5*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
             elif modifiers == Qt.ShiftModifier: # translate in x and y
                 self.x += dx / 100
                 self.y -= dy / 100
             else: # rotate around x and y
-                self.xrot = norm(self.xrot + 0.5*dy)
-                self.yrot = norm(self.yrot + 0.5*dx)
+                self.xrot = normdeg(self.xrot + 0.5*dy)
+                self.yrot = normdeg(self.yrot + 0.5*dx)
         elif buttons == QtCore.Qt.RightButton: # zoom
             self.z -= dy / 40
 
@@ -225,9 +213,9 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         if modifiers == Qt.ControlModifier: # rotate around z, or zoom along z
             if key == Qt.Key_Left:
-                self.zrot = norm(self.zrot + 5)
+                self.zrot = normdeg(self.zrot + 5)
             elif key == Qt.Key_Right:
-                self.zrot = norm(self.zrot - 5)
+                self.zrot = normdeg(self.zrot - 5)
             elif key == Qt.Key_Up:
                 self.z += 0.2
             elif key == Qt.Key_Down:
@@ -243,13 +231,13 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.y -= 0.2
         else: # rotate around x and y
             if key == Qt.Key_Left:
-                self.yrot = norm(self.yrot - 5)
+                self.yrot = normdeg(self.yrot - 5)
             elif key == Qt.Key_Right:
-                self.yrot = norm(self.yrot + 5)
+                self.yrot = normdeg(self.yrot + 5)
             elif key == Qt.Key_Up:
-                self.xrot = norm(self.xrot - 5)
+                self.xrot = normdeg(self.xrot - 5)
             elif key == Qt.Key_Down:
-                self.xrot = norm(self.xrot + 5)
+                self.xrot = normdeg(self.xrot + 5)
 
         if key == Qt.Key_0: # reset focus
             self.x, self.y = 0.0, 0.0

@@ -31,8 +31,6 @@ np.set_printoptions(suppress=True)
 # this really should be the default in numpy...
 np.seterr(all='raise')
 
-from matplotlib.colors import hex2color
-
 import probes
 
 MU = '\xb5' # greek mu symbol
@@ -1195,14 +1193,15 @@ def hamming(t, N):
     #    N = (len(t) - 1) / 2
     return 0.54 - 0.46 * np.cos(pi * (2*t + N)/N)
 
-def hex2cmap(hexcolours, alpha=0.0):
-    """Convert colours hex string list into a colourmap (RGBA list)"""
-    cmap = []
-    for c in hexcolours:
-        c = hex2color(c) # convert hex string to RGB tuple
-        c = list(c) + [alpha] # convert to list, add alpha as 4th channel
-        cmap.append(c)
-    return cmap
+def hex2rgb(hexcolours):
+    """Convert colours hex string list into an RGB array"""
+    rgb = []
+    for s in hexcolours:
+        s = s[len(s)-6:len(s)] # get last 6 characters
+        r, g, b = s[0:2], s[2:4], s[4:6]
+        r, g, b = int(r, base=16), int(g, base=16), int(b, base=16)
+        rgb.append((r, g, b))
+    return np.uint8(rgb)
 
 c = np.cos
 s = np.sin
@@ -1234,6 +1233,9 @@ def R(tx, ty, tz):
     """
     # convert to radians, then take matrix product
     return Rz(tz*pi/180)*Rx(tx*pi/180)*Ry(ty*pi/180)
+
+def normdeg(angle):
+    return angle % 360
 
 def win2posixpath(path):
     path = path.replace('\\', '/')

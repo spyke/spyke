@@ -979,7 +979,6 @@ class SortWindow(SpykeToolWindow):
         # take argsort again:
         newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
         cw = spw.windows['Cluster']
-        cw.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
         dims = spw.GetClusterPlotDimNames()
@@ -1023,6 +1022,7 @@ class SortWindow(SpykeToolWindow):
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
         fp = [ cluster.pos[dim] for dim in dims ]
+        # FIXME for OpenGL:
         cw.f.scene.camera.focal_point = fp
         cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
         #cw.Refresh() # this also seems to work: repaint the window
@@ -1038,6 +1038,7 @@ class SortWindow(SpykeToolWindow):
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
         fp = self.sort.get_param_matrix(dims=dims)[sid]
+        # FIXME for OpenGL
         cw.f.scene.camera.focal_point = fp
         cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
         #cw.Refresh() # this also seems to work: repaint the window

@@ -22,7 +22,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from core import MICRO, TW, hex2cmap, toiter
+from core import MICRO, TW, hex2rgb, toiter
 
 SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
@@ -63,10 +63,8 @@ PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GRE
 CLUSTERCOLOURS = copy(PLOTCOLOURS)
 CLUSTERCOLOURS.remove(GREY)
 
-CMAP = hex2cmap(CLUSTERCOLOURS, alpha=1.0)
-TRANSWHITE = [1.0, 1.0, 1.0, 0.5]
-CMAPPLUSTRANSWHITE = CMAP + [TRANSWHITE]
-TRANSWHITEI = len(CMAPPLUSTRANSWHITE) - 1
+CMAP = hex2rgb(CLUSTERCOLOURS)
+GREY = hex2rgb([GREY]) # overwrite to RGB format
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
