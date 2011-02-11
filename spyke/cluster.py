@@ -153,12 +153,6 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.spw = self.parent().spykewindow
-        self.x = 0.0
-        self.y = 0.0
-        self.z = -2.0 # 0 would put us directly inside the random cube of points
-        self.xrot = 0
-        self.yrot = 0
-        self.zrot = 0
         self.lastPos = QtCore.QPoint()
 
     def initializeGL(self):
@@ -171,6 +165,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         #GL.glEnable(GL.GL_LINE_SMOOTH) # works better
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         '''
+        # set initial position and orientation of camera
+        GL.glTranslate(0, 0, -50)
+        GL.glRotate(-45, 0, 0, 1)
+        GL.glRotate(-45, 0, 1, 0)
+
     def reset(self):
         """Stop plotting"""
         self.npoints = 0
@@ -179,34 +178,85 @@ class GLWidget(QtOpenGL.QGLWidget):
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        # TODO: make rotation relative to eye coords, not modelview coords
-        # This rotation and translation stuff seems wasteful here.
-        # can't we just do this only on mouse/keyboard input, update the modelview
-        # matrix, and then leave it as is in paintGL()?
-        GL.glLoadIdentity() # loads identity matrix into top of matrix stack
-        GL.glTranslate(self.x, self.y, self.z) # zval zooms you in and out
-        GL.glRotate(self.xrot, 1.0, 0.0, 0.0) # angles in deg
-        GL.glRotate(self.yrot, 0.0, 1.0, 0.0)
-        GL.glRotate(self.zrot, 0.0, 0.0, 1.0)
+        # Don't load identity matrix. Do all transforms in place against current matrix
+        # and take advantage of OpenGL's state-machineness.
+        #GL.glLoadIdentity() # loads identity matrix into top of matrix stack
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY);
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
         GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
-
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
-        # might consider using buffer objects for even more speed (less unnecessary vertex
-        # data from ram to vram, I think). Apparently, buffer objects don't work with
-        # color arrays?
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        # specify clipping box for perspective projection
         GL.glMatrixMode(GL.GL_PROJECTION)
         GL.glLoadIdentity()
         # fov (deg) controls amount of perspective, and as a side effect initial apparent size
         GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
         GL.glMatrixMode(GL.GL_MODELVIEW)
+
+    # modelview matrix is column major, so we work on columns instead of rows
+    def getViewRight(self):
+        """View right vector: 1st col of modelview matrix"""
+        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 0]
+
+    def getViewUp(self):
+        """View up vector: 2nd col of modelview matrix"""
+        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 1]
+
+    def getViewNormal(self):
+        """View normal vector: 3rd col of modelview matrix"""
+        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 2]
+
+    def getTranslation(self):
+        """Translation vector: 4th row of modelview matrix"""
+        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[3]
+
+    def getDistance(self):
+        v = self.getTranslation()
+        return np.sqrt((v**2).sum())
+
+    def pan(self, dx, dy):
+        """Translate along view right and view up vectors"""
+        d = self.getDistance()
+        vr = self.getViewRight()
+        vr *= dx*d
+        GL.glTranslate(vr[0], vr[1], vr[2])
+        vu = self.getViewUp()
+        vu *= dy*d
+        GL.glTranslate(vu[0], vu[1], vu[2])
+
+    def zoom(self, dr):
+        """Translate along view normal vector"""
+        d = self.getDistance()
+        vn = self.getViewNormal()
+        vn *= dr*d
+        GL.glTranslate(vn[0], vn[1], vn[2])
+
+    def pitch(self, dangle): # aka elevation
+        """Rotate around view right vector"""
+        vr = self.getViewRight()
+        GL.glRotate(dangle, vr[0], vr[1], vr[2])
+
+    def yaw(self, dangle): # aka azimuth
+        """Rotate around view up vector"""
+        vu = self.getViewUp()
+        GL.glRotate(dangle, vu[0], vu[1], vu[2])
+
+    def roll(self, dangle):
+        """Rotate around view normal vector"""
+        vn = self.getViewNormal()
+        GL.glRotate(dangle, vn[0], vn[1], vn[2])
+
+    def panToFocus(self, x, y):
+        # this works, but has some roundoff error:
+        #vt = self.getTranslation()
+        #self.pan(-vt[0], -vt[1])
+        # this is equivalent, but with no roundoff error:
+        MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
+        MV[3, 0:2] = x, y # set first two entries of 4th row to x, y
+        GL.glLoadMatrixd(MV)
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
@@ -222,16 +272,16 @@ class GLWidget(QtOpenGL.QGLWidget):
         dy = event.y() - self.lastPos.y()
 
         if buttons == QtCore.Qt.LeftButton:
-            if modifiers == Qt.ControlModifier: # rotate around z
-                self.zrot = normdeg(self.zrot - 0.5*dx - 0.5*dy) # rotates around the model's z axis, but really what we want is to rotate the scene around the viewer's normal axis
-            elif modifiers == Qt.ShiftModifier: # translate in x and y
-                self.x += dx / 100
-                self.y -= dy / 100
-            else: # rotate around x and y
-                self.xrot = normdeg(self.xrot + 0.5*dy)
-                self.yrot = normdeg(self.yrot + 0.5*dx)
-        elif buttons == QtCore.Qt.RightButton: # zoom
-            self.z -= dy / 40
+            if modifiers == Qt.ControlModifier:
+                self.roll(-0.5*dx - 0.5*dy)
+            elif modifiers == Qt.ShiftModifier:
+                self.pan(dx/700, -dy/700) # qt viewport y axis points down
+            else:
+                self.yaw(0.5*dx)
+                self.pitch(0.5*dy)
+        elif buttons == QtCore.Qt.RightButton:
+            self.zoom(-dy/500) # qt viewport y axis points down
+
 
         # pop up an nid or sid tooltip on mouse movement
         if buttons == Qt.NoButton:
@@ -244,54 +294,56 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint(event.pos())
 
     def wheelEvent(self, event):
-        self.z += event.delta() / 500 # zoom
+        self.zoom(event.delta() / 1000)
         self.updateGL()
 
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
 
-        if modifiers == Qt.ControlModifier: # rotate around z, or zoom along z
+        if modifiers == Qt.ControlModifier:
             if key == Qt.Key_Left:
-                self.zrot = normdeg(self.zrot + 5)
+                self.roll(5)
             elif key == Qt.Key_Right:
-                self.zrot = normdeg(self.zrot - 5)
+                self.roll(-5)
             elif key == Qt.Key_Up:
-                self.z += 0.2
+                self.zoom(0.05)
             elif key == Qt.Key_Down:
-                self.z -= 0.2
-        elif modifiers == Qt.ShiftModifier: # translate in x and y
+                self.zoom(-0.05)
+        elif modifiers == Qt.ShiftModifier:
             if key == Qt.Key_Left:
-                self.x -= 0.2
+                self.pan(-0.05, 0)
             elif key == Qt.Key_Right:
-                self.x += 0.2
+                self.pan(0.05, 0)
             elif key == Qt.Key_Up:
-                self.y += 0.2
+                self.pan(0, 0.05)
             elif key == Qt.Key_Down:
-                self.y -= 0.2
-        else: # rotate around x and y
+                self.pan(0, -0.05)
+        else:
             if key == Qt.Key_Left:
-                self.yrot = normdeg(self.yrot - 5)
+                self.yaw(-5)
             elif key == Qt.Key_Right:
-                self.yrot = normdeg(self.yrot + 5)
+                self.yaw(5)
             elif key == Qt.Key_Up:
-                self.xrot = normdeg(self.xrot - 5)
+                self.pitch(-5)
             elif key == Qt.Key_Down:
-                self.xrot = normdeg(self.xrot + 5)
-
-        if key == Qt.Key_0: # reset focus
-            self.x, self.y = 0.0, 0.0
-        # TODO: implement f focus press
-        elif key == Qt.Key_S: # toggle item under the cursor, if any
-            self.selectItemUnderCursor(clear=False)
-        elif key == Qt.Key_Space: # clear and select item under cursor, if any
-            self.selectItemUnderCursor(clear=True)
-        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_D, Qt.Key_M, Qt.Key_NumberSign,
-                     Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
-            sw = self.spw.windows['Sort']
-            sw.keyPressEvent(event) # pass it on to Sort window
-        elif key == Qt.Key_F11:
-            self.parent().keyPressEvent(event) # pass it on to parent Cluster window
+                self.pitch(5)
+            elif key == Qt.Key_0: # reset focus to origin, maintaining distance
+                self.panToFocus(0, 0)
+            elif key == Qt.Key_F: # reset focus to cursor position, maintaining distance
+                print('unimplemented')
+                #x, y = use GL.gluUnProject
+                #self.panToFocus(x, y)
+            elif key == Qt.Key_S: # toggle item under the cursor, if any
+                self.selectItemUnderCursor(clear=False)
+            elif key == Qt.Key_Space: # clear and select item under cursor, if any
+                self.selectItemUnderCursor(clear=True)
+            elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_D, Qt.Key_M, Qt.Key_NumberSign,
+                         Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
+                sw = self.spw.windows['Sort']
+                sw.keyPressEvent(event) # pass it on to Sort window
+            elif key == Qt.Key_F11:
+                self.parent().keyPressEvent(event) # pass it on to parent Cluster window
 
         self.updateGL()
 

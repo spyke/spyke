@@ -134,19 +134,25 @@ class GLWidget(QtOpenGL.QGLWidget):
         """Translation vector: 4th row of modelview matrix"""
         return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[3]
 
+    def getDistance(self):
+        v = self.getTranslation()
+        return np.sqrt((v**2).sum())
+
     def pan(self, dx, dy):
         """Translate along view right and view up vectors"""
+        d = self.getDistance()
         vr = self.getViewRight()
-        vr *= dx
+        vr *= dx*d
         GL.glTranslate(vr[0], vr[1], vr[2])
         vu = self.getViewUp()
-        vu *= dy
+        vu *= dy*d
         GL.glTranslate(vu[0], vu[1], vu[2])
 
     def zoom(self, dr):
         """Translate along view normal vector"""
+        d = self.getDistance()
         vn = self.getViewNormal()
-        vn *= dr
+        vn *= dr*d
         GL.glTranslate(vn[0], vn[1], vn[2])
 
     def pitch(self, dangle): # aka elevation
@@ -177,18 +183,18 @@ class GLWidget(QtOpenGL.QGLWidget):
             if modifiers == Qt.ControlModifier:
                 self.roll(-0.5*dx - 0.5*dy)
             elif modifiers == Qt.ShiftModifier:
-                self.pan(dx/100, -dy/100) # qt viewport y axis points down
+                self.pan(dx/600, -dy/600) # qt viewport y axis points down
             else:
                 self.yaw(0.5*dx)
                 self.pitch(0.5*dy)
         elif buttons == QtCore.Qt.RightButton:
-            self.zoom(-dy/100) # qt viewport y axis points down
+            self.zoom(-dy/500) # qt viewport y axis points down
 
         self.updateGL()
         self.lastPos = QtCore.QPoint(event.pos())
 
     def wheelEvent(self, event):
-        self.zoom(event.delta() / 500)
+        self.zoom(event.delta() / 1000)
         self.updateGL()
 
     def keyPressEvent(self, event):
@@ -201,18 +207,18 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_Right:
                 self.roll(-5)
             elif key == Qt.Key_Up:
-                self.zoom(0.2)
+                self.zoom(0.05)
             elif key == Qt.Key_Down:
-                self.zoom(-0.2)
+                self.zoom(-0.05)
         elif modifiers == Qt.ShiftModifier:
             if key == Qt.Key_Left:
-                self.pan(-0.2, 0)
+                self.pan(-0.05, 0)
             elif key == Qt.Key_Right:
-                self.pan(0.2, 0)
+                self.pan(0.05, 0)
             elif key == Qt.Key_Up:
-                self.pan(0, 0.2)
+                self.pan(0, 0.05)
             elif key == Qt.Key_Down:
-                self.pan(0, -0.2)
+                self.pan(0, -0.05)
         else:
             if key == Qt.Key_Left:
                 self.yaw(-5)

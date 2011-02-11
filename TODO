@@ -2,11 +2,6 @@ GL rewrite:
 
 - replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
 - search for mlab, glyph, disable_render, scene
-- maybe I can restore the usual mouse navigation by calculating dx and dy relative to the center of the viewport, instead of just relative to the mouse position on button down
-    - this doesn't explain why key commands have the same navigation problems
-
-- translation should simply move the viewport dx and dy in pixels, not in plot coords
-- zoom should be more consistent speed
 
 - implement saving and restoring of position and orientation of camera (search for view and roll keywords)
 - implement focus to point
@@ -25,6 +20,8 @@ DONE:
     - switching back to 7m cube data after plotting real data restores normal rendering speed. Setting to exactly 7282567 points in cube doesn't change that. Very strange.
     - it's actually slower than mayavi
     - ah, maybe it's cuz array X isn't contig! yes, it isn't contig! Yes, copying solved it!
+- zoom and pan should be more consistent speed
+    - solve both of these by multiplying factor by distance (length of translation vector)
 
 ----------------
 QT rewrite:
