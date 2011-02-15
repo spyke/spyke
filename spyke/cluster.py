@@ -19,6 +19,7 @@ from core import SpykeToolWindow, lst2shrtstr, normdeg
 from plot import CMAP, GREY
 
 CLUSTERPARAMSAMPLESIZE = 1000
+VIEWDISTANCE = 50
 
 
 class Cluster(object):
@@ -123,13 +124,16 @@ class ClusterWindow(SpykeToolWindow):
         print('keyPressEvent in cluster window')
         SpykeToolWindow.keyPressEvent(self, event) # pass it on
     '''
-    def plot(self, X, cids):
+    def plot(self, X, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
         X = X.copy() # make it contig
-        self.glWidget.npoints = len(X)
         self.glWidget.points = X
-        self.glWidget.colors = CMAP[cids % len(CMAP)] # uint8
-        self.glWidget.colors[cids == -1] = GREY # overwrite unclustered points with GREY
+        self.glWidget.npoints = len(X)
+        # don't like that I'm generating sids array from scratch, but there's no
+        # such existing contiguous array in Sort or anywhere else that I can find
+        self.glWidget.sids = np.arange(self.glWidget.npoints)
+        self.glWidget.colors = CMAP[nids % len(CMAP)] # uint8
+        self.glWidget.colors[nids == -1] = GREY # overwrite unclustered points with GREY
         self.glWidget.updateGL()
     '''
     def get_view(self):
@@ -153,7 +157,30 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.spw = self.parent().spykewindow
+        #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, disabled for speed
         self.lastPos = QtCore.QPoint()
+
+        format = QtOpenGL.QGLFormat()
+        format.setDoubleBuffer(True) # req'd for picking
+        self.setFormat(format)
+
+    def get_sids(self):
+        return self._sids
+
+    def set_sids(self, sids):
+        """Set up rgbsids array for later use in self.pick()"""
+        self._sids = sids
+        # encode sids in RGB
+        r = sids // 256**2
+        rem = sids % 256**2 # remainder
+        g = rem // 256
+        b = rem % 256
+        self.rgbsids = np.zeros((self.npoints, 3), dtype=np.uint8)
+        self.rgbsids[:, 0] = r
+        self.rgbsids[:, 1] = g
+        self.rgbsids[:, 2] = b
+
+    sids = property(get_sids, set_sids)
 
     def initializeGL(self):
         # these are the defaults anyway, but just to be thorough:
@@ -166,7 +193,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         '''
         # set initial position and orientation of camera
-        GL.glTranslate(0, 0, -50)
+        GL.glTranslate(0, 0, -VIEWDISTANCE)
         GL.glRotate(-45, 0, 0, 1)
         GL.glRotate(-45, 0, 1, 0)
 
@@ -187,6 +214,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
+        # doesn't seem to be necessary, even though I'm in double-buffered mode with the
+        # back buffer for RGB sid encoding, but do it anyway for completeness
+        self.swapBuffers()
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
@@ -249,14 +279,87 @@ class GLWidget(QtOpenGL.QGLWidget):
         vn = self.getViewNormal()
         GL.glRotate(dangle, vn[0], vn[1], vn[2])
 
-    def panToFocus(self, x, y):
+    def focus(self, x, y, z=None):
+        """Set focus to x, y, z, in model coords"""
         # this works, but has some roundoff error:
         #vt = self.getTranslation()
         #self.pan(-vt[0], -vt[1])
         # this is equivalent, but with no roundoff error:
+        '''
         MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
-        MV[3, 0:2] = x, y # set first two entries of 4th row to x, y
+        if z == None:
+            MV[3, 0:2] = x, y # set first 2 entries of 4th row to x, y
+        else:
+            MV[3, 0:3] = x, y, z-VIEWDISTANCE # set first 3 entries of 4th row to x, y, z
         GL.glLoadMatrixd(MV)
+        '''
+        '''
+        GLU.gluLookAt(0, 0, -VIEWDISTANCE, x, y, z, 0, 0, 1)
+        self.updateGL()
+        '''
+        GL.glTranslate(x, y, z)
+        self.updateGL()
+
+    def pick(self, x, y):
+        """Return sid of point at window coords x, y (bottom left origin)"""
+        width = self.size().width()
+        height = self.size().height()
+        #print('coords: %d, %d' % (x, y))
+        # constrain to within border 1 pix smaller than widget, for glReadPixels call
+        if not (1 <= x < width-1 and 1 <= y < height-1): # cursor out of range
+            return
+        if self.npoints > 2**24-2: # the last one is the full white background used as a no hit
+            raise OverflowError("Can't pick from more than 2**24-2 sids")
+        # draw encoded RGB values to back buffer
+        #GL.glDrawBuffer(GL_BACK) # defaults to back
+        GL.glClearColor(1.0, 1.0, 1.0, 1.0) # highest possible RGB means no hit
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        GL.glEnableClientState(GL.GL_COLOR_ARRAY);
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        GL.glColorPointerub(self.rgbsids) # unsigned byte, ie uint8
+        GL.glVertexPointerf(self.points) # float32
+        GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints) # to back buffer
+        GL.glClearColor(0.0, 0.0, 0.0, 1.0) # restore to default black
+        # grab back buffer
+        #GL.glReadBuffer(GL.GL_BACK) # defaults to back
+        # find rgb at or around cursor coords, decode sid
+        backbuffer = GL.glReadPixelsub(x-1, y-1, 3, 3, GL.GL_RGB) # unsigned byte
+        if (backbuffer == 255).all(): # no hit
+            return
+        sid = self.decodeRGB(backbuffer[1, 1])
+        if sid != None:
+            #print('hit at exact cursor pos')
+            return sid # hit at exact cursor position
+        hitpix = (backbuffer != [255, 255, 255]).sum(axis=2) # 2D array with nonzero entries at hits
+        ri = np.where(hitpix.ravel())[0][0] # get ravelled index of first hit
+        i, j = np.unravel_index(ri, dims=hitpix.shape) # unravel to 2D index
+        #print('hit at %d, %d' % (i, j))
+        return self.decodeRGB(backbuffer[i, j]) # should be a valid sid
+
+    def decodeRGB(self, rgb):
+        """Convert encoded rgb value to sid"""
+        r, g, b = rgb
+        sid = r*65536 + g*256 + b
+        if sid != 16777215: # 2**24 - 1
+            return sid # it's a valid sid
+
+    def cursorPosQt(self):
+        """Get current mouse cursor position in Qt coords"""
+        globalPos = QtGui.QCursor.pos()
+        pos = self.mapFromGlobal(globalPos)
+        return pos.x(), pos.y()
+
+    def cursorPosGL(self):
+        """Get current mouse cursor position in OpenGL coords"""
+        globalPos = QtGui.QCursor.pos()
+        pos = self.mapFromGlobal(globalPos)
+        y = self.size().height() - pos.y()
+        return pos.x(), y
+
+    def GLtoQt(self, x, y):
+        """Convert GL screen coords to Qt, return as QPoint"""
+        y = self.size().height() - y
+        return QtCore.QPoint(x, y)
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
@@ -282,11 +385,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif buttons == QtCore.Qt.RightButton:
             self.zoom(-dy/500) # qt viewport y axis points down
 
-
-        # pop up an nid or sid tooltip on mouse movement
+        # pop up a tooltip on mouse movement, requires mouse tracking enabled
         if buttons == Qt.NoButton:
-            print('move event!') # might need to turn on mouse tracking?
-            self.showToolTip(event)
+            self.showToolTip()
         else:
             QtGui.QToolTip.hideText()
 
@@ -328,12 +429,15 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.pitch(-5)
             elif key == Qt.Key_Down:
                 self.pitch(5)
-            elif key == Qt.Key_0: # reset focus to origin, maintaining distance
-                self.panToFocus(0, 0)
+            elif key in (Qt.Key_P, Qt.Key_T): # 'pick' or 'tooltip'
+                #print(self.pick(*self.cursorPosGL()))
+                self.showToolTip()
+            elif key == Qt.Key_0: # reset focus to origin
+                self.focus(0, 0, 0)
             elif key == Qt.Key_F: # reset focus to cursor position, maintaining distance
-                print('unimplemented')
-                #x, y = use GL.gluUnProject
-                #self.panToFocus(x, y)
+                #print('unimplemented')
+                #x, y, z = use GL.gluUnProject
+                self.focus(0, 10, 0)
             elif key == Qt.Key_S: # toggle item under the cursor, if any
                 self.selectItemUnderCursor(clear=False)
             elif key == Qt.Key_Space: # clear and select item under cursor, if any
@@ -347,18 +451,15 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         self.updateGL()
 
-    def showToolTip(self, event):
-        """Pop up a nid or sid tooltip given mouse move event"""
+    def showToolTip(self):
+        """Pop up a nid or sid tooltip at current mouse cursor position"""
         #QtGui.QToolTip.hideText() # hide first if you want tooltip to move even when text is unchanged
         spw = self.spw
         sort = spw.sort
-        pos = event.pos()
-        x = pos.x()
-        y = self.size().height() - pos.y()
-        data = self.picker.pick_point(x, y) # FIXME
-        if data.data != None:
+        x, y = self.cursorPosGL()
+        sid = self.pick(x, y)
+        if sid != None:
             dims = spw.GetClusterPlotDimNames()
-            sid = data.point_id
             nid = sort.spikes[sid]['nid']
             tip = 'sid: %d\n' % sid
             sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
@@ -367,7 +468,8 @@ class GLWidget(QtOpenGL.QGLWidget):
                 tip += '\nnid: %d\n' % nid
                 npoststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
                 tip += 'normed %s: %s' % (lst2shrtstr(dims), npoststr)
-            QtGui.QToolTip.showText(event.globalPos(), tip)
+            globalPos = self.mapToGlobal(self.GLtoQt(x, y))
+            QtGui.QToolTip.showText(globalPos, tip)
         else:
             QtGui.QToolTip.hideText()
 
@@ -381,7 +483,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         pos = self.mapFromGlobal(globalPos)
         x = pos.x()
         y = self.size().height() - pos.y()
-        data = self.picker.pick_point(x, y)
-        if data.data != None:
-            sid = data.point_id
+        sid = self.pick(x, y)
+        if sid != None:
             spw.ToggleSpike(sid) # toggle its cluster too, if any
+        self.showToolTip()

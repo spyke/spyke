@@ -11,12 +11,25 @@ from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 import numpy as np
 
+# this will drop us into ipdb on any error, won't work in IPy 0.11?:
+QtCore.pyqtRemoveInputHook()
+from IPython.Shell import IPShellEmbed
+ipshell = IPShellEmbed(banner='Dropping into IPython',
+                       exit_msg='Leaving IPython, back to program')
+
 RED = 255, 0, 0
-GREEN = 0, 255, 0
-BLUE = 0, 0, 255
+ORANGE = 255, 127, 0
 YELLOW = 255, 255, 0
+GREEN = 0, 255, 0
+CYAN = 0, 255, 255
+LIGHTBLUE = 0, 127, 255
+BLUE = 0, 0, 255
+VIOLET = 127, 0, 255
 MAGENTA = 255, 0, 255
-CMAP = np.array([RED, GREEN, BLUE, YELLOW, MAGENTA], dtype=np.uint8)
+GREY = 85, 85, 85
+WHITE = 255, 255, 255
+CMAP = np.array([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, BLUE, VIOLET, MAGENTA, GREY, WHITE],
+                dtype=np.uint8)
 
 '''
 def normdeg(angle):
@@ -40,35 +53,49 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.lastPos = QtCore.QPoint()
-        '''
+
         format = QtOpenGL.QGLFormat()
         #format.setVersion(3, 0) # not available in PyQt 4.7.4
         # set to color index mode, unsupported in OpenGL >= 3.1, don't know how to load
         # GL_ARB_compatibility extension, and for now, can't force OpenGL 3.0 mode.
         # Gives "QGLContext::makeCurrent(): Cannot make invalid context current." error:
-        format.setRgba(False)
-        #format.setDoubleBuffer(True) # works fine
+        #format.setRgba(False)
+        format.setDoubleBuffer(True) # works fine
         self.setFormat(format)
         #QtOpenGL.QGLFormat.setDefaultFormat(format)
-
+        '''
         c = QtGui.qRgb
         cmap = [c(255, 0, 0), c(0, 255, 0), c(0, 0, 255), c(255, 255, 0), c(255, 0, 255)]
         colormap = QtOpenGL.QGLColormap()
         colormap.setEntries(cmap)
         self.setColormap(colormap)
         '''
+        self.npoints = 100000
+        if self.npoints > 2**24-2: # the last one is the full white bg used as a no hit
+            raise OverflowError("Can't pick from more than 2**24-2 sids")
+        self.points = np.float32(np.random.random((self.npoints, 3))) - 0.5
+        self.sids = np.arange(self.npoints)
+        self.nids = self.sids % len(CMAP)
+        self.colors = CMAP[self.nids] # uint8
+        # encode sids in RGB
+        r = self.sids // 256**2
+        rem = self.sids % 256**2 # remainder
+        g = rem // 256
+        b = rem % 256
+        self.rgbsids = np.zeros((self.npoints, 3), dtype=np.uint8)
+        self.rgbsids[:, 0] = r
+        self.rgbsids[:, 1] = g
+        self.rgbsids[:, 2] = b
+        print self.rgbsids
+        print self.rgbsids.dtype
+
     def minimumSizeHint(self):
         return QtCore.QSize(50, 50)
 
     def sizeHint(self):
-        return QtCore.QSize(400, 400)
+        return QtCore.QSize(600, 400)
 
     def initializeGL(self):
-        self.npoints = 100000
-        self.points = np.float32(np.random.random((self.npoints, 3))) - 0.5
-        self.cis = np.uint8(np.random.randint(5, size=self.npoints))
-        self.colors = CMAP[self.cis] # uint8
-
         GL.glClearColor(0.0, 0.0, 0.0, 1.0) # same as default
         GL.glClearDepth(1.0) # same as default
         GL.glEnable(GL.GL_DEPTH_TEST) # display points according to occlusion, not order of plotting
@@ -94,7 +121,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY);
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
-        GL.glColorPointerub(self.colors) # usigned byte, ie uint8
+        GL.glColorPointerub(self.colors) # unsigned byte, ie uint8
         GL.glVertexPointerf(self.points) # float32
 
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
@@ -103,11 +130,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         # color arrays?
 
         #GL.glFlush() # forces drawing to begin, only makes difference for client-server?
-        #self.swapBuffers()
+        self.swapBuffers() # doesn't seem to be necessary, even though I'm in double-buffered mode with the back buffer for RGB sid encoding, but do it anyway for completeness
 
         # print the modelview matrix
-        MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
-        print(MV)
+        #MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
+        #print(MV)
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
@@ -170,6 +197,77 @@ class GLWidget(QtOpenGL.QGLWidget):
         vn = self.getViewNormal()
         GL.glRotate(dangle, vn[0], vn[1], vn[2])
 
+    def panTo(self, x, y):
+        # this works, but has some roundoff error:
+        #vt = self.getTranslation()
+        #self.pan(-vt[0], -vt[1])
+        # this is equivalent, but with no roundoff error:
+        MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
+        MV[3, 0:2] = x, y # set first two entries of 4th row to x, y
+        GL.glLoadMatrixd(MV)
+
+    def pick(self):
+        globalPos = QtGui.QCursor.pos()
+        pos = self.mapFromGlobal(globalPos)
+        width = self.size().width()
+        height = self.size().height()
+        x = pos.x()
+        y = height - pos.y()
+        if not (0 <= x < width and 0 <= y < height):
+            print('cursor out of range')
+            return
+        '''
+        # for speed, 1st check if there are any non-black pixels around cursor:
+        GL.glReadBuffer(GL.GL_FRONT)
+        frontbuffer = GL.glReadPixelsub(0, 0, width, height, GL.GL_RGB) # unsigned byte
+        #rgb = frontbuffer[y-1:y+2, x-1:x+2] # +/- 1 pix
+        rgb = frontbuffer[y, x]
+        #print('frontbuffer:')
+        #print rgb
+        if (rgb == 0).all():
+            print('nothing to return')
+            return # nothing to pick
+        '''
+        # drawing encoded RGB values to back buffer
+        #GL.glDrawBuffer(GL_BACK) # shouldn't be necessary, defaults to back
+        GL.glClearColor(1.0, 1.0, 1.0, 1.0) # highest possible RGB means no hit
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+        GL.glEnableClientState(GL.GL_COLOR_ARRAY);
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        GL.glColorPointerub(self.rgbsids) # unsigned byte, ie uint8
+        GL.glVertexPointerf(self.points) # float32
+
+        GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints) # to back buffer
+
+        GL.glClearColor(0.0, 0.0, 0.0, 1.0) # restore to default black
+
+        # grab back buffer
+        GL.glReadBuffer(GL.GL_BACK)
+
+        # find rgb at cursor coords, decode sid
+        backbuffer = GL.glReadPixelsub(x, y, 1, 1, GL.GL_RGB) # unsigned byte, x, y is bottom left
+        rgb = backbuffer[0, 0]
+        r, g, b = rgb
+        sid = r*256**2 + g*256 + b
+        if sid == 2**24 - 1:
+            #print('no hit')
+            return
+        nid = sid % len(CMAP)
+        color = CMAP[nid]
+        print('backbuffer.shape: %r' % (backbuffer.shape,))
+        print rgb
+        print('sid, nid, color: %d, %d, %r' % (sid, nid, color))
+        '''
+        # TODO: this isn't even necessary, since back buffer gets overdrawn anyway on next updateGL()
+        # restore front buffer to back
+        GL.glReadBuffer(GL.GL_FRONT)
+        #GL.glDrawBuffer(GL_BACK) # shouldn't be necessary, defaults to back
+        GL.glRasterPos(0, 0) # destination position in draw buffer
+        GL.glCopyPixels(0, 0, width, height, GL.GL_COLOR) # copies from read to draw buffer
+        '''
+        #self.swapBuffers() # don't even need to swap buffers, cuz we haven't changed the scene
+
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
 
@@ -229,13 +327,9 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_Down:
                 self.pitch(5)
             elif key == Qt.Key_0: # reset view to origin, maintaining distance
-                # this works, but has some roundoff error:
-                #vt = self.getTranslation()
-                #self.pan(-vt[0], -vt[1])
-                # this is equivalent, but with no roundoff error:
-                MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
-                MV[3, 0:2] = 0 # set first two entries of 4th row to 0
-                GL.glLoadMatrixd(MV)
+                self.panTo(0, 0)
+            elif key == Qt.Key_P:
+                self.pick()
 
         self.updateGL()
 
@@ -320,4 +414,8 @@ if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     window = Window()
     window.show()
-    sys.exit(app.exec_())
+    try:
+        from IPython import appstart_qt4
+        appstart_qt4(app)
+    except ImportError:
+        sys.exit(app.exec_())

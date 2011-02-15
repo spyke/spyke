@@ -108,9 +108,9 @@ class SpykeWindow(QtGui.QMainWindow):
         #srffname = 'ptc15/87 - track 7c spontaneous craziness.srf'
         #self.OpenSurfOrTrackFile(srffname)
 
-        #os.chdir('/data/ptc15/tr7c/87 - track 7c spontaneous craziness')
-        #sortfname = '2010-09-09_17.06.14_test.sort'
-        #self.OpenSortFile(sortfname)
+        os.chdir('ptc15/tr7c')
+        sortfname = 'testing.sort'
+        self.OpenSortFile(sortfname)
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
