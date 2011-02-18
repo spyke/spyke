@@ -4,7 +4,7 @@ example from Qt v4.x"""
 from __future__ import division
 
 import sys
-import math
+import time
 from PyQt4 import QtCore, QtGui, QtOpenGL
 from PyQt4.QtCore import Qt
 
@@ -53,6 +53,7 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.lastPos = QtCore.QPoint()
+        self._dfocus = np.float32([0, 0, 0]) # accumulates changes to focus, in model coords
 
         format = QtOpenGL.QGLFormat()
         #format.setVersion(3, 0) # not available in PyQt 4.7.4
@@ -86,8 +87,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.rgbsids[:, 0] = r
         self.rgbsids[:, 1] = g
         self.rgbsids[:, 2] = b
-        print self.rgbsids
-        print self.rgbsids.dtype
+        #print self.rgbsids
+        #print self.rgbsids.dtype
 
     def minimumSizeHint(self):
         return QtCore.QSize(50, 50)
@@ -133,8 +134,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.swapBuffers() # doesn't seem to be necessary, even though I'm in double-buffered mode with the back buffer for RGB sid encoding, but do it anyway for completeness
 
         # print the modelview matrix
-        #MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
-        #print(MV)
+        #print(self.MV)
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
@@ -144,26 +144,63 @@ class GLWidget(QtOpenGL.QGLWidget):
         GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
+    def get_MV(self):
+        """Return modelview matrix"""
+        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
+
+    def set_MV(self, MV):
+        GL.glLoadMatrixd(MV)
+
+    MV = property(get_MV, set_MV)
+
+    def get_focus(self):
+        return np.float32([0, 0, 0]) # focus is always at data origin, by definition
+
+    def set_focus(self, xyz):
+        """Set focus to x, y, z, in model coords"""
+        if not xyz.flags['OWNDATA']:
+            # make sure modifying points in-place doesn't affect xyz arg
+            xyz = xyz.copy()
+        p = self.points
+        #ipshell()
+        t0 = time.time()
+        # TODO: this works, but modifying vertex data is horribly inefficient and slow:
+        p[:, 0] -= xyz[0]
+        p[:, 1] -= xyz[1]
+        p[:, 2] -= xyz[2]
+        print('set_focus took %.3f sec' % (time.time()-t0))
+        self._dfocus -= xyz # accumulate changes to focus
+
+    focus = property(get_focus, set_focus)
+
     # modelview matrix is column major, so we work on columns instead of rows
     def getViewRight(self):
         """View right vector: 1st col of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 0]
+        return self.MV[:3, 0]
 
     def getViewUp(self):
         """View up vector: 2nd col of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 1]
+        return self.MV[:3, 1]
 
     def getViewNormal(self):
         """View normal vector: 3rd col of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 2]
+        return self.MV[:3, 2]
 
     def getTranslation(self):
         """Translation vector: 4th row of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[3]
+        return self.MV[3, :3]
+
+    def setTranslation(self, vt):
+        """Translation vector: 4th row of modelview matrix"""
+        MV = self.MV
+        MV[3, :3] = vt
+        self.MV = MV
 
     def getDistance(self):
+        """From focus, or from data origin?"""
         v = self.getTranslation()
-        return np.sqrt((v**2).sum())
+        return np.sqrt((v**2).sum()) # from data origin
+        #return np.sqrt(((v-self.focus)**2).sum()) # from focus
 
     def pan(self, dx, dy):
         """Translate along view right and view up vectors"""
@@ -182,11 +219,62 @@ class GLWidget(QtOpenGL.QGLWidget):
         vn *= dr*d
         GL.glTranslate(vn[0], vn[1], vn[2])
 
+    '''
+    TODO: yaw and pitch need to respect focus, or vice versa
+    maybe my method of pulling out the view up, normal and right from the modelview
+    matrix only happens to work when you assume the camera is pointing at the origin.
+    Maybe I need to subtract something from these vectors to get the proper desired vector
+    and ensure that all operations make the center of the viewport the focus
+    - maybe I need to do what I saw in the vtk code: undo translation, do my rotation, then redo translation
+        - check the focusing code in VTK again
+    - maybe I need to add the translation vector to the view right vector and rotate around that
+    - ah, i need to not just rotate, but translate as well, along the two axes that aren't being
+    rotated around. Need to take cos and sin of angle and multiply by distance
+        - or, could also just add focus coords to all the data, so they're no longer centered at origin, but that's wasteful
+
+    '''
+
     def pitch(self, dangle): # aka elevation
         """Rotate around view right vector"""
         vr = self.getViewRight()
         GL.glRotate(dangle, vr[0], vr[1], vr[2])
+        '''
+        f = self.focus
+        pos = self.getTranslation()
+        print('0: initial:\n%r\n%r' % (self.MV, pos))
+        #self.setTranslation(f)
+        dt = f - pos
+        GL.glTranslate(*dt)
+        print('1: after trans:\n%r\n%r' % (self.MV, pos))
+        vr = self.getViewRight()
+        GL.glRotate(dangle, vr[0], vr[1], vr[2])
+        print('2: after rotate:\n%r\n%r' % (self.MV, pos))
+        GL.glTranslate(*-dt)
+        print('3: after trans:\n%r\n%r' % (self.MV, pos))
+        '''
 
+        '''
+        vt = self.getTranslation()
+        vu = self.getViewUp()
+        vn = self.getViewNormal()
+        print('initial:\n%r' % self.MV)
+        #self.setTranslation([0, 0, 0])
+        #GL.glTranslate(-vt[0], -vt[1], -vt[2])
+        #vr = self.getViewRight()
+        #GL.glTranslate(vt[0], vt[1], vt[2])
+        #print('after 1st translation:\n%r' % self.MV)
+        GL.glRotate(dangle, vr[0], vr[1], vr[2])
+        #self.setTranslation(vt)
+        print('after rotation:\n%r' % self.MV)
+        dx = vt[0] # - focus[0]
+        danglerad = dangle * np.pi / 180
+        dx =
+
+        GL.glTranslate(0, d*np.sin(danglerad), d*np.cos(danglerad) - d)
+        GL.glTranslate(dx, dy, dz)
+        print('after translation:\n%r' % self.MV)
+        #print('after 2nd translation:\n%r' % self.MV)
+        '''
     def yaw(self, dangle): # aka azimuth
         """Rotate around view up vector"""
         vu = self.getViewUp()
@@ -202,10 +290,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         #vt = self.getTranslation()
         #self.pan(-vt[0], -vt[1])
         # this is equivalent, but with no roundoff error:
-        MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
-        MV[3, 0:2] = x, y # set first two entries of 4th row to x, y
-        GL.glLoadMatrixd(MV)
-
+        MV = self.MV
+        MV[3, :2] = x, y # set first two entries of 4th row to x, y
+        self.MV = MV
+        '''
+        GL.glLoadIdentity()
+        GL.glTranslate(0, 0, -3) # initial distance from origin
+        '''
     def pick(self):
         globalPos = QtGui.QCursor.pos()
         pos = self.mapFromGlobal(globalPos)
@@ -267,6 +358,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glCopyPixels(0, 0, width, height, GL.GL_COLOR) # copies from read to draw buffer
         '''
         #self.swapBuffers() # don't even need to swap buffers, cuz we haven't changed the scene
+        return sid
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
@@ -326,10 +418,18 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.pitch(-5)
             elif key == Qt.Key_Down:
                 self.pitch(5)
-            elif key == Qt.Key_0: # reset view to origin, maintaining distance
-                self.panTo(0, 0)
+            elif key == Qt.Key_0: # reset focus to origin
+                self.focus = self._dfocus
+                self.panTo(0, 0) # pan to new data origin
+            elif key == Qt.Key_F: # reset focus to cursor position
+                sid = self.pick()
+                if sid != None:
+                    self.focus = self.points[sid]
+                    self.panTo(0, 0) # pan to new data origin
             elif key == Qt.Key_P:
                 self.pick()
+            elif key == Qt.Key_S:
+                ipshell()
 
         self.updateGL()
 

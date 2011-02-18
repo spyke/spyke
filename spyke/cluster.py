@@ -159,6 +159,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.spw = self.parent().spykewindow
         #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, disabled for speed
         self.lastPos = QtCore.QPoint()
+        self._dfocus = np.float32([0, 0, 0]) # accumulates changes to focus, in model coords
 
         format = QtOpenGL.QGLFormat()
         format.setDoubleBuffer(True) # req'd for picking
@@ -226,26 +227,63 @@ class GLWidget(QtOpenGL.QGLWidget):
         GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
+    def get_MV(self):
+        """Return modelview matrix"""
+        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
+
+    def set_MV(self, MV):
+        GL.glLoadMatrixd(MV)
+
+    MV = property(get_MV, set_MV)
+
+    def get_focus(self):
+        return np.float32([0, 0, 0]) # focus is always at data origin, by definition
+
+    def set_focus(self, xyz):
+        """Set focus to x, y, z, in model coords"""
+        if not xyz.flags['OWNDATA']:
+            # make sure modifying points in-place doesn't affect xyz arg
+            xyz = xyz.copy()
+        p = self.points
+        #ipshell()
+        t0 = time.time()
+        # TODO: this works, but modifying vertex data is horribly inefficient and slow:
+        p[:, 0] -= xyz[0]
+        p[:, 1] -= xyz[1]
+        p[:, 2] -= xyz[2]
+        print('set_focus took %.3f sec' % (time.time()-t0))
+        self._dfocus -= xyz # accumulate changes to focus
+
+    focus = property(get_focus, set_focus)
+
     # modelview matrix is column major, so we work on columns instead of rows
     def getViewRight(self):
         """View right vector: 1st col of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 0]
+        return self.MV[:3, 0]
 
     def getViewUp(self):
         """View up vector: 2nd col of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 1]
+        return self.MV[:3, 1]
 
     def getViewNormal(self):
         """View normal vector: 3rd col of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[:, 2]
+        return self.MV[:3, 2]
 
     def getTranslation(self):
         """Translation vector: 4th row of modelview matrix"""
-        return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)[3]
+        return self.MV[3, :3]
+
+    def setTranslation(self, vt):
+        """Translation vector: 4th row of modelview matrix"""
+        MV = self.MV
+        MV[3, :3] = vt
+        self.MV = MV
 
     def getDistance(self):
+        """From focus, or from data origin?"""
         v = self.getTranslation()
-        return np.sqrt((v**2).sum())
+        return np.sqrt((v**2).sum()) # from data origin
+        #return np.sqrt(((v-self.focus)**2).sum()) # from focus
 
     def pan(self, dx, dy):
         """Translate along view right and view up vectors"""
@@ -279,26 +317,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         vn = self.getViewNormal()
         GL.glRotate(dangle, vn[0], vn[1], vn[2])
 
-    def focus(self, x, y, z=None):
-        """Set focus to x, y, z, in model coords"""
-        # this works, but has some roundoff error:
-        #vt = self.getTranslation()
-        #self.pan(-vt[0], -vt[1])
-        # this is equivalent, but with no roundoff error:
-        '''
-        MV = GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
-        if z == None:
-            MV[3, 0:2] = x, y # set first 2 entries of 4th row to x, y
-        else:
-            MV[3, 0:3] = x, y, z-VIEWDISTANCE # set first 3 entries of 4th row to x, y, z
-        GL.glLoadMatrixd(MV)
-        '''
-        '''
-        GLU.gluLookAt(0, 0, -VIEWDISTANCE, x, y, z, 0, 0, 1)
-        self.updateGL()
-        '''
-        GL.glTranslate(x, y, z)
-        self.updateGL()
+    def panTo(self, x, y):
+        """Pan to absolute x and y position, leaving z unchanged"""
+        MV = self.MV
+        MV[3, :2] = x, y # set first two entries of 4th row to x, y
+        self.MV = MV
 
     def pick(self, x, y):
         """Return sid of point at window coords x, y (bottom left origin)"""
@@ -344,13 +367,13 @@ class GLWidget(QtOpenGL.QGLWidget):
             return sid # it's a valid sid
 
     def cursorPosQt(self):
-        """Get current mouse cursor position in Qt coords"""
+        """Get current mouse cursor position in Qt coords (top left origin)"""
         globalPos = QtGui.QCursor.pos()
         pos = self.mapFromGlobal(globalPos)
         return pos.x(), pos.y()
 
     def cursorPosGL(self):
-        """Get current mouse cursor position in OpenGL coords"""
+        """Get current mouse cursor position in OpenGL coords (bottom left origin)"""
         globalPos = QtGui.QCursor.pos()
         pos = self.mapFromGlobal(globalPos)
         y = self.size().height() - pos.y()
@@ -433,11 +456,13 @@ class GLWidget(QtOpenGL.QGLWidget):
                 #print(self.pick(*self.cursorPosGL()))
                 self.showToolTip()
             elif key == Qt.Key_0: # reset focus to origin
-                self.focus(0, 0, 0)
-            elif key == Qt.Key_F: # reset focus to cursor position, maintaining distance
-                #print('unimplemented')
-                #x, y, z = use GL.gluUnProject
-                self.focus(0, 10, 0)
+                self.focus = self._dfocus
+                self.panTo(0, 0) # pan to new data origin
+            elif key == Qt.Key_F: # reset focus to cursor position
+                sid = self.pick(*self.cursorPosGL())
+                if sid != None:
+                    self.focus = self.points[sid]
+                    self.panTo(0, 0) # pan to new data origin
             elif key == Qt.Key_S: # toggle item under the cursor, if any
                 self.selectItemUnderCursor(clear=False)
             elif key == Qt.Key_Space: # clear and select item under cursor, if any
