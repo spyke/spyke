@@ -1,4 +1,9 @@
+----------------
 QT rewrite:
+
+- LOOKS LIKE A BIG BUG: the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
+
+- color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this directly in designer apparently)
 
@@ -18,12 +23,6 @@ QT rewrite:
     - why does nslist take longer to populate than a same-sized demo listview in listview_test.py?
 
 - when hitting 'o' or '.' to focus current cluster or spike, if more than one is selected (for either type), take average position of all those selected and focus that average position
-
-- if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
-
-- maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
-    - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
-    - plotting and rotating 7 million points in opengl in qt is super fast!
 
 - QT bug: setting both QListView.setLayoutMode(QtGui.QListView.Batched) and QListView.setResizeMode(QtGui.QListView.Adjust) at the same time often causes endless recalculating of layout with flickering and 100% CPU, until you happen to resize the list to a point where it stops doing so
     - maybe setting batch size to something bigger will work around this
@@ -932,38 +931,45 @@ QT rewrite DONE:
 - remove paths to .srf filenames from .parse files. Same goes for the parse filenames too. This way, you assume that the .srf file exists in the same directory as the .parse file, and it lets you use .parse files across devices with different mount points
 - hell, move all .track files into the same folder as their constituent .srf and .parse files too - this makes everything much simpler - no paths at all
 - allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
+- if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
+    - simpler to just require keyboard command for all tooltips
+- maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
+    - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
+    - plotting and rotating 7 million points in opengl in qt is super fast!
+
+
+
+-------------------
+GL rewrite:
+
+DONE:
+
+- replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
+- search for mlab, glyph, disable_render, scene
+- for some reason, plotting 7m actual data points gives really slow rendering
+    - it's not the colouring - decolouring all has same problem, and setting them all to white doesn't help either
+    - zooming in or out, or rotating so that most points are obscured, also doesn't seem to help - quite mysterious
+    - must be the values themselves - nope, scaling them all down so they're between -1 and 1 doesn't help.
+    - strange, hiding and then showing the cluster window helps speed it up a little, but it still sucks
+    - reducing npoints to 10k speeds it up a fair bit, but its still strangely slow. Something in the python process is using 100% CPU during idle
+    - better on restart, but still strangely slow.
+    - switching back to 7m cube data after plotting real data restores normal rendering speed. Setting to exactly 7282567 points in cube doesn't change that. Very strange.
+    - it's actually slower than mayavi
+    - ah, maybe it's cuz array X isn't contig! yes, it isn't contig! Yes, copying solved it!
+- zoom and pan should be more consistent speed
+    - solve both of these by multiplying factor by distance (length of translation vector)
+- implement tooltips and point selection
+    - need reverse mapping from viewport coords to point coords (and ideally, to point index)
+- implement focus to point
+- implement saving and restoring of camera view (search for view and roll keywords)
+    - just save and restore the modelview matrix and the -self._dfocus as the focus
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-------------------
 SPIKE MODELLING:
         - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
         - disable grounded channels

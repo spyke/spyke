@@ -979,7 +979,6 @@ class SortWindow(SpykeToolWindow):
         # take argsort again:
         newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
         cw = spw.windows['Cluster']
-        cw.f.scene.disable_render = True # turn rendering off for speed
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
         dims = spw.GetClusterPlotDimNames()
@@ -1022,10 +1021,7 @@ class SortWindow(SpykeToolWindow):
             return
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
-        fp = [ cluster.pos[dim] for dim in dims ]
-        cw.f.scene.camera.focal_point = fp
-        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
-        #cw.Refresh() # this also seems to work: repaint the window
+        cw.glWidget.focus = [ cluster.pos[dim] for dim in dims ] + cw.glWidget._dfocus
 
     def on_actionFocusCurrentSpike_triggered(self):
         """Move focus to location of currently selected (single) spike"""
@@ -1036,11 +1032,10 @@ class SortWindow(SpykeToolWindow):
             print(msg)
             return
         cw = spw.windows['Cluster']
-        dims = spw.GetClusterPlotDimNames()
-        fp = self.sort.get_param_matrix(dims=dims)[sid]
-        cw.f.scene.camera.focal_point = fp
-        cw.f.render() # update the scene, see SpykeMayaviScene.OnKeyDown()
-        #cw.Refresh() # this also seems to work: repaint the window
+        cw.glWidget.focus = cw.glWidget.points[sid] # simpler
+        # more complicated way:
+        #dims = spw.GetClusterPlotDimNames()
+        #cw.glWidget.focus = self.sort.get_param_matrix(dims=dims)[sid] + cw.glWidget._dfocus
 
     def on_actionSelectRandomSpikes_triggered(self):
         """Select random sample of spikes in current cluster"""
