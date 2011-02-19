@@ -1141,8 +1141,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
         cw = self.OpenWindow('Cluster')
         self.on_plotButton_clicked() # create glyph on first open
-        # try and reset camera view and roll to where it was last saved
-        try: cw.view, cw.roll = sort.view, sort.roll
+        # try and restore camera view to where it was last saved
+        try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
         except AttributeError: pass
         self.RestoreClusters2GUI()
 
@@ -1217,8 +1217,7 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         try:
             cw = self.windows['Cluster']
-            # FIXME: implement saving of camera view in OpenGL
-            #s.view, s.roll = cw.view, cw.roll # save camera view
+            s.MV, s.focus = cw.glWidget.MV, -cw.glWidget._dfocus # save camera view
         except KeyError: pass # cw hasn't been opened yet, no camera view to save
         s.sortfname = fname # bind it now that it's about to be saved
         f = open(fname, 'wb')

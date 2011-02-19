@@ -1,15 +1,9 @@
 GL rewrite:
 
-- replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
-- search for mlab, glyph, disable_render, scene
-
-- implement saving and restoring of position and orientation of camera (search for view and roll keywords)
-- implement focus to point
-- implement tooltips and point selection
-    - need reverse mapping from viewport coords to point coords (and ideally, to point index)
-
 DONE:
 
+- replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
+- search for mlab, glyph, disable_render, scene
 - for some reason, plotting 7m actual data points gives really slow rendering
     - it's not the colouring - decolouring all has same problem, and setting them all to white doesn't help either
     - zooming in or out, or rotating so that most points are obscured, also doesn't seem to help - quite mysterious
@@ -22,6 +16,12 @@ DONE:
     - ah, maybe it's cuz array X isn't contig! yes, it isn't contig! Yes, copying solved it!
 - zoom and pan should be more consistent speed
     - solve both of these by multiplying factor by distance (length of translation vector)
+- implement tooltips and point selection
+    - need reverse mapping from viewport coords to point coords (and ideally, to point index)
+- implement focus to point
+- implement saving and restoring of camera view (search for view and roll keywords)
+    - just save and restore the modelview matrix and the -self._dfocus as the focus
+
 
 ----------------
 QT rewrite:
