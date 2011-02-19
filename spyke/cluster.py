@@ -241,6 +241,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def set_focus(self, xyz):
         """Set focus to x, y, z, in model coords"""
+        xyz = np.float32(xyz)
         if not xyz.flags['OWNDATA']:
             # make sure modifying points in-place doesn't affect xyz arg
             xyz = xyz.copy()

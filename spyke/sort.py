@@ -1021,8 +1021,7 @@ class SortWindow(SpykeToolWindow):
             return
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
-        x, y, z = [ cluster.pos[dim] for dim in dims ]
-        cw.glWidget.focus(x, y, z)
+        cw.glWidget.focus = [ cluster.pos[dim] for dim in dims ] + cw.glWidget._dfocus
 
     def on_actionFocusCurrentSpike_triggered(self):
         """Move focus to location of currently selected (single) spike"""
@@ -1033,9 +1032,10 @@ class SortWindow(SpykeToolWindow):
             print(msg)
             return
         cw = spw.windows['Cluster']
-        dims = spw.GetClusterPlotDimNames()
-        x, y, z = self.sort.get_param_matrix(dims=dims)[sid]
-        cw.glWidget.focus(x, y, z)
+        cw.glWidget.focus = cw.glWidget.points[sid] # simpler
+        # more complicated way:
+        #dims = spw.GetClusterPlotDimNames()
+        #cw.glWidget.focus = self.sort.get_param_matrix(dims=dims)[sid] + cw.glWidget._dfocus
 
     def on_actionSelectRandomSpikes_triggered(self):
         """Select random sample of spikes in current cluster"""
