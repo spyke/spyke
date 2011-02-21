@@ -3,6 +3,8 @@ QT rewrite:
 
 - LOOKS LIKE A BIG BUG: the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
 
+- focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
+
 - color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this directly in designer apparently)

@@ -97,8 +97,6 @@ class Cluster(object):
             self.scale[dim] = subdata.std() or self.scale[dim] # never update scale to 0
 
 
-
-
 class ClusterWindow(SpykeToolWindow):
     def __init__(self, parent, pos=None, size=None):
         SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
@@ -126,7 +124,7 @@ class ClusterWindow(SpykeToolWindow):
     '''
     def plot(self, X, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
-        if not X.flags['C_CONTIGUOUS'}
+        if not X.flags['C_CONTIGUOUS']:
             X = X.copy() # make it contig
         self.glWidget.points = X
         self.glWidget.npoints = len(X)
@@ -237,6 +235,8 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     MV = property(get_MV, set_MV)
 
+    # TODO: setting focus by modifying vertex data works, but is horribly inefficient and slow.
+    # See vtkCamera.cxx for how it's done efficiently in VTK
     def get_focus(self):
         return np.float32([0, 0, 0]) # focus is always at data origin, by definition
 
@@ -249,7 +249,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         p = self.points
         #ipshell()
         t0 = time.time()
-        # TODO: this works, but modifying vertex data is horribly inefficient and slow:
         p[:, 0] -= xyz[0]
         p[:, 1] -= xyz[1]
         p[:, 2] -= xyz[2]
@@ -436,7 +435,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.zoom(0.05)
             elif key == Qt.Key_Down:
                 self.zoom(-0.05)
-        elif modifiers == Qt.ShiftModifier:
+        elif modifiers == Qt.ShiftModifier and key != Qt.Key_NumberSign:
             if key == Qt.Key_Left:
                 self.pan(-0.05, 0)
             elif key == Qt.Key_Right:
