@@ -208,7 +208,8 @@ class Detector(object):
         spikes['cid'] = -1 # unused, always leave as -1
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
-        if not ordered(spikes['t']): import pdb; pdb.set_trace()
+        if not ordered(spikes['t']):
+            raise RuntimeError("spikes aren't sorted for some reason")
         spikes['id'] = np.arange(self.nspikes) # assign ids (spikes should be in temporal order)
         self.datetime = datetime.datetime.now()
         return spikes, wavedata
@@ -616,6 +617,7 @@ class Detector(object):
         if self.noisemethod == 'median':
             #noise = pool.map(self.get_median, data) # multithreads over rows in data
             #noise = np.median(np.abs(data), axis=-1) / 0.6745 # see Quiroga2004
+            # np.abs does a copy, so modifying the result in-place is safe:
             noise = util.median_inplace_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
             #noise = np.mean(np.abs(data), axis=-1) / 0.6745 / 1.2
             #noise = util.mean_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004

@@ -6,8 +6,6 @@ from __init__ import __version__
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import os
-os.environ['ETS_TOOLKIT'] = 'qt4'
-from enthought.traits.api import HasTraits, Instance # somehow prevents segfault later in cluster.py
 
 import numpy as np
 import pyximport
@@ -57,10 +55,12 @@ CLUSTERWINDOWSIZE = 879, 687
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
 # this will drop us into ipdb on any error, won't work in IPy 0.11?:
+
 QtCore.pyqtRemoveInputHook()
 from IPython.Shell import IPShellEmbed
 ipshell = IPShellEmbed(banner='Dropping into IPython',
                        exit_msg='Leaving IPython, back to program')
+
 #ipshell() # drops into IPython immediately
 #QtCore.pyqtRestoreInputHook()
 
@@ -107,11 +107,11 @@ class SpykeWindow(QtGui.QMainWindow):
 
         #srffname = 'ptc15/87 - track 7c spontaneous craziness.srf'
         #self.OpenSurfOrTrackFile(srffname)
-
+        '''
         os.chdir('ptc15/tr7c')
         sortfname = 'testing.sort'
         self.OpenSortFile(sortfname)
-
+        '''
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
         self.DeleteSort() # don't create a new one until spikes exist
