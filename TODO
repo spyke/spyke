@@ -1,40 +1,6 @@
 ----------------
 QT rewrite:
 
-- LOOKS LIKE A BIG BUG: the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
-    - a symptom of this is that I get a lot of "spatial location way off" messages, and this seems to slow down detection a whole lot when it happens. In first 30 sec, only seems to happen in the first detection process
-        - actually, sometimes it happens on multiple processes simultaneously
-    - when I click on the spike to go to its position in the raw data, it goes to a raster line, but the raw data at that time doesn't match the spike data in the sort window
-    - duplicated on jervis, running rev 999 of dev branch, while searching first 30 sec of file 87
-    - also, occasionally getting "Exception OSError: (4, 'Interrupted system call') in <Finalize object, dead> ignored" at end of detection, may or may not be related
-    - could this be a new version of some library that started causing this? Cython? numpy?
-    - as of rev 935 in dev branch in win7 (using wx with non-working mayavi), bug doesn't seem to exist
-    - maybe need to look at code changes in climbing.pyx or detect.py between rev 935 and tip
-    - except when it happens on all chans, only seems to happen on chan 53, ie the last chan, or on chan 1, ie the 2nd chan, and both of those happen to be adjacent chans
-        - try testing on different file
-        - try running detection in debug mode
-        - problem disappears in debug mode, always comes up with 7085 spikes instead of the 7105 it comes up with otherwise - this is a multiple process problem?
-        - using numpy 1.5.1 in win7, multiprocessing 0.70a1 in both win7 and ubuntu
-        - upgraded cython to 0.14.1 and numpy to 1.5.1 in ubuntu, didn't help
-    - is pyopengl-accelerate being used in linux? installed in windows, seems to cause problems?
-    - do a hack test for abs(spike signal) > 25000, drop into debugger, though this won't work when multiprocessing
-    - try revert to rev 935 on ubuntu, see if you can get it to work in wx
-        - will have to do some hacking, like disabling a certain wx list style or something
-    - why is this a probabilistic problem?
-    - might it have something to do with ipython being loaded up and ready to pounce in case of an error? I guess everything, including ipython, is duplicated across processes, and that could cause some kinda race conditions?
-        - nope, removing ipython altogether doesn't help
-    - might try limiting the number of processes to 2 or 3 (or restoring hyperthreading), see if that changes anything
-        - leaving multiprocessing turned on, but searching only one block of data at a time, there's only ever one child processes at a time, and that works flawlessly across whatever single blocksize you choose
-    - aha! got wx spyke dev rev 935 working in linux, get the same problem during multiprocessing detection. So it must be a problem with a linux library, and qt or opengl aren't to blame.
-        - set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
-        - need a more realistic demo that does actual spike detection in multiple processes, but maybe without the gui stuff - ie, loads off the disk, runs cython, runs scipy.leastsq, etc.
-    - try running in python 2.5 with processing installed
-    - maybe the specific atlas libraries I'm using could be to blame - in win7, I'm using christoph's intel mkl libraries
-        - try downgrading numpy/scipy, or compiling them without atlas
-    - maybe instead of using Pool, with its weird initializer hack, I should subclass Process, make DetectionProcess.run() call searchblock nblocks/4 times, and launch 4 of these processes manually
-        - if that doesn't work, could spawn my own processes manually using linux specific os calls?
-    - SOLUTION: needed to deepcopy the detector for each process to prevent artefactual spikes, not sure why this seems to only be required in linux
-
 
 - focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
 
@@ -971,6 +937,39 @@ QT rewrite DONE:
 - maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
     - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
     - plotting and rotating 7 million points in opengl in qt is super fast!
+- LOOKS LIKE A BIG BUG: the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
+    - a symptom of this is that I get a lot of "spatial location way off" messages, and this seems to slow down detection a whole lot when it happens. In first 30 sec, only seems to happen in the first detection process
+        - actually, sometimes it happens on multiple processes simultaneously
+    - when I click on the spike to go to its position in the raw data, it goes to a raster line, but the raw data at that time doesn't match the spike data in the sort window
+    - duplicated on jervis, running rev 999 of dev branch, while searching first 30 sec of file 87
+    - also, occasionally getting "Exception OSError: (4, 'Interrupted system call') in <Finalize object, dead> ignored" at end of detection, may or may not be related
+    - could this be a new version of some library that started causing this? Cython? numpy?
+    - as of rev 935 in dev branch in win7 (using wx with non-working mayavi), bug doesn't seem to exist
+    - maybe need to look at code changes in climbing.pyx or detect.py between rev 935 and tip
+    - except when it happens on all chans, only seems to happen on chan 53, ie the last chan, or on chan 1, ie the 2nd chan, and both of those happen to be adjacent chans
+        - try testing on different file
+        - try running detection in debug mode
+        - problem disappears in debug mode, always comes up with 7085 spikes instead of the 7105 it comes up with otherwise - this is a multiple process problem?
+        - using numpy 1.5.1 in win7, multiprocessing 0.70a1 in both win7 and ubuntu
+        - upgraded cython to 0.14.1 and numpy to 1.5.1 in ubuntu, didn't help
+    - is pyopengl-accelerate being used in linux? installed in windows, seems to cause problems?
+    - do a hack test for abs(spike signal) > 25000, drop into debugger, though this won't work when multiprocessing
+    - try revert to rev 935 on ubuntu, see if you can get it to work in wx
+        - will have to do some hacking, like disabling a certain wx list style or something
+    - why is this a probabilistic problem?
+    - might it have something to do with ipython being loaded up and ready to pounce in case of an error? I guess everything, including ipython, is duplicated across processes, and that could cause some kinda race conditions?
+        - nope, removing ipython altogether doesn't help
+    - might try limiting the number of processes to 2 or 3 (or restoring hyperthreading), see if that changes anything
+        - leaving multiprocessing turned on, but searching only one block of data at a time, there's only ever one child processes at a time, and that works flawlessly across whatever single blocksize you choose
+    - aha! got wx spyke dev rev 935 working in linux, get the same problem during multiprocessing detection. So it must be a problem with a linux library, and qt or opengl aren't to blame.
+        - set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
+        - need a more realistic demo that does actual spike detection in multiple processes, but maybe without the gui stuff - ie, loads off the disk, runs cython, runs scipy.leastsq, etc.
+    - try running in python 2.5 with processing installed
+    - maybe the specific atlas libraries I'm using could be to blame - in win7, I'm using christoph's intel mkl libraries
+        - try downgrading numpy/scipy, or compiling them without atlas
+    - maybe instead of using Pool, with its weird initializer hack, I should subclass Process, make DetectionProcess.run() call searchblock nblocks/4 times, and launch 4 of these processes manually
+        - if that doesn't work, could spawn my own processes manually using linux specific os calls?
+    - SOLUTION: needed to deepcopy the detector for each process to prevent artefactual spikes, not sure why this seems to only be required in linux
 
 
 

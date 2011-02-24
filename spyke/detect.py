@@ -54,6 +54,7 @@ logger.addHandler(shandler)
 info = logger.info
 
 DEBUG = False # print detection debug messages to log file? slows down detection
+MPMETHOD = 'pool' # 'detectionprocess'
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
@@ -81,7 +82,6 @@ def _eintr_retry_call(func, *args):
                 continue
             raise
 
-'''
 def callsearchblock(blockrange):
     """Run current process' Detector on blockrange"""
     detector = ps().detector
@@ -91,7 +91,7 @@ def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
     # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
     ps().detector = deepcopy(detector)
-'''
+
 
 class RandomBlockRanges(object):
     """Iterator that spits out time ranges of width bs with
@@ -146,9 +146,9 @@ class DistanceMatrix(object):
 class DetectionProcess(mp.Process):
     """A temporary child process for doing some detection"""
     def run(self):
-        for blockrange in self.blockranges:
+        for blocki, blockrange in zip(self.blockis, self.blockranges):
             blockspikes, blockwavedata = self.detector.searchblock(blockrange)
-            self.q.put((blockspikes, blockwavedata))
+            self.q.put((blocki, blockspikes, blockwavedata))
 
 
 class Detector(object):
@@ -215,9 +215,9 @@ class Detector(object):
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
         t0 = time.time()
-        '''
-        # mp.Pool works, but I prefer my own subclasses DetectionProcess
-        if not DEBUG: # use a pool of processes
+
+        # mp.Pool is slightly faster than my own DetectionProcess
+        if not DEBUG and MPMETHOD == 'pool': # use a pool of processes
             ncores = mp.cpu_count() # 1 per core
             nprocesses = min(ncores, nblocks)
             # send pickled copy of self to each process
@@ -226,11 +226,11 @@ class Detector(object):
             pool.close()
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
             spikes, wavedata = zip(*results)
-        '''
-        if not DEBUG:
+        elif not DEBUG and MPMETHOD == 'detectionprocess':
             ncores = mp.cpu_count() # 1 per core
             nprocesses = min(ncores, nblocks)
             dps = []
+            q = mp.Queue()
             spikes = [None] * nblocks
             wavedata = [None] * nblocks
             for dpi in range(nprocesses):
@@ -239,16 +239,15 @@ class Detector(object):
                 dp.detector = deepcopy(self)
                 dp.blockis = range(dpi, nblocks, nprocesses)
                 dp.blockranges = blockranges[dp.blockis]
-                dp.q = mp.Queue()
+                dp.q = q
                 dp.start()
                 dps.append(dp)
-            for dp in dps:
-                for blocki in dp.blockis:
-                    #print(blocki)
-                    #blockspikes, blockwavedata = dp.q.get() # defaults to block=True
-                    blockspikes, blockwavedata = _eintr_retry_call(dp.q.get) # defaults to block=True
-                    spikes[blocki] = blockspikes
-                    wavedata[blocki] = blockwavedata
+            for i in range(nblocks):
+                #blocki, blockspikes, blockwavedata = dp.q.get() # defaults to block=True
+                blocki, blockspikes, blockwavedata = _eintr_retry_call(dp.q.get)
+                #print('got block %d results' % blocki)
+                spikes[blocki] = blockspikes
+                wavedata[blocki] = blockwavedata
             for dp in dps:
                 dp.join()
                 #_eintr_retry_call(dp.join) # eintr isn't raised anymore it seems
