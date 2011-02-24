@@ -18,9 +18,7 @@ import multiprocessing as mp
 ps = mp.current_process
 from copy import copy
 
-import wx
-
-from scipy.weave import inline
+#from scipy.weave import inline
 #from scipy import ndimage
 #from scipy.optimize import leastsq, fmin_slsqp
 #import openopt
@@ -182,7 +180,7 @@ class Detector(object):
 
         t0 = time.time()
 
-        if not DEBUG: # use a pool of processes
+        if False:#not DEBUG: # use a pool of processes
             ncores = mp.cpu_count() # 1 per core
             nprocesses = min(ncores, len(blockranges))
             # send pickled copy of self to each process

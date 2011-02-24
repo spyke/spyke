@@ -1,21 +1,23 @@
 """Demonstrate use of a processing.Pool"""
 
-import multiprocessing
-from multiprocessing import Pool
+import multiprocessing as mp
+ps = mp.current_process
 import time
+import numpy as np
 
 #global outputs
 #outputs = []
 
 
 def f(x):
-    for i in xrange(100000000): # to slow things down a bit
+    n = int(np.random.random(1)[0] * 100000000)
+    for i in xrange(n): # to slow things down a bit
         output = x*x
     return [x, output]
 
-def g(args):
-    x, y = args
-    for i in xrange(100000000): # to slow things down a bit
+def g(x, y):
+    n = int(np.random.random(1)[0] * 100000000)
+    for i in xrange(n): # to slow things down a bit
         output = x*y
     return [x, y, output]
 
@@ -30,22 +32,37 @@ def handleOutput(output):
     #for i in xrange(100000000):
     #    pass
 '''
+
+def callsearchblock(blockrange):
+    """Run current process' Detector on blockrange"""
+    detector = ps().detector
+    result = detector.searchblock(blockrange)
+    print("%s done" % ps().name)
+    return result
+
+def initializer(detector):
+    """Save pickled copy of the Detector to the current process"""
+    ps().detector = detector
+
+
+class Detector(object):
+    def detect(self):
+        blockranges = np.asarray([[0, 10000000], [10000000, 20000000], [20000000, 30000000]])
+
+        ncores = mp.cpu_count() # 1 per core
+        nprocesses = min(ncores, len(blockranges))
+        pool = mp.Pool(nprocesses, initializer, (self,))
+        results = pool.map(callsearchblock, blockranges, chunksize=1)
+        pool.close()
+        # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
+        spikes, wavedata = zip(*results)
+        print spikes, wavedata
+
+    def searchblock(self, blockrange):
+        #t = np.random.random(1) * 10 # sec
+        #time.sleep(t[0])
+        return f(blockrange[0]), g(blockrange[0], blockrange[1])
+
 if __name__ == '__main__':
-    pool = Pool() # create a processing pool with as many processes as there are CPUs/cores
-                  # on this machine, or set arg to n to use exactly n processes
-    #results = []
-    #for i in range(10):
-    #    print 'queueing task %d' % i
-    #    result = pool.apply_async(f, args=(i,), callback=handleOutput) # evaluate f(i) asynchronously
-    #    results.append(result)
-    ncpus = multiprocessing.cpu_count()
-    t0 = time.time()
-    args = zip(range(0, 2*ncpus), [10]*(2*ncpus))
-    results = pool.map(g, args) # make it int multiple of ncpus for efficiency
-    print('tasks took %.3f sec' % time.time())
-    #print 'done queueing tasks, result objects are: %r' % results
-    print(results)
-    pool.close()
-    pool.join()
-    #print 'outputs: %r' % outputs
-    time.sleep(5) # pause so you can watch the parent process in taskman hang around after worker processes exit
+    det = Detector()
+    det.detect()

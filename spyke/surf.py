@@ -14,8 +14,6 @@ import re
 import time
 import datetime
 
-import wx
-
 from core import Stream, iterable, toiter, ordered, intround
 
 NULL = '\x00'

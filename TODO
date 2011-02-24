@@ -26,8 +26,11 @@ QT rewrite:
     - might try limiting the number of processes to 2 or 3 (or restoring hyperthreading), see if that changes anything
         - leaving multiprocessing turned on, but searching only one block of data at a time, there's only ever one child processes at a time, and that works flawlessly across whatever single blocksize you choose
 
-    - might have to set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
+    - aha! got wx spyke dev rev 935 working in linux, get the same problem during multiprocessing detection. So it must be a problem with a linux library, and qt or opengl aren't to blame.
+        - set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
 
+    - try running in python 2.5 with processing installed
+    - maybe the specific atlas libraries I'm using could be to blame - in win7, I'm using christoph's intel mkl libraries
 
 - focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
 
