@@ -28,7 +28,7 @@ EPOCH = datetime.datetime(1899, 12, 30, 0, 0, 0) # epoch for message and display
 
 # create a couple of Struct objects with compiled format strings
 # and call them as needed for the most common record types.
-# Using np.fromfile to load one dtype record at a time without itermediate string isn't any faster
+# Using np.fromfile to load one dtype record at a time without intermediate string isn't any faster
 # Without little endian < symbol, struct.unpack uses 4 byte native size and alignment
 ctsstruct = Struct('qqhhii')
 dsvalstruct = Struct('qqhhi')

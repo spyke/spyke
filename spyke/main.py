@@ -104,9 +104,9 @@ class SpykeWindow(QtGui.QMainWindow):
         '''
         # TODO: load recent file history
         # for faster testing:
-
-        #srffname = 'ptc15/87 - track 7c spontaneous craziness.srf'
-        #self.OpenSurfOrTrackFile(srffname)
+        os.chdir('ptc15')
+        srffname = '87 - track 7c spontaneous craziness.srf'
+        self.OpenSurfOrTrackFile(srffname)
         '''
         os.chdir('ptc15/tr7c')
         sortfname = 'testing.sort'

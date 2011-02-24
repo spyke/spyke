@@ -25,12 +25,16 @@ QT rewrite:
         - nope, removing ipython altogether doesn't help
     - might try limiting the number of processes to 2 or 3 (or restoring hyperthreading), see if that changes anything
         - leaving multiprocessing turned on, but searching only one block of data at a time, there's only ever one child processes at a time, and that works flawlessly across whatever single blocksize you choose
-
     - aha! got wx spyke dev rev 935 working in linux, get the same problem during multiprocessing detection. So it must be a problem with a linux library, and qt or opengl aren't to blame.
         - set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
-
+        - need a more realistic demo that does actual spike detection in multiple processes, but maybe without the gui stuff - ie, loads off the disk, runs cython, runs scipy.leastsq, etc.
     - try running in python 2.5 with processing installed
     - maybe the specific atlas libraries I'm using could be to blame - in win7, I'm using christoph's intel mkl libraries
+        - try downgrading numpy/scipy, or compiling them without atlas
+    - maybe instead of using Pool, with its weird initializer hack, I should subclass Process, make DetectionProcess.run() call searchblock nblocks/4 times, and launch 4 of these processes manually
+        - if that doesn't work, could spawn my own processes manually using linux specific os calls?
+    - SOLUTION: needed to deepcopy the detector for each process to prevent artefactual spikes, not sure why this seems to only be required in linux
+
 
 - focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
 

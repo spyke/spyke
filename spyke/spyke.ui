@@ -483,7 +483,7 @@
           </rect>
          </property>
          <property name="text">
-          <string>10e5</string>
+          <string>30e6</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>

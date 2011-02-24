@@ -15,19 +15,33 @@ import time
 import logging
 import datetime
 import multiprocessing as mp
+from multiprocessing import Process
 ps = mp.current_process
-from copy import copy
+from copy import deepcopy
 
-#from scipy.weave import inline
-#from scipy import ndimage
-#from scipy.optimize import leastsq, fmin_slsqp
-#import openopt
-#import nmpfit
+'''
+NOTE: as of Ubuntu 10.10, for some reason often get:
+
+OSError: [Errno 4] Interrupted system call
+> /usr/lib/python2.6/multiprocessing/forking.py(106)poll()
+    105             if self.returncode is None:
+--> 106                 pid, sts = os.waitpid(self.pid, flag)
+    107                 if pid == self.pid:
+
+or:
+
+IOError: [Errno 4] Interrupted system call
+/usr/lib/python2.6/multiprocessing/queues.py in get(self, block, timeout)
+     89             self._rlock.acquire()
+     90             try:
+---> 91                 res = self._recv()
+     92                 self._sem.release()
+     93                 return res
+
+which has to be caught and retried using _eintr_retry_call.
+'''
 
 from core import eucd, ordered, concatenate_destroy, intround, g2, cauchy2
-
-#import threadpool
-#from text import SimpleTable
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 
@@ -55,7 +69,19 @@ if DEBUG:
     logger.addHandler(fhandler)
     debug = logger.debug
 
+import errno
+def _eintr_retry_call(func, *args):
+    """Keeps retrying func in case an "OSError/IOError: [Errno 4] Interrupted system call"
+    is raised for some mysterious reason. Modified from /usr/lib/python2.6/subprocess.py"""
+    while True:
+        try:
+            return func(*args)
+        except (OSError, IOError), e:
+            if e.errno == errno.EINTR:
+                continue
+            raise
 
+'''
 def callsearchblock(blockrange):
     """Run current process' Detector on blockrange"""
     detector = ps().detector
@@ -63,8 +89,9 @@ def callsearchblock(blockrange):
 
 def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
-    ps().detector = detector
-
+    # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
+    ps().detector = deepcopy(detector)
+'''
 
 class RandomBlockRanges(object):
     """Iterator that spits out time ranges of width bs with
@@ -114,6 +141,14 @@ class DistanceMatrix(object):
         self.chans = np.uint8([ chan_coord[0] for chan_coord in chans_coords ]) # pull out the sorted chans
         self.coords = [ chan_coord[1] for chan_coord in chans_coords ] # pull out the coords, now in chan order
         self.data = eucd(self.coords)
+
+
+class DetectionProcess(mp.Process):
+    """A temporary child process for doing some detection"""
+    def run(self):
+        for blockrange in self.blockranges:
+            blockspikes, blockwavedata = self.detector.searchblock(blockrange)
+            self.q.put((blockspikes, blockwavedata))
 
 
 class Detector(object):
@@ -168,6 +203,7 @@ class Detector(object):
         bs = self.blocksize
         bx = self.blockexcess
         blockranges = self.get_blockranges(bs, bx)
+        nblocks = len(blockranges)
 
         self.nchans = len(self.chans) # number of enabled chans
         self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
@@ -179,16 +215,43 @@ class Detector(object):
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
         t0 = time.time()
-
-        if False:#not DEBUG: # use a pool of processes
+        '''
+        # mp.Pool works, but I prefer my own subclasses DetectionProcess
+        if not DEBUG: # use a pool of processes
             ncores = mp.cpu_count() # 1 per core
-            nprocesses = min(ncores, len(blockranges))
+            nprocesses = min(ncores, nblocks)
             # send pickled copy of self to each process
             pool = mp.Pool(nprocesses, initializer, (self,))
             results = pool.map(callsearchblock, blockranges, chunksize=1)
             pool.close()
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
             spikes, wavedata = zip(*results)
+        '''
+        if not DEBUG:
+            ncores = mp.cpu_count() # 1 per core
+            nprocesses = min(ncores, nblocks)
+            dps = []
+            spikes = [None] * nblocks
+            wavedata = [None] * nblocks
+            for dpi in range(nprocesses):
+                dp = DetectionProcess()
+                # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
+                dp.detector = deepcopy(self)
+                dp.blockis = range(dpi, nblocks, nprocesses)
+                dp.blockranges = blockranges[dp.blockis]
+                dp.q = mp.Queue()
+                dp.start()
+                dps.append(dp)
+            for dp in dps:
+                for blocki in dp.blockis:
+                    #print(blocki)
+                    #blockspikes, blockwavedata = dp.q.get() # defaults to block=True
+                    blockspikes, blockwavedata = _eintr_retry_call(dp.q.get) # defaults to block=True
+                    spikes[blocki] = blockspikes
+                    wavedata[blocki] = blockwavedata
+            for dp in dps:
+                dp.join()
+                #_eintr_retry_call(dp.join) # eintr isn't raised anymore it seems
         else: # use a single process, useful for debugging
             spikes = []
             wavedata = []
