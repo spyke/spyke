@@ -4,6 +4,8 @@ QT rewrite:
 
 - focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
 
+- BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
+
 - color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this directly in designer apparently)
@@ -27,9 +29,11 @@ QT rewrite:
 
 - QT bug: setting both QListView.setLayoutMode(QtGui.QListView.Batched) and QListView.setResizeMode(QtGui.QListView.Adjust) at the same time often causes endless recalculating of layout with flickering and 100% CPU, until you happen to resize the list to a point where it stops doing so
     - maybe setting batch size to something bigger will work around this
+    - yes, this works, but it's just a hack
 
 - QListView: keyboard navigation doesn't wrap when Wrapping is enabled
     - see http://www.qtcentre.org/threads/38355-QListView-keyboard-navigation-doesn-t-wrap-when-Wrapping-is-enabled
+    - posted to list, didn't get a reply
 
 ----------------
 RECENT:

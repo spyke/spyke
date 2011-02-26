@@ -22,11 +22,12 @@ class TestListView(QtGui.QListView):
         self.setModel(TestListModel(parent))
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
-        #self.setLayoutMode(QtGui.QListView.Batched) # prevents lockup during huge layout ops
-        #self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
+        self.setLayoutMode(QtGui.QListView.Batched) # prevents lockup during huge layout ops
+        self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
         self.setUniformItemSizes(True) # speeds up listview
         self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
         self.setWrapping(True)
+        self.setBatchSize(500)
         #self.setViewMode(QtGui.QListView.IconMode)
 
 

@@ -703,6 +703,7 @@ class SpykeListView(QtGui.QListView):
         self.setUniformItemSizes(True) # speeds up listview
         self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
         self.setWrapping(True)
+        self.setBatchSize(300)
         #self.setViewMode(QtGui.QListView.IconMode)
 
     def keyPressEvent(self, event):
