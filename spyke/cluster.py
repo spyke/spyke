@@ -4,8 +4,6 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek']
 
-#import os
-#os.environ['ETS_TOOLKIT'] = 'qt4'
 import sys
 import time
 import random

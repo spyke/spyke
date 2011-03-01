@@ -6,6 +6,8 @@ QT rewrite:
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
+- add a mode where you can split a cluster purely by chan ids. Often you're in a situation where there's only 1 or 2 chans common to all the spikes in a cluster, yet you want to cluster according to some other chan that looks very clusterable. This would let you do that, at least as a pre-cluster step.
+
 - color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this directly in designer apparently)

@@ -556,7 +556,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # apply the clusters to the cluster plot
         newclusters = []
         t0 = time.time()
-        for nid, pos in zip(nids, scoutpositions): # nids are sorted
+        for nid in nids: # nids are sorted
             ii, = np.where(cids == nid)
             nsids = sids[ii] # sids belonging to this nid
             cluster = self.CreateCluster(update=False)
