@@ -517,6 +517,9 @@ class SpykeWindow(QtGui.QMainWindow):
             strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
             # each row in uchancombos is a unique combination of chans:
             uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
+            if len(uchancombos) == 1:
+                print("selected spikes all share the same set of channels, can't chansplit")
+                return
             cids = np.zeros(len(sids), dtype=np.int32)
             cids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
             for cid, uchancombo in enumerate(uchancombos):
