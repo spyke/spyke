@@ -484,6 +484,11 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_clusterButton_clicked(self):
         """Cluster pane Cluster button click"""
+        self.cluster('climb')
+
+    def cluster(self, method):
+        """Cluster spikes in currently selected clusters (or all spikes if no clusters selected)
+        according to method"""
         s = self.sort
         spikes = s.spikes
         sw = self.windows['Sort']
@@ -492,7 +497,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except KeyError:
             cw = self.OpenWindow('Cluster')
 
-        sw.uslist.clearSelection() # clear uslist selection, since many usids will disappear
+        sw.uslist.clearSelection() # clear uslist selection, since some usids may disappear
         oldclusters = self.GetClusters()
         if oldclusters: # some clusters selected
             clusters = oldclusters
@@ -504,45 +509,65 @@ class SpykeWindow(QtGui.QMainWindow):
             clusters = s.clusters.values() # all clusters
             sids = spikes['id'] # run climb() on all spikes
 
-        # grab dims and data
-        items = self.ui.dimlist.selectedItems()
-        if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
-        dims = [ str(item.text()) for item in items ] # dim names to cluster upon
-        plotdims = self.GetClusterPlotDimNames()
-        waveclustering = 'wave' in dims or 'peaks' in dims
-        if waveclustering: # do maxchan wavefrom clustering
-            if len(dims) > 1:
-                raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
-            wctype = dims[0] # 'wave' or 'peaks'
-            try:
-                data = self.get_waveclustering_data(sids, wctype=wctype)
-            except RuntimeError as msg:
-                print(msg)
-                return
-        else: # do spike parameter (non-wavefrom) clustering
-            data = s.get_param_matrix(dims=dims, scale=True)[sids]
-        data = data.copy() # copy to make it contiguous for climb()
+        if method == 'chansplit': # cluster spikes according to their unique combination of chans
+            t0 = time.time()
+            chans = spikes[sids]['chans']
+            if not chans.flags['C_CONTIGUOUS']:
+                chans = chans.copy() # string view won't work otherwise
+            strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
+            # each row in uchancombos is a unique combination of chans:
+            uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
+            cids = np.zeros(len(sids), dtype=np.int32)
+            cids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
+            for cid, uchancombo in enumerate(uchancombos):
+                cids[(chans == uchancombo).all(axis=1)] = cid
+            nids = range(len(uchancombos))
+            if (cids == -1).any():
+                raise RuntimeError("there shouldn't be any unclustered points from chansplit")
+            print('chansplit took %.3f sec' % (time.time()-t0))
 
-        # grab climb() params and run it
-        self.update_sort_from_cluster_pane()
-        npoints, ndims = data.shape
-        s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
-        print('clustering %d points in %d-D space' % (npoints, ndims))
-        t0 = time.time()
-        results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
-                        rneighx=s.rneighx, nsamples=s.nsamples,
-                        calcpointdensities=False, calcscoutdensities=False,
-                        clusterunsampledpoints=s.clusterunsampledspikes,
-                        minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
-                        minpoints=s.minpoints)
-        cids, scoutpositions, densities, scoutdensities, sampleis = results
-        nids = list(np.unique(cids))
-        try: nids.remove(-1)
-        except ValueError: pass
-        print('climb took %.3f sec' % (time.time()-t0))
+        elif method == 'climb': # cluster using NVS's mountain climbing algorithm
+            # grab dims and data
+            items = self.ui.dimlist.selectedItems()
+            if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
+            dims = [ str(item.text()) for item in items ] # dim names to cluster upon
+            plotdims = self.GetClusterPlotDimNames()
+            waveclustering = 'wave' in dims or 'peaks' in dims
+            if waveclustering: # do maxchan wavefrom clustering
+                if len(dims) > 1:
+                    raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
+                wctype = dims[0] # 'wave' or 'peaks'
+                try:
+                    data = self.get_waveclustering_data(sids, wctype=wctype)
+                except RuntimeError as msg:
+                    print(msg)
+                    return
+            else: # do spike parameter (non-wavefrom) clustering
+                data = s.get_param_matrix(dims=dims, scale=True)[sids]
+            data = data.copy() # copy to make it contiguous for climb()
+            # grab climb() params and run it
+            self.update_sort_from_cluster_pane()
+            npoints, ndims = data.shape
+            s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
+            print('clustering %d points in %d-D space' % (npoints, ndims))
+            t0 = time.time()
+            results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
+                            rneighx=s.rneighx, nsamples=s.nsamples,
+                            calcpointdensities=False, calcscoutdensities=False,
+                            clusterunsampledpoints=s.clusterunsampledspikes,
+                            minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
+                            minpoints=s.minpoints)
+            cids, scoutpositions, densities, scoutdensities, sampleis = results
+            nids = list(np.unique(cids))
+            try: nids.remove(-1)
+            except ValueError: pass
+            print('climb took %.3f sec' % (time.time()-t0))
+
+        else:
+            raise ValueError('invalid method %r' % method)
 
         # save some undo/redo stuff
-        message = 'climb clusters %r' % [ c.id for c in clusters ]
+        message = '%s clusters %r' % (method, [ c.id for c in clusters ])
         cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters)
 
@@ -551,9 +576,9 @@ class SpykeWindow(QtGui.QMainWindow):
         else: # no clusters selected, delete all existing clusters (if any)
             allclusters = s.clusters.values()
             self.DelClusters(allclusters, update=False)
-            s.sampleis = sampleis
+            s.sampleis = sampleis # save for the hell of it
 
-        # apply the clusters to the cluster plot
+        # apply the new clusters
         newclusters = []
         t0 = time.time()
         for nid in nids: # nids are sorted

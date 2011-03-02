@@ -6,8 +6,6 @@ QT rewrite:
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
-- add a mode where you can split a cluster purely by chan ids. Often you're in a situation where there's only 1 or 2 chans common to all the spikes in a cluster, yet you want to cluster according to some other chan that looks very clusterable. This would let you do that, at least as a pre-cluster step.
-
 - color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
 - use QActionGroup in the code to turn sampfreq menu checkboxes into exclusive radio items (can't do this directly in designer apparently)
@@ -943,7 +941,7 @@ QT rewrite DONE:
 - maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
     - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
     - plotting and rotating 7 million points in opengl in qt is super fast!
-- LOOKS LIKE A BIG BUG: the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
+- LOOKS LIKE A BIG BUG: many of the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
     - a symptom of this is that I get a lot of "spatial location way off" messages, and this seems to slow down detection a whole lot when it happens. In first 30 sec, only seems to happen in the first detection process
         - actually, sometimes it happens on multiple processes simultaneously
     - when I click on the spike to go to its position in the raw data, it goes to a raster line, but the raw data at that time doesn't match the spike data in the sort window
@@ -976,6 +974,9 @@ QT rewrite DONE:
     - maybe instead of using Pool, with its weird initializer hack, I should subclass Process, make DetectionProcess.run() call searchblock nblocks/4 times, and launch 4 of these processes manually
         - if that doesn't work, could spawn my own processes manually using linux specific os calls?
     - SOLUTION: needed to deepcopy the detector for each process to prevent artefactual spikes, not sure why this seems to only be required in linux
+- add a mode where you can split a cluster purely by chan ids. Often you're in a situation where there's only 1 or 2 chans common to all the spikes in a cluster, yet you want to cluster according to some other chan that looks very clusterable. This would let you do that, at least as a pre-cluster step.
+- BUG: for some reason, clusters with only one spike don't display anything in the nslist (they should display the one spike), and hitting R causes spike 0 to be plotted. This is similar to the behaviour you get when returning something other than an int (like a numpy scalar) in model.data() for any neuron with any number of spikes
+    - not checking for sids != [] in model.data() fixed it for some reason
 
 
 

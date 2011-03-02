@@ -786,6 +786,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
 
+        actionChanSplitClusters = QtGui.QAction("/", self)
+        actionChanSplitClusters.setToolTip('Split clusters by channels')
+        self.connect(actionChanSplitClusters, QtCore.SIGNAL("triggered()"),
+                     self.on_actionChanSplitClusters_triggered)
+        toolbar.addAction(actionChanSplitClusters)
+
         toolbar.addSeparator()
 
         actionRenumberClusters = QtGui.QAction("#", self)
@@ -840,24 +846,26 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.HideWindow('Sort')
 
     def keyPressEvent(self, event):
-        """Simple ASCII keypresses (A-Z, 0-9) are by default caught by the child lists for quickly
+        """Alpha character keypresses are by default caught by the child lists for quickly
         scrolling down to and selecting list items. However, the appropriate alpha keypresses have
         been set in the child lists to be ignored, so they propagate up to here"""
         key = event.key()
         if key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.uslist.clearSelection()
             self.nlist.clearSelection()
-        elif key in [Qt.Key_Delete, Qt.Key_D]:
+        elif key in [Qt.Key_Delete, Qt.Key_D]: # D ignored in SpykeListViews
             self.on_actionDeleteClusters_triggered()
         elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
-        elif key == Qt.Key_NumberSign:
+        elif key == Qt.Key_Slash: # ignored in SpykeListViews
+            self.on_actionChanSplitClusters_triggered()
+        elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
             self.on_actionRenumberClusters_triggered()
-        elif key == Qt.Key_O:
+        elif key == Qt.Key_O: # ignored in SpykeListViews
             self.on_actionFocusCurrentCluster_triggered()
-        elif key == Qt.Key_Period:
+        elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFocusCurrentSpike_triggered()
-        elif key == Qt.Key_R:
+        elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_triggered()
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
@@ -957,6 +965,10 @@ class SortWindow(SpykeToolWindow):
         spw.SelectClusters(newcluster)
         cc.message += ' into cluster %d' % newnid
         print(cc.message)
+
+    def on_actionChanSplitClusters_triggered(self):
+        """Split by channels button (/) click"""
+        self.spykewindow.cluster('chansplit')
 
     def on_actionRenumberClusters_triggered(self):
         """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
