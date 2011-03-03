@@ -1,10 +1,30 @@
-----------------
-QT rewrite:
 
 
-- focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
+- BUG: focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
+
+- wishlist: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, to preserve memory
+
+- take equal number of samples per cluster when random sampling two clusters
+
+- do best fit alignment of cluster's spikes to its mean - NVS claims this gives more faithful cluster mean representation than just leaving all member spikes aligned to either the max or min peak. Should also help improve cluster cleaning when reclustering by waveform
+    - calculate stdev of distribution of errors between each spike and the cluster mean
+    - take each spike and shift it forward and back by only 1 (or at most a few) timepoints (need access to .srf file for this)
+        - maybe align each spike by up to -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
+    - for each spike, choose the realignment (if any) that minimizes error between spike and cluster mean
+    - go to start, repeat until stdev stops changing
+
+- find two most similar clusters, or find cluster(s) that is most similar to currently selected cluster
+    - use error of overlapping chans of the two cluster waveforms
+        - overlapping chans to consider should only be ones with significant signal on them - NVS uses maxchan + immediate neighbours
+
+- possible error measures:
+    - rms
+    - 2nd derivative at peaks (or of the whole waveform?)
+    - distance measure, which would take both voltage and time difference of waveforms into account - sort of need to measure the area between each waveform pair
+
+- NVS: store density function lookup table (with arbitrary fineness) for speed in move_scouts() - that way, you don't need to calculate d**2, or exp(), or anything. You just give it distance as integer index into an array, and you get your density f'n value as output
 
 - color raster lines according to neuron color, assuming neuron id isn't -1. If so, then just leave it as same color as the max chan. Or, maybe color it grey? If a clustering has been done, maybe yes. If not, leave it colored by maxchan
 
@@ -34,9 +54,6 @@ QT rewrite:
 - QListView: keyboard navigation doesn't wrap when Wrapping is enabled
     - see http://www.qtcentre.org/threads/38355-QListView-keyboard-navigation-doesn-t-wrap-when-Wrapping-is-enabled
     - posted to list, didn't get a reply
-
-----------------
-RECENT:
 
 - gradient vector calculation step doesn't appear to be multithreaded in track-wide sort for some reason, MTthresh is wrong?
     - it is multithreaded. vector calculation is just fine. What's super slow for some reason is the merge step. Even with only 50000 spikes, it's really slow. At 10000 samples, it should be as fast as the same number of samples in file 87, yet it isn't for some reason... This is a new problem, isn't it? Or maybe I just never noticed it before?
@@ -70,17 +87,10 @@ RECENT:
 
 - autosave .sort file every 10 min or so during detection? and then what, how would you resume detection if it messed up previously? Doesn't seem very feasible
 
-- NVS: do best fit alignment, instead of aligning simply to a peak, should help improve cluster cleaning when reclustering by waveform
-    - maybe only align each spike by -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
-
-- even with sorting by y, should still add "most similar pair of clusters" button to sort window, which would deselect all selected clusters, and select the two clusters most similar to each other, based on their overlapping chans, although it would be good to see other pairs that aren't as similar, just for testing the similarity measure. Or, just getting a more consistent y value for each cluster (based on median of points, and not on scout position) might work just as well
-
 - NVS: Nando said it would be good to get an energy f'n going for the gradient ascent clustering, so you can quantitatively evaluate which clustering is best, and therefore run the algorithm with multiple values of sigma (and maybe with different dimensions) and automatically choose the one with the lowest energy
     - sounded like it could be some kind of measure like the sum of all the distances from each point to its scout point/cluster center
 
 - sort window status bar: for current cluster: cluster number, num spikes, SD on maxchan
-
-- NVS: store density function lookup table (with arbitrary fineness) for speed in move_scouts() - that way, you don't need to calculate d**2, or exp(), or anything. You just give it distance as input, and you get your density f'n value as output
 
 - do test for double triggers (sometimes a spike with a weird delay across channels will cause this): check each ISI across the whole list of sorted spike times. For each ISI that falls below, say, 0.5 ms, check the spatial separation of those two spikes, and if that falls below, say 100 um, or maybe 1 channel distance, then flag that as a double trigger, and maybe delete the second spike? Or keep the spike that's aligned to the biggest phase? This means resizing the spikes array each time, and probably some other stuff. All of this should really be done right after detection, and before any clustering
     - another way to test for this would be to do best fit alignment on all spikes in each cluster, and then see if the waveform difference between any two temporally adjacent spikes is exactly 0. That would indicate you've counted the same spike twice.
@@ -185,21 +195,6 @@ RECENT:
 
 - overplotting speed
 
-- manual sorting is disabled, and maybe it should stay that way
-
-- is there some way to speed up "from enthought.mayavi import mlab"? - painful!
-
-- looks like figuring out which points fall within a cluster still doesn't work right when you're orienting all 3 dims at the same time - or at the very least, there's some kind of round-off error going on
-
-- parameter extraction should be relatively easy to parallelize - it's a purely CPU (or memory?) limited operation
-
-- ptc15.81 not contiguous at record timestamps number 3309 and 3310
-    np.where((np.diff(s.stream.rts, n=2) == 0) == False)
-    (array([3309, 3310]),)
-    - when stream is asked for gap in data, fill the gap with zeros
-    - fill the same gap with zeros in .resample file
-        - find ctsrecord duration that's the most frequent
-
 - replace unnecesary use of list(set(array)) with np.unique(array)
 
 - open .sort with no .srf, close it, open a .srf, get no sort.st attrib error when updating rasters - no slider shows up as a result?
@@ -216,8 +211,8 @@ RECENT:
 
 
 
-
-GENERAL:
+------------------------
+OLDER:
 
 - reduce number of chans included in a spike according to amount of signal on that signal, maybe based on median signal for that chan for entire file, or randomly sampled subset of the file
 
@@ -564,6 +559,10 @@ OLDER:
 - OLD Cython event detection: for each searchblock() call, I only allocate enough memory to store event times for 54 cells (one per chan) with an average firing rate of 1 kHz - perhaps I should check in the cython code if I'm about to exceed the bounds of the eventtimes array, and grow it when need be, or at least print an error, instead of segfaulting!
 
 
+
+
+
+
 ----------------------------------------------------
 DONE:
 
@@ -893,8 +892,10 @@ DONE:
 
 
 
----------------
+----------------------
 QT rewrite DONE:
+
+
 - replace all list RefreshItems() calls with reset()?
     - reset clears any current selection, in addition to updating the list
     - update() doesn't seem to do anything.
