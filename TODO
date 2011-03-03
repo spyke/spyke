@@ -6,10 +6,8 @@
 
 - wishlist: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, to preserve memory
 
-- take equal number of samples per cluster when random sampling two clusters
-
-- do best fit alignment of cluster's spikes to its mean - NVS claims this gives more faithful cluster mean representation than just leaving all member spikes aligned to either the max or min peak. Should also help improve cluster cleaning when reclustering by waveform
-    - calculate stdev of distribution of errors between each spike and the cluster mean
+- do best fit alignment of cluster's spikes to its mean - NVS claims this gives more faithful cluster mean representation than just leaving all member spikes aligned to either their max or min peak. Should also help improve cluster cleaning when reclustering by waveform shape
+    - calculate stdev of distribution of errors between each spike and the cluster mean, report in uV
     - take each spike and shift it forward and back by only 1 (or at most a few) timepoints (need access to .srf file for this)
         - maybe align each spike by up to -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
     - for each spike, choose the realignment (if any) that minimizes error between spike and cluster mean
@@ -978,6 +976,7 @@ QT rewrite DONE:
 - add a mode where you can split a cluster purely by chan ids. Often you're in a situation where there's only 1 or 2 chans common to all the spikes in a cluster, yet you want to cluster according to some other chan that looks very clusterable. This would let you do that, at least as a pre-cluster step.
 - BUG: for some reason, clusters with only one spike don't display anything in the nslist (they should display the one spike), and hitting R causes spike 0 to be plotted. This is similar to the behaviour you get when returning something other than an int (like a numpy scalar) in model.data() for any neuron with any number of spikes
     - not checking for sids != [] in model.data() fixed it for some reason
+- take equal number of samples per cluster when random sampling two clusters
 
 
 

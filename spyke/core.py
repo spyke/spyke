@@ -750,10 +750,13 @@ class SpykeListView(QtGui.QListView):
         """Simple way to check if a row is selected"""
         return self.model().index(row) in self.selectedIndexes()
 
-    def selectRandom(self, nsamples):
+    def selectRandom(self, start, stop, nsamples):
         """Select random sample of rows"""
-        nsamples = min(nsamples, self.nrows)
-        rows = random.sample(xrange(self.nrows), nsamples)
+        start = max(0, start)
+        stop = min(self.nrows, stop)
+        nrows = stop - start
+        nsamples = min(nsamples, nrows)
+        rows = random.sample(xrange(start, stop), nsamples)
         self.selectRows(rows)
 
 
@@ -795,6 +798,14 @@ class NSList(SpykeListView):
         return self.model().sids
 
     sids = property(get_sids)
+
+    def selectRandom(self, nsamples):
+        """Select up to nsamples random rows per neuron"""
+        start = 0
+        for neuron in self.neurons:
+            stop = start + neuron.nspikes
+            SpykeListView.selectRandom(self, start, stop, nsamples)
+            start = stop # update for next neuron
 
 
 class USList(SpykeListView):

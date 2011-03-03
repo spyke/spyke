@@ -31,7 +31,7 @@ SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1080
 
 MEANWAVESAMPLESIZE = 1000
-SPIKESELECTSAMPLESIZE = 25
+SPIKESELECTSAMPLESIZE = 25 # per selected neuron, or less
 
 """
 TODO: before extracting features from events, first align all chans wrt maxchan.
