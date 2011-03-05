@@ -467,7 +467,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_Space: # clear and select item under cursor, if any
                 self.selectItemUnderCursor(clear=True)
             elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_D, Qt.Key_M, Qt.Key_Slash,
-                         Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
+                         Qt.Key_NumberSign, Qt.Key_O, Qt.Key_Period, Qt.Key_R, Qt.Key_B]:
                 sw = self.spw.windows['Sort']
                 sw.keyPressEvent(event) # pass it on to Sort window
             elif key == Qt.Key_F11:

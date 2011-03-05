@@ -708,7 +708,7 @@ class SpykeListView(QtGui.QListView):
 
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_D, Qt.Key_M, Qt.Key_Slash, Qt.Key_NumberSign,
-                           Qt.Key_O, Qt.Key_Period, Qt.Key_R]:
+                           Qt.Key_O, Qt.Key_Period, Qt.Key_R, Qt.Key_B]:
             event.ignore() # pass it on up to the parent
         else:
             QtGui.QListView.keyPressEvent(self, event) # handle it as usual
@@ -1366,3 +1366,8 @@ def lst2shrtstr(lst, sigfigs=4, brackets=False):
     if brackets:
         s = string.join(['[', s, ']'], sep='')
     return s
+
+def rmserror(a, b):
+    """Return root-mean-squared difference between arrays a and b"""
+    return np.sqrt(((a - b)**2).mean())
+

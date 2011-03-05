@@ -21,7 +21,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
-from core import SpykeToolWindow, NList, NSList, USList, ClusterChange
+from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -607,10 +607,90 @@ class Neuron(object):
         return self.wave
 
     def align(self, to):
-        """Align all of this neuron's spikes by their max or min
-        TODO: make sure all temporal values are properly updated.
-        This includes modelled temporal means, if any.
-        TODO: allow best fit alignment of spikes to template"""
+        if to == 'best':
+            self.alignbest()
+        else:
+            self.alignminmax(to)
+        self.update_wave() # update mean waveform
+        # trigger resaving of .wave file on next save
+        try: del self.sort.wavefname
+        except AttributeError: pass
+
+    def alignbest(self, method=rmserror):
+        """Align all of this neuron's spikes by best fit"""
+        s = self.sort
+        # TODO: make maxshift a f'n of interpolation factor
+        nt = s.wavedata.shape[2] # num timepoints in each waveform
+        maxshift = 2 # shift +/- this many timepoints
+        maxshiftus = maxshift * s.stream.tres
+        shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
+        print('neuron %d stdev before alignbest: %f uV' % (self.id, self.stdevwaveerrors()))
+        srffopen = s.stream.srff.is_open()
+        if not srffopen:
+            print("WARNING: .srf file not available, padding waveforms with up to +/- %d "
+                  "points of fake data" % maxshift)
+        for sid in self.sids:
+            # TODO: use at most only maxchan and immediate neighbour chans
+            spike = s.spikes[sid]
+            nspikechans = spike['nchans']
+            spikechans = spike['chans'][:nspikechans]
+            spikedata = s.wavedata[sid, :nspikechans]
+            # get chans common to neuron and spike
+            chans = np.intersect1d(self.chans, spikechans, assume_unique=True)
+            spikechanis = spikechans.searchsorted(chans)
+            neuronchanis = self.chans.searchsorted(chans)
+            # widespikedata holds spikedata plus extra data on either side
+            # to allow for full width slicing for all time shifts:
+            if srffopen:
+                wave = s.stream[-maxshiftus+spike['t0'] : spike['t1']+maxshiftus]
+                wavechanis = wave.chans.searchsorted(spikechans)
+                widespikedata = wave.data[wavechanis]
+            else:
+                # Only add fake values at start and end if .srf file isn't available.
+                # Problem is fake values will make stdev keep improving indefinitely, until you've
+                # done so many shifts, there potentially isn't any real data left for some spikes
+                widespikedata = np.zeros((nspikechans, maxshift+nt+maxshift))
+                widespikedata[:, maxshift:-maxshift] = spikedata
+                widespikedata[:, :maxshift] = spikedata[:, 0, None] # pad start with first point per chan
+                widespikedata[:, -maxshift:] = spikedata[:, -1, None] # pad end with last point per chan
+            widespikesubdata = widespikedata[spikechanis]
+            neuronsubdata = self.wave.data[neuronchanis]
+            errors = np.zeros(len(shifts)) # init
+            for shifti, shift in enumerate(shifts):
+                t0i = maxshift + shift
+                shiftedspikesubdata = widespikesubdata[:, t0i:t0i+nt]
+                errors[shifti] = method(shiftedspikesubdata, neuronsubdata)
+            bestshift = shifts[errors.argmin()]
+            if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
+                t0i = maxshift + bestshift
+                s.wavedata[sid][:nspikechans] = widespikedata[:, t0i:t0i+nt]
+        print('neuron %d stdev after alignbest: %f uV' % (self.id, self.stdevwaveerrors()))
+
+    def waveerrors(self, method=rmserror):
+        """Return array of differences between self and all member spikes"""
+        s = self.sort
+        errors = np.zeros(self.nspikes)
+        for spikei, sid in enumerate(self.sids):
+            spike = s.spikes[sid]
+            nspikechans = spike['nchans']
+            spikechans = spike['chans'][:nspikechans]
+            spikedata = s.wavedata[sid, :nspikechans]
+            # get chans common to neuron and spike
+            chans = np.intersect1d(self.chans, spikechans, assume_unique=True)
+            spikechanis = spikechans.searchsorted(chans)
+            neuronchanis = self.chans.searchsorted(chans)
+            spikesubdata = spikedata[spikechanis]
+            neuronsubdata = self.wave.data[neuronchanis]
+            errors[spikei] = method(spikesubdata, neuronsubdata)
+        return errors
+
+    def stdevwaveerrors(self, method=rmserror):
+        """Return stdev of difference between self and all member spikes, in uV"""
+        stdev = self.waveerrors(method).std()
+        return self.sort.converter.AD2uV(stdev)
+
+    def alignminmax(self, to):
+        """Align all of this neuron's spikes by their min or max"""
         s = self.sort
         spikes = s.spikes
         nsids = self.sids # ids of spikes that belong to this neuron
@@ -620,11 +700,12 @@ class Neuron(object):
         Vss = np.column_stack((V0s, V1s))
         alignis = spikes['aligni'][nsids]
         b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
-        if to == 'max':
-            i = Vss[b] < 0 # indices into nsids of spikes aligned to the min phase
-        elif to == 'min':
+        if to == 'min':
             i = Vss[b] > 0 # indices into nsids of spikes aligned to the max phase
-        else: raise ValueError()
+        elif to == 'max':
+            i = Vss[b] < 0 # indices into nsids of spikes aligned to the min phase
+        else:
+            raise ValueError('unknown to %r' % to)
         sids = nsids[i] # ids of spikes that need realigning
         n = len(sids) # num spikes that need realigning
         print("Realigning %d spikes" % n)
@@ -669,11 +750,6 @@ class Neuron(object):
             chans = spike['chans'][:nchans]
             wave = wave[chans]
             s.wavedata[sid, 0:nchans] = wave.data
-        self.update_wave() # update mean waveform
-        # trigger resaving of .wave file on next .sort+.spike save
-        try: del s.wavefname
-        except AttributeError: pass
-        # TODO: trigger a redraw for all of this neuron's plotted spikes
     '''
     def get_stdev(self):
         """Return 2D array of stddev of each timepoint of each chan of member spikes.
@@ -823,17 +899,23 @@ class SortWindow(SpykeToolWindow):
 
         toolbar.addSeparator()
 
+        actionAlignMin = QtGui.QAction("Align min", self)
+        actionAlignMin.setToolTip("Align neurons' spikes to min")
+        self.connect(actionAlignMin, QtCore.SIGNAL("triggered()"),
+                     self.on_actionAlignMin_triggered)
+        toolbar.addAction(actionAlignMin)
+
         actionAlignMax = QtGui.QAction("Align max", self)
         actionAlignMax.setToolTip("Align neurons' spikes to max")
         self.connect(actionAlignMax, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignMax_triggered)
         toolbar.addAction(actionAlignMax)
 
-        actionAlignMin = QtGui.QAction("Align min", self)
-        actionAlignMin.setToolTip("Align neurons' spikes to min")
-        self.connect(actionAlignMin, QtCore.SIGNAL("triggered()"),
-                     self.on_actionAlignMin_triggered)
-        toolbar.addAction(actionAlignMin)
+        actionAlignBest = QtGui.QAction("Align best", self)
+        actionAlignBest.setToolTip("Align neurons' spikes by best fit")
+        self.connect(actionAlignBest, QtCore.SIGNAL("triggered()"),
+                     self.on_actionAlignBest_triggered)
+        toolbar.addAction(actionAlignBest)
 
         return toolbar
 
@@ -867,6 +949,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFocusCurrentSpike_triggered()
         elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_triggered()
+        elif key == Qt.Key_B: # ignored in SpykeListViews
+            self.on_actionAlignBest_triggered()
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
     '''
@@ -1055,36 +1139,22 @@ class SortWindow(SpykeToolWindow):
             self.nslist.clearSelection()
             self.nslist.selectRandom(SPIKESELECTSAMPLESIZE)
 
+    def on_actionAlignMin_triggered(self):
+        self.Align('min')
+
     def on_actionAlignMax_triggered(self):
         self.Align('max')
 
-    def on_actionAlignMin_triggered(self):
-        self.Align('min')
+    def on_actionAlignBest_triggered(self):
+        self.Align('best')
 
     def Align(self, to):
         selclusters = self.spykewindow.GetClusters()
         nids = [ cluster.id for cluster in selclusters ]
         for nid in nids:
             self.sort.neurons[nid].align(to)
-
-    def DrawRefs(self):
-        """Redraws refs and resaves background of sort panel(s)"""
-        self.spikesortpanel.draw_refs()
-
-    def AddItems2Plot(self, items):
-        try: self.spikesortpanel.addItems(items)
-        except RuntimeError: # probably a neuron with no spikes
-            pass
-
-    def RemoveItemsFromPlot(self, items):
-        try: self.spikesortpanel.removeItems(items)
-        except KeyError:
-            # probably a neuron with no spikes that was never added to plot.
-            # catching this might risk hiding deeper flaws, but seems to work for now
-            pass
-
-    def UpdateItemsInPlot(self, items):
-        self.spikesortpanel.updateItems(items)
+        # auto-refresh all plots
+        self.panel.updateAllItems()
 
     def RemoveNeuron(self, neuron, update=True):
         """Remove neuron and all its spikes from the GUI and the Sort"""
@@ -1139,18 +1209,3 @@ class SortWindow(SpykeToolWindow):
         if neuron in self.nslist.neurons:
             self.nslist.neurons = self.nslist.neurons # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
-'''
-    def MoveCurrentSpikes2Neuron(self, which='selected'):
-        if which == 'selected':
-            neuron = self.GetFirstSelectedNeuron()
-        elif which == 'new':
-            neuron = None # indicates we want a new neuron
-        selected_usids = [ i.data().toInt()[0] for i in self.uslist.selectedIndexes() ]
-        # remove from the bottom to top, so each removal doesn't affect the remaining selections
-        print("TODO: WARNING: selected_usids might not be sorted! They might be in "
-              "selection order, not spatial order from top to bottom.")
-        selected_usids.reverse()
-        neuron = self.MoveSpikes2Neuron(selected_usids, neuron) # if neuron was None, it isn't any more
-        if neuron != None and neuron.plt != None: # if it exists and it's plotted
-            self.UpdateItemsInPlot(['n'+str(neuron.id)]) # update its plot
-'''

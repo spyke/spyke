@@ -74,7 +74,10 @@ class File(object):
         self.f.close()
 
     def is_open(self):
-        return not self.f.closed
+        try:
+            return not self.f.closed
+        except AttributeError: # self.f unbound
+            return False
 
     def get_datetime(self):
         """Return datetime stamp corresponding to t=0us timestamp. t=0 corresponds to either:

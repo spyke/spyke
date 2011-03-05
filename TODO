@@ -4,20 +4,25 @@
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
-- wishlist: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, to preserve memory
+- NVS climbing improvement: instead of normalizing gradient by nneighs, normalize by sum of value of  gaussian of all points in the neighbourhood - says it converges much more quickly
 
-- do best fit alignment of cluster's spikes to its mean - NVS claims this gives more faithful cluster mean representation than just leaving all member spikes aligned to either their max or min peak. Should also help improve cluster cleaning when reclustering by waveform shape
-    - calculate stdev of distribution of errors between each spike and the cluster mean, report in uV
-    - take each spike and shift it forward and back by only 1 (or at most a few) timepoints (need access to .srf file for this)
-        - maybe align each spike by up to -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
-    - for each spike, choose the realignment (if any) that minimizes error between spike and cluster mean
-    - go to start, repeat until stdev stops changing
+- WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, to preserve memory
+
+- WISHLIST: allow loading of .srf file *after* loading of .sort, with proper association of .srf to stream.srff.f
+    - also allow closing of .srf file, while leaving .sort open - for when you need to disconnect external drive
+
+- WISHLIST: insert newly split off clusters and increment the cluster ids of all the following clusters
+    - will this be too slow cuz of need to recolour the plotted points of all the subsequent clusters?
+    - would prolly have to rework clusterchange queue a bit to handle cluster renames for efficiency, instead of completely deleting and recreating clusters
+    - or maybe the cluster ids could be done like a dewey decimal system - this would temporarily require strings as neuron ids for the child neurons, but would be converted back to normal ints on a full renumbering
+        - such child clusters would be coloured according to the last part of their decimal
 
 - find two most similar clusters, or find cluster(s) that is most similar to currently selected cluster
     - use error of overlapping chans of the two cluster waveforms
         - overlapping chans to consider should only be ones with significant signal on them - NVS uses maxchan + immediate neighbours
+        - GUI: most similar clusters: add prev and next buttons to sort toolbar, maybe bind < and > keys
 
-- possible error measures:
+- possible waveform error measures:
     - rms
     - 2nd derivative at peaks (or of the whole waveform?)
     - distance measure, which would take both voltage and time difference of waveforms into account - sort of need to measure the area between each waveform pair
@@ -977,6 +982,13 @@ QT rewrite DONE:
 - BUG: for some reason, clusters with only one spike don't display anything in the nslist (they should display the one spike), and hitting R causes spike 0 to be plotted. This is similar to the behaviour you get when returning something other than an int (like a numpy scalar) in model.data() for any neuron with any number of spikes
     - not checking for sids != [] in model.data() fixed it for some reason
 - take equal number of samples per cluster when random sampling two clusters
+- do best fit alignment of cluster's spikes to its mean - NVS claims this gives more faithful cluster mean waveform representation than just leaving all member spikes aligned to either their max or min peak. Should also help improve cluster cleaning when reclustering by waveform shape
+    - calculate stdev of distribution of errors between each spike and the cluster mean, report in uV
+    - take each spike and shift it forward and back by only 1 (or at most a few) timepoints (need access to .srf file for this)
+        - maybe align each spike by up to -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
+    - for each spike, choose the realignment (if any) that minimizes error between spike and cluster mean
+    - repeat until stdev stops changing
+
 
 
 
