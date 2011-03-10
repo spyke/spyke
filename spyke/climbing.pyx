@@ -16,6 +16,16 @@ cdef extern from "math.h":
 
 cdef extern from "stdio.h":
     int printf(char *, ...) nogil
+    cdef void *malloc(size_t) nogil # allocates without clearing to 0
+    #cdef void *calloc(size_t, size_t) nogil # allocates with clearing to 0
+    cdef void free(void *) nogil
+
+cdef extern from "string.h":
+    cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
+
+# NOTE: stdout is buffered by default in linux. This means anything printed to screen from
+# within C code won't show up until it gets a newline, or until you call fflush(stdout).
+# Unbuffered output can be forced by running Python with the "-u" switch
 
 
 @cython.boundscheck(False)
@@ -23,9 +33,8 @@ cdef extern from "stdio.h":
 @cython.cdivision(True)
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis=np.zeros(0, dtype=np.int32),
-          double sigma=0.25, double alpha=1.0, double rmergex=1.0,
+          double sigma=0.05, double alpha=2.0, double rmergex=1.0,
           double rneighx=4, int nsamples=0, bint clusterunsampledpoints=True,
-          bint calcpointdensities=False, bint calcscoutdensities=False,
           double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
@@ -45,7 +54,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - instead of merging the higher indexed scout into the lower indexed one, you should really merge the one with the lower density estimate into the one with the higher density estimate - otherwise you potentially end up deleting the scout that's closer to the local max density, which probably sets you back several iterations
             - this would require calc'ing and storing the density for each cluster, and updating it every time it moves
                 - is local density and local gradient calc sufficiently similar that this won't be expensive?
-            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, densities, still) except for the cids array, then proceed as usual. Then update the density for the newly merged cluster
+            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, still, etc) except for the cids array, then proceed as usual. Then update the density for the newly merged cluster
 
         - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that butt up against those of the other scout
 
@@ -74,18 +83,17 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int M # current num scout points (clusters)
     cdef int npoints, npointsremoved, nclustsremoved
     cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts # stores scout positions
-    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids = np.zeros(N, dtype=np.int32) # cluster indices into data
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] still = np.zeros(N, dtype=np.uint8) # for each scout, num consecutive iters without significant movement
+    # cluster indices into data:
+    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids = np.zeros(N, dtype=np.int32)
+    # for each scout, num consecutive iters without significant movement:
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] still = np.zeros(N, dtype=np.uint8)
     cdef double sigma2 = sigma * sigma
-    cdef double twosigma2 = 2 * sigma2
+    #cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge * rmerge
-    cdef int nneighs # num points in vicinity of scout point
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
     cdef double d, d2, minmove2
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] densities = np.zeros(0), scoutdensities = np.zeros(0)
     cdef Py_ssize_t i, j, k, samplei, scouti, clustii
     cdef int iteri=0, nnomerges=0, Mthresh, ncpus
     cdef bint incstill, merged=False, continuej=False
@@ -106,12 +114,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cids[sampleis] = np.arange(M, dtype=np.int32)
 
     if minmove == -1.0:
-        # TODO: should minmove also depend on sqrt(ndims)?
+        # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
         minmove = 0.000001 * sigma * alpha # in any direction in ndims space
     minmove2 = minmove * minmove
 
     ncpus = cpu_count()
-    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] lohi = np.zeros(ncpus+1, dtype=np.int32)
+    lohi = <long *>malloc((ncpus+1)*sizeof(long))
     pool = threadpool.ThreadPool(ncpus)
 
     while True:
@@ -154,12 +162,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                             cids[clustii] -= 1 # decr all clust indices above j
                     M -= 1 # decr num scouts, don't inc j, new value at j has just slid into view
                     #printf(' %d<-%d ', i, j)
-                    printf('M')
                     merged = True
                 else:
                     j += 1
             i += 1
         if merged: # at least one merger happened on this iter
+            printf('M')
             nnomerges = 0 # reset
             merged = False # reset
         else: # no mergers happened on this iter
@@ -231,76 +239,16 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     print('%d points (%.1f%%) and %d clusters deleted for having less than %d points each' %
          (npointsremoved, npointsremoved/float(N)*100, nclustsremoved, minpoints))
 
-    if calcpointdensities:
-        # calculate the local density for each point, using potentially just subsampled data
-        # from this cluster. This does g weighted sum of distances, almost like just counting
-        # the number of points in a volume, and then dividing by the volume. Except you don't
-        # really need to divide by the volume of the gaussian, cuz that's just a constant for
-        # a given sigma
-        # TODO: normalize by volume anyway, since you might run climb() with different values
-        # of sigma (like during a cluster split), and you want to keep all your density
-        # values consistent and comparable. Calculate the volume once per call, and divide
-        # all density values by it. Shouldn't be expensive
-        print('Calculating density around each data point, based on sampled data')
-        t0 = time.time()
-        densities = np.zeros(N)
-        for i in range(N):
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
-                if cids[i] != cids[samplei] or samplei == i:
-                    continue # don't include points from different clusters, or the point itself
-                d2 = 0.0 # reset
-                for k in range(ndims): # iterate over dims for each point
-                    ds[k] = data[i, k] - data[samplei, k]
-                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = True
-                        break # out of k loop
-                    d2 += ds[k] * ds[k] # add to sum of squares for this sample
-                if continuej:
-                    continuej = False # reset
-                    continue # to next j
-                if d2 <= rneigh2: # include this point in the density calculation
-                    d = sqrt(d2) # Euclidean distance
-                    densities[i] += d * exp(-d2 / twosigma2)
-        print('Point density calculations took %.3f sec' % (time.time()-t0))
-    else: densities = np.zeros(0)
-    if calcscoutdensities:
-        print('Calculating density around each scout, based on sampled data')
-        t0 = time.time()
-        scoutdensities = np.zeros(M)
-        for i in range(M):
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
-                if i != cids[samplei]:
-                    continue # don't include points from different clusters. TODO: maybe I should anyway?
-                d2 = 0.0 # reset
-                for k in range(ndims): # iterate over dims for each point
-                    ds[k] = scouts[i, k] - data[samplei, k]
-                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = True
-                        break # out of k loop
-                    d2 += ds[k] * ds[k] # add to sum of squares for this sample
-                if continuej:
-                    continuej = False # reset
-                    continue # to next j
-                if d2 <= rneigh2: # include this point in the density calculation
-                    d = sqrt(d2) # Euclidean distance
-                    scoutdensities[i] += d * exp(-d2 / twosigma2)
-        print('Scout density calculations took %.3f sec' % (time.time()-t0))
-    else:
-        scoutdensities = np.zeros(0)
-
-
     moving = still[:M] < maxstill
     nmoving = moving.sum()
     print('\nniters: %d' % iteri)
     print('nscouts: %d' % M)
-    print('sigma: %.2f, rneigh: %.2f, rmerge: %.2f, alpha: %.2f' % (sigma, rneigh, rmerge, alpha))
+    print('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f' % (sigma, rneigh, rmerge, alpha))
     print('nmoving: %d, minmove: %f' % (nmoving, minmove))
     print('moving scouts: %r' % np.where(moving)[0])
     print('still array:')
     print still[:M]
-    return cids, scouts[:M], densities, scoutdensities, sampleis
+    return cids, scouts[:M], sampleis
 
 
 @cython.boundscheck(False)
@@ -314,24 +262,32 @@ cpdef move_scouts(int lo, int hi,
                   int ndims, int nsamples, double sigma2, double alpha,
                   double rneigh, double rneigh2, double minmove2, int maxstill):
     """Move scouts up their local density gradient"""
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] d2s = np.zeros(ndims)
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] v = np.zeros(ndims)
+
+    # use much faster C allocation for temporary 1D arrays instead of numpy:
+    ds = <double *>malloc(ndims*sizeof(double))
+    d2s = <double *>malloc(ndims*sizeof(double))
+    kernel = <double *>malloc(ndims*sizeof(double))
+    v = <double *>malloc(ndims*sizeof(double))
+    # TODO: do I really need to call free() on all of the above once I'm done with them
+    # or are they freed automatically on f'n exit?
+
     cdef Py_ssize_t i, j, k, samplei
-    cdef int nneighs,
+    #cdef int nneighs
     cdef bint continuej=False
-    cdef double d2, move, move2
-    # TODO: make whole f'n nogil by manually sizing ds, d2s and v to 0 without
-    # calling np.zeros()
+    cdef double d2, kern, move, move2#, maxmove = 0.0
     with nogil:
         for i in range(lo, hi): # iterate over lo to hi scout points
             # skip frozen scout points
             if still[i] == maxstill:
                 continue
             # measure gradient
-            nneighs = 0 # reset
-            for k in range(ndims):
-                v[k] = 0.0 # reset
+            #nneighs = 0 # reset
+            #for k in range(ndims):
+            #    kernel[k] = 0.0 # reset
+            #    v[k] = 0.0 # reset
+            # slightly faster, though not guaranteed to be valid thing to do for non-int array:
+            memset(kernel, 0, ndims*sizeof(double)) # reset
+            memset(v, 0, ndims*sizeof(double)) # reset
             for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
                 samplei = sampleis[j]
                 d2 = 0.0 # reset
@@ -349,21 +305,31 @@ cpdef move_scouts(int lo, int hi,
                     for k in range(ndims):
                         # v is ndim vector of sum of kernel-weighted distances between
                         # current scout point and all data within rneigh
-                        #v[k] += ds[k] * exp(-d2s[k] / twosigma2) # Gaussian kernel
-                        v[k] += ds[k] * sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
-                    nneighs += 1
-            # update scout position in direction of v, normalize by nneighs
-            # nneighs will never be 0, because each scout point starts as a data point
+                        #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
+                        kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                        #printf('%.3f ', kern)
+                        kernel[k] += kern
+                        v[k] += ds[k] * kern
+                    #nneighs += 1
+            # update scout position in direction of v, normalize by kernel
+            # nneighs (and kernel?) will never be 0, because each scout point starts as a data point
             move2 = 0.0 # reset
             for k in range(ndims):
-                move = alpha / nneighs * v[k]
+                move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
                 scouts[i, k] += move
                 move2 += move * move
+                #if fabs(move) > fabs(maxmove):
+                #    maxmove = move
             if move2 < minmove2:
                 still[i] += 1 # count scout as still during this iter
             else:
                 still[i] = 0 # reset stillness counter for this scout
+        #printf('%f ', maxmove)
 
+        free(ds)
+        free(d2s)
+        free(kernel)
+        free(v)
 
 
 @cython.boundscheck(False)
@@ -376,7 +342,9 @@ cpdef assign_unclustered(int lo, int hi,
                          int nsamples, int ndims):
     """Assign each unclustered point to nearest clustered point. Uses brute force method.
     Tried using kdtree, didn't seem to work"""
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
+
+    #cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
+    ds = <double *>malloc(ndims*sizeof(double))
     cdef Py_ssize_t i, j, k, samplei
     cdef double min_d2, d2
     cdef bint continuej=False
@@ -404,13 +372,13 @@ cpdef assign_unclustered(int lo, int hi,
                 if d2 < min_d2: # update this unclustered point's cluster index
                     min_d2 = d2
                     cids[i] = cids[samplei]
+    free(ds)
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
 @cython.cdivision(True)
-cdef void span(np.ndarray[np.int32_t, ndim=1, mode='c'] lohi,
-               int start, int end, int N):
+cdef void span(long *lohi, int start, int end, int N) nogil:
     """Fill len(N) lohi array with fairly equally spaced int
     values, from start to end"""
     cdef Py_ssize_t i

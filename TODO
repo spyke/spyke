@@ -4,7 +4,7 @@
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
-- NVS climbing improvement: instead of normalizing gradient by nneighs, normalize by sum of value of  gaussian of all points in the neighbourhood - says it converges much more quickly
+- WISHLIST: allow merging of selected unsorted spikes
 
 - WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, to preserve memory
 
@@ -988,6 +988,7 @@ QT rewrite DONE:
         - maybe align each spike by up to -dt/2 < phase0 < phase1 < +dt/2, where dt is time between phases and is specific to each spike. If you let it realign too much, you risk aligning to some feature that was locked out during detection, which would result in reporting the same spike twice
     - for each spike, choose the realignment (if any) that minimizes error between spike and cluster mean
     - repeat until stdev stops changing
+- NVS climbing improvement: instead of normalizing gradient by nneighs, normalize by sum of value of  gaussian of all points in the neighbourhood - says it converges much more quickly
 
 
 

@@ -556,11 +556,10 @@ class SpykeWindow(QtGui.QMainWindow):
             t0 = time.time()
             results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
                             rneighx=s.rneighx, nsamples=s.nsamples,
-                            calcpointdensities=False, calcscoutdensities=False,
                             clusterunsampledpoints=s.clusterunsampledspikes,
                             minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                             minpoints=s.minpoints)
-            cids, scoutpositions, densities, scoutdensities, sampleis = results
+            cids, scoutpositions, sampleis = results
             nids = list(np.unique(cids))
             try: nids.remove(-1)
             except ValueError: pass

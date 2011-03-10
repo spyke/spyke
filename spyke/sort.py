@@ -1018,6 +1018,7 @@ class SortWindow(SpykeToolWindow):
         sids = [] # spikes to merge
         for cluster in clusters:
             sids.append(cluster.neuron.sids)
+        # TODO: merge any selected usids as well
         sids = np.concatenate(sids)
 
         # save some undo/redo stuff
