@@ -751,7 +751,7 @@ class SpykeWindow(QtGui.QMainWindow):
         all_nids = sorted(self.sort.neurons)
         try:
             sel_nids = [ cluster.id for cluster in clusters ]
-        except AttributeError: # assumer they're ints
+        except AttributeError: # assume they're ints
             sel_nids = [ cluster for cluster in clusters ]
         rows = np.searchsorted(all_nids, sel_nids)
         nlist = self.windows['Sort'].nlist

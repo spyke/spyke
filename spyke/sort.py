@@ -542,9 +542,18 @@ class Neuron(object):
         #self.srffname # not here, let's allow neurons to have spikes from different files?
 
     def get_chans(self):
+        if self.wave.data == None:
+            self.update_wave()
         return self.wave.chans # self.chans just refers to self.wave.chans
 
     chans = property(get_chans)
+
+    def get_chan(self):
+        if self.wave.data == None:
+            self.update_wave()
+        return self.wave.chans[self.wave.data.ptp(axis=1).argmax()] # chan with max Vpp
+
+    chan = property(get_chan)
 
     def get_nspikes(self):
         return len(self.sids)
@@ -558,10 +567,7 @@ class Neuron(object):
         return d
 
     def update_wave(self):
-        """Update mean waveform, should call this every time .spikes are modified.
-        Setting .spikes as a property to do so automatically doesn't work, because
-        properties only catch name binding of spikes, not modification of an object
-        that's already been bound"""
+        """Update mean waveform"""
         sort = self.sort
         spikes = sort.spikes
         if len(self.sids) == 0: # no member spikes, perhaps I should be deleted?
@@ -605,6 +611,22 @@ class Neuron(object):
         self.wave.chans = newneuronchans
         self.wave.ts = sort.twts
         return self.wave
+
+    def __sub__(self, other):
+        """Return difference array between self and other neurons' waveforms
+        on common channels"""
+        selfwavedata, otherwavedata = self.getCommonWaveData(other)
+        return selfwavedata - otherwavedata
+
+    def getCommonWaveData(self, other):
+        chans = np.intersect1d(self.chans, other.chans, assume_unique=True)
+        if len(chans) == 0:
+            raise ValueError('no common chans')
+        if self.chan not in chans or other.chan not in chans:
+            raise ValueError("maxchans aren't part of common chans")
+        selfchanis = self.chans.searchsorted(chans)
+        otherchanis = other.chans.searchsorted(chans)
+        return self.wave.data[selfchanis], other.wave.data[otherchanis]
 
     def align(self, to):
         if to == 'best':
@@ -878,13 +900,13 @@ class SortWindow(SpykeToolWindow):
 
         toolbar.addSeparator()
 
-        actionFocusCurrentCluster = QtGui.QAction("O", self)
+        actionFocusCurrentCluster = QtGui.QAction("C", self)
         actionFocusCurrentCluster.setToolTip('Focus current cluster')
         self.connect(actionFocusCurrentCluster, QtCore.SIGNAL("triggered()"),
                      self.on_actionFocusCurrentCluster_triggered)
         toolbar.addAction(actionFocusCurrentCluster)
 
-        actionFocusCurrentSpike = QtGui.QAction(".", self)
+        actionFocusCurrentSpike = QtGui.QAction("X", self)
         actionFocusCurrentSpike.setToolTip('Focus current spike')
         self.connect(actionFocusCurrentSpike, QtCore.SIGNAL("triggered()"),
                      self.on_actionFocusCurrentSpike_triggered)
@@ -895,7 +917,6 @@ class SortWindow(SpykeToolWindow):
         self.connect(actionSelectRandomSpikes, QtCore.SIGNAL("triggered()"),
                      self.on_actionSelectRandomSpikes_triggered)
         toolbar.addAction(actionSelectRandomSpikes)
-
 
         toolbar.addSeparator()
 
@@ -916,6 +937,20 @@ class SortWindow(SpykeToolWindow):
         self.connect(actionAlignBest, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignBest_triggered)
         toolbar.addAction(actionAlignBest)
+
+        toolbar.addSeparator()
+
+        actionFindPrevMostSimilar = QtGui.QAction("<", self)
+        actionFindPrevMostSimilar.setToolTip("Find previous most similar cluster")
+        self.connect(actionFindPrevMostSimilar, QtCore.SIGNAL("triggered()"),
+                     self.on_actionFindPrevMostSimilar_triggered)
+        toolbar.addAction(actionFindPrevMostSimilar)
+
+        actionFindNextMostSimilar = QtGui.QAction(">", self)
+        actionFindNextMostSimilar.setToolTip("Find next most similar cluster")
+        self.connect(actionFindNextMostSimilar, QtCore.SIGNAL("triggered()"),
+                     self.on_actionFindNextMostSimilar_triggered)
+        toolbar.addAction(actionFindNextMostSimilar)
 
         return toolbar
 
@@ -943,14 +978,18 @@ class SortWindow(SpykeToolWindow):
             self.on_actionChanSplitClusters_triggered()
         elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
             self.on_actionRenumberClusters_triggered()
-        elif key == Qt.Key_O: # ignored in SpykeListViews
+        elif key == Qt.Key_C: # ignored in SpykeListViews
             self.on_actionFocusCurrentCluster_triggered()
-        elif key == Qt.Key_Period: # ignored in SpykeListViews
+        elif key == Qt.Key_X: # ignored in SpykeListViews
             self.on_actionFocusCurrentSpike_triggered()
         elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_triggered()
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
+        elif key == Qt.Key_Comma: # ignored in SpykeListViews
+            self.on_actionFindPrevMostSimilar_triggered()
+        elif key == Qt.Key_Period: # ignored in SpykeListViews
+            self.on_actionFindNextMostSimilar_triggered()
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
     '''
@@ -1148,6 +1187,70 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionAlignBest_triggered(self):
         self.Align('best')
+
+    def on_actionFindPrevMostSimilar_triggered(self):
+        self.findMostSimilarCluster('previous')
+
+    def on_actionFindNextMostSimilar_triggered(self):
+        self.findMostSimilarCluster('next')
+
+    def findMostSimilarCluster(self, which='next'):
+        try:
+            source = self.getClusterComparisonSource()
+        except RuntimeError, errmsg:
+            print(errmsg)
+            return
+        destinations = self.sort.clusters.values()
+        destinations.remove(source)
+        errors = []
+        dests = []
+        # compare source neuron waveform to all destination neuron waveforms
+        for dest in destinations:
+            try:
+                error = rmserror(source.neuron, dest.neuron)
+            except ValueError: # not comparable
+                continue
+            errors.append(error)
+            dests.append(dest)
+        if len(errors) == 0:
+            print("no sufficiently overlapping clusters to compare to")
+            return
+        errors = np.asarray(errors)
+        dests = np.asarray(dests)
+        desterrsortis = errors.argsort()
+
+        if which == 'next':
+            self._cmpid += 1
+        elif which == 'previous':
+            self._cmpid -= 1
+        else: raise ValueError('unknown which: %r' % which)
+        self._cmpid = max(self._cmpid, 0)
+        self._cmpid = min(self._cmpid, len(dests)-1)
+
+        dest = dests[desterrsortis][self._cmpid]
+        self.spykewindow.SelectClusters(dest)
+        desterr = errors[desterrsortis][self._cmpid]
+        print('n%d to n%d rmserror: %.2f uV' %
+              (source.id, dest.id, self.sort.converter.AD2uV(desterr)))
+
+    def getClusterComparisonSource(self):
+        selclusters = self.spykewindow.GetClusters()
+        errmsg = 'unclear which cluster to use as source for comparison'
+        if len(selclusters) == 1:
+            source = selclusters[0]
+            self._source = source
+            self._cmpid = -1 # reset
+        elif len(selclusters) == 2:
+            try: source = self._source
+            except AttributeError: raise RuntimeError(errmsg)
+            if source == None or source not in selclusters:
+                raise RuntimeError(errmsg)
+            # deselect old destination cluster:
+            selclusters.remove(source)
+            self.spykewindow.SelectClusters(selclusters, on=False)
+        else:
+            raise RuntimeError(errmsg)
+        return source
 
     def Align(self, to):
         selclusters = self.spykewindow.GetClusters()

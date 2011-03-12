@@ -708,7 +708,8 @@ class SpykeListView(QtGui.QListView):
 
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_D, Qt.Key_M, Qt.Key_Slash, Qt.Key_NumberSign,
-                           Qt.Key_O, Qt.Key_Period, Qt.Key_R, Qt.Key_B]:
+                           Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
+                           Qt.Key_Comma, Qt.Key_Period]:
             event.ignore() # pass it on up to the parent
         else:
             QtGui.QListView.keyPressEvent(self, event) # handle it as usual

@@ -6,7 +6,7 @@
 
 - WISHLIST: allow merging of selected unsorted spikes
 
-- WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, to preserve memory
+- WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
 
 - WISHLIST: allow loading of .srf file *after* loading of .sort, with proper association of .srf to stream.srff.f
     - also allow closing of .srf file, while leaving .sort open - for when you need to disconnect external drive
@@ -16,11 +16,6 @@
     - would prolly have to rework clusterchange queue a bit to handle cluster renames for efficiency, instead of completely deleting and recreating clusters
     - or maybe the cluster ids could be done like a dewey decimal system - this would temporarily require strings as neuron ids for the child neurons, but would be converted back to normal ints on a full renumbering
         - such child clusters would be coloured according to the last part of their decimal
-
-- find two most similar clusters, or find cluster(s) that is most similar to currently selected cluster
-    - use error of overlapping chans of the two cluster waveforms
-        - overlapping chans to consider should only be ones with significant signal on them - NVS uses maxchan + immediate neighbours
-        - GUI: most similar clusters: add prev and next buttons to sort toolbar, maybe bind < and > keys
 
 - possible waveform error measures:
     - rms
@@ -989,6 +984,11 @@ QT rewrite DONE:
     - for each spike, choose the realignment (if any) that minimizes error between spike and cluster mean
     - repeat until stdev stops changing
 - NVS climbing improvement: instead of normalizing gradient by nneighs, normalize by sum of value of  gaussian of all points in the neighbourhood - says it converges much more quickly
+- find cluster most similar to currently selected cluster
+    - use error of overlapping chans of the two cluster waveforms
+        - overlapping chans to consider should only be ones with significant signal on them - NVS uses maxchan + immediate neighbours
+        - GUI: most similar clusters: add prev and next buttons to sort toolbar, maybe bind < and > keys
+
 
 
 
