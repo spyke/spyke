@@ -1459,6 +1459,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: enable = False # self.sort doesn't exist yet
         self.validate_pane.Enable(enable)
         '''
+    '''
     def EnablePosOriScaleWidgets(self, enable):
         """Enable/disable the pos, ori, and scale textctrl widgets for controlling
         and displaying cluster params. Use this instead of self.cluster_pane.Enable()
@@ -1468,7 +1469,7 @@ class SpykeWindow(QtGui.QMainWindow):
                    self.xscale, self.yscale, self.zscale]
         for widget in widgets:
             widget.Enable(enable)
-
+    '''
     def get_detector(self):
         """Create and bind Detector object, update sort from gui"""
         self.sort.detector = Detector(sort=self.sort)

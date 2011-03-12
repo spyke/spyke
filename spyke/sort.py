@@ -31,7 +31,6 @@ SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1080
 
 MEANWAVESAMPLESIZE = 1000
-SPIKESELECTSAMPLESIZE = 25 # per selected neuron, or less
 
 """
 TODO: before extracting features from events, first align all chans wrt maxchan.
@@ -918,6 +917,17 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionSelectRandomSpikes_triggered)
         toolbar.addAction(actionSelectRandomSpikes)
 
+        nsamplesComboBox = QtGui.QComboBox(self)
+        nsamplesComboBox.setToolTip('Number of spikes per neuron to randomly select')
+        nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
+        nsamplesComboBox.addItems(['5', '10', '25', '50'])
+        nsamplesComboBox.setCurrentIndex(2)
+        toolbar.addWidget(nsamplesComboBox)
+        # this doesn't seem to work:
+        #self.connect(nsamplesComboBox, QtCore.SIGNAL("activated()"),
+        #             self.on_actionSelectRandomSpikes_triggered)
+        self.nsamplesComboBox = nsamplesComboBox
+
         toolbar.addSeparator()
 
         actionAlignMin = QtGui.QAction("Align min", self)
@@ -1177,7 +1187,8 @@ class SortWindow(SpykeToolWindow):
         """Select random sample of spikes in current cluster"""
         if self.nslist.neurons != []:
             self.nslist.clearSelection()
-            self.nslist.selectRandom(SPIKESELECTSAMPLESIZE)
+            nsamples = int(self.nsamplesComboBox.currentText())
+            self.nslist.selectRandom(nsamples)
 
     def on_actionAlignMin_triggered(self):
         self.Align('min')
@@ -1313,3 +1324,4 @@ class SortWindow(SpykeToolWindow):
         if neuron in self.nslist.neurons:
             self.nslist.neurons = self.nslist.neurons # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
+
