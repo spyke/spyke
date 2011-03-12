@@ -923,9 +923,8 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox.addItems(['5', '10', '25', '50'])
         nsamplesComboBox.setCurrentIndex(2)
         toolbar.addWidget(nsamplesComboBox)
-        # this doesn't seem to work:
-        #self.connect(nsamplesComboBox, QtCore.SIGNAL("activated()"),
-        #             self.on_actionSelectRandomSpikes_triggered)
+        self.connect(nsamplesComboBox, QtCore.SIGNAL("activated(int)"),
+                     self.on_actionSelectRandomSpikes_triggered)
         self.nsamplesComboBox = nsamplesComboBox
 
         toolbar.addSeparator()
