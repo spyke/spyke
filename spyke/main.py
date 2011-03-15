@@ -718,7 +718,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.windows['Sort']
         nsrows = sw.nslist.selectedRows()
         srows = sw.uslist.selectedRows()
-        return np.concatenate([ np.asarray(sw.nslist.sids)[nsrows], self.sort.usids[srows] ])
+        return np.concatenate([ sw.nslist.sids[nsrows], self.sort.usids[srows] ])
 
     def GetSpike(self):
         """Return Id of just one selected spike, from nslist or uslist"""
@@ -728,6 +728,12 @@ class SpykeWindow(QtGui.QMainWindow):
             raise RuntimeError("can't figure out which of the %d selected spike IDs you want"
                                % nselected)
         return sids[0]
+
+    def GetUnsortedSpikes(self):
+        """Return IDs of currently selected unsorted spikes"""
+        sw = self.windows['Sort']
+        srows = sw.uslist.selectedRows()
+        return self.sort.usids[srows]
 
     def GetClusters(self):
         """Return currently selected clusters"""

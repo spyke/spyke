@@ -920,7 +920,7 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox = QtGui.QComboBox(self)
         nsamplesComboBox.setToolTip('Number of spikes per neuron to randomly select')
         nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
-        nsamplesComboBox.addItems(['5', '10', '25', '50'])
+        nsamplesComboBox.addItems(['5', '10', '20', '50'])
         nsamplesComboBox.setCurrentIndex(2)
         toolbar.addWidget(nsamplesComboBox)
         self.connect(nsamplesComboBox, QtCore.SIGNAL("activated(int)"),
@@ -1066,7 +1066,8 @@ class SortWindow(SpykeToolWindow):
         sids = [] # spikes to merge
         for cluster in clusters:
             sids.append(cluster.neuron.sids)
-        # TODO: merge any selected usids as well
+        # merge any selected usids as well
+        sids.append(spw.GetUnsortedSpikes())
         sids = np.concatenate(sids)
 
         # save some undo/redo stuff
@@ -1074,12 +1075,15 @@ class SortWindow(SpykeToolWindow):
         cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters)
 
-        # delete original clusters
+        # delete original clusters and deselect selected usids
         spw.DelClusters(clusters, update=False)
+        self.uslist.clearSelection()
 
         # create new cluster
         t0 = time.time()
-        newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest cluster
+        newnid = None # merge into new highest nid
+        if len(clusters) > 0:
+            newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest selected nid
         newcluster = spw.CreateCluster(update=False, id=newnid)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
@@ -1096,7 +1100,7 @@ class SortWindow(SpykeToolWindow):
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly created cluster
         spw.SelectClusters(newcluster)
-        cc.message += ' into cluster %d' % newnid
+        cc.message += ' into cluster %d' % newcluster.id
         print(cc.message)
 
     def on_actionChanSplitClusters_triggered(self):

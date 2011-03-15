@@ -4,8 +4,6 @@
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
-- WISHLIST: allow merging of selected unsorted spikes
-
 - WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
 
 - WISHLIST: allow loading of .srf file *after* loading of .sort, with proper association of .srf to stream.srff.f
@@ -988,6 +986,7 @@ QT rewrite DONE:
     - use error of overlapping chans of the two cluster waveforms
         - overlapping chans to consider should only be ones with significant signal on them - NVS uses maxchan + immediate neighbours
         - GUI: most similar clusters: add prev and next buttons to sort toolbar, maybe bind < and > keys
+- WISHLIST: allow merging of selected unsorted spikes
 
 
 
