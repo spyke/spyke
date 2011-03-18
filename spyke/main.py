@@ -578,7 +578,6 @@ class SpykeWindow(QtGui.QMainWindow):
         else: # no clusters selected, delete all existing clusters (if any)
             allclusters = s.clusters.values()
             self.DelClusters(allclusters, update=False)
-            s.sampleis = sampleis # save for the hell of it
 
         # apply the new clusters
         newclusters = []
@@ -1252,7 +1251,7 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         try:
             cw = self.windows['Cluster']
-            s.MV, s.focus = cw.glWidget.MV, -cw.glWidget._dfocus # save camera view
+            s.MV, s.focus = cw.glWidget.MV, cw.glWidget.focus # save camera view
         except KeyError: pass # cw hasn't been opened yet, no camera view to save
         s.sortfname = fname # bind it now that it's about to be saved
         f = open(fname, 'wb')

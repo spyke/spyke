@@ -1,7 +1,5 @@
 
 
-- BUG: focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
-
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
 - WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
@@ -987,6 +985,13 @@ QT rewrite DONE:
         - overlapping chans to consider should only be ones with significant signal on them - NVS uses maxchan + immediate neighbours
         - GUI: most similar clusters: add prev and next buttons to sort toolbar, maybe bind < and > keys
 - WISHLIST: allow merging of selected unsorted spikes
+- BUG: focus current cluster doesn't work right for new clusters created after a focus event (ie after _dfocus becomes non-zero)
+    - after creating and deleting a whole bunch of single point clusters from a fresh detection, spike and cluster focus seems to work fine
+    - somewhat related - if sort window is in focus instead of cluster window, hitting X or C doesn't update the glwidget immediately, have to bring glwidget into focus first
+    - should really just do the focusing stuff properly, ala VTK. Constantly manipulating the point data is just bad, and very confusing in many cases
+        - so this means I need to keep track of current pitch, roll, yaw, and position in glWidget?
+            - nope, just need to translate to focus before doing any rotation, and then translate back
+
 
 
 

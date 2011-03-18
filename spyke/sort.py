@@ -1069,6 +1069,8 @@ class SortWindow(SpykeToolWindow):
         # merge any selected usids as well
         sids.append(spw.GetUnsortedSpikes())
         sids = np.concatenate(sids)
+        if len(sids) == 0:
+            return
 
         # save some undo/redo stuff
         message = 'merge clusters %r' % [ c.id for c in clusters ]
@@ -1170,7 +1172,9 @@ class SortWindow(SpykeToolWindow):
             return
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
-        cw.glWidget.focus = [ cluster.pos[dim] for dim in dims ] + cw.glWidget._dfocus
+        cw.glWidget.focus = np.float32([ cluster.pos[dim] for dim in dims ])
+        cw.glWidget.panTo() # pan to new focus
+        cw.glWidget.updateGL()
 
     def on_actionFocusCurrentSpike_triggered(self):
         """Move focus to location of currently selected (single) spike"""
@@ -1181,10 +1185,9 @@ class SortWindow(SpykeToolWindow):
             print(msg)
             return
         cw = spw.windows['Cluster']
-        cw.glWidget.focus = cw.glWidget.points[sid] # simpler
-        # more complicated way:
-        #dims = spw.GetClusterPlotDimNames()
-        #cw.glWidget.focus = self.sort.get_param_matrix(dims=dims)[sid] + cw.glWidget._dfocus
+        cw.glWidget.focus = cw.glWidget.points[sid]
+        cw.glWidget.panTo() # pan to new focus
+        cw.glWidget.updateGL()
 
     def on_actionSelectRandomSpikes_triggered(self):
         """Select random sample of spikes in current cluster"""

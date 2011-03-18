@@ -865,7 +865,7 @@ class NSListModel(SpykeAbstractListModel):
         if neurons:
             self.sids = np.concatenate([ neuron.sids for neuron in neurons ])
         else:
-            self.sids = []
+            self.sids = np.asarray([])
         self.nspikes = len(self.sids)
         self.reset() # triggers new calls to rowCount() and data()
 

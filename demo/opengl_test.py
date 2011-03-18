@@ -219,16 +219,18 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glRotate(dangle, *vn)
         GL.glTranslate(*-self.focus)
 
-    def panTo(self, p):
+    def panTo(self, p=None):
         """Translate along view right and view up vectors such that data point p is
         centered in the viewport. Not entirely sure why or how this works, figured
         it out using guess and test"""
+        if p == None:
+            p = self.focus
         MV = self.MV
         vr = self.getViewRight()
         vu = self.getViewUp()
         p = -p
-        x = p[0]*vr[0] + p[1]*vr[1] + p[2]*vr[2] # dot product
-        y = p[0]*vu[0] + p[1]*vu[1] + p[2]*vu[2]
+        x = np.dot(p, vr) # dot product
+        y = np.dot(p, vu)
         MV[3, :2] = x, y # set first two entries of 4th row to x, y
         self.MV = MV
 
@@ -355,12 +357,12 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.pitch(5)
             elif key == Qt.Key_0: # reset focus to origin
                 self.focus = np.float32([0, 0, 0])
-                self.panTo(self.focus) # pan to new focus
+                self.panTo() # pan to new focus
             elif key == Qt.Key_F: # reset focus to cursor position
                 sid = self.pick()
                 if sid != None:
                     self.focus = self.points[sid]
-                    self.panTo(self.focus) # pan to new focus
+                    self.panTo() # pan to new focus
             elif key == Qt.Key_P:
                 self.pick()
             elif key == Qt.Key_S:

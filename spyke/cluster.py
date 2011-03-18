@@ -156,7 +156,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.spw = self.parent().spykewindow
         #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, disabled for speed
         self.lastPos = QtCore.QPoint()
-        self._dfocus = np.float32([0, 0, 0]) # accumulates changes to focus, in model coords
+        self.focus = np.float32([0, 0, 0]) # init camera focus
 
         format = QtOpenGL.QGLFormat()
         format.setDoubleBuffer(True) # req'd for picking
@@ -233,28 +233,6 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     MV = property(get_MV, set_MV)
 
-    # TODO: setting focus by modifying vertex data works, but is horribly inefficient and slow.
-    # See vtkCamera.cxx for how it's done efficiently in VTK
-    def get_focus(self):
-        return np.float32([0, 0, 0]) # focus is always at data origin, by definition
-
-    def set_focus(self, xyz):
-        """Set focus to x, y, z, in model coords"""
-        xyz = np.float32(xyz)
-        if not xyz.flags['OWNDATA']:
-            # make sure modifying points in-place doesn't affect xyz arg
-            xyz = xyz.copy()
-        p = self.points
-        #ipshell()
-        t0 = time.time()
-        p[:, 0] -= xyz[0]
-        p[:, 1] -= xyz[1]
-        p[:, 2] -= xyz[2]
-        print('set_focus took %.3f sec' % (time.time()-t0))
-        self._dfocus -= xyz # accumulate changes to focus
-
-    focus = property(get_focus, set_focus)
-
     # modelview matrix is column major, so we work on columns instead of rows
     def getViewRight(self):
         """View right vector: 1st col of modelview matrix"""
@@ -279,10 +257,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.MV = MV
 
     def getDistance(self):
-        """From focus, or from data origin?"""
         v = self.getTranslation()
-        return np.sqrt((v**2).sum()) # from data origin
-        #return np.sqrt(((v-self.focus)**2).sum()) # from focus
+        # for pan and zoom, doesn't seem to matter whether d is from origin or focus
+        #return np.sqrt((v**2).sum()) # from data origin
+        return np.sqrt(((v-self.focus)**2).sum()) # from focus
 
     def pan(self, dx, dy):
         """Translate along view right and view up vectors"""
@@ -304,21 +282,36 @@ class GLWidget(QtOpenGL.QGLWidget):
     def pitch(self, dangle): # aka elevation
         """Rotate around view right vector"""
         vr = self.getViewRight()
-        GL.glRotate(dangle, vr[0], vr[1], vr[2])
+        GL.glTranslate(*self.focus)
+        GL.glRotate(dangle, *vr)
+        GL.glTranslate(*-self.focus)
 
     def yaw(self, dangle): # aka azimuth
         """Rotate around view up vector"""
         vu = self.getViewUp()
-        GL.glRotate(dangle, vu[0], vu[1], vu[2])
+        GL.glTranslate(*self.focus)
+        GL.glRotate(dangle, *vu)
+        GL.glTranslate(*-self.focus)
 
     def roll(self, dangle):
         """Rotate around view normal vector"""
         vn = self.getViewNormal()
-        GL.glRotate(dangle, vn[0], vn[1], vn[2])
+        GL.glTranslate(*self.focus)
+        GL.glRotate(dangle, *vn)
+        GL.glTranslate(*-self.focus)
 
-    def panTo(self, x, y):
-        """Pan to absolute x and y position, leaving z unchanged"""
+    def panTo(self, p=None):
+        """Translate along view right and view up vectors such that data point p is
+        centered in the viewport. Not entirely sure why or how this works, figured
+        it out using guess and test"""
+        if p == None:
+            p = self.focus
         MV = self.MV
+        vr = self.getViewRight()
+        vu = self.getViewUp()
+        p = -p
+        x = np.dot(p, vr) # dot product
+        y = np.dot(p, vu)
         MV[3, :2] = x, y # set first two entries of 4th row to x, y
         self.MV = MV
 
@@ -455,13 +448,13 @@ class GLWidget(QtOpenGL.QGLWidget):
                 #print(self.pick(*self.cursorPosGL()))
                 self.showToolTip()
             elif key == Qt.Key_0: # reset focus to origin
-                self.focus = self._dfocus
-                self.panTo(0, 0) # pan to new data origin
+                self.focus = np.float32([0, 0, 0])
+                self.panTo() # pan to new focus
             elif key == Qt.Key_F: # reset focus to cursor position
                 sid = self.pick(*self.cursorPosGL())
                 if sid != None:
                     self.focus = self.points[sid]
-                    self.panTo(0, 0) # pan to new data origin
+                    self.panTo() # pan to new focus
             elif key == Qt.Key_S: # toggle item under the cursor, if any
                 self.selectItemUnderCursor(clear=False)
             elif key == Qt.Key_Space: # clear and select item under cursor, if any
