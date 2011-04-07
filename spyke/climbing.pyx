@@ -324,6 +324,7 @@ cpdef move_scouts(int lo, int hi,
                 still[i] += 1 # count scout as still during this iter
             else:
                 still[i] = 0 # reset stillness counter for this scout
+        # wanted to see if points move faster when normalized by kernel vs nneighs:
         #printf('%f ', maxmove)
 
         free(ds)

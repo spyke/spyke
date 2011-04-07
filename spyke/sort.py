@@ -646,9 +646,9 @@ class Neuron(object):
         maxshiftus = maxshift * s.stream.tres
         shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
         print('neuron %d stdev before alignbest: %f uV' % (self.id, self.stdevwaveerrors()))
-        srffopen = s.stream.srff.is_open()
+        srffopen = s.stream.is_open()
         if not srffopen:
-            print("WARNING: .srf file not available, padding waveforms with up to +/- %d "
+            print("WARNING: .srf file(s) not available, padding waveforms with up to +/- %d "
                   "points of fake data" % maxshift)
         for sid in self.sids:
             # TODO: use at most only maxchan and immediate neighbour chans
@@ -918,7 +918,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionSelectRandomSpikes)
 
         nsamplesComboBox = QtGui.QComboBox(self)
-        nsamplesComboBox.setToolTip('Number of spikes per neuron to randomly select')
+        nsamplesComboBox.setToolTip('Number of spikes per cluster to randomly select')
         nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
         nsamplesComboBox.addItems(['5', '10', '20', '50'])
         nsamplesComboBox.setCurrentIndex(2)
@@ -1111,9 +1111,9 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionRenumberClusters_triggered(self):
         """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
-        Sorting by y position makes user inspection of clusters more orderly, makes the presence
-        of duplicate clusters more obvious, and allows for maximal spatial separation between
-        clusters of the same colour, reducing colour conflicts"""
+        Sorting by y position makes user inspection of clusters more orderly, makes the
+        presence of duplicate clusters more obvious, and allows for maximal spatial
+        separation between clusters of the same colour, reducing colour conflicts"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes

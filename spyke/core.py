@@ -238,6 +238,9 @@ class TrackStream(object):
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
 
+    def is_open(self):
+        return np.all([stream.is_open() for stream in self.streams])
+
     def open(self):
         for stream in self.streams:
             stream.open()
@@ -391,6 +394,9 @@ class Stream(object):
             self.tranges = np.int64(tranges)
         self.t0 = self.tranges[0, 0]
         self.t1 = self.tranges[-1, 1]
+
+    def is_open(self):
+        return self.srff.is_open()
 
     def open(self):
         self.srff.open()
@@ -842,13 +848,18 @@ class NListModel(SpykeAbstractListModel):
             return 0
 
     def data(self, index, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and index.isValid():
-            nids = sorted(self.sortwin.sort.neurons)
-            #print('.data(): row=%d, val=%d' % (index.row(), nids[index.row()]))
+        if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
+            neurons = self.sortwin.sort.neurons
+            nids = sorted(neurons)
             try:
-                return int(nids[index.row()]) # no need to use QVariant() apparently
+                nid = int(nids[index.row()])
             except IndexError:
                 print('WARNING: tried to index non-existent row %d' % index.row())
+            #print('.data(): row=%d, val=%d' % (index.row(), nid))
+            if role == Qt.DisplayRole:
+                return nid # no need to use QVariant() apparently
+            else: # role == Qt.ToolTipRole
+                return '%d spikes' % neurons[nid].nspikes
 
 
 class NSListModel(SpykeAbstractListModel):

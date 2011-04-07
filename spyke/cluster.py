@@ -410,7 +410,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint(event.pos())
 
     def wheelEvent(self, event):
-        self.zoom(event.delta() / 1000)
+        self.zoom(event.delta() / 2000)
         self.updateGL()
 
     def keyPressEvent(self, event):
