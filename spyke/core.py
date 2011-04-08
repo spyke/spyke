@@ -886,6 +886,19 @@ class NSListModel(SpykeAbstractListModel):
         return self.nspikes
 
     def data(self, index, role=Qt.DisplayRole):
+        if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
+            sid = int(self.sids[index.row()])
+            if role == Qt.DisplayRole:
+                return sid
+            else: # role == Qt.ToolTipRole
+                spike = self.sortwin.sort.spikes[sid]
+                return ('x0: %.4g um\n' % spike['x0'] +
+                        'y0: %.4g um\n' % spike['y0'] +
+                        'Vpp: %.4g uV\n' % spike['Vpp'] +
+                        't: %.4g us\n' % spike['t'] +
+                        'sx: %.4g um\n' % spike['sx'] +
+                        'dphase: %.4g us' % spike['dphase'])
+
         if role == Qt.DisplayRole and index.isValid():
             return int(self.sids[index.row()])
 
@@ -899,8 +912,18 @@ class USListModel(SpykeAbstractListModel):
             return 0
 
     def data(self, index, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and index.isValid():
-            return int(self.sortwin.sort.usids[index.row()])
+        if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
+            sid = int(self.sortwin.sort.usids[index.row()])
+            if role == Qt.DisplayRole:
+                return sid
+            else: # role == Qt.ToolTipRole
+                spike = self.sortwin.sort.spikes[sid]
+                return ('x0: %.4g um\n' % spike['x0'] +
+                        'y0: %.4g um\n' % spike['y0'] +
+                        'Vpp: %.4g uV\n' % spike['Vpp'] +
+                        't: %.4g us\n' % spike['t'] +
+                        'sx: %.4g um\n' % spike['sx'] +
+                        'dphase: %.4g us' % spike['dphase'])
 
 
 class Stack(list):
