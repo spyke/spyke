@@ -573,19 +573,24 @@ class SpykeWindow(QtGui.QMainWindow):
         cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters)
 
+        nnids = len(nids)
         if oldclusters: # some clusters selected
+            # get odict index of first selected cluster
+            startinserti = s.clusters.keys().index(oldclusters[0].id)
+            insertis = range(startinserti, startinserti+nnids)
             self.DelClusters(oldclusters, update=False)
         else: # no clusters selected, delete all existing clusters (if any)
+            insertis = [None] * nnids
             allclusters = s.clusters.values()
             self.DelClusters(allclusters, update=False)
 
         # apply the new clusters
         newclusters = []
-        t0 = time.time()
-        for nid in nids: # nids are sorted
+        #t0 = time.time()
+        for nid, inserti in zip(nids, insertis):
             ii, = np.where(cids == nid)
             nsids = sids[ii] # sids belonging to this nid
-            cluster = self.CreateCluster(update=False)
+            cluster = self.CreateCluster(update=False, inserti=inserti)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
@@ -594,6 +599,9 @@ class SpykeWindow(QtGui.QMainWindow):
             cluster.updatePosScale()
 
         # save more undo/redo stuff
+        # need to save old and new insertis, and then need to use them when undoing
+        # and redoing.............
+        #cc.save_new(newclusters, insertis=insertis)
         cc.save_new(newclusters)
         self.AddClusterChangeToStack(cc)
 
@@ -753,12 +761,12 @@ class SpykeWindow(QtGui.QMainWindow):
     def SelectClusters(self, clusters, on=True):
         """Select/deselect clusters"""
         clusters = toiter(clusters)
-        all_nids = sorted(self.sort.neurons)
+        all_nids = list(self.sort.neurons) # not necessarily sorted
         try:
             sel_nids = [ cluster.id for cluster in clusters ]
         except AttributeError: # assume they're ints
             sel_nids = [ cluster for cluster in clusters ]
-        rows = np.searchsorted(all_nids, sel_nids)
+        rows = [ self.sort.neurons.index(sel_nid) for sel_nid in sel_nids ]
         nlist = self.windows['Sort'].nlist
         nlist.selectRows(rows, on)
         #print('set rows %r to %r' % (rows, on))
@@ -795,15 +803,19 @@ class SpykeWindow(QtGui.QMainWindow):
                 sw.nslist.selectRows(row, on=on)
         return on
 
-    def CreateCluster(self, update=True, id=None):
+    def CreateCluster(self, update=True, id=None, inserti=None):
         """Create a new cluster, add it to the GUI, return it"""
-        neuron = self.sort.create_neuron(id)
+        s = self.sort
+        neuron = s.create_neuron(id, inserti=inserti)
         sw = self.windows['Sort']
         if update:
             sw.nlist.updateAll()
         from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
-        self.sort.clusters[cluster.id] = cluster
+        if inserti == None:
+            s.clusters[cluster.id] = cluster
+        else:
+            s.clusters.insert(inserti, cluster.id, cluster)
         neuron.cluster = cluster
         try:
             cw = self.windows['Cluster'] # don't force its display by default

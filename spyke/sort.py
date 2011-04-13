@@ -20,6 +20,13 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
+try:
+    from _ordereddict import ordereddict as odict
+except ImportError:
+    raise RuntimeError("please install Anthon van der Neut's ordereddict implementation "
+                       "from http://www.xs4all.nl/~anthon/Python/ordereddict/, or an "
+                       "equivalent one with an .insert() method")
+
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from plot import SpikeSortPanel
@@ -57,10 +64,8 @@ class Sort(object):
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
 
-        # most neurons will have an associated cluster, but not necessarily all -
-        # some neurons may be purely hand sorted, one spike at a time
-        self.neurons = {}
-        self.clusters = {} # neurons with multidm params scaled for plotting
+        self.neurons = odict()
+        self.clusters = odict() # neurons with multidm params scaled for plotting
 
         self.usids_sorted_by = 't'
         self.usids_reversed = False
@@ -292,15 +297,18 @@ class Sort(object):
                     d /= d.std()
         return data
 
-    def create_neuron(self, id=None):
+    def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
         if id == None:
-            neuron = Neuron(self, self.nextnid)
+            id = self.nextnid
+        if id in self.neurons:
+            raise RuntimeError('Neuron %d already exists' % id)
+        neuron = Neuron(self, id)
+        # add neuron to self
+        if inserti == None:
+            self.neurons[neuron.id] = neuron
         else:
-            if id in self.neurons:
-                raise RuntimeError('Neuron %d already exists' % id)
-            neuron = Neuron(self, id)
-        self.neurons[neuron.id] = neuron # add neuron to self
+            self.neurons.insert(inserti, neuron.id, neuron)
         return neuron
     '''
     def get_component_matrix(self, dims=None, weighting=None):
@@ -1289,7 +1297,7 @@ class SortWindow(SpykeToolWindow):
         if update:
             self.nlist.updateAll()
         if neuron in self.nslist.neurons:
-            self.nlist.neurons.remove(neuron)
+            self.nlist.neurons.remove(neuron) # IS THIS A BUG? SHOULD THIS BE nslist instead???
             self.nlist.neurons = self.nlist.neurons # triggers nslist refresh
 
     def MoveSpikes2Neuron(self, sids, neuron=None, update=True):

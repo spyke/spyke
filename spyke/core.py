@@ -850,7 +850,7 @@ class NListModel(SpykeAbstractListModel):
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
             neurons = self.sortwin.sort.neurons
-            nids = sorted(neurons)
+            nids = list(neurons) # odict's list of keys
             try:
                 nid = int(nids[index.row()])
             except IndexError:
@@ -956,7 +956,7 @@ class ClusterChange(object):
         self.newpositions = [ newcluster.pos.copy() for newcluster in newclusters ]
         self.newscales = [ newcluster.scale.copy() for newcluster in newclusters ]
 
-
+'''
 def save(fname, arr):
     """Taken from np.lib.npyio.save and np.lib.format.write_array to write
     a big array to a .npy file in reasonably sized chunks at a time so
@@ -994,7 +994,7 @@ def save(fname, arr):
         lo, hi = MAXNBYTESTOFILE*chunki, MAXNBYTESTOFILE*(chunki+1)
         arrravel[lo:hi].tofile(f) # these are contiguous views, not copies
     f.close()
-
+'''
 def savez(file, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.
     Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
