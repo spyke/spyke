@@ -20,13 +20,6 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-try:
-    from _ordereddict import ordereddict as odict
-except ImportError:
-    raise RuntimeError("please install Anthon van der Neut's ordereddict implementation "
-                       "from http://www.xs4all.nl/~anthon/Python/ordereddict/, or an "
-                       "equivalent one with an .insert() method")
-
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from plot import SpikeSortPanel
@@ -64,8 +57,9 @@ class Sort(object):
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
 
-        self.neurons = odict()
-        self.clusters = odict() # neurons with multidm params scaled for plotting
+        self.neurons = {}
+        self.clusters = {} # neurons with multidm params scaled for plotting
+        self.norder = [] # stores order of neuron ids display in nlist
 
         self.usids_sorted_by = 't'
         self.usids_reversed = False
@@ -305,10 +299,11 @@ class Sort(object):
             raise RuntimeError('Neuron %d already exists' % id)
         neuron = Neuron(self, id)
         # add neuron to self
+        self.neurons[neuron.id] = neuron
         if inserti == None:
-            self.neurons[neuron.id] = neuron
+            self.norder.append(neuron.id)
         else:
-            self.neurons.insert(inserti, neuron.id, neuron)
+            self.norder.insert(inserti, neuron.id)
         return neuron
     '''
     def get_component_matrix(self, dims=None, weighting=None):
@@ -1044,22 +1039,22 @@ class SortWindow(SpykeToolWindow):
         # save some undo/redo stuff
         message = 'delete clusters %r' % [ c.id for c in clusters ]
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters)
+        cc.save_old(clusters, s.norder)
 
         # deselect and delete clusters
         spw.DelClusters(clusters)
         if len(s.clusters) > 0:
-            # select cluster that's next highest than lowest of the deleted clusters
-            cids = np.asarray(list(s.clusters))
-            ii = cids > min(cc.oldunids)
-            if ii.any():
-                selcid = min(cids[ii])
-                spw.SelectClusters(s.clusters[selcid]) # TODO: this sets selection, but not focus
-            #else: # lowest of deleted clusters was highest cluster
+            # select cluster that replaces the first of the deleted clusters in norder
+            selrows = [ cc.oldnorder.index(oldunid) for oldunid in cc.oldunids ]
+            if len(selrows) > 0:
+                selrow = selrows[0]
+                nlist = spw.windows['Sort'].nlist
+                nlist.selectRows(selrow) # TODO: this sets selection, but not focus
+            #else: # first of deleted clusters was last in norder, don't select anything
 
         # save more undo/redo stuff
         newclusters = []
-        cc.save_new(newclusters)
+        cc.save_new(newclusters, s.norder)
         spw.AddClusterChangeToStack(cc)
         print(cc.message)
 
@@ -1083,7 +1078,10 @@ class SortWindow(SpykeToolWindow):
         # save some undo/redo stuff
         message = 'merge clusters %r' % [ c.id for c in clusters ]
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters)
+        cc.save_old(clusters, s.norder)
+
+        # get ordered index of first selected cluster
+        inserti = s.norder.index(clusters[0].id)
 
         # delete original clusters and deselect selected usids
         spw.DelClusters(clusters, update=False)
@@ -1094,14 +1092,14 @@ class SortWindow(SpykeToolWindow):
         newnid = None # merge into new highest nid
         if len(clusters) > 0:
             newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest selected nid
-        newcluster = spw.CreateCluster(update=False, id=newnid)
+        newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = spw.GetClusterPlotDimNames()
         newcluster.updatePosScale()
 
         # save more undo/redo stuff
-        cc.save_new([newcluster])
+        cc.save_new([newcluster], s.norder)
         spw.AddClusterChangeToStack(cc)
 
         # now do some final updates
@@ -1158,6 +1156,8 @@ class SortWindow(SpykeToolWindow):
             if oldcid not in newucids:
                 del s.clusters[oldcid]
                 del s.neurons[oldcid]
+        # reset norder
+        s.norder = sorted(s.neurons)
 
         # now do some final updates
         spw.UpdateClustersGUI()
@@ -1287,18 +1287,15 @@ class SortWindow(SpykeToolWindow):
 
     def RemoveNeuron(self, neuron, update=True):
         """Remove neuron and all its spikes from the GUI and the Sort"""
-        #self.RemoveNeuronFromTree(neuron)
         self.MoveSpikes2List(neuron, neuron.sids, update=update)
         try:
             del self.sort.neurons[neuron.id] # may already be removed due to recursive call
-            del self.sort.clusters[neuron.id] # may or may not exist
-        except KeyError:
+            del self.sort.clusters[neuron.id]
+            self.sort.norder.remove(neuron.id)
+        except KeyError, ValueError:
             pass
         if update:
             self.nlist.updateAll()
-        if neuron in self.nslist.neurons:
-            self.nlist.neurons.remove(neuron) # IS THIS A BUG? SHOULD THIS BE nslist instead???
-            self.nlist.neurons = self.nlist.neurons # triggers nslist refresh
 
     def MoveSpikes2Neuron(self, sids, neuron=None, update=True):
         """Assign spikes from sort.spikes to a neuron, and update mean wave.

@@ -26,6 +26,7 @@ import datetime
 import gc
 import cPickle
 import random
+from copy import copy
 
 # seems unnecessary: automatically add spyke to path
 #spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
@@ -487,8 +488,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cluster('climb')
 
     def cluster(self, method):
-        """Cluster spikes in currently selected clusters (or all spikes if no clusters selected)
-        according to method"""
+        """Cluster spikes in currently selected clusters (or all spikes if no clusters
+        selected) according to method"""
         s = self.sort
         spikes = s.spikes
         sw = self.windows['Sort']
@@ -571,12 +572,12 @@ class SpykeWindow(QtGui.QMainWindow):
         # save some undo/redo stuff
         message = '%s clusters %r' % (method, [ c.id for c in clusters ])
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters)
+        cc.save_old(clusters, s.norder)
 
         nnids = len(nids)
         if oldclusters: # some clusters selected
-            # get odict index of first selected cluster
-            startinserti = s.clusters.keys().index(oldclusters[0].id)
+            # get ordered index of first selected cluster
+            startinserti = s.norder.index(oldclusters[0].id)
             insertis = range(startinserti, startinserti+nnids)
             self.DelClusters(oldclusters, update=False)
         else: # no clusters selected, delete all existing clusters (if any)
@@ -599,10 +600,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cluster.updatePosScale()
 
         # save more undo/redo stuff
-        # need to save old and new insertis, and then need to use them when undoing
-        # and redoing.............
-        #cc.save_new(newclusters, insertis=insertis)
-        cc.save_new(newclusters)
+        cc.save_new(newclusters, s.norder)
         self.AddClusterChangeToStack(cc)
 
         # now do some final updates
@@ -742,10 +740,14 @@ class SpykeWindow(QtGui.QMainWindow):
         srows = sw.uslist.selectedRows()
         return self.sort.usids[srows]
 
+    def GetClusterIDs(self):
+        """Return IDs of currently selected clusters"""
+        sw = self.windows['Sort']
+        return [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
+
     def GetClusters(self):
         """Return currently selected clusters"""
-        sw = self.windows['Sort']
-        cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
+        cids = self.GetClusterIDs()
         clusters = [ self.sort.clusters[cid] for cid in cids ]
         return clusters
 
@@ -761,12 +763,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def SelectClusters(self, clusters, on=True):
         """Select/deselect clusters"""
         clusters = toiter(clusters)
-        all_nids = list(self.sort.neurons) # not necessarily sorted
         try:
-            sel_nids = [ cluster.id for cluster in clusters ]
+            selnids = [ cluster.id for cluster in clusters ]
         except AttributeError: # assume they're ints
-            sel_nids = [ cluster for cluster in clusters ]
-        rows = [ self.sort.neurons.index(sel_nid) for sel_nid in sel_nids ]
+            selnids = [ cluster for cluster in clusters ]
+        rows = [ self.sort.norder.index(selnid) for selnid in selnids ]
         nlist = self.windows['Sort'].nlist
         nlist.selectRows(rows, on)
         #print('set rows %r to %r' % (rows, on))
@@ -778,8 +779,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nid = cluster.id
         except AttributeError: # assume it's an int
             nid = cluster
-        all_nids = sorted(self.sort.neurons)
-        row = all_nids.index(nid)
+        row = self.sort.norder.index(nid)
         on = not sw.nlist.rowSelected(row)
         sw.nlist.selectRows(row, on=on)
         return on
@@ -794,8 +794,7 @@ class SpykeWindow(QtGui.QMainWindow):
             on = not sw.uslist.rowSelected(row)
             sw.uslist.selectRows(row, on=on)
         else: # it's clustered
-            all_nids = sorted(self.sort.neurons)
-            row = all_nids.index(nid)
+            row = self.sort.norder.index(nid)
             on = not sw.nlist.rowSelected(row)
             sw.nlist.selectRows(row, on=on)
             if on: # select the spike in the nslist as well
@@ -812,10 +811,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.nlist.updateAll()
         from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
-        if inserti == None:
-            s.clusters[cluster.id] = cluster
-        else:
-            s.clusters.insert(inserti, cluster.id, cluster)
+        s.clusters[cluster.id] = cluster
         neuron.cluster = cluster
         try:
             cw = self.windows['Cluster'] # don't force its display by default
@@ -914,6 +910,7 @@ class SpykeWindow(QtGui.QMainWindow):
             oldunids = cc.oldunids
             positions = cc.oldpositions
             scales = cc.oldscales
+            norder = cc.oldnorder
         else: # direction == 'forward'
             #newnids = cc.oldnids # not needed
             oldnids = cc.newnids
@@ -921,6 +918,7 @@ class SpykeWindow(QtGui.QMainWindow):
             oldunids = cc.newunids
             positions = cc.newpositions
             scales = cc.newscales
+            norder = cc.newnorder
 
         # delete newly added clusters
         newclusters = [ s.clusters[nid] for nid in newunids ]
@@ -948,6 +946,8 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             cluster.pos = pos
             cluster.scale = scale
+        # restore norder
+        s.norder = copy(norder)
 
         # now do some final updates
         self.UpdateClustersGUI()
@@ -1187,11 +1187,13 @@ class SpykeWindow(QtGui.QMainWindow):
 
         cw = self.OpenWindow('Cluster')
         self.on_plotButton_clicked() # create glyph on first open
-        # try and restore camera view to where it was last saved
+        # try and restore saved camera view
         try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
         except AttributeError: pass
         self.RestoreClusters2GUI()
-
+        # try and restore saved cluster selection
+        try: self.SelectClusters(sort.selnids)
+        except AttributeError: pass
         self.setWindowTitle(self.caption + ' | ' + self.sort.sortfname)
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)
@@ -1265,6 +1267,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cw = self.windows['Cluster']
             s.MV, s.focus = cw.glWidget.MV, cw.glWidget.focus # save camera view
         except KeyError: pass # cw hasn't been opened yet, no camera view to save
+        s.selnids = self.GetClusterIDs() # save current cluster selection
         s.sortfname = fname # bind it now that it's about to be saved
         f = open(fname, 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol

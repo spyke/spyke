@@ -14,6 +14,7 @@ import os
 import sys
 import random
 import string
+from copy import copy
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -850,9 +851,9 @@ class NListModel(SpykeAbstractListModel):
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
             neurons = self.sortwin.sort.neurons
-            nids = list(neurons) # odict's list of keys
+            norder = self.sortwin.sort.norder
             try:
-                nid = int(nids[index.row()])
+                nid = int(norder[index.row()])
             except IndexError:
                 print('WARNING: tried to index non-existent row %d' % index.row())
             #print('.data(): row=%d, val=%d' % (index.row(), nid))
@@ -944,17 +945,19 @@ class ClusterChange(object):
     def __repr__(self):
         return self.message
 
-    def save_old(self, oldclusters):
+    def save_old(self, oldclusters, oldnorder):
         self.oldnids = self.spikes['nid'][self.sids] # this seems to create a copy
         self.oldunids = [ cluster.id for cluster in oldclusters ]
         self.oldpositions = [ cluster.pos.copy() for cluster in oldclusters ]
         self.oldscales = [ cluster.scale.copy() for cluster in oldclusters ]
+        self.oldnorder = copy(oldnorder)
 
-    def save_new(self, newclusters):
+    def save_new(self, newclusters, newnorder):
         self.newnids = self.spikes['nid'][self.sids] # this seems to create a copy
         self.newunids = [ newcluster.id for newcluster in newclusters ]
         self.newpositions = [ newcluster.pos.copy() for newcluster in newclusters ]
         self.newscales = [ newcluster.scale.copy() for newcluster in newclusters ]
+        self.newnorder = copy(newnorder)
 
 '''
 def save(fname, arr):
