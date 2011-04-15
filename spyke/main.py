@@ -510,7 +510,7 @@ class SpykeWindow(QtGui.QMainWindow):
             clusters = s.clusters.values() # all clusters
             sids = spikes['id'] # run climb() on all spikes
 
-        if method == 'chansplit': # cluster spikes according to their unique combination of chans
+        if method == 'chansplit': # cluster spikes by their unique combination of chans
             t0 = time.time()
             chans = spikes[sids]['chans']
             if not chans.flags['C_CONTIGUOUS']:
@@ -537,9 +537,9 @@ class SpykeWindow(QtGui.QMainWindow):
             dims = [ str(item.text()) for item in items ] # dim names to cluster upon
             plotdims = self.GetClusterPlotDimNames()
             waveclustering = 'wave' in dims or 'peaks' in dims
-            if waveclustering: # do maxchan wavefrom clustering
+            if waveclustering: # do wavefrom clustering
                 if len(dims) > 1:
-                    raise RuntimeError("Can't do high-D clustering of spike maxchan waveforms in tandem with any other spike parameters as dimensions")
+                    raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
                 wctype = dims[0] # 'wave' or 'peaks'
                 try:
                     data = self.get_waveclustering_data(sids, wctype=wctype)
@@ -622,34 +622,15 @@ class SpykeWindow(QtGui.QMainWindow):
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
         clusterable_chans = core.intersect1d(chanslist) # find intersection
 
-        # decide which is the definitive maxchan for the selected spikes
-        maxchans = spikes['chan'][sids]
-        # cluster by default on most common maxchan
-        maxchan = int(scipy.stats.mode(maxchans)[0][0])
-        chans = [maxchan]
-
-        # pop up dialog asking for chans to cluster on
-        getText = QtGui.QInputDialog.getText
-        string, ok = getText(self, 'Waveform (%s) clustering' % wctype,
-                             'Cluster by %s on which channel(s)?\nChoose from: %s'
-                             % (wctype, str(list(clusterable_chans)).strip('[]')),
-                             text=str(chans).strip('[]'))
-        string = str(string)
-        if not ok or not string:
-            raise RuntimeError('cancelled') # cancel was pressed, or empty string
-        else:
-            chans = np.asarray(toiter(eval(string))) # eval turns CSV string into tuple
-            chans.sort()
+        # get selected chans
+        chans = self.windows['Sort'].panel.chans_selected
+        chans.sort()
         for chan in chans:
             if chan not in clusterable_chans:
                 raise RuntimeError("chan %d not common to all spikes, pick from %r"
                                    % (chan, list(clusterable_chans)))
 
-        # copy selected chans as string to clipboard for easy user re-pasting next time
-        clipboard = QtGui.QApplication.clipboard()
-        clipboard.setText(str(list(chans)).strip('[]'))
-
-        print('clustering upon chans = %r' % list(chans))
+        print('clustering upon chans %r' % list(chans))
         nspikes = len(sids)
         nchans = len(chans)
         nt = s.wavedata.shape[2]
@@ -664,9 +645,12 @@ class SpykeWindow(QtGui.QMainWindow):
         template = data.mean(axis=0)
 
         if wctype == 'wave':
+            # decide which is the definitive maxchan for the selected spikes
+            maxchans = spikes['chan'][sids]
+            maxchan = int(scipy.stats.mode(maxchans)[0][0])
             # use all data from dt/2 before 1st peak to dt/2 after 2nd peak
             chani, = np.where(chans == maxchan)
-            if not chani: # maxchan wasn't included in chans,  find chan with biggest value
+            if not chani: # maxchan wasn't included in chans, find chan with biggest value
                 chani = np.unravel_index(template.argmax(), template.shape)[0]
             peaktis = np.asarray([template[chani].argmin(), template[chani].argmax()])
             peaktis.sort() # keep in temporal order
@@ -700,8 +684,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 t3 = max(t4-dt3, 0)
                 t5 = min(t4+dt3, nt-1)
                 peaktis[chani] = t0, t1, t2, t3, t4, t5
-            print('peaktis =')
-            print(peaktis)
+            print('peaktis = %r' % peaktis)
             # grab each spike's data at these peak times, using fancy indexing
             # see core.rowtake() or util.rowtake_cy() for indexing explanation
             data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, len(peaktis)

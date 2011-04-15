@@ -24,27 +24,6 @@ from matplotlib.patches import Rectangle
 
 from core import MICRO, TW, hex2rgb, toiter
 
-SPIKELINEWIDTH = 1 # in points
-SPIKELINESTYLE = '-'
-NEURONLINEWIDTH = 1.5
-NEURONLINESTYLE = '-'
-RASTERLINEWIDTH = 0.5
-RASTERLINESTYLE = '-'
-#RASTERLINECOLOUR = WHITE
-TREFLINEWIDTH = 0.5
-TREFCOLOUR = '#303030' # dark grey
-VREFLINEWIDTH = 0.5
-VREFCOLOUR = '#303030' # dark grey
-CARETCOLOUR = '#202020' # light black
-CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
-
-DEFUVPERUM = 2
-DEFUSPERUM = 17
-
-#DEFAULTCHANCOLOUR = '#00FF00' # garish green
-BACKGROUNDCOLOUR = 'black'
-#WXBACKGROUNDCOLOUR = wx.BLACK
-
 RED = '#FF0000'
 ORANGE = '#FF7F00'
 YELLOW = '#FFFF00'
@@ -57,7 +36,28 @@ MAGENTA = '#FF00FF'
 GREY = '#555555'
 WHITE = '#FFFFFF'
 BROWN = '#AF5050'
-#DARKGREY = '#222222' # reserve as junk cluster colour
+DARKGREY = '#303030'
+LIGHTBLACK = '#202020'
+
+SPIKELINEWIDTH = 1 # in points
+SPIKELINESTYLE = '-'
+NEURONLINEWIDTH = 1.5
+NEURONLINESTYLE = '-'
+RASTERLINEWIDTH = 0.5
+RASTERLINESTYLE = '-'
+#RASTERLINECOLOUR = WHITE
+TREFLINEWIDTH = 0.5
+TREFCOLOUR = DARKGREY
+VREFLINEWIDTH = 0.5
+VREFCOLOUR = DARKGREY
+VREFSELECTEDCOLOUR = RED
+CARETCOLOUR = LIGHTBLACK
+CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
+
+DEFUVPERUM = 2
+DEFUSPERUM = 17
+
+BACKGROUNDCOLOUR = 'black'
 
 PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
 CLUSTERCOLOURS = copy(PLOTCOLOURS)
@@ -327,22 +327,15 @@ class PlotPanel(FigureCanvas):
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
         self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
-        #self.SetBackgroundColour(WXBACKGROUNDCOLOUR)
 
-        #tooltip = wx.ToolTip('\n') # create a tooltip, stick a newline in there so subsequent ones are recognized
-        #tooltip.Enable(False) # leave disabled for now
-        #tooltip.SetDelay(0) # set popup delay in ms
-        #self.SetToolTip(tooltip) # connect it to self
-
-        self.mpl_connect('button_press_event', self.OnButtonPress) # bind mouse click within figure
+        self.mpl_connect('button_press_event', self.OnButtonPress) # bind figure mouse click
+        # TODO: mpl is doing something weird that prevents arrow key press events:
         #self.mpl_connect('key_press_event', self.OnKeyPress)
-        # TODO: mpl is doing something weird that prevents arrow key press events
-        #self.mpl_connect('pick_event', self.OnPick) # happens when an artist with a .picker attrib has a mouse event happen within epsilon distance of it
-        #self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-        #self.Bind(wx.EVT_NAVIGATION_KEY, self.OnNavigation)
+        # happens when an artist with a .picker attrib has a mouse event happen within
+        # epsilon distance of it:
+        #self.mpl_connect('pick_event', self.OnPick)
         self.mpl_connect('motion_notify_event', self.OnMotion) # mouse motion within figure
-        #self.mpl_connect('scroll_event', self.OnMouseWheel) # doesn't seem to be implemented yet in mpl's wx backend
-        #self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel) # use wx event directly, although this requires window focus
+        #self.mpl_connect('scroll_event', self.OnMouseWheel)
 
         if isinstance(self, SortPanel):
             probe = self.sort.probe # sort must exist by now if sort panel is being used
@@ -351,9 +344,11 @@ class PlotPanel(FigureCanvas):
         self.probe = probe
         self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
         self.chans = probe.SiteLoc.keys()
-        self.chans.sort() # a sorted list of chans, keeps us from having to do this over and over
+        self.chans.sort() # a sorted list of chans, keeps from having to do this over and over
         self.nchans = probe.nchans
-        # for plotting with mpl, convert probe SiteLoc to have center bottom origin instead of center top
+        self.chans_selected = [] # for clustering, or potentially other uses as well
+
+        # for mpl, convert probe SiteLoc to center bottom origin instead of center top
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
         ys = [ y for x, y in siteloc.values() ]
         maxy = max(ys)
@@ -1188,6 +1183,21 @@ class SortPanel(PlotPanel):
             return hitlines[linei]
         else:
             return None
+
+    def OnButtonPress(self, evt):
+        """Toggle channel selection for clustering by waveform shape, or for other
+        potential uses as well"""
+        button = evt.button
+        if button == 1: # left click
+            chan = self.get_closestchans(evt, n=1)
+            vline = self.vlines[chan] # there's one vline for every possibly enabled chan
+            if chan not in self.chans_selected: # it's unselected, select it
+                self.chans_selected.append(chan)
+                vline.set_color(VREFSELECTEDCOLOUR)
+            else: # it's selected, unselect it
+                self.chans_selected.remove(chan)
+                vline.set_color(VREFCOLOUR)
+            self.draw_refs() # update
 
 
 class SpikeSortPanel(SortPanel, SpikePanel):

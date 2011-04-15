@@ -2,19 +2,16 @@
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
-- WISHLIST: allow undo of renumbering, and only trim undo list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
+- it would be nice to see the waveforms of spikes thrown away during climbing (for being part of a cluster with too few points)
+    - could make a -1 cluster (or maybe -2 so it doesn't conflict with -1 nid indicating no cluster whatsoever) that shows up in the nlist, that only contains the spikes thrown away in the last climb run. Then, could just randomly sample them like any other neuron's spikes. Not sure how the junk spikes will be coloured. -1 doesn't work in the colourdict does it? Maybe expand colourdict to make -1 map to dark grey. It should be deletable, and undo/redoable, etc. Make it act as much as possible as a genuine cluster.
+
+- WISHLIST: allow undo/redo of renumbering, and only trim cluster change list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
 
 - WISHLIST: allow loading of .srf file *after* loading of .sort, with proper association of .srf to stream.srff.f
     - also allow closing of .srf file, while leaving .sort open - for when you need to disconnect external drive
 
-- WISHLIST: insert newly split off clusters and increment the cluster ids of all the following clusters
-    - will this be too slow cuz of need to recolour the plotted points of all the subsequent clusters?
-    - would prolly have to rework clusterchange queue a bit to handle cluster renames for efficiency, instead of completely deleting and recreating clusters
-    - or maybe the cluster ids could be done like a dewey decimal system - this would temporarily require strings as neuron ids for the child neurons, but would be converted back to normal ints on a full renumbering
-        - such child clusters would be coloured according to the last part of their decimal
-
 - possible waveform error measures:
-    - rms
+    - rms - seems to work well enough
     - 2nd derivative at peaks (or of the whole waveform?)
     - distance measure, which would take both voltage and time difference of waveforms into account - sort of need to measure the area between each waveform pair
 
@@ -39,7 +36,7 @@
 - yup, populating an nslist with 100s of thousands of entries is slow, and uses 100% CPU. setting UniformItemSizes to True and layoutMode to Batched helps. Messed around with fetchMore and canFetchMore and rowCount, but that's just a shitty hack (see fetchMore Qt example - scrollbar doesn't work properly, can't easily scroll to the end). It seems there's no way to display a huge list immediately, irrespective of the number of entries in it, like you can with Wx's virtual list. Very disappointing.
     - why does nslist take longer to populate than a same-sized demo listview in listview_test.py?
 
-- when hitting 'o' or '.' to focus current cluster or spike, if more than one is selected (for either type), take average position of all those selected and focus that average position
+- when hitting 'C' or 'X' to focus current cluster or spike, if more than one is selected (for either type), take average position of all those selected and focus that average position
 
 - QT bug: setting both QListView.setLayoutMode(QtGui.QListView.Batched) and QListView.setResizeMode(QtGui.QListView.Adjust) at the same time often causes endless recalculating of layout with flickering and 100% CPU, until you happen to resize the list to a point where it stops doing so
     - maybe setting batch size to something bigger will work around this
@@ -89,9 +86,6 @@
 - do test for double triggers (sometimes a spike with a weird delay across channels will cause this): check each ISI across the whole list of sorted spike times. For each ISI that falls below, say, 0.5 ms, check the spatial separation of those two spikes, and if that falls below, say 100 um, or maybe 1 channel distance, then flag that as a double trigger, and maybe delete the second spike? Or keep the spike that's aligned to the biggest phase? This means resizing the spikes array each time, and probably some other stuff. All of this should really be done right after detection, and before any clustering
     - another way to test for this would be to do best fit alignment on all spikes in each cluster, and then see if the waveform difference between any two temporally adjacent spikes is exactly 0. That would indicate you've counted the same spike twice.
     - see spikes 247217 and 247218 in ptc15.92 detection as an example (at t=1286824840 and t=1286824900 respectively). Should turn on detection debugging and figure out why the phasetis for 2ndary chan 21 for the first spike are only 3 timepoints apart (28 and 25), which almost certainly messes up the lockout on that chan, and causes the double trigger
-
-- it would be nice to see the waveforms of spikes thrown away during climbing (for being part of a cluster with too few point)
-    - maybe add a "junk" button to sort window which toggles display of the latest junk thrown out by last run of climbing. It would need to grab a plot slot every time it was turned on? And after a run, if any junk has been discarded, it should depress the button automatically to plot it. Maybe line style should be dotted red or something? Should I just plot the mean of the junk waveforms, or some subset of them, or all of them? Maybe a random selection of up to 20 of them. Or the 20 of them with the biggest stdev.
 
 - seem to still be triggering off the latter part of some spikes whose first real phase is, I guess, not sharp enough, or not big enough, and then these are thrown out during cluster cleaning
 
@@ -991,6 +985,7 @@ QT rewrite DONE:
     - should really just do the focusing stuff properly, ala VTK. Constantly manipulating the point data is just bad, and very confusing in many cases
         - so this means I need to keep track of current pitch, roll, yaw, and position in glWidget?
             - nope, just need to translate to focus before doing any rotation, and then translate back
+- WISHLIST: insert newly split off clusters in nlist
 
 
 
