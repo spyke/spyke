@@ -36,7 +36,7 @@ import core
 from core import toiter, intround, MICRO, ClusterChange, SpykeToolWindow
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS
-from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREY
+from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
 from detect import Detector
 from extract import Extractor
 
@@ -562,12 +562,23 @@ class SpykeWindow(QtGui.QMainWindow):
                             minpoints=s.minpoints)
             cids, scoutpositions, sampleis = results
             nids = list(np.unique(cids))
-            try: nids.remove(-1)
-            except ValueError: pass
             print('climb took %.3f sec' % (time.time()-t0))
 
         else:
             raise ValueError('invalid method %r' % method)
+
+        # delete unselected junk cluster if it exists, add to cluster change stack
+        if -1 not in [ oldc.id for oldc in oldclusters ] and -1 in list(s.neurons):
+            # save some undo/redo stuff
+            message = 'delete junk cluster -1'
+            cc = ClusterChange(s.neurons[-1].sids, spikes, message)
+            cc.save_old([s.clusters[-1]], s.norder)
+            # delete it
+            s.remove_neuron(-1)
+            # save more undo/redo stuff
+            cc.save_new([], s.norder)
+            self.AddClusterChangeToStack(cc)
+            print(cc.message)
 
         # save some undo/redo stuff
         message = '%s clusters %r' % (method, [ c.id for c in clusters ])
@@ -591,7 +602,9 @@ class SpykeWindow(QtGui.QMainWindow):
         for nid, inserti in zip(nids, insertis):
             ii, = np.where(cids == nid)
             nsids = sids[ii] # sids belonging to this nid
-            cluster = self.CreateCluster(update=False, inserti=inserti)
+            if nid != -1:
+                nid = None # auto generate a new nid
+            cluster = self.CreateCluster(update=False, id=nid, inserti=inserti)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
@@ -629,12 +642,14 @@ class SpykeWindow(QtGui.QMainWindow):
             if chan not in clusterable_chans:
                 raise RuntimeError("chan %d not common to all spikes, pick from %r"
                                    % (chan, list(clusterable_chans)))
-
-        print('clustering upon chans %r' % list(chans))
-        nspikes = len(sids)
         nchans = len(chans)
-        nt = s.wavedata.shape[2]
+        if nchans == 0:
+            raise RuntimeError("no channels selected")
+        print('clustering upon chans %r' % list(chans))
+
         # collect data from 'chans' from all spikes:
+        nspikes = len(sids)
+        nt = s.wavedata.shape[2]
         data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
@@ -846,21 +861,18 @@ class SpykeWindow(QtGui.QMainWindow):
         cw = self.windows['Cluster']
         for cluster in clusters:
             neuron = cluster.neuron
-            cw.glWidget.colors[neuron.sids] = CMAP[neuron.id % len(CMAP)]
+            if neuron.id == -1: # junk cluster
+                cw.glWidget.colors[neuron.sids] = GREYRGB
+            else:
+                cw.glWidget.colors[neuron.sids] = CMAP[neuron.id % len(CMAP)]
         cw.glWidget.updateGL()
 
     def DeColourPoints(self, sids):
-        """Restore spike point colour in cluster plot at spike indices to unclustered GREY"""
+        """Restore spike point colour in cluster plot at spike indices to unclustered GREY.
+        Need to call cw.glWidget.updateGL() afterwards"""
         cw = self.windows['Cluster']
-        cw.glWidget.colors[sids] = GREY
-        #cw.glWidget.updateGL()
-    '''
-    def DeColourAllPoints(self):
-        """Restore all spike points in cluster plot to unclustered GREY"""
-        cw = self.windows['Cluster']
-        cw.glWidget.colors[:] = GREY
-        #cw.glWidget.updateGL()
-    '''
+        cw.glWidget.colors[sids] = GREYRGB
+
     def GetClusterPlotDimNames(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
         x = str(self.ui.xDimComboBox.currentText())

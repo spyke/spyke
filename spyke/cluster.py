@@ -14,7 +14,7 @@ from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 
 from core import SpykeToolWindow, lst2shrtstr
-from plot import CMAP, GREY
+from plot import CMAP, GREYRGB
 
 CLUSTERPARAMSAMPLESIZE = 1000
 VIEWDISTANCE = 50
@@ -130,7 +130,7 @@ class ClusterWindow(SpykeToolWindow):
         # such existing contiguous array in Sort or anywhere else that I can find
         self.glWidget.sids = np.arange(self.glWidget.npoints)
         self.glWidget.colors = CMAP[nids % len(CMAP)] # uint8
-        self.glWidget.colors[nids == -1] = GREY # overwrite unclustered points with GREY
+        self.glWidget.colors[nids == -1] = GREYRGB # overwrite unclustered points with GREYRGB
         self.glWidget.updateGL()
     '''
     def get_view(self):

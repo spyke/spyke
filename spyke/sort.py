@@ -305,6 +305,14 @@ class Sort(object):
         else:
             self.norder.insert(inserti, neuron.id)
         return neuron
+
+    def remove_neuron(self, id):
+        try:
+            del self.neurons[id] # may already be removed due to recursive call
+            del self.clusters[id]
+            self.norder.remove(id)
+        except KeyError, ValueError:
+            pass
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -1080,8 +1088,10 @@ class SortWindow(SpykeToolWindow):
         cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters, s.norder)
 
-        # get ordered index of first selected cluster
-        inserti = s.norder.index(clusters[0].id)
+        # get ordered index of first selected cluster, if any
+        inserti = None
+        if len(clusters) > 0:
+            inserti = s.norder.index(clusters[0].id)
 
         # delete original clusters and deselect selected usids
         spw.DelClusters(clusters, update=False)
@@ -1092,6 +1102,8 @@ class SortWindow(SpykeToolWindow):
         newnid = None # merge into new highest nid
         if len(clusters) > 0:
             newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest selected nid
+        if newnid == -1: # never merge into a junk cluster
+            newnid = None # incorporate junk into new real cluster
         newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
@@ -1288,12 +1300,7 @@ class SortWindow(SpykeToolWindow):
     def RemoveNeuron(self, neuron, update=True):
         """Remove neuron and all its spikes from the GUI and the Sort"""
         self.MoveSpikes2List(neuron, neuron.sids, update=update)
-        try:
-            del self.sort.neurons[neuron.id] # may already be removed due to recursive call
-            del self.sort.clusters[neuron.id]
-            self.sort.norder.remove(neuron.id)
-        except KeyError, ValueError:
-            pass
+        self.sort.remove_neuron(neuron.id)
         if update:
             self.nlist.updateAll()
 

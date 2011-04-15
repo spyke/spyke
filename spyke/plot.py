@@ -64,7 +64,7 @@ CLUSTERCOLOURS = copy(PLOTCOLOURS)
 CLUSTERCOLOURS.remove(GREY)
 
 CMAP = hex2rgb(CLUSTERCOLOURS)
-GREY = hex2rgb([GREY]) # overwrite to RGB format
+GREYRGB = hex2rgb([GREY])[0]
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
@@ -98,14 +98,16 @@ def get_wave(obj, sort=None):
 
 
 class ColourDict(dict):
-    """Just an easy way to cycle through PLOTCOLOURS given some index,
+    """Just an easy way to cycle through colours given some index,
     like say a chan id or a neuron id. Better than using a generator,
     cuz you don't need to keep calling .next(). This is like a dict
     of inifite length"""
-    def __init__(self, colours=PLOTCOLOURS):
+    def __init__(self, colours=None):
         self.colours = colours
 
     def __getitem__(self, key):
+        if key == -1: # junk cluster/unclustered
+            return GREY
         i = key % len(self.colours)
         return self.colours[i]
 
