@@ -1061,14 +1061,10 @@ class SortPanel(PlotPanel):
         else: # item[0] == 's' # it's a spike
             t = s.spikes['t'][id]
             nid = s.spikes['nid'][id]
+            colours = [CLUSTERCOLOURDICT[nid]]
+            alpha = 0.5
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
-            if nid != -1: # it's a member spike of a neuron, colour it the same as its neuron
-                alpha = 0.5
-                colours = [CLUSTERCOLOURDICT[nid]]
-            else: # it's an unsorted spike, colour each chan separately
-                alpha = 1
-                colours = [ self.vcolours[chan] for chan in plt.chans ] # remap to cycle vertically in space
             wave = s.get_wave(id)
         plt.set_colours(colours)
         plt.set_alpha(alpha)

@@ -699,7 +699,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 t3 = max(t4-dt3, 0)
                 t5 = min(t4+dt3, nt-1)
                 peaktis[chani] = t0, t1, t2, t3, t4, t5
-            print('peaktis = %r' % peaktis)
+            print('peaktis =')
+            print(peaktis)
             # grab each spike's data at these peak times, using fancy indexing
             # see core.rowtake() or util.rowtake_cy() for indexing explanation
             data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, len(peaktis)

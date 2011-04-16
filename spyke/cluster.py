@@ -115,11 +115,7 @@ class ClusterWindow(SpykeToolWindow):
             SpykeToolWindow.keyPressEvent(self, event) # pass it up
         else:
             self.glWidget.keyPressEvent(event) # pass it down
-    '''
-    def keyPressEvent(self, event):
-        print('keyPressEvent in cluster window')
-        SpykeToolWindow.keyPressEvent(self, event) # pass it on
-    '''
+
     def plot(self, X, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
         if not X.flags['C_CONTIGUOUS']:
@@ -132,29 +128,13 @@ class ClusterWindow(SpykeToolWindow):
         self.glWidget.colors = CMAP[nids % len(CMAP)] # uint8
         self.glWidget.colors[nids == -1] = GREYRGB # overwrite unclustered points with GREYRGB
         self.glWidget.updateGL()
-    '''
-    def get_view(self):
-        return mlab.view()
 
-    def set_view(self, view):
-        mlab.view(*view)
-
-    view = property(get_view, set_view)
-
-    def get_roll(self):
-        return mlab.roll()
-
-    def set_roll(self, roll):
-        mlab.roll(roll)
-
-    roll = property(get_roll, set_roll)
-    '''
 
 class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.spw = self.parent().spykewindow
-        #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, disabled for speed
+        #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, slow
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
 
