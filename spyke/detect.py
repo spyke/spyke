@@ -46,7 +46,7 @@ from core import eucd, ordered, concatenate_destroy, intround, g2, cauchy2
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 
 logger = logging.Logger('detection')
-shandler = logging.StreamHandler(strm=sys.stdout) # prints to screen
+shandler = logging.StreamHandler(sys.stdout) # prints to screen
 formatter = logging.Formatter('%(message)s')
 shandler.setFormatter(formatter)
 shandler.setLevel(logging.INFO) # log info level and higher to screen

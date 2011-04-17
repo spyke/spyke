@@ -679,6 +679,10 @@ class SpykeWindow(QtGui.QMainWindow):
                 wavetis.append(peaktis[1])
             wavetis = np.asarray(wavetis)
             wavetis.sort()
+
+            # TODO: why am I not building up peaktis and wavetis on a per channel basis
+            # like when wctype == 'peaks' below?
+
             print('peaktis = %r' % peaktis)
             print('wavetis = %r' % wavetis)
             # consider only data at wavetis

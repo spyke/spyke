@@ -1051,7 +1051,7 @@ class SortPanel(PlotPanel):
         if item[0] == 'n': # it's a neuron
             n = s.neurons[id]
             t = n.t
-            colours = [CLUSTERCOLOURDICT[id]]
+            colour = CLUSTERCOLOURDICT[id]
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
@@ -1061,12 +1061,14 @@ class SortPanel(PlotPanel):
         else: # item[0] == 's' # it's a spike
             t = s.spikes['t'][id]
             nid = s.spikes['nid'][id]
-            colours = [CLUSTERCOLOURDICT[nid]]
+            colour = CLUSTERCOLOURDICT[nid]
             alpha = 0.5
+            if nid == -1:
+                alpha = 0.75 # junk GREY is just a bit too dark to leave at 0.5 alpha
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             wave = s.get_wave(id)
-        plt.set_colours(colours)
+        plt.set_colours([colour])
         plt.set_alpha(alpha)
         plt.set_stylewidth(style, width)
         self.used_plots[plt.id] = plt # push it to the used plot stack
