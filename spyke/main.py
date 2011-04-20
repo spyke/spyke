@@ -35,7 +35,7 @@ from copy import copy
 import core
 from core import toiter, intround, MICRO, ClusterChange, SpykeToolWindow
 import surf
-from sort import Sort, SortWindow, MAINSPLITTERPOS
+from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
 from detect import Detector
 from extract import Extractor
@@ -534,13 +534,13 @@ class SpykeWindow(QtGui.QMainWindow):
             # grab dims and data
             items = self.ui.dimlist.selectedItems()
             if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
-            dims = [ str(item.text()) for item in items ] # dim names to cluster upon
+            dims = [ str(item.text()) for item in items ] # dim names to cluster on
             plotdims = self.GetClusterPlotDimNames()
-            waveclustering = 'wave' in dims or 'peaks' in dims
+            waveclustering = 'peaks2' in dims or 'peaks6' in dims or 'peaks10' in dims
             if waveclustering: # do wavefrom clustering
                 if len(dims) > 1:
                     raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
-                wctype = dims[0] # 'wave' or 'peaks'
+                wctype = dims[0]
                 try:
                     data = self.get_waveclustering_data(sids, wctype=wctype)
                 except RuntimeError as msg:
@@ -568,7 +568,7 @@ class SpykeWindow(QtGui.QMainWindow):
             raise ValueError('invalid method %r' % method)
 
         # delete unselected junk cluster if it exists, add to cluster change stack
-        if -1 not in [ oldc.id for oldc in oldclusters ] and -1 in list(s.neurons):
+        if -1 not in [ oldc.id for oldc in oldclusters ] and -1 in s.neurons:
             # save some undo/redo stuff
             message = 'delete junk cluster -1'
             cc = ClusterChange(s.neurons[-1].sids, spikes, message)
@@ -629,10 +629,10 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         spikes = s.spikes
 
-        # find which chans are common to all selected spikes
+        # find which chans are common to all sids
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
-        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
+        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
         clusterable_chans = core.intersect1d(chanslist) # find intersection
 
         # get selected chans
@@ -645,9 +645,9 @@ class SpykeWindow(QtGui.QMainWindow):
         nchans = len(chans)
         if nchans == 0:
             raise RuntimeError("no channels selected")
-        print('clustering upon chans %r' % list(chans))
+        print('clustering on chans %r' % list(chans))
 
-        # collect data from 'chans' from all spikes:
+        # collect data from chans from all spikes:
         nspikes = len(sids)
         nt = s.wavedata.shape[2]
         data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
@@ -656,61 +656,69 @@ class SpykeWindow(QtGui.QMainWindow):
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = s.wavedata[sid, spikechanis]
 
-        # find mean waveform of selected spikes
-        template = data.mean(axis=0)
+        # find mean waveform of selected spikes, randomly sampling first for speed
+        # if nspikes exceeds a threshold
+        if len(sids) > MEANWAVESAMPLESIZE:
+            print('get_waveclustering_data() taking random sample of %d spikes for mean '
+                  'instead of all %d of them' % (MEANWAVESAMPLESIZE, len(sids)))
+            siis = np.arange(nspikes)
+            subsiis = np.asarray(random.sample(siis, MEANWAVESAMPLESIZE))
+            template = data[subsiis].mean(axis=0)
+        else:
+            template = data.mean(axis=0)
 
-        if wctype == 'wave':
-            # decide which is the definitive maxchan for the selected spikes
-            maxchans = spikes['chan'][sids]
-            maxchan = int(scipy.stats.mode(maxchans)[0][0])
-            # use all data from dt/2 before 1st peak to dt/2 after 2nd peak
-            chani, = np.where(chans == maxchan)
-            if not chani: # maxchan wasn't included in chans, find chan with biggest value
-                chani = np.unravel_index(template.argmax(), template.shape)[0]
-            peaktis = np.asarray([template[chani].argmin(), template[chani].argmax()])
-            peaktis.sort() # keep in temporal order
-            dt2 = intround((peaktis[1] - peaktis[0]) / 2.0)
-            wavetis = np.arange(max(peaktis[0]-dt2, 0), min(peaktis[1]+dt2, nt-1))
-            wavetis = list(wavetis[::2]) # take every other point
-            # ensure peak points remain in wavetis
-            if peaktis[0] not in wavetis:
-                wavetis.append(peaktis[0])
-            if peaktis[1] not in wavetis:
-                wavetis.append(peaktis[1])
-            wavetis = np.asarray(wavetis)
-            wavetis.sort()
+        # TODO: add stdev2, stdev6 and stdev10 that use the most variable points
+        # per chan, or somehow, the most non-gaussian points per chan
 
-            # TODO: why am I not building up peaktis and wavetis on a per channel basis
-            # like when wctype == 'peaks' below?
-
-            print('peaktis = %r' % peaktis)
-            print('wavetis = %r' % wavetis)
-            # consider only data at wavetis
-            data = data[:, :, wavetis].copy()
-            #slicetis = np.asarray([max(peaktis[0]-dt2, 0), peaktis[1]+dt2+1])
-            #print('slicetis = %r' % slicetis)
-            # consider only data between slicetis, copy to make it contiguous
-            #data = data[:, :, slicetis[0]:slicetis[1]].copy()
-        elif wctype == 'peaks':
-            # use only data at peaks of template, and before and after each peak,
-            # useful for faster clustering
-            peaktis = np.zeros((nchans, 6), dtype=int)
+        if wctype == 'peaks2':
+            # use data at peaks of template
+            ntis = 2
+            tis = np.zeros((nchans, ntis), dtype=int)
+            for chani in range(nchans):
+                t0, t1 = np.sort([template[chani].argmin(), template[chani].argmax()])
+                tis[chani] = t0, t1
+        elif wctype == 'peaks6':
+            # use data at peaks of template, and before and after each peak
+            ntis = 6
+            tis = np.zeros((nchans, ntis), dtype=int)
             for chani in range(nchans):
                 t1, t4 = np.sort([template[chani].argmin(), template[chani].argmax()])
-                dt3 = intround((t4 - t1)/3.0) # 1/3 the distance between peaks
+                dt3 = max((t4 - t1) / 3.0, 1) # 1/3 the distance between peaks
                 t0 = max(t1-dt3, 0)
                 t2 = min(t1+dt3, nt-1)
                 t3 = max(t4-dt3, 0)
                 t5 = min(t4+dt3, nt-1)
-                peaktis[chani] = t0, t1, t2, t3, t4, t5
-            print('peaktis =')
-            print(peaktis)
-            # grab each spike's data at these peak times, using fancy indexing
-            # see core.rowtake() or util.rowtake_cy() for indexing explanation
-            data = data[:, np.arange(nchans)[:, None], peaktis] # shape = nspikes, nchans, len(peaktis)
+                tis[chani] = intround([t0, t1, t2, t3, t4, t5])
+        elif wctype == 'peaks10':
+            # use data at peaks of template, and before and after each peak
+            ntis = 10
+            tis = np.zeros((nchans, ntis), dtype=int)
+            for chani in range(nchans):
+                t2, t7 = np.sort([template[chani].argmin(), template[chani].argmax()])
+                dt5 = max((t7 - t2) / 5.0, 1) # 1/5 the distance between peaks
+                t0 = max(t2-2*dt5, 0)
+                t1 = max(t2-dt5, 0)
+                t3 = min(t2+dt5, nt-1)
+                t4 = min(t2+2*dt5, nt-1)
+                t5 = max(t7-2*dt5, 0)
+                t6 = max(t7-dt5, 0)
+                t8 = min(t7+dt5, nt-1)
+                t9 = min(t7+2*dt5, nt-1)
+                tis[chani] = intround([t0, t1, t2, t3, t4, t5, t6, t7, t8, t9])
         else:
             raise RuntimeError('unknown wctype %r' % wctype)
 
+        print('tis =')
+        print(tis)
+        for chani in range(nchans):
+            assert core.is_unique(tis[chani])
+            # TODO: if it isn't unique, throw out the ti repeats per channel, and have
+            # potentially a different number of tis per chan. Would have to change the
+            # fancy indexing operation below...
+
+        # grab each spike's data at tis, using fancy indexing
+        # see core.rowtake() or util.rowtake_cy() for indexing explanation
+        data = data[:, np.arange(nchans)[:, None], tis] # shape = nspikes, nchans, ntis
         data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
 
         # normalize by the std of the dim with the biggest std - this allows use of reasonable

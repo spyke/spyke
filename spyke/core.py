@@ -1306,6 +1306,14 @@ def twoD1D(a):
     assert a.ndim == 1, "array has more than one non-singleton dimension"
     return a
 '''
+def is_unique(a):
+    """Check whether a has purely unique values in it"""
+    u = np.unique(a)
+    if len(a) != len(u):
+        return False
+    else:
+        return True
+
 def intersect1d(arrays, assume_unique=False):
     """Find the intersection of any number of 1D arrays.
     Return the sorted, unique values that are in all of the input arrays.

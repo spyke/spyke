@@ -1141,6 +1141,11 @@ class SortWindow(SpykeToolWindow):
         oldselcids = [ cluster.id for cluster in selclusters ]
         spw.SelectClusters(selclusters, on=False)
 
+        # delete junk cluster, if it exists
+        if -1 in s.clusters:
+            s.remove_neuron(-1)
+            print('junk cluster deleted')
+
         # get lists of unique old cids and new cids
         olducids = sorted(s.clusters) # make sure they're in order
         # this is a bit confusing: find indices that would sort olducids by y pos, but then
