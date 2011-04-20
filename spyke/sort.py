@@ -931,8 +931,8 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox = QtGui.QComboBox(self)
         nsamplesComboBox.setToolTip('Number of spikes per cluster to randomly select')
         nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
-        nsamplesComboBox.addItems(['5', '10', '20', '50'])
-        nsamplesComboBox.setCurrentIndex(2)
+        nsamplesComboBox.addItems(['1', '5', '10', '20', '50'])
+        nsamplesComboBox.setCurrentIndex(3)
         toolbar.addWidget(nsamplesComboBox)
         self.connect(nsamplesComboBox, QtCore.SIGNAL("activated(int)"),
                      self.on_actionSelectRandomSpikes_triggered)

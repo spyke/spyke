@@ -757,9 +757,10 @@ class SpykeWindow(QtGui.QMainWindow):
         return [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
 
     def GetClusters(self):
-        """Return currently selected clusters"""
+        """Return sorted list of currently selected clusters"""
         cids = self.GetClusterIDs()
         clusters = [ self.sort.clusters[cid] for cid in cids ]
+        clusters.sort()
         return clusters
 
     def GetCluster(self):
