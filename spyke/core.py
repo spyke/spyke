@@ -853,7 +853,7 @@ class NListModel(SpykeAbstractListModel):
             neurons = self.sortwin.sort.neurons
             norder = self.sortwin.sort.norder
             try:
-                nid = int(norder[index.row()])
+                nid = norder[index.row()]
             except IndexError:
                 print('WARNING: tried to index non-existent row %d' % index.row())
             #print('.data(): row=%d, val=%d' % (index.row(), nid))
@@ -1075,7 +1075,14 @@ def toiter(x):
         return x
     else:
         return [x]
-''' use np.vstack instead
+
+def tocontig(x):
+    """Return C contiguous copy of array x if it isn't C contiguous already"""
+    if not x.flags.c_contiguous:
+        x = x.copy()
+    return x
+'''
+# use np.vstack instead:
 def cvec(x):
     """Return x as a column vector. x must be a scalar or a vector"""
     x = np.asarray(x)
@@ -1087,8 +1094,8 @@ def cvec(x):
     x.shape = (nrows, 1)
     return x
 '''
-def isempty(x):
-    """Check if sequence is empty. There really should be a np.isempty function"""
+def is_empty(x):
+    """Check if sequence is empty. There really should be a np.is_empty function"""
     print("WARNING: not thoroughly tested!!!")
     x = np.asarray(x)
     if np.prod(x.shape) == 0:

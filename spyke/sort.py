@@ -297,6 +297,7 @@ class Sort(object):
             id = self.nextnid
         if id in self.neurons:
             raise RuntimeError('Neuron %d already exists' % id)
+        id = int(id) # get rid of numpy ints
         neuron = Neuron(self, id)
         # add neuron to self
         self.neurons[neuron.id] = neuron
@@ -1093,7 +1094,7 @@ class SortWindow(SpykeToolWindow):
         if len(clusters) > 0:
             inserti = s.norder.index(clusters[0].id)
 
-        # delete original clusters and deselect selected usids
+        # delete selected clusters and deselect selected usids
         spw.DelClusters(clusters, update=False)
         self.uslist.clearSelection()
 
@@ -1144,7 +1145,7 @@ class SortWindow(SpykeToolWindow):
         # delete junk cluster, if it exists
         if -1 in s.clusters:
             s.remove_neuron(-1)
-            print('junk cluster deleted')
+            print('deleted junk cluster -1')
 
         # get lists of unique old cids and new cids
         olducids = sorted(s.clusters) # make sure they're in order
@@ -1273,7 +1274,7 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.SelectClusters(dest)
         desterr = errors[desterrsortis][self._cmpid]
         print('n%d to n%d rmserror: %.2f uV' %
-              (source.id, dest.id, self.sort.converter.AD2uV(desterr)))
+             (source.id, dest.id, self.sort.converter.AD2uV(desterr)))
 
     def getClusterComparisonSource(self):
         selclusters = self.spykewindow.GetClusters()

@@ -13,7 +13,7 @@ from PyQt4 import QtCore, QtGui, QtOpenGL
 from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 
-from core import SpykeToolWindow, lst2shrtstr
+from core import SpykeToolWindow, lst2shrtstr, tocontig
 from plot import CMAP, GREYRGB
 
 CLUSTERPARAMSAMPLESIZE = 1000
@@ -118,8 +118,7 @@ class ClusterWindow(SpykeToolWindow):
 
     def plot(self, X, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
-        if not X.flags['C_CONTIGUOUS']:
-            X = X.copy() # make it contig
+        X = tocontig(X) # ensure it's contig
         self.glWidget.points = X
         self.glWidget.npoints = len(X)
         # don't like that I'm generating sids array from scratch, but there's no

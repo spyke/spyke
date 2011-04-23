@@ -33,7 +33,7 @@ from copy import copy
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, intround, MICRO, ClusterChange, SpykeToolWindow
+from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
@@ -498,23 +498,23 @@ class SpykeWindow(QtGui.QMainWindow):
         except KeyError:
             cw = self.OpenWindow('Cluster')
 
-        sw.uslist.clearSelection() # clear uslist selection, since some usids may disappear
-        oldclusters = self.GetClusters()
-        if oldclusters: # some clusters selected
-            clusters = oldclusters
-            sids = [] # spikes to run climb() on
-            for oldcluster in oldclusters:
-                sids.append(oldcluster.neuron.sids)
-            sids = np.concatenate(sids) # run climb() on selected spikes
-        else: # no clusters selected
+        sids = [] # spikes to cluster
+        clusters = self.GetClusters()
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        # cluster any selected usids as well
+        sids.append(self.GetUnsortedSpikes())
+        sids = np.concatenate(sids)
+        someselected = True
+        if len(sids) == 0: # nothing selected
+            someselected = False
             clusters = s.clusters.values() # all clusters
             sids = spikes['id'] # run climb() on all spikes
 
-        if method == 'chansplit': # cluster spikes by their unique combination of chans
+        if method == 'chansplit': # cluster spikes by their unique combinations of chans
             t0 = time.time()
             chans = spikes[sids]['chans']
-            if not chans.flags['C_CONTIGUOUS']:
-                chans = chans.copy() # string view won't work otherwise
+            chans = tocontig(chans) # string view won't work without contiguity
             strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
             # each row in uchancombos is a unique combination of chans:
             uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
@@ -548,7 +548,7 @@ class SpykeWindow(QtGui.QMainWindow):
                     return
             else: # do spike parameter (non-wavefrom) clustering
                 data = s.get_param_matrix(dims=dims, scale=True)[sids]
-            data = data.copy() # copy to make it contiguous for climb()
+            data = tocontig(data) # ensure it's contiguous for climb()
             # grab climb() params and run it
             self.update_sort_from_cluster_pane()
             npoints, ndims = data.shape
@@ -567,8 +567,15 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             raise ValueError('invalid method %r' % method)
 
-        # delete unselected junk cluster if it exists, add to cluster change stack
-        if -1 not in [ oldc.id for oldc in oldclusters ] and -1 in s.neurons:
+        # deselect selected clusters before potentially deleting unselected junk
+        # cluster, to avoid lack of Qt selection event when selection values
+        # (not rows) change. Also, deselect usids while we're at it:
+        self.SelectClusters(clusters, on=False)
+        sw.uslist.clearSelection()
+
+        # delete junk cluster if it exists and is unselected,
+        # add this deletion to cluster change stack
+        if -1 not in [ cluster.id for cluster in clusters ] and -1 in s.clusters:
             # save some undo/redo stuff
             message = 'delete junk cluster -1'
             cc = ClusterChange(s.neurons[-1].sids, spikes, message)
@@ -585,16 +592,15 @@ class SpykeWindow(QtGui.QMainWindow):
         cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters, s.norder)
 
+        # start insertion indices of new clusters from first selected cluster, if any
         nnids = len(nids)
-        if oldclusters: # some clusters selected
-            # get ordered index of first selected cluster
-            startinserti = s.norder.index(oldclusters[0].id)
+        insertis = [None] * nnids
+        if len(clusters) > 0:
+            startinserti = s.norder.index(clusters[0].id)
             insertis = range(startinserti, startinserti+nnids)
-            self.DelClusters(oldclusters, update=False)
-        else: # no clusters selected, delete all existing clusters (if any)
-            insertis = [None] * nnids
-            allclusters = s.clusters.values()
-            self.DelClusters(allclusters, update=False)
+
+        # delete selected clusters
+        self.DelClusters(clusters, update=False)
 
         # apply the new clusters
         newclusters = []
@@ -620,7 +626,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.UpdateClustersGUI()
         self.ColourPoints(newclusters)
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
-        if oldclusters: # select newly created cluster(s)
+        if someselected: # select newly created cluster(s)
             self.SelectClusters(newclusters)
         cc.message += ' into %r' % [c.id for c in newclusters]
         print(cc.message)
@@ -752,16 +758,17 @@ class SpykeWindow(QtGui.QMainWindow):
         return self.sort.usids[srows]
 
     def GetClusterIDs(self):
-        """Return IDs of currently selected clusters"""
+        """Return list of IDs of currently selected clusters, in norder"""
         sw = self.windows['Sort']
-        return [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
+        cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
+        #cids.sort() # don't do regular sort, sort by norder
+        ciis = np.argsort([ self.sort.norder.index(cid) for cid in cids ])
+        return [ cids[cii] for cii in ciis ] # in norder
 
     def GetClusters(self):
-        """Return sorted list of currently selected clusters"""
-        cids = self.GetClusterIDs()
-        clusters = [ self.sort.clusters[cid] for cid in cids ]
-        clusters.sort()
-        return clusters
+        """Return list of currently selected clusters, in norder"""
+        cids = self.GetClusterIDs() # already in norder
+        return [ self.sort.clusters[cid] for cid in cids ]
 
     def GetCluster(self):
         """Return just one selected cluster"""
