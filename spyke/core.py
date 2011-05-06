@@ -739,7 +739,7 @@ class SpykeListView(QtGui.QListView):
 
     nrows = property(get_nrows)
 
-    def selectRows(self, rows, on=True):
+    def selectRows(self, rows, on=True, scrollTo=True):
         """Row selection in listview is complex. This makes it simpler"""
         rows = toiter(rows)
         m = self.model()
@@ -749,6 +749,8 @@ class SpykeListView(QtGui.QListView):
         else:
             flag = sm.Deselect
         [ sm.select(m.index(row), flag) for row in rows ]
+        if rows and on and scrollTo: # scroll to last row that was just selected
+            self.scrollTo(m.index(rows[-1]))
 
     def selectedRows(self):
         """Return list of selected rows"""
@@ -765,7 +767,7 @@ class SpykeListView(QtGui.QListView):
         nrows = stop - start
         nsamples = min(nsamples, nrows)
         rows = random.sample(xrange(start, stop), nsamples)
-        self.selectRows(rows)
+        self.selectRows(rows, scrollTo=False)
 
 
 class NList(SpykeListView):
