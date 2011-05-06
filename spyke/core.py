@@ -788,9 +788,18 @@ class NSList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(NSListModel(parent))
+        self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
+                     self.on_actionItem_activated)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
+
+    def on_actionItem_activated(self, index):
+        sw = self.sortwin
+        if sw.sort.stream.is_open():
+            sid = self.sids[index.row()]
+            spike = sw.sort.spikes[sid]
+            sw.parent().seek(spike['t'])
 
     def get_neurons(self):
         return self.model().neurons
@@ -821,9 +830,18 @@ class USList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(USListModel(parent))
+        self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
+                     self.on_actionItem_activated)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
+
+    def on_actionItem_activated(self, index):
+        sw = self.sortwin
+        if sw.sort.stream.is_open():
+            sid = sw.sort.usids[index.row()]
+            spike = sw.sort.spikes[sid]
+            sw.parent().seek(spike['t'])
 
 
 class SpykeAbstractListModel(QtCore.QAbstractListModel):

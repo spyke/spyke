@@ -400,7 +400,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_filePosEndButton_clicked(self):
         self.seek(self.str2t['end'])
 
-    def on_slider_valueChanged(self, slideri):
+    @QtCore.pyqtSlot(int)
+    def on_slider_sliderMoved(self, slideri):
         self.seek(slideri * SLIDERTRES)
 
     @QtCore.pyqtSlot()
@@ -1034,7 +1035,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.filePosEndButton.setText(str(self.hpstream.t1))
         # set all slider values in multiples of SLIDERTRES
         self.ui.slider.setRange(self.range[0] // SLIDERTRES,
-                             self.range[1] // SLIDERTRES) # no need to round
+                                self.range[1] // SLIDERTRES) # no need to round
         self.ui.slider.setValue(self.t // SLIDERTRES)
         self.ui.slider.setSingleStep(1)
         self.ui.slider.setPageStep((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
@@ -1595,9 +1596,10 @@ class SpykeWindow(QtGui.QMainWindow):
         return t0, t1
 
     def seek(self, offset=0):
-        """Seek to position in surf file. offset is time in us"""
+        """Seek to position in stream. offset is time in us"""
         oldt = self.t
-        self.t = intround(offset / self.hpstream.tres) * self.hpstream.tres # round to nearest (possibly interpolated) sample
+        # round to nearest (possibly interpolated) sample
+        self.t = intround(offset / self.hpstream.tres) * self.hpstream.tres
         self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
         self.str2t['now'] = self.t # update
         # only plot if t has actually changed, though this doesn't seem to improve

@@ -926,7 +926,7 @@ class SortWindow(SpykeToolWindow):
         actionSelectRandomSpikes = QtGui.QAction("R", self)
         actionSelectRandomSpikes.setToolTip('Select random sample of spikes of current cluster')
         self.connect(actionSelectRandomSpikes, QtCore.SIGNAL("triggered()"),
-                     self.on_actionSelectRandomSpikes_triggered)
+                     self.on_actionSelectRandomSpikes_activated)
         toolbar.addAction(actionSelectRandomSpikes)
 
         nsamplesComboBox = QtGui.QComboBox(self)
@@ -936,7 +936,7 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox.setCurrentIndex(3)
         toolbar.addWidget(nsamplesComboBox)
         self.connect(nsamplesComboBox, QtCore.SIGNAL("activated(int)"),
-                     self.on_actionSelectRandomSpikes_triggered)
+                     self.on_actionSelectRandomSpikes_activated)
         self.nsamplesComboBox = nsamplesComboBox
 
         toolbar.addSeparator()
@@ -1004,7 +1004,7 @@ class SortWindow(SpykeToolWindow):
         elif key == Qt.Key_X: # ignored in SpykeListViews
             self.on_actionFocusCurrentSpike_triggered()
         elif key == Qt.Key_R: # ignored in SpykeListViews
-            self.on_actionSelectRandomSpikes_triggered()
+            self.on_actionSelectRandomSpikes_activated()
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
         elif key == Qt.Key_Comma: # ignored in SpykeListViews
@@ -1215,7 +1215,7 @@ class SortWindow(SpykeToolWindow):
         cw.glWidget.panTo() # pan to new focus
         cw.glWidget.updateGL()
 
-    def on_actionSelectRandomSpikes_triggered(self):
+    def on_actionSelectRandomSpikes_activated(self):
         """Select random sample of spikes in current cluster"""
         if self.nslist.neurons != []:
             self.nslist.clearSelection()
