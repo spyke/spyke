@@ -54,7 +54,7 @@ logger.addHandler(shandler)
 info = logger.info
 
 DEBUG = False # print detection debug messages to log file? slows down detection
-MPMETHOD = 'pool' # 'detectionprocess'
+MPMETHOD = 'pool' #'singleprocess', 'pool', 'detectionprocess'
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
@@ -218,7 +218,7 @@ class Detector(object):
 
         # mp.Pool is slightly faster than my own DetectionProcess
         if not DEBUG and MPMETHOD == 'pool': # use a pool of processes
-            ncores = mp.cpu_count() # 1 per core
+            ncores = mp.cpu_count()
             nprocesses = min(ncores, nblocks)
             # send pickled copy of self to each process
             pool = mp.Pool(nprocesses, initializer, (self,))
@@ -227,7 +227,7 @@ class Detector(object):
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
             spikes, wavedata = zip(*results)
         elif not DEBUG and MPMETHOD == 'detectionprocess':
-            ncores = mp.cpu_count() # 1 per core
+            ncores = mp.cpu_count()
             nprocesses = min(ncores, nblocks)
             dps = []
             q = mp.Queue()
@@ -389,6 +389,7 @@ class Detector(object):
         peakis = util.argthreshsharp(wave.data, self.thresh, sharp) # thresh exceeding peak indices
         info('%s: argthreshsharp() took %.3f sec' % (ps().name, time.time()-targthreshsharp))
 
+        maxti = len(wave.ts) - 1
         dti = self.dti
         twi = sort.twi
         sdti = dti // 2 # spatial dti - max dti allowed between maxchan and all other chans
@@ -493,7 +494,7 @@ class Detector(object):
             # cut new window
             oldt0i = t0i
             t0i = max(ti+twi[0], 0)
-            t1i = ti+twi[1]+1 # end inclusive
+            t1i = min(ti+twi[1]+1, maxti) # end inclusive
             window = wave.data[chanis, t0i:t1i] # multichan data window, might not be contig
             maxcii, = np.where(chanis == chani)
             maxchanphasetis += oldt0i - t0i # relative to new t0i

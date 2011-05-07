@@ -1,3 +1,8 @@
+- handle case where searchblock returns 0 spikes in detect.py (due possibly to very very short trange that it searches over), and i is an empty list, giving an IndexError: invalid index
+
+        i = spikes['t'].argsort()
+        spikes = spikes[i] # ensure they're in temporal order
+        wavedata = wavedata[i] # ditto for wavedata
 
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
