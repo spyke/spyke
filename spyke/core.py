@@ -947,6 +947,42 @@ class USListModel(SpykeAbstractListModel):
                         'dphase: %.4g us' % spike['dphase'])
 
 
+class ClusterTabSpinBox(QtGui.QSpinBox):
+    """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
+    def __init__(self, parent):
+        QtGui.QSpinBox.__init__(self, parent)
+
+    def keyPressEvent(self, event):
+        if  event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+            self.topLevelWidget().on_actionUndo_triggered()
+        else:
+            QtGui.QSpinBox.keyPressEvent(self, event) # handle it as usual
+
+
+class ClusterTabDoubleSpinBox(QtGui.QDoubleSpinBox):
+    """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
+    def __init__(self, parent):
+        QtGui.QDoubleSpinBox.__init__(self, parent)
+
+    def keyPressEvent(self, event):
+        if  event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+            self.topLevelWidget().on_actionUndo_triggered()
+        else:
+            QtGui.QDoubleSpinBox.keyPressEvent(self, event) # handle it as usual
+
+
+class ClusteringGroupBox(QtGui.QGroupBox):
+    """Make ENTER key event activate the cluster button"""
+    def __init__(self, parent):
+        QtGui.QGroupBox.__init__(self, parent)
+
+    def keyPressEvent(self, event):
+        if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
+            self.topLevelWidget().ui.clusterButton.click()
+        else:
+            QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
+
+
 class Stack(list):
     """A list that doesn't allow -ve indices"""
     def __getitem__(self, key):

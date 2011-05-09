@@ -179,7 +179,7 @@
          <string>0 spikes</string>
         </property>
        </widget>
-       <widget class="QGroupBox" name="groupBox">
+       <widget class="QGroupBox" name="thresholdGroupBox">
         <property name="geometry">
          <rect>
           <x>5</x>
@@ -432,7 +432,7 @@
          </property>
         </widget>
        </widget>
-       <widget class="QGroupBox" name="groupBox_2">
+       <widget class="QGroupBox" name="rangeGroupBox">
         <property name="geometry">
          <rect>
           <x>240</x>
@@ -548,7 +548,7 @@
          </property>
         </widget>
        </widget>
-       <widget class="QGroupBox" name="groupBox_3">
+       <widget class="QGroupBox" name="radiiGroupBox">
         <property name="geometry">
          <rect>
           <x>240</x>
@@ -650,7 +650,7 @@
        <attribute name="title">
         <string>Cluster</string>
        </attribute>
-       <widget class="QGroupBox" name="groupBox_4">
+       <widget class="ClusteringGroupBox" name="clusteringGroupBox">
         <property name="geometry">
          <rect>
           <x>5</x>
@@ -745,7 +745,7 @@
           <string>sigma:</string>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="sigmaSpinBox">
+        <widget class="ClusterTabDoubleSpinBox" name="sigmaSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -780,7 +780,7 @@
           <string>rmergex:</string>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="rmergeXSpinBox">
+        <widget class="ClusterTabDoubleSpinBox" name="rmergeXSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -815,7 +815,7 @@
           <string>alpha:</string>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="alphaSpinBox">
+        <widget class="ClusterTabDoubleSpinBox" name="alphaSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -850,7 +850,7 @@
           <string>nsamples:</string>
          </property>
         </widget>
-        <widget class="QSpinBox" name="nsamplesSpinBox">
+        <widget class="ClusterTabSpinBox" name="nsamplesSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -869,7 +869,7 @@
           <number>0</number>
          </property>
         </widget>
-        <widget class="QSpinBox" name="maxstillSpinBox">
+        <widget class="ClusterTabSpinBox" name="maxstillSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -898,7 +898,7 @@
           <string>maxstill:</string>
          </property>
         </widget>
-        <widget class="QSpinBox" name="minpointsSpinBox">
+        <widget class="ClusterTabSpinBox" name="minpointsSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -940,7 +940,7 @@
           <string>rneighx:</string>
          </property>
         </widget>
-        <widget class="QDoubleSpinBox" name="rneighXSpinBox">
+        <widget class="ClusterTabDoubleSpinBox" name="rneighXSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
@@ -998,7 +998,7 @@ spikes</string>
          </property>
         </widget>
        </widget>
-       <widget class="QGroupBox" name="groupBox_5">
+       <widget class="QGroupBox" name="plottingGroupBox">
         <property name="geometry">
          <rect>
           <x>335</x>
@@ -1660,6 +1660,24 @@ spikes</string>
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ClusteringGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>core</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ClusterTabDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>core</header>
+  </customwidget>
+  <customwidget>
+   <class>ClusterTabSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>core</header>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>filePosStartButton</tabstop>
   <tabstop>filePosLineEdit</tabstop>
