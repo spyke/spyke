@@ -426,7 +426,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ShowRasters() # show spike rasters for open data windows
         sw = self.OpenWindow('Sort') # ensure it's open
         self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
-        self.on_plotButton_clicked()
+        if sort.nspikes > 0:
+            self.on_plotButton_clicked()
 
     def init_extractor(self):
         """Initialize Extractor"""

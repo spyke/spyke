@@ -355,8 +355,9 @@ class Detector(object):
         # the best peak is searched for forward and backwards in time on each edge
         #ttsort = time.time()
         i = spikes['t'].argsort()
-        spikes = spikes[i] # ensure they're in temporal order
-        wavedata = wavedata[i] # ditto for wavedata
+        if len(i) > 0: # not empty
+            spikes = spikes[i] # ensure they're in temporal order
+            wavedata = wavedata[i] # ditto for wavedata
         #info("%s: temporal sorting took %.3f sec" % (ps().name, time.time()-ttsort))
 
         print('%s: found %d spikes' % (ps().name, len(spikes)))

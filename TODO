@@ -1,10 +1,3 @@
-- handle case where searchblock returns 0 spikes in detect.py (due possibly to very very short trange that it searches over), and i is an empty list, giving an IndexError: invalid index
-
-        i = spikes['t'].argsort()
-        spikes = spikes[i] # ensure they're in temporal order
-        wavedata = wavedata[i] # ditto for wavedata
-
-
 - WISHLIST: hitting ESC once clears selected spikes, hitting it a 2nd time clears selected neurons. If no spikes selected, hitting ESC once clears selected neurons right away. Also, if 2 neurons are selected and being compared, hitting ESC should clear the 2ndary neuron selection
 
 - NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail. Best of all might be to use a Gaussian lookup table, which should be fast, but allows for smaller rneigh
@@ -1002,6 +995,7 @@ QT rewrite DONE:
     - could make a -1 cluster that shows up in the nlist, that only contains the spikes thrown away in the last climb run. Then, could just randomly sample them like any other neuron's spikes.
     - It should be deletable, and undo/redoable, etc. Make it act as much as possible as a genuine cluster.
     - Not sure how the junk spikes will be coloured. -1 doesn't work in the colourdict does it? Maybe expand colourdict to make -1 map to grey.
+- handle case where Detector.searchblock() returns 0 spikes (due possibly to very short trange that it searches over), and also case where Detector.detect() returns 0 spikes
 
 
 
