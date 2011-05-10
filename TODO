@@ -5,6 +5,16 @@
         wavedata = wavedata[i] # ditto for wavedata
 
 
+- WISHLIST: hitting ESC once clears selected spikes, hitting it a 2nd time clears selected neurons. If no spikes selected, hitting ESC once clears selected neurons right away. Also, if 2 neurons are selected and being compared, hitting ESC should clear the 2ndary neuron selection
+
+- NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail. Best of all might be to use a Gaussian lookup table, which should be fast, but allows for smaller rneigh
+
+- NVS: to choose at what point to align each spike during detection, take the 2nd derivative along the spike, weighted by the voltage, weighted by the waveform point index, add all those up and normalize, and you get the point index to align to. This tends to be right around the 0 crossing. What's nice is that it's paramaterizable/linear - a small change in some voltage value results in a small change in how you align - there's no 2AFC between align to one peak or the other. He claims it results in better spike alignments within clusters right off the bat.
+
+- not sure if this is already the case, but on renumbering, if nids are all contiguous and in spatial order, don't bother renumbering, which means don't clear the undo cache. This makes hitting renumber less risky
+
+- WISHLIST: if single selected neuron is the same colour as the channel selection colour, change to different channel selection colour (alternate between red and green)
+
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
 - WISHLIST: allow undo/redo of renumbering, and only trim cluster change list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
