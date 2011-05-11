@@ -989,8 +989,7 @@ class SortWindow(SpykeToolWindow):
         been set in the child lists to be ignored, so they propagate up to here"""
         key = event.key()
         if key == Qt.Key_Escape: # deselect all spikes and all clusters
-            self.uslist.clearSelection()
-            self.nlist.clearSelection()
+            self.clear()
         elif key in [Qt.Key_Delete, Qt.Key_D]: # D ignored in SpykeListViews
             self.on_actionDeleteClusters_triggered()
         elif key == Qt.Key_M: # ignored in SpykeListViews
@@ -1013,27 +1012,22 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindNextMostSimilar_triggered()
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
-    '''
-    def OnUSListColClick(self, evt):
-        """Sort .usids according to column clicked.
-        TODO: keep track of currently selected spikes and currently focused spike,
-        clear the selection, then reselect those same spikes after sorting is done,
-        and re-focus the same spike. Scroll into view of the focused spike (maybe
-        that happens automatically). Right now, the selection remains in the list
-        as-is, regardless of the entries that change beneath it"""
-        col = evt.GetColumn()
-        field = self.uslist.COL2FIELD[col]
-        s = self.sort
-        # for speed, check if already sorted by field
-        if s.usids_sorted_by == field: # already sorted, reverse the order
-            s.reverse_usids()
-            s.usids_reversed = not s.usids_reversed # update reversed flag
-        else: # not yet sorted by field
-            s.sort_usids(field)
-            s.usids_sorted_by = field # update
-            s.usids_reversed = False # update
-        self.uslist.RefreshItems()
-    '''
+
+    def clear(self):
+        """Clear selections in this order: unsorted spikes, sorted spikes,
+        secondary selected neuron, neurons"""
+        spw = self.spykewindow
+        clusters = spw.GetClusters()
+        if len(self.uslist.selectedIndexes()) > 0:
+            self.uslist.clearSelection()
+        elif len(self.nslist.selectedIndexes()) > 0:
+            self.nslist.clearSelection()
+        elif len(clusters) == 2 and self._source in clusters:
+            clusters.remove(self._source)
+            spw.SelectClusters(clusters, on=False)
+        else:
+            self.nlist.clearSelection()
+
     def on_actionDeleteClusters_triggered(self):
         """Del button click"""
         spw = self.spykewindow

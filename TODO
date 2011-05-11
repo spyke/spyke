@@ -1,4 +1,5 @@
-- WISHLIST: hitting ESC once clears selected spikes, hitting it a 2nd time clears selected neurons. If no spikes selected, hitting ESC once clears selected neurons right away. Also, if 2 neurons are selected and being compared, hitting ESC should clear the 2ndary neuron selection
+
+- WISHLIST: if no neurons are selected, "R" should random sample unsorted spikes
 
 - NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail. Best of all might be to use a Gaussian lookup table, which should be fast, but allows for smaller rneigh
 
@@ -996,6 +997,7 @@ QT rewrite DONE:
     - It should be deletable, and undo/redoable, etc. Make it act as much as possible as a genuine cluster.
     - Not sure how the junk spikes will be coloured. -1 doesn't work in the colourdict does it? Maybe expand colourdict to make -1 map to grey.
 - handle case where Detector.searchblock() returns 0 spikes (due possibly to very short trange that it searches over), and also case where Detector.detect() returns 0 spikes
+- WISHLIST: hitting ESC once clears selected spikes, hitting it a 2nd time clears selected neurons. If no spikes selected, hitting ESC once clears selected neurons right away. Also, if 2 neurons are selected and being compared, hitting ESC should clear the 2ndary neuron selection
 
 
 
