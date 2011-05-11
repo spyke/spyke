@@ -847,6 +847,7 @@ class SortWindow(SpykeToolWindow):
 
         toolbar = self.setupToolbar()
 
+        self._source = None # source cluster for comparison
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
         self.nslist = NSList(self)
@@ -1210,11 +1211,15 @@ class SortWindow(SpykeToolWindow):
         cw.glWidget.updateGL()
 
     def on_actionSelectRandomSpikes_activated(self):
-        """Select random sample of spikes in current cluster"""
-        if self.nslist.neurons != []:
-            self.nslist.clearSelection()
-            nsamples = int(self.nsamplesComboBox.currentText())
-            self.nslist.selectRandom(nsamples)
+        """Select random sample of spikes in current cluster(s), or random sample
+        of unsorted spikes if no cluster(S) selected"""
+        nsamples = int(self.nsamplesComboBox.currentText())
+        if len(self.nslist.neurons) > 0:
+            slist = self.nslist
+        else:
+            slist = self.uslist
+        slist.clearSelection()
+        slist.selectRandom(nsamples)
 
     def on_actionAlignMin_triggered(self):
         self.Align('min')
@@ -1278,14 +1283,14 @@ class SortWindow(SpykeToolWindow):
             self._source = source
             self._cmpid = -1 # reset
         elif len(selclusters) == 2:
-            try: source = self._source
-            except AttributeError: raise RuntimeError(errmsg)
-            if source == None or source not in selclusters:
+            source = self._source
+            if source not in selclusters:
                 raise RuntimeError(errmsg)
             # deselect old destination cluster:
             selclusters.remove(source)
             self.spykewindow.SelectClusters(selclusters, on=False)
         else:
+            self._source = None # reset for tidiness
             raise RuntimeError(errmsg)
         return source
 

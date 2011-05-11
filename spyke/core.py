@@ -763,6 +763,8 @@ class SpykeListView(QtGui.QListView):
     def selectRandom(self, start, stop, nsamples):
         """Select random sample of rows"""
         start = max(0, start)
+        if stop == -1:
+            stop = self.nrows
         stop = min(self.nrows, stop)
         nrows = stop - start
         nsamples = min(nsamples, nrows)
@@ -844,6 +846,10 @@ class USList(SpykeListView):
             sid = sw.sort.usids[index.row()]
             spike = sw.sort.spikes[sid]
             sw.parent().seek(spike['t'])
+
+    def selectRandom(self, nsamples):
+        """Select up to nsamples random rows"""
+        SpykeListView.selectRandom(self, 0, -1, nsamples)
 
 
 class SpykeAbstractListModel(QtCore.QAbstractListModel):
