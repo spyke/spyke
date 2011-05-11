@@ -1132,6 +1132,10 @@ class SortWindow(SpykeToolWindow):
         s = self.sort
         spikes = s.spikes
 
+        if s.norder == range(len(s.norder)):
+            print('nothing to renumber: clusters IDs already ordered and contiguous')
+            return
+
         # deselect current selections
         selclusters = spw.GetClusters()
         oldselcids = [ cluster.id for cluster in selclusters ]

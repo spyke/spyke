@@ -3,8 +3,6 @@
 
 - NVS: to choose at what point to align each spike during detection, take the 2nd derivative along the spike, weighted by the voltage, weighted by the waveform point index, add all those up and normalize, and you get the point index to align to. This tends to be right around the 0 crossing. What's nice is that it's paramaterizable/linear - a small change in some voltage value results in a small change in how you align - there's no 2AFC between align to one peak or the other. He claims it results in better spike alignments within clusters right off the bat.
 
-- not sure if this is already the case, but on renumbering, if nids are all contiguous and in spatial order, don't bother renumbering, which means don't clear the undo cache. This makes hitting renumber less risky
-
 - WISHLIST: if single selected neuron is the same colour as the channel selection colour, change to different channel selection colour (alternate between red and green)
 
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
@@ -997,6 +995,8 @@ QT rewrite DONE:
 - handle case where Detector.searchblock() returns 0 spikes (due possibly to very short trange that it searches over), and also case where Detector.detect() returns 0 spikes
 - WISHLIST: hitting ESC once clears selected spikes, hitting it a 2nd time clears selected neurons. If no spikes selected, hitting ESC once clears selected neurons right away. Also, if 2 neurons are selected and being compared, hitting ESC should clear the 2ndary neuron selection
 - WISHLIST: if no neurons are selected, "R" should random sample unsorted spikes
+- on renumbering, if nids are all contiguous and ordered, don't bother renumbering, which means don't clear the undo cache. This makes hitting renumber less risky
+
 
 
 
