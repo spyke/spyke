@@ -172,62 +172,6 @@ class Sort(object):
         wave = self.stream[t0:t1]
         return wave[chans]
 
-    def exportall(self, basepath):
-        """Export spike data, stimulus textheader, and din to path in
-        the classic way for use in neuropy"""
-        self.exportspikes(basepath)
-        self.exportdin(basepath)
-        self.exporttextheader(basepath)
-
-    def exporttextheader(self, basepath):
-        """Export stimulus text header(s) to .textheader file(s) in basepath"""
-        try:
-            streams = self.stream.streams
-        except AttributeError:
-            streams = [self.stream]
-        print('exporting text header(s) to:')
-        for stream in streams:
-            displayrecords = stream.srff.displayrecords
-            if len(displayrecords) == 0: # no textheader to export for this stream
-                continue
-            if len(displayrecords) > 1:
-                raise ValueError("Can't figure out which display record to export stimulus "
-                                 "text header from for file %r" % stream.srff.fname)
-            srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
-            path = os.path.join(basepath, srffnameroot)
-            try: os.mkdir(path)
-            except OSError: pass # path already exists?
-            textheader = displayrecords[0].Header.python_tbl
-            textheaderfname = srffnameroot + '.textheader'
-            fname = os.path.join(path, textheaderfname) # full fname with path
-            f = open(fname, 'w')
-            f.write(textheader) # save it
-            f.close()
-            print(fname)
-
-    def exportdin(self, basepath):
-        """Export stimulus din(s) to binary .din file(s) in basepath"""
-        try:
-            streams = self.stream.streams
-        except AttributeError:
-            streams = [self.stream]
-        dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
-        print('exporting DIN(s) to:')
-        for stream in streams:
-            digitalsvalrecords = stream.srff.digitalsvalrecords
-            if len(digitalsvalrecords) == 0: # no din to export for this stream
-                continue
-            srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
-            path = os.path.join(basepath, srffnameroot)
-            try: os.mkdir(path)
-            except OSError: pass # path already exists?
-            dinfname = srffnameroot + '.din'
-            fname = os.path.join(path, dinfname) # full fname with path
-            # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
-            digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
-            digitalsvalrecords.tofile(fname) # save it
-            print(fname)
-
     def exportspikes(self, basepath):
         """Export spike data to binary .spk files under basepath, one file per neuron"""
         spikes = self.spikes
@@ -257,7 +201,63 @@ class Sort(object):
                 spikets.tofile(os.path.join(path, neuronfname)) # save it
             print(path)
 
-    def exporttschid(self, srffnameroot, path=''):
+    def exportdin(self, basepath):
+        """Export stimulus din(s) to binary .din file(s) in basepath"""
+        try:
+            streams = self.stream.streams
+        except AttributeError:
+            streams = [self.stream]
+        dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
+        print('exporting DIN(s) to:')
+        for stream in streams:
+            digitalsvalrecords = stream.srff.digitalsvalrecords
+            if len(digitalsvalrecords) == 0: # no din to export for this stream
+                continue
+            srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
+            path = os.path.join(basepath, srffnameroot)
+            try: os.mkdir(path)
+            except OSError: pass # path already exists?
+            dinfname = srffnameroot + '.din'
+            fname = os.path.join(path, dinfname) # full fname with path
+            # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
+            digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
+            digitalsvalrecords.tofile(fname) # save it
+            print(fname)
+
+    def exporttextheader(self, basepath):
+        """Export stimulus text header(s) to .textheader file(s) in basepath"""
+        try:
+            streams = self.stream.streams
+        except AttributeError:
+            streams = [self.stream]
+        print('exporting text header(s) to:')
+        for stream in streams:
+            displayrecords = stream.srff.displayrecords
+            if len(displayrecords) == 0: # no textheader to export for this stream
+                continue
+            if len(displayrecords) > 1:
+                raise ValueError("Can't figure out which display record to export stimulus "
+                                 "text header from for file %r" % stream.srff.fname)
+            srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
+            path = os.path.join(basepath, srffnameroot)
+            try: os.mkdir(path)
+            except OSError: pass # path already exists?
+            textheader = displayrecords[0].Header.python_tbl
+            textheaderfname = srffnameroot + '.textheader'
+            fname = os.path.join(path, textheaderfname) # full fname with path
+            f = open(fname, 'w')
+            f.write(textheader) # save it
+            f.close()
+            print(fname)
+
+    def exportall(self, basepath):
+        """Export spike data, stimulus textheader, and din to path in
+        the classic way for use in neuropy"""
+        self.exportspikes(basepath)
+        self.exportdin(basepath)
+        self.exporttextheader(basepath)
+
+    def exporttschid(self, basepath):
         """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
         spikes = self.spikes[self.spikes['nid'] != -1] # probably shouldn't export unsorted spikes
@@ -274,7 +274,7 @@ class Sort(object):
         tschid.tofile(os.path.join(path, tschidfname)) # save it
         print(tschidfname)
 
-    def exportlfp(self, lpstream, srffnameroot, path=''):
+    def exportlfp(self, basepath):
         """Export LFP data to binary .lfp file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
         srffnameroot = srffnameroot.replace(' ', '_')
