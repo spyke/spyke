@@ -1213,7 +1213,7 @@ spikes</string>
      </property>
      <addaction name="actionExportSpikes"/>
      <addaction name="actionExportDIN"/>
-     <addaction name="actionTextheader"/>
+     <addaction name="actionExportTextheader"/>
      <addaction name="actionExportAll"/>
      <addaction name="separator"/>
      <addaction name="actionExportTsChID"/>
@@ -1409,7 +1409,7 @@ spikes</string>
     <string>DIN</string>
    </property>
   </action>
-  <action name="actionTextheader">
+  <action name="actionExportTextheader">
    <property name="text">
     <string>Textheader</string>
    </property>

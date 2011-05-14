@@ -199,64 +199,57 @@ class SpykeWindow(QtGui.QMainWindow):
                                     directory=os.getcwd())
         path = str(path)
         if path:
-            self.sort.exportspikes(path=path)
+            self.sort.exportspikes(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
     def on_actionExportDIN_triggered(self):
-        srffnameroot = self.sort.get_srffnameroot()
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export DIN to",
+        path = getExistingDirectory(self, caption="Export DIN(s) to",
                                     directory=os.getcwd())
         path = str(path)
         if path:
-            self.sort.exportdin(srffnameroot=srffnameroot, path=path)
+            self.sort.exportdin(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
     def on_actionExportTextheader_triggered(self):
-        srffnameroot = self.sort.get_srffnameroot()
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export textheader to",
+        path = getExistingDirectory(self, caption="Export textheader(s) to",
                                     directory=os.getcwd())
         path = str(path)
         if path:
-            self.sort.exporttextheader(srffnameroot=srffnameroot, path=path)
+            self.sort.exporttextheader(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
     def on_actionExportAll_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export spikes, DIN and textheader to",
+        path = getExistingDirectory(self, caption="Export spikes, DIN(s) and textheader(s) to",
                                     directory=os.getcwd())
         path = str(path)
         if path:
-            self.sort.export(path=path)
+            self.sort.exportall(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
     def on_actionExportTsChId_triggered(self):
-        srffnameroot = self.sort.get_srffnameroot()
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export tschid to",
+        path = getExistingDirectory(self, caption="Export tschid(s) to",
                                     directory=os.getcwd())
         path = str(path)
         if path:
-            self.sort.exporttschid(srffnameroot=srffnameroot, path=path)
+            self.sort.exporttschid(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
     def on_actionExportLFP_triggered(self):
-        if type(self.hpstream) == core.TrackStream:
-            raise RuntimeError("LFP can only be exported from a single .srf file")
-        srffnameroot = self.lpstream.srffname.partition('.srf')[0]
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export LFP to",
+        path = getExistingDirectory(self, caption="Export LFP(s) to",
                                     directory=os.getcwd())
         path = str(path)
         if path:
-            self.sort.exportlfp(lpstream=self.lpstream,
-                                srffnameroot=srffnameroot, path=path)
+            self.sort.exportlfp(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()

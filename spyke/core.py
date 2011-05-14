@@ -1486,3 +1486,27 @@ def rmserror(a, b):
     """Return root-mean-squared difference between arrays a and b"""
     return np.sqrt(((a - b)**2).mean())
 
+
+def lstrip(s, strip):
+    """What I think str.lstrip should really do"""
+    l = len(strip)
+    if s[:l] == strip: # strip is at the start of s
+        return s[l:] # strip it
+    else:
+        return s
+
+def rstrip(s, strip):
+    """What I think str.rstrip should really do"""
+    l = len(strip)
+    if s[-l:] == strip: # strip is at the end of s
+        return s[:-l] # strip it
+    else:
+        return s
+
+def strip(s, strip):
+    """What I think str.strip should really do"""
+    return rstrip(lstrip(s, strip), strip)
+
+def lrstrip(s, lstr, rstr):
+    """Strip lstr from start of s and rstr from end of s"""
+    return rstrip(lstrip(s, lstr), rstr)
