@@ -20,7 +20,8 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
-from core import TW, WaveForm, Gaussian, MAXLONGLONG, R, toiter, savez, intround, lrstrip
+from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
+from core import toiter, savez, intround, rstrip, lrstrip
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from plot import SpikeSortPanel
 
@@ -188,6 +189,12 @@ class Sort(object):
             path = os.path.join(basepath, srffnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
+            # if any existing folders in srffname path end with the name '.best.sort',
+            # then remove the '.best' from their name
+            for name in os.listdir(path):
+                fullname = os.path.join(path, name)
+                if os.path.isdir(fullname) and fullname.endswith('.best.sort'):
+                    os.rename(fullname, rstrip(fullname, '.best.sort') + '.sort')
             path = os.path.join(path, spikefoldername)
             os.mkdir(path)
             for nid, neuron in self.neurons.items():
@@ -210,6 +217,9 @@ class Sort(object):
         dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
         print('exporting DIN(s) to:')
         for stream in streams:
+
+            # TODO: add offsets to all din values
+
             digitalsvalrecords = stream.srff.digitalsvalrecords
             if len(digitalsvalrecords) == 0: # no din to export for this stream
                 continue
@@ -218,11 +228,11 @@ class Sort(object):
             try: os.mkdir(path)
             except OSError: pass # path already exists?
             dinfname = srffnameroot + '.din'
-            fname = os.path.join(path, dinfname) # full fname with path
+            fullfname = os.path.join(path, dinfname)
             # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
-            digitalsvalrecords.tofile(fname) # save it
-            print(fname)
+            digitalsvalrecords.tofile(fullfname) # save it
+            print(fullfname)
 
     def exporttextheader(self, basepath):
         """Export stimulus text header(s) to .textheader file(s) in basepath"""
@@ -236,19 +246,20 @@ class Sort(object):
             if len(displayrecords) == 0: # no textheader to export for this stream
                 continue
             if len(displayrecords) > 1:
-                raise ValueError("Can't figure out which display record to export stimulus "
-                                 "text header from for file %r" % stream.srff.fname)
+                print("*** WARNING: multiple display records to export stimulus for file %r\n"
+                      "Exporting textheader from only the first display record"
+                      % stream.srff.fname)
             srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
             path = os.path.join(basepath, srffnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
             textheader = displayrecords[0].Header.python_tbl
             textheaderfname = srffnameroot + '.textheader'
-            fname = os.path.join(path, textheaderfname) # full fname with path
-            f = open(fname, 'w')
+            fullfname = os.path.join(path, textheaderfname)
+            f = open(fullfname, 'w')
             f.write(textheader) # save it
             f.close()
-            print(fname)
+            print(fullfname)
 
     def exportall(self, basepath):
         """Export spike data, stimulus textheader, and din to path in
