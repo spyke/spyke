@@ -12,6 +12,7 @@ import datetime
 from copy import copy
 import operator
 import random
+import shutil
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -21,7 +22,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
-from core import toiter, savez, intround, rstrip, lrstrip
+from core import toiter, savez, intround, rstrip, lrstrip, timedelta2usec
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from plot import SpikeSortPanel
 
@@ -168,7 +169,6 @@ class Sort(object):
                    "The currently opened .srf file is %s.\n"
                    "Can't get spike %d's wave" %
                    (sid, det.srffname, self.stream.srffname, sid))
-            wx.MessageBox(msg, caption="Error", style=wx.OK|wx.ICON_EXCLAMATION)
             raise RuntimeError(msg)
         wave = self.stream[t0:t1]
         return wave[chans]
@@ -182,9 +182,12 @@ class Sort(object):
         dt = dt.replace(':', '.')
         spikefoldername = dt + '.best.sort'
         srffnames = self.stream.srffnames
-        tranges = self.stream.tranges # includes offsets if it's a TrackStream
+        try: # self.stream is a TrackStream?
+            streamtranges = self.stream.streamtranges # includes offsets
+        except AttributeError: # self.stream is a normal Stream
+            streamtranges = [[self.stream.t0, self.stream.t1]]
         print('exporting spikes to:')
-        for srffname, trange in zip(srffnames, tranges):
+        for srffname, streamtrange in zip(srffnames, streamtranges):
             srffnameroot = lrstrip(srffname, '../', '.srf')
             path = os.path.join(basepath, srffnameroot)
             try: os.mkdir(path)
@@ -194,15 +197,18 @@ class Sort(object):
             for name in os.listdir(path):
                 fullname = os.path.join(path, name)
                 if os.path.isdir(fullname) and fullname.endswith('.best.sort'):
-                    os.rename(fullname, rstrip(fullname, '.best.sort') + '.sort')
+                    #os.rename(fullname, rstrip(fullname, '.best.sort') + '.sort')
+                    shutil.rmtree(fullname) # aw hell, just delete them to minimize junk
             path = os.path.join(path, spikefoldername)
             os.mkdir(path)
             for nid, neuron in self.neurons.items():
                 sids = neuron.sids # should be sorted
                 spikets = spikes['t'][sids]
-                # limit to spikes within trange
-                lo, hi = spikets.searchsorted(trange)
-                spiketis = spikets[lo:hi]
+                # limit to spikes within streamtrange
+                lo, hi = spikets.searchsorted(streamtrange)
+                spikets = spikets[lo:hi]
+                if len(spikets) == 0:
+                    continue # don't generate 0 byte files
                 # pad filename with leading zeros to always make template (t) ID 3 digits long
                 neuronfname = '%s_t%03d.spk' % (dt, nid)
                 spikets.tofile(os.path.join(path, neuronfname)) # save it
@@ -210,16 +216,13 @@ class Sort(object):
 
     def exportdin(self, basepath):
         """Export stimulus din(s) to binary .din file(s) in basepath"""
-        try:
+        try: # self.stream is a TrackStream?
             streams = self.stream.streams
-        except AttributeError:
+        except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]
         dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
         print('exporting DIN(s) to:')
         for stream in streams:
-
-            # TODO: add offsets to all din values
-
             digitalsvalrecords = stream.srff.digitalsvalrecords
             if len(digitalsvalrecords) == 0: # no din to export for this stream
                 continue
@@ -231,14 +234,19 @@ class Sort(object):
             fullfname = os.path.join(path, dinfname)
             # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
+            # convert to normal n x 2 int64 array
+            digitalsvalrecords = digitalsvalrecords.view(np.int64).reshape(-1, 2)
+            # calculate offset for din values, get time delta between stream i and stream 0
+            td = timedelta2usec(stream.datetime - streams[0].datetime)
+            digitalsvalrecords[:, 0] += td # add offset
             digitalsvalrecords.tofile(fullfname) # save it
             print(fullfname)
 
     def exporttextheader(self, basepath):
         """Export stimulus text header(s) to .textheader file(s) in basepath"""
-        try:
+        try: # self.stream is a TrackStream?
             streams = self.stream.streams
-        except AttributeError:
+        except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]
         print('exporting text header(s) to:')
         for stream in streams:
@@ -246,7 +254,7 @@ class Sort(object):
             if len(displayrecords) == 0: # no textheader to export for this stream
                 continue
             if len(displayrecords) > 1:
-                print("*** WARNING: multiple display records to export stimulus for file %r\n"
+                print("*** WARNING: multiple display records for file %r\n"
                       "Exporting textheader from only the first display record"
                       % stream.srff.fname)
             srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
