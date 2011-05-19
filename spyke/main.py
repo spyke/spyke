@@ -11,6 +11,9 @@ import numpy as np
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
+from IPython import embed
+from IPython.core import ultratb
+
 from climbing import climb # .pyx file
 
 from PyQt4 import QtCore, QtGui, uic
@@ -50,20 +53,10 @@ SPIKEWINDOWHEIGHT = 655
 CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
 METACITYHACK = 29 # metacity has vertical placement issues
-PYSHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
+SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWSIZE = 879, 687
 
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
-
-# this will drop us into ipdb on any error, won't work in IPy 0.11?:
-
-QtCore.pyqtRemoveInputHook()
-from IPython.Shell import IPShellEmbed
-ipshell = IPShellEmbed(banner='Dropping into IPython',
-                       exit_msg='Leaving IPython, back to program')
-
-#ipshell() # drops into IPython immediately
-#QtCore.pyqtRestoreInputHook()
 
 
 class SpykeWindow(QtGui.QMainWindow):
@@ -82,7 +75,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 break
             except: # path doesn't exist
                 pass
-        self.windows = {} # holds spike, chart, lfp, sort, and pyshell windows
+        self.windows = {} # holds spike, chart, lfp, sort, and shell windows
         self.spiketw = DEFSPIKETW # spike window temporal window (us)
         self.charttw = DEFCHARTTW # chart window temporal window (us)
         self.lfptw = DEFLFPTW # lfp window temporal window width (us)
@@ -316,11 +309,13 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionShell_triggered(self):
-        ipshell() # temporary hack
-
-    def OnPyShell(self, evt):
-        """PyShell window toggle menu/button event"""
-        self.ToggleWindow('PyShell')
+        """Shell window toggle menu/button event"""
+        #self.ToggleWindow('Shell')
+        embed(display_banner=False) # FIXME: this blocks until you Ctrl-D out of ipython
+        # embed() seems to override the excepthook, need to reset it:
+        set_excepthook()
+        ## TODO: get default config to load properly, both for embed and for
+        ## automatic dropping into ipdb
 
     @QtCore.pyqtSlot()
     def on_actionWaveforms_triggered(self):
@@ -1139,7 +1134,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
         for windowtype in self.windows.keys():
-            if windowtype != 'PyShell': # leave pyshell window alone
+            if windowtype != 'Shell': # leave shell window alone
                 self.CloseWindow(windowtype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
             if stream: stream.close()
@@ -1675,12 +1670,23 @@ class LFPWindow(DataWindow):
         self.setWindowTitle("LFP Window")
 
 
+def set_excepthook():
+    """Drops us into IPython's debugger on any error"""
+    sys.excepthook = ultratb.FormattedTB(mode='Verbose', call_pdb=1)
+
+
 if __name__ == '__main__':
+    QtCore.pyqtRemoveInputHook() # prevents "The event loop is already running" errors
+    set_excepthook()
+    #from IPython.lib.guisupport import get_app_qt4, start_event_loop_qt4
+    #app = get_app_qt4(sys.argv)
     app = QtGui.QApplication(sys.argv)
     spykewindow = SpykeWindow()
     spykewindow.show()
-    try:
-        from IPython import appstart_qt4
-        appstart_qt4(app)
-    except ImportError:
-        sys.exit(app.exec_())
+    '''
+    # this used to work in IPython 0.10:
+    from IPython import appstart_qt4
+    appstart_qt4(app)
+    '''
+    #start_event_loop_qt4(app)
+    sys.exit(app.exec_())
