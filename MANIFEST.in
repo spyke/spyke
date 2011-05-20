@@ -1,3 +1,3 @@
 include README TODO
-recursive-include demo *.py *.png *.pyx *.pxi *.wxg
-recursive-include spyke *.py *.png *.pyx *.pxi *.wxg
+recursive-include demo *.py *.ui *.pyx *.pxi *.png
+recursive-include spyke *.py *.ui *.pyx *.pxi *.png

@@ -18,6 +18,8 @@ in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 """
 
 from distutils.core import setup#, Extension
+from spyke.__init__ import __version__
+
 #import sys
 #from Cython.Distutils import build_ext
 
@@ -60,7 +62,7 @@ cy_thread_test = Extension('demo.cy_thread_test',
 spyke_files = ["res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
 
 setup(name='spyke',
-      version='0.2',
+      version=__version__,
       license='BSD',
       description='Multichannel spike viewer and sorter for Swindale Lab .srf files',
       author='Martin Spacek, Reza Lotun',

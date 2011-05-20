@@ -5,8 +5,6 @@ from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
-import os
-
 import numpy as np
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
@@ -313,11 +311,9 @@ class SpykeWindow(QtGui.QMainWindow):
         """Shell window toggle menu/button event"""
         #self.ToggleWindow('Shell')
         # FIXME: this blocks until you Ctrl-D out of ipython:
-        embed(display_banner=False, config=load_default_config())
+        embed(display_banner=False, config=load_default_config()) # "self" is accessible
         # embed() seems to override the excepthook, need to reset it:
         set_excepthook()
-        ## TODO: get default config to load properly, both for embed and for
-        ## automatic dropping into ipdb
 
     @QtCore.pyqtSlot()
     def on_actionWaveforms_triggered(self):
