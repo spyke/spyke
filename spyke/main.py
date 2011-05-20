@@ -13,6 +13,7 @@ pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
 from IPython import embed
 from IPython.core import ultratb
+from IPython.frontend.terminal.ipapp import load_default_config
 
 from climbing import climb # .pyx file
 
@@ -311,7 +312,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionShell_triggered(self):
         """Shell window toggle menu/button event"""
         #self.ToggleWindow('Shell')
-        embed(display_banner=False) # FIXME: this blocks until you Ctrl-D out of ipython
+        # FIXME: this blocks until you Ctrl-D out of ipython:
+        embed(display_banner=False, config=load_default_config())
         # embed() seems to override the excepthook, need to reset it:
         set_excepthook()
         ## TODO: get default config to load properly, both for embed and for

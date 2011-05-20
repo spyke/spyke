@@ -5,6 +5,8 @@
 
 - NVS: to choose at what point to align each spike during detection, take the 2nd derivative along the spike, weighted by the voltage, weighted by the waveform point index, add all those up and normalize, and you get the point index to align to. This tends to be right around the 0 crossing. What's nice is that it's paramaterizable/linear - a small change in some voltage value results in a small change in how you align - there's no 2AFC between align to one peak or the other. He claims it results in better spike alignments within clusters right off the bat.
 
+- WISHLIST: numpy 1.6 now has float16 support! Could conceivably switch from int16 to float16 and get rid of all the conversion stuff, but then other programming languages don't necessarily have float16 support, and so the .wave files wouldn't really be compatible. Plus, I'd have to convert all of my existing int16 .wave files into float16. But, on the other hand, integer math is faster, so I should really stick with int16s for waveform data
+
 - WISHLIST: consider max/min/best aligning each channel separately, or aligning according to selected chan. This would mean shifting chans relative to each other
 
 - WISHLIST: if single selected neuron is the same colour as the channel selection colour, change to different channel selection colour (alternate between red and green)
