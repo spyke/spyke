@@ -1,3 +1,36 @@
+- for some reason, using the latest mpl from git (instead of 0.99.3), causes much slower plotting. I noticed this before with mpl 1.0. Need to check the list, or check if the API has changed in some significant way
+    - seems especially slow when random sampling, seems normal when selectin a range of spikes with the mouse
+    - might be an issue in matplotlib/lib/matplotlib/lines.py or cbook.py - callback event connection gets caught in a loop maybe? Got this traceback when trying to plot lots of spikes at once from the same neuron:
+    
+home/mspacek/source/matplotlib/lib/matplotlib/lines.pyc in set_axes(self=<matplotlib.lines.Line2D object>, ax=<matplotlib.axes.Axes object>)
+    399         Artist.set_axes(self, ax)
+    400         if ax.xaxis is not None:
+--> 401             self._xcid = ax.xaxis.callbacks.connect('units', self.recache_always)
+        global CARETUP = 6
+        global CARETDOWN = 7
+        global CARETLEFT = 4
+        global CARETRIGHT = 5
+    402         if ax.yaxis is not None:
+    403             self._ycid = ax.yaxis.callbacks.connect('units', self.recache_always)
+
+/home/mspacek/source/matplotlib/lib/matplotlib/cbook.pyc in connect(self=<matplotlib.cbook.CallbackRegistry instance>, s='units', func=<bound method Line2D.recache_always of <matplotlib.lines.Line2D object>>)
+    234                 del self.callbacks[s][cid]
+    235             elif callback == proxy:
+--> 236                 return cid
+        global cache_file = undefined
+        s = 'units'
+    237         self._cid += 1
+    238         self.callbacks[s][self._cid] = proxy
+
+KeyboardInterrupt: 
+> /home/mspacek/source/matplotlib/lib/matplotlib/cbook.py(236)connect()
+    235             elif callback == proxy:
+--> 236                 return cid
+    237         self._cid += 1
+    
+    
+
+- convert all line endings to Unix style
 
 - what happens when a recording has more than 1 experiment in it? I know it'll have as many textheaders (displayrecords) as there are experiments, but what about din (digitalsvalrecords)?
 

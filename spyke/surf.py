@@ -293,9 +293,8 @@ class File(object):
         # to pull out less than the full set of sample points for this record
         self.f.seek(record['dataoffset'])
         # {ADC Waveform type; dynamic array of SHRT (signed 16 bit)} - converted to an ndarray
-        # Using stuct.unpack for this is very slow:
-        #self.data = np.asarray(unpack(str(record['NumSamples'])+'h', f.read(2*record['NumSamples'])), dtype=np.int16)
-        data = np.fromfile(self.f, dtype=np.int16, count=record['NumSamples']) # load directly using numpy
+        # stuct.unpack for this is very slow, load directly using numpy
+        data = np.fromfile(self.f, dtype=np.int16, count=record['NumSamples'])
         data -= 2048 # offset 12 bit unsigned data to be centered around 0
         nchans = self.layoutrecords[record['Probe']].nchans
         data.shape = (nchans, -1) # reshape to have nchans rows, as indicated in layout
@@ -322,14 +321,22 @@ class File(object):
 
         Here's the most correct way to do this, that doesn't assume records fall in any
         order whatsoever, whether channel (probe) order, or temporal order:
-        1. Sort all records by time (should probably be a stable sort, so if they're already sorted, the order of records with identical timestamps won't change)
+        1. Sort all records by time (should probably be a stable sort, so if they're already
+        sorted, the order of records with identical timestamps won't change)
         2. find all the unique timestamp values for all the records
-        3. For each unique timestamp, find all records that have it. Combine them into a single lpmc record. Then, make sure they're sorted by channel (probe number)
+        3. For each unique timestamp, find all records that have it. Combine them into a
+        single lpmc record. Then, make sure they're sorted by channel (probe number)
 
-        The same should probably be done for highpass records too.
-        The vast majority of the time, all the records will be in temporal and probe order, which would make things very quick. Do a test to see if this is indeed the case and can be taken advantage of. Assume that it's the case, and arrange records accordingly into lpmc records. Then check for temporal order across lpmc records, and for each lpmc record, check that its chans are in probe order (chan order).
+        The same should probably be done for highpass records too. The vast majority of the
+        time, all the records will be in temporal and probe order, which would make things
+        very quick. Do a test to see if this is indeed the case and can be taken advantage
+        of. Assume that it's the case, and arrange records accordingly into lpmc records.
+        Then check for temporal order across lpmc records, and for each lpmc record, check
+        that its chans are in probe order (chan order).
 
-        If either assumption is wrong (sorted by time, with records of identical timestamps sorted by Probe), should first sort by Probe, then (stable sort) by time, and then the assumptions will be correct.
+        If either assumption is wrong (sorted by time, with records of identical timestamps
+        sorted by Probe), should first sort by Probe, then (stable sort) by time, and then
+        the assumptions will be correct.
         """
 
         try: # check if any lowpass records exist

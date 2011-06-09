@@ -959,7 +959,7 @@ class ClusterTabSpinBox(QtGui.QSpinBox):
         QtGui.QSpinBox.__init__(self, parent)
 
     def keyPressEvent(self, event):
-        if  event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+        if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             self.topLevelWidget().on_actionUndo_triggered()
         else:
             QtGui.QSpinBox.keyPressEvent(self, event) # handle it as usual
@@ -971,7 +971,7 @@ class ClusterTabDoubleSpinBox(QtGui.QDoubleSpinBox):
         QtGui.QDoubleSpinBox.__init__(self, parent)
 
     def keyPressEvent(self, event):
-        if  event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+        if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             self.topLevelWidget().on_actionUndo_triggered()
         else:
             QtGui.QDoubleSpinBox.keyPressEvent(self, event) # handle it as usual
