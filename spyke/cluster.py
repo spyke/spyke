@@ -29,6 +29,10 @@ class Cluster(object):
         self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'dphase':0, 't':0, 's0':0, 's1':0}
         # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
         # reversing the dims in the key requires negating the ori_value
+        
+        ## TODO: I don't think ori and scale are used any more, should be removed.
+        ## Should rename pos to normpos and make a new unnormalized pos attrib
+        
         self.ori = {'x0':{}, 'y0':{}, 'sx':{}, 'sy':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'dphase':{}, 't':{}, 's0':{}, 's1':{}}
         # set scale to 0 to exclude a param from consideration as a
         # dim when checking which points fall within which ellipsoid

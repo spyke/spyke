@@ -1211,12 +1211,18 @@ spikes</string>
      <property name="title">
       <string>&amp;Export</string>
      </property>
-     <addaction name="actionExportSpikes"/>
+     <widget class="QMenu" name="menuSpikes">
+      <property name="title">
+       <string>Spikes</string>
+      </property>
+      <addaction name="actionExportPtcsFiles"/>
+      <addaction name="actionExportSpkFiles"/>
+      <addaction name="actionExportTsChID"/>
+     </widget>
+     <addaction name="menuSpikes"/>
      <addaction name="actionExportDIN"/>
      <addaction name="actionExportTextheader"/>
      <addaction name="actionExportAll"/>
-     <addaction name="separator"/>
-     <addaction name="actionExportTsChID"/>
      <addaction name="separator"/>
      <addaction name="actionExportLFP"/>
     </widget>
@@ -1261,7 +1267,7 @@ spikes</string>
    </widget>
    <widget class="QMenu" name="menuSampling">
     <property name="title">
-     <string>Sampling</string>
+     <string>&amp;Sampling</string>
     </property>
     <addaction name="action25kHz"/>
     <addaction name="action50kHz"/>
@@ -1271,7 +1277,7 @@ spikes</string>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
-     <string>Help</string>
+     <string>&amp;Help</string>
     </property>
     <addaction name="actionAboutSpyke"/>
     <addaction name="actionAboutQt"/>
@@ -1399,11 +1405,6 @@ spikes</string>
     <string>Ctrl+Y</string>
    </property>
   </action>
-  <action name="actionExportSpikes">
-   <property name="text">
-    <string>Spikes</string>
-   </property>
-  </action>
   <action name="actionExportDIN">
    <property name="text">
     <string>DIN</string>
@@ -1421,7 +1422,7 @@ spikes</string>
   </action>
   <action name="actionExportTsChID">
    <property name="text">
-    <string>TsChID</string>
+    <string>.tschid files</string>
    </property>
   </action>
   <action name="actionExportLFP">
@@ -1657,6 +1658,16 @@ spikes</string>
    </property>
    <property name="toolTip">
     <string>Save .sort as</string>
+   </property>
+  </action>
+  <action name="actionExportPtcsFiles">
+   <property name="text">
+    <string>.ptcs files</string>
+   </property>
+  </action>
+  <action name="actionExportSpkFiles">
+   <property name="text">
+    <string>.spk files</string>
    </property>
   </action>
  </widget>

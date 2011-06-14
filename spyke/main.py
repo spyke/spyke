@@ -185,13 +185,33 @@ class SpykeWindow(QtGui.QMainWindow):
             self.SaveWaveFile(tail)
 
     @QtCore.pyqtSlot()
+    def on_actionExportPtcsFiles_triggered(self):
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export .ptcs file(s) to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
+            self.sort.exportptcsfiles(path)
+            # don't update cwd
+
+    @QtCore.pyqtSlot()
     def on_actionExportSpikes_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export spikes to",
+        path = getExistingDirectory(self, caption="Export .spk files to",
                                     directory=os.getcwd())
         path = str(path)
         if path:
             self.sort.exportspikes(path)
+            # don't update cwd
+
+    @QtCore.pyqtSlot()
+    def on_actionExportTsChId_triggered(self):
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export tschid(s) to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
+            self.sort.exporttschid(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
@@ -222,16 +242,6 @@ class SpykeWindow(QtGui.QMainWindow):
         path = str(path)
         if path:
             self.sort.exportall(path)
-            # don't update cwd
-
-    @QtCore.pyqtSlot()
-    def on_actionExportTsChId_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export tschid(s) to",
-                                    directory=os.getcwd())
-        path = str(path)
-        if path:
-            self.sort.exporttschid(path)
             # don't update cwd
 
     @QtCore.pyqtSlot()
