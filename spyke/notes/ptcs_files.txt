@@ -22,7 +22,8 @@ samplerate: float64 (Hz)
 neuron i:
 -------------------
 nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
-ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings)
+ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings,
+             defaults to -1)
 nneurondescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment,
                            defaults to 0)
 neurondescr: nneurondescrbytes of ASCII text

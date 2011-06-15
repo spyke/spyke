@@ -348,8 +348,8 @@ class Sort(object):
         print(lfpfname)
 
     def get_param_matrix(self, dims=None, scale=True):
-        """Organize parameters in dims from all spikes into a
-        data matrix, each column corresponds to a dim"""
+        """Organize parameters in dims from all spikes into a data matrix,
+        each column corresponds to a dim"""
         # np.column_stack returns a copy, not modifying the original array
         data = []
         for dim in dims:
@@ -358,7 +358,7 @@ class Sort(object):
         if scale:
             x0std = self.spikes['x0'].std()
             assert x0std != 0
-            for dim, d in zip(dims, data.T):
+            for dim, d in zip(dims, data.T): # d iterates over columns
                 d -= d.mean()
                 if dim in ['x0', 'y0']:
                     d /= x0std
@@ -964,7 +964,8 @@ class PTCSNeuronRecord(object):
     Polytrode clustered spikes file neuron record:
     
     nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
-    ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings)
+    ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings,
+                 defaults to -1)
     nneurondescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment,
                                defaults to 0)
     neurondescr: nneurondescrbytes of ASCII text
@@ -983,14 +984,13 @@ class PTCSNeuronRecord(object):
     nspikes: uint64 (number of spikes in this neuron)
     spike timestamps: nspikes * uint64 (us, should be sorted)
     """
-    def __init__(self, neuron, spikets=None, ptid=0, descr='', nsamplebytes=None):
+    def __init__(self, neuron, spikets=None, descr='', nsamplebytes=None):
         self.neuron = neuron
         self.spikets = spikets # constrained to stream range, may be < neuron.sids
-        self.ptid = ptid
         self.descr = descr
         assert len(self.descr) % 8 == 0
         self.wavedtype = {2: np.float16, 4: np.float32, 8: np.float64}[nsamplebytes]
-        nbytes = self.wavedtype(neuron.wave.data.nbytes)
+        nbytes = self.wavedtype(neuron.wave.data).nbytes
         rem = nbytes % 8
         self.nwaveformpadbytes = 8 - rem if rem else 0
         self.nwaveformbytes = nbytes + self.nwaveformpadbytes
@@ -999,11 +999,11 @@ class PTCSNeuronRecord(object):
     def write(self, f):
         n = self.neuron
         np.int64(n.id).tofile(f) # nid
-        np.int64(self.ptid).tofile(f) # ptid
+        np.int64(-1).tofile(f) # ptid
         np.uint64(len(self.descr)).tofile(f) # nneurondescrbytes
         f.write(self.descr) # neurondescr
         np.float64(np.nan).tofile(f) # clusterscore
-        np.float64(n.cluster.pos['x0']).tofile(f) # xpos (um) # NOTE: this is normalized!!!
+        np.float64(n.cluster.pos['x0']).tofile(f) # xpos (um)
         np.float64(n.cluster.pos['y0']).tofile(f) # ypos (um)
         np.float64(np.nan).tofile(f) # zpos (um)
         np.uint64(len(n.wave.chans)).tofile(f) # nchans
@@ -1287,7 +1287,7 @@ class SortWindow(SpykeToolWindow):
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
         plotdims = spw.GetClusterPlotDimNames()
-        newcluster.updatePosScale()
+        newcluster.update_pos()
 
         # save more undo/redo stuff
         cc.save_new([newcluster], s.norder)
@@ -1307,10 +1307,11 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.cluster('chansplit')
 
     def on_actionRenumberClusters_triggered(self):
-        """Renumber clusters consecutively from 0, ordered by y position, on "#" button click.
-        Sorting by y position makes user inspection of clusters more orderly, makes the
-        presence of duplicate clusters more obvious, and allows for maximal spatial
-        separation between clusters of the same colour, reducing colour conflicts"""
+        """Renumber clusters consecutively from 0, ordered by y position, on "#" button
+        click. Sorting by y position makes user inspection of clusters more orderly,
+        makes the presence of duplicate clusters more obvious, and allows for maximal
+        spatial separation between clusters of the same colour, reducing colour
+        conflicts"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
@@ -1380,7 +1381,7 @@ class SortWindow(SpykeToolWindow):
             return
         cw = spw.windows['Cluster']
         dims = spw.GetClusterPlotDimNames()
-        cw.glWidget.focus = np.float32([ cluster.pos[dim] for dim in dims ])
+        cw.glWidget.focus = np.float32([ cluster.normpos[dim] for dim in dims ])
         cw.glWidget.panTo() # pan to new focus
         cw.glWidget.updateGL()
 

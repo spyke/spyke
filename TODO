@@ -2,6 +2,8 @@
     - seems especially slow when random sampling, seems normal when selectin a range of spikes with the mouse
     - might be an issue in matplotlib/lib/matplotlib/lines.py or cbook.py - callback event connection gets caught in a loop maybe? Got this traceback when trying to plot lots of spikes at once from the same neuron:
     
+- also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
+    
 home/mspacek/source/matplotlib/lib/matplotlib/lines.pyc in set_axes(self=<matplotlib.lines.Line2D object>, ax=<matplotlib.axes.Axes object>)
     399         Artist.set_axes(self, ax)
     400         if ax.xaxis is not None:

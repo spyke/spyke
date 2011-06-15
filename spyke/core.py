@@ -889,7 +889,18 @@ class NListModel(SpykeAbstractListModel):
                 return '%d spikes' % neurons[nid].nspikes
 
 
-class NSListModel(SpykeAbstractListModel):
+class SListModel(SpykeAbstractListModel):
+    """Base model for spike list views"""
+    def spiketooltip(self, spike):
+        return ('x0: %.4g um\n' % spike['x0'] +
+                'y0: %.4g um\n' % spike['y0'] +
+                'Vpp: %.4g uV\n' % spike['Vpp'] +
+                't: %d us\n' % spike['t'] +
+                'sx: %.4g um\n' % spike['sx'] +
+                'dphase: %.4g us' % spike['dphase'])
+
+
+class NSListModel(SListModel):
     """Model for neuron spikes list view"""
     def __init__(self, parent):
         SpykeAbstractListModel.__init__(self, parent)
@@ -919,18 +930,11 @@ class NSListModel(SpykeAbstractListModel):
                 return sid
             else: # role == Qt.ToolTipRole
                 spike = self.sortwin.sort.spikes[sid]
-                return ('x0: %.4g um\n' % spike['x0'] +
-                        'y0: %.4g um\n' % spike['y0'] +
-                        'Vpp: %.4g uV\n' % spike['Vpp'] +
-                        't: %.4g us\n' % spike['t'] +
-                        'sx: %.4g um\n' % spike['sx'] +
-                        'dphase: %.4g us' % spike['dphase'])
-
-        if role == Qt.DisplayRole and index.isValid():
-            return int(self.sids[index.row()])
+                return self.spiketooltip(spike)
 
 
-class USListModel(SpykeAbstractListModel):
+
+class USListModel(SListModel):
     """Model for unsorted spike list view"""
     def rowCount(self, parent=None):
         try:
@@ -945,12 +949,7 @@ class USListModel(SpykeAbstractListModel):
                 return sid
             else: # role == Qt.ToolTipRole
                 spike = self.sortwin.sort.spikes[sid]
-                return ('x0: %.4g um\n' % spike['x0'] +
-                        'y0: %.4g um\n' % spike['y0'] +
-                        'Vpp: %.4g uV\n' % spike['Vpp'] +
-                        't: %.4g us\n' % spike['t'] +
-                        'sx: %.4g um\n' % spike['sx'] +
-                        'dphase: %.4g us' % spike['dphase'])
+                return self.spiketooltip(spike)
 
 
 class ClusterTabSpinBox(QtGui.QSpinBox):
@@ -1009,16 +1008,16 @@ class ClusterChange(object):
 
     def save_old(self, oldclusters, oldnorder):
         self.oldnids = self.spikes['nid'][self.sids] # this seems to create a copy
-        self.oldunids = [ cluster.id for cluster in oldclusters ]
-        self.oldpositions = [ cluster.pos.copy() for cluster in oldclusters ]
-        self.oldscales = [ cluster.scale.copy() for cluster in oldclusters ]
+        self.oldunids = [ c.id for c in oldclusters ]
+        self.oldposs = [ c.pos.copy() for c in oldclusters ]
+        self.oldnormposs = [ c.normpos.copy() for c in oldclusters ]
         self.oldnorder = copy(oldnorder)
 
     def save_new(self, newclusters, newnorder):
         self.newnids = self.spikes['nid'][self.sids] # this seems to create a copy
-        self.newunids = [ newcluster.id for newcluster in newclusters ]
-        self.newpositions = [ newcluster.pos.copy() for newcluster in newclusters ]
-        self.newscales = [ newcluster.scale.copy() for newcluster in newclusters ]
+        self.newunids = [ c.id for c in newclusters ]
+        self.newposs = [ c.pos.copy() for c in newclusters ]
+        self.newnormposs = [ c.normpos.copy() for c in newclusters ]
         self.newnorder = copy(newnorder)
 
 '''

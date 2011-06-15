@@ -25,18 +25,11 @@ class Cluster(object):
     Cluster will always correspond to a Neuron"""
     def __init__(self, neuron):
         self.neuron = neuron
-        # cluster attribs store scaled values of each dim, suitable for plotting
-        self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0, 'dphase':0, 't':0, 's0':0, 's1':0}
-        # for ori, each dict entry for each dim is (otherdim1, otherdim2): ori_value
-        # reversing the dims in the key requires negating the ori_value
-        
-        ## TODO: I don't think ori and scale are used any more, should be removed.
-        ## Should rename pos to normpos and make a new unnormalized pos attrib
-        
-        self.ori = {'x0':{}, 'y0':{}, 'sx':{}, 'sy':{}, 'Vpp':{}, 'V0':{}, 'V1':{}, 'dphase':{}, 't':{}, 's0':{}, 's1':{}}
-        # set scale to 0 to exclude a param from consideration as a
-        # dim when checking which points fall within which ellipsoid
-        self.scale = {'x0':0.25, 'y0':0.25, 'sx':0, 'sy':0, 'Vpp':0.25, 'V0':0, 'V1':0, 'dphase':0, 't':0, 's0':0, 's1':0}
+        self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
+                    'dphase':0, 't':0, 's0':0, 's1':0}
+        # cluster normpos are scaled values, suitable for plotting
+        self.normpos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
+                        'dphase':0, 't':0, 's0':0, 's1':0}
 
     def get_id(self):
         return self.neuron.id
@@ -46,17 +39,17 @@ class Cluster(object):
 
     id = property(get_id, set_id)
 
-    def updatePosScale(self, dims=None, nsamples=CLUSTERPARAMSAMPLESIZE):
-        """Update normalized cluster position and scale for specified dims. Use median
-        instead of mean to reduce influence of outliers on cluster position.
-        Subsample for speed"""
+    def update_pos(self, dims=None, nsamples=CLUSTERPARAMSAMPLESIZE):
+        """Update unnormalized and normalized cluster position for specified dims.
+        Use median instead of mean to reduce influence of outliers on cluster
+        position. Subsample for speed"""
         sort = self.neuron.sort
         spikes = sort.spikes
         if dims == None: # use all of them
             dims = list(self.pos) # some of these might not exist in spikes array
         sids = self.neuron.sids
         if nsamples and len(sids) > nsamples: # subsample spikes
-            print('neuron %d: updatePosScale() taking random sample of %d spikes instead '
+            print('neuron %d: update_pos() taking random sample of %d spikes instead '
                   'of all %d of them' % (self.id, nsamples, len(sids)))
             sids = np.asarray(random.sample(sids, nsamples))
 
@@ -66,15 +59,19 @@ class Cluster(object):
         try: sort.stds
         except AttributeError: sort.stds = {}
 
+        ## FIXME: some code duplication from sort.get_param_matrix()?
         for dim in dims:
             try:
                 spikes[dim]
             except ValueError:
                 continue # this dim doesn't exist in spikes record array, ignore it
-            # create normalized copy of all samples for this dim, sort of duplicating code
-            # in sort.get_param_matrix()
+            # data from all spikes:
             data = spikes[dim]
-            subdata = data[sids].copy() # subsampled data, copied for in-place normalization
+            # data from neuron's spikes, potentially subsample of them,
+            # copied for in-place normalization:
+            subdata = data[sids].copy()
+            # update unnormalized position
+            self.pos[dim] = np.median(subdata)
             # calculate mean and std for normalization
             try: mean = sort.means[dim]
             except KeyError:
@@ -94,9 +91,8 @@ class Cluster(object):
             subdata -= mean
             if std != 0:
                 subdata /= std
-            # update position and scale
-            self.pos[dim] = np.median(subdata)
-            self.scale[dim] = subdata.std() or self.scale[dim] # never update scale to 0
+            # update normalized position
+            self.normpos[dim] = np.median(subdata)
 
 
 class ClusterWindow(SpykeToolWindow):
@@ -462,12 +458,14 @@ class GLWidget(QtOpenGL.QGLWidget):
         if sid != None:
             dims = spw.GetClusterPlotDimNames()
             nid = sort.spikes[sid]['nid']
-            tip = 'sid: %d\n' % sid
             sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
+            tip = 'sid: %d\n' % sid
             tip += '%s: %s' % (lst2shrtstr(dims), sposstr)
             if nid > -1:
+                poststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                npoststr = lst2shrtstr([ sort.neurons[nid].cluster.normpos[dim] for dim in dims ])
                 tip += '\nnid: %d\n' % nid
-                npoststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                tip += '%s: %s\n' % (lst2shrtstr(dims), poststr)
                 tip += 'normed %s: %s' % (lst2shrtstr(dims), npoststr)
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
             QtGui.QToolTip.showText(globalPos, tip)

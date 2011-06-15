@@ -614,7 +614,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
                 raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
-            cluster.updatePosScale()
+            cluster.update_pos()
 
         # save more undo/redo stuff
         cc.save_new(newclusters, s.norder)
@@ -908,8 +908,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # and update self.cci appropriately
 
     def ApplyClusterChange(self, cc, direction):
-        """Apply cluster change described in cc, in either the forward or backward direction,
-        to the current set of clusters"""
+        """Apply cluster change described in cc, in either the forward or backward
+        direction, to the current set of clusters"""
         s = self.sort
         spikes = s.spikes
         sw = self.windows['Sort']
@@ -922,16 +922,16 @@ class SpykeWindow(QtGui.QMainWindow):
             oldnids = cc.oldnids
             newunids = cc.newunids
             oldunids = cc.oldunids
-            positions = cc.oldpositions
-            scales = cc.oldscales
+            poss = cc.oldposs
+            normposs = cc.oldnormposs
             norder = cc.oldnorder
         else: # direction == 'forward'
             #newnids = cc.oldnids # not needed
             oldnids = cc.newnids
             newunids = cc.oldunids
             oldunids = cc.newunids
-            positions = cc.newpositions
-            scales = cc.newscales
+            poss = cc.newposs
+            normposs = cc.newnormposs
             norder = cc.newnorder
 
         # delete newly added clusters
@@ -952,14 +952,14 @@ class SpykeWindow(QtGui.QMainWindow):
         dims = self.GetClusterPlotDimNames()
         t0 = time.time()
         # NOTE: oldunids are not necessarily sorted
-        for nid, pos, scale in zip(oldunids, positions, scales):
+        for nid, pos, normpos in zip(oldunids, poss, normposs):
             nsids = sids[oldnids == nid] # sids belonging to this nid
             cluster = self.CreateCluster(update=False, id=nid)
             oldclusters.append(cluster)
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             cluster.pos = pos
-            cluster.scale = scale
+            cluster.normpos = normpos
         # restore norder
         s.norder = copy(norder)
 
@@ -1493,17 +1493,6 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: enable = False # self.sort doesn't exist yet
         self.validate_pane.Enable(enable)
         '''
-    '''
-    def EnablePosOriScaleWidgets(self, enable):
-        """Enable/disable the pos, ori, and scale textctrl widgets for controlling
-        and displaying cluster params. Use this instead of self.cluster_pane.Enable()
-        to allow the dims ComboBoxes to remain enabled for plotting purposes"""
-        widgets = [self.xpos, self.ypos, self.zpos,
-                   self.xori, self.yori, self.zori,
-                   self.xscale, self.yscale, self.zscale]
-        for widget in widgets:
-            widget.Enable(enable)
-    '''
     def get_detector(self):
         """Create and bind Detector object, update sort from gui"""
         self.sort.detector = Detector(sort=self.sort)
