@@ -886,16 +886,24 @@ class NListModel(SpykeAbstractListModel):
             if role == Qt.DisplayRole:
                 return nid # no need to use QVariant() apparently
             else: # role == Qt.ToolTipRole
-                return '%d spikes' % neurons[nid].nspikes
+                neuron = neurons[nid]
+                pos = neuron.cluster.pos
+                return ('%d spikes\n' % neuron.nspikes +
+                        't: %d us\n' % pos['t'] +
+                        'x0: %.4g um\n' % pos['x0'] +
+                        'y0: %.4g um\n' % pos['y0'] +
+                        'Vpp: %.4g uV\n' % pos['Vpp'] +
+                        'sx: %.4g um\n' % pos['sx'] +
+                        'dphase: %.4g us' % pos['dphase'])
 
 
 class SListModel(SpykeAbstractListModel):
     """Base model for spike list views"""
     def spiketooltip(self, spike):
-        return ('x0: %.4g um\n' % spike['x0'] +
+        return ('t: %d us\n' % spike['t'] +
+                'x0: %.4g um\n' % spike['x0'] +
                 'y0: %.4g um\n' % spike['y0'] +
                 'Vpp: %.4g uV\n' % spike['Vpp'] +
-                't: %d us\n' % spike['t'] +
                 'sx: %.4g um\n' % spike['sx'] +
                 'dphase: %.4g us' % spike['dphase'])
 

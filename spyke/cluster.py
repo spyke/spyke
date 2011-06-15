@@ -463,10 +463,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             tip += '%s: %s' % (lst2shrtstr(dims), sposstr)
             if nid > -1:
                 poststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
-                npoststr = lst2shrtstr([ sort.neurons[nid].cluster.normpos[dim] for dim in dims ])
                 tip += '\nnid: %d\n' % nid
-                tip += '%s: %s\n' % (lst2shrtstr(dims), poststr)
-                tip += 'normed %s: %s' % (lst2shrtstr(dims), npoststr)
+                tip += '%s: %s' % (lst2shrtstr(dims), poststr)
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
             QtGui.QToolTip.showText(globalPos, tip)
         else:

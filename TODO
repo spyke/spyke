@@ -3,6 +3,9 @@
     - might be an issue in matplotlib/lib/matplotlib/lines.py or cbook.py - callback event connection gets caught in a loop maybe? Got this traceback when trying to plot lots of spikes at once from the same neuron:
     
 - also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
+
+- glwidget seems slower now as well for big plots, like the 7.2 M ptc15.tr7c plot
+    - maybe not. I think I'm just used to sorts with about half as many spikes, which are noticeably faster
     
 home/mspacek/source/matplotlib/lib/matplotlib/lines.pyc in set_axes(self=<matplotlib.lines.Line2D object>, ax=<matplotlib.axes.Axes object>)
     399         Artist.set_axes(self, ax)
