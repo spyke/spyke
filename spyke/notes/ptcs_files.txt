@@ -10,8 +10,8 @@ Neuron description field might contain: which polytrode/brain area the neuron wa
 file header:
 -------------------
 formatversion: int64 (start at version 1)
-nfiledescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
-filedescr: nfiledescrbytes of ASCII text
+ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+descr: ndescrbytes of ASCII text
     (padded with spaces if needed for 8 byte alignment)
 nneurons: uint64 (number of neurons)
 nspikes: uint64 (total number of spikes)
@@ -24,9 +24,9 @@ neuron i:
 nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
 ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings,
              defaults to -1)
-nneurondescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment,
-                           defaults to 0)
-neurondescr: nneurondescrbytes of ASCII text
+ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment, defaults to 0)
+descr: ndescrbytes of ASCII text
+    (padded with spaces if needed for 8 byte alignment)
 clusterscore: float64
 xpos: float64 (um)
 ypos: float64 (um)
@@ -35,8 +35,8 @@ nchans: uint64 (num chans in template waveforms)
 chans: nchans * uint64 (IDs of channels in template waveforms)
 maxchan: uint64 (ID of max channel in template waveforms)
 nt: uint64 (num timepoints per template waveform channel)
-nwaveformbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
-waveforms: nchans * nt * nsamplebytes
+nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+wavedata: nchans * nt * nsamplebytes
     (float AD template waveform data, padded with zeros if
      needed for 8 byte alignment)
 nspikes: uint64 (number of spikes in this neuron)

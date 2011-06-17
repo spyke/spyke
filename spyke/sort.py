@@ -917,8 +917,8 @@ class PTCSHeader(object):
     Polytrode clustered spikes file header:
     
     formatversion: int64 (start at version 1)
-    nfiledescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
-    filedescr: nfiledescrbytes of ASCII text
+    ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+    descr: ndescrbytes of ASCII text
         (padded with spaces if needed for 8 byte alignment)
     nneurons: uint64 (number of neurons)
     nspikes: uint64 (total number of spikes)
@@ -950,8 +950,8 @@ class PTCSHeader(object):
     def write(self, f):
         s = self.sort
         np.int64(self.FORMATVERSION).tofile(f) # formatversion
-        np.uint64(len(self.descr)).tofile(f) # nfiledescrbytes
-        f.write(self.descr) # filedescr
+        np.uint64(len(self.descr)).tofile(f) # ndescrbytes
+        f.write(self.descr) # descr
         np.uint64(len(s.neurons)).tofile(f) # nneurons
         np.uint64(s.nspikes).tofile(f) # nspikes
         np.uint64(self.nsamplebytes).tofile(f) # nsamplebytes
@@ -966,9 +966,9 @@ class PTCSNeuronRecord(object):
     nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
     ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings,
                  defaults to -1)
-    nneurondescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment,
-                               defaults to 0)
-    neurondescr: nneurondescrbytes of ASCII text
+    ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment, defaults to 0)
+    descr: ndescrbytes of ASCII text
+        (padded with spaces if needed for 8 byte alignment)
     clusterscore: float64
     xpos: float64 (um)
     ypos: float64 (um)
@@ -977,8 +977,8 @@ class PTCSNeuronRecord(object):
     chans: nchans * uint64 (IDs of channels in template waveforms)
     maxchan: uint64 (ID of max channel in template waveforms)
     nt: uint64 (num timepoints per template waveform channel)
-    nwaveformbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
-    waveforms: nchans * nt * nsamplebytes
+    nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+    wavedata: nchans * nt * nsamplebytes
         (float AD template waveform data, padded with zeros if
          needed for 8 byte alignment)
     nspikes: uint64 (number of spikes in this neuron)
@@ -992,16 +992,16 @@ class PTCSNeuronRecord(object):
         self.wavedtype = {2: np.float16, 4: np.float32, 8: np.float64}[nsamplebytes]
         nbytes = self.wavedtype(neuron.wave.data).nbytes
         rem = nbytes % 8
-        self.nwaveformpadbytes = 8 - rem if rem else 0
-        self.nwaveformbytes = nbytes + self.nwaveformpadbytes
-        assert self.nwaveformbytes % 8 == 0
+        self.nwavedatapadbytes = 8 - rem if rem else 0
+        self.nwavedatabytes = nbytes + self.nwavedatapadbytes
+        assert self.nwavedatabytes % 8 == 0
         
     def write(self, f):
         n = self.neuron
         np.int64(n.id).tofile(f) # nid
         np.int64(-1).tofile(f) # ptid
-        np.uint64(len(self.descr)).tofile(f) # nneurondescrbytes
-        f.write(self.descr) # neurondescr
+        np.uint64(len(self.descr)).tofile(f) # ndescrbytes
+        f.write(self.descr) # descr
         np.float64(np.nan).tofile(f) # clusterscore
         np.float64(n.cluster.pos['x0']).tofile(f) # xpos (um)
         np.float64(n.cluster.pos['y0']).tofile(f) # ypos (um)
@@ -1010,9 +1010,9 @@ class PTCSNeuronRecord(object):
         np.uint64(n.wave.chans).tofile(f) # chans
         np.uint64(n.chan).tofile(f) # maxchan
         np.uint64(len(n.wave.ts)).tofile(f) # nt
-        np.uint64(self.nwaveformbytes).tofile(f) # nwaveformbytes
-        self.wavedtype(n.wave.data).tofile(f) # waveforms (nchans * nt * nsamplebytes)
-        np.zeros(self.nwaveformpadbytes, dtype=np.uint8).tofile(f) # 0 padding
+        np.uint64(self.nwavedatabytes).tofile(f) # nwavedatabytes
+        self.wavedtype(n.wave.data).tofile(f) # wavedata (nchans * nt * nsamplebytes)
+        np.zeros(self.nwavedatapadbytes, dtype=np.uint8).tofile(f) # 0 padding
         np.uint64(len(self.spikets)).tofile(f) # nspikes
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
 
