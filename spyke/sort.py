@@ -193,6 +193,27 @@ class Sort(object):
     def exportptcsfile(self, dt, srffname, streamtrange, basepath):
         """Export spike data to binary .ptcs file in basepath, constrain spikes
         to given streamtrange"""
+        userdescr = ''
+        nsamplebytes = 4
+        # build up list of PTCSNeuronRecords that have spikes in this streamrange,
+        # and tally their spikes
+        recs = []
+        nspikes = 0
+        nids = sorted(self.neurons)
+        for nid in nids:
+            neuron = self.neurons[nid]
+            spikets = self.spikes['t'][neuron.sids] # should be sorted
+            # constrain to spikes within streamtrange
+            lo, hi = spikets.searchsorted(streamtrange)
+            spikets = spikets[lo:hi]
+            if len(spikets) == 0:
+                continue # don't save empty neurons
+            rec = PTCSNeuronRecord(neuron, spikets, nsamplebytes=nsamplebytes)
+            recs.append(rec)
+            nspikes += len(spikets)
+        nneurons = len(recs)
+
+        # write the file
         srffnameroot = lrstrip(srffname, '../', '.srf')
         path = os.path.join(basepath, srffnameroot)
         try: os.mkdir(path)
@@ -200,20 +221,11 @@ class Sort(object):
         fname = dt + '.ptcs'
         fullfname = os.path.join(path, fname)
         with open(fullfname, 'wb') as f:
-            header = PTCSHeader(self, fullfname, dt, srffname)
+            header = PTCSHeader(self, nneurons, nspikes, userdescr, nsamplebytes,
+                                fullfname, dt, srffname)
             header.write(f)
-            nids = sorted(self.neurons)
-            for nid in nids:
-                neuron = self.neurons[nid]
-                spikets = self.spikes['t'][neuron.sids] # should be sorted
-                # constrain to spikes within streamtrange
-                lo, hi = spikets.searchsorted(streamtrange)
-                spikets = spikets[lo:hi]
-                if len(spikets) == 0:
-                    continue # don't save empty neurons
-                record = PTCSNeuronRecord(neuron, spikets,
-                                          nsamplebytes=header.nsamplebytes)
-                record.write(f)
+            for rec in recs:
+                rec.write(f)
         print(path)
 
     def exportspkfiles(self, basepath):
@@ -929,31 +941,37 @@ class PTCSHeader(object):
     samplerate: float64 (Hz)
     """
     FORMATVERSION = 1 # overall .ptcs file format version, not header format version
-    def __init__(self, sort, fullfname, dt, srffname, userdescr='', nsamplebytes=4):
+    def __init__(self, sort, nneurons, nspikes, userdescr, nsamplebytes,
+                 fullfname, dt, srffname):
         self.sort = sort
+        self.nneurons = nneurons
+        self.nspikes = nspikes
         self.userdescr = userdescr
+        self.nsamplebytes = nsamplebytes
         homelessfullfname = lstrip(fullfname, os.path.expanduser('~'))
-        # description dictionary
-        d = {'file_type': '.ptcs (polytrode clustered spikes) file',
-             'original_fname': homelessfullfname, 'extraction_datetime': dt,
-             'recording_fname': srffname}
+        # For description dictionary, could create a dict and convert it
+        # to a string, but that wouldn't guarantee key order. Instead,
+        # build string rep of description dict with guaranteed key order:
+        d = ("{'file_type': '.ptcs (polytrode clustered spikes) file', "
+             "'original_fname': %r, 'extraction_datetime': %r, "
+             "'recording_fname': %r" % (homelessfullfname, dt, srffname))
         if userdescr:
-            d['user_descr'] = userdescr
-        d = str(d).encode('ascii') # convert to string, ensure it's pure ASCII
+            d += ", 'user_descr': %r" % userdescr
+        d += "}"
+        d = d.encode('ascii') # ensure it's pure ASCII
         rem = len(d) % 8
         npad = 8 - rem if rem else 0 # num spaces to pad with for 8 byte alignment
         d += ' ' * npad
         assert len(d) % 8 == 0
         self.descr = d
-        self.nsamplebytes = nsamplebytes
 
     def write(self, f):
         s = self.sort
         np.int64(self.FORMATVERSION).tofile(f) # formatversion
         np.uint64(len(self.descr)).tofile(f) # ndescrbytes
         f.write(self.descr) # descr
-        np.uint64(len(s.neurons)).tofile(f) # nneurons
-        np.uint64(s.nspikes).tofile(f) # nspikes
+        np.uint64(self.nneurons).tofile(f) # nneurons
+        np.uint64(self.nspikes).tofile(f) # nspikes
         np.uint64(self.nsamplebytes).tofile(f) # nsamplebytes
         np.float64(s.sampfreq).tofile(f) # samplerate
 
