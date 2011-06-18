@@ -16,7 +16,6 @@ descr: ndescrbytes of ASCII text
 nneurons: uint64 (number of neurons)
 nspikes: uint64 (total number of spikes)
 nsamplebytes: uint64 (number of bytes per template waveform sample)
-uVperAD: float64 (converts AD sample units to uV)
 samplerate: float64 (Hz)
 
 neuron i:
@@ -37,7 +36,7 @@ maxchan: uint64 (ID of max channel in template waveforms)
 nt: uint64 (num timepoints per template waveform channel)
 nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 wavedata: nchans * nt * nsamplebytes
-    (float AD template waveform data, padded with zeros if
+    (float template waveform data, in uV, padded with zeros if
      needed for 8 byte alignment)
 nspikes: uint64 (number of spikes in this neuron)
 spike timestamps: nspikes * uint64 (us, should be sorted)

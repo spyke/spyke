@@ -22,7 +22,7 @@ import numpy as np
 #import pylab
 
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
-from core import toiter, savez, intround, rstrip, lrstrip, timedelta2usec
+from core import toiter, savez, intround, lstrip, rstrip, lrstrip, timedelta2usec
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from plot import SpikeSortPanel
 
@@ -197,9 +197,10 @@ class Sort(object):
         path = os.path.join(basepath, srffnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
-        fname = srffnameroot + '_' + dt + '.ptcs'
-        with open(os.path.join(path, fname), 'wb') as f:
-            header = PTCSHeader(self, fname, dt, srffname)
+        fname = dt + '.ptcs'
+        fullfname = os.path.join(path, fname)
+        with open(fullfname, 'wb') as f:
+            header = PTCSHeader(self, fullfname, dt, srffname)
             header.write(f)
             nids = sorted(self.neurons)
             for nid in nids:
@@ -208,6 +209,8 @@ class Sort(object):
                 # constrain to spikes within streamtrange
                 lo, hi = spikets.searchsorted(streamtrange)
                 spikets = spikets[lo:hi]
+                if len(spikets) == 0:
+                    continue # don't save empty neurons
                 record = PTCSNeuronRecord(neuron, spikets,
                                           nsamplebytes=header.nsamplebytes)
                 record.write(f)
@@ -923,19 +926,16 @@ class PTCSHeader(object):
     nneurons: uint64 (number of neurons)
     nspikes: uint64 (total number of spikes)
     nsamplebytes: uint64 (number of bytes per template waveform sample)
-    uVperAD: float64 (converts AD sample units to uV)
     samplerate: float64 (Hz)
     """
     FORMATVERSION = 1 # overall .ptcs file format version, not header format version
-    def __init__(self, sort, fname, dt, srffname, userdescr='', nsamplebytes=4):
+    def __init__(self, sort, fullfname, dt, srffname, userdescr='', nsamplebytes=4):
         self.sort = sort
-        self.fname = fname
-        self.dt = dt
-        self.srffname = srffname
         self.userdescr = userdescr
+        homelessfullfname = lstrip(fullfname, os.path.expanduser('~'))
         # description dictionary
         d = {'file_type': '.ptcs (polytrode clustered spikes) file',
-             'original_fname': fname, 'extraction_datetime': dt,
+             'original_fname': homelessfullfname, 'extraction_datetime': dt,
              'recording_fname': srffname}
         if userdescr:
             d['user_descr'] = userdescr
@@ -955,7 +955,6 @@ class PTCSHeader(object):
         np.uint64(len(s.neurons)).tofile(f) # nneurons
         np.uint64(s.nspikes).tofile(f) # nspikes
         np.uint64(self.nsamplebytes).tofile(f) # nsamplebytes
-        np.float64(s.converter.AD2uV(1)).tofile(f) # uVperAD
         np.float64(s.sampfreq).tofile(f) # samplerate
 
 
@@ -979,7 +978,7 @@ class PTCSNeuronRecord(object):
     nt: uint64 (num timepoints per template waveform channel)
     nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
     wavedata: nchans * nt * nsamplebytes
-        (float AD template waveform data, padded with zeros if
+        (float template waveform data, in uV, padded with zeros if
          needed for 8 byte alignment)
     nspikes: uint64 (number of spikes in this neuron)
     spike timestamps: nspikes * uint64 (us, should be sorted)
@@ -998,6 +997,7 @@ class PTCSNeuronRecord(object):
         
     def write(self, f):
         n = self.neuron
+        AD2uV = n.sort.converter.AD2uV
         np.int64(n.id).tofile(f) # nid
         np.int64(-1).tofile(f) # ptid
         np.uint64(len(self.descr)).tofile(f) # ndescrbytes
@@ -1011,7 +1011,7 @@ class PTCSNeuronRecord(object):
         np.uint64(n.chan).tofile(f) # maxchan
         np.uint64(len(n.wave.ts)).tofile(f) # nt
         np.uint64(self.nwavedatabytes).tofile(f) # nwavedatabytes
-        self.wavedtype(n.wave.data).tofile(f) # wavedata (nchans * nt * nsamplebytes)
+        self.wavedtype(AD2uV(n.wave.data)).tofile(f) # wavedata (uV, nchans * nt * nsamplebytes)
         np.zeros(self.nwavedatapadbytes, dtype=np.uint8).tofile(f) # 0 padding
         np.uint64(len(self.spikets)).tofile(f) # nspikes
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
