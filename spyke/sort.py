@@ -185,7 +185,7 @@ class Sort(object):
             streamtranges = self.stream.streamtranges # includes offsets
         except AttributeError: # self.stream is a normal Stream
             streamtranges = [[self.stream.t0, self.stream.t1]]
-        print('exporting spikes to:')
+        print('exporting clustered spikes to:')
         # do a separate export for each recording
         for srffname, streamtrange in zip(srffnames, streamtranges):
             self.exportptcsfile(dt, srffname, streamtrange, basepath)
@@ -226,7 +226,7 @@ class Sort(object):
             header.write(f)
             for rec in recs:
                 rec.write(f)
-        print(path)
+        print(fullfname)
 
     def exportspkfiles(self, basepath):
         """Export spike data to binary .spk files under basepath, one file per neuron"""
@@ -241,7 +241,7 @@ class Sort(object):
             streamtranges = self.stream.streamtranges # includes offsets
         except AttributeError: # self.stream is a normal Stream
             streamtranges = [[self.stream.t0, self.stream.t1]]
-        print('exporting spikes to:')
+        print('exporting clustered spikes to:')
         # do a separate export for each recording
         for srffname, streamtrange in zip(srffnames, streamtranges):
             srffnameroot = lrstrip(srffname, '../', '.srf')
@@ -954,7 +954,8 @@ class PTCSHeader(object):
         # build string rep of description dict with guaranteed key order:
         d = ("{'file_type': '.ptcs (polytrode clustered spikes) file', "
              "'original_fname': %r, 'extraction_datetime': %r, "
-             "'recording_fname': %r" % (homelessfullfname, dt, srffname))
+             "'recording_fname': %r, 'electrode_name': %r"
+             % (homelessfullfname, dt, srffname, sort.stream.probe.name))
         if userdescr:
             d += ", 'user_descr': %r" % userdescr
         d += "}"

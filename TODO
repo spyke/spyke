@@ -2,11 +2,6 @@
     - seems especially slow when random sampling, seems normal when selectin a range of spikes with the mouse
     - might be an issue in matplotlib/lib/matplotlib/lines.py or cbook.py - callback event connection gets caught in a loop maybe? Got this traceback when trying to plot lots of spikes at once from the same neuron:
     
-- also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
-
-- glwidget seems slower now as well for big plots, like the 7.2 M ptc15.tr7c plot
-    - maybe not. I think I'm just used to sorts with about half as many spikes, which are noticeably faster
-    
 home/mspacek/source/matplotlib/lib/matplotlib/lines.pyc in set_axes(self=<matplotlib.lines.Line2D object>, ax=<matplotlib.axes.Axes object>)
     399         Artist.set_axes(self, ax)
     400         if ax.xaxis is not None:
@@ -33,8 +28,11 @@ KeyboardInterrupt:
 --> 236                 return cid
     237         self._cid += 1
     
-    
+- also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
 
+- glwidget seems slower now as well for big plots, like the 7.2 M ptc15.tr7c plot
+    - maybe not. I think I'm just used to sorts with about half as many spikes, which are noticeably faster
+    
 - convert all line endings to Unix style
 
 - what happens when a recording has more than 1 experiment in it? I know it'll have as many textheaders (displayrecords) as there are experiments, but what about din (digitalsvalrecords)?
@@ -43,7 +41,7 @@ KeyboardInterrupt:
 
 - NVS: to choose at what point to align each spike during detection, take the 2nd derivative along the spike, weighted by the voltage, weighted by the waveform point index, add all those up and normalize, and you get the point index to align to. This tends to be right around the 0 crossing. What's nice is that it's paramaterizable/linear - a small change in some voltage value results in a small change in how you align - there's no 2AFC between align to one peak or the other. He claims it results in better spike alignments within clusters right off the bat.
 
-- WISHLIST: numpy 1.6 now has float16 support! Could conceivably switch from int16 to float16 and get rid of all the conversion stuff, but then other programming languages don't necessarily have float16 support, and so the .wave files wouldn't really be compatible. Plus, I'd have to convert all of my existing int16 .wave files into float16. But, on the other hand, integer math is faster, so I should really stick with int16s for waveform data
+- WISHLIST: numpy 1.6 now has float16 support! Could conceivably switch from int16 to float16 and get rid of all the conversion stuff, but then other programming languages don't necessarily have float16 support, and so the .wave files wouldn't really be compatible. Plus, I'd have to convert all of my existing int16 .wave files into float16. And, integer math is faster, so I should really stick with int16s for waveform data
 
 - WISHLIST: consider max/min/best aligning each channel separately, or aligning according to selected chan. This would mean shifting chans relative to each other
 
@@ -1040,6 +1038,7 @@ QT rewrite DONE:
 - WISHLIST: hitting ESC once clears selected spikes, hitting it a 2nd time clears selected neurons. If no spikes selected, hitting ESC once clears selected neurons right away. Also, if 2 neurons are selected and being compared, hitting ESC should clear the 2ndary neuron selection
 - WISHLIST: if no neurons are selected, "R" should random sample unsorted spikes
 - on renumbering, if nids are all contiguous and ordered, don't bother renumbering, which means don't clear the undo cache. This makes hitting renumber less risky
+- save electrode type to ptcs header descr field
 
 
 
