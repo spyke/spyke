@@ -964,6 +964,10 @@ class PTCSHeader(object):
         npad = 8 - rem if rem else 0 # num spaces to pad with for 8 byte alignment
         d += ' ' * npad
         assert len(d) % 8 == 0
+        try:
+            eval(d)
+        except:
+            raise ValueError("descr isn't a valid dictionary:\n%r" % d)
         self.descr = d
 
     def write(self, f):
