@@ -1425,7 +1425,7 @@ class SortWindow(SpykeToolWindow):
             slist = self.nslist
         else:
             slist = self.uslist
-        slist.clearSelection()
+        slist.clearSelection() # emits selectionChanged signal, .reset() doesn't
         slist.selectRandom(nsamples)
 
     def on_actionAlignMin_triggered(self):

@@ -748,7 +748,16 @@ class SpykeListView(QtGui.QListView):
             flag = sm.Select
         else:
             flag = sm.Deselect
+        # unnecessarily emits nrows selectionChanged signals, causes slow
+        # plotting in mpl commit 50fc548465b1525255bc2d9f66a6c7c95fd38a75 (pre
+        # 1.0) and later:
         [ sm.select(m.index(row), flag) for row in rows ]
+        '''
+        # emits single selectionChanged signal, but causes a bit of flickering:
+        sel = QtGui.QItemSelection()
+        [ sel.select(m.index(row), m.index(row)) for row in rows ]
+        sm.select(sel, flag)
+        '''
         if rows and on and scrollTo: # scroll to last row that was just selected
             self.scrollTo(m.index(rows[-1]))
 
