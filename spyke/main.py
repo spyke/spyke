@@ -1565,6 +1565,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ui.nsamplesSpinBox.setValue(s.nsamples)
         ui.maxstillSpinBox.setValue(s.maxstill)
         ui.minpointsSpinBox.setValue(s.minpoints)
+        ui.clusterunsampledspikesCheckBox.setChecked(s.clusterunsampledspikes)
 
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
