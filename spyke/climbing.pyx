@@ -56,8 +56,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 - is local density and local gradient calc sufficiently similar that this won't be expensive?
             - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, still, etc) except for the cids array, then proceed as usual. Then update the density for the newly merged cluster
 
-        - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that butt up against those of the other scout
-
         - try using simplex algorithm for scout position update step, though that might miss local maxima
 
         - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation? - only applies to Gaussian kernel, not Cauchy
@@ -82,10 +80,63 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int ndims = data.shape[1] # num cols in data
     cdef int M # current num scout points (clusters)
     cdef int npoints, npointsremoved, nclustsremoved
-    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts # stores scout positions
+    
+
+    # scouts table starts out as just a copy of float data table
+    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts = data.copy() # stores scout positions
+
+    
+    # need to first convert data table to something suitable for truncing to easily get
+    # ints. First have to add some offset to make everything +ve. Then, divide by your fraction
+    # of sigma that you want to discretize by. Then, when returning scout positions, need to do 
+    # the inverse
+    
+    mindata = min(data)
+    data -= mindata # offset data to be +ve starting from 0
+    binx = 0.1 # some fraction of sigma to bin data by
+    binsize = binx * sigma
+    data /= binsize # scale data
+    assert data.max() < 2**32
+    assert data.min() >= 0
+    data = np.uint32(data) # trunc to int
+
+    # get dimensions of sparse matrices
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] dims = np.zeros(ndims, dtype=np.uint32)
+    for i in range(ndims):
+        dims[i] = max(data[:, i])
+    
+    # ndim static histogram of point positions in data, bins of size binsize
+    # use uint16, since not likely to have more than 65k points in a single bin.
+    # Hell, maybe uint8 would work too
+    cdef np.ndarray[np.uint16_t, ndim=ndims, mode='c'] datah = np.zeros(dims, dtype=np.uint16)
+    
+    # this is gonna be super slow for now, cythonize later:
+    for point in data:
+        # need to convert point to tuple to interpret it as index of single point in datah
+        index = tuple(point)
+        datah[index] += 1
+        if datah[index] = 2**16 - 1:
+            raise RuntimeError("uint16 isn't enough for datah!")
+    
+    ## unravel_index and ravel_multi_index are useful!
+    
+    # ndim dynamic histogram of scout positions in scouts table
+    # use dynamic scoutspace sparse matrix to approximate each scout's position and calculate gradient according to same sized datah, but then update the scout's actual position in separate scouts table in float, per usual. Otherwise, if you stored scout positions quantized, you could easily get stuck in a bin and never get out, because you could never accumulate less than bin sized changes in position
+    cdef np.ndarray[np.uint32_t, ndim=ndims, mode='c'] scoutspace = np.zeros(dims, dtype=np.uint32)
+
+
+    # for merging scouts, clear scoutspace, and start writing their indices to it.
+    # While writing, if you find the position in the matrix is already occupied,
+    # then obviously you need to merge the current scout into the one that's already
+    # there. Once you're done filling the matrix, for every non-zero entry (which you can
+    # quickly find by truncing scout position in scouts array to get its index)
+    # take slice corresponding to rmerge, then maybe do sum of squared discrete distances,
+    # and merge if < rmerge
+
     # cluster indices into data:
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids = np.zeros(N, dtype=np.int32)
     # for each scout, num consecutive iters without significant movement:
+    ## TODO: should check that maxstill < 256, or use uint16 instead:
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] still = np.zeros(N, dtype=np.uint8)
     cdef double sigma2 = sigma * sigma
     #cdef double twosigma2 = 2 * sigma2
