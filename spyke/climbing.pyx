@@ -32,9 +32,8 @@ cdef extern from "string.h":
 @cython.wraparound(False)
 @cython.cdivision(True)
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-          np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis=np.zeros(0, dtype=np.int32),
           double sigma=0.05, double alpha=2.0, double rmergex=1.0,
-          double rneighx=4, int nsamples=0, bint clusterunsampledpoints=True,
+          double rneighx=4,
           double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
@@ -145,24 +144,14 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
     cdef double d, d2, minmove2
-    cdef Py_ssize_t i, j, k, samplei, scouti, clustii
+    cdef Py_ssize_t i, j, k, scouti, clustii
     cdef int iteri=0, nnomerges=0, Mthresh, ncpus
     cdef bint incstill, merged=False, continuej=False
 
-    if len(sampleis) != 0: # sampleis arg trumps nsamples arg
-        nsamples = len(sampleis)
-    elif 0 < nsamples < N: # nsamples == 0 means use all points
-        # subsample with nsamples to get a reasonable number of scouts
-        sampleis = np.asarray(random.sample(xrange(N), nsamples), dtype=np.int32)
-    else: # nsamples == 0, or nsamples >= N, use all N points
-        nsamples = N
-        sampleis = np.arange(nsamples, dtype=np.int32)
-    M = nsamples # initially, but M will decrease over time
-    Mthresh = 3000000 / nsamples / ndims
+    M = N # initially, but M will decrease over time
+    Mthresh = 3000000 / N / ndims
     print("Mthresh = %d" % Mthresh)
-    scouts = data[sampleis].copy() # scouts will be modified
-    cids.fill(-1) # -ve number indicates an unclustered data point
-    cids[sampleis] = np.arange(M, dtype=np.int32)
+    cids = np.arange(M, dtype=np.int32)
 
     if minmove == -1.0:
         # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
@@ -226,14 +215,14 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # move scouts up their local density gradient
         if M < Mthresh: # use a single thread
-            move_scouts(0, M, scouts, data, sampleis, still,
-                        ndims, nsamples, sigma2, alpha,
+            move_scouts(0, M, scouts, data, still,
+                        N, ndims, sigma2, alpha,
                         rneigh, rneigh2, minmove2, maxstill)
         else: # use multiple threads
             span(lohi, 0, M, ncpus) # modify lohi in place
             for i in range(ncpus):
-                args = (lohi[i], lohi[i+1], scouts, data, sampleis, still,
-                        ndims, nsamples, sigma2, alpha,
+                args = (lohi[i], lohi[i+1], scouts, data, still,
+                        N, ndims, sigma2, alpha,
                         rneigh, rneigh2, minmove2, maxstill)
                 req = threadpool.WorkRequest(move_scouts, args)
                 pool.putRequest(req)
@@ -243,19 +232,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         iteri += 1
 
     printf('\n')
-
-    # if subsampling yet still want to cluster all points, assign unclustered
-    # points to nearest clustered point
-    if nsamples != N and clusterunsampledpoints:
-        print('Finding nearest clustered point for each unclustered point')
-        t0 = time.time()
-        span(lohi, 0, N, ncpus) # modify lohi in place
-        for i in range(ncpus): # use multiple threads
-            args = (lohi[i], lohi[i+1], cids, sampleis, data, nsamples, ndims)
-            req = threadpool.WorkRequest(assign_unclustered, args)
-            pool.putRequest(req)
-        pool.wait()
-        print('Assigning unclustered points took %.3f sec' % (time.time()-t0))
 
     pool.terminate()
 
@@ -299,7 +275,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     print('moving scouts: %r' % np.where(moving)[0])
     print('still array:')
     print still[:M]
-    return cids, scouts[:M], sampleis
+    return cids, scouts[:M]
 
 
 @cython.boundscheck(False)
@@ -308,9 +284,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 cpdef move_scouts(int lo, int hi,
                   np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
                   np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                  np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
                   np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
-                  int ndims, int nsamples, double sigma2, double alpha,
+                  int N, int ndims, double sigma2, double alpha,
                   double rneigh, double rneigh2, double minmove2, int maxstill):
     """Move scouts up their local density gradient"""
 
@@ -322,7 +297,7 @@ cpdef move_scouts(int lo, int hi,
     # TODO: do I really need to call free() on all of the above once I'm done with them
     # or are they freed automatically on f'n exit?
 
-    cdef Py_ssize_t i, j, k, samplei
+    cdef Py_ssize_t i, j, k
     #cdef int nneighs
     cdef bint continuej=False
     cdef double d2, kern, move, move2#, maxmove = 0.0
@@ -339,11 +314,10 @@ cpdef move_scouts(int lo, int hi,
             # slightly faster, though not guaranteed to be valid thing to do for non-int array:
             memset(kernel, 0, ndims*sizeof(double)) # reset
             memset(v, 0, ndims*sizeof(double)) # reset
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
+            for j in range(N): # iterate over data, check if they're within rneigh
                 d2 = 0.0 # reset
                 for k in range(ndims): # iterate over dims for each point
-                    ds[k] = data[samplei, k] - scouts[i, k]
+                    ds[k] = data[j, k] - scouts[i, k]
                     if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
                         continuej = True
                         break # out of k loop
@@ -382,49 +356,6 @@ cpdef move_scouts(int lo, int hi,
         free(d2s)
         free(kernel)
         free(v)
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
-cpdef assign_unclustered(int lo, int hi,
-                         np.ndarray[np.int32_t, ndim=1, mode='c'] cids,
-                         np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
-                         np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                         int nsamples, int ndims):
-    """Assign each unclustered point to nearest clustered point. Uses brute force method.
-    Tried using kdtree, didn't seem to work"""
-
-    #cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
-    ds = <double *>malloc(ndims*sizeof(double))
-    cdef Py_ssize_t i, j, k, samplei
-    cdef double min_d2, d2
-    cdef bint continuej=False
-    with nogil:
-        for i in range(lo, hi): # iterate over all data points
-            if cids[i] != -1: # point already has a valid cluster index
-                continue
-            # point is unclustered, find nearest clustered point
-            min_d2 = 100e99
-            for j in range(nsamples): # iterate over all clustered points
-                # sampleis is an array of nsamples indices into data that were used as scouts,
-                # and therefore have been clustered
-                samplei = sampleis[j]
-                for k in range(ndims):
-                    ds[k] = data[i, k] - data[samplei, k]
-                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next j
-                        continuej = True
-                        break # out of k loop
-                if continuej:
-                    continuej = False # reset
-                    continue # to next j
-                d2 = 0.0 # reset
-                for k in range(ndims):
-                    d2 += ds[k] * ds[k]
-                if d2 < min_d2: # update this unclustered point's cluster index
-                    min_d2 = d2
-                    cids[i] = cids[samplei]
-    free(ds)
 
 
 #@cython.boundscheck(False)

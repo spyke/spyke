@@ -553,12 +553,11 @@ class SpykeWindow(QtGui.QMainWindow):
             s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
             print('clustering %d points in %d-D space' % (npoints, ndims))
             t0 = time.time()
-            results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha, rmergex=s.rmergex,
-                            rneighx=s.rneighx, nsamples=s.nsamples,
-                            clusterunsampledpoints=s.clusterunsampledspikes,
+            results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha,
+                            rmergex=s.rmergex, rneighx=s.rneighx,
                             minmove=-1.0, maxstill=s.maxstill, maxnnomerges=1000,
                             minpoints=s.minpoints)
-            cids, scoutpositions, sampleis = results
+            cids, scoutpositions = results
             nids = list(np.unique(cids))
             print('climb took %.3f sec' % (time.time()-t0))
 
@@ -1532,10 +1531,8 @@ class SpykeWindow(QtGui.QMainWindow):
         s.rmergex = ui.rmergeXSpinBox.value()
         s.rneighx = ui.rneighXSpinBox.value()
         s.alpha = ui.alphaSpinBox.value()
-        s.nsamples = ui.nsamplesSpinBox.value()
         s.maxstill = ui.maxstillSpinBox.value()
         s.minpoints = ui.minpointsSpinBox.value()
-        s.clusterunsampledspikes = ui.clusterunsampledspikesCheckBox.isChecked()
 
     def update_gui_from_sort(self):
         ui = self.ui
@@ -1562,7 +1559,6 @@ class SpykeWindow(QtGui.QMainWindow):
         ui.rmergeXSpinBox.setValue(s.rmergex)
         ui.rneighXSpinBox.setValue(s.rneighx)
         ui.alphaSpinBox.setValue(s.alpha)
-        ui.nsamplesSpinBox.setValue(s.nsamples)
         ui.maxstillSpinBox.setValue(s.maxstill)
         ui.minpointsSpinBox.setValue(s.minpoints)
 

@@ -141,7 +141,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="detectTab">
        <attribute name="title">
@@ -736,7 +736,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>17</y>
+           <y>14</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -749,7 +749,7 @@
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>12</y>
+           <y>9</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -771,7 +771,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>42</y>
+           <y>39</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -784,7 +784,7 @@
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>37</y>
+           <y>34</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -806,7 +806,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>92</y>
+           <y>89</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -819,7 +819,7 @@
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>87</y>
+           <y>84</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -837,43 +837,11 @@
           <double>2.000000000000000</double>
          </property>
         </widget>
-        <widget class="QLabel" name="label_25">
-         <property name="geometry">
-          <rect>
-           <x>105</x>
-           <y>117</y>
-           <width>56</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>nsamples:</string>
-         </property>
-        </widget>
-        <widget class="ClusterTabSpinBox" name="nsamplesSpinBox">
-         <property name="geometry">
-          <rect>
-           <x>165</x>
-           <y>112</y>
-           <width>62</width>
-           <height>25</height>
-          </rect>
-         </property>
-         <property name="maximum">
-          <number>999999999</number>
-         </property>
-         <property name="singleStep">
-          <number>1000</number>
-         </property>
-         <property name="value">
-          <number>0</number>
-         </property>
-        </widget>
         <widget class="ClusterTabSpinBox" name="maxstillSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>137</y>
+           <y>110</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -889,7 +857,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>142</y>
+           <y>115</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -902,7 +870,7 @@
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>162</y>
+           <y>135</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -918,7 +886,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>167</y>
+           <y>140</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -931,7 +899,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>67</y>
+           <y>64</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -944,7 +912,7 @@
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>62</y>
+           <y>59</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -965,7 +933,7 @@
         <widget class="QPushButton" name="clusterButton">
          <property name="geometry">
           <rect>
-           <x>235</x>
+           <x>170</x>
            <y>160</y>
            <width>56</width>
            <height>27</height>
@@ -973,28 +941,6 @@
          </property>
          <property name="text">
           <string>Cluster</string>
-         </property>
-        </widget>
-        <widget class="QCheckBox" name="clusterunsampledspikesCheckBox">
-         <property name="geometry">
-          <rect>
-           <x>235</x>
-           <y>110</y>
-           <width>86</width>
-           <height>51</height>
-          </rect>
-         </property>
-         <property name="toolTip">
-          <string>Clearing this is useful for quickly finding optimal
-parameter values when you have a lot of spikes</string>
-         </property>
-         <property name="text">
-          <string>cluster
-unsampled 
-spikes</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
          </property>
         </widget>
        </widget>
@@ -1014,7 +960,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>20</x>
-           <y>40</y>
+           <y>35</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1027,7 +973,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>20</x>
-           <y>65</y>
+           <y>60</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1040,7 +986,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>20</x>
-           <y>90</y>
+           <y>85</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1053,7 +999,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>40</x>
-           <y>35</y>
+           <y>30</y>
            <width>71</width>
            <height>25</height>
           </rect>
@@ -1093,7 +1039,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>40</x>
-           <y>60</y>
+           <y>55</y>
            <width>71</width>
            <height>25</height>
           </rect>
@@ -1136,7 +1082,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>40</x>
-           <y>85</y>
+           <y>80</y>
            <width>71</width>
            <height>25</height>
           </rect>
@@ -1179,7 +1125,7 @@ spikes</string>
          <property name="geometry">
           <rect>
            <x>65</x>
-           <y>115</y>
+           <y>105</y>
            <width>46</width>
            <height>27</height>
           </rect>
@@ -1714,10 +1660,8 @@ spikes</string>
   <tabstop>rmergeXSpinBox</tabstop>
   <tabstop>rneighXSpinBox</tabstop>
   <tabstop>alphaSpinBox</tabstop>
-  <tabstop>nsamplesSpinBox</tabstop>
   <tabstop>maxstillSpinBox</tabstop>
   <tabstop>minpointsSpinBox</tabstop>
-  <tabstop>clusterunsampledspikesCheckBox</tabstop>
   <tabstop>clusterButton</tabstop>
   <tabstop>xDimComboBox</tabstop>
   <tabstop>yDimComboBox</tabstop>
