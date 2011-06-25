@@ -13,7 +13,6 @@ import time
 def makefigure():
     f = figure()
     f.subplots_adjust(0, 0, 1, 1)
-    f.canvas.SetBackgroundColour(wx.BLACK)
     f.set_facecolor('black')
     f.set_edgecolor('black')
     a = gca()
@@ -36,26 +35,24 @@ GREY = '#555555' # reserve as junk cluster colour
 
 COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 
-data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
+data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
 data = data[:100000, :4].copy() # limit npoints and ndims, copy to make it contig
 nd = data.shape[1]
-sampleis = np.load('10k_of_100k_sampleis.npy')
 sigma = 0.25
 alpha = 1.0
 rmergex=1.0
 rneighx = 4
-#nsamples = 10000
 minmove = 0.00001 * sigma * alpha # along a single dimension
 maxstill = 100
 maxnnomerges = 1000
 minpoints = 10
 
 t0 = time.time()
-results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
-                rmergex=rmergex, #nsamples=nsamples,
+results = climb(data, sigma, alpha,
+                rneighx=rneighx, rmergex=rmergex,
                 minmove=minmove, maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
-cids, positions, sampleis = results
+cids, positions = results
 print('climb took %.3f sec' % (time.time()-t0))
 
 nclusters = len(positions)
