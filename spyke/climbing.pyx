@@ -130,7 +130,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # use uint16, since not likely to have more than 65k points in a single bin.
     # Hell, maybe uint8 would work too
     #cdef np.ndarray[np.uint16_t, ndim=ndims, mode='c'] datah = np.zeros(dims, dtype=np.uint16)
-    datah = <unsigned short *>calloc(prod(dims)*sizeof(unsigned short))
+    cdef unsigned short *datah = <unsigned short *>calloc(prod(dims), sizeof(unsigned short))
     for i in range(N):
         j = ndi2li(data[pi]) # convert ndim index to linear index
         datah[j] += 1
@@ -147,7 +147,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # get out, because you could never accumulate less than bin sized changes in position
     print('creating %d MB scoutspace matrix' % (dims.prod() * 4 / 1e6))
     #cdef np.ndarray[np.uint32_t, ndim=ndims, mode='c'] scoutspace = np.zeros(dims, dtype=np.uint32)
-    scoutspace = <unsigned int *>calloc(prod(dims)*sizeof(unsigned int))
+    cdef unsigned int *scoutspace = <unsigned int *>calloc(prod(dims), sizeof(unsigned int))
 
     # for merging scouts, clear scoutspace, and start writing their indices to it.
     # While writing, if you find the position in the matrix is already occupied,
@@ -184,7 +184,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     minmove2 = minmove * minmove
 
     ncpus = cpu_count()
-    lohi = <long *>malloc((ncpus+1)*sizeof(long))
+    cdef long *lohi = <long *>malloc((ncpus+1)*sizeof(long))
     pool = threadpool.ThreadPool(ncpus)
 
     while True:
@@ -259,6 +259,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     printf('\n')
 
     pool.terminate()
+    free(datah)
+    free(scoutspace)
+    free(lohi)
 
     # remove clusters with less than minpoints
     npointsremoved = 0
@@ -315,12 +318,10 @@ cpdef move_scouts(int lo, int hi,
     """Move scouts up their local density gradient"""
 
     # use much faster C allocation for temporary 1D arrays instead of numpy:
-    ds = <double *>malloc(ndims*sizeof(double))
-    d2s = <double *>malloc(ndims*sizeof(double))
-    kernel = <double *>malloc(ndims*sizeof(double))
-    v = <double *>malloc(ndims*sizeof(double))
-    # TODO: do I really need to call free() on all of the above once I'm done with them
-    # or are they freed automatically on f'n exit?
+    cdef double *ds = <double *>malloc(ndims*sizeof(double))
+    cdef double *d2s = <double *>malloc(ndims*sizeof(double))
+    cdef double *kernel = <double *>malloc(ndims*sizeof(double))
+    cdef double *v = <double *>malloc(ndims*sizeof(double))
 
     cdef Py_ssize_t i, j, k
     #cdef int nneighs
@@ -421,12 +422,10 @@ cdef long long ndi2li(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
     cdef Py_ssize_t di, ndims
     ndims = ndi.shape[0]
     li = ndi[ndims-1] # init with index of deepest dimension
-    # iterate from ndims-1 to 0, from 2nd deepest to shallowest dimensions, either
-    # syntax works, and both seem to be C optimized:
+    # iterate from ndims-1 to 0, from 2nd deepest to shallowest dimension
+    # either syntax works, and both seem to be C optimized:
     #for di in range(ndims-1, 0, -1):
     for di from ndims-1 >= di > 0:
-        printf('di=%d\n', di)
         pr *= dims[di] # running product of dimensions
-        li += ndi[di-1] * pr # accum sum of products of current ndi and all deeper dimensions
+        li += ndi[di-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
-    
