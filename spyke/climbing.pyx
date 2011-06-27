@@ -169,8 +169,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # Hell, maybe uint8 would work too
     #cdef np.ndarray[np.uint16_t, ndim=ndims, mode='c'] datah = np.zeros(dims, dtype=np.uint16)
     
-    ## seems that calloc'ing multiple huge empty matrices doesn't cause memory errors, as long as no
-    ## single one exceeds physical memory
+    ## seems that calloc'ing multiple huge empty matrices doesn't cause memory errors, as
+    ## long as no single one exceeds physical memory
     print('creating %d MB datah matrix' % (proddims * 2 / 1e6))
     cdef unsigned short *datah = <unsigned short *>calloc(proddims, sizeof(unsigned short))
     if not datah:
@@ -254,19 +254,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                     continue # to next j loop
                 if d2 <= rmerge2:
                     # merge the scouts: keep scout i, ditch scout j
-                    # shift all entries at j and above in scouts array down by one
-                    for scouti in range(j, M-1):
-                        for k in range(ndims):
-                            scouts[scouti, k] = scouts[scouti+1, k]
-                        still[scouti] = still[scouti+1] # ditto for still array
-                    # update cluster indices
-                    for clustii in range(N):
-                        if cids[clustii] == j:
-                            cids[clustii] = i # overwrite all occurences of j with i
-                        elif cids[clustii] > j:
-                            cids[clustii] -= 1 # decr all clust indices above j
+                    merge_scouts(i, j, M, scouts, still, cids)
                     M -= 1 # decr num scouts, don't inc j, new value at j has just slid into view
-                    #printf(' %d<-%d ', i, j)
                     merged = True
                 else:
                     j += 1
@@ -314,18 +303,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 npoints += 1
         if npoints < minpoints:
             #print('cluster %d has only %d points' % (i, npoints))
-            # remove cluster i
-            # shift all entries at i and above in scouts array down by one
-            for scouti in range(i, M-1):
-                for k in range(ndims):
-                    scouts[scouti, k] = scouts[scouti+1, k]
-                still[scouti] = still[scouti+1] # ditto for still array
-            # update cluster indices
-            for clustii in range(N):
-                if cids[clustii] == i:
-                    cids[clustii] = -1 # overwrite all occurences of i with -1
-                elif cids[clustii] > i:
-                    cids[clustii] -= 1 # decr all clust indices above i
+            # remove cluster i by merging it into "cluster" -1
+            merge_scouts(-1, i, M, scouts, still, cids)
             M -= 1 # decr num of scouts, don't inc i, new value at i has just slid into view
             npointsremoved += npoints
             nclustsremoved += 1
@@ -355,7 +334,7 @@ cpdef move_scouts(int lo, int hi,
                   np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
                   int N, int ndims, double sigma2, double alpha,
                   double rneigh, double rneigh2, double minmove2, int maxstill):
-    """Move scouts up their local density gradient"""
+    """Move scouts up their local density gradient. Needs to be cpdef as WorkRequest arg"""
 
     # use much faster C allocation for temporary 1D arrays instead of numpy:
     cdef double *ds = <double *>malloc(ndims*sizeof(double))
@@ -469,3 +448,27 @@ cdef long long ndi2li(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
         pr *= dims[di] # running product of dimensions
         li += ndi[di-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+cdef void merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M,
+                       np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
+                       np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
+                       np.ndarray[np.int32_t, ndim=1, mode='c'] cids) nogil:
+    """Merge scoutj into scouti"""
+    # shift all entries at j and above in scouts and still arrays down by one
+    cdef Py_ssize_t i, k, cii
+    cdef int N = scouts.shape[0]
+    cdef int ndims = scouts.shape[1]
+    for i in range(scoutj, M-1):
+        for k in range(ndims):
+            scouts[i, k] = scouts[i+1, k]
+        still[i] = still[i+1]
+    # update cluster indices
+    for cii in range(N):
+        if cids[cii] == scoutj:
+            cids[cii] = scouti # replace all scoutj entries with scouti
+        elif cids[cii] > scoutj:
+            cids[cii] -= 1 # decr all clust indices above scout j
+    #printf(' %d<-%d ', scouti, scoutj)
