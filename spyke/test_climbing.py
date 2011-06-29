@@ -47,13 +47,27 @@ maxstill = 100
 maxnnomerges = 1000
 minpoints = 10
 
+'''
+import pstats, cProfile
+s = """
+climb(data, sigma, alpha,
+      rneighx=rneighx, rmergex=rmergex,
+      minmove=minmove, maxstill=maxstill,
+      maxnnomerges=maxnnomerges, minpoints=minpoints)
+"""
+cProfile.runctx(s, globals(), locals(), "Profile.prof")
+s = pstats.Stats("Profile.prof")
+s.strip_dirs().sort_stats("time").print_stats()
+'''
 t0 = time.time()
 results = climb(data, sigma, alpha,
                 rneighx=rneighx, rmergex=rmergex,
                 minmove=minmove, maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
-cids, positions = results
 print('climb took %.3f sec' % (time.time()-t0))
+
+'''
+cids, positions = results
 
 nclusters = len(positions)
 
@@ -81,3 +95,4 @@ if data.shape[1] > 3:
 
 
 show()
+'''
