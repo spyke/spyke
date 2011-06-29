@@ -1,4 +1,8 @@
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: cdivision=True
 # cython: profile=False
+
 """Nick's gradient-ascent (mountain-climbing) clustering algorithm"""
 
 cimport cython
@@ -33,9 +37,6 @@ cdef extern from "string.h":
 cdef unsigned short MAXUINT16 = 2**16 - 1
 cdef unsigned int MAXUINT32 = 2**32 - 1
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           double sigma=0.05, double alpha=2.0,
           double rmergex=1.0, double rneighx=4,
@@ -139,6 +140,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int M = N # current num scout points (clusters), each data point starts as its own scout
     cdef int npoints, npointsremoved, nclustsremoved
     cdef long long li, proddims
+    cdef double binx = 0.25 # some fraction of sigma to bin data by
+    cdef double binsize = binx * sigma
+    sigma /= binsize # scale sigma the same way data will be scaled, ie sigma = 1/binx
     cdef double sigma2 = sigma * sigma
     #cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
@@ -158,8 +162,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # ints. First have to add some offset to make everything +ve. Then, divide by your fraction
     # of sigma that you want to discretize by. Then, when returning scout positions, need to do 
     # the inverse
-    binx = 0.25 # some fraction of sigma to bin data by
-    binsize = binx * sigma
     for k in range(ndims):
         data[:, k] -= data[:, k].min() # offset data in each dimension to be +ve starting from 0
     data /= binsize # scale data, same for all dims since sigma apples to all dims
@@ -210,7 +212,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     M = update_scoutspace(M, proddims, scoutspace, dims, scouts, still, cids)
     print('done initing scoutspace, M=%d' % M)
     return
-
     # for merging scouts, clear scoutspace, and start writing their indices to it.
     # While writing, if you find the position in the matrix is already occupied,
     # then obviously you need to merge the current scout into the one that's already
@@ -330,9 +331,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     return cids, scouts[:M]
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 cpdef move_scouts(int lo, int hi,
                   np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
                   np.ndarray[np.float32_t, ndim=2, mode='c'] data,
@@ -408,9 +406,6 @@ cpdef move_scouts(int lo, int hi,
         free(v)
 
 
-#@cython.boundscheck(False)
-#@cython.wraparound(False)
-@cython.cdivision(True)
 cdef void span(long *lohi, int start, int end, int N) nogil:
     """Fill len(N) lohi array with fairly equally spaced int
     values, from start to end"""
@@ -421,9 +416,6 @@ cdef void span(long *lohi, int start, int end, int N) nogil:
         lohi[i] = start + step*i
     lohi[N] = end
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 cdef long long prod(np.ndarray[np.uint32_t, ndim=1, mode='c'] a) nogil:
     """Return product of entries in uint32 array a"""
     cdef long long result
@@ -434,14 +426,12 @@ cdef long long prod(np.ndarray[np.uint32_t, ndim=1, mode='c'] a) nogil:
         result *= a[i] # should I upcast to long long here?
     return result
 
-@cython.cdivision(True)
 cdef void usfill(unsigned int *a, unsigned int val, long long n) nogil:
     """Fill array with n values"""
     cdef unsigned long long i
     for i in range(n):
         a[i] = val
 
-@cython.cdivision(True)
 cdef unsigned short usmax(unsigned short *a, unsigned long long n) nogil:
     """Return maximum value in array"""
     cdef unsigned short result=0
@@ -451,9 +441,6 @@ cdef unsigned short usmax(unsigned short *a, unsigned long long n) nogil:
             result = a[i]
     return result
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 cdef long long ndi2li(unsigned int *ndi,
                       np.ndarray[np.uint32_t, ndim=1, mode='c'] dims) nogil:
     """Convert n dimensional index in array ndi to linear index. ndi
@@ -471,18 +458,17 @@ cdef long long ndi2li(unsigned int *ndi,
         li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 cdef int merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M,
                       np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
                       np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
                       np.ndarray[np.int32_t, ndim=1, mode='c'] cids) nogil:
-    """Merge scoutj into scouti"""
-    # shift all entries at j and above in scouts and still arrays down by one
+    """Merge scoutj into scouti, where scouti < scoutj"""
+    if not scouti < scoutj: # can only merge higher id into lower id!
+        printf('ERROR: scouti, scoutj = %d, %d', scouti, scoutj)
     cdef Py_ssize_t i, k, cii
     cdef int N = scouts.shape[0]
     cdef int ndims = scouts.shape[1]
+    # shift all entries at j and above in scouts and still arrays down by one
     for i in range(scoutj, M-1):
         for k in range(ndims):
             scouts[i, k] = scouts[i+1, k]
@@ -497,9 +483,6 @@ cdef int merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M,
     #printf(' %d<-%d ', scouti, scoutj)
     return M
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 cdef int update_scoutspace(int M, long long proddims,
                            unsigned int *scoutspace,
                            np.ndarray[np.uint32_t, ndim=1, mode='c'] dims,
