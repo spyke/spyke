@@ -35,8 +35,7 @@ cdef extern from "string.h":
 # within C code won't show up until it gets a newline, or until you call fflush(stdout).
 # Unbuffered output can be forced by running Python with the "-u" switch
 
-cdef unsigned short MAXUINT16 = 2**16 - 1
-cdef unsigned int MAXUINT32 = 2**32 - 1
+cdef short MAXUINT16 = 2**16 - 1
 
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           double sigma=0.05, double alpha=2.0,
@@ -69,6 +68,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             - in the same vein, try using cdef inline instead of just cdef to reduce
             a fn's call overhead - think it won't do anything for fn's with numpy array
             args
+                - doesn't seem to make any difference, even for purely C arg f'ns. Perhaps
+                GCC automatically finds f'ns that are macro candidates and uses them as such?
         
         - reverse annealing sigma: starting small, and gradually increase it over iters
             - increase it a bit every time you get an iteration with no mergers?
@@ -135,12 +136,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef Py_ssize_t i, j, k, scouti, clustii
     cdef bint incstill, merged=False, continuej=False
     cdef int iteri=0, nnomerges=0
-    cdef int N = data.shape[0] # total num data points
-    cdef int ndims = data.shape[1] # num cols in data
-    # dimension sizes:
-    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] dims = np.zeros(ndims, dtype=np.uint32)
-    # n-dimensional index working array:
-    cdef unsigned int *ndi = <unsigned int *> malloc(ndims*sizeof(unsigned int))
+    cdef int N = data.shape[0] # total num rows (points) in data table
+    cdef int ndims = data.shape[1] # num cols in data table
+    cdef int *dims = <int *> malloc(ndims*sizeof(int)) # dimension sizes
+    cdef int *ndi = <int *> malloc(ndims*sizeof(int)) # n-dimensional index working array
+    cdef int *cids = <int *> malloc(N*sizeof(int)) # cluster indices into data
+    irange(cids, N) # init cids to consecutive int values
     cdef int M = N # current num scout points (clusters), each data point starts as its own scout
     cdef int npoints, npointsremoved, nclustsremoved
     cdef long long li, proddims
@@ -158,14 +159,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # store scout positions in a float table:
     cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts
     # store indices into rows of scouts float table:
-    cdef unsigned int *sr = <unsigned int *> malloc(M*sizeof(unsigned int))
-    uirange(sr, M) # init sr to consecutive int values
+    cdef int *sr = <int *> malloc(M*sizeof(int))
+    irange(sr, M) # init sr to consecutive int values
     # for each scout, num consecutive iters without significant movement:
-    ## TODO: should check that (maxstill < 256).all(), or use uint16 instead:
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] still = np.zeros(N, dtype=np.uint8)
-    # cluster indices into data:
-    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids = np.zeros(N, dtype=np.int32)
-    
+    ## TODO: should check that (maxstill <= 255).all(), or use uint16 instead:
+    cdef unsigned char *still = <unsigned char *> calloc(M, sizeof(unsigned char))
     
     # need to convert data table to something suitable for truncing to easily get
     # ints. First have to add some offset to make everything +ve. Then, divide by your fraction
@@ -181,10 +179,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     scouts = data.copy()
 
     # get dimensions of sparse matrices
+    printf('dims = ')
     for k in range(ndims):
-        dims[k] = <unsigned int> data[:, k].max() + 1 # dim size = max index + 1
-    print 'dims = ', dims
-    proddims = prod(dims)
+        dims[k] = <int> data[:, k].max() + 1 # dim size = max index + 1
+        printf('%d ', dims[k])
+    printf('\n')
+    proddims = prod(dims, ndims)
 
     # datah: ndim static histogram of point positions in data, bins of size binsize
     # use uint16, since not likely to have more than 65k points in a single bin.
@@ -197,8 +197,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     for i in range(N):
         # trunc float data point position to int nd index:
         for k in range(ndims):
-            ndi[k] = <unsigned int> data[i, k]
-        li = ndi2li(ndi, dims)
+            ndi[k] = <int> data[i, k]
+        li = ndi2li(ndi, dims, ndims)
         #print('li = %d, datah[li] = %d' % (li, datah[li]))
         datah[li] += 1
         if datah[li] == MAXUINT16:
@@ -213,12 +213,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # stored scout positions quantized, you could easily get stuck in a bin and never
     # get out, because you could never accumulate less than bin sized changes in position
     print('creating %d MB scoutspace array' % (proddims * 4 / 1e6))
-    #cdef np.ndarray[np.uint32_t, ndim=ndims, mode='c'] scoutspace = np.zeros(dims, dtype=np.uint32)
-    cdef unsigned int *scoutspace = <unsigned int *> malloc(proddims*sizeof(unsigned int))
+    cdef int *scoutspace = <int *> malloc(proddims*sizeof(int))
     if not scoutspace:
         raise MemoryError("can't allocate scoutspace")
     print('initing scoutspace, M=%d' % M)
-    M = update_scoutspace(M, proddims, dims, scoutspace, sr, scouts, still, cids)
+    M = update_scoutspace(M, proddims, ndims, dims, scoutspace, sr, scouts, still, N, cids)
     print('done initing scoutspace, M=%d' % M)
     return
     # for merging scouts, clear scoutspace, and start writing their indices to it.
@@ -231,7 +230,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     #Mthresh = 3000000 / N / ndims
     #print("Mthresh = %d" % Mthresh)
-    cids = np.arange(M, dtype=np.int32)
 
     if minmove == -1.0:
         # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
@@ -269,7 +267,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                     continue # to next j loop
                 if d2 <= rmerge2:
                     # merge the scouts: keep scout i, ditch scout j
-                    M = merge_scouts(i, j, M, sr, still, cids)
+                    M = merge_scouts(i, j, M, sr, still, N, cids)
                     # don't inc j, new value at j has just slid into view
                     merged = True
                 else:
@@ -318,7 +316,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         if npoints < minpoints:
             #print('cluster %d has only %d points' % (i, npoints))
             # remove cluster i by merging it into "cluster" -1
-            M = merge_scouts(-1, i, M, sr, still, cids)
+            M = merge_scouts(-1, i, M, sr, still, N, cids)
             # don't inc i, new value at i has just slid into view
             npointsremoved += npoints
             nclustsremoved += 1
@@ -336,24 +334,34 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     print('moving scouts: %r' % np.where(moving)[0])
     print('still array:')
     print still[:M]
-    ## TODO: need to rebuild scouts so it's contiguous on return:
-    ## UNTESTED:
+
+    # build returnable numpy ndarray for cids
+    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.zeros(N, dtype=np.int32)
+    for i in range(N):
+        np_cids[i] = cids[i]
+
+    # rebuild scouts so it's contiguous on return
     for i in range(M):
         for k in range(ndims):
             scouts[i, k] = scouts[sr[i], k]
     # now sr is no longer valid, if still needed it, would have to reinit with:
-    #uirange(sr, M)
+    #irange(sr, M)
+
+    free(dims)
+    free(ndi)
+    free(cids)
     free(sr)
+    free(still)
     free(datah)
     free(scoutspace)
     #free(lohi)
-    return cids, scouts[:M]
+    return np_cids, scouts
 
 
-cdef void move_scouts(int lo, int hi, unsigned int *sr,
+cdef void move_scouts(int lo, int hi, int *sr,
                       np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
                       np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                      np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
+                      unsigned char *still,
                       int N, int ndims, double sigma2, double alpha,
                       double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
     """Move scouts up their local density gradient"""
@@ -431,45 +439,44 @@ cdef void span(long *lohi, int start, int end, int N) nogil:
         lohi[i] = start + step*i
     lohi[N] = end
 '''
-cdef long long prod(np.ndarray[np.uint32_t, ndim=1, mode='c'] a) nogil:
-    """Return product of entries in uint32 array a"""
+cdef long long prod(int *a, int n) nogil:
+    """Return product of entries in int array a"""
     cdef long long result
-    cdef Py_ssize_t i, n
-    n = a.shape[0]
+    cdef Py_ssize_t i
     result = 1
     for i in range(n):
         result *= a[i] # should I upcast to long long here?
     return result
 
-cdef void uifill(unsigned int *a, unsigned int val, long long n) nogil:
-    """Fill unsigned int array with n values"""
-    cdef unsigned long long i
+cdef void ifill(int *a, int val, long long n) nogil:
+    """Fill int array with n values"""
+    cdef long long i
     for i in range(n):
         a[i] = val
 
-cdef void uirange(unsigned int *a, n):
-    """Fill unsigned int array with n increasing values"""
+cdef void irange(int *a, int n) nogil:
+    """Fill int array with n increasing values"""
+    cdef Py_ssize_t i
     a[0] = 0
     for i in range(1, n):
         a[i] = a[i-1] + 1 
 
-cdef unsigned short usmax(unsigned short *a, unsigned long long n) nogil:
+cdef unsigned short usmax(unsigned short *a, long long n) nogil:
     """Return maximum value in array"""
     cdef unsigned short result=0
-    cdef unsigned long long i
+    cdef long long i
     for i in range(n):
         if a[i] > result:
             result = a[i]
     return result
 
-cdef long long ndi2li(unsigned int *ndi,
-                      np.ndarray[np.uint32_t, ndim=1, mode='c'] dims) nogil:
+cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
     """Convert n dimensional index in array ndi to linear index. ndi
-    and dims should be the same length, and each entry in ndi should be
+    and dims should be of length ndims, and each entry in ndi should be
     less than its corresponding dimension size in dims"""
     ## NOTE: np.unravel_index() and np.ravel_multi_index() are useful!
     cdef long long li, pr=1
-    cdef Py_ssize_t k, ndims=dims.shape[0]
+    cdef Py_ssize_t k
     li = ndi[ndims-1] # init with index of deepest dimension
     # iterate from ndims-1 to 0, from 2nd deepest to shallowest dimension
     # either syntax works, and both seem to be C optimized:
@@ -479,22 +486,12 @@ cdef long long ndi2li(unsigned int *ndi,
         li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
 
-cdef int merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M,
-                      unsigned int *sr,
-                      np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
-                      np.ndarray[np.int32_t, ndim=1, mode='c'] cids) nogil:
+cdef int merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
+                      unsigned char *still, int N, int *cids) nogil:
     """Merge scoutj into scouti, where scouti < scoutj"""
-    ## TODO: maybe make an array of pointers (scoutps**) or just indices (scoutis*)
-    ## that index into scouts table, and only modify those when merging. That way
-    ## you don't have to do the nested k loop iteration of dims on all scouts > i
-    ## on every merge. Should speed this function up quite a bit. Tradeoff is that
-    ## then you need a level of indirection when indexing into scouts table: need
-    ## to first index into scoutis*, and then use that result to index into scouts
-    ## table
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
     cdef Py_ssize_t i, cii
-    cdef int N = cids.shape[0]
     # shift all entries at j and above in scouts and still arrays down by one
     for i in range(scoutj, M-1):
         sr[i] = sr[i+1]
@@ -509,32 +506,30 @@ cdef int merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M,
     #printf(' %d<-%d ', scouti, scoutj)
     return M
 
-cdef int update_scoutspace(int M, long long proddims,
-                           np.ndarray[np.uint32_t, ndim=1, mode='c'] dims,
-                           unsigned int *scoutspace,
-                           unsigned int *sr,
+cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
+                           int *scoutspace, int *sr,
                            np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
-                           np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
-                           np.ndarray[np.int32_t, ndim=1, mode='c'] cids) nogil:
+                           unsigned char *still,
+                           int N, int *cids) nogil:
     """Refill scoutspace based on current scout positions in scouts table"""
-    cdef Py_ssize_t i=0, k, ndims=dims.shape[0]
-    # reset, use MAXUINT32 to indicate empty slot:
-    uifill(scoutspace, MAXUINT32, proddims)
+    cdef Py_ssize_t i=0, k
+    # reset, use -1 to indicate empty slot:
+    ifill(scoutspace, -1, proddims)
     # nd index working array:
-    cdef unsigned int *ndi = <unsigned int *> malloc(ndims*sizeof(unsigned int))
+    cdef int *ndi = <int *> malloc(ndims*sizeof(int))
     #print('scouts.max() = %f, scouts.min() = %f' % (scouts.max(), scouts.min()))
-    #printf('trunc max() = %d, trunc min() = %d\n', <unsigned int> scouts.max(), <unsigned int> scouts.min())
+    #printf('trunc max() = %d, trunc min() = %d\n', <int> scouts.max(), <int> scouts.min())
     while i < M: # iterate over all scouts
         # trunc float scout position to int nd index:
         for k in range(ndims):
-            ndi[k] = <unsigned int> scouts[sr[i], k]
-        li = ndi2li(ndi, dims)
+            ndi[k] = <int> scouts[sr[i], k]
+        li = ndi2li(ndi, dims, ndims)
         #printf('li = %d\n', li)
-        if scoutspace[li] == MAXUINT32: # bin is unoccupied
+        if scoutspace[li] == -1: # bin is unoccupied
             scoutspace[li] = i # occupy the bin with scout i
             i += 1
         else: # there's already a scout there, merge into it
-            M = merge_scouts(scoutspace[li], i, M, sr, still, cids)
+            M = merge_scouts(scoutspace[li], i, M, sr, still, N, cids)
             # don't inc i, new value at i has just slid into view
     free(ndi)
     return M
