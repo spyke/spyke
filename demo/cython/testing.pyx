@@ -4,7 +4,7 @@
 # cython: profile=False
 
 #cimport cython
-from cython.parallel import prange
+from cython.parallel import parallel, prange
 import numpy as np
 cimport numpy as np
 import time
@@ -39,7 +39,7 @@ def testing(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
     print ds[0]
     free(ds)
     print 'i =', looping()
-    '''
+
     cdef long long i=0, n=1000000000, sum=0
     cdef long long *a = <long long *>malloc(n*sizeof(long long))
     if not a:
@@ -63,6 +63,24 @@ def testing(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
     for i in range(n-100, n):
         printf('%lld, ', a[i])
     printf('\n')
+    '''
+    cdef int i, j
+    cdef int blarg=999, temp
+    # test creating thread-local variables to avoid race conditions.
+    # Looks like there aren't any when you use a parallel block!:
+    printf('blarg before parallel = %d\n', blarg)
+    with nogil, parallel():
+        printf('blarg at start of parallel = %d\n', blarg)
+        for i in prange(4):
+            blarg = i
+            if i == 2:
+                blarg = 666
+                # do something slowish:
+                for j in range(1000000000):
+                    temp = j*j
+            printf('end of loop, i, blarg = %d, %d\n', i, blarg)
+        printf('end of parallel, i, blarg = %d, %d\n', i, blarg)
+    printf('outside parallel, i, blarg = %d, %d\n', i, blarg)
 
 
 cdef long long prod(np.ndarray[np.uint32_t, ndim=1, mode='c'] a) nogil:
