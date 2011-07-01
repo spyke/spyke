@@ -19,11 +19,14 @@ cdef extern from "stdio.h":
 def testing(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
             np.ndarray[np.uint32_t, ndim=1, mode='c'] dims):
     '''
-    print sizeof(unsigned char)
-    print sizeof(unsigned short)
-    print sizeof(unsigned int)
-    print sizeof(unsigned long)
-    print sizeof(unsigned long long)
+    printf('float: %d\n', sizeof(float))
+    printf('double: %d\n', sizeof(double))
+
+    printf('char: %d\n', sizeof(char))
+    printf('short: %d\n', sizeof(short))
+    printf('int: %d\n', sizeof(int))
+    printf('long: %d\n', sizeof(long))
+    printf('long long: %d\n', sizeof(long long))
     
     print 'dims=', dims
     print 'prod(dims)=', prod(dims)

@@ -64,23 +64,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 are typically mapped down to 2D sparse matrices according to Travis Oliphant:
                 http://mail.scipy.org/pipermail/numpy-discussion/2003-January/014212.html
         
-        - get rid of all 1D temporary numpy arrays. Use alloc() instead
-            - in the same vein, try using cdef inline instead of just cdef to reduce
-            a fn's call overhead - think it won't do anything for fn's with numpy array
-            args
-                - doesn't seem to make any difference, even for purely C arg f'ns. Perhaps
-                GCC automatically finds f'ns that are macro candidates and uses them as such?
-            - pattern for 2D array:
-            
-            int nrows ncols, i
-            # set nrows and ncols however you like
-            int **a = <int **> malloc(nrows*sizeof(int *))
-            for i in range(nrows):
-                a[i] = <int *> malloc(ncols*sizeof(int))
-            # now that it's declared and sized, fill it with values:
-            for i in range(nrows):
-                for j in range(ncols):
-                    a[i][j] = whatever
+        - try using cdef inline instead of just cdef to reduce
+        a fn's call overhead - think it won't do anything for fn's with numpy array
+        args
+            - doesn't seem to make any difference, even for purely C arg f'ns. Perhaps
+            GCC automatically finds f'ns that are macro candidates and uses them as such?
         
         - reverse annealing sigma: starting small, and gradually increase it over iters
             - increase it a bit every time you get an iteration with no mergers?
@@ -143,6 +131,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         1% value as you wish, without having to run the whole algorithm all over again
         - delete scouts that have fewer than n points (at any point during iteration?)
         - multithread scout update and assignment of unclustered points step
+        - get rid of all 1D temporary numpy arrays. Use alloc() instead
     """
     cdef Py_ssize_t i, j, k, scouti, clustii
     cdef bint merged=False
@@ -168,8 +157,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double rneigh2 = rneigh * rneigh
     cdef double minmove, minmove2
 
-    # store scout positions in a float table:
-    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts
+    # store scout positions in a 2D float array:
+    cdef float **scouts = <float **> malloc(M*sizeof(float *))
+    if not scouts: raise MemoryError("can't allocate scouts")
+    for i in range(M):
+        scouts[i] = <float *> malloc(ndims*sizeof(float))
     # store indices into rows of scouts float table:
     cdef int *sr = <int *> malloc(M*sizeof(int))
     if not sr: raise MemoryError("can't allocate sr")
@@ -188,7 +180,10 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data /= binsize # scale data, same for all dims since sigma apples to all dims
     assert data.max() < 2**32
     assert data.min() == 0
-    scouts = data.copy()
+    # init scouts at respective scaled data point positions:
+    for i in range(M):
+        for k in range(ndims):
+            scouts[i][k] = data[i, k]
 
     # get dimensions of sparse matrices
     printf('dims = ')
@@ -306,30 +301,28 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     #print still[:M]
 
     # build returnable numpy ndarray for cids
-    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.zeros(N, dtype=np.int32)
+    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.empty(N, dtype=np.int32)
     for i in range(N):
         np_cids[i] = cids[i]
 
-    # rebuild scouts so it's contiguous on return
+    # generate contiguous numpy scouts array for return
+    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] np_scouts = np.empty((M, ndims), dtype=np.float32)
     for i in range(M):
         for k in range(ndims):
-            scouts[i, k] = scouts[sr[i], k]
-    # now sr is no longer valid, if still needed it, would have to reinit with:
-    #irange(sr, M)
+            np_scouts[i, k] = scouts[sr[i]][k]
 
     free(dims)
     free(ndi)
     free(cids)
+    free(scouts)
     free(sr)
     free(still)
     free(datah)
     free(scoutspace)
-    #free(lohi)
-    return np_cids, scouts[:M]
+    return np_cids, np_scouts
 
 
-cdef int merge_scouts(int M, int *sr,
-                      np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
+cdef int merge_scouts(int M, int *sr, float **scouts,
                       double rmerge, double rmerge2, int maxstill, 
                       unsigned char *still, int N, int *cids, int ndims, int *merged):
     """Merge pairs of scout points sufficiently close to each other"""
@@ -345,7 +338,7 @@ cdef int merge_scouts(int M, int *sr,
             # for each pair of scouts, check if any pair is within rmerge of each other
             d2 = 0.0 # reset
             for k in range(ndims):
-                d = fabs(scouts[sr[i], k] - scouts[sr[j], k])
+                d = fabs(scouts[sr[i]][k] - scouts[sr[j]][k])
                 if d > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
@@ -365,8 +358,7 @@ cdef int merge_scouts(int M, int *sr,
     return M
 
 
-cdef void move_scouts(int lo, int hi, int *sr,
-                      np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
+cdef void move_scouts(int lo, int hi, int *sr, float **scouts,
                       np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                       unsigned char *still,
                       int N, int ndims, double sigma2, double alpha,
@@ -396,7 +388,7 @@ cdef void move_scouts(int lo, int hi, int *sr,
         for j in range(N): # iterate over data, check if they're within rneigh
             d2 = 0.0 # reset
             for k in range(ndims): # iterate over dims for each point
-                ds[k] = data[j, k] - scouts[sr[i], k]
+                ds[k] = data[j, k] - scouts[sr[i]][k]
                 if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
                     continuej = True
                     break # out of k loop
@@ -420,7 +412,7 @@ cdef void move_scouts(int lo, int hi, int *sr,
         move2 = 0.0 # reset
         for k in range(ndims):
             move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
-            scouts[sr[i], k] += move
+            scouts[sr[i]][k] += move
             move2 += move * move
             #if fabs(move) > fabs(maxmove):
             #    maxmove = move
@@ -499,7 +491,7 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
     cdef Py_ssize_t i, cii
-    # shift all entries at j and above in scouts and still arrays down by one,
+    # shift all entries at j and above in sr and still arrays down by one,
     # needs to be done in succession, can't use prange
     for i in range(scoutj, M-1):
         sr[i] = sr[i+1]
@@ -517,8 +509,7 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
     return M
 
 cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
-                           int *scoutspace, int *sr,
-                           np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
+                           int *scoutspace, int *sr, float **scouts,
                            unsigned char *still,
                            int N, int *cids) nogil:
     """Refill scoutspace based on current scout positions in scouts table"""
@@ -527,12 +518,10 @@ cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
     ifill(scoutspace, -1, proddims)
     # nd index working array:
     cdef int *ndi = <int *> malloc(ndims*sizeof(int))
-    #print('scouts.max() = %f, scouts.min() = %f' % (scouts.max(), scouts.min()))
-    #printf('trunc max() = %d, trunc min() = %d\n', <int> scouts.max(), <int> scouts.min())
     while i < M: # iterate over all scouts
         # trunc float scout position to int nd index:
         for k in range(ndims):
-            ndi[k] = <int> scouts[sr[i], k]
+            ndi[k] = <int> scouts[sr[i]][k]
         li = ndi2li(ndi, dims, ndims)
         #printf('li = %d\n', li)
         if scoutspace[li] == -1: # bin is unoccupied
