@@ -5,7 +5,8 @@
 
 """Nick's gradient-ascent (mountain-climbing) clustering algorithm"""
 
-cimport cython
+#cimport cython # not sure why this was needed before
+from cython.parallel import prange
 import numpy as np
 cimport numpy as np
 
@@ -151,6 +152,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int *dims = <int *> malloc(ndims*sizeof(int)) # dimension sizes
     cdef int *ndi = <int *> malloc(ndims*sizeof(int)) # n-dimensional index working array
     cdef int *cids = <int *> malloc(N*sizeof(int)) # cluster indices into data
+    if not cids: raise MemoryError("can't allocate cids")
     irange(cids, N) # init cids to consecutive int values
     cdef int M = N # current num scout points (clusters), each data point starts as its own scout
     cdef int npoints, npointsremoved, nclustsremoved
@@ -170,10 +172,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts
     # store indices into rows of scouts float table:
     cdef int *sr = <int *> malloc(M*sizeof(int))
+    if not sr: raise MemoryError("can't allocate sr")
     irange(sr, M) # init sr to consecutive int values
     # for each scout, num consecutive iters without significant movement:
     ## TODO: should check that (maxstill <= 255).all(), or use uint16 instead:
     cdef unsigned char *still = <unsigned char *> calloc(M, sizeof(unsigned char))
+    if not still: raise MemoryError("can't allocate still")
     
     # need to convert data table to something suitable for truncing to easily get
     # ints. First have to add some offset to make everything +ve. Then, divide by your fraction
@@ -184,8 +188,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data /= binsize # scale data, same for all dims since sigma apples to all dims
     assert data.max() < 2**32
     assert data.min() == 0
-    ## TODO: use scaled versions of sigma, and everything else that depends on sigma too,
-    ## when calculating ranges in datah and scoutpsace
     scouts = data.copy()
 
     # get dimensions of sparse matrices
@@ -201,8 +203,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # Hell, maybe uint8 would work too
     print('creating %d MB datah array' % (proddims * 2 / 1e6))
     cdef unsigned short *datah = <unsigned short *> calloc(proddims, sizeof(unsigned short))
-    if not datah:
-        raise MemoryError("can't allocate datah")
+    if not datah: raise MemoryError("can't allocate datah")
     # build up histogram in datah
     for i in range(N):
         # trunc float data point position to int nd index:
@@ -224,8 +225,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # get out, because you could never accumulate less than bin sized changes in position
     print('creating %d MB scoutspace array' % (proddims * 4 / 1e6))
     cdef int *scoutspace = <int *> malloc(proddims*sizeof(int))
-    if not scoutspace:
-        raise MemoryError("can't allocate scoutspace")
+    if not scoutspace: raise MemoryError("can't allocate scoutspace")
     print('initing scoutspace, M=%d' % M)
     M = update_scoutspace(M, proddims, ndims, dims, scoutspace, sr, scouts, still, N, cids)
     print('done initing scoutspace, M=%d' % M)
@@ -238,25 +238,18 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # take slice corresponding to rmerge, then maybe do sum of squared discrete distances,
     # and merge if < rmerge
 
-    #Mthresh = 3000000 / N / ndims
-    #print("Mthresh = %d" % Mthresh)
-
     # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
     minmove = minmovex * sigma * alpha # in any direction in ndims space
     minmove2 = minmove * minmove
-
-    #ncpus = cpu_count()
-    #cdef long *lohi = <long *> malloc((ncpus+1)*sizeof(long))
-    #pool = threadpool.ThreadPool(ncpus)
 
     while True:
 
         if nnomerges == maxnnomerges:
             break
 
+        # merge scouts within rmerge of each other
         M = merge_scouts(M, sr, scouts, rmerge, rmerge2, maxstill,
                          still, N, cids, ndims, &merged)
-        
         if merged: # at least one merger happened on this iter
             printf('M')
             nnomerges = 0 # reset
@@ -265,28 +258,15 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             nnomerges += 1 # inc
 
         # move scouts up their local density gradient
-        #if M < Mthresh: # use a single thread
         move_scouts(0, M, sr, scouts, data, still,
                     N, ndims, sigma2, alpha,
                     rneigh, rneigh2, minmove2, maxstill)
-        '''
-        else: # use multiple threads
-            span(lohi, 0, M, ncpus) # modify lohi in place
-            for i in range(ncpus):
-                args = (lohi[i], lohi[i+1], sr, scouts, data, still,
-                        N, ndims, sigma2, alpha,
-                        rneigh, rneigh2, minmove2, maxstill)
-                req = threadpool.WorkRequest(move_scouts, args)
-                pool.putRequest(req)
-            pool.wait()
-        '''
+
         printf('.')
 
         iteri += 1
 
     printf('\n')
-
-    #pool.terminate()
 
     # remove clusters with less than minpoints
     npointsremoved = 0
@@ -298,7 +278,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             if cids[j] == i:
                 npoints += 1
         if npoints < minpoints:
-            #print('cluster %d has only %d points' % (i, npoints))
+            #printf('cluster %d has only %d points', i, npoints)
             # remove cluster i by merging it into "cluster" -1
             M = merge(-1, i, M, sr, still, N, cids)
             # don't inc i, new value at i has just slid into view
@@ -519,13 +499,14 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
     cdef Py_ssize_t i, cii
-    # shift all entries at j and above in scouts and still arrays down by one
+    # shift all entries at j and above in scouts and still arrays down by one,
     # needs to be done in succession, can't use prange
     for i in range(scoutj, M-1):
         sr[i] = sr[i+1]
         still[i] = still[i+1]
-    # update cluster indices, doesn't need to be done in succession, can use prange
-    #for cii in prange(N):
+    # update cluster indices, doesn't need to be done in succession, can use prange,
+    # but runs slower than a single thread - operations are too simple?
+    #for cii in prange(N, nogil=True, schedule='static'):
     for cii in range(N):
         if cids[cii] == scoutj:
             cids[cii] = scouti # replace all scoutj entries with scouti

@@ -7,13 +7,12 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
 import pyximport
-pyximport.install(setup_args={'include_dirs':[np.get_include()]})
+pyximport.install()
+from climbing import climb # .pyx file
 
 from IPython import embed
 from IPython.core import ultratb
 from IPython.frontend.terminal.ipapp import load_default_config
-
-from climbing import climb # .pyx file
 
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt

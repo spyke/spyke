@@ -1,7 +1,6 @@
 import numpy as np
 import pyximport
-pyximport.install(setup_args={'include_dirs':[np.get_include()]})
-
+pyximport.install()
 from climbing import climb # .pyx file
 
 from pylab import figure, gca, scatter, show
