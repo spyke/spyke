@@ -42,7 +42,7 @@ sigma = 0.25
 alpha = 1.0
 rmergex=1.0
 rneighx = 4
-minmove = 0.00001 * sigma * alpha # along a single dimension
+#minmove = 0.00001
 maxstill = 100
 maxnnomerges = 1000
 minpoints = 10
@@ -62,7 +62,7 @@ s.strip_dirs().sort_stats("time").print_stats()
 t0 = time.time()
 results = climb(data, sigma, alpha,
                 rneighx=rneighx, rmergex=rmergex,
-                minmove=minmove, maxstill=maxstill,
+                maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('climb took %.3f sec' % (time.time()-t0))
 

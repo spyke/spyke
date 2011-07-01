@@ -9,12 +9,11 @@ cimport cython
 import numpy as np
 cimport numpy as np
 
-import random, time
 #from extlib import threadpool
 ## TODO: consider switching to built in ThreadPool in multiprocessing.pool:
 ##from multiprocessing.pool import ThreadPool
 ## Better yet, use C level threads via OpenMP by using prange in latest Cython!
-from multiprocessing import cpu_count
+#from multiprocessing import cpu_count
 
 cdef extern from "math.h":
     double sqrt(double x) nogil
@@ -40,7 +39,7 @@ cdef short MAXUINT16 = 2**16 - 1
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           double sigma=0.05, double alpha=2.0,
           double rmergex=1.0, double rneighx=4,
-          double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
+          double minmovex=0.00001, int maxstill=100, int maxnnomerges=1000,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
@@ -70,6 +69,17 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             args
                 - doesn't seem to make any difference, even for purely C arg f'ns. Perhaps
                 GCC automatically finds f'ns that are macro candidates and uses them as such?
+            - pattern for 2D array:
+            
+            int nrows ncols, i
+            # set nrows and ncols however you like
+            int **a = <int **> malloc(nrows*sizeof(int *))
+            for i in range(nrows):
+                a[i] = <int *> malloc(ncols*sizeof(int))
+            # now that it's declared and sized, fill it with values:
+            for i in range(nrows):
+                for j in range(ncols):
+                    a[i][j] = whatever
         
         - reverse annealing sigma: starting small, and gradually increase it over iters
             - increase it a bit every time you get an iteration with no mergers?
@@ -134,7 +144,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - multithread scout update and assignment of unclustered points step
     """
     cdef Py_ssize_t i, j, k, scouti, clustii
-    cdef bint incstill, merged=False, continuej=False
+    cdef bint merged=False
     cdef int iteri=0, nnomerges=0
     cdef int N = data.shape[0] # total num rows (points) in data table
     cdef int ndims = data.shape[1] # num cols in data table
@@ -154,7 +164,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double rmerge2 = rmerge * rmerge
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
-    cdef double d, d2, minmove2
+    cdef double minmove, minmove2
 
     # store scout positions in a float table:
     cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts
@@ -219,7 +229,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     print('initing scoutspace, M=%d' % M)
     M = update_scoutspace(M, proddims, ndims, dims, scoutspace, sr, scouts, still, N, cids)
     print('done initing scoutspace, M=%d' % M)
-    return
+    
     # for merging scouts, clear scoutspace, and start writing their indices to it.
     # While writing, if you find the position in the matrix is already occupied,
     # then obviously you need to merge the current scout into the one that's already
@@ -231,9 +241,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     #Mthresh = 3000000 / N / ndims
     #print("Mthresh = %d" % Mthresh)
 
-    if minmove == -1.0:
-        # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
-        minmove = 0.000001 * sigma * alpha # in any direction in ndims space
+    # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
+    minmove = minmovex * sigma * alpha # in any direction in ndims space
     minmove2 = minmove * minmove
 
     #ncpus = cpu_count()
@@ -245,34 +254,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         if nnomerges == maxnnomerges:
             break
 
-        # merge pairs of scout points sufficiently close to each other
-        i = 0
-        while i < M:
-            j = i+1
-            while j < M:
-                if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
-                    j += 1
-                    continue
-                # for each pair of scouts, check if any pair is within rmerge of each other
-                d2 = 0.0 # reset
-                for k in range(ndims):
-                    d = fabs(scouts[sr[i], k] - scouts[sr[j], k])
-                    if d > rmerge: # break out of k loop, continue to next j
-                        continuej = True
-                        break # out of k loop
-                    d2 += d * d
-                if continuej:
-                    continuej = False # reset
-                    j += 1
-                    continue # to next j loop
-                if d2 <= rmerge2:
-                    # merge the scouts: keep scout i, ditch scout j
-                    M = merge_scouts(i, j, M, sr, still, N, cids)
-                    # don't inc j, new value at j has just slid into view
-                    merged = True
-                else:
-                    j += 1
-            i += 1
+        M = merge_scouts(M, sr, scouts, rmerge, rmerge2, maxstill,
+                         still, N, cids, ndims, &merged)
+        
         if merged: # at least one merger happened on this iter
             printf('M')
             nnomerges = 0 # reset
@@ -316,24 +300,30 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         if npoints < minpoints:
             #print('cluster %d has only %d points' % (i, npoints))
             # remove cluster i by merging it into "cluster" -1
-            M = merge_scouts(-1, i, M, sr, still, N, cids)
+            M = merge(-1, i, M, sr, still, N, cids)
             # don't inc i, new value at i has just slid into view
             npointsremoved += npoints
             nclustsremoved += 1
         else:
             i += 1
-    print('%d points (%.1f%%) and %d clusters deleted for having less than %d points each' %
-         (npointsremoved, npointsremoved/float(N)*100, nclustsremoved, minpoints))
+    printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
+           npointsremoved, npointsremoved/(<double>N)*100, nclustsremoved, minpoints)
 
-    moving = still[:M] < maxstill
-    nmoving = moving.sum()
-    print('\nniters: %d' % iteri)
-    print('nscouts: %d' % M)
-    print('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f' % (sigma, rneigh, rmerge, alpha))
-    print('nmoving: %d, minmove: %f' % (nmoving, minmove))
-    print('moving scouts: %r' % np.where(moving)[0])
-    print('still array:')
-    print still[:M]
+    cdef int nmoving=0
+    for i in range(M):
+        if still[i] < maxstill:
+            nmoving += 1
+    #moving = still[:M] < maxstill
+    printf('nniters: %d\n',iteri)
+    printf('nclusters: %d\n', M)
+    printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f\n', sigma, rneigh, rmerge, alpha)
+    printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
+    #print('moving scouts: %r' % np.where(moving)[0])
+    printf('still array:\n')
+    for i in range(M):
+        printf('%d, ', still[i])
+    printf('\n')
+    #print still[:M]
 
     # build returnable numpy ndarray for cids
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.zeros(N, dtype=np.int32)
@@ -355,7 +345,44 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     free(datah)
     free(scoutspace)
     #free(lohi)
-    return np_cids, scouts
+    return np_cids, scouts[:M]
+
+
+cdef int merge_scouts(int M, int *sr,
+                      np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
+                      double rmerge, double rmerge2, int maxstill, 
+                      unsigned char *still, int N, int *cids, int ndims, int *merged):
+    """Merge pairs of scout points sufficiently close to each other"""
+    cdef Py_ssize_t i=0, j, k
+    cdef double d, d2
+    cdef bint continuej=False
+    while i < M:
+        j = i+1
+        while j < M:
+            if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
+                j += 1
+                continue
+            # for each pair of scouts, check if any pair is within rmerge of each other
+            d2 = 0.0 # reset
+            for k in range(ndims):
+                d = fabs(scouts[sr[i], k] - scouts[sr[j], k])
+                if d > rmerge: # break out of k loop, continue to next j
+                    continuej = True
+                    break # out of k loop
+                d2 += d * d
+            if continuej:
+                continuej = False # reset
+                j += 1
+                continue # to next j loop
+            if d2 <= rmerge2:
+                # merge the scouts: keep scout i, ditch scout j
+                M = merge(i, j, M, sr, still, N, cids)
+                # don't inc j, new value at j has just slid into view
+                merged[0] = True
+            else:
+                j += 1
+        i += 1
+    return M
 
 
 cdef void move_scouts(int lo, int hi, int *sr,
@@ -423,10 +450,10 @@ cdef void move_scouts(int lo, int hi, int *sr,
             still[i] = 0 # reset stillness counter for this scout
         # wanted to see if points move faster when normalized by kernel vs nneighs:
         #printf('%f ', maxmove)
-        free(ds)
-        free(d2s)
-        free(kernel)
-        free(v)
+    free(ds)
+    free(d2s)
+    free(kernel)
+    free(v)
 
 '''
 cdef void span(long *lohi, int start, int end, int N) nogil:
@@ -486,17 +513,19 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
         li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
 
-cdef int merge_scouts(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
-                      unsigned char *still, int N, int *cids) nogil:
+cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
+               unsigned char *still, int N, int *cids) nogil:
     """Merge scoutj into scouti, where scouti < scoutj"""
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
     cdef Py_ssize_t i, cii
     # shift all entries at j and above in scouts and still arrays down by one
+    # needs to be done in succession, can't use prange
     for i in range(scoutj, M-1):
         sr[i] = sr[i+1]
         still[i] = still[i+1]
-    # update cluster indices
+    # update cluster indices, doesn't need to be done in succession, can use prange
+    #for cii in prange(N):
     for cii in range(N):
         if cids[cii] == scoutj:
             cids[cii] = scouti # replace all scoutj entries with scouti
@@ -529,7 +558,7 @@ cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
             scoutspace[li] = i # occupy the bin with scout i
             i += 1
         else: # there's already a scout there, merge into it
-            M = merge_scouts(scoutspace[li], i, M, sr, still, N, cids)
+            M = merge(scoutspace[li], i, M, sr, still, N, cids)
             # don't inc i, new value at i has just slid into view
     free(ndi)
     return M
