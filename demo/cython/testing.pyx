@@ -16,8 +16,8 @@ cdef extern from "stdio.h":
     cdef void free(void *) nogil
 
 
-def testing(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
-            np.ndarray[np.uint32_t, ndim=1, mode='c'] dims):
+def testing():#np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
+              #np.ndarray[np.uint32_t, ndim=1, mode='c'] dims):
     '''
     printf('float: %d\n', sizeof(float))
     printf('double: %d\n', sizeof(double))
@@ -74,7 +74,7 @@ def testing(np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
         for i in prange(4):
             blarg = i
             if i == 2:
-                blarg = 666
+                blarg = 222
                 # do something slowish:
                 for j in range(1000000000):
                     temp = j*j
