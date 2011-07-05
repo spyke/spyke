@@ -5,7 +5,6 @@ from climbing import climb # .pyx file
 
 from pylab import figure, gca, scatter, show
 import scipy.io
-import wx
 import time
 
 

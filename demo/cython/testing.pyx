@@ -65,12 +65,16 @@ def testing():#np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
     printf('\n')
     '''
     cdef int i, j
-    cdef int blarg=999, temp
+    cdef int blarg=999, temp, ndims=4
+    cdef int *a
     # test creating thread-local variables to avoid race conditions.
     # Looks like there aren't any when you use a parallel block!:
     printf('blarg before parallel = %d\n', blarg)
     with nogil, parallel():
         printf('blarg at start of parallel = %d\n', blarg)
+        a = <int *>malloc(ndims*sizeof(int))
+        for j in range(ndims):
+            a[j] = 2*j
         for i in prange(4):
             blarg = i
             if i == 2:
@@ -79,6 +83,10 @@ def testing():#np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
                 for j in range(1000000000):
                     temp = j*j
             printf('end of loop, i, blarg = %d, %d\n', i, blarg)
+            printf('end of loop %d, a = ', i)
+            for j in range(ndims):
+                printf('%d ', a[j])
+            printf('\n')
         printf('end of parallel, i, blarg = %d, %d\n', i, blarg)
     printf('outside parallel, i, blarg = %d, %d\n', i, blarg)
 

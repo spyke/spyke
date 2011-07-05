@@ -253,9 +253,10 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             nnomerges += 1 # inc
 
         # move scouts up their local density gradient
-        move_scouts(M, sr, scouts, data, still,
-                    N, ndims, sigma2, alpha,
-                    rneigh, rneigh2, minmove2, maxstill)
+        for scouti in prange(M, nogil=True):
+            move_scout(scouti, sr, scouts, data, still,
+                       N, ndims, sigma2, alpha,
+                       rneigh, rneigh2, minmove2, maxstill)
 
         printf('.')
 
@@ -358,77 +359,74 @@ cdef int merge_scouts(int M, int *sr, float **scouts,
     return M
 
 
-cdef void move_scouts(int M, int *sr, float **scouts,
-                      np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                      unsigned char *still,
-                      int N, int ndims, double sigma2, double alpha,
-                      double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
-    """Move scouts up their local density gradient"""
-    cdef double *ds, *d2s, *kernel, *v
+cdef void move_scout(int i, int *sr, float **scouts,
+                     np.ndarray[np.float32_t, ndim=2, mode='c'] data,
+                     unsigned char *still,
+                     int N, int ndims, double sigma2, double alpha,
+                     double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
+    """Move a scout up its local density gradient"""
     #cdef int nneighs
-    cdef Py_ssize_t i, j, k
-    cdef bint continuej
+    # skip frozen scout point:
+    if still[i] >= maxstill:
+        return
+    cdef Py_ssize_t j, k
+    cdef bint continuej = False
     cdef double d2, kern, move, move2#, maxmove = 0.0
-    with parallel():
-        *ds = <double *> malloc(ndims*sizeof(double))
-        *d2s = <double *> malloc(ndims*sizeof(double))
-        *kernel = <double *> malloc(ndims*sizeof(double))
-        *v = <double *> malloc(ndims*sizeof(double))
-        for i in prange(M): # iterate over all scout points
-            continuej = False
-            # skip frozen scout points
-            if still[i] < maxstill:
-                # measure gradient
-                #nneighs = 0 # reset
-                for k in range(ndims):
-                    kernel[k] = 0.0 # reset
-                    v[k] = 0.0 # reset
-                # slightly faster, though not guaranteed to be valid thing to do for non-int array:
-                #memset(kernel, 0, ndims*sizeof(double)) # reset
-                #memset(v, 0, ndims*sizeof(double)) # reset
-                for j in range(N): # iterate over data, check if they're within rneigh
-                    d2 = 0.0 # reset
-                    for k in range(ndims): # iterate over dims for each point
-                        if not continuej:
-                            ds[k] = data[j, k] - scouts[sr[i]][k]
-                            if fabs(ds[k]) <= rneigh: # break out of k loop, continue to next j loop
-                                d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
-                                d2 += d2s[k]
-                            else:
-                                continuej = True
-                    if not continuej:
-                        if d2 <= rneigh2: # do the calculation
-                            for k in range(ndims):
-                                # v is ndim vector of sum of kernel-weighted distances between
-                                # current scout point and all data within rneigh
-                                #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
-                                kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
-                                #printf('%.3f ', kern)
-                                kernel[k] += kern
-                                v[k] += ds[k] * kern
-                            #nneighs += 1
-                    else:
-                        continuej = False # reset
-                        #continue # to next j
-                # update scout position in direction of v, normalize by kernel
-                # nneighs (and kernel?) will never be 0, because each scout point starts as a data point
-                move2 = 0.0 # reset
-                for k in range(ndims):
-                    move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
-                    scouts[sr[i]][k] += move
-                    move2 += move * move
-                    #if fabs(move) > fabs(maxmove):
-                    #    maxmove = move
-                if move2 < minmove2:
-                    still[i] += 1 # count scout as still during this iter
+    cdef double *ds = <double *> malloc(ndims*sizeof(double))
+    cdef double *d2s = <double *> malloc(ndims*sizeof(double))
+    cdef double *kernel = <double *> malloc(ndims*sizeof(double))
+    cdef double *v = <double *> malloc(ndims*sizeof(double))
+    # measure gradient
+    #nneighs = 0 # reset
+    for k in range(ndims):
+        kernel[k] = 0.0 # reset
+        v[k] = 0.0 # reset
+    # slightly faster, though not guaranteed to be valid thing to do for non-int array:
+    #memset(kernel, 0, ndims*sizeof(double)) # reset
+    #memset(v, 0, ndims*sizeof(double)) # reset
+    for j in range(N): # iterate over data, check if they're within rneigh
+        d2 = 0.0 # reset
+        for k in range(ndims): # iterate over dims for each point
+            if not continuej:
+                ds[k] = data[j, k] - scouts[sr[i]][k]
+                if fabs(ds[k]) <= rneigh: # break out of k loop, continue to next j loop
+                    d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
+                    d2 += d2s[k]
                 else:
-                    still[i] = 0 # reset stillness counter for this scout
-                # wanted to see if points move faster when normalized by kernel vs nneighs:
-                #printf('%f ', maxmove)
-        free(ds)
-        free(d2s)
-        free(kernel)
-        free(v)
+                    continuej = True
+        if not continuej:
+            if d2 <= rneigh2: # do the calculation
+                for k in range(ndims):
+                    # v is ndim vector of sum of kernel-weighted distances between
+                    # current scout point and all data within rneigh
+                    #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
+                    kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                    #printf('%.3f ', kern)
+                    kernel[k] += kern
+                    v[k] += ds[k] * kern
+                #nneighs += 1
+        else:
+            continuej = False # reset
+            #continue # to next j
+    # update scout position in direction of v, normalize by kernel
+    # nneighs (and kernel?) will never be 0, because each scout point starts as a data point
+    move2 = 0.0 # reset
+    for k in range(ndims):
+        move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
+        scouts[sr[i]][k] += move
+        move2 += move * move
+        #if fabs(move) > fabs(maxmove):
+        #    maxmove = move
+    if move2 < minmove2:
+        still[i] += 1 # count scout as still during this iter
+    else:
+        still[i] = 0 # reset stillness counter for this scout
+    # wanted to see if points move faster when normalized by kernel vs nneighs:
+    #printf('%f ', maxmove)
+    free(ds)
+    free(d2s)
+    free(kernel)
+    free(v)
 
 '''
 cdef void span(long *lohi, int start, int end, int N) nogil:
@@ -497,6 +495,10 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
 cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
                unsigned char *still, int N, int *cids) nogil:
     """Merge scoutj into scouti, where scouti < scoutj"""
+    
+    ## TODO: index into still with still[sr[i]], so you don't have to keep copying
+    ## still[i+1] into still[i]
+    
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
     cdef Py_ssize_t i, cii
