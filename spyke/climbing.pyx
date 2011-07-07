@@ -157,7 +157,13 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double rneigh2 = rneigh * rneigh
     cdef double minmove, minmove2
 
-    # store scout positions in a 2D float array:
+    # store point positions in a 2D C float array, since handling numpy data array directly
+    # causes segfaults in prange() loops:
+    cdef float **points = <float **> malloc(N*sizeof(float *))
+    if not points: raise MemoryError("can't allocate points")
+    for i in range(N):
+        points[i] = <float *> malloc(ndims*sizeof(float))
+    # store scout positions in a 2D C float array:
     cdef float **scouts = <float **> malloc(M*sizeof(float *))
     if not scouts: raise MemoryError("can't allocate scouts")
     for i in range(M):
@@ -180,9 +186,10 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data /= binsize # scale data, same for all dims since sigma apples to all dims
     assert data.max() < 2**32
     assert data.min() == 0
-    # init scouts at respective scaled data point positions:
-    for i in range(M):
+    # init points and scouts at respective scaled data point positions:
+    for i in range(N): # M == N
         for k in range(ndims):
+            points[i][k] = data[i, k]
             scouts[i][k] = data[i, k]
 
     # get dimensions of sparse matrices
@@ -193,28 +200,28 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     printf('\n')
     proddims = prod(dims, ndims)
 
-    # datah: ndim static histogram of point positions in data, bins of size binsize
+    # pointh: ndim static histogram of point positions in points, bins of size binsize
     # use uint16, since not likely to have more than 65k points in a single bin.
     # Hell, maybe uint8 would work too
-    print('creating %d MB datah array' % (proddims * 2 / 1e6))
-    cdef unsigned short *datah = <unsigned short *> calloc(proddims, sizeof(unsigned short))
-    if not datah: raise MemoryError("can't allocate datah")
-    # build up histogram in datah
+    print('creating %d MB pointh array' % (proddims * 2 / 1e6))
+    cdef unsigned short *pointh = <unsigned short *> calloc(proddims, sizeof(unsigned short))
+    if not pointh: raise MemoryError("can't allocate pointh")
+    # build up histogram in pointh
     for i in range(N):
-        # trunc float data point position to int nd index:
+        # trunc float point position to int nd index:
         for k in range(ndims):
-            ndi[k] = <int> data[i, k]
+            ndi[k] = <int> points[i][k]
         li = ndi2li(ndi, dims, ndims)
-        #print('li = %d, datah[li] = %d' % (li, datah[li]))
-        datah[li] += 1
-        if datah[li] == MAXUINT16:
-            raise RuntimeError("uint16 isn't enough for datah!")
-    print('done initing datah')
-    print('max(datah) = %d' % usmax(datah, proddims))
+        #print('li = %d, pointh[li] = %d' % (li, pointh[li]))
+        pointh[li] += 1
+        if pointh[li] == MAXUINT16:
+            raise RuntimeError("uint16 isn't enough for pointh!")
+    print('done initing pointh')
+    print('max(pointh) = %d' % usmax(pointh, proddims))
 
     # scoutspace: ndim dynamic histogram of scout positions in scouts table
     # use dynamic scoutspace sparse matrix to approximate each scout's position and
-    # calculate gradient according to same sized datah, but then update the scout's
+    # calculate gradient according to same sized pointh, but then update the scout's
     # actual position in separate scouts table in float, per usual. Otherwise, if you
     # stored scout positions quantized, you could easily get stuck in a bin and never
     # get out, because you could never accumulate less than bin sized changes in position
@@ -246,7 +253,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         M = merge_scouts(M, sr, scouts, rmerge, rmerge2, maxstill,
                          still, N, cids, ndims, &merged)
         if merged: # at least one merger happened on this iter
-            printf('M')
+            printf('M=%d', M)
             nnomerges = 0 # reset
             merged = False # reset
         else: # no mergers happened on this iter
@@ -254,7 +261,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # move scouts up their local density gradient
         for scouti in prange(M, nogil=True):
-            move_scout(scouti, sr, scouts, data, still,
+            move_scout(scouti, sr, scouts, points, still,
                        N, ndims, sigma2, alpha,
                        rneigh, rneigh2, minmove2, maxstill)
 
@@ -318,7 +325,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     free(scouts)
     free(sr)
     free(still)
-    free(datah)
+    free(pointh)
     free(scoutspace)
     return np_cids, np_scouts
 
@@ -359,57 +366,52 @@ cdef int merge_scouts(int M, int *sr, float **scouts,
     return M
 
 
-cdef void move_scout(int i, int *sr, float **scouts,
-                     np.ndarray[np.float32_t, ndim=2, mode='c'] data,
+cdef void move_scout(int i, int *sr, float **scouts, float **points,
                      unsigned char *still,
                      int N, int ndims, double sigma2, double alpha,
                      double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
     """Move a scout up its local density gradient"""
-    #cdef int nneighs
-    # skip frozen scout point:
-    if still[i] >= maxstill:
-        return
     cdef Py_ssize_t j, k
-    cdef bint continuej = False
+    #cdef int nneighs
+    cdef bint continuej=False
     cdef double d2, kern, move, move2#, maxmove = 0.0
     cdef double *ds = <double *> malloc(ndims*sizeof(double))
     cdef double *d2s = <double *> malloc(ndims*sizeof(double))
     cdef double *kernel = <double *> malloc(ndims*sizeof(double))
     cdef double *v = <double *> malloc(ndims*sizeof(double))
-    # measure gradient
-    #nneighs = 0 # reset
-    for k in range(ndims):
-        kernel[k] = 0.0 # reset
-        v[k] = 0.0 # reset
-    # slightly faster, though not guaranteed to be valid thing to do for non-int array:
-    #memset(kernel, 0, ndims*sizeof(double)) # reset
-    #memset(v, 0, ndims*sizeof(double)) # reset
-    for j in range(N): # iterate over data, check if they're within rneigh
+
+    # skip frozen scout points
+    if still[i] == maxstill:
+        return
+    # reset some local vars:
+    #nneighs = 0
+    dfill(kernel, 0, ndims)
+    dfill(v, 0, ndims)
+    # measure gradient:
+    for j in range(N): # iterate over points, check if any are within rneigh
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
-            if not continuej:
-                ds[k] = data[j, k] - scouts[sr[i]][k]
-                if fabs(ds[k]) <= rneigh: # break out of k loop, continue to next j loop
-                    d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
-                    d2 += d2s[k]
-                else:
-                    continuej = True
-        if not continuej:
-            if d2 <= rneigh2: # do the calculation
-                for k in range(ndims):
-                    # v is ndim vector of sum of kernel-weighted distances between
-                    # current scout point and all data within rneigh
-                    #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
-                    kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
-                    #printf('%.3f ', kern)
-                    kernel[k] += kern
-                    v[k] += ds[k] * kern
-                #nneighs += 1
-        else:
+            ds[k] = points[j][k] - scouts[sr[i]][k]
+            if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
+                continuej = True
+                break # out of k loop
+            d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
+            d2 += d2s[k]
+        if continuej:
             continuej = False # reset
-            #continue # to next j
+            continue # to next j
+        if d2 <= rneigh2: # do the calculation
+            for k in range(ndims):
+                # v is ndim vector of sum of kernel-weighted distances between
+                # current scout and all points within rneigh
+                #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
+                kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                #printf('%.3f ', kern)
+                kernel[k] += kern
+                v[k] += ds[k] * kern
+            #nneighs += 1
     # update scout position in direction of v, normalize by kernel
-    # nneighs (and kernel?) will never be 0, because each scout point starts as a data point
+    # nneighs (and kernel?) will never be 0, because each scout starts as a point
     move2 = 0.0 # reset
     for k in range(ndims):
         move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
@@ -423,6 +425,7 @@ cdef void move_scout(int i, int *sr, float **scouts,
         still[i] = 0 # reset stillness counter for this scout
     # wanted to see if points move faster when normalized by kernel vs nneighs:
     #printf('%f ', maxmove)
+    
     free(ds)
     free(d2s)
     free(kernel)
