@@ -294,7 +294,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     cdef int nmoving=0
     for i in range(M):
-        if still[sr[i]] < maxstill:
+        if still[i] < maxstill:
             nmoving += 1
     printf('nniters: %d\n',iteri)
     printf('nclusters: %d\n', M)
@@ -302,7 +302,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
     printf('still array:\n')
     for i in range(M):
-        printf('%d, ', still[sr[i]])
+        printf('%d, ', still[i])
     printf('\n')
 
     # build returnable numpy ndarray for cids
@@ -337,7 +337,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts,
     while i < M:
         j = i+1
         while j < M:
-            if still[sr[i]] == maxstill and still[sr[j]] == maxstill: # both scouts are frozen
+            if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
                 j += 1
                 continue
             # for each pair of scouts, check if any pair is within rmerge of each other
@@ -378,7 +378,7 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     cdef double *v = <double *> malloc(ndims*sizeof(double))
 
     # skip frozen scout points
-    if still[sr[i]] == maxstill:
+    if still[i] == maxstill:
         return
     # reset some local vars:
     #nneighs = 0
@@ -417,9 +417,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
         #if fabs(move) > fabs(maxmove):
         #    maxmove = move
     if move2 < minmove2:
-        still[sr[i]] += 1 # count scout as still during this iter
+        still[i] += 1 # count scout as still during this iter
     else:
-        still[sr[i]] = 0 # reset stillness counter for this scout
+        still[i] = 0 # reset stillness counter for this scout
     # wanted to see if points move faster when normalized by kernel vs nneighs:
     #printf('%f ', maxmove)
     
@@ -502,6 +502,7 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
     # needs to be done in succession, can't use prange
     for i in range(scoutj, M-1):
         sr[i] = sr[i+1]
+        still[i] = still[i+1]
     # update cluster indices, doesn't need to be done in succession, can use prange,
     # but runs slower than a single thread - operations are too simple?
     #for cii in prange(N, nogil=True, schedule='static'):
