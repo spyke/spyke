@@ -34,7 +34,7 @@ GREY = '#555555' # reserve as junk cluster colour
 COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 
 data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
-data = data[:10000, :4].copy() # limit npoints and ndims, copy to make it contig
+data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
 nd = data.shape[1]
 sigma = 0.25
 alpha = 1.0

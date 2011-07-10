@@ -294,19 +294,16 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     cdef int nmoving=0
     for i in range(M):
-        if still[i] < maxstill:
+        if still[sr[i]] < maxstill:
             nmoving += 1
-    #moving = still[:M] < maxstill
     printf('nniters: %d\n',iteri)
     printf('nclusters: %d\n', M)
     printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f\n', sigma, rneigh, rmerge, alpha)
     printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
-    #print('moving scouts: %r' % np.where(moving)[0])
     printf('still array:\n')
     for i in range(M):
-        printf('%d, ', still[i])
+        printf('%d, ', still[sr[i]])
     printf('\n')
-    #print still[:M]
 
     # build returnable numpy ndarray for cids
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.empty(N, dtype=np.int32)
@@ -340,7 +337,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts,
     while i < M:
         j = i+1
         while j < M:
-            if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
+            if still[sr[i]] == maxstill and still[sr[j]] == maxstill: # both scouts are frozen
                 j += 1
                 continue
             # for each pair of scouts, check if any pair is within rmerge of each other
@@ -381,7 +378,7 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     cdef double *v = <double *> malloc(ndims*sizeof(double))
 
     # skip frozen scout points
-    if still[i] == maxstill:
+    if still[sr[i]] == maxstill:
         return
     # reset some local vars:
     #nneighs = 0
@@ -420,9 +417,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
         #if fabs(move) > fabs(maxmove):
         #    maxmove = move
     if move2 < minmove2:
-        still[i] += 1 # count scout as still during this iter
+        still[sr[i]] += 1 # count scout as still during this iter
     else:
-        still[i] = 0 # reset stillness counter for this scout
+        still[sr[i]] = 0 # reset stillness counter for this scout
     # wanted to see if points move faster when normalized by kernel vs nneighs:
     #printf('%f ', maxmove)
     
@@ -498,10 +495,6 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
 cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
                unsigned char *still, int N, int *cids) nogil:
     """Merge scoutj into scouti, where scouti < scoutj"""
-    
-    ## TODO: index into still with still[sr[i]], so you don't have to keep copying
-    ## still[i+1] into still[i]
-    
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
     cdef Py_ssize_t i, cii
@@ -509,7 +502,6 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
     # needs to be done in succession, can't use prange
     for i in range(scoutj, M-1):
         sr[i] = sr[i+1]
-        still[i] = still[i+1]
     # update cluster indices, doesn't need to be done in succession, can use prange,
     # but runs slower than a single thread - operations are too simple?
     #for cii in prange(N, nogil=True, schedule='static'):
