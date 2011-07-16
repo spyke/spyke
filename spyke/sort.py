@@ -228,6 +228,45 @@ class Sort(object):
                 rec.write(f)
         print(fullfname)
 
+    def exportgdffiles(self, basepath):
+        """Export spike data to binary .gdf files under basepath, one file for all neurons
+           1st column is event id
+           2nd column is event time in ms res"""
+        spikes = self.spikes
+        dt = str(datetime.datetime.now()) # get an export datetime stamp
+        dt = dt.split('.')[0] # ditch the us
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        srffnames = self.stream.srffnames
+        try: # self.stream is a TrackStream?
+            streamtranges = self.stream.streamtranges # includes offsets
+        except AttributeError: # self.stream is a normal Stream
+            streamtranges = [[self.stream.t0, self.stream.t1]]
+        print('exporting clustered spikes to:')
+        # do a separate export for each recording
+        '''
+        for srffname, streamtrange in zip(srffnames, streamtranges):
+            srffnameroot = lrstrip(srffname, '../', '.srf')
+            path = os.path.join(basepath, srffnameroot)
+            try: os.mkdir(path)
+            except OSError: pass # path already exists?
+            # if any existing folders in srffname path end with the name '.best.sort',
+            # then remove the '.best' from their name
+            for name in os.listdir(path):
+                fullname = os.path.join(path, name)
+                if os.path.isdir(fullname):
+                    shutil.rmtree(fullname) # aw hell, just delete them to minimize junk
+        '''
+        srffname = srffnames[0]
+        i = spikes['nid'] != -1
+        nspikes = i.sum()
+        idts = np.empty((nspikes, 2), dtype=np.int64)
+        idts[:, 0] = spikes[i]['nid']
+        idts[:, 1] = intround(spikes[i]['t'] / 1e3) # convert to int ms resolution
+        path = os.path.join(basepath, dt+'-'+srffname+'.gdf')
+        np.savetxt(path, idts, '%d')
+        print(path)
+
     def exportspkfiles(self, basepath):
         """Export spike data to binary .spk files under basepath, one file per neuron"""
         spikes = self.spikes

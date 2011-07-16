@@ -203,6 +203,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # pointh: ndim static histogram of point positions in points, bins of size binsize
     # use uint16, since not likely to have more than 65k points in a single bin.
     # Hell, maybe uint8 would work too
+    '''
     print('creating %d MB pointh array' % (proddims * 2 / 1e6))
     cdef unsigned short *pointh = <unsigned short *> calloc(proddims, sizeof(unsigned short))
     if not pointh: raise MemoryError("can't allocate pointh")
@@ -231,7 +232,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     print('initing scoutspace, M=%d' % M)
     M = update_scoutspace(M, proddims, ndims, dims, scoutspace, sr, scouts, still, N, cids)
     print('done initing scoutspace, M=%d' % M)
-    
+    '''
     # for merging scouts, clear scoutspace, and start writing their indices to it.
     # While writing, if you find the position in the matrix is already occupied,
     # then obviously you need to merge the current scout into the one that's already
@@ -322,8 +323,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     free(scouts)
     free(sr)
     free(still)
-    free(pointh)
-    free(scoutspace)
+    #free(pointh)
+    #free(scoutspace)
     return np_cids, np_scouts
 
 

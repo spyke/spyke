@@ -1162,6 +1162,7 @@
        <string>Spikes</string>
       </property>
       <addaction name="actionExportPtcsFiles"/>
+      <addaction name="actionExportGdfFiles"/>
       <addaction name="actionExportSpkFiles"/>
       <addaction name="actionExportTsChID"/>
      </widget>
@@ -1614,6 +1615,11 @@
   <action name="actionExportSpkFiles">
    <property name="text">
     <string>.spk files</string>
+   </property>
+  </action>
+  <action name="actionExportGdfFiles">
+   <property name="text">
+    <string>.gdf files</string>
    </property>
   </action>
  </widget>

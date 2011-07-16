@@ -194,6 +194,16 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update cwd
 
     @QtCore.pyqtSlot()
+    def on_actionExportGdfFiles_triggered(self):
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption="Export .gdf file(s) to",
+                                    directory=os.getcwd())
+        path = str(path)
+        if path:
+            self.sort.exportgdffiles(path)
+            # don't update cwd
+
+    @QtCore.pyqtSlot()
     def on_actionExportSpikes_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .spk files to",
