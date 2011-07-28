@@ -11,7 +11,7 @@ You're not generating variable numbers of python objects each time I don't think
 like you are when makeing Line2Ds, so hopefully having variable numbers of channels
 per plot slot won't cause a slowdown with LCs like it did with Line2Ds (which is
 what made me init all Line2D plots to have the same number of chans, 54, but most of
-which were left disabled. 
+which were left disabled). 
 """
 
 from __future__ import division
@@ -49,7 +49,7 @@ class MyFigureCanvasQTAgg(FigureCanvasQTAgg):
         t0 = time.time()
         #self.init_lines()
         self.init_lc()
-        print('init_lines() took %.3f sec' % (time.time()-t0))
+        print('initing artists took %.3f sec' % (time.time()-t0))
 
     def init_lines(self):
         for i in range(nplots):
