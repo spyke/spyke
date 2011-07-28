@@ -278,7 +278,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     i = 0
     while i < M:
         npoints = 0 # reset
-        for j in range(N):
+        # tally up npoints in cluster i
+        for j in range(N): # TODO: this could maybe be prange, inc'ing concurrently won't cause races?
             if cids[j] == i:
                 npoints += 1
         if npoints < minpoints:

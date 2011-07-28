@@ -232,6 +232,11 @@ class Sort(object):
         """Export spike data to binary .gdf files under basepath, one file for all neurons
            1st column is event id
            2nd column is event time in ms res"""
+        ## TODO: make sure event ids in gdf format start from 1, and are contiguous. Also make
+        ## sure to include stimulus start times labelled as event 1001 or something
+        ## TODO: make export work on full track of data too, exporting to separate folders per
+        ## .srf file
+        
         spikes = self.spikes
         dt = str(datetime.datetime.now()) # get an export datetime stamp
         dt = dt.split('.')[0] # ditch the us

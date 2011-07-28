@@ -64,6 +64,7 @@ def testing():#np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
         printf('%lld, ', a[i])
     printf('\n')
     '''
+    '''
     cdef int i, j
     cdef int blarg=999, temp, ndims=4
     cdef int *a
@@ -89,7 +90,16 @@ def testing():#np.ndarray[np.uint32_t, ndim=1, mode='c'] ndi,
             printf('\n')
         printf('end of parallel, i, blarg = %d, %d\n', i, blarg)
     printf('outside parallel, i, blarg = %d, %d\n', i, blarg)
-
+    '''
+def testing2():
+    """This seems to show that inc'ing a variable concurrently with multiple threads doesn't
+    cause races"""
+    cdef int i, npoints=0 # init
+    with nogil:
+        for i in range(1000000000LL):
+            if i % 5 == 0:
+                npoints += 1 # inc
+    printf('%d points\n', npoints)
 
 cdef long long prod(np.ndarray[np.uint32_t, ndim=1, mode='c'] a) nogil:
     """Return product of entries in uint32 array a"""
