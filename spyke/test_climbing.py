@@ -1,19 +1,16 @@
 import numpy as np
 import pyximport
-pyximport.install(setup_args={'include_dirs':[np.get_include()]})
-
+pyximport.install()
 from climbing import climb # .pyx file
 
 from pylab import figure, gca, scatter, show
 import scipy.io
-import wx
 import time
 
 
 def makefigure():
     f = figure()
     f.subplots_adjust(0, 0, 1, 1)
-    f.canvas.SetBackgroundColour(wx.BLACK)
     f.set_facecolor('black')
     f.set_edgecolor('black')
     a = gca()
@@ -36,27 +33,39 @@ GREY = '#555555' # reserve as junk cluster colour
 
 COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 
-data = np.load('/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
-data = data[:100000, :4].copy() # limit npoints and ndims, copy to make it contig
+data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
+data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
 nd = data.shape[1]
-sampleis = np.load('10k_of_100k_sampleis.npy')
 sigma = 0.25
 alpha = 1.0
-rmergex=1.0
+rmergex = 1.0
 rneighx = 4
-#nsamples = 10000
-minmove = 0.00001 * sigma * alpha # along a single dimension
+#minmove = 0.00001
 maxstill = 100
 maxnnomerges = 1000
 minpoints = 10
 
+'''
+import pstats, cProfile
+s = """
+climb(data, sigma, alpha,
+      rneighx=rneighx, rmergex=rmergex,
+      minmove=minmove, maxstill=maxstill,
+      maxnnomerges=maxnnomerges, minpoints=minpoints)
+"""
+cProfile.runctx(s, globals(), locals(), "Profile.prof")
+s = pstats.Stats("Profile.prof")
+s.strip_dirs().sort_stats("time").print_stats()
+'''
 t0 = time.time()
-results = climb(data, sampleis, sigma, alpha, rneighx=rneighx,
-                rmergex=rmergex, #nsamples=nsamples,
-                minmove=minmove, maxstill=maxstill,
+results = climb(data, sigma, alpha,
+                rneighx=rneighx, rmergex=rmergex,
+                maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
-cids, positions, sampleis = results
 print('climb took %.3f sec' % (time.time()-t0))
+
+'''
+cids, positions = results
 
 nclusters = len(positions)
 
@@ -84,3 +93,4 @@ if data.shape[1] > 3:
 
 
 show()
+'''

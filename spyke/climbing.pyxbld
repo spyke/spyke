@@ -1,0 +1,15 @@
+def make_ext(modname, pyxfilename):
+    from distutils.extension import Extension
+    import numpy as np
+    #print('building %r extension with OpenMP support' % modname)
+    ext = Extension(name=modname, sources=[pyxfilename],
+                    extra_compile_args=['-fopenmp'],
+                    libraries=['gomp'],
+                    include_dirs=[np.get_include()])
+    return ext
+'''
+def make_setup_args():
+    import numpy as np
+    print('making setup args')
+    return dict(include_dirs=[np.get_include()])
+'''

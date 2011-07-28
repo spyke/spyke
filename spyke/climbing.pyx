@@ -1,12 +1,20 @@
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: cdivision=True
+# cython: profile=False
+
 """Nick's gradient-ascent (mountain-climbing) clustering algorithm"""
 
-cimport cython
+#cimport cython # not sure why this was needed before
+from cython.parallel import prange, parallel
 import numpy as np
 cimport numpy as np
 
-import random, time
-from extlib import threadpool
-from multiprocessing import cpu_count
+#from extlib import threadpool
+## TODO: consider switching to built in ThreadPool in multiprocessing.pool:
+##from multiprocessing.pool import ThreadPool
+## Better yet, use C level threads via OpenMP by using prange in latest Cython!
+#from multiprocessing import cpu_count
 
 cdef extern from "math.h":
     double sqrt(double x) nogil
@@ -17,7 +25,7 @@ cdef extern from "math.h":
 cdef extern from "stdio.h":
     int printf(char *, ...) nogil
     cdef void *malloc(size_t) nogil # allocates without clearing to 0
-    #cdef void *calloc(size_t, size_t) nogil # allocates with clearing to 0
+    cdef void *calloc(size_t, size_t) nogil # allocates with clearing to 0
     cdef void free(void *) nogil
 
 cdef extern from "string.h":
@@ -27,186 +35,242 @@ cdef extern from "string.h":
 # within C code won't show up until it gets a newline, or until you call fflush(stdout).
 # Unbuffered output can be forced by running Python with the "-u" switch
 
+cdef short MAXUINT16 = 2**16 - 1
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-          np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis=np.zeros(0, dtype=np.int32),
-          double sigma=0.05, double alpha=2.0, double rmergex=1.0,
-          double rneighx=4, int nsamples=0, bint clusterunsampledpoints=True,
-          double minmove=-1.0, int maxstill=100, int maxnnomerges=1000,
+          double sigma=0.05, double alpha=2.0,
+          double rmergex=1.0, double rneighx=4,
+          double minmovex=0.00001, int maxstill=100, int maxnnomerges=1000,
           int minpoints=10):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
+        - test if datah and scoutspace can be allocated - if not (too many dimensions,
+        data too sparse, bin size too small), do normal climb() using data and scout
+        tables, or make the bins coarser
+            - might not be possible to do sparse clustering on full space of all spikes,
+            might only work when subclustering, which will be a denser space. Could tie
+            in well with Nick's one channel at a time clustering
+            - could also use a histogram cutoff: along each dimension discretized data,
+            check how many points fall below npoints threshold. Set threshold
+            to 10 say. Check from both ends of each dimension. If npoints < 10 at given
+            level, then truncate the space at that level, and check the next level. Ie, instead
+            of using absolute min and max of data to set dimensionality of datah, be
+            flexible enough to throw away a tiny bit of data for the sake of a potentially
+            much smaller (and allocatable) space
+            - might need to look into sparse matrix implementations that will save memory,
+            but still provide the speed advantage over a table with its O(N**2) problem
+                - scipy.sparse looks interesting - nope, that's just sparse matrices. Apparently
+                there's no such thing as sparse ndimensional arrays anywhere - such problems
+                are typically mapped down to 2D sparse matrices according to Travis Oliphant:
+                http://mail.scipy.org/pipermail/numpy-discussion/2003-January/014212.html
+        
+        - try using cdef inline instead of just cdef to reduce
+        a fn's call overhead - think it won't do anything for fn's with numpy array
+        args
+            - doesn't seem to make any difference, even for purely C arg f'ns. Perhaps
+            GCC automatically finds f'ns that are macro candidates and uses them as such?
+        
         - reverse annealing sigma: starting small, and gradually increase it over iters
             - increase it a bit every time you get an iteration with no mergers?
         - maybe some way of making sigma dynamic for each scout and for each iteration?
         - maybe annealing of alpha (decreasing it over time)? NVS sounds skeptical
 
         - classify obvious wide flat areas as noise points that shouldn't be clustered:
-            - track the distance each point has travelled during the course of the algorithm. When done, plot the distribution of travel distances, and maybe you'll get something bimodal, and choose a cutoff travel distance past which any point that travelled further is considered a noise point
+            - track the distance each point has travelled during the course of the algorithm.
+            When done, plot the distribution of travel distances, and maybe you'll get something
+            bimodal, and choose a cutoff travel distance past which any point that travelled
+            further is considered a noise point
             - or maybe plot distribution of travel times
             - use some cutoff of local density to specify what's noise and what isn't? skeptical..
 
-        - visualize algorithm in real time to see what exactly it's doing, and why some clusters are split while others are merged
+        - visualize algorithm in real time to see what exactly it's doing, and why some clusters
+        are split while others are merged
 
-        - instead of merging the higher indexed scout into the lower indexed one, you should really merge the one with the lower density estimate into the one with the higher density estimate - otherwise you potentially end up deleting the scout that's closer to the local max density, which probably sets you back several iterations
-            - this would require calc'ing and storing the density for each cluster, and updating it every time it moves
-                - is local density and local gradient calc sufficiently similar that this won't be expensive?
-            - find whichever has the biggest density estimate - if it's not the lowest indexed scout (which will be the case 50% of the time), swap the entries in all the arrays (scouts, still, etc) except for the cids array, then proceed as usual. Then update the density for the newly merged cluster
+        - instead of merging the higher indexed scout into the lower indexed one, you should
+        really merge the one with the lower density estimate into the one with the higher
+        density estimate - otherwise you potentially end up deleting the scout that's closer
+        to the local max density, which probably sets you back several iterations
+            - this would require calc'ing and storing the density for each cluster, and updating
+            it every time it moves
+                - is local density and local gradient calc sufficiently similar that this won't
+                be expensive?
+            - find whichever has the biggest density estimate - if it's not the lowest indexed
+            scout (which will be the case 50% of the time), swap the entries in all the arrays
+            (scouts, still, etc) except for the cids array, then proceed as usual. Then update
+            the density for the newly merged cluster
 
-        - maybe to deal with clusters that are oversplit, look for pairs of scouts that are fairly close to each other, but most importantly, have lots and lots of points that butt up against those of the other scout
+        - try using simplex algorithm for scout position update step, though that might miss
+        local maxima
 
-        - try using simplex algorithm for scout position update step, though that might miss local maxima
+        - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation?
+            - only applies to Gaussian kernel, not Cauchy
 
-        - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation? - only applies to Gaussian kernel, not Cauchy
+        - try using the n nearest neighbours to calculate gradient, instead of a guassian with
+        a sigma. This makes it scale free, but NVS says this often results in situations where
+        the gradient is 0 for some reason
 
-        - try using the n nearest neighbours to calculate gradient, instead of a guassian with a sigma. This makes it scale free, but NVS says this often results in situations where the gradient is 0 for some reason
-
-        - scale x not just by its std, but also according to some absolute multiple of space (say 1.0 is 50 um), such that recordings with wider or narrower x locations (2 or 3 column probes) will cluster roughly as well with a constant sigma value (like 0.25, which really means you can expect up to 4 clusters along the x axis)
+        - scale x not just by its std, but also according to some absolute multiple of space
+        (say 1.0 is 50 um), such that recordings with wider or narrower x locations (2 or 3
+        column probes) will cluster roughly as well with a constant sigma value (like 0.25,
+        which really means you can expect up to 4 clusters along the x axis)
 
     DONE:
         - turn off checks for ZeroDivisionError, though I doubt that slows things down much
         - keep track of max movement on each iter, use consistently low max movement as
           automatic exit criteria
-            - alternative: keep track of how long it's been since the last scout merger, and exit based on that
+            - alternative: keep track of how long it's been since the last scout merger, and
+            exit based on that
         - add freezing of points, for speed?
-            - when a scout point has moved less than some distance per iteration for all of the last n iterations, freeze it. Then, in the position update loop, check for frozen scout points
+            - when a scout point has moved less than some distance per iteration for all of
+            the last n iterations, freeze it. Then, in the position update loop, check for
+            frozen scout points
         - add subsampling to reduce initial number of scout points
-        - NVS - to weed out potential noise spikes, for each cluster, find the local density of the scout point at the max, then reject all other data points in that cluster whose local density falls below, say, 1% of the max. Apply it as a mask, so you can tweak that 1% value as you wish, without having to run the whole algorithm all over again
+        - NVS - to weed out potential noise spikes, for each cluster, find the local density
+        of the scout point at the max, then reject all other data points in that cluster whose
+        ocal density falls below, say, 1% of the max. Apply it as a mask, so you can tweak that
+        1% value as you wish, without having to run the whole algorithm all over again
         - delete scouts that have fewer than n points (at any point during iteration?)
         - multithread scout update and assignment of unclustered points step
+        - get rid of all 1D temporary numpy arrays. Use alloc() instead
     """
-    cdef int N = len(data) # total num data points
-    cdef int ndims = data.shape[1] # num cols in data
-    cdef int M # current num scout points (clusters)
+    cdef Py_ssize_t i, j, k, scouti, clustii
+    cdef bint merged=False
+    cdef int iteri=0, nnomerges=0
+    cdef int N = data.shape[0] # total num rows (points) in data table
+    cdef int ndims = data.shape[1] # num cols in data table
+    cdef int *dims = <int *> malloc(ndims*sizeof(int)) # dimension sizes
+    cdef int *ndi = <int *> malloc(ndims*sizeof(int)) # n-dimensional index working array
+    cdef int *cids = <int *> malloc(N*sizeof(int)) # cluster indices into data
+    if not cids: raise MemoryError("can't allocate cids")
+    irange(cids, N) # init cids to consecutive int values
+    cdef int M = N # current num scout points (clusters), each data point starts as its own scout
     cdef int npoints, npointsremoved, nclustsremoved
-    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] scouts # stores scout positions
-    # cluster indices into data:
-    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids = np.zeros(N, dtype=np.int32)
-    # for each scout, num consecutive iters without significant movement:
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] still = np.zeros(N, dtype=np.uint8)
+    cdef long long li, proddims
+    cdef double binx = 0.25 # some fraction of sigma to bin data by
+    cdef double binsize = binx * sigma
+    sigma /= binsize # scale sigma the same way data will be scaled, ie sigma = 1/binx
     cdef double sigma2 = sigma * sigma
     #cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge * rmerge
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
     cdef double rneigh2 = rneigh * rneigh
-    cdef double d, d2, minmove2
-    cdef Py_ssize_t i, j, k, samplei, scouti, clustii
-    cdef int iteri=0, nnomerges=0, Mthresh, ncpus
-    cdef bint incstill, merged=False, continuej=False
+    cdef double minmove, minmove2
 
-    if len(sampleis) != 0: # sampleis arg trumps nsamples arg
-        nsamples = len(sampleis)
-    elif 0 < nsamples < N: # nsamples == 0 means use all points
-        # subsample with nsamples to get a reasonable number of scouts
-        sampleis = np.asarray(random.sample(xrange(N), nsamples), dtype=np.int32)
-    else: # nsamples == 0, or nsamples >= N, use all N points
-        nsamples = N
-        sampleis = np.arange(nsamples, dtype=np.int32)
-    M = nsamples # initially, but M will decrease over time
-    Mthresh = 3000000 / nsamples / ndims
-    print("Mthresh = %d" % Mthresh)
-    scouts = data[sampleis].copy() # scouts will be modified
-    cids.fill(-1) # -ve number indicates an unclustered data point
-    cids[sampleis] = np.arange(M, dtype=np.int32)
+    # store point positions in a 2D C float array, since handling numpy data array directly
+    # causes segfaults in prange() loops:
+    cdef float **points = <float **> malloc(N*sizeof(float *))
+    if not points: raise MemoryError("can't allocate points")
+    for i in range(N):
+        points[i] = <float *> malloc(ndims*sizeof(float))
+    # store scout positions in a 2D C float array:
+    cdef float **scouts = <float **> malloc(M*sizeof(float *))
+    if not scouts: raise MemoryError("can't allocate scouts")
+    for i in range(M):
+        scouts[i] = <float *> malloc(ndims*sizeof(float))
+    # store indices into rows of scouts float table:
+    cdef int *sr = <int *> malloc(M*sizeof(int))
+    if not sr: raise MemoryError("can't allocate sr")
+    irange(sr, M) # init sr to consecutive int values
+    # for each scout, num consecutive iters without significant movement:
+    ## TODO: should check that (maxstill <= 255).all(), or use uint16 instead:
+    cdef unsigned char *still = <unsigned char *> calloc(M, sizeof(unsigned char))
+    if not still: raise MemoryError("can't allocate still")
+    
+    # need to convert data table to something suitable for truncing to easily get
+    # ints. First have to add some offset to make everything +ve. Then, divide by your fraction
+    # of sigma that you want to discretize by. Then, when returning scout positions, need to do 
+    # the inverse
+    for k in range(ndims):
+        data[:, k] -= data[:, k].min() # offset data in each dimension to be +ve starting from 0
+    data /= binsize # scale data, same for all dims since sigma apples to all dims
+    assert data.max() < 2**32
+    assert data.min() == 0
+    # init points and scouts at respective scaled data point positions:
+    for i in range(N): # M == N
+        for k in range(ndims):
+            points[i][k] = data[i, k]
+            scouts[i][k] = data[i, k]
 
-    if minmove == -1.0:
-        # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
-        minmove = 0.000001 * sigma * alpha # in any direction in ndims space
+    # get dimensions of sparse matrices
+    printf('dims = ')
+    for k in range(ndims):
+        dims[k] = <int> data[:, k].max() + 1 # dim size = max index + 1
+        printf('%d ', dims[k])
+    printf('\n')
+    proddims = prod(dims, ndims)
+
+    # pointh: ndim static histogram of point positions in points, bins of size binsize
+    # use uint16, since not likely to have more than 65k points in a single bin.
+    # Hell, maybe uint8 would work too
+    '''
+    print('creating %d MB pointh array' % (proddims * 2 / 1e6))
+    cdef unsigned short *pointh = <unsigned short *> calloc(proddims, sizeof(unsigned short))
+    if not pointh: raise MemoryError("can't allocate pointh")
+    # build up histogram in pointh
+    for i in range(N):
+        # trunc float point position to int nd index:
+        for k in range(ndims):
+            ndi[k] = <int> points[i][k]
+        li = ndi2li(ndi, dims, ndims)
+        #print('li = %d, pointh[li] = %d' % (li, pointh[li]))
+        pointh[li] += 1
+        if pointh[li] == MAXUINT16:
+            raise RuntimeError("uint16 isn't enough for pointh!")
+    print('done initing pointh')
+    print('max(pointh) = %d' % usmax(pointh, proddims))
+
+    # scoutspace: ndim dynamic histogram of scout positions in scouts table
+    # use dynamic scoutspace sparse matrix to approximate each scout's position and
+    # calculate gradient according to same sized pointh, but then update the scout's
+    # actual position in separate scouts table in float, per usual. Otherwise, if you
+    # stored scout positions quantized, you could easily get stuck in a bin and never
+    # get out, because you could never accumulate less than bin sized changes in position
+    print('creating %d MB scoutspace array' % (proddims * 4 / 1e6))
+    cdef int *scoutspace = <int *> malloc(proddims*sizeof(int))
+    if not scoutspace: raise MemoryError("can't allocate scoutspace")
+    print('initing scoutspace, M=%d' % M)
+    M = update_scoutspace(M, proddims, ndims, dims, scoutspace, sr, scouts, still, N, cids)
+    print('done initing scoutspace, M=%d' % M)
+    '''
+    # for merging scouts, clear scoutspace, and start writing their indices to it.
+    # While writing, if you find the position in the matrix is already occupied,
+    # then obviously you need to merge the current scout into the one that's already
+    # there. Once you're done filling the matrix, for every non-zero entry (which you can
+    # quickly find by truncing scout position in scouts array to get its index)
+    # take slice corresponding to rmerge, then maybe do sum of squared discrete distances,
+    # and merge if < rmerge
+
+    # TODO: should minmove also depend on sqrt(ndims)? it already does via sigma
+    minmove = minmovex * sigma * alpha # in any direction in ndims space
     minmove2 = minmove * minmove
-
-    ncpus = cpu_count()
-    lohi = <long *>malloc((ncpus+1)*sizeof(long))
-    pool = threadpool.ThreadPool(ncpus)
 
     while True:
 
         if nnomerges == maxnnomerges:
             break
 
-        # merge pairs of scout points sufficiently close to each other
-        i = 0
-        while i < M:
-            j = i+1
-            while j < M:
-                if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
-                    j += 1
-                    continue
-                # for each pair of scouts, check if any pair is within rmerge of each other
-                d2 = 0.0 # reset
-                for k in range(ndims):
-                    d = fabs(scouts[i, k] - scouts[j, k])
-                    if d > rmerge: # break out of k loop, continue to next j
-                        continuej = True
-                        break # out of k loop
-                    d2 += d * d
-                if continuej:
-                    continuej = False # reset
-                    j += 1
-                    continue # to next j loop
-                if d2 <= rmerge2:
-                    # merge the scouts: keep scout i, ditch scout j
-                    # shift all entries at j and above in scouts array down by one
-                    for scouti in range(j, M-1):
-                        for k in range(ndims):
-                            scouts[scouti, k] = scouts[scouti+1, k]
-                        still[scouti] = still[scouti+1] # ditto for still array
-                    # update cluster indices
-                    for clustii in range(N):
-                        if cids[clustii] == j:
-                            cids[clustii] = i # overwrite all occurences of j with i
-                        elif cids[clustii] > j:
-                            cids[clustii] -= 1 # decr all clust indices above j
-                    M -= 1 # decr num scouts, don't inc j, new value at j has just slid into view
-                    #printf(' %d<-%d ', i, j)
-                    merged = True
-                else:
-                    j += 1
-            i += 1
+        # merge scouts within rmerge of each other
+        M = merge_scouts(M, sr, scouts, rmerge, rmerge2, maxstill,
+                         still, N, cids, ndims, &merged)
         if merged: # at least one merger happened on this iter
-            printf('M')
+            printf('M=%d', M)
             nnomerges = 0 # reset
             merged = False # reset
         else: # no mergers happened on this iter
             nnomerges += 1 # inc
 
         # move scouts up their local density gradient
-        if M < Mthresh: # use a single thread
-            move_scouts(0, M, scouts, data, sampleis, still,
-                        ndims, nsamples, sigma2, alpha,
-                        rneigh, rneigh2, minmove2, maxstill)
-        else: # use multiple threads
-            span(lohi, 0, M, ncpus) # modify lohi in place
-            for i in range(ncpus):
-                args = (lohi[i], lohi[i+1], scouts, data, sampleis, still,
-                        ndims, nsamples, sigma2, alpha,
-                        rneigh, rneigh2, minmove2, maxstill)
-                req = threadpool.WorkRequest(move_scouts, args)
-                pool.putRequest(req)
-            pool.wait()
+        for scouti in prange(M, nogil=True):
+            move_scout(scouti, sr, scouts, points, still,
+                       N, ndims, sigma2, alpha,
+                       rneigh, rneigh2, minmove2, maxstill)
+
         printf('.')
 
         iteri += 1
 
     printf('\n')
-
-    # if subsampling yet still want to cluster all points, assign unclustered
-    # points to nearest clustered point
-    if nsamples != N and clusterunsampledpoints:
-        print('Finding nearest clustered point for each unclustered point')
-        t0 = time.time()
-        span(lohi, 0, N, ncpus) # modify lohi in place
-        for i in range(ncpus): # use multiple threads
-            args = (lohi[i], lohi[i+1], cids, sampleis, data, nsamples, ndims)
-            req = threadpool.WorkRequest(assign_unclustered, args)
-            pool.putRequest(req)
-        pool.wait()
-        print('Assigning unclustered points took %.3f sec' % (time.time()-t0))
-
-    pool.terminate()
 
     # remove clusters with less than minpoints
     npointsremoved = 0
@@ -214,177 +278,266 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     i = 0
     while i < M:
         npoints = 0 # reset
-        for j in range(N):
+        # tally up npoints in cluster i
+        for j in range(N): # TODO: this could maybe be prange, inc'ing concurrently won't cause races?
             if cids[j] == i:
                 npoints += 1
         if npoints < minpoints:
-            #print('cluster %d has only %d points' % (i, npoints))
-            # remove cluster i
-            # shift all entries at i and above in scouts array down by one
-            for scouti in range(i, M-1):
-                for k in range(ndims):
-                    scouts[scouti, k] = scouts[scouti+1, k]
-                still[scouti] = still[scouti+1] # ditto for still array
-            # update cluster indices
-            for clustii in range(N):
-                if cids[clustii] == i:
-                    cids[clustii] = -1 # overwrite all occurences of i with -1
-                elif cids[clustii] > i:
-                    cids[clustii] -= 1 # decr all clust indices above i
-            M -= 1 # decr num of scouts, don't inc i, new value at i has just slid into view
+            #printf('cluster %d has only %d points', i, npoints)
+            # remove cluster i by merging it into "cluster" -1
+            M = merge(-1, i, M, sr, still, N, cids)
+            # don't inc i, new value at i has just slid into view
             npointsremoved += npoints
             nclustsremoved += 1
         else:
             i += 1
-    print('%d points (%.1f%%) and %d clusters deleted for having less than %d points each' %
-         (npointsremoved, npointsremoved/float(N)*100, nclustsremoved, minpoints))
+    printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
+           npointsremoved, npointsremoved/(<double>N)*100, nclustsremoved, minpoints)
 
-    moving = still[:M] < maxstill
-    nmoving = moving.sum()
-    print('\nniters: %d' % iteri)
-    print('nscouts: %d' % M)
-    print('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f' % (sigma, rneigh, rmerge, alpha))
-    print('nmoving: %d, minmove: %f' % (nmoving, minmove))
-    print('moving scouts: %r' % np.where(moving)[0])
-    print('still array:')
-    print still[:M]
-    return cids, scouts[:M], sampleis
+    cdef int nmoving=0
+    for i in range(M):
+        if still[i] < maxstill:
+            nmoving += 1
+    printf('nniters: %d\n',iteri)
+    printf('nclusters: %d\n', M)
+    printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f\n', sigma, rneigh, rmerge, alpha)
+    printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
+    printf('still array:\n')
+    for i in range(M):
+        printf('%d, ', still[i])
+    printf('\n')
+
+    # build returnable numpy ndarray for cids
+    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.empty(N, dtype=np.int32)
+    for i in range(N):
+        np_cids[i] = cids[i]
+
+    # generate contiguous numpy scouts array for return
+    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] np_scouts = np.empty((M, ndims), dtype=np.float32)
+    for i in range(M):
+        for k in range(ndims):
+            np_scouts[i, k] = scouts[sr[i]][k]
+
+    free(dims)
+    free(ndi)
+    free(cids)
+    free(scouts)
+    free(sr)
+    free(still)
+    #free(pointh)
+    #free(scoutspace)
+    return np_cids, np_scouts
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
-cpdef move_scouts(int lo, int hi,
-                  np.ndarray[np.float32_t, ndim=2, mode='c'] scouts,
-                  np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                  np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
-                  np.ndarray[np.uint8_t, ndim=1, mode='c'] still,
-                  int ndims, int nsamples, double sigma2, double alpha,
-                  double rneigh, double rneigh2, double minmove2, int maxstill):
-    """Move scouts up their local density gradient"""
+cdef int merge_scouts(int M, int *sr, float **scouts,
+                      double rmerge, double rmerge2, int maxstill, 
+                      unsigned char *still, int N, int *cids, int ndims, int *merged):
+    """Merge pairs of scout points sufficiently close to each other"""
+    cdef Py_ssize_t i=0, j, k
+    cdef double d, d2
+    cdef bint continuej=False
+    while i < M:
+        j = i+1
+        while j < M:
+            if still[i] == maxstill and still[j] == maxstill: # both scouts are frozen
+                j += 1
+                continue
+            # for each pair of scouts, check if any pair is within rmerge of each other
+            d2 = 0.0 # reset
+            for k in range(ndims):
+                d = fabs(scouts[sr[i]][k] - scouts[sr[j]][k])
+                if d > rmerge: # break out of k loop, continue to next j
+                    continuej = True
+                    break # out of k loop
+                d2 += d * d
+            if continuej:
+                continuej = False # reset
+                j += 1
+                continue # to next j loop
+            if d2 <= rmerge2:
+                # merge the scouts: keep scout i, ditch scout j
+                M = merge(i, j, M, sr, still, N, cids)
+                # don't inc j, new value at j has just slid into view
+                merged[0] = True
+            else:
+                j += 1
+        i += 1
+    return M
 
-    # use much faster C allocation for temporary 1D arrays instead of numpy:
-    ds = <double *>malloc(ndims*sizeof(double))
-    d2s = <double *>malloc(ndims*sizeof(double))
-    kernel = <double *>malloc(ndims*sizeof(double))
-    v = <double *>malloc(ndims*sizeof(double))
-    # TODO: do I really need to call free() on all of the above once I'm done with them
-    # or are they freed automatically on f'n exit?
 
-    cdef Py_ssize_t i, j, k, samplei
+cdef void move_scout(int i, int *sr, float **scouts, float **points,
+                     unsigned char *still,
+                     int N, int ndims, double sigma2, double alpha,
+                     double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
+    """Move a scout up its local density gradient"""
+    cdef Py_ssize_t j, k
     #cdef int nneighs
     cdef bint continuej=False
     cdef double d2, kern, move, move2#, maxmove = 0.0
-    with nogil:
-        for i in range(lo, hi): # iterate over lo to hi scout points
-            # skip frozen scout points
-            if still[i] == maxstill:
-                continue
-            # measure gradient
-            #nneighs = 0 # reset
-            #for k in range(ndims):
-            #    kernel[k] = 0.0 # reset
-            #    v[k] = 0.0 # reset
-            # slightly faster, though not guaranteed to be valid thing to do for non-int array:
-            memset(kernel, 0, ndims*sizeof(double)) # reset
-            memset(v, 0, ndims*sizeof(double)) # reset
-            for j in range(nsamples): # iterate over sampled data, check if they're within rneigh
-                samplei = sampleis[j]
-                d2 = 0.0 # reset
-                for k in range(ndims): # iterate over dims for each point
-                    ds[k] = data[samplei, k] - scouts[i, k]
-                    if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
-                        continuej = True
-                        break # out of k loop
-                    d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
-                    d2 += d2s[k]
-                if continuej:
-                    continuej = False # reset
-                    continue # to next j
-                if d2 <= rneigh2: # do the calculation
-                    for k in range(ndims):
-                        # v is ndim vector of sum of kernel-weighted distances between
-                        # current scout point and all data within rneigh
-                        #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
-                        kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
-                        #printf('%.3f ', kern)
-                        kernel[k] += kern
-                        v[k] += ds[k] * kern
-                    #nneighs += 1
-            # update scout position in direction of v, normalize by kernel
-            # nneighs (and kernel?) will never be 0, because each scout point starts as a data point
-            move2 = 0.0 # reset
+    cdef double *ds = <double *> malloc(ndims*sizeof(double))
+    cdef double *d2s = <double *> malloc(ndims*sizeof(double))
+    cdef double *kernel = <double *> malloc(ndims*sizeof(double))
+    cdef double *v = <double *> malloc(ndims*sizeof(double))
+
+    # skip frozen scout points
+    if still[i] == maxstill:
+        return
+    # reset some local vars:
+    #nneighs = 0
+    dfill(kernel, 0, ndims)
+    dfill(v, 0, ndims)
+    # measure gradient:
+    for j in range(N): # iterate over points, check if any are within rneigh
+        d2 = 0.0 # reset
+        for k in range(ndims): # iterate over dims for each point
+            ds[k] = points[j][k] - scouts[sr[i]][k]
+            if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
+                continuej = True
+                break # out of k loop
+            d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
+            d2 += d2s[k]
+        if continuej:
+            continuej = False # reset
+            continue # to next j
+        if d2 <= rneigh2: # do the calculation
             for k in range(ndims):
-                move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
-                scouts[i, k] += move
-                move2 += move * move
-                #if fabs(move) > fabs(maxmove):
-                #    maxmove = move
-            if move2 < minmove2:
-                still[i] += 1 # count scout as still during this iter
-            else:
-                still[i] = 0 # reset stillness counter for this scout
-        # wanted to see if points move faster when normalized by kernel vs nneighs:
-        #printf('%f ', maxmove)
-
-        free(ds)
-        free(d2s)
-        free(kernel)
-        free(v)
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
-cpdef assign_unclustered(int lo, int hi,
-                         np.ndarray[np.int32_t, ndim=1, mode='c'] cids,
-                         np.ndarray[np.int32_t, ndim=1, mode='c'] sampleis,
-                         np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-                         int nsamples, int ndims):
-    """Assign each unclustered point to nearest clustered point. Uses brute force method.
-    Tried using kdtree, didn't seem to work"""
-
-    #cdef np.ndarray[np.float64_t, ndim=1, mode='c'] ds = np.zeros(ndims)
-    ds = <double *>malloc(ndims*sizeof(double))
-    cdef Py_ssize_t i, j, k, samplei
-    cdef double min_d2, d2
-    cdef bint continuej=False
-    with nogil:
-        for i in range(lo, hi): # iterate over all data points
-            if cids[i] != -1: # point already has a valid cluster index
-                continue
-            # point is unclustered, find nearest clustered point
-            min_d2 = 100e99
-            for j in range(nsamples): # iterate over all clustered points
-                # sampleis is an array of nsamples indices into data that were used as scouts,
-                # and therefore have been clustered
-                samplei = sampleis[j]
-                for k in range(ndims):
-                    ds[k] = data[i, k] - data[samplei, k]
-                    if fabs(ds[k]) > min_d2: # break out of k loop, continue to next j
-                        continuej = True
-                        break # out of k loop
-                if continuej:
-                    continuej = False # reset
-                    continue # to next j
-                d2 = 0.0 # reset
-                for k in range(ndims):
-                    d2 += ds[k] * ds[k]
-                if d2 < min_d2: # update this unclustered point's cluster index
-                    min_d2 = d2
-                    cids[i] = cids[samplei]
+                # v is ndim vector of sum of kernel-weighted distances between
+                # current scout and all points within rneigh
+                #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
+                kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                #printf('%.3f ', kern)
+                kernel[k] += kern
+                v[k] += ds[k] * kern
+            #nneighs += 1
+    # update scout position in direction of v, normalize by kernel
+    # nneighs (and kernel?) will never be 0, because each scout starts as a point
+    move2 = 0.0 # reset
+    for k in range(ndims):
+        move = alpha / kernel[k] * v[k] # normalize by kernel, not just nneighs
+        scouts[sr[i]][k] += move
+        move2 += move * move
+        #if fabs(move) > fabs(maxmove):
+        #    maxmove = move
+    if move2 < minmove2:
+        still[i] += 1 # count scout as still during this iter
+    else:
+        still[i] = 0 # reset stillness counter for this scout
+    # wanted to see if points move faster when normalized by kernel vs nneighs:
+    #printf('%f ', maxmove)
+    
     free(ds)
+    free(d2s)
+    free(kernel)
+    free(v)
 
-
-#@cython.boundscheck(False)
-#@cython.wraparound(False)
-@cython.cdivision(True)
+'''
 cdef void span(long *lohi, int start, int end, int N) nogil:
     """Fill len(N) lohi array with fairly equally spaced int
     values, from start to end"""
     cdef Py_ssize_t i
     cdef int step
-    step = <int>ceil(<double>(end - start) / N) # round up
+    step = <int> ceil(<double> (end - start) / N) # round up
     for i in range(N):
         lohi[i] = start + step*i
     lohi[N] = end
+'''
+cdef long long prod(int *a, int n) nogil:
+    """Return product of entries in int array a"""
+    cdef long long result
+    cdef Py_ssize_t i
+    result = 1
+    for i in range(n):
+        result *= a[i] # should I upcast to long long here?
+    return result
+
+cdef void ifill(int *a, int val, long long n) nogil:
+    """Fill int array with n values"""
+    cdef long long i
+    for i in range(n):
+        a[i] = val
+
+cdef void dfill(double *a, double val, long long n) nogil:
+    """Fill int array with n values"""
+    cdef long long i
+    for i in range(n):
+        a[i] = val
+
+cdef void irange(int *a, int n) nogil:
+    """Fill int array with n increasing values"""
+    cdef Py_ssize_t i
+    a[0] = 0
+    for i in range(1, n):
+        a[i] = a[i-1] + 1 
+
+cdef unsigned short usmax(unsigned short *a, long long n) nogil:
+    """Return maximum value in array"""
+    cdef unsigned short result=0
+    cdef long long i
+    for i in range(n):
+        if a[i] > result:
+            result = a[i]
+    return result
+
+cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
+    """Convert n dimensional index in array ndi to linear index. ndi
+    and dims should be of length ndims, and each entry in ndi should be
+    less than its corresponding dimension size in dims"""
+    ## NOTE: np.unravel_index() and np.ravel_multi_index() are useful!
+    cdef long long li, pr=1
+    cdef Py_ssize_t k
+    li = ndi[ndims-1] # init with index of deepest dimension
+    # iterate from ndims-1 to 0, from 2nd deepest to shallowest dimension
+    # either syntax works, and both seem to be C optimized:
+    #for k from ndims-1 >= k > 0:
+    for k in range(ndims-1, 0, -1):
+        pr *= dims[k] # running product of dimensions
+        li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
+    return li
+
+cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
+               unsigned char *still, int N, int *cids) nogil:
+    """Merge scoutj into scouti, where scouti < scoutj"""
+    if not scouti < scoutj: # can only merge higher id into lower id!
+        printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
+    cdef Py_ssize_t i, cii
+    # shift all entries at j and above in sr and still arrays down by one,
+    # needs to be done in succession, can't use prange
+    for i in range(scoutj, M-1):
+        sr[i] = sr[i+1]
+        still[i] = still[i+1]
+    # update cluster indices, doesn't need to be done in succession, can use prange,
+    # but runs slower than a single thread - operations are too simple?
+    #for cii in prange(N, nogil=True, schedule='static'):
+    for cii in range(N):
+        if cids[cii] == scoutj:
+            cids[cii] = scouti # replace all scoutj entries with scouti
+        elif cids[cii] > scoutj:
+            cids[cii] -= 1 # decr all clust indices above scout j
+    M -= 1 # decr num scouts
+    #printf(' %d<-%d ', scouti, scoutj)
+    return M
+
+cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
+                           int *scoutspace, int *sr, float **scouts,
+                           unsigned char *still,
+                           int N, int *cids) nogil:
+    """Refill scoutspace based on current scout positions in scouts table"""
+    cdef Py_ssize_t i=0, k
+    # reset, use -1 to indicate empty slot:
+    ifill(scoutspace, -1, proddims)
+    # nd index working array:
+    cdef int *ndi = <int *> malloc(ndims*sizeof(int))
+    while i < M: # iterate over all scouts
+        # trunc float scout position to int nd index:
+        for k in range(ndims):
+            ndi[k] = <int> scouts[sr[i]][k]
+        li = ndi2li(ndi, dims, ndims)
+        #printf('li = %d\n', li)
+        if scoutspace[li] == -1: # bin is unoccupied
+            scoutspace[li] = i # occupy the bin with scout i
+            i += 1
+        else: # there's already a scout there, merge into it
+            M = merge(scoutspace[li], i, M, sr, still, N, cids)
+            # don't inc i, new value at i has just slid into view
+    free(ndi)
+    return M
