@@ -528,12 +528,12 @@ class SpykeWindow(QtGui.QMainWindow):
             if len(uchancombos) == 1:
                 print("selected spikes all share the same set of channels, can't chansplit")
                 return
-            cids = np.zeros(len(sids), dtype=np.int32)
-            cids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
-            for cid, uchancombo in enumerate(uchancombos):
-                cids[(chans == uchancombo).all(axis=1)] = cid
-            nids = range(len(uchancombos))
-            if (cids == -1).any():
+            nids = np.zeros(len(sids), dtype=np.int32)
+            nids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
+            for nid, uchancombo in enumerate(uchancombos):
+                nids[(chans == uchancombo).all(axis=1)] = nid
+            unids = range(len(uchancombos))
+            if (nids == -1).any():
                 raise RuntimeError("there shouldn't be any unclustered points from chansplit")
             print('chansplit took %.3f sec' % (time.time()-t0))
 
@@ -566,8 +566,8 @@ class SpykeWindow(QtGui.QMainWindow):
                             rmergex=s.rmergex, rneighx=s.rneighx,
                             maxstill=s.maxstill, maxnnomerges=1000,
                             minpoints=s.minpoints)
-            cids, scoutpositions = results
-            nids = list(np.unique(cids))
+            nids, scoutpositions = results
+            unids = list(np.unique(nids))
             print('climb took %.3f sec' % (time.time()-t0))
 
         else:
@@ -599,7 +599,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cc.save_old(clusters, s.norder)
 
         # start insertion indices of new clusters from first selected cluster, if any
-        nnids = len(nids)
+        nnids = len(unids)
         insertis = [None] * nnids
         if len(clusters) > 0:
             startinserti = s.norder.index(clusters[0].id)
@@ -611,8 +611,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # apply the new clusters
         newclusters = []
         #t0 = time.time()
-        for nid, inserti in zip(nids, insertis):
-            ii, = np.where(cids == nid)
+        for nid, inserti in zip(unids, insertis):
+            ii, = np.where(nids == nid)
             nsids = sids[ii] # sids belonging to this nid
             if nid != -1:
                 nid = None # auto generate a new nid
@@ -630,7 +630,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # now do some final updates
         self.UpdateClustersGUI()
-        self.ColourPoints(newclusters)
+        if sids == cw.glWidget.sids:
+            self.ColourPoints(newclusters) # just recolour
+        else:
+            cw.plot(data, sids, nids) # need to do a full replot
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         if someselected: # select newly created cluster(s)
             self.SelectClusters(newclusters)
@@ -860,16 +863,15 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
-        """Cluster pane plot button click. Plot points and
-        colour them according to their clusters."""
+        """Cluster pane plot button click. Plot points and colour them
+        according to their clusters."""
         dims = self.GetClusterPlotDimNames()
         cw = self.OpenWindow('Cluster') # in case it isn't already open
-        X = self.sort.get_param_matrix(dims=dims)
+        X, sids, nids = self.sort.get_param_matrix(dims=dims)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot
-        nids = self.sort.spikes['nid']
-        cw.plot(X, nids)
+        cw.plot(X, sids, nids)
 
     def UpdateClustersGUI(self):
         """Update lots of stuff after modifying clusters,
@@ -885,20 +887,22 @@ class SpykeWindow(QtGui.QMainWindow):
         """Colour the points that fall within each cluster (as specified
         by cluster.neuron.sids) the same colour as the cluster itself"""
         clusters = toiter(clusters)
-        cw = self.windows['Cluster']
+        gw = self.windows['Cluster'].glWidget
         for cluster in clusters:
             neuron = cluster.neuron
+            coloris = gw.sids.searchsorted(neuron.sids)
             if neuron.id == -1: # junk cluster
-                cw.glWidget.colors[neuron.sids] = GREYRGB
+                gw.colors[coloris] = GREYRGB
             else:
-                cw.glWidget.colors[neuron.sids] = CMAP[neuron.id % len(CMAP)]
-        cw.glWidget.updateGL()
+                gw.colors[coloris] = CMAP[neuron.id % len(CMAP)]
+        gw.updateGL()
 
     def DeColourPoints(self, sids):
         """Restore spike point colour in cluster plot at spike indices to unclustered GREY.
         Need to call cw.glWidget.updateGL() afterwards"""
-        cw = self.windows['Cluster']
-        cw.glWidget.colors[sids] = GREYRGB
+        gw = self.windows['Cluster'].glWidget
+        coloris = gw.sids.searchsorted(neuron.sids)
+        gw.colors[coloris] = GREYRGB
 
     def GetClusterPlotDimNames(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
@@ -1570,7 +1574,6 @@ class SpykeWindow(QtGui.QMainWindow):
         ui.alphaSpinBox.setValue(s.alpha)
         ui.maxstillSpinBox.setValue(s.maxstill)
         ui.minpointsSpinBox.setValue(s.minpoints)
-        ui.clusterunsampledspikesCheckBox.setChecked(s.clusterunsampledspikes)
 
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert

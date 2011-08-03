@@ -686,6 +686,18 @@
          <property name="selectionMode">
           <enum>QAbstractItemView::ExtendedSelection</enum>
          </property>
+         <property name="flow">
+          <enum>QListView::LeftToRight</enum>
+         </property>
+         <property name="isWrapping" stdset="0">
+          <bool>true</bool>
+         </property>
+         <property name="viewMode">
+          <enum>QListView::ListMode</enum>
+         </property>
+         <property name="uniformItemSizes">
+          <bool>false</bool>
+         </property>
          <item>
           <property name="text">
            <string>x0</string>
@@ -714,6 +726,31 @@
          <item>
           <property name="text">
            <string>dphase</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc0</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc1</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc2</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc3</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc4</string>
           </property>
          </item>
          <item>
@@ -1034,6 +1071,31 @@
            <string>dphase</string>
           </property>
          </item>
+         <item>
+          <property name="text">
+           <string>pc0</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc1</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc2</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc3</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc4</string>
+          </property>
+         </item>
         </widget>
         <widget class="QComboBox" name="yDimComboBox">
          <property name="geometry">
@@ -1077,6 +1139,31 @@
            <string>dphase</string>
           </property>
          </item>
+         <item>
+          <property name="text">
+           <string>pc0</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc1</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc2</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc3</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc4</string>
+          </property>
+         </item>
         </widget>
         <widget class="QComboBox" name="zDimComboBox">
          <property name="geometry">
@@ -1118,6 +1205,31 @@
          <item>
           <property name="text">
            <string>dphase</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc0</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc1</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc2</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc3</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pc4</string>
           </property>
          </item>
         </widget>

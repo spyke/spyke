@@ -407,9 +407,20 @@ class Sort(object):
         print(lfpfname)
 
     def get_param_matrix(self, dims=None, scale=True):
-        """Organize parameters in dims from all spikes into a data matrix,
-        each column corresponds to a dim"""
+        """Organize parameters in dims from all spikes (or just selected spikes?)
+        into a data matrix, each column corresponds to a dim"""
+        
         # np.column_stack returns a copy, not modifying the original array
+        '''
+        pcs = [ dim.startswith('pc') for dim in dims ]
+        # need to collect stuff potentially from both pcs and params:
+        if np.any(pcs):
+            sids = get_selected_spikes() # somehow
+            X, sids, nids = self.sort.get_pc_matrix(sids, dims=dims, sids=sids)
+        else:
+            X, sids, nids = self.sort.get_param_matrix(dims=dims)
+        '''
+
         data = []
         for dim in dims:
             data.append( np.float32(self.spikes[dim]) )
@@ -427,7 +438,9 @@ class Sort(object):
                 #    d *= tscale / d.std()
                 else: # normalize all other dims by their std
                     d /= d.std()
-        return data
+        sids = self.spikes['id'] # all spikes, for now. With PCs, only selected spikes?
+        nids = self.spikes['nid'][sids]
+        return data, sids, nids
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""

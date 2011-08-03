@@ -116,17 +116,17 @@ class ClusterWindow(SpykeToolWindow):
         else:
             self.glWidget.keyPressEvent(event) # pass it down
 
-    def plot(self, X, nids):
+    def plot(self, X, sids, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
         X = tocontig(X) # ensure it's contig
-        self.glWidget.points = X
-        self.glWidget.npoints = len(X)
-        # don't like that I'm generating sids array from scratch, but there's no
-        # such existing contiguous array in Sort or anywhere else that I can find
-        self.glWidget.sids = np.arange(self.glWidget.npoints)
-        self.glWidget.colors = CMAP[nids % len(CMAP)] # uint8
-        self.glWidget.colors[nids == -1] = GREYRGB # overwrite unclustered points with GREYRGB
-        self.glWidget.updateGL()
+        gw = self.glWidget
+        gw.points = X
+        gw.npoints = len(X)
+        gw.sids = sids
+        gw.nids = nids
+        gw.colors = CMAP[nids % len(CMAP)] # uint8
+        gw.colors[nids == -1] = GREYRGB # overwrite unclustered points with GREYRGB
+        gw.updateGL()
 
 
 class GLWidget(QtOpenGL.QGLWidget):

@@ -262,6 +262,8 @@ KeyboardInterrupt:
     
 - convert all line endings to Unix style
 
+- BUG: opening a sort from one track, and then opening a sort from a different track causes channel display problems. There must be some channel info that isn't cleared between sort openings. Maybe some attribute of the main window or the sort window? Maybe something to do with self.windows['Sort'].panel.enabled_chans?
+
 - what happens when a recording has more than 1 experiment in it? I know it'll have as many textheaders (displayrecords) as there are experiments, but what about din (digitalsvalrecords)?
 
 - NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail. Best of all might be to use a Gaussian lookup table, which should be fast, but allows for smaller rneigh

@@ -10,12 +10,6 @@ from cython.parallel import prange, parallel
 import numpy as np
 cimport numpy as np
 
-#from extlib import threadpool
-## TODO: consider switching to built in ThreadPool in multiprocessing.pool:
-##from multiprocessing.pool import ThreadPool
-## Better yet, use C level threads via OpenMP by using prange in latest Cython!
-#from multiprocessing import cpu_count
-
 cdef extern from "math.h":
     double sqrt(double x) nogil
     double fabs(double x) nogil
