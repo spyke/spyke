@@ -453,19 +453,20 @@ class Sort(object):
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
         chans = core.intersect1d(chanslist) # find intersection
-        if len(chans) == 0:
+        nchans = len(chans)
+        if nchans == 0:
             raise RuntimeError("Spikes have no common chans for PCA")
-        print('Doing PCA on chans %r' % list(chans))
         # collect data from chans from all spikes:
         nspikes = len(sids)
         nt = self.wavedata.shape[2]
+        print('Doing PCA on chans %r of %d spikes' % (list(chans), nspikes))
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64) # need float64 for PCA
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
-            data[sii] = self.wavedata[sid, spikechanis]
+            data[sii] = self.wavedata[sid][spikechanis]
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-        X = mdp.pca(data)
+        X = mdp.pca(data, output_dim=5, svd=False)
         return X
 
     def create_neuron(self, id=None, inserti=None):

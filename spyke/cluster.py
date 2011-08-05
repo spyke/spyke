@@ -432,7 +432,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_F: # reset focus to cursor position
                 sid = self.pick(*self.cursorPosGL())
                 if sid != None:
-                    self.focus = self.points[sid]
+                    self.focus = self.points[self.sids.searchsorted(sid)]
                     self.panTo() # pan to new focus
             elif key == Qt.Key_S: # toggle item under the cursor, if any
                 self.selectItemUnderCursor(clear=False)
