@@ -21,6 +21,7 @@ import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
 
+import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, savez, intround, lstrip, rstrip, lrstrip, timedelta2usec
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
@@ -406,27 +407,31 @@ class Sort(object):
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
-    def get_param_matrix(self, dims=None, scale=True):
-        """Organize parameters in dims from all spikes (or just selected spikes?)
-        into a data matrix, each column corresponds to a dim"""
-        
-        # np.column_stack returns a copy, not modifying the original array
-        '''
-        pcs = [ dim.startswith('pc') for dim in dims ]
-        # need to collect stuff potentially from both pcs and params:
-        if np.any(pcs):
-            sids = get_selected_spikes() # somehow
-            X, sids, nids = self.sort.get_pc_matrix(sids, dims=dims, sids=sids)
-        else:
-            X, sids, nids = self.sort.get_param_matrix(dims=dims)
-        '''
-
+    def get_param_matrix(self, dims=None, sids=None, scale=True):
+        """Organize dims parameters from sids into a data matrix, each column
+        corresponding to a dim. To do PCA clustering on all spikes, one maxchan at
+        a time, caller needs to call this multiple times, one for each set of
+        maxchan unique spikes,"""
+        spikes = self.spikes
+        if sids == None:
+            sids = spikes['id'] # default to all spikes
+        pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        if pcs:
+            X = self.get_pc_matrix(sids)
         data = []
         for dim in dims:
-            data.append( np.float32(self.spikes[dim]) )
+            if dim in spikes.dtype.fields:
+                data.append( np.float32(spikes[dim][sids]) )
+            elif dim.startswith('pc'):
+                pcid = int(lstrip(dim, 'pc'))
+                data.append( np.float32(X[:, pcid]) )
+            else:
+                raise RuntimeError('unknown dim %r' % dim)
+        # np.column_stack returns a copy, not modifying the original array
         data = np.column_stack(data)
         if scale:
-            x0std = self.spikes['x0'].std()
+            # ensure 0 mean, and unit variance/stdev
+            x0std = spikes['x0'].std()
             assert x0std != 0
             for dim, d in zip(dims, data.T): # d iterates over columns
                 d -= d.mean()
@@ -438,9 +443,30 @@ class Sort(object):
                 #    d *= tscale / d.std()
                 else: # normalize all other dims by their std
                     d /= d.std()
-        sids = self.spikes['id'] # all spikes, for now. With PCs, only selected spikes?
-        nids = self.spikes['nid'][sids]
-        return data, sids, nids
+        return data
+
+    def get_pc_matrix(self, sids):
+        """Find set of chans common to all sids, and do PCA on those waveforms"""
+        import mdp # delay as late as possible
+        spikes = self.spikes
+        chanss = spikes['chans'][sids]
+        nchanss = spikes['nchans'][sids]
+        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
+        chans = core.intersect1d(chanslist) # find intersection
+        if len(chans) == 0:
+            raise RuntimeError("Spikes have no common chans for PCA")
+        print('Doing PCA on chans %r' % list(chans))
+        # collect data from chans from all spikes:
+        nspikes = len(sids)
+        nt = self.wavedata.shape[2]
+        data = np.zeros((nspikes, nchans, nt), dtype=np.float64) # need float64 for PCA
+        for sii, sid in enumerate(sids):
+            spikechans = chanslist[sii]
+            spikechanis = np.searchsorted(spikechans, chans)
+            data[sii] = self.wavedata[sid, spikechanis]
+        data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+        X = mdp.pca(data)
+        return X
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
@@ -1384,7 +1410,7 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionChanSplitClusters_triggered(self):
         """Split by channels button (/) click"""
-        self.spykewindow.cluster('chansplit')
+        self.spykewindow.chansplit()
 
     def on_actionRenumberClusters_triggered(self):
         """Renumber clusters consecutively from 0, ordered by y position, on "#" button

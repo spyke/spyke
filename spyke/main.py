@@ -492,11 +492,10 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_clusterButton_clicked(self):
         """Cluster pane Cluster button click"""
-        self.cluster('climb')
+        self.climb()
 
-    def cluster(self, method):
-        """Cluster spikes in currently selected clusters (or all spikes if no clusters
-        selected) according to method"""
+    def chansplit(self):
+        """Split spikes into clusters of unique channel combinations"""
         s = self.sort
         spikes = s.spikes
         sw = self.windows['Sort']
@@ -505,83 +504,104 @@ class SpykeWindow(QtGui.QMainWindow):
         except KeyError:
             cw = self.OpenWindow('Cluster')
 
-        sids = [] # spikes to cluster
-        clusters = self.GetClusters()
-        for cluster in clusters:
-            sids.append(cluster.neuron.sids)
-        # cluster any selected usids as well
-        sids.append(self.GetUnsortedSpikes())
-        sids = np.concatenate(sids)
-        someselected = True
+        sids = self.GetImplicitSpikes() # all selected spikes
+        oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
-            someselected = False
-            clusters = s.clusters.values() # all clusters
-            sids = spikes['id'] # run climb() on all spikes
+            sids = spikes['id'] # all spikes
+            oldclusters = s.clusters.values() # all clusters
 
-        if method == 'chansplit': # cluster spikes by their unique combinations of chans
-            t0 = time.time()
-            chans = spikes[sids]['chans']
-            chans = tocontig(chans) # string view won't work without contiguity
-            strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
-            # each row in uchancombos is a unique combination of chans:
-            uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
-            if len(uchancombos) == 1:
-                print("selected spikes all share the same set of channels, can't chansplit")
+        t0 = time.time()
+        chans = spikes[sids]['chans']
+        chans = tocontig(chans) # string view won't work without contiguity
+        strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
+        # each row in uchancombos is a unique combination of chans:
+        uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
+        if len(uchancombos) == 1:
+            print("selected spikes all share the same set of channels, can't chansplit")
+            return
+        nids = np.zeros(len(sids), dtype=np.int32)
+        nids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
+        for nid, uchancombo in enumerate(uchancombos):
+            nids[(chans == uchancombo).all(axis=1)] = nid
+        if (nids == -1).any():
+            raise RuntimeError("there shouldn't be any unclustered points from chansplit")
+        print('chansplit took %.3f sec' % (time.time()-t0))
+
+        self.apply_clustering(oldclusters, sids, nids, verb='chansplit')
+
+    def climb(self):
+        """Cluster all currently selected spikes, or all spikes if none selected,
+        using NVS's mountain climbing algorithm"""
+        s = self.sort
+        spikes = s.spikes
+        sw = self.windows['Sort']
+        try:
+            cw = self.windows['Cluster'] # don't force its display by default
+        except KeyError:
+            cw = self.OpenWindow('Cluster')
+
+        sids = self.GetImplicitSpikes() # all selected spikes
+        oldclusters = self.GetClusters() # all selected clusters
+        if len(sids) == 0: # nothing selected
+            sids = spikes['id'] # all spikes
+            oldclusters = s.clusters.values() # all clusters
+
+        # grab dims and data
+        items = self.ui.dimlist.selectedItems()
+        if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
+        dims = [ str(item.text()) for item in items ] # dim names to cluster on
+        plotdims = self.GetClusterPlotDimNames()
+        waveclustering = np.any([ dim.startswith('peaks') for dim in dims ])
+        #pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        if waveclustering: # do waveform clustering
+            if len(dims) > 1:
+                raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
+            wctype = dims[0]
+            try:
+                data = self.get_waveclustering_data(sids, wctype=wctype)
+            except RuntimeError as msg:
+                print(msg)
                 return
-            nids = np.zeros(len(sids), dtype=np.int32)
-            nids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
-            for nid, uchancombo in enumerate(uchancombos):
-                nids[(chans == uchancombo).all(axis=1)] = nid
-            unids = range(len(uchancombos))
-            if (nids == -1).any():
-                raise RuntimeError("there shouldn't be any unclustered points from chansplit")
-            print('chansplit took %.3f sec' % (time.time()-t0))
+        else: # do spike parameter (non-wavefrom) clustering
+            '''
+            if pcs and sids == None:
+                for maxchani in maxchanis:
+                    data = s.get_param_matrix(dims=dims, sids=sids, scale=True)
+            '''
+            data = s.get_param_matrix(dims=dims, sids=sids, scale=True)
+        data = tocontig(data) # ensure it's contiguous for climb()
+        # grab climb() params and run it
+        self.update_sort_from_cluster_pane()
+        npoints, ndims = data.shape
+        s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
+        print('clustering %d points in %d-D space' % (npoints, ndims))
+        t0 = time.time()
+        results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha,
+                        rmergex=s.rmergex, rneighx=s.rneighx,
+                        maxstill=s.maxstill, maxnnomerges=1000,
+                        minpoints=s.minpoints)
+        nids, scoutpositions = results
+        print('climb took %.3f sec' % (time.time()-t0))
 
-        elif method == 'climb': # cluster using NVS's mountain climbing algorithm
-            # grab dims and data
-            items = self.ui.dimlist.selectedItems()
-            if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
-            dims = [ str(item.text()) for item in items ] # dim names to cluster on
-            plotdims = self.GetClusterPlotDimNames()
-            waveclustering = 'peaks2' in dims or 'peaks6' in dims or 'peaks10' in dims
-            if waveclustering: # do wavefrom clustering
-                if len(dims) > 1:
-                    raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
-                wctype = dims[0]
-                try:
-                    data = self.get_waveclustering_data(sids, wctype=wctype)
-                except RuntimeError as msg:
-                    print(msg)
-                    return
-            else: # do spike parameter (non-wavefrom) clustering
-                data = s.get_param_matrix(dims=dims, scale=True)[sids]
-            data = tocontig(data) # ensure it's contiguous for climb()
-            # grab climb() params and run it
-            self.update_sort_from_cluster_pane()
-            npoints, ndims = data.shape
-            s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
-            print('clustering %d points in %d-D space' % (npoints, ndims))
-            t0 = time.time()
-            results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha,
-                            rmergex=s.rmergex, rneighx=s.rneighx,
-                            maxstill=s.maxstill, maxnnomerges=1000,
-                            minpoints=s.minpoints)
-            nids, scoutpositions = results
-            unids = list(np.unique(nids))
-            print('climb took %.3f sec' % (time.time()-t0))
+        self.apply_clustering(oldclusters, sids, nids, verb='climb')
 
-        else:
-            raise ValueError('invalid method %r' % method)
-
+    def apply_clustering(self, oldclusters, sids, nids, verb=''):
+        """Replace old clusters and apply the clustering described by sids
+        with their new nids"""
+        s = self.sort
+        spikes = s.spikes
+        sw = self.windows['Sort']
+        cw = self.windows['Cluster']
+        
         # deselect selected clusters before potentially deleting unselected junk
         # cluster, to avoid lack of Qt selection event when selection values
         # (not rows) change. Also, deselect usids while we're at it:
-        self.SelectClusters(clusters, on=False)
+        self.SelectClusters(oldclusters, on=False)
         sw.uslist.clearSelection()
 
         # delete junk cluster if it exists and is unselected,
         # add this deletion to cluster change stack
-        if -1 not in [ cluster.id for cluster in clusters ] and -1 in s.clusters:
+        if -1 not in [ c.id for c in oldclusters ] and -1 in s.clusters:
             # save some undo/redo stuff
             message = 'delete junk cluster -1'
             cc = ClusterChange(s.neurons[-1].sids, spikes, message)
@@ -594,23 +614,23 @@ class SpykeWindow(QtGui.QMainWindow):
             print(cc.message)
 
         # save some undo/redo stuff
-        message = '%s clusters %r' % (method, [ c.id for c in clusters ])
+        message = '%s clusters %r' % (verb, [ c.id for c in oldclusters ])
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters, s.norder)
+        cc.save_old(oldclusters, s.norder)
 
         # start insertion indices of new clusters from first selected cluster, if any
+        unids = np.unique(nids)
         nnids = len(unids)
         insertis = [None] * nnids
-        if len(clusters) > 0:
-            startinserti = s.norder.index(clusters[0].id)
+        if len(oldclusters) > 0:
+            startinserti = s.norder.index(oldclusters[0].id)
             insertis = range(startinserti, startinserti+nnids)
 
-        # delete selected clusters
-        self.DelClusters(clusters, update=False)
+        # delete old clusters
+        self.DelClusters(oldclusters, update=False)
 
-        # apply the new clusters
+        # apply new clusters
         newclusters = []
-        #t0 = time.time()
         for nid, inserti in zip(unids, insertis):
             ii, = np.where(nids == nid)
             nsids = sids[ii] # sids belonging to this nid
@@ -633,10 +653,9 @@ class SpykeWindow(QtGui.QMainWindow):
         if sids == cw.glWidget.sids:
             self.ColourPoints(newclusters) # just recolour
         else:
-            cw.plot(data, sids, nids) # need to do a full replot
-        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
-        if someselected: # select newly created cluster(s)
-            self.SelectClusters(newclusters)
+            self.on_plotButton_clicked() # need to do a full replot
+        if not np.all(sids == spikes['id']): # if clustering only some spikes,
+            self.SelectClusters(newclusters) # select all newly created cluster(s)
         cc.message += ' into %r' % [c.id for c in newclusters]
         print(cc.message)
 
@@ -744,15 +763,25 @@ class SpykeWindow(QtGui.QMainWindow):
         print('normalized waveform data by %f' % norm)
         return data
 
-    def GetSpikes(self):
-        """Return IDs of currently selected spikes"""
+    def GetSortedSpikes(self):
+        """Return IDs of currently selected sorted spikes"""
         sw = self.windows['Sort']
-        nsrows = sw.nslist.selectedRows()
+        srows = sw.nslist.selectedRows()
+        return sw.nslist.sids[srows]
+
+    def GetUnsortedSpikes(self):
+        """Return IDs of currently selected unsorted spikes"""
+        sw = self.windows['Sort']
         srows = sw.uslist.selectedRows()
-        return np.concatenate([ sw.nslist.sids[nsrows], self.sort.usids[srows] ])
+        return self.sort.usids[srows]
+
+    def GetSpikes(self):
+        """Return IDs of all currently selected spikes"""
+        sw = self.windows['Sort']
+        return np.concatenate([ self.GetSortedSpikes(), self.GetUnsortedSpikes() ])
 
     def GetSpike(self):
-        """Return Id of just one selected spike, from nslist or uslist"""
+        """Return ID of just one selected spike, from nslist or uslist"""
         sids = self.GetSpikes()
         nselected = len(sids)
         if nselected != 1:
@@ -760,11 +789,17 @@ class SpykeWindow(QtGui.QMainWindow):
                                % nselected)
         return sids[0]
 
-    def GetUnsortedSpikes(self):
-        """Return IDs of currently selected unsorted spikes"""
-        sw = self.windows['Sort']
-        srows = sw.uslist.selectedRows()
-        return self.sort.usids[srows]
+    def GetImplicitSpikes(self):
+        """Return IDs of all currently selected spikes, even if they're only
+        implicitly selected via their parent cluster(s)"""
+        sids = []
+        clusters = self.GetClusters()
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        # include any selected usids as well
+        sids.append(self.GetUnsortedSpikes())
+        sids = np.concatenate(sids)
+        return sids
 
     def GetClusterIDs(self):
         """Return list of IDs of currently selected clusters, in norder"""
@@ -865,9 +900,16 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_plotButton_clicked(self):
         """Cluster pane plot button click. Plot points and colour them
         according to their clusters."""
+        s = self.sort
         dims = self.GetClusterPlotDimNames()
         cw = self.OpenWindow('Cluster') # in case it isn't already open
-        X, sids, nids = self.sort.get_param_matrix(dims=dims)
+        pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        if pcs: # do PCA on and plot only selected spikes
+            sids = self.GetImplicitSpikes()
+        else: # plot all spikes
+            sids = s.spikes['id']
+        nids = s.spikes['nid'][sids]
+        X = s.get_param_matrix(dims=dims, sids=sids, scale=True)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot
@@ -901,7 +943,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Restore spike point colour in cluster plot at spike indices to unclustered GREY.
         Need to call cw.glWidget.updateGL() afterwards"""
         gw = self.windows['Cluster'].glWidget
-        coloris = gw.sids.searchsorted(neuron.sids)
+        coloris = gw.sids.searchsorted(sids)
         gw.colors[coloris] = GREYRGB
 
     def GetClusterPlotDimNames(self):
