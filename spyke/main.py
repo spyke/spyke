@@ -650,7 +650,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # now do some final updates
         self.UpdateClustersGUI()
-        if sids == cw.glWidget.sids:
+        if np.all(sids == cw.glWidget.sids):
             self.ColourPoints(newclusters) # just recolour
         else:
             self.on_plotButton_clicked() # need to do a full replot
@@ -847,23 +847,24 @@ class SpykeWindow(QtGui.QMainWindow):
         sw.nlist.selectRows(row, on=on)
         return on
 
-    def ToggleSpike(self, sid):
+    def SelectSpike(self, sid, on=True):
         """Toggle selection of given spike, as well as its current cluster, if any"""
         sw = self.windows['Sort']
         nid = self.sort.spikes[sid]['nid']
         if nid == -1: # it's unclustered
-            row, = np.where(self.sort.usids == sid)
-            #row = int(row)
-            on = not sw.uslist.rowSelected(row)
-            sw.uslist.selectRows(row, on=on)
+            usrow, = np.where(self.sort.usids == sid)
+            sw.uslist.selectRows(usrow, on=on)
         else: # it's clustered
-            row = self.sort.norder.index(nid)
-            on = not sw.nlist.rowSelected(row)
-            sw.nlist.selectRows(row, on=on)
-            if on: # select the spike in the nslist as well
-                row, = np.where(self.sort.neurons[nid].sids == sid)
-                sw.nslist.selectRows(row, on=on)
-        return on
+            nrow = self.sort.norder.index(nid)
+            cluster_on = sw.nlist.rowSelected(nrow)
+            if on and not cluster_on: # if selecting the spike and cluster isn't selected
+                sw.nlist.selectRows(nrow, on=True) # select the cluster
+            # select/deselect the spike in the nslist as well
+            nsrow, = np.where(sw.nslist.sids == sid)
+            sw.nslist.selectRows(nsrow, on=on)
+            # if cluster is currently selected, but no spikes are selected, deselect it
+            if cluster_on and sw.nslist.nrowsSelected == 0:
+                sw.nlist.selectRows(nrow, on=False)
 
     def CreateCluster(self, update=True, id=None, inserti=None):
         """Create a new cluster, add it to the GUI, return it"""

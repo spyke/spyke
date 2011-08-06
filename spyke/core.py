@@ -714,7 +714,7 @@ class SpykeListView(QtGui.QListView):
         #self.setViewMode(QtGui.QListView.IconMode)
 
     def keyPressEvent(self, event):
-        if event.key() in [Qt.Key_D, Qt.Key_M, Qt.Key_Slash, Qt.Key_NumberSign,
+        if event.key() in [Qt.Key_M, Qt.Key_Slash, Qt.Key_NumberSign,
                            Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
                            Qt.Key_Comma, Qt.Key_Period]:
             event.ignore() # pass it on up to the parent
@@ -768,6 +768,11 @@ class SpykeListView(QtGui.QListView):
     def rowSelected(self, row):
         """Simple way to check if a row is selected"""
         return self.model().index(row) in self.selectedIndexes()
+
+    def get_nrowsSelected(self):
+        return len(self.selectedIndexes())
+
+    nrowsSelected = property(get_nrowsSelected)
 
     def selectRandom(self, start, stop, nsamples):
         """Select random sample of rows"""

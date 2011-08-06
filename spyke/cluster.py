@@ -434,11 +434,13 @@ class GLWidget(QtOpenGL.QGLWidget):
                 if sid != None:
                     self.focus = self.points[self.sids.searchsorted(sid)]
                     self.panTo() # pan to new focus
-            elif key == Qt.Key_S: # toggle item under the cursor, if any
-                self.selectItemUnderCursor(clear=False)
+            elif key == Qt.Key_S: # select item under the cursor, if any
+                self.selectItemUnderCursor(on=True, clear=False)
+            elif key == Qt.Key_D: # deselect item under the cursor, if any
+                self.selectItemUnderCursor(on=False, clear=False)
             elif key == Qt.Key_Space: # clear and select item under cursor, if any
-                self.selectItemUnderCursor(clear=True)
-            elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_D, Qt.Key_M, Qt.Key_Slash,
+                self.selectItemUnderCursor(on=True, clear=True)
+            elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash,
                          Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
                          Qt.Key_Comma, Qt.Key_Period]:
                 sw = self.spw.windows['Sort']
@@ -470,7 +472,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         else:
             QtGui.QToolTip.hideText()
 
-    def selectItemUnderCursor(self, clear=False):
+    def selectItemUnderCursor(self, on=True, clear=False):
         spw = self.spw
         sw = spw.windows['Sort']
         if clear:
@@ -482,5 +484,5 @@ class GLWidget(QtOpenGL.QGLWidget):
         y = self.size().height() - pos.y()
         sid = self.pick(x, y)
         if sid != None:
-            spw.ToggleSpike(sid) # toggle its cluster too, if any
+            spw.SelectSpike(sid, on=on) # select/deselect spike its cluster too, if need be
         self.showToolTip()
