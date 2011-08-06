@@ -460,13 +460,17 @@ class GLWidget(QtOpenGL.QGLWidget):
         if sid != None:
             dims = spw.GetClusterPlotDimNames()
             nid = sort.spikes[sid]['nid']
-            sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
-            tip = 'sid: %d\n' % sid
-            tip += '%s: %s' % (lst2shrtstr(dims), sposstr)
+            tip = 'sid: %d' % sid
+            try:
+                sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
+                tip += '\n%s: %s' % (lst2shrtstr(dims), sposstr)
+            except IndexError: pass # some params, like pcs, aren't in spikes array
             if nid > -1:
-                poststr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
-                tip += '\nnid: %d\n' % nid
-                tip += '%s: %s' % (lst2shrtstr(dims), poststr)
+                tip += '\nnid: %d' % nid
+                try:
+                    cposstr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
+                    tip += '\n%s: %s' % (lst2shrtstr(dims), cposstr)
+                except KeyError: pass # some params, like pcs, aren't in cluster.pos dict
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
             QtGui.QToolTip.showText(globalPos, tip)
         else:
@@ -485,4 +489,4 @@ class GLWidget(QtOpenGL.QGLWidget):
         sid = self.pick(x, y)
         if sid != None:
             spw.SelectSpike(sid, on=on) # select/deselect spike its cluster too, if need be
-        self.showToolTip()
+        #self.showToolTip()
