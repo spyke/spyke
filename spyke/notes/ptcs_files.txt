@@ -3,26 +3,50 @@ version 1
 
 Stick to 8 byte alignment for consistency and easy reading by eye in hex editor. Some fields are floats, most are ints.
 
-File desctription field might contain: the string ".ptcs (polytrode clustered spikes) file", date/time of clustering/extraction, clustering methods used, recordings/tracks that were clustered, polytrode type(s), etc.
+File desctription field might contain: the string ".ptcs (polytrode clustered spikes) file", date/time of clustering/extraction, clustering methods used, recordings/tracks that were clustered, polytrode type, brain area, etc.
 
-Neuron description field might contain: which polytrode/brain area the neuron was recorded from for multi polytrode recordings, neuron type (FS, RS, etc.)
+Extracting absolute file datetime from .srf files:
+
+For each recording, us timestamps relative t=0 correspond to when AD board acquisition began (but not necessarily when it started saving to disk). Unfortunately, the aboslute date and time corresponding to this t=0 event isn't explicitly stated at the start of the .srff file, only the file creation time, which can happen arbitrarily earlier than start of acquisition. Fortunately, each .srff file has at least two Surf Message Records, 'recording started' and 'recording stopped'. And fortunately, each of these has both a TimeStamp field and a DateTime field. So you can use one to relate to the other, and figure out what DateTime t=0 corresponds to. The DateTime field is a float representing the number of days, integral and fractional, since the epoch, which in this case is midnight on December 30, 1899. So, take the first Surf Message Record (MS), get its DateTime field, and from that subtract its TimeStamp field in us. This will give you the DateTime corresponding to t=0, which is what should be reported as the absolute start time in the .ptcs file header.
+
+Neuron description field might contain: cortical layer, neuron type (FS, RS, etc.)
+
 
 file header:
 -------------------
-formatversion: int64 (start at version 1)
+formatversion: int64 (currently version 1)
 ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 descr: ndescrbytes of ASCII text
     (padded with spaces if needed for 8 byte alignment)
+
 nneurons: uint64 (number of neurons)
 nspikes: uint64 (total number of spikes)
-nsamplebytes: uint64 (number of bytes per template waveform sample)
+ndatabytes: uint64 (number of bytes per template waveform data sample)
+nstdevbytes: uint64 (number of bytes per template waveform stdev sample)
 samplerate: float64 (Hz)
+
+npttypebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+pttype: npttypebytes of ASCII text
+    (padded with spaces if needed for 8 byte alignment)
+nchans: uint64 (total num chans in polytrode)
+chanpos: nchans * 2 * float64
+    (array of (x, y) positions, in um, relative to top of polytrode,
+     indexed by 0-based channel IDs)
+nsrcfnamebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+srcfname: nsrcfnamebytes of ASCII text
+    (source file name, probably .srf, padded with spaces if needed for 8 byte alignment)
+datetime: float64
+    (absolute datetime corresponding to t=0 us timestamp, stored as days since
+     epoch: December 30, 1899 at 00:00)
+ndatetimestrbytes: uint64 
+datetimestr: ndatetimestrbytes of ASCII text
+    (human readable string representation of datetime, preferrably ISO 8601,
+     padded with spaces if needed for 8 byte alignment)
+
 
 neuron i:
 -------------------
 nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
-ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings,
-             defaults to -1)
 ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment, defaults to 0)
 descr: ndescrbytes of ASCII text
     (padded with spaces if needed for 8 byte alignment)
@@ -31,12 +55,15 @@ xpos: float64 (um)
 ypos: float64 (um)
 zpos: float64 (um) (defaults to NaN)
 nchans: uint64 (num chans in template waveforms)
-chans: nchans * uint64 (IDs of channels in template waveforms)
-maxchan: uint64 (ID of max channel in template waveforms)
+chanids: nchans * uint64 (0 based IDs of channels in template waveforms)
+maxchanid: uint64 (0 based ID of max channel in template waveforms)
 nt: uint64 (num timepoints per template waveform channel)
 nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
-wavedata: nchans * nt * nsamplebytes
+wavedata: nchans * nt * ndatabytes
     (float template waveform data, in uV, padded with zeros if
+     needed for 8 byte alignment)
+wavestd: nchans * nt * nstdevbytes
+    (float template waveform standard deviation, in uV, padded with zeros if
      needed for 8 byte alignment)
 nspikes: uint64 (number of spikes in this neuron)
 spike timestamps: nspikes * uint64 (us, should be sorted)
