@@ -23,8 +23,9 @@ import numpy as np
 
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
-from core import toiter, savez, intround, lstrip, rstrip, lrstrip, timedelta2usec
+from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
+from surf import EPOCH
 from plot import SpikeSortPanel
 
 MAXCHANTOLERANCE = 100 # um
@@ -177,56 +178,58 @@ class Sort(object):
     def exportptcsfiles(self, basepath):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         spikes = self.spikes
-        dt = str(datetime.datetime.now()) # get an export datetime stamp
-        dt = dt.split('.')[0] # ditch the us
-        dt = dt.replace(' ', '_')
-        dt = dt.replace(':', '.')
-        srffnames = self.stream.srffnames
+        exportdt = str(datetime.datetime.now()) # get an export datetime stamp
+        exportdt = exportdt.split('.')[0] # ditch the us
+        exportdt = exportdt.replace(' ', '_')
+        exportdt = exportdt.replace(':', '.')
         try: # self.stream is a TrackStream?
-            streamtranges = self.stream.streamtranges # includes offsets
+            streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
-            streamtranges = [[self.stream.t0, self.stream.t1]]
+            streams = [self.stream]
         print('exporting clustered spikes to:')
         # do a separate export for each recording
-        for srffname, streamtrange in zip(srffnames, streamtranges):
-            self.exportptcsfile(dt, srffname, streamtrange, basepath)
+        for stream in streams:
+            # get time delta between stream i and stream 0, could be 0:
+            td = stream.datetime - streams[0].datetime
+            self.exportptcsfile(stream, td, exportdt, basepath)
 
-    def exportptcsfile(self, dt, srffname, streamtrange, basepath):
-        """Export spike data to binary .ptcs file in basepath, constrain spikes
-        to given streamtrange"""
+    def exportptcsfile(self, stream, td, exportdt, basepath):
+        """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
+        stream, and undo any time delta in spike times"""
         userdescr = ''
         nsamplebytes = 4
-        # build up list of PTCSNeuronRecords that have spikes in this streamrange,
+        # build up list of PTCSNeuronRecords that have spikes in this stream,
         # and tally their spikes
-        recs = []
+        nrecs = []
         nspikes = 0
-        nids = sorted(self.neurons)
-        for nid in nids:
+        for nid in sorted(self.neurons):
             neuron = self.neurons[nid]
-            spikets = self.spikes['t'][neuron.sids] # should be sorted
-            # constrain to spikes within streamtrange
-            lo, hi = spikets.searchsorted(streamtrange)
+            spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
+            assert spikets.flags['OWNDATA'] # should now be safe to modify in place
+            spikets -= td2usec(td) # export spike times relative to t=0 of this recording
+            # only include spikes that occurred during this recording
+            lo, hi = spikets.searchsorted([stream.t0, stream.t1])
             spikets = spikets[lo:hi]
             if len(spikets) == 0:
                 continue # don't save empty neurons
-            rec = PTCSNeuronRecord(neuron, spikets, nsamplebytes=nsamplebytes)
-            recs.append(rec)
+            nrec = PTCSNeuronRecord(neuron, spikets, nsamplebytes, descr='')
+            nrecs.append(nrec)
             nspikes += len(spikets)
-        nneurons = len(recs)
+        nneurons = len(nrecs)
 
         # write the file
-        srffnameroot = lrstrip(srffname, '../', '.srf')
+        srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
         path = os.path.join(basepath, srffnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
-        fname = dt + '.ptcs'
+        fname = exportdt + '.ptcs'
         fullfname = os.path.join(path, fname)
         with open(fullfname, 'wb') as f:
-            header = PTCSHeader(self, nneurons, nspikes, userdescr, nsamplebytes,
-                                fullfname, dt, srffname)
+            header = PTCSHeader(self, stream, nneurons, nspikes, userdescr,
+                                nsamplebytes, fullfname, exportdt)
             header.write(f)
-            for rec in recs:
-                rec.write(f)
+            for nrec in nrecs:
+                nrec.write(f)
         print(fullfname)
 
     def exportgdffiles(self, basepath):
@@ -247,7 +250,7 @@ class Sort(object):
         try: # self.stream is a TrackStream?
             streamtranges = self.stream.streamtranges # includes offsets
         except AttributeError: # self.stream is a normal Stream
-            streamtranges = [[self.stream.t0, self.stream.t1]]
+            streamtranges = np.int64([[self.stream.t0, self.stream.t1]])
         print('exporting clustered spikes to:')
         # do a separate export for each recording
         '''
@@ -285,7 +288,7 @@ class Sort(object):
         try: # self.stream is a TrackStream?
             streamtranges = self.stream.streamtranges # includes offsets
         except AttributeError: # self.stream is a normal Stream
-            streamtranges = [[self.stream.t0, self.stream.t1]]
+            streamtranges = np.int64([[self.stream.t0, self.stream.t1]])
         print('exporting clustered spikes to:')
         # do a separate export for each recording
         for srffname, streamtrange in zip(srffnames, streamtranges):
@@ -353,9 +356,14 @@ class Sort(object):
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
             # convert to normal n x 2 int64 array
             digitalsvalrecords = digitalsvalrecords.view(np.int64).reshape(-1, 2)
+            # NOTE: offset correction is a bad idea. Leave disabled. Spike times and DIN should
+            # be exported without offsets in their timestamps. .ptcs files have a datetime field,
+            # which can be used later to calculate offsets between recordings
+            '''
             # calculate offset for din values, get time delta between stream i and stream 0
-            td = timedelta2usec(stream.datetime - streams[0].datetime)
+            td = td2usec(stream.datetime - streams[0].datetime)
             digitalsvalrecords[:, 0] += td # add offset
+            '''
             digitalsvalrecords.tofile(fullfname) # save it
             print(fullfname)
 
@@ -1014,20 +1022,40 @@ class Neuron(object):
 class PTCSHeader(object):
     """
     Polytrode clustered spikes file header:
-    
-    formatversion: int64 (start at version 1)
+
+    formatversion: int64 (currently version 1)
     ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
     descr: ndescrbytes of ASCII text
-        (padded with spaces if needed for 8 byte alignment)
+        (padded with null bytes if needed for 8 byte alignment)
+
     nneurons: uint64 (number of neurons)
     nspikes: uint64 (total number of spikes)
     nsamplebytes: uint64 (number of bytes per template waveform sample)
-    samplerate: float64 (Hz)
+    samplerate: uint64 (Hz)
+
+    npttypebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+    pttype: npttypebytes of ASCII text
+        (padded with null bytes if needed for 8 byte alignment)
+    nptchans: uint64 (total num chans in polytrode)
+    chanpos: nptchans * 2 * float64
+        (array of (x, y) positions, in um, relative to top of polytrode,
+         indexed by 0-based channel IDs)
+    nsrcfnamebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+    srcfname: nsrcfnamebytes of ASCII text
+        (source file name, probably .srf, padded with null bytes if needed for 8 byte alignment)
+    datetime: float64
+        (absolute datetime corresponding to t=0 us timestamp, stored as days since
+         epoch: December 30, 1899 at 00:00)
+    ndatetimestrbytes: uint64 
+    datetimestr: ndatetimestrbytes of ASCII text
+        (human readable string representation of datetime, preferrably ISO 8601,
+         padded with null bytes if needed for 8 byte alignment)
     """
     FORMATVERSION = 1 # overall .ptcs file format version, not header format version
-    def __init__(self, sort, nneurons, nspikes, userdescr, nsamplebytes,
-                 fullfname, dt, srffname):
+    def __init__(self, sort, stream, nneurons, nspikes, userdescr,
+                 nsamplebytes, fullfname, exportdt):
         self.sort = sort
+        self.stream = stream
         self.nneurons = nneurons
         self.nspikes = nspikes
         self.userdescr = userdescr
@@ -1037,32 +1065,39 @@ class PTCSHeader(object):
         # to a string, but that wouldn't guarantee key order. Instead,
         # build string rep of description dict with guaranteed key order:
         d = ("{'file_type': '.ptcs (polytrode clustered spikes) file', "
-             "'original_fname': %r, 'extraction_datetime': %r, "
-             "'recording_fname': %r, 'electrode_name': %r"
-             % (homelessfullfname, dt, srffname, sort.stream.probe.name))
+             "'original_fname': %r, 'export_datetime': %r"
+             % (homelessfullfname, exportdt))
         if userdescr:
             d += ", 'user_descr': %r" % userdescr
         d += "}"
-        d = d.encode('ascii') # ensure it's pure ASCII
-        rem = len(d) % 8
-        npad = 8 - rem if rem else 0 # num spaces to pad with for 8 byte alignment
-        d += ' ' * npad
-        assert len(d) % 8 == 0
-        try:
-            eval(d)
-        except:
-            raise ValueError("descr isn't a valid dictionary:\n%r" % d)
-        self.descr = d
+        try: eval(d)
+        except: raise ValueError("descr isn't a valid dictionary:\n%r" % d)
+        self.descr = pad(d, align=8)
+        self.srffname = pad(lstrip(stream.srff.fname, '../'), align=8)
+        self.pttype = pad(stream.probe.name, align=8)
+        self.dt = stream.datetime
+        self.dtstr = pad(self.dt.isoformat(), align=8)
 
     def write(self, f):
         s = self.sort
         np.int64(self.FORMATVERSION).tofile(f) # formatversion
         np.uint64(len(self.descr)).tofile(f) # ndescrbytes
         f.write(self.descr) # descr
+        
         np.uint64(self.nneurons).tofile(f) # nneurons
         np.uint64(self.nspikes).tofile(f) # nspikes
         np.uint64(self.nsamplebytes).tofile(f) # nsamplebytes
-        np.float64(s.sampfreq).tofile(f) # samplerate
+        np.uint64(s.sampfreq).tofile(f) # samplerate
+
+        np.uint64(len(self.pttype)).tofile(f) # npttypebytes
+        f.write(self.pttype) # pttype
+        np.uint64(s.stream.probe.nchans).tofile(f) # nptchans
+        np.float64(s.stream.probe.siteloc_arr()).tofile(f) # chanpos
+        np.uint64(len(self.srffname)).tofile(f) # nsrcfnamebytes
+        f.write(self.srffname) # srcfname
+        np.float64(td2days(self.dt - EPOCH)).tofile(f) # datetime (in days)
+        np.uint64(len(self.dtstr)).tofile(f) # ndatetimestrbytes
+        f.write(self.dtstr)
 
 
 class PTCSNeuronRecord(object):
@@ -1070,43 +1105,43 @@ class PTCSNeuronRecord(object):
     Polytrode clustered spikes file neuron record:
     
     nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
-    ptid: int64 (polytrode/tetrode/electrode ID, for multi electrode recordings,
-                 defaults to -1)
     ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment, defaults to 0)
     descr: ndescrbytes of ASCII text
-        (padded with spaces if needed for 8 byte alignment)
+        (padded with null bytes if needed for 8 byte alignment)
     clusterscore: float64
     xpos: float64 (um)
     ypos: float64 (um)
     zpos: float64 (um) (defaults to NaN)
     nchans: uint64 (num chans in template waveforms)
-    chans: nchans * uint64 (IDs of channels in template waveforms)
-    maxchan: uint64 (ID of max channel in template waveforms)
+    chanids: nchans * uint64 (0 based IDs of channels in template waveforms)
+    maxchanid: uint64 (0 based ID of max channel in template waveforms)
     nt: uint64 (num timepoints per template waveform channel)
     nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
-    wavedata: nchans * nt * nsamplebytes
-        (float template waveform data, in uV, padded with zeros if
-         needed for 8 byte alignment)
+    wavedata: nwavedatabytes of nsamplebytes sized floats
+        (template waveform data, laid out as nchans * nt, in uV,
+         padded with null bytes if needed for 8 byte alignment)
+    nwavestdbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
+    wavestd: nwavestdbytes of nsamplebytes sized floats
+        (template waveform standard deviation, laid out as nchans * nt, in uV,
+         padded with null bytes if needed for 8 byte alignment)
     nspikes: uint64 (number of spikes in this neuron)
     spike timestamps: nspikes * uint64 (us, should be sorted)
     """
-    def __init__(self, neuron, spikets=None, descr='', nsamplebytes=None):
+    def __init__(self, neuron, spikets=None, nsamplebytes=None, descr=''):
+        n = neuron
+        AD2uV = n.sort.converter.AD2uV
         self.neuron = neuron
         self.spikets = spikets # constrained to stream range, may be < neuron.sids
-        self.descr = descr
-        assert len(self.descr) % 8 == 0
         self.wavedtype = {2: np.float16, 4: np.float32, 8: np.float64}[nsamplebytes]
-        nbytes = self.wavedtype(neuron.wave.data).nbytes
-        rem = nbytes % 8
-        self.nwavedatapadbytes = 8 - rem if rem else 0
-        self.nwavedatabytes = nbytes + self.nwavedatapadbytes
-        assert self.nwavedatabytes % 8 == 0
+        if n.wave.data == None: # some may have never been displayed
+            n.update_wave()
+        self.wavedata = pad(self.wavedtype(AD2uV(n.wave.data)), align=8) # nchans * nt * nsamplebytes
+        self.wavestd = pad(self.wavedtype(np.array([])), align=8) # empty for now
+        self.descr = pad(descr, align=8)
         
     def write(self, f):
         n = self.neuron
-        AD2uV = n.sort.converter.AD2uV
         np.int64(n.id).tofile(f) # nid
-        np.int64(-1).tofile(f) # ptid
         np.uint64(len(self.descr)).tofile(f) # ndescrbytes
         f.write(self.descr) # descr
         np.float64(np.nan).tofile(f) # clusterscore
@@ -1117,9 +1152,10 @@ class PTCSNeuronRecord(object):
         np.uint64(n.wave.chans).tofile(f) # chans
         np.uint64(n.chan).tofile(f) # maxchan
         np.uint64(len(n.wave.ts)).tofile(f) # nt
-        np.uint64(self.nwavedatabytes).tofile(f) # nwavedatabytes
-        self.wavedtype(AD2uV(n.wave.data)).tofile(f) # wavedata (uV, nchans * nt * nsamplebytes)
-        np.zeros(self.nwavedatapadbytes, dtype=np.uint8).tofile(f) # 0 padding
+        np.uint64(self.wavedata.nbytes).tofile(f) # nwavedatabytes
+        self.wavedata.tofile(f) # wavedata 
+        np.uint64(self.wavestd.nbytes).tofile(f) # nwavestdbytes
+        self.wavestd.tofile(f) # wavedata 
         np.uint64(len(self.spikets)).tofile(f) # nspikes
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
 

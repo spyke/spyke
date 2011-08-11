@@ -195,11 +195,11 @@ class TrackStream(object):
         for stream in streams:
             td = stream.datetime - datetimes[0] # time delta between stream i and stream 0
             for trange in stream.tranges:
-                t0 = timedelta2usec(td + timedelta(microseconds=int(trange[0])))
-                t1 = timedelta2usec(td + timedelta(microseconds=int(trange[1])))
+                t0 = td2usec(td + timedelta(microseconds=int(trange[0])))
+                t1 = td2usec(td + timedelta(microseconds=int(trange[1])))
                 tranges.append([t0, t1])
-            streamt0 = timedelta2usec(td + timedelta(microseconds=int(stream.t0)))
-            streamt1 = timedelta2usec(td + timedelta(microseconds=int(stream.t1)))
+            streamt0 = td2usec(td + timedelta(microseconds=int(stream.t0)))
+            streamt1 = td2usec(td + timedelta(microseconds=int(stream.t1)))
             streamtranges.append([streamt0, streamt1])
         self.tranges = np.int64(tranges)
         self.streamtranges = np.int64(streamtranges)
@@ -286,7 +286,13 @@ class TrackStream(object):
             stream.shcorrect = shcorrect
 
     shcorrect = property(get_shcorrect, set_shcorrect)
+    '''
+    # having this would make sense, but it isn't currently needed:
+    def get_datetime(self):
+        return self.streams[0].datetime # datetime of first stream
 
+    datetime = property(get_datetime)
+    '''
     def pickle(self):
         """Just a way to pickle all the .srf files associated with self"""
         for stream in self.streams:
@@ -1443,12 +1449,17 @@ def rowtake(a, i):
     else: # i.ndim == 2
         return a[np.arange(a.shape[0])[:, None], i]
 
-def timedelta2usec(delta):
+def td2usec(td):
     """Convert datetime.timedelta to microseconds"""
-    sec = delta.days * 24 * 3600
-    sec += delta.seconds
-    usec = sec * 1000000 + delta.microseconds
+    sec = td.total_seconds() # float
+    usec = intround(sec * 1000000) # round to nearest us
     return usec
+
+def td2days(td):
+    """Convert datetime.timedelta to days"""
+    sec = td.total_seconds() # float
+    days = sec / 3600 / 24
+    return days
 
 def ordered(ts):
     """Check if ts is ordered"""
@@ -1528,3 +1539,41 @@ def strip(s, strip):
 def lrstrip(s, lstr, rstr):
     """Strip lstr from start of s and rstr from end of s"""
     return rstrip(lstrip(s, lstr), rstr)
+
+def pad(x, align=8):
+    """Pad x with null bytes so it's a multiple of align bytes long"""
+    if type(x) == str: # or maybe unicode?
+        return padstr(x, align=align)
+    elif type(x) == np.ndarray:
+        return padarr(x, align=align)
+    else:
+        raise TypeError('Unhandled type %r in pad()')
+
+def padstr(x, align=8):
+    """Pad string x with null bytes so it's a multiple of align bytes long"""
+    nbytes = len(x)
+    rem = nbytes % align
+    npadbytes = align - rem if rem else 0 # nbytes to pad with for 8 byte alignment
+    if npadbytes == 0:
+        return x
+    x = x.encode('ascii') # ensure it's pure ASCII, where each char is 1 byte
+    x += '\0' * npadbytes # returns a copy, doesn't modify in place
+    assert len(x) % align == 0
+    return x
+
+def padarr(x, align=8):
+    """Flatten array x and pad with null bytes so it's a multiple of align bytes long"""
+    nitems = len(x.ravel())
+    nbytes = x.nbytes
+    dtypenbytes = x.dtype.itemsize
+    rem = nbytes % align
+    npadbytes = align - rem if rem else 0 # nbytes to pad with for 8 byte alignment
+    if npadbytes == 0:
+        return x
+    if npadbytes % dtypenbytes != 0:
+        raise RuntimeError("Can't pad %d byte array to %d byte alignment" % (dtypenbytes, align))
+    npaditems = npadbytes / dtypenbytes
+    x = x.ravel().copy() # don't modify in place
+    x.resize(nitems + npaditems, refcheck=False) # pads with npaditems zeros, each of length dtypenbytes
+    assert x.nbytes % align == 0
+    return x

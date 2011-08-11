@@ -17,7 +17,7 @@ file header:
 formatversion: int64 (currently version 1)
 ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 descr: ndescrbytes of ASCII text
-    (padded with spaces if needed for 8 byte alignment)
+    (padded with null bytes if needed for 8 byte alignment)
 
 nneurons: uint64 (number of neurons)
 nspikes: uint64 (total number of spikes)
@@ -26,21 +26,21 @@ samplerate: uint64 (Hz)
 
 npttypebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 pttype: npttypebytes of ASCII text
-    (padded with spaces if needed for 8 byte alignment)
-nchans: uint64 (total num chans in polytrode)
-chanpos: nchans * 2 * float64
+    (padded with null bytes if needed for 8 byte alignment)
+nptchans: uint64 (total num chans in polytrode)
+chanpos: nptchans * 2 * float64
     (array of (x, y) positions, in um, relative to top of polytrode,
      indexed by 0-based channel IDs)
 nsrcfnamebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 srcfname: nsrcfnamebytes of ASCII text
-    (source file name, probably .srf, padded with spaces if needed for 8 byte alignment)
+    (source file name, probably .srf, padded with null bytes if needed for 8 byte alignment)
 datetime: float64
     (absolute datetime corresponding to t=0 us timestamp, stored as days since
      epoch: December 30, 1899 at 00:00)
 ndatetimestrbytes: uint64 
 datetimestr: ndatetimestrbytes of ASCII text
     (human readable string representation of datetime, preferrably ISO 8601,
-     padded with spaces if needed for 8 byte alignment)
+     padded with null bytes if needed for 8 byte alignment)
 
 
 neuron i:
@@ -48,7 +48,7 @@ neuron i:
 nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
 ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment, defaults to 0)
 descr: ndescrbytes of ASCII text
-    (padded with spaces if needed for 8 byte alignment)
+    (padded with null bytes if needed for 8 byte alignment)
 clusterscore: float64
 xpos: float64 (um)
 ypos: float64 (um)
@@ -60,11 +60,11 @@ nt: uint64 (num timepoints per template waveform channel)
 nwavedatabytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 wavedata: nwavedatabytes of nsamplebytes sized floats
     (template waveform data, laid out as nchans * nt, in uV,
-     padded with zeros if needed for 8 byte alignment)
+     padded with null bytes if needed for 8 byte alignment)
 nwavestdbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 wavestd: nwavestdbytes of nsamplebytes sized floats
     (template waveform standard deviation, laid out as nchans * nt, in uV,
-     padded with zeros if needed for 8 byte alignment)
+     padded with null bytes if needed for 8 byte alignment)
 nspikes: uint64 (number of spikes in this neuron)
 spike timestamps: nspikes * uint64 (us, should be sorted)
 -------------------
