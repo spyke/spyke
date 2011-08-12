@@ -124,11 +124,6 @@ class File(object):
             del d['f'] # exclude open .srf file handle, if any
         except KeyError:
             pass
-        '''
-        # no need for this any more:
-        if not hasattr(self, '_pickle_all_records'): # if pulled from old .parse file
-            self._pickle_all_records = d['_pickle_all_records'] = False
-        '''
         try:
             if not self._pickle_all_records:
                 del d['lowpassrecords'] # these are hogs
@@ -141,18 +136,7 @@ class File(object):
             pass
         # leave the streams be, since you need them for their enabled chans info
         return d
-    '''
-    # no need for this anymore, .srf file is always reopened external to this it seems:
-    def __setstate__(self, d):
-        """Try and restore open .srf file handle on unpickle. Also, see self.unpickle"""
-        self.__dict__ = d
-        try:
-            self.open()
-        except IOError:
-            # .srf file isn't available, perhaps I'm being unpickled from a .sort file
-            # instead of from a .parse file. Or perhaps my fname is 
-            pass
-    '''
+
     def _parseFileHeader(self):
         """Parse the Surf file header"""
         self.fileheader = FileHeader()
