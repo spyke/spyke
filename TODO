@@ -257,9 +257,8 @@ KeyboardInterrupt:
     
 - also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
 
-- glwidget seems slower now as well for big plots, like the 7.2 M ptc15.tr7c plot
-    - maybe not. I think I'm just used to sorts with about half as many spikes, which are noticeably faster
-    
+
+  
 - convert all line endings to Unix style
 
 - BUG: opening a sort from one track, and then opening a sort from a different track causes channel display problems. There must be some channel info that isn't cleared between sort openings. Maybe some attribute of the main window or the sort window? Maybe something to do with self.windows['Sort'].panel.enabled_chans?
@@ -275,8 +274,6 @@ KeyboardInterrupt:
 - WISHLIST: consider max/min/best aligning each channel separately, or aligning according to selected chan. This would mean shifting chans relative to each other
 
 - WISHLIST: if single selected neuron is the same colour as the channel selection colour, change to different channel selection colour (alternate between red and green)
-
-- BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
 
 - WISHLIST: allow undo/redo of renumbering, and only trim cluster change list when it exceeds some maximum, like 50 changes, or after saving, to preserve memory
 
@@ -1299,6 +1296,8 @@ DONE:
 - implement focus to point
 - implement saving and restoring of camera view (search for view and roll keywords)
     - just save and restore the modelview matrix and the -self._dfocus as the focus
+- BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
+    - this was due to fnames being overwritten when loading a srff from a .parse file, and different fnames being used for the normal vs the .track case (.track fnames have ../ prepended)
 
 
 
