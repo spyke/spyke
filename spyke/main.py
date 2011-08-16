@@ -492,24 +492,46 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_clusterButton_clicked(self):
         """Cluster pane Cluster button click"""
-        self.climb()
-
-    def chansplit(self):
-        """Split spikes into clusters of unique channel combinations"""
         s = self.sort
         spikes = s.spikes
-        sw = self.windows['Sort']
-        try:
-            cw = self.windows['Cluster'] # don't force its display by default
-        except KeyError:
-            cw = self.OpenWindow('Cluster')
-
         sids = self.GetImplicitSpikes() # all selected spikes
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes
             oldclusters = s.clusters.values() # all clusters
+        items = self.ui.dimlist.selectedItems()
+        if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
+        dims = [ str(item.text()) for item in items ] # dim names to cluster on
+        pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        t0 = time.time()
+        if pcs and np.all(sids == spikes['id']): # all spikes
+            nids = np.zeros(len(sids), dtype=np.int32)
+            nids.fill(-1) # init all to be unclustered
+            maxchans = np.unique(spikes['chan'])
+            for maxchan in maxchans:
+                maxchansids, = np.where(spikes['chan'] == maxchan)
+                print('clustering on maxchan %d on dims %r' % (maxchan, dims))
+                maxchannids = self.climb(maxchansids, dims)
+                ci = maxchannids != -1 # keep only the clustered sids
+                maxchansids = maxchansids[ci]
+                maxchannids = maxchannids[ci]
+                nidoffset = max(nids) + 1
+                nids[maxchansids] = maxchannids + nidoffset
+        else:
+            print('clustering on dims %r' % dims)
+            nids = self.climb(sids, dims)
+        print('clustering took %.3f sec' % (time.time()-t0))
+        self.apply_clustering(oldclusters, sids, nids, verb='climb')
 
+    def chansplit(self):
+        """Split spikes into clusters of unique channel combinations"""
+        s = self.sort
+        spikes = s.spikes
+        sids = self.GetImplicitSpikes() # all selected spikes
+        oldclusters = self.GetClusters() # all selected clusters
+        if len(sids) == 0: # nothing selected
+            sids = spikes['id'] # all spikes
+            oldclusters = s.clusters.values() # all clusters
         t0 = time.time()
         chans = spikes[sids]['chans']
         chans = tocontig(chans) # string view won't work without contiguity
@@ -526,33 +548,12 @@ class SpykeWindow(QtGui.QMainWindow):
         if (nids == -1).any():
             raise RuntimeError("there shouldn't be any unclustered points from chansplit")
         print('chansplit took %.3f sec' % (time.time()-t0))
-
         self.apply_clustering(oldclusters, sids, nids, verb='chansplit')
 
-    def climb(self):
-        """Cluster all currently selected spikes, or all spikes if none selected,
-        using NVS's mountain climbing algorithm"""
+    def climb(self, sids, dims):
+        """Cluster sids along dims, using NVS's mountain climbing algorithm"""
         s = self.sort
-        spikes = s.spikes
-        sw = self.windows['Sort']
-        try:
-            cw = self.windows['Cluster'] # don't force its display by default
-        except KeyError:
-            cw = self.OpenWindow('Cluster')
-
-        sids = self.GetImplicitSpikes() # all selected spikes
-        oldclusters = self.GetClusters() # all selected clusters
-        if len(sids) == 0: # nothing selected
-            sids = spikes['id'] # all spikes
-            oldclusters = s.clusters.values() # all clusters
-
-        # grab dims and data
-        items = self.ui.dimlist.selectedItems()
-        if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
-        dims = [ str(item.text()) for item in items ] # dim names to cluster on
-        plotdims = self.GetClusterPlotDimNames()
         waveclustering = np.any([ dim.startswith('peaks') for dim in dims ])
-        #pcs = np.any([ dim.startswith('pc') for dim in dims ])
         if waveclustering: # do waveform clustering
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
@@ -563,11 +564,6 @@ class SpykeWindow(QtGui.QMainWindow):
                 print(msg)
                 return
         else: # do spike parameter (non-wavefrom) clustering
-            '''
-            if pcs and sids == None:
-                for maxchani in maxchanis:
-                    data = s.get_param_matrix(dims=dims, sids=sids, scale=True)
-            '''
             data = s.get_param_matrix(dims=dims, sids=sids, scale=True)
         data = tocontig(data) # ensure it's contiguous for climb()
         # grab climb() params and run it
@@ -582,8 +578,7 @@ class SpykeWindow(QtGui.QMainWindow):
                         minpoints=s.minpoints)
         nids, scoutpositions = results
         print('climb took %.3f sec' % (time.time()-t0))
-
-        self.apply_clustering(oldclusters, sids, nids, verb='climb')
+        return nids
 
     def apply_clustering(self, oldclusters, sids, nids, verb=''):
         """Replace old clusters and apply the clustering described by sids

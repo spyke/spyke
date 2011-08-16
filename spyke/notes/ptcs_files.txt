@@ -3,11 +3,11 @@ version 1
 
 Stick to 8 byte alignment for consistency and easy reading by eye in hex editor. Some fields are floats, most are ints.
 
-File desctription field might contain: the string ".ptcs (polytrode clustered spikes) file", date/time of clustering/extraction, clustering methods used, recordings/tracks that were clustered, polytrode type, brain area, etc.
+File desctription field might contain: the string ".ptcs (polytrode clustered spikes) file", date/time of clustering/extraction, clustering methods used, recordings/tracks that were clustered, brain area, etc.
 
 Extracting absolute file datetime from .srf files:
 
-For each recording, us timestamps relative t=0 correspond to when AD board acquisition began (but not necessarily when it started saving to disk). Unfortunately, the aboslute date and time corresponding to this t=0 event isn't explicitly stated at the start of the .srff file, only the file creation time, which can happen arbitrarily earlier than start of acquisition. Fortunately, each .srff file has at least two Surf Message Records, 'recording started' and 'recording stopped'. And fortunately, each of these has both a TimeStamp field and a DateTime field. So you can use one to relate to the other, and figure out what DateTime t=0 corresponds to. The DateTime field is a float representing the number of days, integral and fractional, since the epoch, which in this case is midnight on December 30, 1899. So, take the first Surf Message Record (MS), get its DateTime field, and from that subtract its TimeStamp field in us. This will give you the DateTime corresponding to t=0, which is what should be reported as the absolute start time in the .ptcs file header.
+For each recording, us timestamps relative to t=0 correspond to when AD board acquisition began (but not necessarily when it started saving to disk). Unfortunately, the aboslute date and time corresponding to this t=0 event isn't explicitly stated at the start of the .srff file, only the file creation time, which can happen arbitrarily earlier than start of acquisition. Fortunately, each .srff file has at least two Surf Message Records, 'recording started' and 'recording stopped'. And fortunately, each of these has both a TimeStamp field and a DateTime field. So you can use one to relate to the other, and figure out what DateTime t=0 corresponds to. The DateTime field is a float representing the number of days, integral and fractional, since the epoch, which in this case is midnight on December 30, 1899. So, take the first Surf Message Record (MS), get its DateTime field, and from that subtract its TimeStamp field in us. This will give you the DateTime corresponding to t=0, which is what should be reported as the absolute start time in the .ptcs file header.
 
 Neuron description field might contain: cortical layer, neuron type (FS, RS, etc.)
 
@@ -26,7 +26,7 @@ samplerate: uint64 (Hz)
 
 npttypebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 pttype: npttypebytes of ASCII text
-    (padded with null bytes if needed for 8 byte alignment)
+    (polytrode type, padded with null bytes if needed for 8 byte alignment)
 nptchans: uint64 (total num chans in polytrode)
 chanpos: nptchans * 2 * float64
     (array of (x, y) positions, in um, relative to top of polytrode,

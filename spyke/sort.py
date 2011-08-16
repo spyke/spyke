@@ -456,6 +456,8 @@ class Sort(object):
     def get_pc_matrix(self, sids):
         """Find set of chans common to all sids, and do PCA on those waveforms"""
         import mdp # delay as late as possible
+        if hasattr(self, 'pcsids') and np.all(sids == self.pcsids):
+            return self.pcs # no need to recalculate
         spikes = self.spikes
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
@@ -474,8 +476,9 @@ class Sort(object):
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = self.wavedata[sid][spikechanis]
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-        X = mdp.pca(data, output_dim=5, svd=False)
-        return X
+        self.pcs = mdp.pca(data, output_dim=5, svd=False)
+        self.pcsids = sids
+        return self.pcs
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
@@ -760,7 +763,11 @@ class Neuron(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        d['plt'] = None # clear plot self is assigned to, since that'll have changed anyway on unpickle
+        # don't save any calculated principal components:
+        d.pop('pc', None)
+        d.pop('pcsids', None)
+        # don't save plot self is assigned to, since that'll change anyway on unpickle
+        d['plt'] = None
         return d
 
     def update_wave(self):
@@ -1149,13 +1156,13 @@ class PTCSNeuronRecord(object):
         np.float64(n.cluster.pos['y0']).tofile(f) # ypos (um)
         np.float64(np.nan).tofile(f) # zpos (um)
         np.uint64(len(n.wave.chans)).tofile(f) # nchans
-        np.uint64(n.wave.chans).tofile(f) # chans
-        np.uint64(n.chan).tofile(f) # maxchan
+        np.uint64(n.wave.chans).tofile(f) # chanids
+        np.uint64(n.chan).tofile(f) # maxchanid
         np.uint64(len(n.wave.ts)).tofile(f) # nt
         np.uint64(self.wavedata.nbytes).tofile(f) # nwavedatabytes
         self.wavedata.tofile(f) # wavedata 
         np.uint64(self.wavestd.nbytes).tofile(f) # nwavestdbytes
-        self.wavestd.tofile(f) # wavedata 
+        self.wavestd.tofile(f) # wavestd 
         np.uint64(len(self.spikets)).tofile(f) # nspikes
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
 

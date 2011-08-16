@@ -257,7 +257,7 @@ KeyboardInterrupt:
     
 - also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
 
-
+- WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] fields is int16
   
 - convert all line endings to Unix style
 
