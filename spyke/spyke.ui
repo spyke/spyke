@@ -683,6 +683,9 @@
            <height>161</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Dimensions to cluster on</string>
+         </property>
          <property name="selectionMode">
           <enum>QAbstractItemView::ExtendedSelection</enum>
          </property>
@@ -791,6 +794,9 @@
            <height>25</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Characteristic cluster scale</string>
+         </property>
          <property name="decimals">
           <number>3</number>
          </property>
@@ -861,6 +867,9 @@
            <height>25</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Climb rate</string>
+         </property>
          <property name="decimals">
           <number>2</number>
          </property>
@@ -911,6 +920,9 @@
            <width>62</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Minimum number of points in a cluster</string>
          </property>
          <property name="maximum">
           <number>999999999</number>
@@ -976,6 +988,9 @@
            <height>27</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Cluster selected spikes</string>
+         </property>
          <property name="text">
           <string>Cluster</string>
          </property>
@@ -986,7 +1001,7 @@
          <rect>
           <x>335</x>
           <y>5</y>
-          <width>116</width>
+          <width>146</width>
           <height>186</height>
          </rect>
         </property>
@@ -996,8 +1011,8 @@
         <widget class="QLabel" name="label_29">
          <property name="geometry">
           <rect>
-           <x>20</x>
-           <y>35</y>
+           <x>15</x>
+           <y>75</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1009,8 +1024,8 @@
         <widget class="QLabel" name="label_30">
          <property name="geometry">
           <rect>
-           <x>20</x>
-           <y>60</y>
+           <x>15</x>
+           <y>100</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1022,8 +1037,8 @@
         <widget class="QLabel" name="label_31">
          <property name="geometry">
           <rect>
-           <x>20</x>
-           <y>85</y>
+           <x>15</x>
+           <y>125</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1035,8 +1050,8 @@
         <widget class="QComboBox" name="xDimComboBox">
          <property name="geometry">
           <rect>
-           <x>40</x>
-           <y>30</y>
+           <x>35</x>
+           <y>70</y>
            <width>71</width>
            <height>25</height>
           </rect>
@@ -1100,8 +1115,8 @@
         <widget class="QComboBox" name="yDimComboBox">
          <property name="geometry">
           <rect>
-           <x>40</x>
-           <y>55</y>
+           <x>35</x>
+           <y>95</y>
            <width>71</width>
            <height>25</height>
           </rect>
@@ -1168,8 +1183,8 @@
         <widget class="QComboBox" name="zDimComboBox">
          <property name="geometry">
           <rect>
-           <x>40</x>
-           <y>80</y>
+           <x>35</x>
+           <y>120</y>
            <width>71</width>
            <height>25</height>
           </rect>
@@ -1236,14 +1251,49 @@
         <widget class="QPushButton" name="plotButton">
          <property name="geometry">
           <rect>
-           <x>65</x>
-           <y>105</y>
+           <x>60</x>
+           <y>160</y>
            <width>46</width>
            <height>27</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>(Re)plot points in cluster window</string>
+         </property>
          <property name="text">
           <string>Plot</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="x0y0VppButton">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>28</y>
+           <width>71</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Set plot dimensions to x0, y0, Vpp</string>
+         </property>
+         <property name="text">
+          <string>x0y0Vpp</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="pc0pc1pc2Button">
+         <property name="geometry">
+          <rect>
+           <x>75</x>
+           <y>28</y>
+           <width>71</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Set plot dimensions to pc0, pc1, pc2</string>
+         </property>
+         <property name="text">
+          <string>pc0pc1pc2</string>
          </property>
         </widget>
        </widget>

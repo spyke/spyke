@@ -1080,7 +1080,7 @@ class PTCSHeader(object):
         try: eval(d)
         except: raise ValueError("descr isn't a valid dictionary:\n%r" % d)
         self.descr = pad(d, align=8)
-        self.srffname = pad(lstrip(stream.srff.fname, '../'), align=8)
+        self.srcfname = pad(lstrip(stream.srff.fname, '../'), align=8)
         self.pttype = pad(stream.probe.name, align=8)
         self.dt = stream.datetime
         self.dtstr = pad(self.dt.isoformat(), align=8)
@@ -1100,8 +1100,8 @@ class PTCSHeader(object):
         f.write(self.pttype) # pttype
         np.uint64(s.stream.probe.nchans).tofile(f) # nptchans
         np.float64(s.stream.probe.siteloc_arr()).tofile(f) # chanpos
-        np.uint64(len(self.srffname)).tofile(f) # nsrcfnamebytes
-        f.write(self.srffname) # srcfname
+        np.uint64(len(self.srcfname)).tofile(f) # nsrcfnamebytes
+        f.write(self.srcfname) # srcfname
         np.float64(td2days(self.dt - EPOCH)).tofile(f) # datetime (in days)
         np.uint64(len(self.dtstr)).tofile(f) # ndatetimestrbytes
         f.write(self.dtstr)

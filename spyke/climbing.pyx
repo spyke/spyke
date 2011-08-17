@@ -451,7 +451,7 @@ cdef void ifill(int *a, int val, long long n) nogil:
         a[i] = val
 
 cdef void dfill(double *a, double val, long long n) nogil:
-    """Fill int array with n values"""
+    """Fill double array with n values"""
     cdef long long i
     for i in range(n):
         a[i] = val

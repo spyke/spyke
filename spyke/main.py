@@ -758,6 +758,47 @@ class SpykeWindow(QtGui.QMainWindow):
         print('normalized waveform data by %f' % norm)
         return data
 
+    @QtCore.pyqtSlot()
+    def on_x0y0VppButton_clicked(self):
+        """Cluster pane x0y0Vpp button click.
+        Set plot dimensions to x0, y0, and Vpp, and replot"""
+        self.SetPlotDims('x0', 'y0', 'Vpp')
+
+    @QtCore.pyqtSlot()
+    def on_pc0pc1pc2Button_clicked(self):
+        """Cluster pane pc0pc1pc2 button click.
+        Set plot dimensions pc0, pc1, and pc2, and replot"""
+        self.SetPlotDims('pc0', 'pc1', 'pc2')
+
+    def SetPlotDims(self, x, y, z):
+        """Set plot dimensions to x, y, z, and replot"""
+        xi = self.ui.xDimComboBox.findText(x)
+        yi = self.ui.yDimComboBox.findText(y)
+        zi = self.ui.zDimComboBox.findText(z)        
+        self.ui.xDimComboBox.setCurrentIndex(xi)
+        self.ui.yDimComboBox.setCurrentIndex(yi)
+        self.ui.zDimComboBox.setCurrentIndex(zi)
+        self.on_plotButton_clicked() # replot
+
+    @QtCore.pyqtSlot()
+    def on_plotButton_clicked(self):
+        """Cluster pane plot button click. Plot points and colour them
+        according to their clusters."""
+        s = self.sort
+        dims = self.GetClusterPlotDimNames()
+        cw = self.OpenWindow('Cluster') # in case it isn't already open
+        pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        if pcs: # do PCA on and plot only selected spikes
+            sids = self.GetImplicitSpikes()
+        else: # plot all spikes
+            sids = s.spikes['id']
+        nids = s.spikes['nid'][sids]
+        X = s.get_param_matrix(dims=dims, sids=sids, scale=True)
+        #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
+        if len(X) == 0:
+            return # nothing to plot
+        cw.plot(X, sids, nids)
+        
     def GetSortedSpikes(self):
         """Return IDs of currently selected sorted spikes"""
         sw = self.windows['Sort']
@@ -891,25 +932,6 @@ class SpykeWindow(QtGui.QMainWindow):
         cw.glWidget.updateGL()
         if update:
             self.UpdateClustersGUI()
-
-    @QtCore.pyqtSlot()
-    def on_plotButton_clicked(self):
-        """Cluster pane plot button click. Plot points and colour them
-        according to their clusters."""
-        s = self.sort
-        dims = self.GetClusterPlotDimNames()
-        cw = self.OpenWindow('Cluster') # in case it isn't already open
-        pcs = np.any([ dim.startswith('pc') for dim in dims ])
-        if pcs: # do PCA on and plot only selected spikes
-            sids = self.GetImplicitSpikes()
-        else: # plot all spikes
-            sids = s.spikes['id']
-        nids = s.spikes['nid'][sids]
-        X = s.get_param_matrix(dims=dims, sids=sids, scale=True)
-        #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
-        if len(X) == 0:
-            return # nothing to plot
-        cw.plot(X, sids, nids)
 
     def UpdateClustersGUI(self):
         """Update lots of stuff after modifying clusters,
