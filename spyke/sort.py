@@ -469,7 +469,7 @@ class Sort(object):
         # collect data from chans from all spikes:
         nspikes = len(sids)
         nt = self.wavedata.shape[2]
-        print('Doing PCA on chans %r of %d spikes' % (list(chans), nspikes))
+        print('doing PCA on chans %r of %d spikes' % (list(chans), nspikes))
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64) # need float64 for PCA
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]

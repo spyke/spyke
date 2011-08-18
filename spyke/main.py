@@ -497,31 +497,52 @@ class SpykeWindow(QtGui.QMainWindow):
         sids = self.GetImplicitSpikes() # all selected spikes
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
-            sids = spikes['id'] # all spikes
+            sids = spikes['id'] # all spikes (sorted)
             oldclusters = s.clusters.values() # all clusters
         items = self.ui.dimlist.selectedItems()
         if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
         dims = [ str(item.text()) for item in items ] # dim names to cluster on
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        subsidss = []
+        msgs = []
         t0 = time.time()
-        if pcs and np.all(sids == spikes['id']): # all spikes
-            nids = np.zeros(len(sids), dtype=np.int32)
-            nids.fill(-1) # init all to be unclustered
-            maxchans = np.unique(spikes['chan'])
-            for maxchan in maxchans:
-                maxchansids, = np.where(spikes['chan'] == maxchan)
-                print('clustering on maxchan %d on dims %r' % (maxchan, dims))
-                maxchannids = self.climb(maxchansids, dims)
-                ci = maxchannids != -1 # keep only the clustered sids
-                maxchansids = maxchansids[ci]
-                maxchannids = maxchannids[ci]
-                nidoffset = max(nids) + 1
-                nids[maxchansids] = maxchannids + nidoffset
-        else:
-            print('clustering on dims %r' % dims)
-            nids = self.climb(sids, dims)
+        if pcs and np.all(sids == spikes['id']): # doing PCA on all spikes
+            if oldclusters:
+                # partition data by existing clusters before clustering,
+                # restrict to only clustered spikes:
+                for oldcluster in oldclusters:
+                    subsidss.append(oldcluster.neuron.sids)
+                    msgs.append('oldcluster %d' % oldcluster.id)
+                sids = np.concatenate(subsidss) # update
+                sids.sort()
+            else: # partition data by maxchan before clustering, includes all sids
+                maxchans = np.unique(spikes['chan'])
+                for maxchan in maxchans:
+                    subsids, = np.where(spikes['chan'] == maxchan)
+                    subsidss.append(subsids)
+                    msgs.append('maxchan %d' % maxchan)
+        else: # just the selected spikes
+            subsidss.append(sids)
+            msgs.append('%d selected sids' % len(sids))
+        nids = self.subcluster(sids, subsidss, msgs, dims)
         print('clustering took %.3f sec' % (time.time()-t0))
         self.apply_clustering(oldclusters, sids, nids, verb='climb')
+
+    def subcluster(self, sids, subsidss, msgs, dims):
+        """Perform (sub)clustering according to subsids in subsidss. Incorporate results
+        from each (sub)clustering into a single nids output array"""
+        nids = np.zeros(len(sids), dtype=np.int32) # init nids output array
+        nids.fill(-1) # init all to be unclustered
+        for subsids, msg in zip(subsidss, msgs):
+            print('clustering %s on dims %r' % (msg, dims))
+            subnids = self.climb(subsids, dims) # subclustering result
+            ci = subnids != -1 # consider only the clustered sids
+            subsids = subsids[ci]
+            subnids = subnids[ci]
+            nidoffset = max(nids) + 1
+            nidsi = sids.searchsorted(subsids)
+            nids[nidsi] = subnids + nidoffset
+        return nids
 
     def chansplit(self):
         """Split spikes into clusters of unique channel combinations"""
@@ -760,14 +781,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_x0y0VppButton_clicked(self):
-        """Cluster pane x0y0Vpp button click.
-        Set plot dimensions to x0, y0, and Vpp, and replot"""
+        """Cluster pane x0y0Vpp button click. Set plot dims to x0, y0, and Vpp"""
         self.SetPlotDims('x0', 'y0', 'Vpp')
 
     @QtCore.pyqtSlot()
     def on_pc0pc1pc2Button_clicked(self):
-        """Cluster pane pc0pc1pc2 button click.
-        Set plot dimensions pc0, pc1, and pc2, and replot"""
+        """Cluster pane pc0pc1pc2 button click. Set plot dims to pc0, pc1, and pc2"""
         self.SetPlotDims('pc0', 'pc1', 'pc2')
 
     def SetPlotDims(self, x, y, z):
@@ -826,7 +845,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return sids[0]
 
     def GetImplicitSpikes(self):
-        """Return IDs of all currently selected spikes, even if they're only
+        """Return sorted IDs of all currently selected spikes, even if they're only
         implicitly selected via their parent cluster(s)"""
         sids = []
         clusters = self.GetClusters()
@@ -835,6 +854,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # include any selected usids as well
         sids.append(self.GetUnsortedSpikes())
         sids = np.concatenate(sids)
+        sids.sort()
         return sids
 
     def GetClusterIDs(self):
