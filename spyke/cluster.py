@@ -39,6 +39,21 @@ class Cluster(object):
 
     id = property(get_id, set_id)
 
+    def __getstate__(self):
+        """Get object state for pickling"""
+        d = self.__dict__.copy()
+        # don't save any temporary principal component positions
+        pos = self.pos.copy() # don't modify original
+        normpos = self.normpos.copy() # don't modify original
+        assert sorted(pos) == sorted(normpos) # make sure they have same set of keys
+        for key in list(pos): # need list() for snapshot of keys before any are deleted
+            if key.startswith('pc'):
+                del pos[key]
+                del normpos[key]
+        d['pos'] = pos
+        d['normpos'] = normpos
+        return d
+
     def update_pos(self, dims=None, nsamples=CLUSTERPARAMSAMPLESIZE):
         """Update unnormalized and normalized cluster position for specified dims.
         Use median instead of mean to reduce influence of outliers on cluster
@@ -94,6 +109,32 @@ class Cluster(object):
             # update normalized position
             self.normpos[dim] = np.median(subdata)
 
+    def update_pcpos(self, nsamples=CLUSTERPARAMSAMPLESIZE):
+        sort = self.neuron.sort
+        #pc = sort.get_pc_matrix()
+        pc = sort.pc
+        npc = pc.shape[1]
+        pcsids = sort.pcsids
+        nsids = self.neuron.sids
+        # consider only nsids that were included in last PCA:
+        nsids = np.intersect1d(nsids, pcsids, assume_unique=True)
+        if nsamples and len(nsids) > nsamples: # subsample spikes
+            print('neuron %d: update_pcpos() taking random sample of %d spikes instead '
+                  'of all %d that were included in last PCA' % (self.id, nsamples, len(nsids)))
+            nsids = np.asarray(random.sample(nsids, nsamples))
+        pcsidis = pcsids.searchsorted(nsids)
+        subpc = pc[pcsidis].copy()
+        medians = np.median(subpc, axis=0)
+        mean = pc.mean(axis=0)
+        std = pc.std(axis=0)
+        subpc -= mean
+        subpc /= std
+        normmedians = np.median(subpc, axis=0)
+        # write pc fields to dicts:
+        for pcid in range(npc):
+            dim = 'pc%d' % pcid
+            self.pos[dim] = medians[pcid]
+            self.normpos[dim] = normmedians[pcid]
 
 class ClusterWindow(SpykeToolWindow):
     def __init__(self, parent, pos=None, size=None):
@@ -464,13 +505,13 @@ class GLWidget(QtOpenGL.QGLWidget):
             try:
                 sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
                 tip += '\n%s: %s' % (lst2shrtstr(dims), sposstr)
-            except IndexError: pass # some params, like pcs, aren't in spikes array
+            except IndexError: pass # some params, like PCs, aren't in spikes array
             if nid > -1:
                 tip += '\nnid: %d' % nid
                 try:
                     cposstr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
                     tip += '\n%s: %s' % (lst2shrtstr(dims), cposstr)
-                except KeyError: pass # some params, like pcs, aren't in cluster.pos dict
+                except KeyError: pass # some params, like PCs, aren't in cluster.pos dict
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
             QtGui.QToolTip.showText(globalPos, tip)
         else:

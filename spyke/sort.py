@@ -104,10 +104,9 @@ class Sort(object):
         """Get object state for pickling"""
         # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
         d = self.__dict__.copy()
-        # Don't pickle the stream, cuz it relies on an open .srf file.
         # Spikes and wavedata arrays are (potentially) saved separately.
-        # usids can be regenerated from the spikes array.
-        for attr in ['spikes', 'wavedata', 'usids']:
+        # usids and PCs can be regenerated from the spikes array.
+        for attr in ['spikes', 'wavedata', 'usids', 'pc', 'pcsids']:
             # keep _stream during normal pickling for multiprocessing, but remove it
             # manually when pickling to .sort
             try: del d[attr]
@@ -457,7 +456,7 @@ class Sort(object):
         """Find set of chans common to all sids, and do PCA on those waveforms"""
         import mdp # delay as late as possible
         if hasattr(self, 'pcsids') and np.all(sids == self.pcsids):
-            return self.pcs # no need to recalculate
+            return self.pc # no need to recalculate
         spikes = self.spikes
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
@@ -476,9 +475,12 @@ class Sort(object):
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = self.wavedata[sid][spikechanis]
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-        self.pcs = mdp.pca(data, output_dim=5, svd=False)
+        self.pc = mdp.pca(data, output_dim=5, svd=False)
         self.pcsids = sids
-        return self.pcs
+        unids = np.unique(spikes['nid'][sids]) # set of all nids that sids span
+        for nid in unids:
+            self.clusters[nid].update_pcpos()
+        return self.pc
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
@@ -1529,11 +1531,11 @@ class SortWindow(SpykeToolWindow):
         except RuntimeError, msg:
             print(msg)
             return
-        cw = spw.windows['Cluster']
+        gw = spw.windows['Cluster'].glWidget
         dims = spw.GetClusterPlotDimNames()
-        cw.glWidget.focus = np.float32([ cluster.normpos[dim] for dim in dims ])
-        cw.glWidget.panTo() # pan to new focus
-        cw.glWidget.updateGL()
+        gw.focus = np.float32([ cluster.normpos[dim] for dim in dims ])
+        gw.panTo() # pan to new focus
+        gw.updateGL()
 
     def on_actionFocusCurrentSpike_triggered(self):
         """Move focus to location of currently selected (single) spike"""
@@ -1543,10 +1545,11 @@ class SortWindow(SpykeToolWindow):
         except RuntimeError, msg:
             print(msg)
             return
-        cw = spw.windows['Cluster']
-        cw.glWidget.focus = cw.glWidget.points[sid]
-        cw.glWidget.panTo() # pan to new focus
-        cw.glWidget.updateGL()
+        gw = spw.windows['Cluster'].glWidget
+        pointis = gw.sids.searchsorted(sid)
+        gw.focus = gw.points[pointis]
+        gw.panTo() # pan to new focus
+        gw.updateGL()
 
     def on_actionSelectRandomSpikes_activated(self):
         """Select random sample of spikes in current cluster(s), or random sample
