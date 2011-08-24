@@ -15,6 +15,7 @@ cdef extern from "math.h":
     double fabs(double x) nogil
     double exp(double x) nogil
     double ceil(double x) nogil
+    double exp(double x) nogil
 
 cdef extern from "stdio.h":
     int printf(char *, ...) nogil
@@ -32,10 +33,10 @@ cdef extern from "string.h":
 cdef short MAXUINT16 = 2**16 - 1
 
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-          double sigma=0.05, double alpha=2.0,
-          double rmergex=1.0, double rneighx=4,
-          double minmovex=0.00001, int maxstill=100, int maxnnomerges=1000,
-          int minpoints=10):
+          double sigma=0.25, double alpha=2.0,
+          double rmergex=0.25, double rneighx=4,
+          double minmovex=0.00001, int maxstill=200, int maxnnomerges=1000,
+          int minpoints=5):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - test if datah and scoutspace can be allocated - if not (too many dimensions,
@@ -144,7 +145,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double binsize = binx * sigma
     sigma /= binsize # scale sigma the same way data will be scaled, ie sigma = 1/binx
     cdef double sigma2 = sigma * sigma
-    #cdef double twosigma2 = 2 * sigma2
+    cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge * rmerge
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
@@ -361,7 +362,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts,
 
 cdef void move_scout(int i, int *sr, float **scouts, float **points,
                      unsigned char *still,
-                     int N, int ndims, double sigma2, double alpha,
+                     int N, int ndims, double twosigma2, double alpha,
                      double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
@@ -397,8 +398,8 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
                 # current scout and all points within rneigh
-                #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
-                kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
+                #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
                 #printf('%.3f ', kern)
                 kernel[k] += kern
                 v[k] += ds[k] * kern

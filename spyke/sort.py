@@ -106,7 +106,7 @@ class Sort(object):
         d = self.__dict__.copy()
         # Spikes and wavedata arrays are (potentially) saved separately.
         # usids and PCs can be regenerated from the spikes array.
-        for attr in ['spikes', 'wavedata', 'usids', 'pc', 'pcsids']:
+        for attr in ['spikes', 'wavedata', 'usids', 'pc', 'pcsids', 'pcchans']:
             # keep _stream during normal pickling for multiprocessing, but remove it
             # manually when pickling to .sort
             try: del d[attr]
@@ -414,7 +414,7 @@ class Sort(object):
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
-    def get_param_matrix(self, dims=None, sids=None, scale=True):
+    def get_param_matrix(self, dims=None, sids=None, pcchans=None, scale=True):
         """Organize dims parameters from sids into a data matrix, each column
         corresponding to a dim. To do PCA clustering on all spikes, one maxchan at
         a time, caller needs to call this multiple times, one for each set of
@@ -424,7 +424,7 @@ class Sort(object):
             sids = spikes['id'] # default to all spikes
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
         if pcs:
-            X = self.get_pc_matrix(sids)
+            X = self.get_pc_matrix(sids, chans=pcchans)
         data = []
         for dim in dims:
             if dim in spikes.dtype.fields:
@@ -452,19 +452,29 @@ class Sort(object):
                     d /= d.std()
         return data
 
-    def get_pc_matrix(self, sids):
-        """Find set of chans common to all sids, and do PCA on those waveforms"""
+    def get_pc_matrix(self, sids, chans=None):
+        """Find set of chans common to all sids, and do PCA on those waveforms. Or,
+        if chans are specified, limit PCA to them"""
         import mdp # delay as late as possible
-        if hasattr(self, 'pcsids') and np.all(sids == self.pcsids):
-            return self.pc # no need to recalculate
         spikes = self.spikes
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
-        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
-        chans = core.intersect1d(chanslist) # find intersection
+        chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
+        allchans = core.intersect1d(chanslist) # find intersection
+        if not chans: # empty or None
+            chans = allchans
+        for chan in chans:
+            if chan not in allchans:
+                raise RuntimeError("chan %d not common to all spikes, pick from %r"
+                                   % (chan, list(allchans)))
         nchans = len(chans)
         if nchans == 0:
             raise RuntimeError("Spikes have no common chans for PCA")
+        if (hasattr(self, 'pcsids') and np.all(sids == self.pcsids) and
+            hasattr(self, 'pcchans') and np.all(chans == self.pcchans)):
+            print('using saved PCs')
+            return self.pc # no need to recalculate
+
         # collect data from chans from all spikes:
         nspikes = len(sids)
         nt = self.wavedata.shape[2]
@@ -477,9 +487,13 @@ class Sort(object):
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
         self.pc = mdp.pca(data, output_dim=5, svd=False)
         self.pcsids = sids
-        unids = np.unique(spikes['nid'][sids]) # set of all nids that sids span
+        self.pcchans = copy(chans) # make sure this isn't a pointer to panel.selected_chans
+        unids = list(np.unique(spikes['nid'][sids])) # set of all nids that sids span
         for nid in unids:
-            self.clusters[nid].update_pcpos()
+            # don't update pos of junk cluster, if any, since it might not have any chans
+            # common to all its spikes, and therefore can't have PCA done on it
+            if nid != -1:
+                self.clusters[nid].update_pcpos()
         return self.pc
 
     def create_neuron(self, id=None, inserti=None):
@@ -1622,7 +1636,7 @@ class SortWindow(SpykeToolWindow):
         if len(selclusters) == 1:
             source = selclusters[0]
             self._source = source
-            self._cmpid = -1 # reset
+            self._cmpid = -1 # init/reset
         elif len(selclusters) == 2:
             source = self._source
             if source not in selclusters:

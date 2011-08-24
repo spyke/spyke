@@ -585,7 +585,9 @@ class SpykeWindow(QtGui.QMainWindow):
                 print(msg)
                 return
         else: # do spike parameter (non-wavefrom) clustering
-            data = s.get_param_matrix(dims=dims, sids=sids, scale=True)
+            pcchans = self.windows['Sort'].panel.chans_selected
+            pcchans.sort()
+            data = s.get_param_matrix(dims=dims, sids=sids, pcchans=pcchans, scale=True)
         data = tocontig(data) # ensure it's contiguous for climb()
         # grab climb() params and run it
         self.update_sort_from_cluster_pane()
@@ -666,12 +668,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # now do some final updates
         self.UpdateClustersGUI()
+        if not np.all(sids == spikes['id']): # if clustering only some spikes,
+            self.SelectClusters(newclusters) # select all newly created cluster(s)
         if np.all(sids == cw.glWidget.sids):
             self.ColourPoints(newclusters) # just recolour
         else:
             self.on_plotButton_clicked() # need to do a full replot
-        if not np.all(sids == spikes['id']): # if clustering only some spikes,
-            self.SelectClusters(newclusters) # select all newly created cluster(s)
         cc.message += ' into %r' % [c.id for c in newclusters]
         print(cc.message)
 
@@ -806,13 +808,16 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         dims = self.GetClusterPlotDimNames()
         cw = self.OpenWindow('Cluster') # in case it isn't already open
+        pcchans = None
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
         if pcs: # do PCA on and plot only selected spikes
             sids = self.GetImplicitSpikes()
+            pcchans = self.windows['Sort'].panel.chans_selected
+            pcchans.sort()
         else: # plot all spikes
             sids = s.spikes['id']
         nids = s.spikes['nid'][sids]
-        X = s.get_param_matrix(dims=dims, sids=sids, scale=True)
+        X = s.get_param_matrix(dims=dims, sids=sids, pcchans=pcchans, scale=True)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot

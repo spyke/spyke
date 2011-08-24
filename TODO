@@ -257,7 +257,9 @@ KeyboardInterrupt:
     
 - also, opening a .sort, even just the testing.sort, seems to be taking longer now too. mpl related? np 1.6 related?    
 
-- WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] fields is int16
+- WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
+
+- add ability to only do PCA on selected chans, for both plotting and clustering, would need to add pcchans attrib to sort in addition to pcsids and pcs
   
 - convert all line endings to Unix style
 
