@@ -141,9 +141,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int M = N # current num scout points (clusters), each data point starts as its own scout
     cdef int npoints, npointsremoved, nclustsremoved
     cdef long long li, proddims
+    '''
     cdef double binx = 0.25 # some fraction of sigma to bin data by
     cdef double binsize = binx * sigma
     sigma /= binsize # scale sigma the same way data will be scaled, ie sigma = 1/binx
+    '''
     cdef double sigma2 = sigma * sigma
     cdef double twosigma2 = 2 * sigma2
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
@@ -170,7 +172,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # for each scout, num consecutive iters without significant movement:
     cdef unsigned short *still = <unsigned short *> calloc(M, sizeof(unsigned short))
     if not still: raise MemoryError("can't allocate still")
-    
+    '''
     # need to convert data table to something suitable for truncing to easily get
     # ints. First have to add some offset to make everything +ve. Then, divide by your fraction
     # of sigma that you want to discretize by. Then, when returning scout positions, need to do 
@@ -180,12 +182,13 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data /= binsize # scale data, same for all dims since sigma apples to all dims
     assert data.max() < 2**32
     assert data.min() == 0
-    # init points and scouts at respective scaled data point positions:
+    '''
+    # init points and scouts at data point positions:
     for i in range(N): # M == N
         for k in range(ndims):
             points[i][k] = data[i, k]
             scouts[i][k] = data[i, k]
-
+    '''
     # get dimensions of sparse matrices
     printf('dims = ')
     for k in range(ndims):
@@ -193,7 +196,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         printf('%d ', dims[k])
     printf('\n')
     proddims = prod(dims, ndims)
-
+    '''
     # pointh: ndim static histogram of point positions in points, bins of size binsize
     # use uint16, since not likely to have more than 65k points in a single bin.
     # Hell, maybe uint8 would work too
@@ -510,7 +513,7 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
     M -= 1 # decr num scouts
     #printf(' %d<-%d ', scouti, scoutj)
     return M
-
+'''
 cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
                            int *scoutspace, int *sr, float **scouts,
                            unsigned short *still,
@@ -535,3 +538,4 @@ cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
             # don't inc i, new value at i has just slid into view
     free(ndi)
     return M
+'''
