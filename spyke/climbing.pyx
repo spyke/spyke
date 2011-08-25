@@ -83,7 +83,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         - instead of merging the higher indexed scout into the lower indexed one, you should
         really merge the one with the lower density estimate into the one with the higher
-        density estimate - otherwise you potentially end up deleting the scout that's closer
+        density estimate - otherwise shortyou potentially end up deleting the scout that's closer
         to the local max density, which probably sets you back several iterations
             - this would require calc'ing and storing the density for each cluster, and updating
             it every time it moves
@@ -168,8 +168,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     if not sr: raise MemoryError("can't allocate sr")
     irange(sr, M) # init sr to consecutive int values
     # for each scout, num consecutive iters without significant movement:
-    ## TODO: should check that (maxstill <= 255).all(), or use uint16 instead:
-    cdef unsigned char *still = <unsigned char *> calloc(M, sizeof(unsigned char))
+    cdef unsigned short *still = <unsigned short *> calloc(M, sizeof(unsigned short))
     if not still: raise MemoryError("can't allocate still")
     
     # need to convert data table to something suitable for truncing to easily get
@@ -326,7 +325,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
 cdef int merge_scouts(int M, int *sr, float **scouts,
                       double rmerge, double rmerge2, int maxstill, 
-                      unsigned char *still, int N, int *cids, int ndims, int *merged):
+                      unsigned short *still, int N, int *cids, int ndims, int *merged):
     """Merge pairs of scout points sufficiently close to each other"""
     cdef Py_ssize_t i=0, j, k
     cdef double d, d2
@@ -361,7 +360,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts,
 
 
 cdef void move_scout(int i, int *sr, float **scouts, float **points,
-                     unsigned char *still,
+                     unsigned short *still,
                      int N, int ndims, double twosigma2, double alpha,
                      double rneigh, double rneigh2, double minmove2, int maxstill) nogil:
     """Move a scout up its local density gradient"""
@@ -490,7 +489,7 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
     return li
 
 cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
-               unsigned char *still, int N, int *cids) nogil:
+               unsigned short *still, int N, int *cids) nogil:
     """Merge scoutj into scouti, where scouti < scoutj"""
     if not scouti < scoutj: # can only merge higher id into lower id!
         printf('ERROR: scouti >= scoutj: %d >= %d', scouti, scoutj)
@@ -514,7 +513,7 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
 
 cdef int update_scoutspace(int M, long long proddims, int ndims, int *dims,
                            int *scoutspace, int *sr, float **scouts,
-                           unsigned char *still,
+                           unsigned short *still,
                            int N, int *cids) nogil:
     """Refill scoutspace based on current scout positions in scouts table"""
     cdef Py_ssize_t i=0, k
