@@ -587,7 +587,7 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha,
                         rmergex=s.rmergex, rneighx=s.rneighx,
-                        maxstill=s.maxstill, maxnnomerges=1000,
+                        maxnnomerges=1000,
                         minpoints=s.minpoints)
         nids, scoutpositions = results
         print('climb took %.3f sec' % (time.time()-t0))
