@@ -9,7 +9,7 @@ import time
 import random
 import numpy as np
 
-from PyQt4 import QtCore, QtGui, QtOpenGL
+from PyQt4 import QtCore, QtGui, QtOpenGL, uic
 from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 
@@ -488,6 +488,8 @@ class GLWidget(QtOpenGL.QGLWidget):
                 sw.keyPressEvent(event) # pass it on to Sort window
             elif key == Qt.Key_F11:
                 self.parent().keyPressEvent(event) # pass it on to parent Cluster window
+            elif key in [Qt.Key_Enter, Qt.Key_Return]:
+                self.showProjectionDialog()            
 
         self.updateGL()
 
@@ -531,3 +533,21 @@ class GLWidget(QtOpenGL.QGLWidget):
         if sid != None:
             spw.SelectSpike(sid, on=on) # select/deselect spike its cluster too, if need be
         #self.showToolTip()
+
+    def showProjectionDialog(self):
+        """Get and set OpenGL ModelView matrix and focus.
+        Useful for setting two different instances to the exact same projection"""
+        dlg = uic.loadUi('multilineinputdialog.ui')
+        dlg.setWindowTitle('Get and set OpenGL ModelView matrix and focus')
+        precision = 8 # use default precision
+        MV_repr = np.array_repr(self.MV, precision=precision)
+        focus_repr = np.array_repr(self.focus, precision=precision)
+        txt = ("self.MV = \\\n"
+               "%s\n\n"
+               "self.focus = %s" % (MV_repr, focus_repr))
+        dlg.plainTextEdit.insertPlainText(txt)
+        dlg.plainTextEdit.selectAll()
+        if dlg.exec_(): # returns 1 if OK, 0 if Cancel
+            txt = str(dlg.plainTextEdit.toPlainText())
+            from numpy import array, float32 # required for exec()
+            exec(txt) # update self.MV and self.focus, with hopefully no maliciousness

@@ -50,9 +50,10 @@ class File(object):
         - high and low pass continuous waveform records
         - stimulus display header records
         - stimulus digital single val records"""
-    def __init__(self, fname):
+    def __init__(self, fname, path):
         self.fname = fname
-        self.fileSize = os.stat(fname)[6]
+        self.path = path
+        self.fileSize = os.stat(self.join(fname))[6]
         self.open()
         self._parseFileHeader()
         self.parsefname = fname + '.parse'
@@ -65,9 +66,12 @@ class File(object):
         self.ndigitalsvalrecords = 0
         self._pickle_all_records = False # signal to __getstate__ whether to pickle all records
 
+    def join(self, fname):
+        return os.path.join(self.path, fname)
+
     def open(self):
         """(Re)open previously closed .srf file"""
-        self.f = open(self.fname, 'rb')
+        self.f = open(self.join(self.fname), 'rb')
 
     def close(self):
         """Close the .srf file"""
@@ -120,6 +124,7 @@ class File(object):
         by not pickling all records unless explicitly signalled to do so (for .parse files)
         """
         d = self.__dict__.copy() # copy it cuz we'll be making changes
+        del d['path'] # always leave path to be set during creation, don't save it
         try:
             del d['f'] # exclude open .srf file handle, if any
         except KeyError:
@@ -428,7 +433,7 @@ class File(object):
     def pickle(self):
         """Pickle self to a .parse file"""
         print('Saving parse info to %r' % self.parsefname)
-        pf = open(self.parsefname, 'wb') # can also compress pickle with gzip
+        pf = open(self.join(self.parsefname), 'wb') # can also compress pickle with gzip
         self._pickle_all_records = True # signal to __getstate__ to pickle all records
         wasopen = self.is_open()
         if wasopen: self.close()
@@ -441,7 +446,7 @@ class File(object):
     def unpickle(self):
         """Unpickle self from a .parse file"""
         print('Trying to recover parse info from %r' % self.parsefname)
-        pf = open(self.parsefname, 'rb') # can also uncompress pickle with gzip
+        pf = open(self.join(self.parsefname), 'rb') # can also uncompress pickle with gzip
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
         pf.close()
