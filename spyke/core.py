@@ -735,7 +735,7 @@ class SpykeListView(QtGui.QListView):
         remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
         panel.addItems([ prefix+str(i) for i in addis ])
-        print("selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
+        #print("done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):
         self.model().updateAll()
@@ -747,6 +747,19 @@ class SpykeListView(QtGui.QListView):
 
     def selectRows(self, rows, on=True, scrollTo=True):
         """Row selection in listview is complex. This makes it simpler"""
+        ## TODO: There's a bug here, where if you select the last two neurons in nlist,
+        ## (perhaps these last two need to be near a list edge), merge them, and then undo,
+        ## then merge again (instead of just redoing), then undo again, they're both selected,
+        ## but only the first is replotted because the selchanged event is only passed the first
+        ## of the two as being newly selected. If however, before remerging, you clear the
+        ## selection, or select something else, and then go back and select those same two
+        ## neurons and merge, and undo, it works fine, and the selchanged event gets 
+        ## both items as newly selected. Seems like a Qt bug, or at least some very subtle
+        ## timing problem of some kind. This might have something to do with reflow when
+        ## changing list contents, but even resetting listview behaviour to default doesn't
+        ## make this go away. Also, seems to happen for selection of one index at a time,
+        ## and for doing it all in one go with a QItemSelection.
+        
         rows = toiter(rows)
         m = self.model()
         sm = self.selectionModel()
@@ -754,27 +767,25 @@ class SpykeListView(QtGui.QListView):
             flag = sm.Select
         else:
             flag = sm.Deselect
+        #print('start select=%r loop for rows %r' % (on, rows))
+        '''
         # unnecessarily emits nrows selectionChanged signals, causes slow
         # plotting in mpl commit 50fc548465b1525255bc2d9f66a6c7c95fd38a75 (pre
         # 1.0) and later:
-        '''
-        print('start select for loop')
         [ sm.select(m.index(row), flag) for row in rows ]
-        print('end select for loop')
         '''
-        # emits single selectionChanged signal, but causes a bit of flickering,
-        # or at least used to:
-        print('start select=%r loop for rows %r' % (on, rows))
+        # emits single selectionChanged signal, more efficient, but causes a bit of
+        # flickering, or at least used to in Qt 4.7.0:
         sel = QtGui.QItemSelection()
-        [ sel.select(m.index(row), m.index(row)) for row in rows ] # topleft to bottomright
-        ## maybe sometimes the update of the gui happens after the selectoin update,
-        ## and so the item in the list doesn't exist yet, and so it itemselection doesn't
-        ## trigger a selchanged event
-        
-        ## actually, seems to only happen when it involves the last or 2nd last cluster,
-        ## and maybe only when the selection spans a display row
+        for row in rows:
+            index = m.index(row)
+            #print('row: %r, index: %r' % (row, index))
+            sel.select(index, index) # topleft to bottomright
+        #print('sel has indexes, rows, cols, data:')
+        #for index in sel.indexes():
+        #    print(index, index.row(), index.column(), index.data())
         sm.select(sel, flag)
-        print('end select loop')
+        #print('end select loop')
         
         if rows and on and scrollTo: # scroll to last row that was just selected
             self.scrollTo(m.index(rows[-1]))
@@ -902,7 +913,7 @@ class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def rowCount(self, parent=None):
         try:
-            return len(self.sortwin.sort.neurons)
+            return len(self.sortwin.sort.norder)
         except AttributeError: # sort doesn't exist
             return 0
 
