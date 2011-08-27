@@ -735,7 +735,7 @@ class SpykeListView(QtGui.QListView):
         remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
         panel.addItems([ prefix+str(i) for i in addis ])
-        #print("selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
+        print("selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):
         self.model().updateAll()
@@ -757,13 +757,25 @@ class SpykeListView(QtGui.QListView):
         # unnecessarily emits nrows selectionChanged signals, causes slow
         # plotting in mpl commit 50fc548465b1525255bc2d9f66a6c7c95fd38a75 (pre
         # 1.0) and later:
+        '''
+        print('start select for loop')
         [ sm.select(m.index(row), flag) for row in rows ]
+        print('end select for loop')
         '''
-        # emits single selectionChanged signal, but causes a bit of flickering:
+        # emits single selectionChanged signal, but causes a bit of flickering,
+        # or at least used to:
+        print('start select=%r loop for rows %r' % (on, rows))
         sel = QtGui.QItemSelection()
-        [ sel.select(m.index(row), m.index(row)) for row in rows ]
+        [ sel.select(m.index(row), m.index(row)) for row in rows ] # topleft to bottomright
+        ## maybe sometimes the update of the gui happens after the selectoin update,
+        ## and so the item in the list doesn't exist yet, and so it itemselection doesn't
+        ## trigger a selchanged event
+        
+        ## actually, seems to only happen when it involves the last or 2nd last cluster,
+        ## and maybe only when the selection spans a display row
         sm.select(sel, flag)
-        '''
+        print('end select loop')
+        
         if rows and on and scrollTo: # scroll to last row that was just selected
             self.scrollTo(m.index(rows[-1]))
 

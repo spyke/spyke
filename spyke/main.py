@@ -953,7 +953,6 @@ class SpykeWindow(QtGui.QMainWindow):
         here as a separate method for speed, only call when really needed"""
         s = self.sort
         sw = self.windows['Sort']
-        cw = self.windows['Cluster']
         sw.nlist.updateAll()
         s.update_usids()
         sw.uslist.updateAll()
@@ -965,7 +964,9 @@ class SpykeWindow(QtGui.QMainWindow):
         gw = self.windows['Cluster'].glWidget
         for cluster in clusters:
             neuron = cluster.neuron
-            coloris = gw.sids.searchsorted(neuron.sids)
+            # not all (or any) of neuron.sids may currently be plotted, due to PCA
+            commonsids = np.intersect1d(neuron.sids, gw.sids)
+            coloris = gw.sids.searchsorted(commonsids)
             if neuron.id == -1: # junk cluster
                 gw.colors[coloris] = GREYRGB
             else:
@@ -976,7 +977,9 @@ class SpykeWindow(QtGui.QMainWindow):
         """Restore spike point colour in cluster plot at spike indices to unclustered GREY.
         Need to call cw.glWidget.updateGL() afterwards"""
         gw = self.windows['Cluster'].glWidget
-        coloris = gw.sids.searchsorted(sids)
+        # not all (or any) of sids may currently be plotted, due to PCA
+        commonsids = np.intersect1d(sids, gw.sids)
+        coloris = gw.sids.searchsorted(commonsids)
         gw.colors[coloris] = GREYRGB
 
     def GetClusterPlotDimNames(self):
