@@ -1482,8 +1482,11 @@ class SortWindow(SpykeToolWindow):
         s = self.sort
         spikes = s.spikes
 
-        if s.norder == range(len(s.norder)):
-            print('nothing to renumber: clusters IDs already ordered and contiguous')
+        allclusters = [ s.clusters[cid] for cid in s.norder ]
+        ordered = core.ordered([ c.pos['y0'] for c in allclusters ])
+        contiguous = s.norder == range(len(s.norder))
+        if ordered and contiguous:
+            print('nothing to renumber: clusters IDs already ordered in y0 and contiguous')
             return
 
         # deselect current selections

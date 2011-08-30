@@ -85,7 +85,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
-        for rowi in range(3): # select the first 3 dims in dimlist
+        for rowi in range(6, 9): # select the 6th, 7th, and 8th dims in dimlist
+            ## TODO: should really provide a list of dims to select, and then search for
+            ## index of each of those dims, instead of hard coding indices here
             # there really should be an easier way, but .setSelection(QRect, ...) doesn't work?
             #self.ui.dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
             self.ui.dimlist.item(rowi).setSelected(True) # a little nicer
@@ -497,20 +499,16 @@ class SpykeWindow(QtGui.QMainWindow):
         msgs = []
         t0 = time.time()
         if pcs and np.all(sids == spikes['id']): # doing PCA on all spikes
-            if oldclusters:
-                # partition data by existing clusters before clustering,
-                # restrict to only clustered spikes:
-                for oldcluster in oldclusters:
-                    subsidss.append(oldcluster.neuron.sids)
-                    msgs.append('oldcluster %d' % oldcluster.id)
-                sids = np.concatenate(subsidss) # update
-                sids.sort()
-            else: # partition data by maxchan before clustering, includes all sids
-                maxchans = np.unique(spikes['chan'])
-                for maxchan in maxchans:
-                    subsids, = np.where(spikes['chan'] == maxchan)
-                    subsidss.append(subsids)
-                    msgs.append('maxchan %d' % maxchan)
+            if not oldclusters:
+                print("no existing clusters to sequentially do PCA on and subcluster")
+                return
+            # partition data by existing clusters before clustering,
+            # restrict to only clustered spikes:
+            for oldcluster in oldclusters:
+                subsidss.append(oldcluster.neuron.sids)
+                msgs.append('oldcluster %d' % oldcluster.id)
+            sids = np.concatenate(subsidss) # update
+            sids.sort()
         else: # just the selected spikes
             subsidss.append(sids)
             msgs.append('%d selected sids' % len(sids))
@@ -541,7 +539,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sids = self.GetImplicitSpikes() # all selected spikes
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
-            sids = spikes['id'] # all spikes
+            sids = spikes['id'] # all spikes (sorted)
             oldclusters = s.clusters.values() # all clusters
         t0 = time.time()
         chans = spikes[sids]['chans']
