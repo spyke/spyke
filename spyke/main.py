@@ -560,7 +560,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.apply_clustering(oldclusters, sids, nids, verb='chansplit')
 
     def climb(self, sids, dims):
-        """Cluster sids along dims, using NVS's mountain climbing algorithm"""
+        """Cluster sids along dims, using NVS's gradient ascent algorithm"""
         s = self.sort
         waveclustering = np.any([ dim.startswith('peaks') for dim in dims ])
         if waveclustering: # do waveform clustering
@@ -573,8 +573,10 @@ class SpykeWindow(QtGui.QMainWindow):
                 print(msg)
                 return
         else: # do spike parameter (non-wavefrom) clustering
-            pcchans = self.windows['Sort'].panel.chans_selected
-            pcchans.sort()
+            pcchans = None
+            pcs = np.any([ dim.startswith('pc') for dim in dims ])
+            if pcs:
+                pcchans = self.get_pcchans(sids)
             data = s.get_param_matrix(dims=dims, sids=sids, pcchans=pcchans, scale=True)
         data = tocontig(data) # ensure it's contiguous for climb()
         # grab climb() params and run it
@@ -590,6 +592,27 @@ class SpykeWindow(QtGui.QMainWindow):
         nids, scoutpositions = results
         print('climb took %.3f sec' % (time.time()-t0))
         return nids
+    
+    def get_pcchans(self, sids):
+        """Return user selected chans (if any). Otherwise, return chans within
+        a radius encompassing 95% percent of sx values in sids, centered on most
+        common maxchan in sids. Use distance matrix in detector.dm"""
+        spikes = self.sort.spikes
+        pcchans = self.windows['Sort'].panel.chans_selected # a list
+        pcchans.sort()
+        if pcchans:
+            return pcchans # always return whatever's manually selected
+        sxs = spikes['sx'][sids]
+        sxs = np.sort(sxs) # get a sorted copy
+        sxi = int(len(sxs) * 0.95) # round down, index > ~95% percent of values
+        sx = sxs[sxi]
+        print('PC channel radius: %.1f um' % sx)
+        maxchans = spikes['chan'][sids]
+        maxchan = np.bincount(maxchans).argmax() # most common maxchan in sids
+        dm = self.sort.detector.dm # DistanceMatrix
+        maxchani = dm.chans.searchsorted(maxchan)
+        pcchans = dm.chans[dm.data[maxchani] <= sx] # chans within sx of maxchan
+        return list(pcchans)
 
     def apply_clustering(self, oldclusters, sids, nids, verb=''):
         """Replace old clusters and apply the clustering described by sids

@@ -274,11 +274,6 @@ KeyboardInterrupt:
 
 - make sort pane doubleclick clear selected chans
 
-- use sx data from each spike to decide what kind of channel inclusion radius to use (relative to maxchan) for choosing significant channels for PCA
-    - find inclusion radius for given set of spikes such that the radius you choose is >= 95% of the sx values of those spikes
-    - confirmed that this is a good strategy by looking at a few different maxchans/clusters, and plotting the sx distributions of their member spikes
-    - but, allow user to override channel selection. If any specific channels are selected, use only those. If not, use those automatically chosen as described above
-
 - maybe to get around drift in a track, remove (or somehow discount) time gaps between recordings, so that gradient ascent doesn't stop at recording edges. Also, maybe doing maxchan based PC clustering with time as a 3rd or 4th dimension could help with drift. Might be difficult to tease out the difference between a multiunit cluster and a single unit cluster that's drifted. Could use a check of some kind that chops a cluster up into appropriate time chunks, and tests for multiunit vs singleunitness in each time chunk somehow
 
 - move plotting controls to their own plot tab, free up space on cluster tab for Nick's automated subclustering using range of sigmas and calculating clusterscores
@@ -290,6 +285,8 @@ KeyboardInterrupt:
 
 - when trying to decide which chans and which timepoints on each chan to use for clustering (or for feeding into PC), for each timepoint, plot a histogram of the voltage values for all the spikes, normalize it to get p values, and then calculate entropy. The max entropy comes from a Gaussian distribution, so any entropy values less than that are less Gaussian, and probably more clusterable. Isn't all this work just replicating what the KS test does?
     - actually, this won't work, because sum(plogp) doesn't care what order the p values come in in the distribution. So, if you took a Gaussian (which has max entropy of all distribs), split it in half, and flipped one half, you'd get the same entropy, but you'd now have a sort of bimodal distrib. Looked at distribution of noise in a nice cluster, at both t=0 and t=0.5ms (start and midpoints), and both fit a gaussian really well. So, to test for clusterability of channels/timepoints, probably best to use ks test and compare distribution of candidate point/chan to that of a gaussian. Probably have to normalize both to 0 mean and unit variance.
+
+- WISHLIST: keep a record of all cluster operations performed (and all params used for each clustering), and store them in the .sort file, in sequence in a list, so the history can be examined and reconstructed. This is already somewhat implemented via the cluster changes, although those don't store clustering params
 
 - convert all line endings to Unix style
 
@@ -1334,6 +1331,10 @@ DONE:
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
     - this was due to fnames being overwritten when loading a srff from a .parse file, and different fnames being used for the normal vs the .track case (.track fnames have ../ prepended)
 - use chansplit '/' button manually to do initial maxchan based clustering, don't make this an automatic step when doing maxchan based PCA
+- use sx data from each spike to decide what kind of channel inclusion radius to use (relative to maxchan) for choosing significant channels for PCA
+    - find inclusion radius for given set of spikes such that the radius you choose is >= 95% of the sx values of those spikes
+    - confirmed that this is a good strategy by looking at a few different maxchans/clusters, and plotting the sx distributions of their member spikes
+    - but, allow user to override channel selection. If any specific channels are selected, use only those. If not, use those automatically chosen as described above
   
 
 

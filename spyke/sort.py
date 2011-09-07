@@ -461,12 +461,12 @@ class Sort(object):
         nchanss = spikes['nchans'][sids]
         chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
         allchans = core.intersect1d(chanslist) # find intersection
-        if not chans: # empty or None
+        if not chans: # empty list, or None
             chans = allchans
-        for chan in chans:
-            if chan not in allchans:
-                raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                   % (chan, list(allchans)))
+        diffchans = np.setdiff1d(chans, allchans) # values in chans but not in allchans
+        chans = np.intersect1d(chans, allchans) # values in both
+        if len(diffchans) > 0:
+            print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
         nchans = len(chans)
         if nchans == 0:
             raise RuntimeError("Spikes have no common chans for PCA")
@@ -487,7 +487,7 @@ class Sort(object):
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
         self.pc = mdp.pca(data, output_dim=5, svd=False)
         self.pcsids = sids
-        self.pcchans = copy(chans) # make sure this isn't a pointer to panel.selected_chans
+        self.pcchans = copy(chans) # make sure this isn't just a pointer to panel.selected_chans
         unids = list(np.unique(spikes['nid'][sids])) # set of all nids that sids span
         for nid in unids:
             # don't update pos of junk cluster, if any, since it might not have any chans
