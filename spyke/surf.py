@@ -124,21 +124,20 @@ class File(object):
         by not pickling all records unless explicitly signalled to do so (for .parse files)
         """
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['path'] # always leave path to be set during creation, don't save it
-        try:
+        if 'path' in d:
+            del d['path'] # leave path to only be set in __init__, don't save it
+        if 'f' in d:
             del d['f'] # exclude open .srf file handle, if any
-        except KeyError:
-            pass
-        try:
-            if not self._pickle_all_records:
-                del d['lowpassrecords'] # these are hogs
-                del d['highpassrecords']
-                del d['lowpassmultichanrecords']
-                #del d['digitalsvalrecords'] # these are hogs too, but useful to keep
-        except KeyError:
-            # self was probably restored from a .sort, so all of these attribs have
-            # probably already been stripped
-            pass
+        if not self._pickle_all_records:
+            # these are hogs:
+            keys = ['lowpassrecords', 'highpassrecords', 'lowpassmultichanrecords',
+                    #'digitalsvalrecords' # also a hog, but useful to keep
+                    ]
+            for key in keys:
+                if key in keys:
+                    del d[key]
+                # else self was probably restored from a .sort, so all of these attribs have
+                # probably already been stripped
         # leave the streams be, since you need them for their enabled chans info
         return d
 

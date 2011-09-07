@@ -259,20 +259,32 @@ KeyboardInterrupt:
 
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
+- reinstate freezing of points - disabling it seems to have caused a big slowdown for clusters with > 10k spikes
+
+- use a Gaussian lookup table. Building it might take a little while. Only do this for say > 10k spikes, or whatever the optimal cutoff is
+
 - allow designation of multiunit clusters, give them increasingly -ve nids, and don't export them by default
-    - see spikes on mid depth channels in ptc18.tr1 - you can parition them up by maxchan, but then when you plot them in PC space, there really are no distinct clusters. It's just one big mess, and that's the way it should be labelled. Don't waste time trying to find clusters that aren't there!
+    - see spikes on mid depth channels in ptc18.tr1 - you can partition them up by maxchan, but then when you plot them in PC space, there really are no distinct clusters. It's just one big mess, and that's the way it should be labelled. Don't waste time trying to find clusters that aren't there!
+    - maybe make the '-' or whatever button toggle whether a cluster is -ve or +ve, and hence MU or SU
+        - if the -ve of the current cluster already exists, find the next highest absolute value nid that's available, and take -ve of it
+    - would need to make changes in other parts of the code that assume all clusters are >-1. Like cluster renumbering. -ve numbered clusters shouldn't be discarded, only -1 cluster should
 
 - compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
     - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (and maybe all clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab?
 
-- move plotting controls to their own plot tab, free up space on cluster tab for Nick's automated subclustering using range of sigmas and calculating clusterscores
-    - or, might be more convenient to have plotting controls as toolbar in cluster window
+- make sort pane doubleclick clear selected chans
 
 - use sx data from each spike to decide what kind of channel inclusion radius to use (relative to maxchan) for choosing significant channels for PCA
     - find inclusion radius for given set of spikes such that the radius you choose is >= 95% of the sx values of those spikes
     - confirmed that this is a good strategy by looking at a few different maxchans/clusters, and plotting the sx distributions of their member spikes
+    - but, allow user to override channel selection. If any specific channels are selected, use only those. If not, use those automatically chosen as described above
 
-- on .gdf export, popup dialog asking for which DIN value(s) represent start of stimulus condition(s), so their times can be injected at the correct lines in the .gdf file
+- maybe to get around drift in a track, remove (or somehow discount) time gaps between recordings, so that gradient ascent doesn't stop at recording edges. Also, maybe doing maxchan based PC clustering with time as a 3rd or 4th dimension could help with drift. Might be difficult to tease out the difference between a multiunit cluster and a single unit cluster that's drifted. Could use a check of some kind that chops a cluster up into appropriate time chunks, and tests for multiunit vs singleunitness in each time chunk somehow
+
+- move plotting controls to their own plot tab, free up space on cluster tab for Nick's automated subclustering using range of sigmas and calculating clusterscores
+    - or, might be more convenient to have plotting controls as toolbar in cluster window
+
+- on .gdf export, popup dialog asking for which DIN value(s) represent start of stimulus condition(s) (including pauses/blank screens), so their times can be injected at the correct lines in the .gdf file
 
 - NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise when they stop moving (or just by default on every iter)
 
@@ -285,7 +297,9 @@ KeyboardInterrupt:
 
 - what happens when a recording has more than 1 experiment in it? I know it'll have as many textheaders (displayrecords) as there are experiments, but what about din (digitalsvalrecords)?
 
-- NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail. Best of all might be to use a Gaussian lookup table, which should be fast, but allows for smaller rneigh
+- NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail.
+    - switched back to Gaussian
+    
 
 - NVS: to choose at what point to align each spike during detection, take the 2nd derivative along the spike, weighted by the voltage, weighted by the waveform point index, add all those up and normalize, and you get the point index to align to. This tends to be right around the 0 crossing. What's nice is that it's paramaterizable/linear - a small change in some voltage value results in a small change in how you align - there's no 2AFC between align to one peak or the other. He claims it results in better spike alignments within clusters right off the bat.
 
