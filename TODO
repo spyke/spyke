@@ -268,6 +268,7 @@ KeyboardInterrupt:
     - maybe make the '-' or whatever button toggle whether a cluster is -ve or +ve, and hence MU or SU
         - if the -ve of the current cluster already exists, find the next highest absolute value nid that's available, and take -ve of it
     - would need to make changes in other parts of the code that assume all clusters are >-1. Like cluster renumbering. -ve numbered clusters shouldn't be discarded, only -1 cluster should
+    - could conflict a bit with -1 junk cluster, complicated. Might be best to make 0 the junk cluster, +ve values single unit, and -ve values multiunit
 
 - compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
     - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (and maybe all clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab?
@@ -279,7 +280,7 @@ KeyboardInterrupt:
 - move plotting controls to their own plot tab, free up space on cluster tab for Nick's automated subclustering using range of sigmas and calculating clusterscores
     - or, might be more convenient to have plotting controls as toolbar in cluster window
 
-- on .gdf export, popup dialog asking for which DIN value(s) represent start of stimulus condition(s) (including pauses/blank screens), so their times can be injected at the correct lines in the .gdf file
+- on .gdf export, popup dialog asking for which DIN value(s) represent start of stimulus condition(s) (including pauses/blank screens), so their times can be injected at the correct lines in the .gdf file. List all DIN values by default
 
 - NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise when they stop moving (or just by default on every iter)
 
