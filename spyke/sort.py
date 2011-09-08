@@ -69,12 +69,12 @@ class Sort(object):
         self.usids_reversed = False
 
     def get_nextnid(self):
-        """nextnid is used to retrieve the next unique neuron ID"""
+        """nextnid is used to retrieve the next unique single unit neuron ID"""
         nids = self.neurons.keys()
         if len(nids) == 0:
-            return 0
+            return 1 # single unit nids start at 1
         else:
-            return max(nids) + 1
+            return max(max(nids) + 1, 1) # at least 1
 
     nextnid = property(get_nextnid)
 
@@ -122,7 +122,7 @@ class Sort(object):
     def update_usids(self):
         """Update usids, which is an array of struct array indices of unsorted spikes"""
         nids = self.spikes['nid']
-        self.usids, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
+        self.usids, = np.where(nids == 0) # 0 means unclustered
         # FIXME: disable sorting for now
         # order it by .usids_sorted_by and .usids_reversed
         #if self.usids_sorted_by != 't': self.sort_usids('t')
@@ -266,7 +266,7 @@ class Sort(object):
                     shutil.rmtree(fullname) # aw hell, just delete them to minimize junk
         '''
         srffname = srffnames[0]
-        i = spikes['nid'] != -1
+        i = spikes['nid'] > 0 # don't export unsorted/multiunit spikes
         nspikes = i.sum()
         idts = np.empty((nspikes, 2), dtype=np.int64)
         idts[:, 0] = spikes[i]['nid']
@@ -319,7 +319,7 @@ class Sort(object):
     def exporttschid(self, basepath):
         """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
-        spikes = self.spikes[self.spikes['nid'] != -1] # probably shouldn't export unsorted spikes
+        spikes = self.spikes[self.spikes['nid'] > 0] # don't export unsorted/multiunit spikes
         dt = str(datetime.datetime.now()) # get an export timestamp
         dt = dt.split('.')[0] # ditch the us
         dt = dt.replace(' ', '_')
@@ -492,7 +492,7 @@ class Sort(object):
         for nid in unids:
             # don't update pos of junk cluster, if any, since it might not have any chans
             # common to all its spikes, and therefore can't have PCA done on it
-            if nid != -1:
+            if nid != 0:
                 self.clusters[nid].update_pcpos()
         return self.pc
 
@@ -1447,7 +1447,7 @@ class SortWindow(SpykeToolWindow):
         newnid = None # merge into new highest nid
         if len(clusters) > 0:
             newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest selected nid
-        if newnid == -1: # never merge into a junk cluster
+        if newnid == 0: # never merge into a junk cluster
             newnid = None # incorporate junk into new real cluster
         newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
         neuron = newcluster.neuron
@@ -1473,18 +1473,18 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.chansplit()
 
     def on_actionRenumberClusters_triggered(self):
-        """Renumber clusters consecutively from 0, ordered by y position, on "#" button
-        click. Sorting by y position makes user inspection of clusters more orderly,
-        makes the presence of duplicate clusters more obvious, and allows for maximal
-        spatial separation between clusters of the same colour, reducing colour
-        conflicts"""
+        """Renumber single unit clusters consecutively from 1, ordered by y position,
+        on "#" button click. Sorting by y position makes user inspection of clusters
+        more orderly, makes the presence of duplicate clusters more obvious, and allows
+        for maximal spatial separation between clusters of the same colour, reducing
+        colour conflicts"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
 
         allclusters = [ s.clusters[cid] for cid in s.norder ]
         ordered = core.ordered([ c.pos['y0'] for c in allclusters ])
-        contiguous = s.norder == range(len(s.norder))
+        contiguous = s.norder == range(1, len(s.norder)+1)
         if ordered and contiguous:
             print('nothing to renumber: clusters IDs already ordered in y0 and contiguous')
             return
@@ -1495,9 +1495,9 @@ class SortWindow(SpykeToolWindow):
         spw.SelectClusters(selclusters, on=False)
 
         # delete junk cluster, if it exists
-        if -1 in s.clusters:
-            s.remove_neuron(-1)
-            print('deleted junk cluster -1')
+        if 0 in s.clusters:
+            s.remove_neuron(0)
+            print('deleted junk cluster 0')
 
         # get lists of unique old cids and new cids
         olducids = sorted(s.clusters) # make sure they're in order
@@ -1505,6 +1505,7 @@ class SortWindow(SpykeToolWindow):
         # what you really want is to find the y pos *rank* of each olducid, so you need to
         # take argsort again:
         newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
+        newucids += 1 # inc to keep single units 1 based, not 0 based
         cw = spw.windows['Cluster']
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
@@ -1697,7 +1698,7 @@ class SortWindow(SpykeToolWindow):
             return # nothing to do
         spikes = self.sort.spikes
         neuron.sids = np.setdiff1d(neuron.sids, sids) # return what's in first arr and not in the 2nd
-        spikes['nid'][sids] = -1 # unbind neuron id of sids in struct array
+        spikes['nid'][sids] = 0 # unbind neuron id of sids in spikes struct array
         if update:
             self.sort.update_usids()
             self.uslist.updateAll()

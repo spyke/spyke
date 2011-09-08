@@ -519,12 +519,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def subcluster(self, sids, subsidss, msgs, dims):
         """Perform (sub)clustering according to subsids in subsidss. Incorporate results
         from each (sub)clustering into a single nids output array"""
-        nids = np.zeros(len(sids), dtype=np.int32) # init nids output array
-        nids.fill(-1) # init all to be unclustered
+        nids = np.zeros(len(sids), dtype=np.int32) # init nids output array to be all unclustered
         for subsids, msg in zip(subsidss, msgs):
             print('clustering %s on dims %r' % (msg, dims))
             subnids = self.climb(subsids, dims) # subclustering result
-            ci = subnids != -1 # consider only the clustered sids
+            ci = subnids > 0 # consider only the clustered sids
             subsids = subsids[ci]
             subnids = subnids[ci]
             nidoffset = max(nids) + 1
@@ -550,11 +549,10 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(uchancombos) == 1:
             print("selected spikes all share the same set of channels, can't chansplit")
             return
-        nids = np.zeros(len(sids), dtype=np.int32)
-        nids.fill(-1) # -ve number indicates an unclustered point, shouldn't happen for chansplit
-        for nid, uchancombo in enumerate(uchancombos):
-            nids[(chans == uchancombo).all(axis=1)] = nid
-        if (nids == -1).any():
+        nids = np.zeros(len(sids), dtype=np.int32) # init to unclustered, shouldn't be any once done
+        for comboi, uchancombo in enumerate(uchancombos):
+            nids[(chans == uchancombo).all(axis=1)] = comboi + 1
+        if (nids == 0).any():
             raise RuntimeError("there shouldn't be any unclustered points from chansplit")
         print('chansplit took %.3f sec' % (time.time()-t0))
         self.apply_clustering(oldclusters, sids, nids, verb='chansplit')
@@ -590,6 +588,9 @@ class SpykeWindow(QtGui.QMainWindow):
                         maxnnomerges=1000,
                         minpoints=s.minpoints)
         nids, scoutpositions = results
+        # nids from climb() are 0-based, but we want our single unit nids to be 1-based,
+        # to leave room for junk cluster at 0 and multiunit clusters at nids < 0. So add 1:
+        nids += 1
         print('climb took %.3f sec' % (time.time()-t0))
         return nids
     
@@ -630,13 +631,13 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # delete junk cluster if it exists and is unselected,
         # add this deletion to cluster change stack
-        if -1 not in [ c.id for c in oldclusters ] and -1 in s.clusters:
+        if 0 not in [ c.id for c in oldclusters ] and 0 in s.clusters:
             # save some undo/redo stuff
-            message = 'delete junk cluster -1'
-            cc = ClusterChange(s.neurons[-1].sids, spikes, message)
-            cc.save_old([s.clusters[-1]], s.norder)
+            message = 'delete junk cluster 0'
+            cc = ClusterChange(s.neurons[0].sids, spikes, message)
+            cc.save_old([s.clusters[0]], s.norder)
             # delete it
-            s.remove_neuron(-1)
+            s.remove_neuron(0)
             # save more undo/redo stuff
             cc.save_new([], s.norder)
             self.AddClusterChangeToStack(cc)
@@ -663,7 +664,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for nid, inserti in zip(unids, insertis):
             ii, = np.where(nids == nid)
             nsids = sids[ii] # sids belonging to this nid
-            if nid != -1:
+            if nid != 0:
                 nid = None # auto generate a new nid
             cluster = self.CreateCluster(update=False, id=nid, inserti=inserti)
             newclusters.append(cluster)
@@ -923,7 +924,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Toggle selection of given spike, as well as its current cluster, if any"""
         sw = self.windows['Sort']
         nid = self.sort.spikes[sid]['nid']
-        if nid == -1: # it's unclustered
+        if nid == 0: # it's unclustered
             usrow, = np.where(self.sort.usids == sid)
             sw.uslist.selectRows(usrow, on=on)
         else: # it's clustered
@@ -988,10 +989,10 @@ class SpykeWindow(QtGui.QMainWindow):
             # not all (or any) of neuron.sids may currently be plotted, due to PCA
             commonsids = np.intersect1d(neuron.sids, gw.sids)
             coloris = gw.sids.searchsorted(commonsids)
-            if neuron.id == -1: # junk cluster
+            if neuron.id < 1: # junk or multiunit cluster
                 gw.colors[coloris] = GREYRGB
             else:
-                gw.colors[coloris] = CMAP[neuron.id % len(CMAP)]
+                gw.colors[coloris] = CMAP[neuron.id % len(CMAP) - 1] # single unit nids are 1-based
         gw.updateGL()
 
     def DeColourPoints(self, sids):
