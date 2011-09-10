@@ -106,9 +106,9 @@ class ColourDict(dict):
         self.colours = colours
 
     def __getitem__(self, key):
-        if key == -1: # junk cluster/unclustered
+        if key < 1: # unclustered/multiunit
             return GREY
-        i = key % len(self.colours)
+        i = key % len(self.colours) - 1 # single unit nids are 1 based
         return self.colours[i]
 
     def __setitem__(self, key, val):
@@ -1063,8 +1063,8 @@ class SortPanel(PlotPanel):
             nid = s.spikes['nid'][id]
             colour = CLUSTERCOLOURDICT[nid]
             alpha = 0.5
-            if nid == -1:
-                alpha = 0.75 # junk GREY is just a bit too dark to leave at 0.5 alpha
+            if nid < 1:
+                alpha = 0.75 # junk/multiunit GREY is just a bit too dark to leave at 0.5 alpha
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             wave = s.get_wave(id)

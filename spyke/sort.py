@@ -69,14 +69,24 @@ class Sort(object):
         self.usids_reversed = False
 
     def get_nextnid(self):
-        """nextnid is used to retrieve the next unique neuron ID"""
+        """nextnid is used to retrieve the next unique single unit ID"""
         nids = self.neurons.keys()
         if len(nids) == 0:
-            return 0
+            return 1 # single unit nids start at 1
         else:
-            return max(nids) + 1
+            return max(max(nids) + 1, 1) # at least 1
 
     nextnid = property(get_nextnid)
+
+    def get_nextmuid(self):
+        """nextmuid is used to retrieve the next unique multiunit ID"""
+        nids = self.neurons.keys()
+        if len(nids) == 0:
+            return -1 # multiunit ids start at -1
+        else:
+            return min(min(nids) - 1, -1) # at most -1
+
+    nextmuid = property(get_nextmuid)
 
     def get_stream(self):
         return self._stream
@@ -122,7 +132,7 @@ class Sort(object):
     def update_usids(self):
         """Update usids, which is an array of struct array indices of unsorted spikes"""
         nids = self.spikes['nid']
-        self.usids, = np.where(nids == -1) # -1 indicates spike has no nid assigned to it
+        self.usids, = np.where(nids == 0) # 0 means unclustered
         # FIXME: disable sorting for now
         # order it by .usids_sorted_by and .usids_reversed
         #if self.usids_sorted_by != 't': self.sort_usids('t')
@@ -266,7 +276,7 @@ class Sort(object):
                     shutil.rmtree(fullname) # aw hell, just delete them to minimize junk
         '''
         srffname = srffnames[0]
-        i = spikes['nid'] != -1
+        i = spikes['nid'] > 0 # don't export unsorted/multiunit spikes
         nspikes = i.sum()
         idts = np.empty((nspikes, 2), dtype=np.int64)
         idts[:, 0] = spikes[i]['nid']
@@ -319,7 +329,7 @@ class Sort(object):
     def exporttschid(self, basepath):
         """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
-        spikes = self.spikes[self.spikes['nid'] != -1] # probably shouldn't export unsorted spikes
+        spikes = self.spikes[self.spikes['nid'] > 0] # don't export unsorted/multiunit spikes
         dt = str(datetime.datetime.now()) # get an export timestamp
         dt = dt.split('.')[0] # ditch the us
         dt = dt.replace(' ', '_')
@@ -492,7 +502,7 @@ class Sort(object):
         for nid in unids:
             # don't update pos of junk cluster, if any, since it might not have any chans
             # common to all its spikes, and therefore can't have PCA done on it
-            if nid != -1:
+            if nid != 0:
                 self.clusters[nid].update_pcpos()
         return self.pc
 
@@ -1245,6 +1255,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
 
+        actionLabelMultiunit = QtGui.QAction("-", self)
+        actionLabelMultiunit.setToolTip('Label clusters as multiunit')
+        self.connect(actionLabelMultiunit, QtCore.SIGNAL("triggered()"),
+                     self.on_actionLabelMultiunit_triggered)
+        toolbar.addAction(actionLabelMultiunit)
+
         actionChanSplitClusters = QtGui.QAction("/", self)
         actionChanSplitClusters.setToolTip('Split clusters by channels')
         self.connect(actionChanSplitClusters, QtCore.SIGNAL("triggered()"),
@@ -1344,6 +1360,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionDeleteClusters_triggered()
         elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
+        elif key == Qt.Key_Minus: # ignored in SpykeListViews
+            self.on_actionLabelMultiunit_triggered()
         elif key == Qt.Key_Slash: # ignored in SpykeListViews
             self.on_actionChanSplitClusters_triggered()
         elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
@@ -1444,11 +1462,12 @@ class SortWindow(SpykeToolWindow):
 
         # create new cluster
         t0 = time.time()
-        newnid = None # merge into new highest nid
+        newnid = None # merge by default into new highest nid
         if len(clusters) > 0:
-            newnid = min([ nid for nid in cc.oldunids ]) # merge into lowest selected nid
-        if newnid == -1: # never merge into a junk cluster
-            newnid = None # incorporate junk into new real cluster
+            oldunids = np.asarray(cc.oldunids)
+            suids = oldunids[oldunids > 0]
+            if len(suids) > 0:
+                newnid = suids.min() # merge into lowest selected single unit nid
         newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
@@ -1468,73 +1487,134 @@ class SortWindow(SpykeToolWindow):
         cc.message += ' into cluster %d' % newcluster.id
         print(cc.message)
 
+    def on_actionLabelMultiunit_triggered(self):
+        """- button click. Label all selected clusters as multiunit by deleting them
+        and creating new ones with -ve IDs"""
+        spw = self.spykewindow
+        clusters = spw.GetClusters()
+        s = self.sort
+        spikes = s.spikes
+        # only relabel single unit clusters:
+        clusters = [ cluster for cluster in clusters if cluster.id > 0 ]
+        if len(clusters) == 0:
+            return
+        sids = []
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        sids = np.concatenate(sids)
+
+        # save some undo/redo stuff
+        message = 'label as multiunit clusters %r' % [ c.id for c in clusters ]
+        cc = ClusterChange(sids, spikes, message)
+        cc.save_old(clusters, s.norder)
+
+        # delete old clusters
+        inserti = s.norder.index(clusters[0].id)
+        # collect cluster sids before cluster deletion
+        sidss = [ cluster.neuron.sids for cluster in clusters ]
+        spw.DelClusters(clusters, update=False)
+
+        # create new multiunit clusters
+        newclusters = []
+        for sids in sidss:
+            muid = s.get_nextmuid()
+            newcluster = spw.CreateCluster(update=False, id=muid, inserti=inserti)
+            neuron = newcluster.neuron
+            self.MoveSpikes2Neuron(sids, neuron, update=False)
+            newclusters.append(newcluster)
+            inserti += 1
+
+        # select newly labelled multiunit clusters
+        spw.SelectClusters(newclusters)
+
+        # save more undo/redo stuff
+        cc.save_new(newclusters, s.norder)
+        spw.AddClusterChangeToStack(cc)
+        print(cc.message)
+
     def on_actionChanSplitClusters_triggered(self):
         """Split by channels button (/) click"""
         self.spykewindow.chansplit()
 
     def on_actionRenumberClusters_triggered(self):
-        """Renumber clusters consecutively from 0, ordered by y position, on "#" button
-        click. Sorting by y position makes user inspection of clusters more orderly,
-        makes the presence of duplicate clusters more obvious, and allows for maximal
-        spatial separation between clusters of the same colour, reducing colour
-        conflicts"""
+        """Renumber single unit clusters consecutively from 1, ordered by y position,
+        on "#" button click. Do the same for multiunit (-ve number) clusters, starting
+        from -1. Sorting by y position makes user inspection of clusters
+        more orderly, makes the presence of duplicate clusters more obvious, and allows
+        for maximal spatial separation between clusters of the same colour, reducing
+        colour conflicts"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
 
-        allclusters = [ s.clusters[cid] for cid in s.norder ]
-        ordered = core.ordered([ c.pos['y0'] for c in allclusters ])
-        contiguous = s.norder == range(len(s.norder))
-        if ordered and contiguous:
-            print('nothing to renumber: clusters IDs already ordered in y0 and contiguous')
+        # get spatially and numerically ordered lists of old ids and new ids
+        oldids = np.asarray(s.norder)
+        allids = np.asarray(sorted(s.norder))
+        oldsuids = allids[allids > 0]
+        oldmuids = allids[allids < 0][::-1] # reverse order
+        # this is a bit confusing: find indices that would sort old ids by y pos, but then
+        # what you really want is to find the y pos *rank* of each old id, so you need to
+        # take argsort again:
+        newsuids = np.asarray([ s.clusters[cid].pos['y0'] for cid in oldsuids ]).argsort().argsort() + 1
+        newmuids = -(np.asarray([ s.clusters[cid].pos['y0'] for cid in oldmuids ]).argsort().argsort() + 1)
+        # multiunit, followed by single unit, no 0 junk cluster. Can't seem to do it the other
+        # way around as of Qt 4.7.2 - it seems QListViews don't like having a -ve value in
+        # the last entry. Doing so causes all 2 digit values in the list to become blank,
+        # suggests a spacing calculation bug. Reproduce by making last entry multiunit, undoing,
+        # then redoing
+        newids = np.concatenate([newmuids, newsuids])
+
+        # test
+        if np.all(oldids == newids):
+            print('nothing to renumber: cluster IDs already ordered in y0 and contiguous')
             return
 
         # deselect current selections
         selclusters = spw.GetClusters()
-        oldselcids = [ cluster.id for cluster in selclusters ]
+        oldselids = [ cluster.id for cluster in selclusters ]
         spw.SelectClusters(selclusters, on=False)
 
         # delete junk cluster, if it exists
-        if -1 in s.clusters:
-            s.remove_neuron(-1)
-            print('deleted junk cluster -1')
+        if 0 in s.clusters:
+            s.remove_neuron(0)
+            print('deleted junk cluster 0')
 
-        # get lists of unique old cids and new cids
-        olducids = sorted(s.clusters) # make sure they're in order
-        # this is a bit confusing: find indices that would sort olducids by y pos, but then
-        # what you really want is to find the y pos *rank* of each olducid, so you need to
-        # take argsort again:
-        newucids = np.asarray([ s.clusters[cid].pos['y0'] for cid in olducids ]).argsort().argsort()
+        # replace old ids with new ids
         cw = spw.windows['Cluster']
         oldclusters = s.clusters.copy()
         oldneurons = s.neurons.copy()
         dims = spw.GetClusterPlotDimNames()
-        for oldcid, newcid in zip(olducids, newucids):
-            newcid = int(newcid) # keep as Python int, not numpy int
-            if oldcid == newcid:
+        #import pdb; pdb.set_trace()
+        oldids = np.concatenate([oldmuids, oldsuids]) # update for comparison with newids
+        for oldid, newid in zip(oldids, newids):
+            newid = int(newid) # keep as Python int, not numpy int
+            if oldid == newid:
                 continue # no need to waste time removing and recreating this cluster
-            # change all occurences of oldcid to newcid
-            cluster = oldclusters[oldcid]
-            cluster.id = newcid # this indirectly updates neuron.id
+            # change all occurences of oldid to newid
+            cluster = oldclusters[oldid]
+            cluster.id = newid # this indirectly updates neuron.id
             # update cluster and neuron dicts
-            s.clusters[newcid] = cluster
-            s.neurons[newcid] = cluster.neuron
+            s.clusters[newid] = cluster
+            s.neurons[newid] = cluster.neuron
             sids = cluster.neuron.sids
-            spikes['nid'][sids] = newcid
+            spikes['nid'][sids] = newid
+
         # remove any orphaned cluster ids
-        for oldcid in olducids:
-            if oldcid not in newucids:
-                del s.clusters[oldcid]
-                del s.neurons[oldcid]
+        for oldid in oldids:
+            if oldid not in newids:
+                del s.clusters[oldid]
+                del s.neurons[oldid]
+
         # reset norder
-        s.norder = sorted(s.neurons)
+        s.norder = copy([ int(newid) for newid in newids ]) # need list of ints for QListView
 
         # now do some final updates
         spw.UpdateClustersGUI()
         spw.ColourPoints(s.clusters.values())
         # reselect the previously selected (but now renumbered) clusters - helps user keep track
-        newselcids = newucids[np.searchsorted(olducids, oldselcids)]
-        spw.SelectClusters([s.clusters[cid] for cid in newselcids])
+        oldiis = [ list(oldids).index(oldselid) for oldselid in oldselids ]
+        newselids = newids[oldiis]
+        spw.SelectClusters([s.clusters[cid] for cid in newselids])
         # all cluster changes in stack are no longer applicable, reset cchanges
         del spw.cchanges[:]
         spw.cci = -1
@@ -1697,7 +1777,7 @@ class SortWindow(SpykeToolWindow):
             return # nothing to do
         spikes = self.sort.spikes
         neuron.sids = np.setdiff1d(neuron.sids, sids) # return what's in first arr and not in the 2nd
-        spikes['nid'][sids] = -1 # unbind neuron id of sids in struct array
+        spikes['nid'][sids] = 0 # unbind neuron id of sids in spikes struct array
         if update:
             self.sort.update_usids()
             self.uslist.updateAll()

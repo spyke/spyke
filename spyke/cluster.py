@@ -165,8 +165,8 @@ class ClusterWindow(SpykeToolWindow):
         gw.npoints = len(X)
         gw.sids = sids
         gw.nids = nids
-        gw.colors = CMAP[nids % len(CMAP)] # uint8
-        gw.colors[nids == -1] = GREYRGB # overwrite unclustered points with GREYRGB
+        gw.colors = CMAP[nids % len(CMAP) - 1] # uint8, single unit nids are 1-based
+        gw.colors[nids == 0] = GREYRGB # overwrite unclustered points with GREYRGB
         gw.updateGL()
 
 
@@ -508,7 +508,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
                 tip += '\n%s: %s' % (lst2shrtstr(dims), sposstr)
             except IndexError: pass # some params, like PCs, aren't in spikes array
-            if nid > -1:
+            if nid != 0:
                 tip += '\nnid: %d' % nid
                 try:
                     cposstr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
