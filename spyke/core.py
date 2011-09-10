@@ -720,7 +720,7 @@ class SpykeListView(QtGui.QListView):
         #self.setViewMode(QtGui.QListView.IconMode)
 
     def keyPressEvent(self, event):
-        if event.key() in [Qt.Key_M, Qt.Key_Slash, Qt.Key_NumberSign,
+        if event.key() in [Qt.Key_M, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_NumberSign,
                            Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
                            Qt.Key_Comma, Qt.Key_Period]:
             event.ignore() # pass it on up to the parent
