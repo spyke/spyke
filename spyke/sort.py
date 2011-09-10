@@ -1557,8 +1557,12 @@ class SortWindow(SpykeToolWindow):
         # take argsort again:
         newsuids = np.asarray([ s.clusters[cid].pos['y0'] for cid in oldsuids ]).argsort().argsort() + 1
         newmuids = -(np.asarray([ s.clusters[cid].pos['y0'] for cid in oldmuids ]).argsort().argsort() + 1)
-        # single unit, followed by multiunit, no 0 junk cluster:
-        newids = np.concatenate([newsuids, newmuids])
+        # multiunit, followed by single unit, no 0 junk cluster. Can't seem to do it the other
+        # way around as of Qt 4.7.2 - it seems QListViews don't like having a -ve value in
+        # the last entry. Doing so causes all 2 digit values in the list to become blank,
+        # suggests a spacing calculation bug. Reproduce by making last entry multiunit, undoing,
+        # then redoing
+        newids = np.concatenate([newmuids, newsuids])
 
         # test
         if np.all(oldids == newids):
@@ -1581,7 +1585,7 @@ class SortWindow(SpykeToolWindow):
         oldneurons = s.neurons.copy()
         dims = spw.GetClusterPlotDimNames()
         #import pdb; pdb.set_trace()
-        oldids = np.concatenate([oldsuids, oldmuids]) # update for comparison with newids
+        oldids = np.concatenate([oldmuids, oldsuids]) # update for comparison with newids
         for oldid, newid in zip(oldids, newids):
             newid = int(newid) # keep as Python int, not numpy int
             if oldid == newid:
