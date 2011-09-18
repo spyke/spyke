@@ -65,9 +65,6 @@ class Sort(object):
         self.clusters = {} # neurons with multidm params scaled for plotting
         self.norder = [] # stores order of neuron ids display in nlist
 
-        self.usids_sorted_by = 't'
-        self.usids_reversed = False
-
     def get_nextnid(self):
         """nextnid is used to retrieve the next unique single unit ID"""
         nids = self.neurons.keys()
@@ -133,23 +130,6 @@ class Sort(object):
         """Update usids, which is an array of struct array indices of unsorted spikes"""
         nids = self.spikes['nid']
         self.usids, = np.where(nids == 0) # 0 means unclustered
-        # FIXME: disable sorting for now
-        # order it by .usids_sorted_by and .usids_reversed
-        #if self.usids_sorted_by != 't': self.sort_usids('t')
-        #if self.usids_reversed: self.reverse_usids()
-
-    def sort_usids(self, sort_by):
-        """Sort struct array row indices of unsorted spikes according to
-        sort_by"""
-        vals = self.spikes[self.usids][sort_by] # vals from just the unsorted rows and the desired column
-        self.usids = self.usids[vals.argsort()] # usids are now sorted by sorty_by
-        self.usids_sorted_by = sort_by # update
-
-    def reverse_usids(self):
-        """Reverse usids"""
-        # is there a way to reverse an array in-place, like a list?
-        # maybe swap the start and end points, and set stride to -1?
-        self.usids = self.usids[::-1]
 
     def get_spikes_sortedby(self, attr='id'):
         """Return array of all spikes, sorted by attribute 'attr'"""
@@ -1521,6 +1501,7 @@ class SortWindow(SpykeToolWindow):
             newcluster = spw.CreateCluster(update=False, id=muid, inserti=inserti)
             neuron = newcluster.neuron
             self.MoveSpikes2Neuron(sids, neuron, update=False)
+            newcluster.update_pos()
             newclusters.append(newcluster)
             inserti += 1
 
@@ -1539,35 +1520,38 @@ class SortWindow(SpykeToolWindow):
     def on_actionRenumberClusters_triggered(self):
         """Renumber single unit clusters consecutively from 1, ordered by y position,
         on "#" button click. Do the same for multiunit (-ve number) clusters, starting
-        from -1. Sorting by y position makes user inspection of clusters
-        more orderly, makes the presence of duplicate clusters more obvious, and allows
-        for maximal spatial separation between clusters of the same colour, reducing
-        colour conflicts"""
+        from -1. Sorting by y position makes user inspection of clusters more orderly,
+        makes the presence of duplicate clusters more obvious, and allows for maximal
+        spatial separation between clusters of the same colour, reducing colour
+        conflicts"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
 
-        # get spatially and numerically ordered lists of old ids and new ids
+        # get spatially and numerically ordered lists of new ids
         oldids = np.asarray(s.norder)
-        allids = np.asarray(sorted(s.norder))
-        oldsuids = allids[allids > 0]
-        oldmuids = allids[allids < 0][::-1] # reverse order
+        oldsuids = oldids[oldids > 0]
+        oldmuids = oldids[oldids < 0]
         # this is a bit confusing: find indices that would sort old ids by y pos, but then
         # what you really want is to find the y pos *rank* of each old id, so you need to
         # take argsort again:
         newsuids = np.asarray([ s.clusters[cid].pos['y0'] for cid in oldsuids ]).argsort().argsort() + 1
-        newmuids = -(np.asarray([ s.clusters[cid].pos['y0'] for cid in oldmuids ]).argsort().argsort() + 1)
+        newmuids = np.asarray([ s.clusters[cid].pos['y0'] for cid in oldmuids ]).argsort().argsort() + 1
+        newmuids = -newmuids
         # multiunit, followed by single unit, no 0 junk cluster. Can't seem to do it the other
         # way around as of Qt 4.7.2 - it seems QListViews don't like having a -ve value in
         # the last entry. Doing so causes all 2 digit values in the list to become blank,
         # suggests a spacing calculation bug. Reproduce by making last entry multiunit, undoing,
-        # then redoing
+        # then redoing. Actually, maybe the bug is it doesn't like having a number in the last
+        # entry with fewer digits than the preceding entry. Only seems to be a problem when
+        # setting self.setUniformItemSizes(True).
         newids = np.concatenate([newmuids, newsuids])
 
         # test
         if np.all(oldids == newids):
             print('nothing to renumber: cluster IDs already ordered in y0 and contiguous')
             return
+        oldids = np.concatenate([oldmuids, oldsuids]) # update for replacing oldids with newids
 
         # deselect current selections
         selclusters = spw.GetClusters()
@@ -1581,11 +1565,8 @@ class SortWindow(SpykeToolWindow):
 
         # replace old ids with new ids
         cw = spw.windows['Cluster']
-        oldclusters = s.clusters.copy()
-        oldneurons = s.neurons.copy()
+        oldclusters = s.clusters.copy() # no need to deepcopy, just copy references, not clusters
         dims = spw.GetClusterPlotDimNames()
-        #import pdb; pdb.set_trace()
-        oldids = np.concatenate([oldmuids, oldsuids]) # update for comparison with newids
         for oldid, newid in zip(oldids, newids):
             newid = int(newid) # keep as Python int, not numpy int
             if oldid == newid:
@@ -1606,7 +1587,9 @@ class SortWindow(SpykeToolWindow):
                 del s.neurons[oldid]
 
         # reset norder
-        s.norder = copy([ int(newid) for newid in newids ]) # need list of ints for QListView
+        s.norder = []
+        s.norder.extend(sorted([ int(newid) for newid in newmuids ])[::-1])
+        s.norder.extend(sorted([ int(newid) for newid in newsuids ]))
 
         # now do some final updates
         spw.UpdateClustersGUI()

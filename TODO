@@ -263,12 +263,13 @@ KeyboardInterrupt:
 
 - use a Gaussian lookup table. Building it might take a little while. Only do this for say > 10k spikes, or whatever the optimal cutoff is
 
-- allow designation of multiunit clusters, give them increasingly -ve nids, and don't export them by default
-    - see spikes on mid depth channels in ptc18.tr1 - you can partition them up by maxchan, but then when you plot them in PC space, there really are no distinct clusters. It's just one big mess, and that's the way it should be labelled. Don't waste time trying to find clusters that aren't there!
-    - maybe make the '-' or whatever button toggle whether a cluster is -ve or +ve, and hence MU or SU
-        - if the -ve of the current cluster already exists, find the next highest absolute value nid that's available, and take -ve of it
-    - would need to make changes in other parts of the code that assume all clusters are >-1. Like cluster renumbering. -ve numbered clusters shouldn't be discarded, only -1 cluster should
-    - could conflict a bit with -1 junk cluster, complicated. Might be best to make 0 the junk cluster, +ve values single unit, and -ve values multiunit
+- update all saved .sort files
+    - do merge on all cluster 0s, and then renumber. Don't allow old cluster 0s to be accidentally treated as junk
+    - set all spikes with -1 nids to 0:
+    sids, = np.where(self.sort.spikes['nid'] == -1)
+    self.sort.spikes['nid'][sids] = 0
+    self.DeColourPoints(sids)
+    self.UpdateClustersGUI()
 
 - compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
     - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (and maybe all clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab?
@@ -294,10 +295,6 @@ KeyboardInterrupt:
 - BUG: opening a sort from one track, and then opening a sort from a different track causes channel display problems. There must be some channel info that isn't cleared between sort openings. Maybe some attribute of the main window or the sort window? Maybe something to do with self.windows['Sort'].panel.enabled_chans?
 
 - what happens when a recording has more than 1 experiment in it? I know it'll have as many textheaders (displayrecords) as there are experiments, but what about din (digitalsvalrecords)?
-
-- NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail.
-    - switched back to Gaussian
-    
 
 - NVS: to choose at what point to align each spike during detection, take the 2nd derivative along the spike, weighted by the voltage, weighted by the waveform point index, add all those up and normalize, and you get the point index to align to. This tends to be right around the 0 crossing. What's nice is that it's paramaterizable/linear - a small change in some voltage value results in a small change in how you align - there's no 2AFC between align to one peak or the other. He claims it results in better spike alignments within clusters right off the bat.
 
@@ -853,6 +850,153 @@ OLDER:
 
 
 
+----------------
+SPIKE MODELLING:
+        - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
+        - disable grounded channels
+        - lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
+        - take weighted spatial mean of chanis at phase1ti to better estimate initial (x0, y0)
+        - if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow v1inv and v2inv to be of opposite sign to successfully model this
+        - constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
+        - improve estimation of window limits relative to threshold crossing
+        - add AP velocity param(s) - make that inverse velocity to avoid singularity
+            - seems to be causing some x localization problems...
+        - improve spatiotemporal lockout accuracy
+            - for every fit spike, check if the max fit val is a peak (ie has values on either side that are lower than it). Or, just check if the means of both phases fall within the window limits. If not, chances are good that this thresh event was triggered by a late channel that's only now crossed thresh, just outside of the spatial lockout of the actual spike, which had already been modelled. Therefore, the currently fit spike should be thrown out
+                - maybe a better way to deal with this late channel situation is to do the AP velocity modelling - that way each modelled chan can be locked out to a different timepoint according to the modelled propogation delay
+        - test if constraints are actually making any difference, or if ralg is just amazing
+        - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking
+        - nah: regenerate chanis list based on this spatial mean based best estimate
+            - don't think this will make any significant difference to model results
+        - NAH: try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
+            - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
+        - run profiler - R algorithm is just plain slow - solution is to try another one
+        - should probably initialize model (x0, y0) to weighted spatial mean of chans, instead of just the maxchan coords - this would also help to reduce singularity/differentiability problems with 1/r model
+
+end SPIKE MODELLING
+-------------------
+
+
+
+----------------
+QT rewrite DONE:
+
+
+- replace all list RefreshItems() calls with reset()?
+    - reset clears any current selection, in addition to updating the list
+    - update() doesn't seem to do anything.
+    - here it is:
+        model = self.windows['Sort'].slist.model()
+        i1 = model.createIndex(row1, 0)
+        row2 = model.rowCount(None) - 1
+        i2 = model.createIndex(row2, 0)
+        model.dataChanged.emit(i1, i2)
+- delete all SetItemCount() calls
+- should really rename slist to uslist
+- replace all clist with nlist
+- search for all occurrences of getSelection()
+- rename sf to sw, cf to cw, etc (if possible)
+- test .sort file saving and loading
+- bind sort window buttons
+    - keyerror when undoing deletion of cluster - has to do with cluster selection and plotting, which is slightly different from what it was under wx
+    - split a cluster, works fine, undo works fine, on redo, new clusters are restored and selected, but for some reason, the mean waveform of the last of the new clusters isn't plotted. This causes a plot keyerror on subsequent selection changes (such as another undo)
+        - in fact, even happens when you split, undo, then leaving the selection as is and split again (as opposed to redoing). If instead of leaving selection as is, you change selection, then change back, then resplit or redo, it works fine. Very mysterious. Qt bug? Something to do with focused item, not just selected items?
+        - if you have another unrelated cluster selected, or if you have no clusters selected whatsoever, you can undo/redo the split as many times as you like without the keyerror. Mysterious.
+- cluster tooltips
+    - do i really need to use mouse events? can't I just grab the current mouse position every time a tooltip is requested for the cluster window? ie, can't i just override the tooltip event, set the toltip text, and then allow the tooltip event to continue?
+    - alternative is catch mouse movement events, set tooltip text, then raise tooltip event. This would have the benefit of raising the tooltip immediately, instead of having to wait for the delay to expire. Delay isn't adjustable it seems.
+        - If you want to show a tooltip immediately, while the mouse is moving (e.g., to get the mouse coordinates with QMouseEvent::pos() and show them as a tooltip), you must first enable mouse tracking as described above (setMouseTracking(True)). Then, to ensure that the tooltip is updated immediately, you must call QToolTip::showText() instead of setToolTip() in your implementation of mouseMoveEvent().
+- keyboard commands for clustering and cluster selection
+    - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
+    - using direct base class calling instead of super() fixed this
+    - on R keypress, select random sample of current cluster's spikes. This way you don't have to go manually selecting spikes to evaluate cluster cleanliness. Also, this way, every time you hit R, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
+- make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
+    - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
+    - programatically resize the cluster window to take up the full screen on F11. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
+    - for ease of setting fullscreen or maximized state, might need to change window type to proper window, ie QDialog, or widget with Qt::Window flag set
+- update cluster plot immediately on dim change
+- add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
+    - hm, or why can't you just check for clusters and auto colour them each time plot is hit? Indeed!
+- maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
+- if the nearest glyph is a point and not an ellipsoid, and if that point belongs to a cluster, select that cluster - getting too many mis-hits when selecting clusters, especially dense clusters
+    - same goes for cluster tooltips
+- remove paths to .srf filenames from .parse files. Same goes for the parse filenames too. This way, you assume that the .srf file exists in the same directory as the .parse file, and it lets you use .parse files across devices with different mount points
+- hell, move all .track files into the same folder as their constituent .srf and .parse files too - this makes everything much simpler - no paths at all
+- allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
+- if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
+    - simpler to just require keyboard command for all tooltips
+- maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
+    - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
+    - plotting and rotating 7 million points in opengl in qt is super fast!
+- LOOKS LIKE A BIG BUG: many of the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
+    - a symptom of this is that I get a lot of "spatial location way off" messages, and this seems to slow down detection a whole lot when it happens. In first 30 sec, only seems to happen in the first detection process
+        - actually, sometimes it happens on multiple processes simultaneously
+    - when I click on the spike to go to its position in the raw data, it goes to a raster line, but the raw data at that time doesn't match the spike data in the sort window
+    - duplicated on jervis, running rev 999 of dev branch, while searching first 30 sec of file 87
+    - also, occasionally getting "Exception OSError: (4, 'Interrupted system call') in <Finalize object, dead> ignored" at end of detection, may or may not be related
+    - could this be a new version of some library that started causing this? Cython? numpy?
+    - as of rev 935 in dev branch in win7 (using wx with non-working mayavi), bug doesn't seem to exist
+    - maybe need to look at code changes in climbing.pyx or detect.py between rev 935 and tip
+    - except when it happens on all chans, only seems to happen on chan 53, ie the last chan, or on chan 1, ie the 2nd chan, and both of those happen to be adjacent chans
+        - try testing on different file
+        - try running detection in debug mode
+        - problem disappears in debug mode, always comes up with 7085 spikes instead of the 7105 it comes up with otherwise - this is a multiple process problem?
+        - using numpy 1.5.1 in win7, multiprocessing 0.70a1 in both win7 and ubuntu
+        - upgraded cython to 0.14.1 and numpy to 1.5.1 in ubuntu, didn't help
+    - is pyopengl-accelerate being used in linux? installed in windows, seems to cause problems?
+    - do a hack test for abs(spike signal) > 25000, drop into debugger, though this won't work when multiprocessing
+    - try revert to rev 935 on ubuntu, see if you can get it to work in wx
+        - will have to do some hacking, like disabling a certain wx list style or something
+    - why is this a probabilistic problem?
+    - might it have something to do with ipython being loaded up and ready to pounce in case of an error? I guess everything, including ipython, is duplicated across processes, and that could cause some kinda race conditions?
+        - nope, removing ipython altogether doesn't help
+    - might try limiting the number of processes to 2 or 3 (or restoring hyperthreading), see if that changes anything
+        - leaving multiprocessing turned on, but searching only one block of data at a time, there's only ever one child processes at a time, and that works flawlessly across whatever single blocksize you choose
+    - aha! got wx spyke dev rev 935 working in linux, get the same problem during multiprocessing detection. So it must be a problem with a linux library, and qt or opengl aren't to blame.
+        - set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
+        - need a more realistic demo that does actual spike detection in multiple processes, but maybe without the gui stuff - ie, loads off the disk, runs cython, runs scipy.leastsq, etc.
+    - try running in python 2.5 with processing installed
+    - maybe the specific atlas libraries I'm using could be to blame - in win7, I'm using christoph's intel mkl libraries
+        - try downgrading numpy/scipy, or compiling them without atlas
+    - maybe instead of using Pool, with its weird initializer hack, I should subclass Process, make DetectionProcess.run() call searchblock nblocks/4 times, and launch 4 of these processes manually
+        - if that doesn't work, could spawn my own processes manually using linux specific os calls?
+    - SOLUTION: needed to deepcopy the detector for each process to prevent artefactual spikes, not sure why this seems to only be required in linux
+
+-------------------
+end QT rewrite DONE
+
+
+
+
+
+----------------
+GL rewrite DONE:
+
+- replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
+- search for mlab, glyph, disable_render, scene
+- for some reason, plotting 7m actual data points gives really slow rendering
+    - it's not the colouring - decolouring all has same problem, and setting them all to white doesn't help either
+    - zooming in or out, or rotating so that most points are obscured, also doesn't seem to help - quite mysterious
+    - must be the values themselves - nope, scaling them all down so they're between -1 and 1 doesn't help.
+    - strange, hiding and then showing the cluster window helps speed it up a little, but it still sucks
+    - reducing npoints to 10k speeds it up a fair bit, but its still strangely slow. Something in the python process is using 100% CPU during idle
+    - better on restart, but still strangely slow.
+    - switching back to 7m cube data after plotting real data restores normal rendering speed. Setting to exactly 7282567 points in cube doesn't change that. Very strange.
+    - it's actually slower than mayavi
+    - ah, maybe it's cuz array X isn't contig! yes, it isn't contig! Yes, copying solved it!
+- zoom and pan should be more consistent speed
+    - solve both of these by multiplying factor by distance (length of translation vector)
+- implement tooltips and point selection
+    - need reverse mapping from viewport coords to point coords (and ideally, to point index)
+- implement focus to point
+- implement saving and restoring of camera view (search for view and roll keywords)
+    - just save and restore the modelview matrix and the -self._dfocus as the focus
+      
+end GL rewrite DONE
+-------------------
+
+
+
 ----------------------------------------------------
 DONE:
 
@@ -1170,101 +1314,6 @@ DONE:
 - demarcate cluster centers by the median of the positions of the points belonging to them, not by sometimes using the position of the cluster's scout point, or sometimes by calculating its mean (long tails suggest the median might be more appropriate than the mean)
     - add a cluster.updatePosScale() method for updating both raw and normalized pos and size based on median and stdev of up to samplesize spikes belonging to neuron. Call this after clustering, reclustering, and merging
 - add a "cluster unsampled spikes" option (default checked) to allow fast test clustering with low sampling using various params, without wasting time assigning unsampled spikes after gradient ascent is done
-
-
-
-
-
-
-
-
-
-
-
-
-----------------------
-QT rewrite DONE:
-
-
-- replace all list RefreshItems() calls with reset()?
-    - reset clears any current selection, in addition to updating the list
-    - update() doesn't seem to do anything.
-    - here it is:
-        model = self.windows['Sort'].slist.model()
-        i1 = model.createIndex(row1, 0)
-        row2 = model.rowCount(None) - 1
-        i2 = model.createIndex(row2, 0)
-        model.dataChanged.emit(i1, i2)
-- delete all SetItemCount() calls
-- should really rename slist to uslist
-- replace all clist with nlist
-- search for all occurrences of getSelection()
-- rename sf to sw, cf to cw, etc (if possible)
-- test .sort file saving and loading
-- bind sort window buttons
-    - keyerror when undoing deletion of cluster - has to do with cluster selection and plotting, which is slightly different from what it was under wx
-    - split a cluster, works fine, undo works fine, on redo, new clusters are restored and selected, but for some reason, the mean waveform of the last of the new clusters isn't plotted. This causes a plot keyerror on subsequent selection changes (such as another undo)
-        - in fact, even happens when you split, undo, then leaving the selection as is and split again (as opposed to redoing). If instead of leaving selection as is, you change selection, then change back, then resplit or redo, it works fine. Very mysterious. Qt bug? Something to do with focused item, not just selected items?
-        - if you have another unrelated cluster selected, or if you have no clusters selected whatsoever, you can undo/redo the split as many times as you like without the keyerror. Mysterious.
-- cluster tooltips
-    - do i really need to use mouse events? can't I just grab the current mouse position every time a tooltip is requested for the cluster window? ie, can't i just override the tooltip event, set the toltip text, and then allow the tooltip event to continue?
-    - alternative is catch mouse movement events, set tooltip text, then raise tooltip event. This would have the benefit of raising the tooltip immediately, instead of having to wait for the delay to expire. Delay isn't adjustable it seems.
-        - If you want to show a tooltip immediately, while the mouse is moving (e.g., to get the mouse coordinates with QMouseEvent::pos() and show them as a tooltip), you must first enable mouse tracking as described above (setMouseTracking(True)). Then, to ensure that the tooltip is updated immediately, you must call QToolTip::showText() instead of setToolTip() in your implementation of mouseMoveEvent().
-- keyboard commands for clustering and cluster selection
-    - ever since implementing keyPressEvent in SpykeMayaviScene, standard vtk/mayavi key commands aren't being caught properly. +/- no longer zoom, and f for focus does a pan and zoom, instead of just a pan
-    - using direct base class calling instead of super() fixed this
-    - on R keypress, select random sample of current cluster's spikes. This way you don't have to go manually selecting spikes to evaluate cluster cleanliness. Also, this way, every time you hit R, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
-- make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
-    - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
-    - programatically resize the cluster window to take up the full screen on F11. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
-    - for ease of setting fullscreen or maximized state, might need to change window type to proper window, ie QDialog, or widget with Qt::Window flag set
-- update cluster plot immediately on dim change
-- add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
-    - hm, or why can't you just check for clusters and auto colour them each time plot is hit? Indeed!
-- maybe change default size and position of cluster window to be to the right of sort window, full width horizontally to edge of monitor, along the top, and half the height of the sortwindow (ie half screen height). This way, you can still see the terminal window below spyke, in the bottom right corner of the screen (best to resize terminal window to fit fully within this space. Might be able to set up a terminal profile for this)
-- if the nearest glyph is a point and not an ellipsoid, and if that point belongs to a cluster, select that cluster - getting too many mis-hits when selecting clusters, especially dense clusters
-    - same goes for cluster tooltips
-- remove paths to .srf filenames from .parse files. Same goes for the parse filenames too. This way, you assume that the .srf file exists in the same directory as the .parse file, and it lets you use .parse files across devices with different mount points
-- hell, move all .track files into the same folder as their constituent .srf and .parse files too - this makes everything much simpler - no paths at all
-- allow display of multiple neurons' spikes in nslist: rename .neuron to .neurons, and combine their sids, and present them (either in neuron order, or in sid order) in the nslist, so you can select any and all of the spikes of all of the selected neurons. Neuron id can be a sortable field, along with the others (sid, time, x, y, etc)
-- if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
-    - simpler to just require keyboard command for all tooltips
-- maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
-    - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
-    - plotting and rotating 7 million points in opengl in qt is super fast!
-- LOOKS LIKE A BIG BUG: many of the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
-    - a symptom of this is that I get a lot of "spatial location way off" messages, and this seems to slow down detection a whole lot when it happens. In first 30 sec, only seems to happen in the first detection process
-        - actually, sometimes it happens on multiple processes simultaneously
-    - when I click on the spike to go to its position in the raw data, it goes to a raster line, but the raw data at that time doesn't match the spike data in the sort window
-    - duplicated on jervis, running rev 999 of dev branch, while searching first 30 sec of file 87
-    - also, occasionally getting "Exception OSError: (4, 'Interrupted system call') in <Finalize object, dead> ignored" at end of detection, may or may not be related
-    - could this be a new version of some library that started causing this? Cython? numpy?
-    - as of rev 935 in dev branch in win7 (using wx with non-working mayavi), bug doesn't seem to exist
-    - maybe need to look at code changes in climbing.pyx or detect.py between rev 935 and tip
-    - except when it happens on all chans, only seems to happen on chan 53, ie the last chan, or on chan 1, ie the 2nd chan, and both of those happen to be adjacent chans
-        - try testing on different file
-        - try running detection in debug mode
-        - problem disappears in debug mode, always comes up with 7085 spikes instead of the 7105 it comes up with otherwise - this is a multiple process problem?
-        - using numpy 1.5.1 in win7, multiprocessing 0.70a1 in both win7 and ubuntu
-        - upgraded cython to 0.14.1 and numpy to 1.5.1 in ubuntu, didn't help
-    - is pyopengl-accelerate being used in linux? installed in windows, seems to cause problems?
-    - do a hack test for abs(spike signal) > 25000, drop into debugger, though this won't work when multiprocessing
-    - try revert to rev 935 on ubuntu, see if you can get it to work in wx
-        - will have to do some hacking, like disabling a certain wx list style or something
-    - why is this a probabilistic problem?
-    - might it have something to do with ipython being loaded up and ready to pounce in case of an error? I guess everything, including ipython, is duplicated across processes, and that could cause some kinda race conditions?
-        - nope, removing ipython altogether doesn't help
-    - might try limiting the number of processes to 2 or 3 (or restoring hyperthreading), see if that changes anything
-        - leaving multiprocessing turned on, but searching only one block of data at a time, there's only ever one child processes at a time, and that works flawlessly across whatever single blocksize you choose
-    - aha! got wx spyke dev rev 935 working in linux, get the same problem during multiprocessing detection. So it must be a problem with a linux library, and qt or opengl aren't to blame.
-        - set up the simplest possible example code that duplicates this problem, and try it on different platforms. Seems this might be due to a recent update in some library. See http://stackoverflow.com/questions/4952247/interrupted-system-call-with-processing-queue
-        - need a more realistic demo that does actual spike detection in multiple processes, but maybe without the gui stuff - ie, loads off the disk, runs cython, runs scipy.leastsq, etc.
-    - try running in python 2.5 with processing installed
-    - maybe the specific atlas libraries I'm using could be to blame - in win7, I'm using christoph's intel mkl libraries
-        - try downgrading numpy/scipy, or compiling them without atlas
-    - maybe instead of using Pool, with its weird initializer hack, I should subclass Process, make DetectionProcess.run() call searchblock nblocks/4 times, and launch 4 of these processes manually
-        - if that doesn't work, could spawn my own processes manually using linux specific os calls?
-    - SOLUTION: needed to deepcopy the detector for each process to prevent artefactual spikes, not sure why this seems to only be required in linux
 - add a mode where you can split a cluster purely by chan ids. Often you're in a situation where there's only 1 or 2 chans common to all the spikes in a cluster, yet you want to cluster according to some other chan that looks very clusterable. This would let you do that, at least as a pre-cluster step.
 - BUG: for some reason, clusters with only one spike don't display anything in the nslist (they should display the one spike), and hitting R causes spike 0 to be plotted. This is similar to the behaviour you get when returning something other than an int (like a numpy scalar) in model.data() for any neuron with any number of spikes
     - not checking for sids != [] in model.data() fixed it for some reason
@@ -1298,37 +1347,6 @@ QT rewrite DONE:
 - on renumbering, if nids are all contiguous and ordered, don't bother renumbering, which means don't clear the undo cache. This makes hitting renumber less risky
 - save electrode type to ptcs header descr field
 - add ability to only do PCA on selected chans, for both plotting and clustering, would need to add pcchans attrib to sort in addition to pcsids and pcs
-
-
-
-
-
-
-
--------------------
-GL rewrite:
-
-DONE:
-
-- replace cw.glyph.mlab_source.update() with cw.updateGL() or cw.qglwidget.updateGL()
-- search for mlab, glyph, disable_render, scene
-- for some reason, plotting 7m actual data points gives really slow rendering
-    - it's not the colouring - decolouring all has same problem, and setting them all to white doesn't help either
-    - zooming in or out, or rotating so that most points are obscured, also doesn't seem to help - quite mysterious
-    - must be the values themselves - nope, scaling them all down so they're between -1 and 1 doesn't help.
-    - strange, hiding and then showing the cluster window helps speed it up a little, but it still sucks
-    - reducing npoints to 10k speeds it up a fair bit, but its still strangely slow. Something in the python process is using 100% CPU during idle
-    - better on restart, but still strangely slow.
-    - switching back to 7m cube data after plotting real data restores normal rendering speed. Setting to exactly 7282567 points in cube doesn't change that. Very strange.
-    - it's actually slower than mayavi
-    - ah, maybe it's cuz array X isn't contig! yes, it isn't contig! Yes, copying solved it!
-- zoom and pan should be more consistent speed
-    - solve both of these by multiplying factor by distance (length of translation vector)
-- implement tooltips and point selection
-    - need reverse mapping from viewport coords to point coords (and ideally, to point index)
-- implement focus to point
-- implement saving and restoring of camera view (search for view and roll keywords)
-    - just save and restore the modelview matrix and the -self._dfocus as the focus
 - BUG: parsing a .srf file individually, vs as part of a track, and then loading it the other way from the saved .parse file raises a "'File' object has no attribute 'f'" error in surf.py at "self.f.seek(record['dataoffset'])"
     - this was due to fnames being overwritten when loading a srff from a .parse file, and different fnames being used for the normal vs the .track case (.track fnames have ../ prepended)
 - use chansplit '/' button manually to do initial maxchan based clustering, don't make this an automatic step when doing maxchan based PCA
@@ -1336,33 +1354,15 @@ DONE:
     - find inclusion radius for given set of spikes such that the radius you choose is >= 95% of the sx values of those spikes
     - confirmed that this is a good strategy by looking at a few different maxchans/clusters, and plotting the sx distributions of their member spikes
     - but, allow user to override channel selection. If any specific channels are selected, use only those. If not, use those automatically chosen as described above
-  
+- allow designation of multiunit clusters, give them increasingly -ve nids, and don't export them by default
+    - see spikes on mid depth channels in ptc18.tr1 - you can partition them up by maxchan, but then when you plot them in PC space, there really are no distinct clusters. It's just one big mess, and that's the way it should be labelled. Don't waste time trying to find clusters that aren't there!
+    - maybe make the '-' or whatever button toggle whether a cluster is -ve or +ve, and hence MU or SU
+        - if the -ve of the current cluster already exists, find the next highest absolute value nid that's available, and take -ve of it
+    - would need to make changes in other parts of the code that assume all clusters are >-1. Like cluster renumbering. -ve numbered clusters shouldn't be discarded, only -1 cluster should
+    - could conflict a bit with -1 junk cluster, complicated. Might be best to make 0 the junk cluster, +ve values single unit, and -ve values multiunit
+- NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail.
+    - switched back to Gaussian
 
 
-
-
-
-
--------------------
-SPIKE MODELLING:
-        - I think the real answer to most of my fitting problems is that I need to be able to place restraints on the parameters while the fit is running. Does this mean delving into leastsq fortran code? Rewriting leastsq in Cython? Is there another function I should use instead? Should do some searches, maybe mail the scipy list. - solution was to use openopt, which allows all kinds of constraints
-        - disable grounded channels
-        - lock each chan out separately wrt to its phase2ti, since all chans can now be potentially delayed wrt source - this will require calculating each channel's phase2ti separately...
-        - take weighted spatial mean of chanis at phase1ti to better estimate initial (x0, y0)
-        - if giving phase1 and phase2 different AP velocity delays, should probably constrain them to be of the same sign - scratch that: see ptc15.87.26940 where the 1st phase increasingly leads the spike time as a f'n of distance, and the 2nd phase increasingly lags the spike time as a f'n of distance. You need to allow v1inv and v2inv to be of opposite sign to successfully model this
-        - constrain that sx and sy need to be within some factor of each other, ie constrain their ratio
-        - improve estimation of window limits relative to threshold crossing
-        - add AP velocity param(s) - make that inverse velocity to avoid singularity
-            - seems to be causing some x localization problems...
-        - improve spatiotemporal lockout accuracy
-            - for every fit spike, check if the max fit val is a peak (ie has values on either side that are lower than it). Or, just check if the means of both phases fall within the window limits. If not, chances are good that this thresh event was triggered by a late channel that's only now crossed thresh, just outside of the spatial lockout of the actual spike, which had already been modelled. Therefore, the currently fit spike should be thrown out
-                - maybe a better way to deal with this late channel situation is to do the AP velocity modelling - that way each modelled chan can be locked out to a different timepoint according to the modelled propogation delay
-        - test if constraints are actually making any difference, or if ralg is just amazing
-        - search for maxchani within chanis, and recenter on it, generating a new more appropriate set of chanis. Then take weighted spatial mean of these chanis at phase1t to get best estimate of source. Feed this best estimate as (x0, y0) into model - ie get away from maxchan centric thinking
-        - nah: regenerate chanis list based on this spatial mean based best estimate
-            - don't think this will make any significant difference to model results
-        - NAH: try 1/r model again, with initial guess located at weighted spatial mean instead of at maxchan, to avoid singularity at maxchan
-            - or, replace param r with rinv, or "nearness" param, to get rid of singularity, like I did for AP velocity v and vinv ("slowness")
-        - run profiler - R algorithm is just plain slow - solution is to try another one
-        - should probably initialize model (x0, y0) to weighted spatial mean of chans, instead of just the maxchan coords - this would also help to reduce singularity/differentiability problems with 1/r model
-
+end of DONE
+-----------
