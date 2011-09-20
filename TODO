@@ -267,6 +267,7 @@ KeyboardInterrupt:
 
 - compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
     - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (up to a max number, and then subsamples, and maybe plots all matching clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab? Should also plot a histogram of rmserrors for all spikes that best match the current cluster, rmserror thresh control could be a slider under the histogram, using the same scale
+        - or thresh control could just be clicking (and optionally holding) on the hist plot, with a vertical line plotted at current thresh, and maybe a printout of the value somewhere, perhaps as a spinedit
         - should this be on a match tab, or have its own match window?
 
 - renumbering is quite slow for track wide sorts with millions of spikes, not sure why

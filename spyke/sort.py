@@ -1562,6 +1562,8 @@ class SortWindow(SpykeToolWindow):
         if 0 in s.clusters:
             s.remove_neuron(0)
             print('deleted junk cluster 0')
+        if 0 in oldselids:
+            oldselids.remove(0)
 
         # replace old ids with new ids
         cw = spw.windows['Cluster']
