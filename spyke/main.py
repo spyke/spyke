@@ -571,11 +571,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 print(msg)
                 return
         else: # do spike parameter (non-wavefrom) clustering
-            pcchans = None
-            pcs = np.any([ dim.startswith('pc') for dim in dims ])
-            if pcs:
-                pcchans = self.get_pcchans(sids)
-            data = s.get_param_matrix(dims=dims, sids=sids, pcchans=pcchans, scale=True)
+            selchans = self.get_selchans(sids)
+            data = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=True)
         data = tocontig(data) # ensure it's contiguous for climb()
         # grab climb() params and run it
         self.update_sort_from_cluster_pane()
@@ -594,15 +591,16 @@ class SpykeWindow(QtGui.QMainWindow):
         print('climb took %.3f sec' % (time.time()-t0))
         return nids
     
-    def get_pcchans(self, sids):
-        """Return user selected chans (if any). Otherwise, return chans within
-        a radius encompassing 95% percent of sx values in sids, centered on most
-        common maxchan in sids. Use distance matrix in detector.dm"""
+    def get_selchans(self, sids):
+        """Return user selected chans. If none, automatically select and
+        return chans within a radius encompassing 95% percent of sx values in sids,
+        centered on most common maxchan in sids. Use distance matrix in detector.dm"""
         spikes = self.sort.spikes
-        pcchans = self.windows['Sort'].panel.chans_selected # a list
-        pcchans.sort()
-        if pcchans:
-            return pcchans # always return whatever's manually selected
+        panel = self.windows['Sort'].panel
+        selchans = panel.chans_selected # a list
+        selchans.sort()
+        if selchans and panel.manual_selection:
+            return selchans # always return whatever's manually selected
         sxs = spikes['sx'][sids]
         sxs = np.sort(sxs) # get a sorted copy
         sxi = int(len(sxs) * 0.95) # round down, index > ~95% percent of values
@@ -612,8 +610,11 @@ class SpykeWindow(QtGui.QMainWindow):
         maxchan = np.bincount(maxchans).argmax() # most common maxchan in sids
         dm = self.sort.detector.dm # DistanceMatrix
         maxchani = dm.chans.searchsorted(maxchan)
-        pcchans = dm.chans[dm.data[maxchani] <= sx] # chans within sx of maxchan
-        return list(pcchans)
+        selchans = sorted(dm.chans[dm.data[maxchani] <= sx]) # chans within sx of maxchan
+        panel.chans_selected = selchans
+        panel.update_vlines()
+        panel.manual_selection = False
+        return selchans
 
     def apply_clustering(self, oldclusters, sids, nids, verb=''):
         """Replace old clusters and apply the clustering described by sids
@@ -700,8 +701,7 @@ class SpykeWindow(QtGui.QMainWindow):
         clusterable_chans = core.intersect1d(chanslist) # find intersection
 
         # get selected chans
-        chans = self.windows['Sort'].panel.chans_selected
-        chans.sort()
+        chans = self.get_selchans()
         for chan in chans:
             if chan not in clusterable_chans:
                 raise RuntimeError("chan %d not common to all spikes, pick from %r"
@@ -820,16 +820,15 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         dims = self.GetClusterPlotDimNames()
         cw = self.OpenWindow('Cluster') # in case it isn't already open
-        pcchans = None
+        selchans = None
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
         if pcs: # do PCA on and plot only selected spikes
             sids = self.GetImplicitSpikes()
-            pcchans = self.windows['Sort'].panel.chans_selected
-            pcchans.sort()
+            selchans = self.get_selchans(sids)
         else: # plot all spikes
             sids = s.spikes['id']
         nids = s.spikes['nid'][sids]
-        X = s.get_param_matrix(dims=dims, sids=sids, pcchans=pcchans, scale=True)
+        X = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=True)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
         if len(X) == 0:
             return # nothing to plot

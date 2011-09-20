@@ -995,6 +995,7 @@ class SortPanel(PlotPanel):
     """A plot panel specialized for overplotting spikes and neurons"""
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
+        self.manual_selection = False
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
@@ -1197,8 +1198,22 @@ class SortPanel(PlotPanel):
             else: # it's selected, unselect it
                 self.chans_selected.remove(chan)
                 vline.set_color(VREFCOLOUR)
+            self.manual_selection = True
             self.draw_refs() # update
+        elif button == 3: # right click
+            self.chans_selected = [] # clear channel selection
+            self.manual_selection = False
+            self.update_vlines()
 
+    def update_vlines(self):
+        """Redraw all vlines, useful to call after arbitrarily changing self.chans_selected"""
+        for chan, vline in enumerate(self.vlines): # assuming chans are contig from 0
+            if chan in self.chans_selected:
+                vline.set_color(VREFSELECTEDCOLOUR)
+            else:
+                vline.set_color(VREFCOLOUR)
+        self.draw_refs() # update
+                
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):

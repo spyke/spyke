@@ -259,20 +259,17 @@ KeyboardInterrupt:
 
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
+- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
+
 - reinstate freezing of points - disabling it seems to have caused a big slowdown for clusters with > 10k spikes
 
 - use a Gaussian lookup table. Building it might take a little while. Only do this for say > 10k spikes, or whatever the optimal cutoff is
 
-- update all saved .sort files
-    - do merge on all cluster 0s, and then renumber. Don't allow old cluster 0s to be accidentally treated as junk
-    - set all spikes with -1 nids to 0:
-    sids, = np.where(self.sort.spikes['nid'] == -1)
-    self.sort.spikes['nid'][sids] = 0
-    self.DeColourPoints(sids)
-    self.UpdateClustersGUI()
-
 - compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
-    - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (and maybe all clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab?
+    - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (up to a max number, and then subsamples, and maybe plots all matching clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab? Should also plot a histogram of rmserrors for all spikes that best match the current cluster, rmserror thresh control could be a slider under the histogram, using the same scale
+        - should this be on a match tab, or have its own match window?
+
+- renumbering is quite slow for track wide sorts with millions of spikes, not sure why
 
 - make sort pane doubleclick clear selected chans
 
@@ -344,13 +341,6 @@ KeyboardInterrupt:
 - QListView: keyboard navigation doesn't wrap when Wrapping is enabled
     - see http://www.qtcentre.org/threads/38355-QListView-keyboard-navigation-doesn-t-wrap-when-Wrapping-is-enabled
     - posted to list, didn't get a reply
-
-- gradient vector calculation step doesn't appear to be multithreaded in track-wide sort for some reason, MTthresh is wrong?
-    - it is multithreaded. vector calculation is just fine. What's super slow for some reason is the merge step. Even with only 50000 spikes, it's really slow. At 10000 samples, it should be as fast as the same number of samples in file 87, yet it isn't for some reason... This is a new problem, isn't it? Or maybe I just never noticed it before?
-    - does this have something to do with not properly deleting all old clusters upon reclustering?
-    - aha, figured it out. I had rmergex set really low, to only 0.3, instead of the default 5.0. Oops. Also, alpha was 1.0 instead of 0.1. maxstill was 100 and minpoints was 10 instead of 200 and 5 respectively
-    - hm, still seems slower than it should be. annoying how printed cython output seems to hang and lag in linux terminal
-    - should probably try sigma = 0.1 for track7c
 
 - I know I've been through this before, but why are neuron.sids int64? int32 should be enough, no?
     - this could make the 30MB difference between November's track7c sort and today's track7c sort
@@ -1362,6 +1352,14 @@ DONE:
     - could conflict a bit with -1 junk cluster, complicated. Might be best to make 0 the junk cluster, +ve values single unit, and -ve values multiunit
 - NVS: perhaps Cauchy kernel isn't the best idea, because it has heavy tails, you really should have a bigger rneigh to capture that heavy tail.
     - switched back to Gaussian
+- update all saved .sort files
+    - do merge on all cluster 0s, and then renumber. Don't allow old cluster 0s to be accidentally treated as junk
+    - set all spikes with -1 nids to 0:
+    sids, = np.where(self.sort.spikes['nid'] == -1)
+    self.sort.spikes['nid'][sids] = 0
+    self.DeColourPoints(sids)
+    self.UpdateClustersGUI()
+
 
 
 end of DONE

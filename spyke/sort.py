@@ -404,7 +404,7 @@ class Sort(object):
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
-    def get_param_matrix(self, dims=None, sids=None, pcchans=None, scale=True):
+    def get_param_matrix(self, dims=None, sids=None, selchans=None, scale=True):
         """Organize dims parameters from sids into a data matrix, each column
         corresponding to a dim. To do PCA clustering on all spikes, one maxchan at
         a time, caller needs to call this multiple times, one for each set of
@@ -414,7 +414,7 @@ class Sort(object):
             sids = spikes['id'] # default to all spikes
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
         if pcs:
-            X = self.get_pc_matrix(sids, chans=pcchans)
+            X = self.get_pc_matrix(sids, chans=selchans)
         data = []
         for dim in dims:
             if dim in spikes.dtype.fields:
@@ -458,15 +458,15 @@ class Sort(object):
         if len(diffchans) > 0:
             print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
         nchans = len(chans)
+        nspikes = len(sids)
         if nchans == 0:
             raise RuntimeError("Spikes have no common chans for PCA")
         if (hasattr(self, 'pcsids') and np.all(sids == self.pcsids) and
             hasattr(self, 'pcchans') and np.all(chans == self.pcchans)):
-            print('using saved PCs')
+            print('using saved PCs from chans %r of %d spikes' % (chans, nspikes))
             return self.pc # no need to recalculate
 
         # collect data from chans from all spikes:
-        nspikes = len(sids)
         nt = self.wavedata.shape[2]
         print('doing PCA on chans %r of %d spikes' % (list(chans), nspikes))
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64) # need float64 for PCA
