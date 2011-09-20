@@ -594,7 +594,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def get_selchans(self, sids):
         """Return user selected chans. If none, automatically select and
         return chans within a radius encompassing 95% percent of sx values in sids,
-        centered on most common maxchan in sids. Use distance matrix in detector.dm"""
+        centered on average position of sids. Could also use a multiple of this
+        derived sx to select more or fewer chans"""
         spikes = self.sort.spikes
         panel = self.windows['Sort'].panel
         selchans = panel.chans_selected # a list
@@ -605,12 +606,14 @@ class SpykeWindow(QtGui.QMainWindow):
         sxs = np.sort(sxs) # get a sorted copy
         sxi = int(len(sxs) * 0.95) # round down, index > ~95% percent of values
         sx = sxs[sxi]
-        print('PC channel radius: %.1f um' % sx)
-        maxchans = spikes['chan'][sids]
-        maxchan = np.bincount(maxchans).argmax() # most common maxchan in sids
         dm = self.sort.detector.dm # DistanceMatrix
-        maxchani = dm.chans.searchsorted(maxchan)
-        selchans = sorted(dm.chans[dm.data[maxchani] <= sx]) # chans within sx of maxchan
+        spos = np.vstack((spikes['x0'][sids], spikes['y0'][sids])).T # sids x 2
+        meanpos = spos.mean(axis=0) # mean spike position
+        chanpos = np.asarray(dm.coords) # positions of enabled chans
+        d = np.sqrt(np.sum((chanpos - meanpos)**2, axis=1)) # Euclidean chan distances from meanpos
+        selchans = sorted(dm.chans[d <= sx]) # chans within sx of meanpos
+        print('selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
+        print('selection radius: %.1f um' % sx)
         panel.chans_selected = selchans
         panel.update_vlines()
         panel.manual_selection = False
