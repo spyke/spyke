@@ -787,7 +787,7 @@ class SpykeListView(QtGui.QListView):
         sm.select(sel, flag)
         #print('end select loop')
         
-        if rows and on and scrollTo: # scroll to last row that was just selected
+        if scrollTo and on and len(rows) > 0: # scroll to last row that was just selected
             self.scrollTo(m.index(rows[-1]))
 
     def selectedRows(self):

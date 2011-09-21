@@ -843,26 +843,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_plotMatchErrorsButton_clicked(self):
         """Match pane plot match errors button click. Plot histogram of rms error between
         current cluster and all unclustered spikes"""
-        cluster = self.GetCluster()
-        neuron = cluster.neuron
-        spikes = self.sort.spikes
-        wavedata = self.sort.wavedata
-        sids = self.sort.usids
-        # TODO: might be faster to allocate array of -1s of length len(sids), fill
-        # it in the right places, and then rebuild when done by just grabbing the non-negative
-        # values
-        errs = []
-        for i, sid in enumerate(sids):
-            chan = spikes['chan'][sid]
-            nchans = spikes['nchans'][sid]
-            chans = spikes['chans'][sid][:nchans]
-            sdata = wavedata[sid, :nchans]
-            try:
-                ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
-            except ValueError: # not comparable
-                continue
-            errs.append(rmserror(ndata, sdata))
-        errs = self.sort.converter.AD2uV(np.asarray(errs)) # convert from AD units to uV
+        errs, sids, cluster = self.calc_match_errors()
         #print('%d spikes are comparable to cluster %d' % (len(errs), cluster.id))
         if self.ui.reuseMatchErrorPlotsCheckBox.isChecked():
             f = pl.gcf()
@@ -876,10 +857,46 @@ class SpykeWindow(QtGui.QMainWindow):
                  (cluster.id, len(errs)))
         pl.xlabel('rmserror (uV)')
         pl.ylabel('count')
-
+        
+    def calc_match_errors(self):
+        """Calculate rmserror between current cluster and all comparable unsorted spikes"""
+        cluster = self.GetCluster()
+        neuron = cluster.neuron
+        spikes = self.sort.spikes
+        wavedata = self.sort.wavedata
+        # TODO: might be faster to allocate array of -1s of length len(sids), fill
+        # it in the right places, and then rebuild when done by just grabbing the non-negative
+        # values
+        sids = []
+        errs = []
+        for i, sid in enumerate(self.sort.usids):
+            chan = spikes['chan'][sid]
+            nchans = spikes['nchans'][sid]
+            chans = spikes['chans'][sid][:nchans]
+            sdata = wavedata[sid, :nchans]
+            try:
+                ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
+            except ValueError: # not comparable
+                continue
+            sids.append(sid)
+            errs.append(rmserror(ndata, sdata))
+        sids = np.asarray(sids)
+        errs = self.sort.converter.AD2uV(np.asarray(errs)) # convert from AD units to uV
+        return errs, sids, cluster
+        
     @QtCore.pyqtSlot()
     def on_matchButton_clicked(self):
-        pass
+        """Deselect any selected unsorted spikes in uslist, and then select
+        unsorted spikes that fall below match error threshold"""
+        errs, sids, cluster = self.calc_match_errors()
+        thresh = self.ui.matchThreshSpinBox.value()
+        sids = sids[errs <= thresh]
+        sidis = self.sort.usids.searchsorted(sids)
+        # clear uslist selection, select sidis rows in uslist
+        sw = self.windows['Sort']
+        sw.uslist.clearSelection()
+        sw.uslist.selectRows(sidis, on=True, scrollTo=False)
+        print('matched %d spikes to cluster %d' % (len(sidis), cluster.id))
         
     def GetSortedSpikes(self):
         """Return IDs of currently selected sorted spikes"""
@@ -967,11 +984,11 @@ class SpykeWindow(QtGui.QMainWindow):
         return on
 
     def SelectSpike(self, sid, on=True):
-        """Toggle selection of given spike, as well as its current cluster, if any"""
+        """Set selection state of given spike, as well as its current cluster, if any"""
         sw = self.windows['Sort']
         nid = self.sort.spikes[sid]['nid']
         if nid == 0: # it's unclustered
-            usrow, = np.where(self.sort.usids == sid)
+            usrow = self.sort.usids.searchsorted(sid)
             sw.uslist.selectRows(usrow, on=on)
         else: # it's clustered
             nrow = self.sort.norder.index(nid)
