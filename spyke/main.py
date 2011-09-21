@@ -18,6 +18,8 @@ from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 
+import pylab as pl
+
 import scipy.stats
 import os
 import sys
@@ -34,7 +36,7 @@ from copy import copy
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
+from core import toiter, tocontig, intround, rmserror, MICRO, ClusterChange, SpykeToolWindow
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
@@ -836,6 +838,48 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(X) == 0:
             return # nothing to plot
         cw.plot(X, sids, nids)
+
+    @QtCore.pyqtSlot()
+    def on_plotMatchErrorsButton_clicked(self):
+        """Match pane plot match errors button click. Plot histogram of rms error between
+        current cluster and all unclustered spikes"""
+        cluster = self.GetCluster()
+        neuron = cluster.neuron
+        spikes = self.sort.spikes
+        wavedata = self.sort.wavedata
+        sids = self.sort.usids
+        # TODO: might be faster to allocate array of -1s of length len(sids), fill
+        # it in the right places, and then rebuild when done by just grabbing the non-negative
+        # values
+        errs = []
+        for i, sid in enumerate(sids):
+            chan = spikes['chan'][sid]
+            nchans = spikes['nchans'][sid]
+            chans = spikes['chans'][sid][:nchans]
+            sdata = wavedata[sid, :nchans]
+            try:
+                ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
+            except ValueError: # not comparable
+                continue
+            errs.append(rmserror(ndata, sdata))
+        errs = self.sort.converter.AD2uV(np.asarray(errs)) # convert from AD units to uV
+        #print('%d spikes are comparable to cluster %d' % (len(errs), cluster.id))
+        if self.ui.reuseMatchErrorPlotsCheckBox.isChecked():
+            f = pl.gcf()
+            pl.clf()
+        else:
+            f = pl.figure()
+        f.canvas.parent().setWindowTitle('cluster %d rmserror histogram' % cluster.id)
+        binsize = self.ui.matchErrorPlotBinSizeSpinBox.value()
+        pl.hist(errs, bins=np.arange(0, 50, binsize))
+        pl.title('rmserrors between cluster %d and %d comparable unsorted spikes' %
+                 (cluster.id, len(errs)))
+        pl.xlabel('rmserror (uV)')
+        pl.ylabel('count')
+
+    @QtCore.pyqtSlot()
+    def on_matchButton_clicked(self):
+        pass
         
     def GetSortedSpikes(self):
         """Return IDs of currently selected sorted spikes"""

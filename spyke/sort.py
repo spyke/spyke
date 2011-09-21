@@ -825,18 +825,21 @@ class Neuron(object):
     def __sub__(self, other):
         """Return difference array between self and other neurons' waveforms
         on common channels"""
-        selfwavedata, otherwavedata = self.getCommonWaveData(other)
+        selfwavedata, otherwavedata = self.getCommonWaveData(other.chans, other.chans,
+                                                             other.wave.data)
         return selfwavedata - otherwavedata
 
-    def getCommonWaveData(self, other):
-        chans = np.intersect1d(self.chans, other.chans, assume_unique=True)
+    def getCommonWaveData(self, otherchan, otherchans, otherwavedata):
+        """Return waveform data common to self's chans and otherchans, while
+        requiring that both include the other's maxchan"""
+        chans = np.intersect1d(self.chans, otherchans, assume_unique=True)
         if len(chans) == 0:
             raise ValueError('no common chans')
-        if self.chan not in chans or other.chan not in chans:
+        if self.chan not in chans or otherchan not in chans:
             raise ValueError("maxchans aren't part of common chans")
         selfchanis = self.chans.searchsorted(chans)
-        otherchanis = other.chans.searchsorted(chans)
-        return self.wave.data[selfchanis], other.wave.data[otherchanis]
+        otherchanis = otherchans.searchsorted(chans)
+        return self.wave.data[selfchanis], otherwavedata[otherchanis]
 
     def align(self, to):
         if to == 'best':
