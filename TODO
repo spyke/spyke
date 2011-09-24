@@ -270,6 +270,10 @@ KeyboardInterrupt:
         - or thresh control could just be clicking (and optionally holding) on the hist plot, with a vertical line plotted at current thresh, and maybe a printout of the value somewhere, perhaps as a spinedit
         - should this be on a match tab, or have its own match window?
 
+- WISHLIST: add vertical line threshold indicator to match error histogram, and make it user settable, and keep it synchronized with the match thresh spin edit in match tab
+
+- WISHLIST: maybe if you're plotting in PC space and you change cluster selection in nlist, the cluster plot should automatically replot (saves you from having to constantly go back to spyke frame and hit plot button when cycling through neurons). But, doing so might be slow on big sort sessions
+
 - renumbering is quite slow for track wide sorts with millions of spikes, not sure why
 
 - make sort pane doubleclick clear selected chans
@@ -1360,6 +1364,9 @@ DONE:
     self.sort.spikes['nid'][sids] = 0
     self.DeColourPoints(sids)
     self.UpdateClustersGUI()
+- plot only usids that best match current cluster out of all clusters
+- force match error hist to close when closing spyke
+
 
 
 

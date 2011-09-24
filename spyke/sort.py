@@ -463,7 +463,7 @@ class Sort(object):
             raise RuntimeError("Spikes have no common chans for PCA")
         if (hasattr(self, 'pcsids') and np.all(sids == self.pcsids) and
             hasattr(self, 'pcchans') and np.all(chans == self.pcchans)):
-            print('using saved PCs from chans %r of %d spikes' % (chans, nspikes))
+            print('using saved PCs from chans %r of %d spikes' % (list(chans), nspikes))
             return self.pc # no need to recalculate
 
         # collect data from chans from all spikes:

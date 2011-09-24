@@ -268,6 +268,10 @@ class SpykeWindow(QtGui.QMainWindow):
         self.close() # call close() before destroy() to avoid segfault
         self.destroy()
 
+    def closeEvent(self, event):
+        self.on_actionClose_triggered()
+        QtGui.QMainWindow.closeEvent(self, event)
+
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):
         """Undo button click. Undo previous cluster change"""
@@ -840,63 +844,80 @@ class SpykeWindow(QtGui.QMainWindow):
         cw.plot(X, sids, nids)
 
     @QtCore.pyqtSlot()
+    def on_calcMatchErrorsButton_clicked(self):
+        """Match pane calc button click. Calculate rmserror between all clusters and
+        all unsorted spikes. Also calculate which cluster each unsorted spike matches best"""
+        print('calculating rmserror between all clusters and all unsorted spikes')
+        spikes = self.sort.spikes
+        wavedata = self.sort.wavedata
+        cids = np.sort(self.sort.clusters.keys())
+        sids = self.sort.usids.copy()
+        errs = np.empty((len(cids), len(sids)), dtype=np.float32)
+        errs.fill(np.inf) # TODO: replace with sparse matrix with np.inf as default value
+        for cidi, cid in enumerate(cids):
+            neuron = self.sort.neurons[cid]
+            for sidi, sid in enumerate(sids):
+                chan = spikes['chan'][sid]
+                nchans = spikes['nchans'][sid]
+                chans = spikes['chans'][sid][:nchans]
+                sdata = wavedata[sid, :nchans] # TODO: this is a bit wasteful if no chans are in common
+                try:
+                    ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
+                except ValueError: # not comparable
+                    continue
+                errs[cidi, sidi] = rmserror(ndata, sdata)
+        errs = self.sort.converter.AD2uV(errs) # convert from AD units to uV, np.infs are OK
+        self.match = Match(cids, sids, errs)
+        print('done calculating rmserror between all clusters and all unsorted spikes')
+        return self.match
+        
+    @QtCore.pyqtSlot()
     def on_plotMatchErrorsButton_clicked(self):
         """Match pane plot match errors button click. Plot histogram of rms error between
-        current cluster and all unclustered spikes"""
-        errs, sids, cluster = self.calc_match_errors()
-        #print('%d spikes are comparable to cluster %d' % (len(errs), cluster.id))
+        current cluster and all unclustered spikes that best fit the current cluster"""
+        cluster = self.GetCluster()
+        cid = cluster.id
+        if not hasattr(self, 'match') or self.match == None:
+            self.match = self.on_calcMatchErrorsButton_clicked() # (re)calc
+        errs = self.match.get_best_errs(cid)
+        if len(errs) == 0:
+            print('no unsorted spikes fit cluster %d' % cid)
+            return
         if self.ui.reuseMatchErrorPlotsCheckBox.isChecked():
             f = pl.gcf()
             pl.clf()
         else:
             f = pl.figure()
-        f.canvas.parent().setWindowTitle('cluster %d rmserror histogram' % cluster.id)
+        f.canvas.parent().setWindowTitle('cluster %d rmserror histogram' % cid)
         binsize = self.ui.matchErrorPlotBinSizeSpinBox.value()
         pl.hist(errs, bins=np.arange(0, 50, binsize))
-        pl.title('rmserrors between cluster %d and %d comparable unsorted spikes' %
-                 (cluster.id, len(errs)))
+        pl.title('rmserrors between cluster %d and %d unsorted spikes' %
+                 (cid, len(errs)))
         pl.xlabel('rmserror (uV)')
         pl.ylabel('count')
-        
-    def calc_match_errors(self):
-        """Calculate rmserror between current cluster and all comparable unsorted spikes"""
-        cluster = self.GetCluster()
-        neuron = cluster.neuron
-        spikes = self.sort.spikes
-        wavedata = self.sort.wavedata
-        # TODO: might be faster to allocate array of -1s of length len(sids), fill
-        # it in the right places, and then rebuild when done by just grabbing the non-negative
-        # values
-        sids = []
-        errs = []
-        for i, sid in enumerate(self.sort.usids):
-            chan = spikes['chan'][sid]
-            nchans = spikes['nchans'][sid]
-            chans = spikes['chans'][sid][:nchans]
-            sdata = wavedata[sid, :nchans]
-            try:
-                ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
-            except ValueError: # not comparable
-                continue
-            sids.append(sid)
-            errs.append(rmserror(ndata, sdata))
-        sids = np.asarray(sids)
-        errs = self.sort.converter.AD2uV(np.asarray(errs)) # convert from AD units to uV
-        return errs, sids, cluster
         
     @QtCore.pyqtSlot()
     def on_matchButton_clicked(self):
         """Deselect any selected unsorted spikes in uslist, and then select
-        unsorted spikes that fall below match error threshold"""
-        errs, sids, cluster = self.calc_match_errors()
+        unsorted spikes that fall below match error threshold and fit the
+        current cluster best"""
+        cluster = self.GetCluster()
+        cid = cluster.id
+        if not hasattr(self, 'match') or self.match == None:
+            self.match = self.on_calcMatchErrorsButton_clicked() # (re)calc
+        errs = self.match.get_best_errs(cid)
+        if len(errs) == 0:
+            print('no unsorted spikes fit cluster %d' % cid)
+            return
+        bestsids = self.match.best[cid]
         thresh = self.ui.matchThreshSpinBox.value()
-        sids = sids[errs <= thresh]
+        sids = bestsids[errs <= thresh]
         sidis = self.sort.usids.searchsorted(sids)
         # clear uslist selection, select sidis rows in uslist
         sw = self.windows['Sort']
         sw.uslist.clearSelection()
         sw.uslist.selectRows(sidis, on=True, scrollTo=False)
-        print('matched %d spikes to cluster %d' % (len(sidis), cluster.id))
+        print('matched %d spikes to cluster %d' % (len(sids), cid))
         
     def GetSortedSpikes(self):
         """Return IDs of currently selected sorted spikes"""
@@ -1230,7 +1251,7 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             # TODO: if Save button is enabled, check if Sort is saved,
             # if not, prompt to save
-            print('deleting existing Sort and entries in list controls')
+            #print('deleting existing Sort and entries in list controls')
             clusters = self.sort.clusters # need it below
             #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
             del self.sort
@@ -1319,6 +1340,7 @@ class SpykeWindow(QtGui.QMainWindow):
         and metaphorically, .sort file too"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
+        pl.close('all') # close any mpl figures plotted for usids matching
         for windowtype in self.windows.keys():
             if windowtype != 'Shell': # leave shell window alone
                 self.CloseWindow(windowtype) # deletes from dict
@@ -1841,6 +1863,29 @@ class LFPWindow(DataWindow):
         self.setupUi(pos, size)
         self.setWindowTitle("LFP Window")
 
+
+class Match(object):
+    """Just an object to store rmserror calculations between all clusters
+    and all unsorted spikes, and also to store which cluster each spike
+    matches best"""
+    def __init__(self, cids=None, sids=None, errs=None):
+        self.cids = cids # row labels
+        self.sids = sids # column labels
+        self.errs = errs # len(cids) x len(sids) error array
+        self.best = {} # dict with cluster ids as keys and sids as values
+        bestcidis = errs.argmin(axis=0) # of length len(sids)
+        for cidi, cid in enumerate(cids):
+            sidis, = np.where(bestcidis == cidi)
+            self.best[cid] = sids[sidis]
+
+    def get_best_errs(self, cid):
+        """Get rmserror values between cluster cid and all the unsorted spikes
+        in self.sids that match it best"""
+        cidi = self.cids.searchsorted(cid)
+        bestsids = self.best[cid]
+        bestsidis = self.sids.searchsorted(bestsids)
+        return self.errs[cidi, bestsidis]
+        
 
 def set_excepthook():
     """Drops us into IPython's debugger on any error"""
