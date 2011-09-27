@@ -41,8 +41,8 @@ sigma = 0.175 * np.sqrt(nd)
 alpha = 1.0
 rmergex = 0.25
 rneighx = 4
-minmovex = 0.00001 # doesn't seem to make much of a speed difference
-maxstill = 200 # doesn't seem to make much of a speed difference
+minmovex = 0.00001 # increasing doesn't seem to make much of a speed difference
+maxstill = 200 # decreasing doesn't seem to make much of a speed difference
 maxnnomerges = 1000
 minpoints = 5
 
@@ -64,7 +64,7 @@ results = climb(data, sigma, alpha,
                 minmovex=minmovex, maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('climb took %.3f sec' % (time.time()-t0))
-
+print results
 '''
 cids, positions = results
 
