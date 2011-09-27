@@ -6,26 +6,25 @@
 """Nick's gradient-ascent (mountain-climbing) clustering algorithm"""
 
 #cimport cython # not sure why this was needed before
-from cython.parallel import prange, parallel
+from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
 
 cdef extern from "math.h":
-    double sqrt(double x) nogil
     double fabs(double x) nogil
     double exp(double x) nogil
-    double ceil(double x) nogil
-    double exp(double x) nogil
+    #double sqrt(double x) nogil
+    #double ceil(double x) nogil
 
 cdef extern from "stdio.h":
     int printf(char *, ...) nogil
     cdef void *malloc(size_t) nogil # allocates without clearing to 0
     cdef void *calloc(size_t, size_t) nogil # allocates with clearing to 0
     cdef void free(void *) nogil
-
+'''
 cdef extern from "string.h":
     cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
-
+'''
 # NOTE: stdout is buffered by default in linux. This means anything printed to screen from
 # within C code won't show up until it gets a newline, or until you call fflush(stdout).
 # Unbuffered output can be forced by running Python with the "-u" switch
@@ -97,7 +96,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - try using simplex algorithm for scout position update step, though that might miss
         local maxima
 
-        - rescale all data by 2*sigma so you can get rid of the div by twosigma2 operation?
+        - rescale all data by sqrt(2)*sigma so you can get rid of the div by twosigma2 operation?
             - only applies to Gaussian kernel, not Cauchy
 
         - try using the n nearest neighbours to calculate gradient, instead of a guassian with
@@ -146,8 +145,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double binsize = binx * sigma
     sigma /= binsize # scale sigma the same way data will be scaled, ie sigma = 1/binx
     '''
-    cdef double sigma2 = sigma * sigma
-    cdef double twosigma2 = 2 * sigma2
+    cdef double twosigma2 = 2 * sigma * sigma
     cdef double rmerge = rmergex * sigma # radius within which scout points are merged
     cdef double rmerge2 = rmerge * rmerge
     cdef double rneigh = rneighx * sigma # radius around scout to include data for gradient calc
@@ -260,7 +258,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         # move scouts up their local density gradient
         for scouti in prange(M, nogil=True):
             move_scout(scouti, sr, scouts, points, still, maxstill, N,
-                       ndims, sigma2, alpha, rneigh, rneigh2, minmove2)
+                       ndims, twosigma2, alpha, rneigh, rneigh2, minmove2)
 
         printf('.')
 
