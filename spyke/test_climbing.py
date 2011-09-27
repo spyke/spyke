@@ -33,17 +33,18 @@ GREY = '#555555' # reserve as junk cluster colour
 
 COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 
-data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
-data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
+#data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
+#data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
+data = np.load('/home/mspacek/data/ptc18/tr1/tr1_chanclust51_ch1,24,25_3PCs.npy')
 nd = data.shape[1]
-sigma = 0.25
+sigma = 0.175 * np.sqrt(nd)
 alpha = 1.0
-rmergex = 1.0
+rmergex = 0.25
 rneighx = 4
 #minmove = 0.00001
-maxstill = 100
+maxstill = 200
 maxnnomerges = 1000
-minpoints = 10
+minpoints = 5
 
 '''
 import pstats, cProfile
@@ -60,7 +61,7 @@ s.strip_dirs().sort_stats("time").print_stats()
 t0 = time.time()
 results = climb(data, sigma, alpha,
                 rneighx=rneighx, rmergex=rmergex,
-                maxstill=maxstill,
+                #maxstill=maxstill,
                 maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('climb took %.3f sec' % (time.time()-t0))
 

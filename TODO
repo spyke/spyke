@@ -259,16 +259,15 @@ KeyboardInterrupt:
 
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
-- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
+- add recalc for current cluster button to match tab - useful when you merge in some spikes and want to see what the plot has changed to, and what the next best usids are
 
-- reinstate freezing of points - disabling it seems to have caused a big slowdown for clusters with > 10k spikes
+- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
 
 - use a Gaussian lookup table. Building it might take a little while. Only do this for say > 10k spikes, or whatever the optimal cutoff is
 
-- compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
-    - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (up to a max number, and then subsamples, and maybe plots all matching clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab? Should also plot a histogram of rmserrors for all spikes that best match the current cluster, rmserror thresh control could be a slider under the histogram, using the same scale
-        - or thresh control could just be clicking (and optionally holding) on the hist plot, with a vertical line plotted at current thresh, and maybe a printout of the value somewhere, perhaps as a spinedit
-        - should this be on a match tab, or have its own match window?
+- finish implementing discretized cluster space using huge sparse matrix
+
+- NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise when they stop moving (or just by default on every iter)
 
 - WISHLIST: add vertical line threshold indicator to match error histogram, and make it user settable, and keep it synchronized with the match thresh spin edit in match tab
 
@@ -284,8 +283,6 @@ KeyboardInterrupt:
     - or, might be more convenient to have plotting controls as toolbar in cluster window
 
 - on .gdf export, popup dialog asking for which DIN value(s) represent start of stimulus condition(s) (including pauses/blank screens), so their times can be injected at the correct lines in the .gdf file. List all DIN values by default
-
-- NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise when they stop moving (or just by default on every iter)
 
 - when trying to decide which chans and which timepoints on each chan to use for clustering (or for feeding into PC), for each timepoint, plot a histogram of the voltage values for all the spikes, normalize it to get p values, and then calculate entropy. The max entropy comes from a Gaussian distribution, so any entropy values less than that are less Gaussian, and probably more clusterable. Isn't all this work just replicating what the KS test does?
     - actually, this won't work, because sum(plogp) doesn't care what order the p values come in in the distribution. So, if you took a Gaussian (which has max entropy of all distribs), split it in half, and flipped one half, you'd get the same entropy, but you'd now have a sort of bimodal distrib. Looked at distribution of noise in a nice cluster, at both t=0 and t=0.5ms (start and midpoints), and both fit a gaussian really well. So, to test for clusterability of channels/timepoints, probably best to use ks test and compare distribution of candidate point/chan to that of a gaussian. Probably have to normalize both to 0 mean and unit variance.
@@ -1366,6 +1363,12 @@ DONE:
     self.UpdateClustersGUI()
 - plot only usids that best match current cluster out of all clusters
 - force match error hist to close when closing spyke
+- compare junk spikes to clusters, if their rms error is small enough, include them in the best fitting cluster. User interface:
+    - user works on one cluster at a time, hits a match button that selects and plots all junk spikes (up to a max number, and then subsamples, and maybe plots all matching clusters too?) whose rmserror <= fairly strict user set threshold (AND which match that cluster best, out of all clusters?), in uVrms (editable spin edit). This would allow for merging, or realignment and recalculation of rmserror before merging. Maybe put these two controls on a match tab? Should also plot a histogram of rmserrors for all spikes that best match the current cluster, rmserror thresh control could be a slider under the histogram, using the same scale
+        - or thresh control could just be clicking (and optionally holding) on the hist plot, with a vertical line plotted at current thresh, and maybe a printout of the value somewhere, perhaps as a spinedit
+        - should this be on a match tab, or have its own match window?
+- reinstate freezing of points - disabling it seems to have caused a big slowdown for clusters with > 10k spikes
+
 
 
 

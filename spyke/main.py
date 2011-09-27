@@ -583,12 +583,12 @@ class SpykeWindow(QtGui.QMainWindow):
         # grab climb() params and run it
         self.update_sort_from_cluster_pane()
         npoints, ndims = data.shape
-        s.sigmasqrtndims = s.sigma * np.sqrt(ndims)
+        s.sigmasqrtndims = s.sigma * np.sqrt(ndims) # scale sigma with dimensionality
         print('clustering %d points in %d-D space' % (npoints, ndims))
         t0 = time.time()
         results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha,
                         rmergex=s.rmergex, rneighx=s.rneighx,
-                        maxnnomerges=1000,
+                        maxstill=s.maxstill, maxnnomerges=1000,
                         minpoints=s.minpoints)
         nids, scoutpositions = results
         # nids from climb() are 0-based, but we want our single unit nids to be 1-based,
@@ -847,12 +847,14 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_calcMatchErrorsButton_clicked(self):
         """Match pane calc button click. Calculate rmserror between all clusters and
         all unsorted spikes. Also calculate which cluster each unsorted spike matches best"""
-        print('calculating rmserror between all clusters and all unsorted spikes')
         spikes = self.sort.spikes
         wavedata = self.sort.wavedata
         cids = np.sort(self.sort.clusters.keys())
         sids = self.sort.usids.copy()
-        errs = np.empty((len(cids), len(sids)), dtype=np.float32)
+        ncids, nsids = len(cids), len(sids)
+        print('calculating rmserror between all %d clusters and all %d unsorted spikes'
+              % (ncids, nsids))
+        errs = np.empty((ncids, nsids), dtype=np.float32)
         errs.fill(np.inf) # TODO: replace with sparse matrix with np.inf as default value
         for cidi, cid in enumerate(cids):
             neuron = self.sort.neurons[cid]
@@ -868,7 +870,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 errs[cidi, sidi] = rmserror(ndata, sdata)
         errs = self.sort.converter.AD2uV(errs) # convert from AD units to uV, np.infs are OK
         self.match = Match(cids, sids, errs)
-        print('done calculating rmserror between all clusters and all unsorted spikes')
+        print('done calculating rmserror between all %d clusters and all %d unsorted spikes'
+              % (ncids, nsids))
         return self.match
         
     @QtCore.pyqtSlot()
