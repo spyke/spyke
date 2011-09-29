@@ -9,6 +9,7 @@
 from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
+import time
 
 cdef extern from "math.h":
     double fabs(double x) nogil
@@ -127,7 +128,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - multithread scout update and assignment of unclustered points step
         - get rid of all 1D temporary numpy arrays. Use alloc() instead
     """
-    cdef Py_ssize_t i, j, k, scouti, clustii
+    cdef Py_ssize_t i, j, k, scouti
     cdef bint merged=False
     cdef int iteri=0, nnomerges=0
     cdef int N = data.shape[0] # total num rows (points) in data table
@@ -139,25 +140,34 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     irange(cids, N) # init cids to consecutive int values
     cdef int M = N # current num scout points (clusters), each data point starts as its own scout
     cdef int npoints, npointsremoved, nclustsremoved
-    cdef long long li#, proddims
+    #cdef long long li, proddims
     '''
     cdef double binx = 0.25 # some fraction of sigma to bin data by
     cdef double binsize = binx * sigma
     sigma /= binsize # scale sigma the same way data will be scaled, ie sigma = 1/binx
     '''
-    #cdef double twosigma2 = 2 * sigma * sigma
-    cdef double sqrt2xsigma = sqrt(2) * sigma
-    # note that all of these are scaled by sqrt(ndims) via sigma scaling in caller.
-    # all are also div'd by sqrt2xsigma to match points and scouts arrays init'd below
-    # radius within which scout points are merged:
-    cdef double rmerge = rmergex / sqrt(2) # = rmergex * sigma / sqrt2xsigma
-    cdef double rmerge2 = rmerge * rmerge
+    # normalize all data related variables by norm to avoid having to
+    # do so in move_scout() loop. Note that all of these are also scaled
+    # by sqrt(ndims) via sigma scaling in caller:
+    cdef double norm = sqrt(2) * sigma
     # radius around scout to include data for gradient calc:
-    cdef double rneigh = rneighx / sqrt(2) # = rneighx * sigma / sqrt2xsigma
+    cdef double rneigh = rneighx * sigma / norm
     cdef double rneigh2 = rneigh * rneigh
+    # radius within which scout points are merged:
+    cdef double rmerge = rmergex * sigma / norm
+    cdef double rmerge2 = rmerge * rmerge
     # min motion in any direction in ndims space req'd for scout to be considered moving:
-    cdef double minmove = minmovex * alpha / sqrt(2) # = minmovex * sigma * alpha / sqrt2xsigma
+    cdef double minmove = minmovex * sigma * alpha / norm
     cdef double minmove2 = minmove * minmove
+
+    # pre-calc exp function:
+    cdef int nexps = 1000000
+    t0 = time.time()
+    cdef double *exps = <double *> malloc(nexps*sizeof(double)) # pre-calced exp function
+    if not exps: raise MemoryError("can't allocate exps")
+    for i in range(nexps):
+        exps[i] = exp(-<double>i / nexps * rneigh2) # watch out for int div
+    print('exps malloc took %.3f sec' % (time.time()-t0))
     
     # store point positions in a 2D C float array, since handling numpy data array directly
     # causes segfaults in prange() loops:
@@ -188,12 +198,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     assert data.max() < 2**32
     assert data.min() == 0
     '''
-    # init points and scouts at data point positions, divide by sqrt2xsigma
-    # here to avoid having to do so in move_scout() nested loops:
+    # init points and scouts at data point positions, normalize by norm
+    # to reduce math in move_scout() nested loops, and allow use of exps lookup
     for i in range(N): # M == N
         for k in range(ndims):
-            points[i][k] = data[i, k] / sqrt2xsigma
-            scouts[i][k] = data[i, k] / sqrt2xsigma
+            points[i][k] = data[i, k] / norm
+            scouts[i][k] = data[i, k] / norm
     '''
     # get dimensions of sparse matrices
     printf('dims = ')
@@ -261,8 +271,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # move scouts up their local density gradient
         for scouti in prange(M, nogil=True):
-            move_scout(scouti, sr, scouts, points, still, maxstill, N,
-                       ndims, alpha, rneigh, rneigh2, minmove2)
+            move_scout(scouti, sr, scouts, points, exps, nexps, still, maxstill,
+                       N, ndims, alpha, rneigh, rneigh2, minmove2)
 
         printf('.')
 
@@ -292,10 +302,10 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
            npointsremoved, npointsremoved/(<double>N)*100, nclustsremoved, minpoints)
 
-    # for display, restore sigma dependent params to be unnormalized by sqrt2xsigma:
-    rmerge *= sqrt2xsigma
-    rneigh *= sqrt2xsigma
-    minmove *= sqrt2xsigma
+    # for display, restore sigma dependent params to be unnormalized by norm:
+    rmerge *= norm
+    rneigh *= norm
+    minmove *= norm
 
     cdef int nmoving=0
     for i in range(M):
@@ -315,15 +325,17 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     for i in range(N):
         np_cids[i] = cids[i]
 
-    # generate contiguous numpy scouts array for return, scale up by sqrt2xsigma again
+    # generate contiguous numpy scouts array for return, scale up by norm again
     cdef np.ndarray[np.float32_t, ndim=2, mode='c'] np_scouts = np.empty((M, ndims), dtype=np.float32)
     for i in range(M):
         for k in range(ndims):
-            np_scouts[i, k] = scouts[sr[i]][k] * sqrt2xsigma # undo previous division
+            np_scouts[i, k] = scouts[sr[i]][k] * norm # undo previous normalization
 
     free(dims)
     free(ndi)
     free(cids)
+    free(exps)
+    free(points)
     free(scouts)
     free(sr)
     free(still)
@@ -369,7 +381,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
 
 
 cdef void move_scout(int i, int *sr, float **scouts, float **points,
-                     unsigned short *still, int maxstill,
+                     double *exps, int nexps, unsigned short *still, int maxstill,
                      int N, int ndims, double alpha,
                      double rneigh, double rneigh2, double minmove2) nogil:
     """Move a scout up its local density gradient"""
@@ -390,6 +402,7 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     dfill(kernel, 0, ndims)
     dfill(v, 0, ndims)
     # measure gradient:
+    cdef double nexpsdivrneigh2 =  nexps / rneigh2
     for j in range(N): # iterate over points, check if any are within rneigh
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
@@ -406,10 +419,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
                 # current scout and all points within rneigh
-                #kern = exp(-d2s[k] / twosigma2) # Gaussian kernel
-                kern = exp(-d2s[k]) # Gaussian kernel, arg already div'd by twosigma2
+                #kern = exp(-d2s[k]) # Gaussian kernel, arg already normed
+                kern = exps[<int>(d2s[k] * nexpsdivrneigh2)]
                 #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
-                #printf('%.3f ', kern)
                 kernel[k] += kern
                 v[k] += ds[k] * kern
             #nneighs += 1
