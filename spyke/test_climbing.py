@@ -59,12 +59,13 @@ s = pstats.Stats("Profile.prof")
 s.strip_dirs().sort_stats("time").print_stats()
 '''
 t0 = time.time()
-results = climb(data, sigma, alpha,
-                rneighx=rneighx, rmergex=rmergex,
-                minmovex=minmovex, maxstill=maxstill,
-                maxnnomerges=maxnnomerges, minpoints=minpoints)
+cids, pos = climb(data, sigma, alpha,
+                  rneighx=rneighx, rmergex=rmergex,
+                  minmovex=minmovex, maxstill=maxstill,
+                  maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('climb took %.3f sec' % (time.time()-t0))
-print results
+print cids
+print pos
 '''
 cids, positions = results
 

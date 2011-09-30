@@ -9,7 +9,7 @@
 from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
-import time
+#import time
 
 cdef extern from "math.h":
     double fabs(double x) nogil
@@ -149,10 +149,15 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # normalize all data related variables by norm to avoid having to
     # do so in move_scout() loop. Note that all of these are also scaled
     # by sqrt(ndims) via sigma scaling in caller:
-    cdef double norm = sqrt(2) * sigma
+    cdef int lenexps = 1000000
+    cdef double norm0 = sqrt(2) * sigma
+    cdef double rneigh0 = rneighx * sigma / norm0
+    cdef double rneigh02 = rneigh0 * rneigh0
+    cdef double norm = norm0 * rneigh0 / sqrt(lenexps)
     # radius around scout to include data for gradient calc:
-    cdef double rneigh = rneighx * sigma / norm
-    cdef double rneigh2 = rneigh * rneigh
+    cdef double rneigh = sqrt(lenexps)
+    cdef double rneigh2 = lenexps #neigh * rneigh
+    #printf('norm: %f, rneigh: %.1f, rneigh2: %.1f\n', norm, rneigh, rneigh2)
     # radius within which scout points are merged:
     cdef double rmerge = rmergex * sigma / norm
     cdef double rmerge2 = rmerge * rmerge
@@ -161,13 +166,12 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double minmove2 = minmove * minmove
 
     # pre-calc exp function:
-    cdef int nexps = 1000000
-    t0 = time.time()
-    cdef double *exps = <double *> malloc(nexps*sizeof(double)) # pre-calced exp function
+    #t0 = time.time()
+    cdef double *exps = <double *> malloc(lenexps*sizeof(double)) # pre-calced exp function
     if not exps: raise MemoryError("can't allocate exps")
-    for i in range(nexps):
-        exps[i] = exp(-<double>i / nexps * rneigh2) # watch out for int div
-    print('exps malloc took %.3f sec' % (time.time()-t0))
+    for i in range(lenexps):
+        exps[i] = exp(-<double>i / lenexps * rneigh02) # watch out for int div
+    #print('exps malloc took %.3f sec' % (time.time()-t0))
     
     # store point positions in a 2D C float array, since handling numpy data array directly
     # causes segfaults in prange() loops:
@@ -271,7 +275,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # move scouts up their local density gradient
         for scouti in prange(M, nogil=True):
-            move_scout(scouti, sr, scouts, points, exps, nexps, still, maxstill,
+            move_scout(scouti, sr, scouts, points, exps, still, maxstill,
                        N, ndims, alpha, rneigh, rneigh2, minmove2)
 
         printf('.')
@@ -381,7 +385,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
 
 
 cdef void move_scout(int i, int *sr, float **scouts, float **points,
-                     double *exps, int nexps, unsigned short *still, int maxstill,
+                     double *exps, unsigned short *still, int maxstill,
                      int N, int ndims, double alpha,
                      double rneigh, double rneigh2, double minmove2) nogil:
     """Move a scout up its local density gradient"""
@@ -402,7 +406,6 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     dfill(kernel, 0, ndims)
     dfill(v, 0, ndims)
     # measure gradient:
-    cdef double nexpsdivrneigh2 =  nexps / rneigh2
     for j in range(N): # iterate over points, check if any are within rneigh
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
@@ -419,9 +422,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
                 # current scout and all points within rneigh
-                #kern = exp(-d2s[k]) # Gaussian kernel, arg already normed
-                kern = exps[<int>(d2s[k] * nexpsdivrneigh2)]
-                #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel, faster
+                #kern = exp(-d2s[k] / lenexps * rneigh02) # Gaussian kernel
+                kern = exps[<int>(d2s[k])]
+                #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel
                 kernel[k] += kern
                 v[k] += ds[k] * kern
             #nneighs += 1
