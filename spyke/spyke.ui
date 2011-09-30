@@ -883,40 +883,11 @@
           <double>2.000000000000000</double>
          </property>
         </widget>
-        <widget class="ClusterTabSpinBox" name="maxstillSpinBox">
-         <property name="geometry">
-          <rect>
-           <x>165</x>
-           <y>110</y>
-           <width>62</width>
-           <height>25</height>
-          </rect>
-         </property>
-         <property name="maximum">
-          <number>999999999</number>
-         </property>
-         <property name="value">
-          <number>200</number>
-         </property>
-        </widget>
-        <widget class="QLabel" name="label_26">
-         <property name="geometry">
-          <rect>
-           <x>105</x>
-           <y>115</y>
-           <width>56</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>maxstill:</string>
-         </property>
-        </widget>
         <widget class="ClusterTabSpinBox" name="minpointsSpinBox">
          <property name="geometry">
           <rect>
            <x>165</x>
-           <y>135</y>
+           <y>110</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -935,7 +906,7 @@
          <property name="geometry">
           <rect>
            <x>105</x>
-           <y>140</y>
+           <y>115</y>
            <width>56</width>
            <height>16</height>
           </rect>
@@ -983,7 +954,7 @@
          <property name="geometry">
           <rect>
            <x>170</x>
-           <y>160</y>
+           <y>140</y>
            <width>56</width>
            <height>27</height>
           </rect>
@@ -1987,7 +1958,6 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <tabstop>rmergeXSpinBox</tabstop>
   <tabstop>rneighXSpinBox</tabstop>
   <tabstop>alphaSpinBox</tabstop>
-  <tabstop>maxstillSpinBox</tabstop>
   <tabstop>minpointsSpinBox</tabstop>
   <tabstop>clusterButton</tabstop>
   <tabstop>xDimComboBox</tabstop>

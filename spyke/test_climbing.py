@@ -61,7 +61,7 @@ s.strip_dirs().sort_stats("time").print_stats()
 t0 = time.time()
 cids, pos = climb(data, sigma, alpha,
                   rneighx=rneighx, rmergex=rmergex,
-                  minmovex=minmovex, maxstill=maxstill,
+                  minmovex=minmovex,
                   maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('climb took %.3f sec' % (time.time()-t0))
 print cids
