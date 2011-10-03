@@ -42,17 +42,15 @@ alpha = 1.0
 rmergex = 0.25
 rneighx = 4
 minmovex = 0.00001 # increasing doesn't seem to make much of a speed difference
-maxstill = 200 # decreasing doesn't seem to make much of a speed difference
 maxnnomerges = 1000
 minpoints = 5
-
 '''
 import pstats, cProfile
 s = """
-climb(data, sigma, alpha,
-      rneighx=rneighx, rmergex=rmergex,
-      minmove=minmove, maxstill=maxstill,
-      maxnnomerges=maxnnomerges, minpoints=minpoints)
+cids, pos = climb(data, sigma, alpha,
+                  rneighx=rneighx, rmergex=rmergex,
+                  minmovex=minmovex,
+                  maxnnomerges=maxnnomerges, minpoints=minpoints)
 """
 cProfile.runctx(s, globals(), locals(), "Profile.prof")
 s = pstats.Stats("Profile.prof")
@@ -66,9 +64,8 @@ cids, pos = climb(data, sigma, alpha,
 print('climb took %.3f sec' % (time.time()-t0))
 print cids
 print pos
-'''
-cids, positions = results
 
+'''
 nclusters = len(positions)
 
 ncolours = len(COLOURS)
@@ -95,4 +92,21 @@ if data.shape[1] > 3:
 
 
 show()
+'''
+'''
+# correct result:
+
+M=22516.M=15173.M=10333.M=7091.M=4931.M=3460.M=2498.M=1852.M=1396.M=1086.M=850.M=668.M=554.M=458.M=388.M=333.M=280.M=249.M=215.M=183.M=161.M=141.M=130.M=119.M=112.M=103.M=97.M=91.M=78.M=75.M=70.M=66.M=60.M=57.M=52.M=48.M=47.M=45...M=44.M=42.M=39.M=37..M=35.M=34.M=33.M=32.M=30.M=29..M=27..M=26.M=25..M=24..M=23.M=22...M=20..M=19........M=18..M=17....M=16........................M=15...........M=14..............M=13.........M=12.........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+8 points (0.0%) and 8 clusters deleted for having less than 5 points each
+nniters: 1138
+nclusters: 4
+sigma: 0.303, rneigh: 1.212, rmerge: 0.076, alpha: 1.000
+nmoving: 0, minmove: 0.000003
+still array:
+[200, 200, 200, 200, ]
+climb took 59.251 sec
+(array([0, 0, 0, ..., 1, 2, 2], dtype=int32), array([[ 0.88302857,  0.84062564,  0.48508993],
+       [ 0.56020129, -1.09298003,  0.05824601],
+       [ 0.18563971,  0.04221672, -1.32369912],
+       [-1.45865393,  0.36367384,  0.25685614]], dtype=float32))
 '''

@@ -156,7 +156,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double norm = norm0 * rneigh0 / sqrt(lenexps)
     # radius around scout to include data for gradient calc:
     cdef double rneigh = sqrt(lenexps)
-    cdef double rneigh2 = lenexps #neigh * rneigh
+    cdef double rneigh2 = lenexps # rneigh * rneigh
     #printf('norm: %f, rneigh: %.1f, rneigh2: %.1f\n', norm, rneigh, rneigh2)
     # radius within which scout points are merged:
     cdef double rmerge = rmergex * sigma / norm
@@ -402,7 +402,7 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     #nneighs = 0
     dfill(kernel, 0, ndims)
     dfill(v, 0, ndims)
-    # measure gradient:
+    # measure gradient v:
     for j in range(N): # iterate over points, check if any are within rneigh
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
@@ -423,8 +423,7 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
                 kern = exps[<int>(d2s[k])] # data rescaled for Gaussian lookup table
                 #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel
                 kernel[k] += kern
-                v[k] += ds[k] * kern
-            #nneighs += 1
+                v[k] += ds[k] * kern # this is why you can't store fabs of ds[k]!
     # update scout position in direction of v, normalize by kernel
     # nneighs (and kernel?) will never be 0, because each scout starts as a point
     move2 = 0.0 # reset
