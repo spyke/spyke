@@ -350,7 +350,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
 
 cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmerge2,
-                      bint *still, int N, int *cids, int ndims, int *merged):
+                      bint *still, int N, int *cids, int ndims, bint *merged):
     """Merge pairs of scout points sufficiently close to each other"""
     cdef Py_ssize_t i=0, j, k
     cdef double d, d2
