@@ -129,7 +129,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         - get rid of all 1D temporary numpy arrays. Use alloc() instead
     """
     cdef Py_ssize_t i, j, k, scouti
-    cdef bint merged=False
+    cdef bint merged=False, allstill
     cdef int iteri=0, nnomerges=0
     cdef int N = data.shape[0] # total num rows (points) in data table
     cdef int ndims = data.shape[1] # num cols in data table
@@ -282,6 +282,14 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         printf('.')
 
         iteri += 1
+
+        allstill = True
+        for i in range(M):
+            if still[i] == False:
+                allstill = False
+                break
+        if allstill:
+            break
 
     printf('\n')
 
