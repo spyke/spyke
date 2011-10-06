@@ -33,10 +33,9 @@ cdef extern from "string.h":
 cdef short MAXUINT16 = 2**16 - 1
 
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-          double sigma=0.25, double alpha=2.0,
-          double rmergex=0.25, double rneighx=4,
-          double minmovex=0.00001, int maxnnomerges=1000,
-          int minpoints=5):
+          double sigma=0.25, double rmergex=0.25, double rneighx=4,
+          double alpha=2.0, int maxgrad=1000,
+          double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
     """Implement Nick's gradient ascent (mountain climbing) clustering algorithm
     TODO:
         - test if datah and scoutspace can be allocated - if not (too many dimensions,
@@ -202,6 +201,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     assert data.max() < 2**32
     assert data.min() == 0
     '''
+    # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
+    randis = np.arange(N)
+    np.random.shuffle(randis) # in place
+    data = data[randis]
+    sortis = randis.argsort()
     # init points and scouts at data point positions, normalize by norm
     # to reduce math in move_scout() nested loops, and allow use of exps lookup
     for i in range(N): # M == N
@@ -275,9 +279,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # move scouts up their local density gradient
         for scouti in prange(M, nogil=True, schedule='dynamic'):
-            if still[scouti]: continue # only move scout points that aren't frozen:
-            move_scout(scouti, sr, scouts, points, exps, still,
-                       N, ndims, alpha, rneigh, rneigh2, minmove2)
+            if not still[scouti]: # only move scout points that aren't frozen
+                move_scout(scouti, sr, scouts, points, exps, still, maxgrad,
+                           N, ndims, alpha, rneigh, rneigh2, minmove2)
 
         printf('.')
 
@@ -326,7 +330,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             nmoving += 1
     printf('nniters: %d\n',iteri)
     printf('nclusters: %d\n', M)
-    printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f\n', sigma, rneigh, rmerge, alpha)
+    printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f, maxgrad: %d\n',
+           sigma, rneigh, rmerge, alpha, maxgrad)
     printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
     printf('still array:\n[')
     for i in range(M):
@@ -337,6 +342,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] np_cids = np.empty(N, dtype=np.int32)
     for i in range(N):
         np_cids[i] = cids[i]
+    np_cids = np_cids[sortis] # undo shuffling
 
     # generate contiguous numpy scouts array for return, scale up by norm again
     cdef np.ndarray[np.float32_t, ndim=2, mode='c'] np_scouts = np.empty((M, ndims), dtype=np.float32)
@@ -396,12 +402,12 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
 
 
 cdef void move_scout(int i, int *sr, float **scouts, float **points,
-                     double *exps, bint *still,
+                     double *exps, bint *still, int maxgrad,
                      int N, int ndims, double alpha,
                      double rneigh, double rneigh2, double minmove2) nogil:
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
-    #cdef int nneighs
+    cdef int npoints=0
     cdef bint continuej=False
     cdef double d2, kern, move, move2
     cdef double *ds = <double *> malloc(ndims*sizeof(double))
@@ -438,6 +444,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
                 #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel
                 kernel[k] += kern
                 v[k] += ds[k] * kern # this is why you can't store fabs of ds[k]!
+            npoints += 1
+            if npoints == maxgrad: # this is kinda like doing nearest neighbours though...
+                break # out of j loop
     # update scout position in direction of v, normalize by kernel
     # nneighs (and kernel?) will never be 0, because each scout starts as a point
     move2 = 0.0 # reset

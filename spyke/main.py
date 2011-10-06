@@ -586,10 +586,9 @@ class SpykeWindow(QtGui.QMainWindow):
         s.sigmasqrtndims = s.sigma * np.sqrt(ndims) # scale sigma with dimensionality
         print('clustering %d points in %d-D space' % (npoints, ndims))
         t0 = time.time()
-        results = climb(data, sigma=s.sigmasqrtndims, alpha=s.alpha,
-                        rmergex=s.rmergex, rneighx=s.rneighx,
-                        maxnnomerges=1000,
-                        minpoints=s.minpoints)
+        results = climb(data, sigma=s.sigmasqrtndims, rmergex=s.rmergex, rneighx=s.rneighx,
+                        alpha=s.alpha, maxgrad=s.maxgrad,
+                        maxnnomerges=1000, minpoints=s.minpoints)
         nids, scoutpositions = results
         # nids from climb() are 0-based, but we want our single unit nids to be 1-based,
         # to leave room for junk cluster at 0 and multiunit clusters at nids < 0. So add 1:
@@ -1735,6 +1734,7 @@ class SpykeWindow(QtGui.QMainWindow):
         s.rmergex = ui.rmergeXSpinBox.value()
         s.rneighx = ui.rneighXSpinBox.value()
         s.alpha = ui.alphaSpinBox.value()
+        s.maxgrad = ui.maxgradSpinBox.value()
         s.minpoints = ui.minpointsSpinBox.value()
 
     def update_gui_from_sort(self):
@@ -1762,6 +1762,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ui.rmergeXSpinBox.setValue(s.rmergex)
         ui.rneighXSpinBox.setValue(s.rneighx)
         ui.alphaSpinBox.setValue(s.alpha)
+        ui.maxgradSpinBox.setValue(s.maxgrad)
         ui.minpointsSpinBox.setValue(s.minpoints)
 
     def get_detectortrange(self):

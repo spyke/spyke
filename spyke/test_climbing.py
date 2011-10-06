@@ -38,9 +38,10 @@ COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGEN
 data = np.load('/home/mspacek/data/ptc18/tr1/tr1_chanclust51_ch1,24,25_3PCs.npy')
 nd = data.shape[1]
 sigma = 0.175 * np.sqrt(nd)
-alpha = 1.0
 rmergex = 0.25
 rneighx = 4
+alpha = 1.0
+maxgrad = 1000
 minmovex = 0.00001 # increasing doesn't seem to make much of a speed difference
 maxnnomerges = 1000
 minpoints = 5
@@ -57,9 +58,8 @@ s = pstats.Stats("Profile.prof")
 s.strip_dirs().sort_stats("time").print_stats()
 '''
 t0 = time.time()
-cids, pos = climb(data, sigma, alpha,
-                  rneighx=rneighx, rmergex=rmergex,
-                  minmovex=minmovex,
+cids, pos = climb(data, sigma, rmergex=rmergex, rneighx=rneighx,
+                  alpha=alpha, maxgrad=maxgrad, minmovex=minmovex,
                   maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('climb took %.3f sec' % (time.time()-t0))
 print cids
