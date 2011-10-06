@@ -260,9 +260,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     while True:
 
-        if nnomerges == maxnnomerges:
-            break
-
         # merge scouts within rmerge of each other
         M = merge_scouts(M, sr, scouts, rmerge, rmerge2, still,
                          N, cids, ndims, &merged)
@@ -272,6 +269,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             merged = False # reset
         else: # no mergers happened on this iter
             nnomerges += 1 # inc
+
+        if nnomerges == maxnnomerges:
+            break
 
         # move scouts up their local density gradient
         for scouti in prange(M, nogil=True, schedule='dynamic'):
@@ -372,11 +372,14 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
             # for each pair of scouts, check if any pair is within rmerge of each other
             d2 = 0.0 # reset
             for k in range(ndims):
-                d = fabs(scouts[sr[i]][k] - scouts[sr[j]][k])
-                if d > rmerge: # break out of k loop, continue to next j
+                d = scouts[sr[i]][k] - scouts[sr[j]][k]
+                if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
                 d2 += d * d
+                #if d2 > rmerge2: # no apparent speedup
+                #    continuej = True
+                #    break # out of k loop
             if continuej:
                 continuej = False # reset
                 j += 1
@@ -420,6 +423,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
                 break # out of k loop
             d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
             d2 += d2s[k]
+            #if d2 > rneigh2: # no apparent speedup
+            #    continuej = True
+            #    break # out of k loop
         if continuej:
             continuej = False # reset
             continue # to next j
