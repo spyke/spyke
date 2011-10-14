@@ -1010,9 +1010,13 @@ class SpykeWindow(QtGui.QMainWindow):
         """Return sorted IDs of all currently selected spikes, even if they're only
         implicitly selected via their parent cluster(s)"""
         sids = []
-        clusters = self.GetClusters()
-        for cluster in clusters:
-            sids.append(cluster.neuron.sids)
+        ssids = self.GetSortedSpikes()
+        sids.append(ssids)
+        # if no sorted spikes explicitly selected, check if any clusters are:
+        if len(ssids) == 0:
+            clusters = self.GetClusters()
+            for cluster in clusters:
+                sids.append(cluster.neuron.sids)
         # include any selected usids as well
         sids.append(self.GetUnsortedSpikes())
         sids = np.concatenate(sids)
