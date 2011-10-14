@@ -1454,7 +1454,7 @@ class SortWindow(SpykeToolWindow):
         newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
-        plotdims = spw.GetClusterPlotDimNames()
+        plotdims = spw.GetClusterPlotDims()
         newcluster.update_pos()
 
         # save more undo/redo stuff
@@ -1571,7 +1571,7 @@ class SortWindow(SpykeToolWindow):
         # replace old ids with new ids
         cw = spw.windows['Cluster']
         oldclusters = s.clusters.copy() # no need to deepcopy, just copy references, not clusters
-        dims = spw.GetClusterPlotDimNames()
+        dims = spw.GetClusterPlotDims()
         for oldid, newid in zip(oldids, newids):
             newid = int(newid) # keep as Python int, not numpy int
             if oldid == newid:
@@ -1617,7 +1617,7 @@ class SortWindow(SpykeToolWindow):
             print(msg)
             return
         gw = spw.windows['Cluster'].glWidget
-        dims = spw.GetClusterPlotDimNames()
+        dims = spw.GetClusterPlotDims()
         gw.focus = np.float32([ cluster.normpos[dim] for dim in dims ])
         gw.panTo() # pan to new focus
         gw.updateGL()

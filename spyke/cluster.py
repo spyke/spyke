@@ -501,7 +501,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         x, y = self.cursorPosGL()
         sid = self.pick(x, y)
         if sid != None:
-            dims = spw.GetClusterPlotDimNames()
+            dims = spw.GetClusterPlotDims()
             nid = sort.spikes[sid]['nid']
             tip = 'sid: %d' % sid
             try:

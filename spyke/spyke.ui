@@ -1338,8 +1338,7 @@
           </rect>
          </property>
          <property name="toolTip">
-          <string>Calculate rmserror between all clusters and unsorted spikes. Don't
-forget to recalc when you merge/delete/split/renumber clusters!</string>
+          <string>Uncluster points &gt; nstds from origin of cluster density histogram</string>
          </property>
          <property name="text">
           <string>Clean</string>
@@ -1384,8 +1383,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Plot rmserror between selected cluster and
-unsorted spikes that fit it best</string>
+          <string>Plot point density histogram as a f'n of distance from origin</string>
          </property>
          <property name="text">
           <string>Hist</string>
@@ -1420,7 +1418,7 @@ unsorted spikes that fit it best</string>
           <double>0.100000000000000</double>
          </property>
          <property name="value">
-          <double>3.000000000000000</double>
+          <double>4.000000000000000</double>
          </property>
         </widget>
        </widget>
