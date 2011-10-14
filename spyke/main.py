@@ -844,9 +844,9 @@ class SpykeWindow(QtGui.QMainWindow):
         cw.plot(X, sids, nids)
 
     @QtCore.pyqtSlot()
-    def on_cleanHistButton_clicked(self):
-        """Cluster pane cleaning hist button click. Plot histogram of distances of all
-        points in cluster plot from origin, compare to Gaussian"""
+    def get_cleaning_density_hist(self):
+        """Calculate histogram of point densities of selected spikes over selected
+        clustering dimensions from origin"""
         dims = self.GetClusteringDims()
         X, sids = self.get_param_matrix(dims)
         # each dim in X has 0 mean, so X is centered on origin
@@ -862,6 +862,16 @@ class SpykeWindow(QtGui.QMainWindow):
         # density histogram: npoints / fractional volume        
         dhist = np.float64(rhist) / np.diff(edges**ndims)
         dhist /= (dhist * binwidth).sum() # normalize to unit area
+        return dhist, ledges, binwidth, ndims, sids, r
+
+    @QtCore.pyqtSlot()
+    def on_cleanHistButton_clicked(self):
+        """Cluster pane cleaning hist button click. Plot histogram of point
+        densities of selected spikes over selected clustering dimensions from origin,
+        compare to Gaussian. Note that each time you reject points > nstds away
+        from origin, the distrib may get less and less Gaussian, and more and more
+        uniform"""
+        dhist, ledges, binwidth, ndims, sids, r = self.get_cleaning_density_hist()
         ris = ledges + (binwidth / 2) # center values of bins
         gauss = g(0, 1, ris)
         gauss /= (gauss * binwidth).sum() # normalize to unit area
@@ -877,6 +887,19 @@ class SpykeWindow(QtGui.QMainWindow):
         pl.title('%dD cluster density histogram, DJS = %.3f' % (ndims, djs))
         pl.xlabel('nstdevs')
         pl.ylabel('normalized density')
+
+    @QtCore.pyqtSlot()
+    def on_cleanButton_clicked(self):
+        """Cluster pane clean button click. Set as unsorted those points that fall outside
+        of nstds distance away in the cluster density histogram plotted above"""
+        # r vals are in nstds units:
+        dhist, ledges, binwidth, ndims, sids, r = self.get_cleaning_density_hist()
+        nstds = self.ui.cleanNstdsSpinBox.value()
+        nids = self.sort.spikes[sids]['nid']
+        unids = np.unique(nids)
+        oldclusters = [ self.sort.clusters[unid] for unid in unids ]
+        nids[r > nstds] = 0 # set some sids to cluster 0, ie unclustered
+        self.apply_clustering(oldclusters, sids, nids, verb='clean')
 
     @QtCore.pyqtSlot()
     def on_calcMatchErrorsButton_clicked(self):
