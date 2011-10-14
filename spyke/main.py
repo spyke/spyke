@@ -88,12 +88,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
-        for rowi in range(6, 9): # select the 6th, 7th, and 8th dims in dimlist
-            ## TODO: should really provide a list of dims to select, and then search for
-            ## index of each of those dims, instead of hard coding indices here
-            # there really should be an easier way, but .setSelection(QRect, ...) doesn't work?
-            #self.ui.dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
-            self.ui.dimlist.item(rowi).setSelected(True) # a little nicer
+        self.SetClusteringDims(['pc0', 'pc1', 'pc2'])
         '''
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -498,9 +493,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes (sorted)
             oldclusters = s.clusters.values() # all clusters
-        items = self.ui.dimlist.selectedItems()
-        if len(items) == 0: raise RuntimeError('No cluster dimensions selected')
-        dims = [ str(item.text()) for item in items ] # dim names to cluster on
+        dims = self.GetClusteringDims()
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
         subsidss = []
         msgs = []
@@ -710,7 +703,7 @@ class SpykeWindow(QtGui.QMainWindow):
         clusterable_chans = core.intersect1d(chanslist) # find intersection
 
         # get selected chans
-        chans = self.get_selchans()
+        chans = self.get_selchans(sids)
         for chan in chans:
             if chan not in clusterable_chans:
                 raise RuntimeError("chan %d not common to all spikes, pick from %r"
@@ -822,33 +815,43 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.zDimComboBox.setCurrentIndex(zi)
         self.on_plotButton_clicked() # replot
 
+    def get_param_matrix(self, dims, scale=True):
+        """Given list of dims, get clustering parameter matrix according to
+        current selection of sids and channels"""
+        s = self.sort
+        cw = self.OpenWindow('Cluster') # in case it isn't already open
+        pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        sids = self.GetImplicitSpikes() # only selected spikes
+        if len(sids) == 0: # if none selected, return all spike ids
+            sids = self.sort.spikes['id']
+        selchans = None
+        if pcs: # only potentially do auto chan selection if using PCs:
+            selchans = self.get_selchans(sids)
+        X = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=scale)
+        return X, sids
+
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
         """Cluster pane plot button click. Plot points and colour them
         according to their clusters."""
         s = self.sort
         cw = self.OpenWindow('Cluster') # in case it isn't already open
-        dims = self.GetClusterPlotDimNames()
-        pcs = np.any([ dim.startswith('pc') for dim in dims ])
-        sids = self.GetImplicitSpikes() # plot only selected spikes
-        if len(sids) == 0: # if none selected, plot all spikes
-            sids = self.sort.spikes['id']
-        selchans = None
-        if pcs:
-            selchans = self.get_selchans(sids)
-        nids = s.spikes['nid'][sids]
-        X = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=True)
-        #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
+        dims = self.GetClusterPlotDims()
+        X, sids = self.get_param_matrix(dims)
         if len(X) == 0:
             return # nothing to plot
+        nids = s.spikes['nid'][sids]
         cw.plot(X, sids, nids)
 
     @QtCore.pyqtSlot()
     def on_cleanHistButton_clicked(self):
         """Cluster pane cleaning hist button click. Plot histogram of distances of all
         points in cluster plot from origin, compare to Gaussian"""
-        X = np.float64(self.windows['Cluster'].glWidget.points) # use double precision
-        X -= X.mean(axis=0) # ensure we're centered on origin
+        dims = self.GetClusteringDims()
+        X, sids = self.get_param_matrix(dims)
+        # each dim in X has 0 mean, so X is centered on origin
+        X = np.float64(X) # convert to double precision
+        ndims = X.shape[1]
         r = np.sqrt(np.square(X).sum(axis=1)) # all +ve values
         r /= r.std() # normalize to unit variance
         nbins = self.ui.cleanHistNbinsSpinBox.value()
@@ -871,7 +874,7 @@ class SpykeWindow(QtGui.QMainWindow):
         f.canvas.parent().setWindowTitle('dhist')
         pl.bar(ledges, dhist, width=binwidth)
         pl.plot(ris, gauss, '-') # plot Gaussian on top of density histogram
-        pl.title('cluster density histogram, DJS = %.3f' % djs)
+        pl.title('%dD cluster density histogram, DJS = %.3f' % (ndims, djs))
         pl.xlabel('nstdevs')
         pl.ylabel('normalized density')
 
@@ -1123,7 +1126,24 @@ class SpykeWindow(QtGui.QMainWindow):
         coloris = gw.sids.searchsorted(commonsids)
         gw.colors[coloris] = GREYRGB
 
-    def GetClusterPlotDimNames(self):
+    def SetClusteringDims(self, dims):
+        dimlist = self.ui.dimlist
+        alldims = [ str(dimlist.item(rowi).text()) for rowi in range(dimlist.count()) ]
+        rowis = [ alldims.index(dim) for dim in dims ]
+        for rowi in rowis:
+            # there really should be an easier way, but .setSelection(QRect, ...) doesn't work?
+            #dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
+            dimlist.item(rowi).setSelected(True) # a little nicer
+
+    def GetClusteringDims(self):
+        """Get selected clustering dimensions in dimlist"""
+        items = self.ui.dimlist.selectedItems()
+        if len(items) == 0:
+            raise RuntimeError('No clustering dimensions selected')
+        dims = [ str(item.text()) for item in items ] # dim names
+        return dims
+
+    def GetClusterPlotDims(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
         x = str(self.ui.xDimComboBox.currentText())
         y = str(self.ui.yDimComboBox.currentText())
@@ -1180,7 +1200,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # restore the old clusters
         oldclusters = []
-        dims = self.GetClusterPlotDimNames()
+        dims = self.GetClusterPlotDims()
         t0 = time.time()
         # NOTE: oldunids are not necessarily sorted
         for nid, pos, normpos in zip(oldunids, poss, normposs):
