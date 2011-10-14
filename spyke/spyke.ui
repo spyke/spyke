@@ -141,7 +141,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="detectTab">
        <attribute name="title">
@@ -655,7 +655,7 @@
          <rect>
           <x>5</x>
           <y>5</y>
-          <width>321</width>
+          <width>216</width>
           <height>186</height>
          </rect>
         </property>
@@ -775,7 +775,7 @@
         <widget class="QLabel" name="label_22">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>95</x>
            <y>14</y>
            <width>56</width>
            <height>16</height>
@@ -788,7 +788,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="sigmaSpinBox">
          <property name="geometry">
           <rect>
-           <x>165</x>
+           <x>155</x>
            <y>9</y>
            <width>62</width>
            <height>25</height>
@@ -813,7 +813,7 @@
         <widget class="QLabel" name="label_23">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>95</x>
            <y>39</y>
            <width>56</width>
            <height>16</height>
@@ -826,7 +826,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="rmergeXSpinBox">
          <property name="geometry">
           <rect>
-           <x>165</x>
+           <x>155</x>
            <y>34</y>
            <width>62</width>
            <height>25</height>
@@ -848,7 +848,7 @@
         <widget class="QLabel" name="label_24">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>95</x>
            <y>89</y>
            <width>56</width>
            <height>16</height>
@@ -861,7 +861,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="alphaSpinBox">
          <property name="geometry">
           <rect>
-           <x>165</x>
+           <x>155</x>
            <y>84</y>
            <width>62</width>
            <height>25</height>
@@ -886,7 +886,7 @@
         <widget class="ClusterTabSpinBox" name="minpointsSpinBox">
          <property name="geometry">
           <rect>
-           <x>165</x>
+           <x>155</x>
            <y>110</y>
            <width>62</width>
            <height>25</height>
@@ -905,7 +905,7 @@
         <widget class="QLabel" name="label_27">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>95</x>
            <y>115</y>
            <width>56</width>
            <height>16</height>
@@ -918,7 +918,7 @@
         <widget class="QLabel" name="label_32">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>95</x>
            <y>64</y>
            <width>56</width>
            <height>16</height>
@@ -931,7 +931,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="rneighXSpinBox">
          <property name="geometry">
           <rect>
-           <x>165</x>
+           <x>155</x>
            <y>59</y>
            <width>62</width>
            <height>25</height>
@@ -953,7 +953,7 @@
         <widget class="QPushButton" name="clusterButton">
          <property name="geometry">
           <rect>
-           <x>170</x>
+           <x>160</x>
            <y>160</y>
            <width>56</width>
            <height>27</height>
@@ -969,7 +969,7 @@
         <widget class="QLabel" name="label_35">
          <property name="geometry">
           <rect>
-           <x>105</x>
+           <x>95</x>
            <y>140</y>
            <width>56</width>
            <height>16</height>
@@ -982,14 +982,14 @@
         <widget class="ClusterTabSpinBox" name="maxgradSpinBox">
          <property name="geometry">
           <rect>
-           <x>165</x>
+           <x>155</x>
            <y>135</y>
            <width>62</width>
            <height>25</height>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Minimum number of points in a cluster</string>
+          <string>Maximum number of points to use in gradient calculation</string>
          </property>
          <property name="maximum">
           <number>999999999</number>
@@ -1002,7 +1002,7 @@
        <widget class="QGroupBox" name="plottingGroupBox">
         <property name="geometry">
          <rect>
-          <x>335</x>
+          <x>230</x>
           <y>5</y>
           <width>146</width>
           <height>186</height>
@@ -1297,6 +1297,130 @@
          </property>
          <property name="text">
           <string>pc0pc1pc2</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QGroupBox" name="cleaningGroupBox">
+        <property name="geometry">
+         <rect>
+          <x>385</x>
+          <y>5</y>
+          <width>96</width>
+          <height>186</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>Cleaning</string>
+        </property>
+        <widget class="QSpinBox" name="cleanHistNbinsSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>40</x>
+           <y>30</y>
+           <width>51</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="maximum">
+          <number>999999999</number>
+         </property>
+         <property name="value">
+          <number>100</number>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="cleanButton">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>160</y>
+           <width>46</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Calculate rmserror between all clusters and unsorted spikes. Don't
+forget to recalc when you merge/delete/split/renumber clusters!</string>
+         </property>
+         <property name="text">
+          <string>Clean</string>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="reuseCleanPlotsCheckBox">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>55</y>
+           <width>91</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>reuse plots</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_37">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>35</y>
+           <width>46</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>nbins:</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="cleanHistButton">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>75</y>
+           <width>46</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Plot rmserror between selected cluster and
+unsorted spikes that fit it best</string>
+         </property>
+         <property name="text">
+          <string>Hist</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_38">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>135</y>
+           <width>46</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>nstds:</string>
+         </property>
+        </widget>
+        <widget class="QDoubleSpinBox" name="cleanNstdsSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>40</x>
+           <y>130</y>
+           <width>51</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="singleStep">
+          <double>0.100000000000000</double>
+         </property>
+         <property name="value">
+          <double>3.000000000000000</double>
          </property>
         </widget>
        </widget>

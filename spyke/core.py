@@ -1600,3 +1600,38 @@ def padarr(x, align=8):
     x.resize(nitems + npaditems, refcheck=False) # pads with npaditems zeros, each of length dtypenbytes
     assert x.nbytes % align == 0
     return x
+
+def normpdf(p):
+    """Ensure p is normalized (sums to 1). Return p unchanged if it's already normalized.
+    Otherwise, return it normalized. I guess this treats p as a pmf, not strictly a pdf"""
+    p = np.asarray(p)
+    psum = p.sum()
+    if not np.allclose(psum, 1.0) and psum > 0: # make sure the probs sum to 1
+        #print("p sums to %f instead of 1, normalizing" % psum)
+        p = np.copy(p) # copy before modifying in-place
+        p /= float(psum)
+    return p
+
+def DKLi(pi, qi):
+    """Kullback-Leibler divergence from true probability distribution p to arbitrary
+    distribution q. Assumes pis and qis are both normalized and have no zeros in them"""
+    return sum(pi * np.log2(pi/qi))
+
+def DKL(p, q):
+    """Kullback-Leibler divergence from true probability distribution p to arbitrary
+    distribution q"""
+    assert len(p) == len(q)
+    p, q = normpdf(np.asarray(p)), normpdf(np.asarray(q))
+    i = p*q != 0 # avoid singularities
+    pi, qi = p[i], q[i]
+    return DKLi(pi, qi)
+
+def DJS(p, q):
+    """Jensen-Shannon divergence, a symmetric measure of divergence between
+    distributions p and q"""
+    assert len(p) == len(q)
+    p, q = normpdf(np.asarray(p)), normpdf(np.asarray(q))
+    i = p*q != 0 # avoid singularities
+    pi, qi = p[i], q[i]
+    mi = (pi + qi) / 2
+    return (DKLi(pi, mi) + DKLi(qi, mi)) / 2

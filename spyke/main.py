@@ -37,6 +37,7 @@ from copy import copy
 
 import core
 from core import toiter, tocontig, intround, rmserror, MICRO, ClusterChange, SpykeToolWindow
+from core import DJS, g
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
@@ -841,6 +842,38 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(X) == 0:
             return # nothing to plot
         cw.plot(X, sids, nids)
+
+    @QtCore.pyqtSlot()
+    def on_cleanHistButton_clicked(self):
+        """Cluster pane cleaning hist button click. Plot histogram of distances of all
+        points in cluster plot from origin, compare to Gaussian"""
+        X = np.float64(self.windows['Cluster'].glWidget.points) # use double precision
+        X -= X.mean(axis=0) # ensure we're centered on origin
+        r = np.sqrt(np.square(X).sum(axis=1)) # all +ve values
+        r /= r.std() # normalize to unit variance
+        nbins = self.ui.cleanHistNbinsSpinBox.value()
+        rhist, edges = np.histogram(r, nbins) # distance hist, edges includes the right edge
+        ledges = edges[:-1] # keep just the left edges, discard the last right edge
+        assert len(ledges) == nbins
+        binwidth = ledges[1] - ledges[0]
+        # density histogram: npoints / fractional volume        
+        dhist = np.float64(rhist) / np.diff(edges**ndims)
+        dhist /= (dhist * binwidth).sum() # normalize to unit area
+        ris = ledges + (binwidth / 2) # center values of bins
+        gauss = g(0, 1, ris)
+        gauss /= (gauss * binwidth).sum() # normalize to unit area
+        djs = DJS(dhist, gauss)
+        if self.ui.reuseCleanPlotsCheckBox.isChecked():
+            f = pl.gcf()
+            pl.clf()
+        else:
+            f = pl.figure()
+        f.canvas.parent().setWindowTitle('dhist')
+        pl.bar(ledges, dhist, width=binwidth)
+        pl.plot(ris, gauss, '-') # plot Gaussian on top of density histogram
+        pl.title('cluster density histogram, DJS = %.3f' % djs)
+        pl.xlabel('nstdevs')
+        pl.ylabel('normalized density')
 
     @QtCore.pyqtSlot()
     def on_calcMatchErrorsButton_clicked(self):
