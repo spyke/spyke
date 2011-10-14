@@ -827,15 +827,15 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane plot button click. Plot points and colour them
         according to their clusters."""
         s = self.sort
-        dims = self.GetClusterPlotDimNames()
         cw = self.OpenWindow('Cluster') # in case it isn't already open
-        selchans = None
+        dims = self.GetClusterPlotDimNames()
         pcs = np.any([ dim.startswith('pc') for dim in dims ])
-        if pcs: # do PCA on and plot only selected spikes
-            sids = self.GetImplicitSpikes()
+        sids = self.GetImplicitSpikes() # plot only selected spikes
+        if len(sids) == 0: # if none selected, plot all spikes
+            sids = self.sort.spikes['id']
+        selchans = None
+        if pcs:
             selchans = self.get_selchans(sids)
-        else: # plot all spikes
-            sids = s.spikes['id']
         nids = s.spikes['nid'][sids]
         X = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=True)
         #X = self.sort.get_component_matrix(dims=dims, weighting='pca')
@@ -1435,14 +1435,14 @@ class SpykeWindow(QtGui.QMainWindow):
         sw.uslist.updateAll()
 
         cw = self.OpenWindow('Cluster')
+        # try and restore saved cluster selection
+        try: self.SelectClusters(sort.selnids)
+        except AttributeError: pass
         self.on_plotButton_clicked() # create glyph on first open
         # try and restore saved camera view
         try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
         except AttributeError: pass
         self.RestoreClusters2GUI()
-        # try and restore saved cluster selection
-        try: self.SelectClusters(sort.selnids)
-        except AttributeError: pass
         self.setWindowTitle(self.caption + ' | ' + self.sort.sortfname)
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)

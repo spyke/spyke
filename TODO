@@ -1,8 +1,6 @@
     
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
-- when clusters are selected, cluster plot just those selected clusters. This is already the case for PCs, but really it should be the case for any dimensions, such as x0 y0 Vpp. When none are selected, (try to) cluster plot all clusters at once. (This generally isn't possible for PCs since all clusters don't have sufficiently overlapping chans)
-
 - add recalc for current cluster button to match tab - useful when you merge in some spikes and want to see what the plot has changed to, and what the next best usids are
 
 - replace mpl Lines with LineCollection for speed. See demo/line_collections.py
@@ -1110,6 +1108,7 @@ DONE:
 - reinstate freezing of points - disabling it seems to have caused a big slowdown for clusters with > 10k spikes
 - use a Gaussian lookup table. Building it might take a little while. Only do this for say > 10k spikes, or whatever the optimal cutoff is
 - make sort pane right click clear selected chans
+- when clusters are selected, cluster plot just those selected clusters. This is already the case for PCs, but really it should be the case for any dimensions, such as x0 y0 Vpp. When none are selected, (try to) cluster plot all clusters at once. (This generally isn't possible for PCs since all clusters don't have sufficiently overlapping chans)
 
 
 
