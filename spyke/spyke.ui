@@ -680,7 +680,7 @@
            <x>0</x>
            <y>25</y>
            <width>86</width>
-           <height>161</height>
+           <height>126</height>
           </rect>
          </property>
          <property name="toolTip">
@@ -733,42 +733,42 @@
          </item>
          <item>
           <property name="text">
-           <string>pc0</string>
+           <string>c0</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc1</string>
+           <string>c1</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc2</string>
+           <string>c2</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc3</string>
+           <string>c3</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc4</string>
+           <string>c4</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>peaks2</string>
+           <string>pk2</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>peaks6</string>
+           <string>pk6</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>peaks10</string>
+           <string>pk10</string>
           </property>
          </item>
         </widget>
@@ -998,6 +998,39 @@
           <number>1000</number>
          </property>
         </widget>
+        <widget class="QLabel" name="label_36">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>160</y>
+           <width>16</width>
+           <height>15</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>c = </string>
+         </property>
+        </widget>
+        <widget class="QComboBox" name="componentAnalysisComboBox">
+         <property name="geometry">
+          <rect>
+           <x>25</x>
+           <y>155</y>
+           <width>56</width>
+           <height>24</height>
+          </rect>
+         </property>
+         <item>
+          <property name="text">
+           <string>PCA</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>ICA</string>
+          </property>
+         </item>
+        </widget>
        </widget>
        <widget class="QGroupBox" name="plottingGroupBox">
         <property name="geometry">
@@ -1091,27 +1124,27 @@
          </item>
          <item>
           <property name="text">
-           <string>pc0</string>
+           <string>c0</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc1</string>
+           <string>c1</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc2</string>
+           <string>c2</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc3</string>
+           <string>c3</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc4</string>
+           <string>c4</string>
           </property>
          </item>
         </widget>
@@ -1159,27 +1192,27 @@
          </item>
          <item>
           <property name="text">
-           <string>pc0</string>
+           <string>c0</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc1</string>
+           <string>c1</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc2</string>
+           <string>c2</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc3</string>
+           <string>c3</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc4</string>
+           <string>c4</string>
           </property>
          </item>
         </widget>
@@ -1227,27 +1260,27 @@
          </item>
          <item>
           <property name="text">
-           <string>pc0</string>
+           <string>c0</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc1</string>
+           <string>c1</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc2</string>
+           <string>c2</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc3</string>
+           <string>c3</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>pc4</string>
+           <string>c4</string>
           </property>
          </item>
         </widget>
@@ -1283,7 +1316,7 @@
           <string>x0y0Vpp</string>
          </property>
         </widget>
-        <widget class="QPushButton" name="pc0pc1pc2Button">
+        <widget class="QPushButton" name="c0c1c2Button">
          <property name="geometry">
           <rect>
            <x>75</x>
@@ -1293,10 +1326,11 @@
           </rect>
          </property>
          <property name="toolTip">
-          <string>Set plot dimensions to pc0, pc1, pc2</string>
+          <string>Set plot dimensions to first 3 PCs/ICs
+Ctrl+click forces recalculation of components</string>
          </property>
          <property name="text">
-          <string>pc0pc1pc2</string>
+          <string>c0c1c2</string>
          </property>
         </widget>
        </widget>

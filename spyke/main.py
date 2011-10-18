@@ -88,7 +88,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
-        self.SetClusteringDims(['pc0', 'pc1', 'pc2'])
+        self.SetClusteringDims(['c0', 'c1', 'c2'])
         '''
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -494,13 +494,13 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = spikes['id'] # all spikes (sorted)
             oldclusters = s.clusters.values() # all clusters
         dims = self.GetClusteringDims()
-        pcs = np.any([ dim.startswith('pc') for dim in dims ])
+        comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
         subsidss = []
         msgs = []
         t0 = time.time()
-        if pcs and np.all(sids == spikes['id']): # doing PCA on all spikes
+        if comps and np.all(sids == spikes['id']): # doing PCA/ICA on all spikes
             if not oldclusters:
-                print("no existing clusters to sequentially do PCA on and subcluster")
+                print("no existing clusters to sequentially do PCA/ICA on and subcluster")
                 return
             # partition data by existing clusters before clustering,
             # restrict to only clustered spikes:
@@ -571,8 +571,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 print(msg)
                 return
         else: # do spike parameter (non-wavefrom) clustering
-            selchans = self.get_selchans(sids)
-            data = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=True)
+            data, sids = self.get_param_matrix(sids=sids, dims=dims, scale=True)
         data = tocontig(data) # ensure it's contiguous for climb()
         # grab climb() params and run it
         self.update_sort_from_cluster_pane()
@@ -736,14 +735,14 @@ class SpykeWindow(QtGui.QMainWindow):
         # TODO: add stdev2, stdev6 and stdev10 that use the most variable points
         # per chan, or somehow, the most non-gaussian points per chan
 
-        if wctype == 'peaks2':
+        if wctype == 'pk2':
             # use data at peaks of template
             ntis = 2
             tis = np.zeros((nchans, ntis), dtype=int)
             for chani in range(nchans):
                 t0, t1 = np.sort([template[chani].argmin(), template[chani].argmax()])
                 tis[chani] = t0, t1
-        elif wctype == 'peaks6':
+        elif wctype == 'pk6':
             # use data at peaks of template, and before and after each peak
             ntis = 6
             tis = np.zeros((nchans, ntis), dtype=int)
@@ -755,7 +754,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 t3 = max(t4-dt3, 0)
                 t5 = min(t4+dt3, nt-1)
                 tis[chani] = intround([t0, t1, t2, t3, t4, t5])
-        elif wctype == 'peaks10':
+        elif wctype == 'pk10':
             # use data at peaks of template, and before and after each peak
             ntis = 10
             tis = np.zeros((nchans, ntis), dtype=int)
@@ -801,9 +800,13 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetPlotDims('x0', 'y0', 'Vpp')
 
     @QtCore.pyqtSlot()
-    def on_pc0pc1pc2Button_clicked(self):
-        """Cluster pane pc0pc1pc2 button click. Set plot dims to pc0, pc1, and pc2"""
-        self.SetPlotDims('pc0', 'pc1', 'pc2')
+    def on_c0c1c2Button_clicked(self):
+        """Cluster pane c0c1c2 button click. Set plot dims to c0, c1, and c2"""
+        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
+            try:
+                del self.sort.comp # force recalc
+            except AttributeError: pass
+        self.SetPlotDims('c0', 'c1', 'c2')
 
     def SetPlotDims(self, x, y, z):
         """Set plot dimensions to x, y, z, and replot"""
@@ -815,19 +818,22 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.zDimComboBox.setCurrentIndex(zi)
         self.on_plotButton_clicked() # replot
 
-    def get_param_matrix(self, dims, scale=True):
+    def get_param_matrix(self, sids=None, dims=None, scale=True):
         """Given list of dims, get clustering parameter matrix according to
         current selection of sids and channels"""
         s = self.sort
         cw = self.OpenWindow('Cluster') # in case it isn't already open
-        pcs = np.any([ dim.startswith('pc') for dim in dims ])
-        sids = self.GetImplicitSpikes() # only selected spikes
+        comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
+        if sids == None:
+            sids = self.GetImplicitSpikes() # only selected spikes
         if len(sids) == 0: # if none selected, return all spike ids
             sids = self.sort.spikes['id']
         selchans = None
-        if pcs: # only potentially do auto chan selection if using PCs:
+        kind = None
+        if comps: # only potentially do auto chan selection if using PCs/ICs:
             selchans = self.get_selchans(sids)
-        X = s.get_param_matrix(dims=dims, sids=sids, selchans=selchans, scale=scale)
+            kind = str(self.ui.componentAnalysisComboBox.currentText())
+        X = s.get_param_matrix(kind=kind, sids=sids, dims=dims, selchans=selchans, scale=scale)
         return X, sids
 
     @QtCore.pyqtSlot()
@@ -837,7 +843,7 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         dims = self.GetClusterPlotDims()
-        X, sids = self.get_param_matrix(dims)
+        X, sids = self.get_param_matrix(dims=dims)
         if len(X) == 0:
             return # nothing to plot
         nids = s.spikes['nid'][sids]
@@ -848,7 +854,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Calculate histogram of point densities of selected spikes over selected
         clustering dimensions from origin"""
         dims = self.GetClusteringDims()
-        X, sids = self.get_param_matrix(dims)
+        X, sids = self.get_param_matrix(dims=dims)
         # each dim in X has 0 mean, so X is centered on origin
         X = np.float64(X) # convert to double precision
         ndims = X.shape[1]
@@ -1007,7 +1013,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return sids[0]
 
     def GetImplicitSpikes(self):
-        """Return sorted IDs of all currently selected spikes, even if they're only
+        """Return sorted IDs of all currently selected spikes. If none selected, return those
         implicitly selected via their parent cluster(s)"""
         sids = []
         ssids = self.GetSortedSpikes()
@@ -1135,7 +1141,7 @@ class SpykeWindow(QtGui.QMainWindow):
         gw = self.windows['Cluster'].glWidget
         for cluster in clusters:
             neuron = cluster.neuron
-            # not all (or any) of neuron.sids may currently be plotted, due to PCA
+            # not all (or any) of neuron.sids may currently be plotted
             commonsids = np.intersect1d(neuron.sids, gw.sids)
             coloris = gw.sids.searchsorted(commonsids)
             if neuron.id < 1: # junk or multiunit cluster
@@ -1148,7 +1154,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Restore spike point colour in cluster plot at spike indices to unclustered GREY.
         Need to call cw.glWidget.updateGL() afterwards"""
         gw = self.windows['Cluster'].glWidget
-        # not all (or any) of sids may currently be plotted, due to PCA
+        # not all (or any) of sids may currently be plotted
         commonsids = np.intersect1d(sids, gw.sids)
         coloris = gw.sids.searchsorted(commonsids)
         gw.colors[coloris] = GREYRGB

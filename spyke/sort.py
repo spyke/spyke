@@ -112,8 +112,8 @@ class Sort(object):
         # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
         d = self.__dict__.copy()
         # Spikes and wavedata arrays are (potentially) saved separately.
-        # usids and PCs can be regenerated from the spikes array.
-        for attr in ['spikes', 'wavedata', 'usids', 'pc', 'pcsids', 'pcchans']:
+        # usids and PCs/ICs can be regenerated from the spikes array.
+        for attr in ['spikes', 'wavedata', 'usids', 'comp', 'compkind', 'compsids', 'compchans']:
             # keep _stream during normal pickling for multiprocessing, but remove it
             # manually when pickling to .sort
             try: del d[attr]
@@ -404,24 +404,24 @@ class Sort(object):
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
-    def get_param_matrix(self, dims=None, sids=None, selchans=None, scale=True):
+    def get_param_matrix(self, kind=None, sids=None, dims=None, selchans=None, scale=True):
         """Organize dims parameters from sids into a data matrix, each column
-        corresponding to a dim. To do PCA clustering on all spikes, one maxchan at
+        corresponding to a dim. To do PCA/ICA clustering on all spikes, one maxchan at
         a time, caller needs to call this multiple times, one for each set of
         maxchan unique spikes,"""
         spikes = self.spikes
         if sids == None:
             sids = spikes['id'] # default to all spikes
-        pcs = np.any([ dim.startswith('pc') for dim in dims ])
-        if pcs:
-            X = self.get_pc_matrix(sids, chans=selchans)
+        comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
+        if comps:
+            X = self.get_component_matrix(kind, sids, chans=selchans)
         data = []
         for dim in dims:
             if dim in spikes.dtype.fields:
                 data.append( np.float32(spikes[dim][sids]) )
-            elif dim.startswith('pc'):
-                pcid = int(lstrip(dim, 'pc'))
-                data.append( np.float32(X[:, pcid]) )
+            elif dim.startswith('c') and dim[-1].isdigit():
+                compid = int(lstrip(dim, 'c'))
+                data.append( np.float32(X[:, compid]) )
             else:
                 raise RuntimeError('unknown dim %r' % dim)
         # np.column_stack returns a copy, not modifying the original array
@@ -442,9 +442,9 @@ class Sort(object):
                     d /= d.std()
         return data
 
-    def get_pc_matrix(self, sids, chans=None):
-        """Find set of chans common to all sids, and do PCA on those waveforms. Or,
-        if chans are specified, limit PCA to them"""
+    def get_component_matrix(self, kind, sids, chans=None):
+        """Find set of chans common to all sids, and do PCA/ICA on those waveforms. Or,
+        if chans are specified, limit PCA/ICA to them"""
         import mdp # delay as late as possible
         spikes = self.spikes
         chanss = spikes['chans'][sids]
@@ -460,31 +460,65 @@ class Sort(object):
         nchans = len(chans)
         nspikes = len(sids)
         if nchans == 0:
-            raise RuntimeError("Spikes have no common chans for PCA")
-        if (hasattr(self, 'pcsids') and np.all(sids == self.pcsids) and
-            hasattr(self, 'pcchans') and np.all(chans == self.pcchans)):
-            print('using saved PCs from chans %r of %d spikes' % (list(chans), nspikes))
-            return self.pc # no need to recalculate
+            raise RuntimeError("Spikes have no common chans for %s" % kind)
+        if (hasattr(self, 'comp') and
+            hasattr(self, 'compkind') and kind == self.compkind and
+            hasattr(self, 'compsids') and np.all(sids == self.compsids) and
+            hasattr(self, 'compchans') and np.all(chans == self.compchans)):
+            print('using saved %ss from chans %r of %d spikes' % (kind[:-1], list(chans), nspikes))
+            return self.comp # no need to recalculate
 
         # collect data from chans from all spikes:
+        if kind not in ['PCA', 'ICA']:
+            raise ValueError('unknown kind %r' % kind)
         nt = self.wavedata.shape[2]
-        print('doing PCA on chans %r of %d spikes' % (list(chans), nspikes))
-        data = np.zeros((nspikes, nchans, nt), dtype=np.float64) # need float64 for PCA
+        print('doing %s on chans %r of %d spikes' % (kind, list(chans), nspikes))
+        data = np.zeros((nspikes, nchans, nt), dtype=np.float32) # need float64 for PCA?????
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = self.wavedata[sid][spikechanis]
-        data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-        self.pc = mdp.pca(data, output_dim=5, svd=False)
-        self.pcsids = sids
-        self.pcchans = copy(chans) # make sure this isn't just a pointer to panel.selected_chans
+        t0 = time.time()
+        if kind == 'PCA':
+            data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+            #comp = mdp.pca(data, output_dim=5, svd=False)
+            comp = mdp.pca(data, output_dim=5) # keep just 1st 5 components
+        else: # kind == 'ICA':
+            mean = data.mean(axis=0) # mean across all spikes
+            #datai = np.column_stack([mean.argmin(axis=1), mean.argmax(axis=1)]) # nchans x 2
+            datai = abs(mean).argsort(axis=1)[:, ::-1] # highest to lowest amplitude points, per chan
+            ntkeep = nt // 7
+            # for speed, keep only the largest 14% of points, per chan. Largest points are
+            # probably the most important ones
+            datai = datai[:, :ntkeep]
+            print datai
+            datai += np.row_stack(np.arange(nchans)) * nt
+            datai = datai.ravel() # 1D of len nchans*ntkeep
+            data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+            data = data[:, datai] # nspikes x (nchans*ntkeep)
+            print('data.shape = %r' % (data.shape,))
+            while True: # sometimes ICA components don't converge
+                #comp = mdp.nodes.JADENode(white_comp=10*nchans)(data)[:, :5]
+                #comp = mdp.nodes.CuBICANode(white_comp=10*nchans)(data)[:, :5]
+                try:
+                    #comp = mdp.fastica(data, white_comp=20*nchans)[:, :5] # keep just 1st 5 components
+                    comp = mdp.fastica(data)[:, :5] # keep just 1st 5 components
+                except mdp.NodeException:
+                    continue # try again
+                if np.all(np.all(comp, axis=0)): # if first five columns are nonzero
+                    break
+        self.comp = comp
+        print('%s took %.3f sec' % (kind, time.time()-t0))
+        self.compkind = kind
+        self.compsids = sids
+        self.compchans = copy(chans) # make sure this isn't just a pointer to panel.selected_chans
         unids = list(np.unique(spikes['nid'][sids])) # set of all nids that sids span
         for nid in unids:
             # don't update pos of junk cluster, if any, since it might not have any chans
-            # common to all its spikes, and therefore can't have PCA done on it
+            # common to all its spikes, and therefore can't have PCA/ICA done on it
             if nid != 0:
-                self.clusters[nid].update_pcpos()
-        return self.pc
+                self.clusters[nid].update_comppos()
+        return self.comp
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
@@ -769,9 +803,11 @@ class Neuron(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        # don't save any calculated principal components:
-        d.pop('pc', None)
-        d.pop('pcsids', None)
+        # don't save any calculated PCs/ICs:
+        #d.pop('comp', None)
+        #d.pop('compkind', None)
+        #d.pop('compsids', None)
+        #d.pop('compchans', None)
         # don't save plot self is assigned to, since that'll change anyway on unpickle
         d['plt'] = None
         return d
@@ -1281,7 +1317,7 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox = QtGui.QComboBox(self)
         nsamplesComboBox.setToolTip('Number of spikes per cluster to randomly select')
         nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
-        nsamplesComboBox.addItems(['1', '5', '10', '20', '50'])
+        nsamplesComboBox.addItems(['1', '5', '10', '20', '50', '100'])
         nsamplesComboBox.setCurrentIndex(3)
         toolbar.addWidget(nsamplesComboBox)
         self.connect(nsamplesComboBox, QtCore.SIGNAL("activated(int)"),

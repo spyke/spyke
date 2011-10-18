@@ -965,7 +965,7 @@ class NSListModel(SListModel):
         if neurons:
             self.sids = np.concatenate([ neuron.sids for neuron in neurons ])
         else:
-            self.sids = np.asarray([])
+            self.sids = np.empty(0, dtype=np.int32)
         self.nspikes = len(self.sids)
         self.reset() # triggers new calls to rowCount() and data()
 
