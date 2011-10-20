@@ -1,3 +1,12 @@
+- make Align best align only according to signal on selected chans - if none selected, select chans according to average mean and radius of selected spikes by calling get_selchans
+
+- something wrong with find next/prev most similar cluster, channel overlap calc is wrong? not finding obvious candidates. Might be a new bug from adding multiunit clusters?
+
+- make ESC in main window propagate to Sort window, to clear current selection
+
+- add .sort filename exported from to ptcs header.descr dict
+
+- should I really be scaling all data to have unit variance before feeding to PCA? PCA only requires 0 mean, according to wiki
     
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 

@@ -20,6 +20,7 @@ from PyQt4.QtCore import Qt
 import numpy as np
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
+import scipy
 
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
@@ -469,7 +470,7 @@ class Sort(object):
             return self.comp # no need to recalculate
 
         # collect data from chans from all spikes:
-        if kind not in ['PCA', 'ICA']:
+        if kind not in ['PCA', 'ICA', 'PCA+ICA']:
             raise ValueError('unknown kind %r' % kind)
         nt = self.wavedata.shape[2]
         print('doing %s on chans %r of %d spikes' % (kind, list(chans), nspikes))
@@ -483,30 +484,62 @@ class Sort(object):
             data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
             #comp = mdp.pca(data, output_dim=5, svd=False)
             comp = mdp.pca(data, output_dim=5) # keep just 1st 5 components
-        else: # kind == 'ICA':
-            mean = data.mean(axis=0) # mean across all spikes
-            #datai = np.column_stack([mean.argmin(axis=1), mean.argmax(axis=1)]) # nchans x 2
-            datai = abs(mean).argsort(axis=1)[:, ::-1] # highest to lowest amplitude points, per chan
-            ntkeep = nt // 7
-            # for speed, keep only the largest 14% of points, per chan. Largest points are
-            # probably the most important ones
-            datai = datai[:, :ntkeep]
-            print datai
-            datai += np.row_stack(np.arange(nchans)) * nt
-            datai = datai.ravel() # 1D of len nchans*ntkeep
-            data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-            data = data[:, datai] # nspikes x (nchans*ntkeep)
+        else: # kind in ['ICA', 'PCA+ICA']:
+            if kind == 'ICA':
+                # for speed, keep only the largest 14% of points, per chan. Largest points are
+                # probably the most important ones
+                mean = data.mean(axis=0) # mean across all spikes
+                datai = abs(mean).argsort(axis=1)[:, ::-1] # highest to lowest amplitude points, per chan
+                ntkeep = nt // 7
+                datai = datai[:, :ntkeep]
+                print datai
+                datai += np.row_stack(np.arange(nchans)) * nt
+                datai = datai.ravel() # 1D of len nchans*ntkeep
+                data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+                data = data[:, datai] # nspikes x (nchans*ntkeep)
+            else: # kind == 'PCA+ICA'
+                # do PCA first, to reduce dimensionality and speed up ICA:
+                data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+                data = mdp.pca(data, output_dim=7*nchans) # keep 7 components per chan on average
             print('data.shape = %r' % (data.shape,))
-            while True: # sometimes ICA components don't converge
-                #comp = mdp.nodes.JADENode(white_comp=10*nchans)(data)[:, :5]
-                #comp = mdp.nodes.CuBICANode(white_comp=10*nchans)(data)[:, :5]
+            if data.shape[0] <= data.shape[1]:
+                raise RuntimeError('need more observations than dimensions for ICA')
+            while True:
                 try:
-                    #comp = mdp.fastica(data, white_comp=20*nchans)[:, :5] # keep just 1st 5 components
-                    comp = mdp.fastica(data)[:, :5] # keep just 1st 5 components
-                except mdp.NodeException:
-                    continue # try again
-                if np.all(np.all(comp, axis=0)): # if first five columns are nonzero
+                    node = mdp.nodes.FastICANode()
+                    comp = node(data)
                     break
+                except:
+                    print('ICA failed, retrying...')
+                    continue # try again
+            pm = node.get_projmatrix()
+            comp = comp[:, np.any(pm, axis=0)] # keep only the non zero columns
+            # sort ICs by decreasing kurtosis, as in Scholz et al, 2004 (or rather,
+            # opposite to their approach, which picked ICs with most negative kurtosis)
+            ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
+            ## returns the "largest local maxima" of the previous node
+            ## Another possibility might be to sort according to the energy in each column
+            ## of node.filter (see sorting of components at end of JADENode)
+            ## TODO: damn, what's the different between a node's filters and a node's
+            ## projection matrix????????????? They're the same shape..
+            k = scipy.stats.kurtosis(comp, axis=0) # find kurtosis of each IC (column)
+            ki = k.argsort()[::-1] # decreasing order of kurtosis
+            comp = comp[:, ki] # sort 'em
+            #comp = comp[:, :5] # keep just 1st 5 components
+            #print(pm)
+            #print('k:', k)
+            #print('by k: ', ki)
+            '''
+            import pylab as pl
+            pl.figure()
+            pl.imshow(pm)
+            pl.colorbar()
+            pl.title('original projmatrix')
+            pl.figure()
+            pl.imshow(pm[:, ki])
+            pl.colorbar()
+            pl.title('decreasing kurtosis projmatrix')
+            '''
         self.comp = comp
         print('%s took %.3f sec' % (kind, time.time()-t0))
         self.compkind = kind

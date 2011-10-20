@@ -680,7 +680,7 @@
            <x>0</x>
            <y>25</y>
            <width>86</width>
-           <height>126</height>
+           <height>161</height>
           </rect>
          </property>
          <property name="toolTip">
@@ -998,39 +998,6 @@
           <number>1000</number>
          </property>
         </widget>
-        <widget class="QLabel" name="label_36">
-         <property name="geometry">
-          <rect>
-           <x>5</x>
-           <y>160</y>
-           <width>16</width>
-           <height>15</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>c = </string>
-         </property>
-        </widget>
-        <widget class="QComboBox" name="componentAnalysisComboBox">
-         <property name="geometry">
-          <rect>
-           <x>25</x>
-           <y>155</y>
-           <width>56</width>
-           <height>24</height>
-          </rect>
-         </property>
-         <item>
-          <property name="text">
-           <string>PCA</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>ICA</string>
-          </property>
-         </item>
-        </widget>
        </widget>
        <widget class="QGroupBox" name="plottingGroupBox">
         <property name="geometry">
@@ -1048,7 +1015,7 @@
          <property name="geometry">
           <rect>
            <x>15</x>
-           <y>75</y>
+           <y>85</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1061,7 +1028,7 @@
          <property name="geometry">
           <rect>
            <x>15</x>
-           <y>100</y>
+           <y>110</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1074,7 +1041,7 @@
          <property name="geometry">
           <rect>
            <x>15</x>
-           <y>125</y>
+           <y>135</y>
            <width>16</width>
            <height>16</height>
           </rect>
@@ -1087,8 +1054,8 @@
          <property name="geometry">
           <rect>
            <x>35</x>
-           <y>70</y>
-           <width>71</width>
+           <y>80</y>
+           <width>76</width>
            <height>25</height>
           </rect>
          </property>
@@ -1152,8 +1119,8 @@
          <property name="geometry">
           <rect>
            <x>35</x>
-           <y>95</y>
-           <width>71</width>
+           <y>105</y>
+           <width>76</width>
            <height>25</height>
           </rect>
          </property>
@@ -1220,8 +1187,8 @@
          <property name="geometry">
           <rect>
            <x>35</x>
-           <y>120</y>
-           <width>71</width>
+           <y>130</y>
+           <width>76</width>
            <height>25</height>
           </rect>
          </property>
@@ -1287,7 +1254,7 @@
         <widget class="QPushButton" name="plotButton">
          <property name="geometry">
           <rect>
-           <x>60</x>
+           <x>52</x>
            <y>160</y>
            <width>46</width>
            <height>27</height>
@@ -1304,7 +1271,7 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>28</y>
+           <y>45</y>
            <width>71</width>
            <height>27</height>
           </rect>
@@ -1320,7 +1287,7 @@
          <property name="geometry">
           <rect>
            <x>75</x>
-           <y>28</y>
+           <y>45</y>
            <width>71</width>
            <height>27</height>
           </rect>
@@ -1331,6 +1298,44 @@ Ctrl+click forces recalculation of components</string>
          </property>
          <property name="text">
           <string>c0c1c2</string>
+         </property>
+        </widget>
+        <widget class="QComboBox" name="componentAnalysisComboBox">
+         <property name="geometry">
+          <rect>
+           <x>35</x>
+           <y>20</y>
+           <width>76</width>
+           <height>24</height>
+          </rect>
+         </property>
+         <item>
+          <property name="text">
+           <string>PCA</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>ICA</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>PCA+ICA</string>
+          </property>
+         </item>
+        </widget>
+        <widget class="QLabel" name="label_36">
+         <property name="geometry">
+          <rect>
+           <x>15</x>
+           <y>25</y>
+           <width>16</width>
+           <height>15</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>c = </string>
          </property>
         </widget>
        </widget>
