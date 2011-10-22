@@ -999,7 +999,7 @@
          </property>
         </widget>
        </widget>
-       <widget class="QGroupBox" name="plottingGroupBox">
+       <widget class="PlottingGroupBox" name="plottingGroupBox">
         <property name="geometry">
          <rect>
           <x>230</x>
@@ -2125,6 +2125,12 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
    <extends>QSpinBox</extends>
    <header>core</header>
   </customwidget>
+  <customwidget>
+   <class>PlottingGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>core</header>
+   <container>1</container>
+  </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>filePosStartButton</tabstop>
@@ -2205,6 +2211,22 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
     <hint type="destinationlabel">
      <x>369</x>
      <y>278</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>componentAnalysisComboBox</sender>
+   <signal>activated(int)</signal>
+   <receiver>c0c1c2Button</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>309</x>
+     <y>181</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>347</x>
+     <y>208</y>
     </hint>
    </hints>
   </connection>

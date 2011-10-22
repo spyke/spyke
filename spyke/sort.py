@@ -18,9 +18,10 @@ from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 
 import numpy as np
+from numpy import sqrt
+import scipy
 #from scipy.cluster.hierarchy import fclusterdata
 #import pylab
-import scipy
 
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
@@ -485,6 +486,8 @@ class Sort(object):
             #comp = mdp.pca(data, output_dim=5, svd=False)
             comp = mdp.pca(data, output_dim=5) # keep just 1st 5 components
         else: # kind in ['ICA', 'PCA+ICA']:
+            # ensure nspikes >= ndims**2 for good ICA convergence
+            maxncomp = intround(sqrt(nspikes))
             if kind == 'ICA':
                 # for speed, keep only the largest 14% of points, per chan. Largest points are
                 # probably the most important ones
@@ -492,15 +495,23 @@ class Sort(object):
                 datai = abs(mean).argsort(axis=1)[:, ::-1] # highest to lowest amplitude points, per chan
                 ntkeep = nt // 7
                 datai = datai[:, :ntkeep]
-                print datai
                 datai += np.row_stack(np.arange(nchans)) * nt
                 datai = datai.ravel() # 1D of len nchans*ntkeep
                 data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
                 data = data[:, datai] # nspikes x (nchans*ntkeep)
+                print datai
+                if data.shape[1] > maxncomp:
+                    mean = data.mean(axis=0) # mean across all spikes, gives nchans*ntkeep vector
+                    pointis = abs(mean).argsort()[::-1] # highest to lowest amplitude points
+                    pointis = pointis[:maxncomp]
+                    data = data[:, pointis]
+                    print('restrict to maxncomp=%d: %r' % (maxncomp, datai[:, pointis]))
             else: # kind == 'PCA+ICA'
                 # do PCA first, to reduce dimensionality and speed up ICA:
                 data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-                data = mdp.pca(data, output_dim=7*nchans) # keep 7 components per chan on average
+                ncomp = min(maxncomp, 7*nchans) # keep up to 7 components per chan on average
+                print('ncomp = %d' % ncomp)
+                data = mdp.pca(data, output_dim=ncomp)
             print('data.shape = %r' % (data.shape,))
             if data.shape[0] <= data.shape[1]:
                 raise RuntimeError('need more observations than dimensions for ICA')
@@ -519,16 +530,30 @@ class Sort(object):
             ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
             ## returns the "largest local maxima" of the previous node
             ## Another possibility might be to sort according to the energy in each column
-            ## of node.filter (see sorting of components at end of JADENode)
+            ## of node.filter (see sorting of components at end of JADENode). See McKeown 2003.
+            
             ## TODO: damn, what's the different between a node's filters and a node's
-            ## projection matrix????????????? They're the same shape..
+            ## projection matrix????????????? They're the same shape.. Are they perhaps the
+            ## inverse or pseudo inverse of each other?
+            
+            ## TODO: sounds like nonlineariy g and fine_g = 'gaus' or maybe 'tanh' might be
+            ## better choice than default 'pow3', though they might be slower. See Hyvarinen 1999
+            
+            ## TODO: perhaps when using PCA before ICA, since the PCA comes out ordered by
+            ## captured variance, maybe the ICs will come out that way too, and I don't
+            ## need to measure kurtosis anymore? Nope, not the case it seems.
+            
             k = scipy.stats.kurtosis(comp, axis=0) # find kurtosis of each IC (column)
             ki = k.argsort()[::-1] # decreasing order of kurtosis
+            #std = comp.std(axis=0)
+            #stdi = std.argsort()[::-1] # decreasing order of std
             comp = comp[:, ki] # sort 'em
             #comp = comp[:, :5] # keep just 1st 5 components
             #print(pm)
             #print('k:', k)
             #print('by k: ', ki)
+            #print('std:', std)
+            #print('by std: ', stdi)
             '''
             import pylab as pl
             pl.figure()
@@ -539,6 +564,10 @@ class Sort(object):
             pl.imshow(pm[:, ki])
             pl.colorbar()
             pl.title('decreasing kurtosis projmatrix')
+            pl.figure()
+            pl.imshow(pm[:, stdi])
+            pl.colorbar()
+            pl.title('decreasing std projmatrix')
             '''
         self.comp = comp
         print('%s took %.3f sec' % (kind, time.time()-t0))

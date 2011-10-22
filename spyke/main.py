@@ -841,6 +841,10 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane plot button click. Plot points and colour them
         according to their clusters."""
         s = self.sort
+        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
+            try:
+                del s.comp # force recalc
+            except AttributeError: pass
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         dims = self.GetClusterPlotDims()
         X, sids = self.get_param_matrix(dims=dims)

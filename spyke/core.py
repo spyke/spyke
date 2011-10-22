@@ -1038,6 +1038,16 @@ class ClusteringGroupBox(QtGui.QGroupBox):
         else:
             QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
+class PlottingGroupBox(QtGui.QGroupBox):
+    """Make ENTER key event activate the plot button"""
+    def __init__(self, parent):
+        QtGui.QGroupBox.__init__(self, parent)
+
+    def keyPressEvent(self, event):
+        if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
+            self.topLevelWidget().ui.plotButton.click()
+        else:
+            QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
 class Stack(list):
     """A list that doesn't allow -ve indices"""

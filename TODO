@@ -1118,6 +1118,7 @@ DONE:
 - use a Gaussian lookup table. Building it might take a little while. Only do this for say > 10k spikes, or whatever the optimal cutoff is
 - make sort pane right click clear selected chans
 - when clusters are selected, cluster plot just those selected clusters. This is already the case for PCs, but really it should be the case for any dimensions, such as x0 y0 Vpp. When none are selected, (try to) cluster plot all clusters at once. (This generally isn't possible for PCs since all clusters don't have sufficiently overlapping chans)
+- when picking number of PCA components to stick into ICA, choose ndims <= sqrt(nspikes) to make sure ICA has good convergence
 
 
 
