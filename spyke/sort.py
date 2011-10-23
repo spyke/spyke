@@ -519,12 +519,14 @@ class Sort(object):
                 try:
                     node = mdp.nodes.FastICANode()
                     comp = node(data)
+                    pm = node.get_projmatrix()
+                    comp = comp[:, np.any(pm, axis=0)] # keep only the non zero columns
+                    if comp.shape[1] < 3: # need at least 3 columns
+                        raise RuntimeError()
                     break
                 except:
                     print('ICA failed, retrying...')
                     continue # try again
-            pm = node.get_projmatrix()
-            comp = comp[:, np.any(pm, axis=0)] # keep only the non zero columns
             # sort ICs by decreasing kurtosis, as in Scholz et al, 2004 (or rather,
             # opposite to their approach, which picked ICs with most negative kurtosis)
             ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently

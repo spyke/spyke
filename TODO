@@ -1,5 +1,7 @@
 - make Align best align only according to signal on selected chans - if none selected, select chans according to average mean and radius of selected spikes by calling get_selchans
 
+- make double-click/ENTER of nid in nlist trigger the cluster button
+
 - something wrong with find next/prev most similar cluster, channel overlap calc is wrong? not finding obvious candidates. Might be a new bug from adding multiunit clusters?
 
 - make ESC in main window propagate to Sort window, to clear current selection
