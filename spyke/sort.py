@@ -166,13 +166,11 @@ class Sort(object):
         wave = self.stream[t0:t1]
         return wave[chans]
 
-    def exportptcsfiles(self, basepath):
+    def exportptcsfiles(self, sortpath=None, basepath=None):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
-        exportdt = exportdt.replace(' ', '_')
-        exportdt = exportdt.replace(':', '.')
         try: # self.stream is a TrackStream?
             streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
@@ -182,9 +180,9 @@ class Sort(object):
         for stream in streams:
             # get time delta between stream i and stream 0, could be 0:
             td = stream.datetime - streams[0].datetime
-            self.exportptcsfile(stream, td, exportdt, basepath)
+            self.exportptcsfile(stream, td, exportdt, sortpath, basepath)
 
-    def exportptcsfile(self, stream, td, exportdt, basepath):
+    def exportptcsfile(self, stream, td, exportdt, sortpath, basepath):
         """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
         stream, and undo any time delta in spike times"""
         userdescr = ''
@@ -194,6 +192,8 @@ class Sort(object):
         nrecs = []
         nspikes = 0
         for nid in sorted(self.neurons):
+            if nid <= 0:
+                continue # don't save any multiunit neurons or junk neuron
             neuron = self.neurons[nid]
             spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
             assert spikets.flags['OWNDATA'] # should now be safe to modify in place
@@ -213,10 +213,12 @@ class Sort(object):
         path = os.path.join(basepath, srffnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
-        fname = exportdt + '.ptcs'
+        fname = exportdt.replace(' ', '_')
+        fname = fname.replace(':', '.')
+        fname = fname + '.ptcs'
         fullfname = os.path.join(path, fname)
         with open(fullfname, 'wb') as f:
-            header = PTCSHeader(self, stream, nneurons, nspikes, userdescr,
+            header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, userdescr,
                                 nsamplebytes, fullfname, exportdt)
             header.write(f)
             for nrec in nrecs:
@@ -224,7 +226,7 @@ class Sort(object):
         print(fullfname)
 
     def exportgdffiles(self, basepath):
-        """Export spike data to binary .gdf files under basepath, one file for all neurons
+        """Export spike data to text .gdf files under basepath, one file for all neurons
            1st column is event id
            2nd column is event time in ms res"""
         ## TODO: make sure event ids in gdf format start from 1, and are contiguous. Also make
@@ -515,6 +517,7 @@ class Sort(object):
             print('data.shape = %r' % (data.shape,))
             if data.shape[0] <= data.shape[1]:
                 raise RuntimeError('need more observations than dimensions for ICA')
+            trycount = 0
             while True:
                 try:
                     node = mdp.nodes.FastICANode()
@@ -526,7 +529,9 @@ class Sort(object):
                     break
                 except:
                     print('ICA failed, retrying...')
-                    continue # try again
+                    trycount += 1
+                    if trycount < 10:
+                        continue # try again
             # sort ICs by decreasing kurtosis, as in Scholz et al, 2004 (or rather,
             # opposite to their approach, which picked ICs with most negative kurtosis)
             ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
@@ -1159,7 +1164,7 @@ class PTCSHeader(object):
          padded with null bytes if needed for 8 byte alignment)
     """
     FORMATVERSION = 1 # overall .ptcs file format version, not header format version
-    def __init__(self, sort, stream, nneurons, nspikes, userdescr,
+    def __init__(self, sort, sortpath, stream, nneurons, nspikes, userdescr,
                  nsamplebytes, fullfname, exportdt):
         self.sort = sort
         self.stream = stream
@@ -1168,12 +1173,19 @@ class PTCSHeader(object):
         self.userdescr = userdescr
         self.nsamplebytes = nsamplebytes
         homelessfullfname = lstrip(fullfname, os.path.expanduser('~'))
+        sortfname = sort.sortfname
+        sortfullfname = os.path.join(sortpath, sortfname)
+        sortfmoddt = str(datetime.datetime.fromtimestamp(os.path.getmtime(sortfullfname)))
+        sortfmoddt = sortfmoddt.split('.')[0] # ditch the us
+        sortfsize = os.path.getsize(sortfullfname) # in bytes
         # For description dictionary, could create a dict and convert it
         # to a string, but that wouldn't guarantee key order. Instead,
         # build string rep of description dict with guaranteed key order:
         d = ("{'file_type': '.ptcs (polytrode clustered spikes) file', "
-             "'original_fname': %r, 'export_datetime': %r"
-             % (homelessfullfname, exportdt))
+             "'original_fname': %r, 'export_time': %r, "
+             "'sort': {'fname': %r, 'path': %r, 'fmtime': %r, 'fsize': %r}"
+             % (homelessfullfname, exportdt,
+                sortfname, sortpath, sortfmoddt, sortfsize))
         if userdescr:
             d += ", 'user_descr': %r" % userdescr
         d += "}"
@@ -1829,7 +1841,7 @@ class SortWindow(SpykeToolWindow):
             for selchan in selchans:
                 if selchan not in common_chans:
                     raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                       % (chan, list(common_chans)))
+                                       % (selchan, list(common_chans)))
             print('doing best fit alignment on %d spikes on chans %r' % (len(sids), selchans))
             s.alignbest(sids, selchans)
         else: # to in ['min', 'max']

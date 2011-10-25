@@ -180,7 +180,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                     directory=self.path)
         path = str(path)
         if path:
-            self.sort.exportptcsfiles(path)
+            self.sort.exportptcsfiles(sortpath=self.path, basepath=path)
             # don't update path
 
     @QtCore.pyqtSlot()
