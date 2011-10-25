@@ -89,11 +89,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
         self.SetClusteringDims(['c0', 'c1', 'c2'])
-        '''
+        
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
         self.EnableSortWidgets(False)
-        '''
+        
         # TODO: load recent file history
 
     @QtCore.pyqtSlot()
@@ -488,7 +488,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane Cluster button click"""
         s = self.sort
         spikes = s.spikes
-        sids = self.GetImplicitSpikes() # all selected spikes
+        sids = self.GetAllSpikes() # all selected spikes
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes (sorted)
@@ -535,7 +535,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Split spikes into clusters of unique channel combinations"""
         s = self.sort
         spikes = s.spikes
-        sids = self.GetImplicitSpikes() # all selected spikes
+        sids = self.GetAllSpikes() # all selected spikes
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes (sorted)
@@ -699,14 +699,14 @@ class SpykeWindow(QtGui.QMainWindow):
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
-        clusterable_chans = core.intersect1d(chanslist) # find intersection
+        common_chans = core.intersect1d(chanslist) # find intersection
 
         # get selected chans
         chans = self.get_selchans(sids)
         for chan in chans:
-            if chan not in clusterable_chans:
+            if chan not in common_chans:
                 raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                   % (chan, list(clusterable_chans)))
+                                   % (chan, list(common_chans)))
         nchans = len(chans)
         if nchans == 0:
             raise RuntimeError("no channels selected")
@@ -825,7 +825,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
         if sids == None:
-            sids = self.GetImplicitSpikes() # only selected spikes
+            sids = self.GetAllSpikes() # only selected spikes
         if len(sids) == 0: # if none selected, return all spike ids
             sids = self.sort.spikes['id']
         selchans = None
@@ -991,19 +991,27 @@ class SpykeWindow(QtGui.QMainWindow):
         print('matched %d spikes to cluster %d' % (len(sids), cid))
         
     def GetSortedSpikes(self):
-        """Return IDs of currently selected sorted spikes"""
+        """Return IDs of selected sorted spikes"""
         sw = self.windows['Sort']
         srows = sw.nslist.selectedRows()
         return sw.nslist.sids[srows]
 
     def GetUnsortedSpikes(self):
-        """Return IDs of currently selected unsorted spikes"""
+        """Return IDs of selected unsorted spikes"""
         sw = self.windows['Sort']
         srows = sw.uslist.selectedRows()
         return self.sort.usids[srows]
 
+    def GetClusterSpikes(self):
+        """Return IDs of all spikes of selected clusters"""
+        clusters = self.GetClusters()
+        sids = []
+        for cluster in clusters:
+            sids.append(cluster.neuron.sids)
+        return np.concatenate(sids)
+
     def GetSpikes(self):
-        """Return IDs of all currently selected spikes"""
+        """Return IDs of explicitly selected spikes"""
         sw = self.windows['Sort']
         return np.concatenate([ self.GetSortedSpikes(), self.GetUnsortedSpikes() ])
 
@@ -1016,17 +1024,15 @@ class SpykeWindow(QtGui.QMainWindow):
                                % nselected)
         return sids[0]
 
-    def GetImplicitSpikes(self):
-        """Return sorted IDs of all currently selected spikes. If none selected, return those
-        implicitly selected via their parent cluster(s)"""
+    def GetAllSpikes(self):
+        """Return sorted IDs of all selected spikes, whether explicitly or implicitly
+        selected"""
         sids = []
         ssids = self.GetSortedSpikes()
         sids.append(ssids)
         # if no sorted spikes explicitly selected, check if any clusters are:
         if len(ssids) == 0:
-            clusters = self.GetClusters()
-            for cluster in clusters:
-                sids.append(cluster.neuron.sids)
+            sids.append(self.GetClusterSpikes())
         # include any selected usids as well
         sids.append(self.GetUnsortedSpikes())
         sids = np.concatenate(sids)
@@ -1329,6 +1335,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.slider.setPageStep((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
 
         self.EnableSurfWidgets(True)
+        self.EnableSortWidgets(True) # sorting is now possible
 
     def CreateNewSort(self):
         """Create a new Sort, bind it to self, and return it"""
@@ -1731,7 +1738,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def EnableSurfWidgets(self, enable):
         """Enable/disable all widgets that require an open .srf file"""
-        return # do nothing, at least for now
+        self.ui.filePosStartButton.setEnabled(enable)
+        self.ui.filePosLineEdit.setEnabled(enable)
+        self.ui.filePosEndButton.setEnabled(enable)
+        self.ui.slider.setEnabled(enable)
         '''
         self.menubar.Enable(wx.ID_NEW, enable)
         self.menubar.Enable(wx.ID_SPIKEWIN, enable)
@@ -1754,6 +1764,7 @@ class SpykeWindow(QtGui.QMainWindow):
         '''
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require an "open" .sort file"""
+        self.ui.tabWidget.setEnabled(enable)
         '''
         self.menubar.Enable(wx.ID_SORTWIN, enable)
         self.toolbar.EnableTool(wx.ID_SORTWIN, enable)

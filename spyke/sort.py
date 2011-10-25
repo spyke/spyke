@@ -607,6 +607,142 @@ class Sort(object):
             self.norder.remove(id)
         except KeyError, ValueError:
             pass
+
+    def alignbest(self, sids, chans, method=rmserror):
+        """Align all sids on chans by best fit according to error method.
+        chans are assumed to be a subset of channels of sids"""
+        spikes = self.spikes
+        # TODO: make maxshift a f'n of interpolation factor
+        nspikes = len(sids)
+        nchans = len(chans)
+        wd = self.wavedata
+        nt = wd.shape[2] # num timepoints in each waveform
+        maxshift = 2 # shift +/- this many timepoints
+        #maxshiftus = maxshift * self.stream.tres
+        shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
+        print("padding waveforms with up to +/- %d points of fake data" % maxshift)
+
+        # collect spike waveform data on chans, and calc mean
+        '''
+        if len(sids) > MEANWAVESAMPLESIZE:
+            print('taking random sample of %d spikes instead of all %d of them' %
+                  (MEANWAVESAMPLESIZE, nspikes)
+            sidis = np.random.randint(0, nspikes, MEANWAVESAMPLESIZE)
+        else:
+            sidis = np.arange(nspikes)
+        '''
+        subsd = np.zeros((nspikes, nchans, nt), dtype=wd.dtype)
+        spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
+        for sidi, sid in enumerate(sids):
+            spike = spikes[sid]
+            nspikechans = spike['nchans']
+            spikechans = spike['chans'][:nspikechans]
+            spikechanis[sidi] = spikechans.searchsorted(chans)
+            subsd[sidi] = wd[sid, spikechanis[sidi]]
+        meandata = subsd.mean(axis=0) # float64
+
+        # choose best shifted waveform for each spike
+        # widesd holds spike data plus extra data on either side
+        # to allow for full width slicing for all time shifts:
+        maxnchans = spikes['nchans'].max() # of all spikes in sort
+        widesd = np.zeros((maxnchans, maxshift+nt+maxshift), dtype=wd.dtype)        
+        shiftedsubsd = subsd.copy()
+        tempshifts = np.zeros((len(shifts), maxnchans, nt), dtype=wd.dtype)
+        tempsubshifts = np.zeros((len(shifts), nchans, nt), dtype=wd.dtype)
+        errors = np.zeros(len(shifts))
+        for sidi, sid in enumerate(sids):
+            '''
+            if srffopen:
+                wave = self.stream[-maxshiftus+spike['t0'] : spike['t1']+maxshiftus]
+                chanis = wave.chans.searchsorted(chans)
+                widesd = wave.data[chanis]
+            else: # add fake values at start and end if .srf file isn't available.
+            '''
+            sd = wd[sid] # spike data
+            chanis = spikechanis[sidi]
+            widesd[:, maxshift:-maxshift] = sd # 2D
+            widesd[:, :maxshift] = sd[:, 0, None] # pad start with first point per chan
+            widesd[:, -maxshift:] = sd[:, -1, None] # pad end with last point per chan
+            errors.fill(0.0) # reset
+            for shifti, shift in enumerate(shifts):
+                t0i = maxshift + shift
+                tempshifts[shifti] = widesd[:, t0i:t0i+nt]
+                tempsubshifts[shifti] = tempshifts[shifti, chanis]
+                errors[shifti] = method(tempsubshifts[shifti], meandata)
+            bestshifti = errors.argmin()
+            bestshift = shifts[bestshifti]
+            if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
+                wd[sid] = tempshifts[bestshifti]
+                shiftedsubsd[sidi] = tempsubshifts[bestshifti]
+        AD2uV = self.converter.AD2uV
+        stdevbefore = AD2uV(subsd.std(axis=0).mean())
+        stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
+        print('stdev went from %.3f to %.3f uV' % (stdevbefore, stdevafter))
+
+    def alignminmax(self, sids, to):
+        """Align sids by their min or max"""
+        spikes = self.spikes
+
+        V0s = spikes['V0'][sids]
+        V1s = spikes['V1'][sids]
+        Vss = np.column_stack((V0s, V1s))
+        alignis = spikes['aligni'][sids]
+        b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
+        if to == 'min':
+            i = Vss[b] > 0 # indices into sids of spikes aligned to the max phase
+        elif to == 'max':
+            i = Vss[b] < 0 # indices into sids of spikes aligned to the min phase
+        else:
+            raise ValueError('unknown to %r' % to)
+        sids = sids[i] # sids that need realigning
+        nspikes = len(sids)
+        print("Realigning %d spikes" % nspikes)
+        if nspikes == 0: # nothing to do
+            return
+
+        srffopen = self.stream.is_open()
+        if not srffopen:
+            raise RuntimeError(".srf file(s) not available, can't realign to %s" % to)
+
+        multichanphasetis = spikes['phasetis'][sids] # nspikes x nchans x 2 arr
+        chanis = spikes['chani'][sids] # nspikes arr of max chanis
+        # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
+        phasetis = np.int32(multichanphasetis[np.arange(nspikes), chanis]) # nspikes x 2 arr
+        # NOTE: phasetis aren't always in temporal order!
+        dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
+        dphases = spikes['dphase'][sids] # stored as +ve
+
+        # for each spike, decide whether to add or subtract dphase to/from its temporal values
+        ordered  = dphasetis > 0 # in temporal order
+        reversed = dphasetis < 0 # in reversed temporal order
+        alignis = spikes['aligni'][sids]
+        alignis0 = alignis == 0
+        alignis1 = alignis == 1
+        dphasei = np.zeros(nspikes, dtype=int)
+        # add dphase to temporal values to align to later phase
+        dphasei[ordered & alignis0 | reversed & alignis1] = 1
+        # subtact dphase from temporal values to align to earlier phase
+        dphasei[ordered & alignis1 | reversed & alignis0] = -1
+
+        #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
+        dts = dphasei * dphases
+        dtis = -dphasei * abs(dphasetis)
+        # shift values
+        spikes['t'][sids] += dts
+        spikes['t0'][sids] += dts
+        spikes['t1'][sids] += dts
+        spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
+        spikes['aligni'][sids[alignis0]] = 1
+        spikes['aligni'][sids[alignis1]] = 0
+
+        # update wavedata for each shifted spike
+        for sid, spike in zip(sids, spikes[sids]):
+            wave = self.stream[spike['t0']:spike['t1']]
+            nchans = spike['nchans']
+            chans = spike['chans'][:nchans]
+            wave = wave[chans]
+            self.wavedata[sid, 0:nchans] = wave.data
+
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -940,151 +1076,6 @@ class Neuron(object):
         selfchanis = self.chans.searchsorted(chans)
         otherchanis = otherchans.searchsorted(chans)
         return self.wave.data[selfchanis], otherwavedata[otherchanis]
-
-    def align(self, to):
-        if to == 'best':
-            self.alignbest()
-        else:
-            self.alignminmax(to)
-        self.update_wave() # update mean waveform
-        # trigger resaving of .wave file on next save
-        try: del self.sort.wavefname
-        except AttributeError: pass
-
-    def alignbest(self, method=rmserror):
-        """Align all of this neuron's spikes by best fit"""
-        s = self.sort
-        # TODO: make maxshift a f'n of interpolation factor
-        nt = s.wavedata.shape[2] # num timepoints in each waveform
-        maxshift = 2 # shift +/- this many timepoints
-        maxshiftus = maxshift * s.stream.tres
-        shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
-        print('neuron %d stdev before alignbest: %f uV' % (self.id, self.stdevwaveerrors()))
-        srffopen = s.stream.is_open()
-        if not srffopen:
-            print("WARNING: .srf file(s) not available, padding waveforms with up to +/- %d "
-                  "points of fake data" % maxshift)
-        for sid in self.sids:
-            # TODO: use at most only maxchan and immediate neighbour chans
-            spike = s.spikes[sid]
-            nspikechans = spike['nchans']
-            spikechans = spike['chans'][:nspikechans]
-            spikedata = s.wavedata[sid, :nspikechans]
-            # get chans common to neuron and spike
-            chans = np.intersect1d(self.chans, spikechans, assume_unique=True)
-            spikechanis = spikechans.searchsorted(chans)
-            neuronchanis = self.chans.searchsorted(chans)
-            # widespikedata holds spikedata plus extra data on either side
-            # to allow for full width slicing for all time shifts:
-            if srffopen:
-                wave = s.stream[-maxshiftus+spike['t0'] : spike['t1']+maxshiftus]
-                wavechanis = wave.chans.searchsorted(spikechans)
-                widespikedata = wave.data[wavechanis]
-            else:
-                # Only add fake values at start and end if .srf file isn't available.
-                # Problem is fake values will make stdev keep improving indefinitely, until you've
-                # done so many shifts, there potentially isn't any real data left for some spikes
-                widespikedata = np.zeros((nspikechans, maxshift+nt+maxshift))
-                widespikedata[:, maxshift:-maxshift] = spikedata
-                widespikedata[:, :maxshift] = spikedata[:, 0, None] # pad start with first point per chan
-                widespikedata[:, -maxshift:] = spikedata[:, -1, None] # pad end with last point per chan
-            widespikesubdata = widespikedata[spikechanis]
-            neuronsubdata = self.wave.data[neuronchanis]
-            errors = np.zeros(len(shifts)) # init
-            for shifti, shift in enumerate(shifts):
-                t0i = maxshift + shift
-                shiftedspikesubdata = widespikesubdata[:, t0i:t0i+nt]
-                errors[shifti] = method(shiftedspikesubdata, neuronsubdata)
-            bestshift = shifts[errors.argmin()]
-            if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
-                t0i = maxshift + bestshift
-                s.wavedata[sid][:nspikechans] = widespikedata[:, t0i:t0i+nt]
-        print('neuron %d stdev after alignbest: %f uV' % (self.id, self.stdevwaveerrors()))
-
-    def waveerrors(self, method=rmserror):
-        """Return array of differences between self and all member spikes"""
-        s = self.sort
-        errors = np.zeros(self.nspikes)
-        for spikei, sid in enumerate(self.sids):
-            spike = s.spikes[sid]
-            nspikechans = spike['nchans']
-            spikechans = spike['chans'][:nspikechans]
-            spikedata = s.wavedata[sid, :nspikechans]
-            # get chans common to neuron and spike
-            chans = np.intersect1d(self.chans, spikechans, assume_unique=True)
-            spikechanis = spikechans.searchsorted(chans)
-            neuronchanis = self.chans.searchsorted(chans)
-            spikesubdata = spikedata[spikechanis]
-            neuronsubdata = self.wave.data[neuronchanis]
-            errors[spikei] = method(spikesubdata, neuronsubdata)
-        return errors
-
-    def stdevwaveerrors(self, method=rmserror):
-        """Return stdev of difference between self and all member spikes, in uV"""
-        stdev = self.waveerrors(method).std()
-        return self.sort.converter.AD2uV(stdev)
-
-    def alignminmax(self, to):
-        """Align all of this neuron's spikes by their min or max"""
-        s = self.sort
-        spikes = s.spikes
-        nsids = self.sids # ids of spikes that belong to this neuron
-
-        V0s = spikes['V0'][nsids]
-        V1s = spikes['V1'][nsids]
-        Vss = np.column_stack((V0s, V1s))
-        alignis = spikes['aligni'][nsids]
-        b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
-        if to == 'min':
-            i = Vss[b] > 0 # indices into nsids of spikes aligned to the max phase
-        elif to == 'max':
-            i = Vss[b] < 0 # indices into nsids of spikes aligned to the min phase
-        else:
-            raise ValueError('unknown to %r' % to)
-        sids = nsids[i] # ids of spikes that need realigning
-        n = len(sids) # num spikes that need realigning
-        print("Realigning %d spikes" % n)
-        if n == 0: # nothing to do
-            return
-
-        multichanphasetis = spikes['phasetis'][sids] # n x nchans x 2 arr
-        chanis = spikes['chani'][sids] # len(n) arr
-        # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
-        phasetis = np.int32(multichanphasetis[np.arange(n), chanis]) # n x 2 arr
-        # NOTE: phasetis aren't always in temporal order!
-        dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
-        dphases = spikes['dphase'][sids] # stored as +ve
-
-        # for each spike, decide whether to add or subtract dphase to/from its temporal values
-        ordered  = dphasetis > 0 # in temporal order
-        reversed = dphasetis < 0 # in reversed temporal order
-        alignis = spikes['aligni'][sids]
-        alignis0 = alignis == 0
-        alignis1 = alignis == 1
-        dphasei = np.zeros(n, dtype=int)
-        # add dphase to temporal values to align to later phase
-        dphasei[ordered & alignis0 | reversed & alignis1] = 1
-        # subtact dphase from temporal values to align to earlier phase
-        dphasei[ordered & alignis1 | reversed & alignis0] = -1
-
-        #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
-        dts = dphasei * dphases
-        dtis = -dphasei * abs(dphasetis)
-        # shift values
-        spikes['t'][sids] += dts
-        spikes['t0'][sids] += dts
-        spikes['t1'][sids] += dts
-        spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
-        spikes['aligni'][sids[alignis0]] = 1
-        spikes['aligni'][sids[alignis1]] = 0
-
-        # update wavedata for each shifted spike
-        for sid, spike in zip(sids, spikes[sids]):
-            wave = s.stream[spike['t0']:spike['t1']]
-            nchans = spike['nchans']
-            chans = spike['chans'][:nchans]
-            wave = wave[chans]
-            s.wavedata[sid, 0:nchans] = wave.data
     '''
     def get_stdev(self):
         """Return 2D array of stddev of each timepoint of each chan of member spikes.
@@ -1821,10 +1812,36 @@ class SortWindow(SpykeToolWindow):
         return source
 
     def Align(self, to):
-        selclusters = self.spykewindow.GetClusters()
-        nids = [ cluster.id for cluster in selclusters ]
-        for nid in nids:
-            self.sort.neurons[nid].align(to)
+        """Align all implicitly selected spikes to min or max, or best fit
+        on selected chans"""        
+        s = self.sort
+        spikes = s.spikes
+        spw = self.spykewindow
+        sids = np.concatenate((spw.GetClusterSpikes(), spw.GetUnsortedSpikes()))
+        if to == 'best':
+            selchans = spw.get_selchans(sids)
+            # find which chans are common to all sids
+            chanss = spikes['chans'][sids]
+            nchanss = spikes['nchans'][sids]
+            chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
+            common_chans = core.intersect1d(chanslist) # find intersection
+            # check selected chans
+            for selchan in selchans:
+                if selchan not in common_chans:
+                    raise RuntimeError("chan %d not common to all spikes, pick from %r"
+                                       % (chan, list(common_chans)))
+            print('doing best fit alignment on %d spikes on chans %r' % (len(sids), selchans))
+            s.alignbest(sids, selchans)
+        else: # to in ['min', 'max']
+            print('doing %s alignment on %d spikes' % (to, len(sids)))
+            s.alignminmax(sids, to)
+        unids = np.unique(spikes['nid'][sids])
+        neurons = [ s.neurons[nid] for nid in unids ]
+        for neuron in neurons:
+            neuron.update_wave() # update affected mean waveforms
+        # trigger resaving of .wave file on next save
+        try: del s.wavefname
+        except AttributeError: pass
         # auto-refresh all plots
         self.panel.updateAllItems()
 
