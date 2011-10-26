@@ -1005,6 +1005,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def GetClusterSpikes(self):
         """Return IDs of all spikes of selected clusters"""
         clusters = self.GetClusters()
+        if len(clusters) == 0:
+            return np.array([], dtype=np.int64)
         sids = []
         for cluster in clusters:
             sids.append(cluster.neuron.sids)
