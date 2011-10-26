@@ -268,6 +268,15 @@ class SpykeWindow(QtGui.QMainWindow):
         self.on_actionClose_triggered()
         QtGui.QMainWindow.closeEvent(self, event)
 
+    def keyPressEvent(self, event):
+        key = event.key()
+        try:
+            sw = self.windows['Sort']
+        except KeyError:
+            QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
+        if key == Qt.Key_Escape: # deselect all spikes and all clusters in Sort window
+            sw.clear()
+
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):
         """Undo button click. Undo previous cluster change"""

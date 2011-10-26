@@ -477,7 +477,8 @@ class Sort(object):
             raise ValueError('unknown kind %r' % kind)
         nt = self.wavedata.shape[2]
         print('doing %s on chans %r of %d spikes' % (kind, list(chans), nspikes))
-        data = np.zeros((nspikes, nchans, nt), dtype=np.float32) # need float64 for PCA?????
+        # MDP complains of roundoff errors with float32 for large covariance matrices
+        data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
@@ -530,8 +531,8 @@ class Sort(object):
                 except:
                     print('ICA failed, retrying...')
                     trycount += 1
-                    if trycount < 10:
-                        continue # try again
+                    if trycount > 10:
+                        break # give up
             # sort ICs by decreasing kurtosis, as in Scholz et al, 2004 (or rather,
             # opposite to their approach, which picked ICs with most negative kurtosis)
             ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
@@ -1440,6 +1441,9 @@ class SortWindow(SpykeToolWindow):
         scrolling down to and selecting list items. However, the appropriate alpha keypresses have
         been set in the child lists to be ignored, so they propagate up to here"""
         key = event.key()
+        modifiers = event.modifiers()
+        ctrldown = bool(Qt.ControlModifier & modifiers)
+        ctrlup = not ctrldown
         if key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
         elif key == Qt.Key_Delete:
@@ -1458,6 +1462,11 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFocusCurrentSpike_triggered()
         elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_activated()
+        elif key == Qt.Key_Space: # ignored in SpykeListViews
+            if ctrlup:
+                self.on_actionSelectRandomSpikes_activated()
+            else:
+                SpykeToolWindow.keyPressEvent(self, event) # pass it on
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
         elif key == Qt.Key_Comma: # ignored in SpykeListViews
