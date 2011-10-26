@@ -488,14 +488,18 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane Cluster button click"""
         s = self.sort
         spikes = s.spikes
-        sids = self.GetAllSpikes() # all selected spikes
+        #sids = self.GetAllSpikes() # all selected spikes
+        # always cluster all spikes in existing clusters, don't just cluster some subset,
+        # since existing clusters are always deleted in apply_clustering and ApplyClusterChange,
+        # and spikes that aren't in that subset would inadvertantly become unsorted
+        sids = np.concatenate([self.GetClusterSpikes(), self.GetUnsortedSpikes()])
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes (sorted)
             oldclusters = s.clusters.values() # all clusters
         dims = self.GetClusteringDims()
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
-        subsidss = []
+        subsidss = [] # sids grouped into subclusters, each to be clustered separately
         msgs = []
         t0 = time.time()
         if comps and np.all(sids == spikes['id']): # doing PCA/ICA on all spikes
@@ -1003,14 +1007,16 @@ class SpykeWindow(QtGui.QMainWindow):
         return self.sort.usids[srows]
 
     def GetClusterSpikes(self):
-        """Return IDs of all spikes of selected clusters"""
+        """Return sorted IDs of all spikes of selected clusters"""
         clusters = self.GetClusters()
         if len(clusters) == 0:
             return np.array([], dtype=np.int64)
         sids = []
         for cluster in clusters:
             sids.append(cluster.neuron.sids)
-        return np.concatenate(sids)
+        sids = np.concatenate(sids)
+        sids.sort()
+        return sids
 
     def GetSpikes(self):
         """Return IDs of explicitly selected spikes"""

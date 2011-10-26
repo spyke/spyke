@@ -1869,7 +1869,6 @@ class SortWindow(SpykeToolWindow):
         If neuron is None, create a new one"""
         sids = toiter(sids)
         spikes = self.sort.spikes
-        createdNeuron = False
         if neuron == None:
             neuron = self.sort.create_neuron()
         neuron.sids = np.union1d(neuron.sids, sids) # update

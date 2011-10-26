@@ -1123,6 +1123,8 @@ DONE:
 - when picking number of PCA components to stick into ICA, choose ndims <= sqrt(nspikes) to make sure ICA has good convergence
 - make Align best align only according to signal on selected chans - if none selected, select chans according to average mean and radius of selected spikes by calling get_selchans
 - add .sort filename, file date time, and file size to ptcs header.descr dict
+- big bug: if you've got only a subset of a cluster's spikes selected (say only 20 out of 1000s), and you hit cluster (say that subset of 20 from cluster 2 turns into clusters [0, 56]), you delete everything else that was still in cluster 2!
+    - ah, when I hit cluster, the original cluster 2 with all its spikes is deleted, but only the selected 20 live on to turn into other clusters. The balance are set as having nid = 0. I should stop deleting the original, but that would require big changes to both apply_clustering and ApplyClusterChange, both of which are very touchy. Instead, just disallow clustering of only a subset of a cluster's spikes
 
 
 
