@@ -1316,12 +1316,12 @@ Ctrl+click forces recalculation of components</string>
          </item>
          <item>
           <property name="text">
-           <string>ICA</string>
+           <string>PCA+ICA</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>PCA+ICA</string>
+           <string>ICA</string>
           </property>
          </item>
         </widget>

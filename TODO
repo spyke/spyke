@@ -6,8 +6,6 @@
 
 - something wrong with find next/prev most similar cluster, channel overlap calc is wrong? not finding obvious candidates. Might be a new bug from adding multiunit clusters?
 
-- make ESC in main window propagate to Sort window, to clear current selection
-
 - should I really be scaling all data to have unit variance before feeding to PCA? PCA only requires 0 mean, according to wiki
     
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
@@ -1125,6 +1123,7 @@ DONE:
 - add .sort filename, file date time, and file size to ptcs header.descr dict
 - big bug: if you've got only a subset of a cluster's spikes selected (say only 20 out of 1000s), and you hit cluster (say that subset of 20 from cluster 2 turns into clusters [0, 56]), you delete everything else that was still in cluster 2!
     - ah, when I hit cluster, the original cluster 2 with all its spikes is deleted, but only the selected 20 live on to turn into other clusters. The balance are set as having nid = 0. I should stop deleting the original, but that would require big changes to both apply_clustering and ApplyClusterChange, both of which are very touchy. Instead, just disallow clustering of only a subset of a cluster's spikes
+- make ESC in main window propagate to Sort window, to clear current selection
 
 
 

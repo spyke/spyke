@@ -13,7 +13,7 @@ from PyQt4 import QtCore, QtGui, QtOpenGL, uic
 from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 
-from core import SpykeToolWindow, lst2shrtstr, tocontig
+from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
 from plot import CMAP, GREYRGB
 
 CLUSTERPARAMSAMPLESIZE = 1000
@@ -480,11 +480,11 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.selectItemUnderCursor(on=True, clear=False)
             elif key == Qt.Key_D: # deselect item under the cursor, if any
                 self.selectItemUnderCursor(on=False, clear=False)
-            elif key == Qt.Key_Space: # clear and select item under cursor, if any
-                self.selectItemUnderCursor(on=True, clear=True)
+            #elif key == Qt.Key_Space: # clear and select item under cursor, if any
+            #    self.selectItemUnderCursor(on=True, clear=True)
             elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash,
-                         Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
-                         Qt.Key_Comma, Qt.Key_Period]:
+                         Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
+                         Qt.Key_B, Qt.Key_Comma, Qt.Key_Period]:
                 sw = self.spw.windows['Sort']
                 sw.keyPressEvent(event) # pass it on to Sort window
             elif key == Qt.Key_F11:
@@ -502,19 +502,22 @@ class GLWidget(QtOpenGL.QGLWidget):
         x, y = self.cursorPosGL()
         sid = self.pick(x, y)
         if sid != None:
+            spos = []
             dims = spw.GetClusterPlotDims()
-            nid = sort.spikes[sid]['nid']
+            for dim in dims:
+                if dim.startswith('c') and dim[-1].isdigit():
+                    compid = int(lstrip(dim, 'c'))
+                    compsidi = sort.compsids.searchsorted(sid)
+                    spos.append(sort.comp[compsidi, compid])
+                else: # it's a standard dim stored in spikes array
+                    spos.append(sort.spikes[sid][dim])
             tip = 'sid: %d' % sid
-            try:
-                sposstr = lst2shrtstr([ sort.spikes[sid][dim] for dim in dims ])
-                tip += '\n%s: %s' % (lst2shrtstr(dims), sposstr)
-            except IndexError: pass # some params, like PCs/ICs, aren't in spikes array
+            tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(spos))
+            nid = sort.spikes[sid]['nid']
             if nid != 0:
                 tip += '\nnid: %d' % nid
-                try:
-                    cposstr = lst2shrtstr([ sort.neurons[nid].cluster.pos[dim] for dim in dims ])
-                    tip += '\n%s: %s' % (lst2shrtstr(dims), cposstr)
-                except KeyError: pass # some params, like PCs/ICs, aren't in cluster.pos dict
+                cpos = [ sort.neurons[nid].cluster.pos[dim] for dim in dims ]
+                tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(cpos))
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
             QtGui.QToolTip.showText(globalPos, tip)
         else:
