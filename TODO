@@ -1,8 +1,8 @@
 - JMS: add time to PCA to help with clustering over time with drift
 
-- make double-click/ENTER of nid in nlist trigger the cluster button
-
 - make right click on spike(s) in nslist bring up context menu with delete, or just make SHIFT+Del delete the currently explicitly selected spike(s)
+
+- if exactly 2 clusters are selected, and one or more spikes are selected in the nslist, have some control that lets you swap the cluster membership of those spikes. Maybe the tab button, since that has a bidirectional arrow
 
 - something wrong with find next/prev most similar cluster, channel overlap calc is wrong? not finding obvious candidates. Might be a new bug from adding multiunit clusters?
 
@@ -1124,6 +1124,7 @@ DONE:
 - big bug: if you've got only a subset of a cluster's spikes selected (say only 20 out of 1000s), and you hit cluster (say that subset of 20 from cluster 2 turns into clusters [0, 56]), you delete everything else that was still in cluster 2!
     - ah, when I hit cluster, the original cluster 2 with all its spikes is deleted, but only the selected 20 live on to turn into other clusters. The balance are set as having nid = 0. I should stop deleting the original, but that would require big changes to both apply_clustering and ApplyClusterChange, both of which are very touchy. Instead, just disallow clustering of only a subset of a cluster's spikes
 - make ESC in main window propagate to Sort window, to clear current selection
+- make double-click/ENTER of nid in nlist trigger the cluster button
 
 
 

@@ -1296,6 +1296,8 @@ class SortWindow(SpykeToolWindow):
         self._source = None # source cluster for comparison
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
+        # make ENTER or double-click in nlist trigger the cluster button:
+        self.nlist.activated.connect(self.spykewindow.ui.clusterButton.click)
         self.nslist = NSList(self)
         self.nslist.setToolTip('Sorted spike list')
         self.uslist = USList(self) # should really be multicolumn tableview
