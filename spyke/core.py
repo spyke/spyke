@@ -1650,3 +1650,27 @@ def DJS(p, q):
     pi, qi = p[i], q[i]
     mi = (pi + qi) / 2
     return (DKLi(pi, mi) + DKLi(qi, mi)) / 2
+
+def updatenpyfilerows(fname, rows, arr):
+    """Given a numpy formatted binary file (usually with .npy extension,
+    but not necessarily), update 0-based rows (first dimension) of the
+    array stored in the file from arr. Works for arrays of any rank >= 1"""
+    assert len(arr) >= 1 # has at least 1 row
+    f = open(fname, 'r+b') # open in read+write binary mode
+    # get .npy format version:
+    major, minor = np.lib.format.read_magic(f)
+    assert (major == 1 and minor == 0)
+    # read header to move file pointer to start of array in file
+    shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(f)
+    assert shape == arr.shape
+    assert fortran_order == np.isfortran(arr)
+    assert dtype == arr.dtype
+    arroffset = f.tell()
+    rowsize = arr[0].size * dtype.itemsize # nbytes per row
+    # sort rows so that we move efficiently from start to end of file
+    rows = sorted(rows) # rows might be a set, list, tuple, or array, convert to list
+    # update rows in file
+    for row in rows:
+        f.seek(arroffset + row*rowsize) # seek from start of file, row is 0-based
+        f.write(arr[row])
+    f.close()

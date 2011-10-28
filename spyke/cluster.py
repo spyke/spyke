@@ -437,8 +437,11 @@ class GLWidget(QtOpenGL.QGLWidget):
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-
-        if modifiers == Qt.ControlModifier:
+        sw = self.spw.windows['Sort']
+        ctrldown = bool(Qt.ControlModifier & modifiers)
+        shiftdown = bool(Qt.ShiftModifier & modifiers)
+        
+        if ctrldown and key not in [Qt.Key_Enter, Qt.Key_Return]:
             if key == Qt.Key_Left:
                 self.roll(5)
             elif key == Qt.Key_Right:
@@ -447,7 +450,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.zoom(0.05)
             elif key == Qt.Key_Down:
                 self.zoom(-0.05)
-        elif modifiers == Qt.ShiftModifier and key != Qt.Key_NumberSign:
+        elif shiftdown and key != Qt.Key_NumberSign:
             if key == Qt.Key_Left:
                 self.pan(-0.05, 0)
             elif key == Qt.Key_Right:
@@ -485,11 +488,12 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash,
                          Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
                          Qt.Key_B, Qt.Key_Comma, Qt.Key_Period]:
-                sw = self.spw.windows['Sort']
                 sw.keyPressEvent(event) # pass it on to Sort window
+            elif key in [Qt.Key_Enter, Qt.Key_Return]:
+                sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
             elif key == Qt.Key_F11:
                 self.parent().keyPressEvent(event) # pass it on to parent Cluster window
-            elif key in [Qt.Key_Enter, Qt.Key_Return]:
+            elif key == Qt.Key_Backslash:
                 self.showProjectionDialog()            
 
         self.updateGL()
@@ -535,7 +539,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         y = self.size().height() - pos.y()
         sid = self.pick(x, y)
         if sid != None:
-            spw.SelectSpike(sid, on=on) # select/deselect spike its cluster too, if need be
+            spw.SelectSpike(sid, on=on) # select/deselect spike & its cluster too, if need be
         #self.showToolTip()
 
     def showProjectionDialog(self):

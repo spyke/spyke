@@ -616,7 +616,8 @@ class Sort(object):
 
     def alignbest(self, sids, chans, method=rmserror):
         """Align all sids on chans by best fit according to error method.
-        chans are assumed to be a subset of channels of sids"""
+        chans are assumed to be a subset of channels of sids. Return sids
+        that were actually moved and therefore need to be marked as dirty"""
         spikes = self.spikes
         # TODO: make maxshift a f'n of interpolation factor
         nspikes = len(sids)
@@ -656,6 +657,7 @@ class Sort(object):
         tempshifts = np.zeros((len(shifts), maxnchans, nt), dtype=wd.dtype)
         tempsubshifts = np.zeros((len(shifts), nchans, nt), dtype=wd.dtype)
         errors = np.zeros(len(shifts))
+        dirtysids = []
         for sidi, sid in enumerate(sids):
             '''
             if srffopen:
@@ -680,13 +682,16 @@ class Sort(object):
             if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
                 wd[sid] = tempshifts[bestshifti]
                 shiftedsubsd[sidi] = tempsubshifts[bestshifti]
+                dirtysids.append(sid)
         AD2uV = self.converter.AD2uV
         stdevbefore = AD2uV(subsd.std(axis=0).mean())
         stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
         print('stdev went from %.3f to %.3f uV' % (stdevbefore, stdevafter))
+        return dirtysids
 
     def alignminmax(self, sids, to):
-        """Align sids by their min or max"""
+        """Align sids by their min or max. Return those that were actually moved
+        and therefore need to be marked as dirty"""
         spikes = self.spikes
 
         V0s = spikes['V0'][sids]
@@ -704,7 +709,7 @@ class Sort(object):
         nspikes = len(sids)
         print("Realigning %d spikes" % nspikes)
         if nspikes == 0: # nothing to do
-            return
+            return [] # no sids to mark as dirty
 
         srffopen = self.stream.is_open()
         if not srffopen:
@@ -748,6 +753,7 @@ class Sort(object):
             chans = spike['chans'][:nchans]
             wave = wave[chans]
             self.wavedata[sid, 0:nchans] = wave.data
+        return sids # mark all sids as dirty
 
     '''
     def get_component_matrix(self, dims=None, weighting=None):
@@ -1296,8 +1302,8 @@ class SortWindow(SpykeToolWindow):
         self._source = None # source cluster for comparison
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
-        # make ENTER or double-click in nlist trigger the cluster button:
-        self.nlist.activated.connect(self.spykewindow.ui.clusterButton.click)
+        # make ENTER or double-click in nlist trigger the plot button:
+        self.nlist.activated.connect(self.spykewindow.ui.plotButton.click)
         self.nslist = NSList(self)
         self.nslist.setToolTip('Sorted spike list')
         self.uslist = USList(self) # should really be multicolumn tableview
@@ -1854,17 +1860,17 @@ class SortWindow(SpykeToolWindow):
                     raise RuntimeError("chan %d not common to all spikes, pick from %r"
                                        % (selchan, list(common_chans)))
             print('doing best fit alignment on %d spikes on chans %r' % (len(sids), selchans))
-            s.alignbest(sids, selchans)
+            dirtysids = s.alignbest(sids, selchans)
         else: # to in ['min', 'max']
             print('doing %s alignment on %d spikes' % (to, len(sids)))
-            s.alignminmax(sids, to)
-        unids = np.unique(spikes['nid'][sids])
+            dirtysids = s.alignminmax(sids, to)
+        print('aligned %d spikes' % len(dirtysids))
+        unids = np.unique(spikes['nid'][dirtysids])
         neurons = [ s.neurons[nid] for nid in unids ]
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
-        # trigger resaving of .wave file on next save
-        try: del s.wavefname
-        except AttributeError: pass
+        # add dirtysids to the set to be saved:
+        spw.dirtysids.update(dirtysids)
         # auto-refresh all plots
         self.panel.updateAllItems()
 

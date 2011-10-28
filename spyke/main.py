@@ -89,6 +89,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
         self.SetClusteringDims(['c0', 'c1', 'c2'])
+
+        self.dirtysids = set() # sids whose waveforms in .wave file are out of date
         
         # disable most widgets until a .srf or .sort file is opened
         self.EnableSurfWidgets(False)
@@ -1615,9 +1617,13 @@ class SpykeWindow(QtGui.QMainWindow):
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.spike'
         try: s.wavefname
-        except AttributeError: # corresponding .wave filename hasn't been generated yet
+        except AttributeError: # corresponding .wave file hasn't been created yet
             wavefname = os.path.splitext(fname)[0] + '.wave'
-            self.SaveWaveFile(wavefname) # only (re)save .wave if missing s.wavefname attrib
+            self.SaveWaveFile(wavefname) # only write whole .wave file if missing s.wavefname attrib
+            self.dirtysids.clear() # shouldn't be any, but clear anyway just in case
+        if len(self.dirtysids) > 0:
+            self.SaveWaveFile(s.wavefname, sids=self.dirtysids)
+            self.dirtysids.clear() # no longer dirty
         print('saving spike file %r' % fname)
         t0 = time.time()
         f = open(self.join(fname), 'wb')
@@ -1626,8 +1632,9 @@ class SpykeWindow(QtGui.QMainWindow):
         print('done saving spike file, took %.3f sec' % (time.time()-t0))
         s.spikefname = fname # used to indicate that the spikes have been saved
 
-    def SaveWaveFile(self, fname):
-        """Save waveform data to a .wave file"""
+    def SaveWaveFile(self, fname, sids=None):
+        """Save waveform data to a .wave file. Optionally, update only sids
+        in existing .wave file"""
         s = self.sort
         try: s.wavedata
         except AttributeError: return # no wavedata to save
@@ -1635,9 +1642,13 @@ class SpykeWindow(QtGui.QMainWindow):
             fname = fname + '.wave'
         print('saving wave file %r' % fname)
         t0 = time.time()
-        f = open(self.join(fname), 'wb')
-        np.save(f, s.wavedata)
-        f.close()
+        if sids == None: # write the whole file
+            f = open(self.join(fname), 'wb')
+            np.save(f, s.wavedata)
+            f.close()
+        else: # write only sids
+            print('updating %d spikes in wave file %r' % (len(sids), fname))
+            core.updatenpyfilerows(self.join(fname), sids, s.wavedata)
         print('done saving wave file, took %.3f sec' % (time.time()-t0))
         s.wavefname = fname
 

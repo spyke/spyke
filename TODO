@@ -1,8 +1,17 @@
 - JMS: add time to PCA to help with clustering over time with drift
 
-- make right click on spike(s) in nslist bring up context menu with delete, or just make SHIFT+Del delete the currently explicitly selected spike(s)
+- test dirty spikes functionality for max/min alignment - need to have .srf file open for this
 
-- if exactly 2 clusters are selected, and one or more spikes are selected in the nslist, have some control that lets you swap the cluster membership of those spikes. Maybe the tab button, since that has a bidirectional arrow
+- maybe I should designate a cluster's physical position in x and y by running localization on it, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
+
+- on cluster, check if selected cluster dimensions == current plot dimensions. If not, print a warning, maybe even raise a dialog box!
+
+- maybe I should mark sids as dirty for the .spike file too
+    - would be more difficult to mark spike file entries as dirty, since they become so so much more often and in so many different ways. But, maybe the only code change required would be in one or two places, like in apply_clustering.
+
+- make right click on spike(s) in nslist bring up context menu with delete, or just make CTRL+Del delete the currently explicitly selected spike(s). This wouldn't be undoable though, with the current undo/redo framework being so based around creation/deletion of clusters. It would also screw up the undo/redo stack.
+
+- if exactly 2 clusters are selected, and one or more spikes are selected in the nslist, have some control that lets you swap the cluster membership of those spikes. Maybe the tab button, since that has a bidirectional arrow. This wouldn't be undoable though, with the current undo/redo framework being so based around creation/deletion of clusters. It would also screw up the undo/redo stack.
 
 - something wrong with find next/prev most similar cluster, channel overlap calc is wrong? not finding obvious candidates. Might be a new bug from adding multiunit clusters?
 
@@ -16,7 +25,7 @@
 
 - finish implementing discretized cluster space using huge sparse matrix
 
-- NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise when they stop moving (or just by default on every iter)
+- NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise (but how much? some fraction of sigma?) when they stop moving (or just by default on every iter)
 
 - WISHLIST: add vertical line threshold indicator to match error histogram, and make it user settable, and keep it synchronized with the match thresh spin edit in match tab
 
@@ -1125,6 +1134,14 @@ DONE:
     - ah, when I hit cluster, the original cluster 2 with all its spikes is deleted, but only the selected 20 live on to turn into other clusters. The balance are set as having nid = 0. I should stop deleting the original, but that would require big changes to both apply_clustering and ApplyClusterChange, both of which are very touchy. Instead, just disallow clustering of only a subset of a cluster's spikes
 - make ESC in main window propagate to Sort window, to clear current selection
 - make double-click/ENTER of nid in nlist trigger the cluster button
+- have a system that marks spike waveforms as "dirty" in the .wave file, so you only go resave those that really need to be resaved, instead of rewriting the whole (potentially multi GB) file each time
+    - sort.dirtysids should be a set()
+    - writing:
+        1. call np.format.read_magic to get .npy format version
+        2. assert that .npy format is 1.0
+        3. call read_array_header_1_0 to move pointer to start of array in file.  Assert shape and dtype are identical to array in memory. Call f.tell() to get start of array offset.
+        4. for each dirty sid (sids should be sorted), calculate offset from start of file (array offset plus sid offset), f.seek() by that amount relative to start of file, write bytes to disk
+    - for testing, make some sids dirty, save to existing .wave file by modifying it, then go and write another full one from wavedata in memory. Then check that the two files are indeed identical.
 
 
 
