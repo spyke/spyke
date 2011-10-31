@@ -1,13 +1,12 @@
 - JMS: add time to PCA to help with clustering over time with drift
 
-- test dirty spikes functionality for max/min alignment - need to have .srf file open for this
-
 - maybe I should designate a cluster's physical position in x and y by running localization on it, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
 
 - on cluster, check if selected cluster dimensions == current plot dimensions. If not, print a warning, maybe even raise a dialog box!
 
 - maybe I should mark sids as dirty for the .spike file too
     - would be more difficult to mark spike file entries as dirty, since they become so so much more often and in so many different ways. But, maybe the only code change required would be in one or two places, like in apply_clustering.
+    - seems like .sort file saving is the limiting factor now, not .spike file saving. The time and space hogs are probably the neuron.sids arrays. I could try excluding those during save, and then regenerate them from the .spike file on load. Would inevitably lose any neuron 0 though.
 
 - make right click on spike(s) in nslist bring up context menu with delete, or just make CTRL+Del delete the currently explicitly selected spike(s). This wouldn't be undoable though, with the current undo/redo framework being so based around creation/deletion of clusters. It would also screw up the undo/redo stack.
 
@@ -1142,6 +1141,7 @@ DONE:
         3. call read_array_header_1_0 to move pointer to start of array in file.  Assert shape and dtype are identical to array in memory. Call f.tell() to get start of array offset.
         4. for each dirty sid (sids should be sorted), calculate offset from start of file (array offset plus sid offset), f.seek() by that amount relative to start of file, write bytes to disk
     - for testing, make some sids dirty, save to existing .wave file by modifying it, then go and write another full one from wavedata in memory. Then check that the two files are indeed identical.
+- test dirty spikes functionality for max/min alignment - need to have .srf file open for this
 
 
 

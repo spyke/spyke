@@ -707,7 +707,7 @@ class Sort(object):
             raise ValueError('unknown to %r' % to)
         sids = sids[i] # sids that need realigning
         nspikes = len(sids)
-        print("Realigning %d spikes" % nspikes)
+        print("realigning %d spikes" % nspikes)
         if nspikes == 0: # nothing to do
             return [] # no sids to mark as dirty
 

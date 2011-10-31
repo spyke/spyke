@@ -2217,7 +2217,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <connection>
    <sender>componentAnalysisComboBox</sender>
    <signal>activated(int)</signal>
-   <receiver>c0c1c2Button</receiver>
+   <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -2225,8 +2225,8 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
      <y>181</y>
     </hint>
     <hint type="destinationlabel">
-     <x>347</x>
-     <y>208</y>
+     <x>311</x>
+     <y>323</y>
     </hint>
    </hints>
   </connection>
