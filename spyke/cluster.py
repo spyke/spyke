@@ -39,6 +39,14 @@ class Cluster(object):
 
     id = property(get_id, set_id)
 
+    def get_color(self):
+        if self.id < 1:
+            return GREYRGB # unclustered or multiunit
+        else:
+            return CMAP[self.id % len(CMAP) - 1] # single unit nids are 1-based
+
+    color = property(get_color)
+
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
@@ -167,7 +175,7 @@ class ClusterWindow(SpykeToolWindow):
         gw.sids = sids
         gw.nids = nids
         gw.colors = CMAP[nids % len(CMAP) - 1] # uint8, single unit nids are 1-based
-        gw.colors[nids == 0] = GREYRGB # overwrite unclustered points with GREYRGB
+        gw.colors[nids < 1] = GREYRGB # overwrite unclustered/multiunit points with GREYRGB
         gw.updateGL()
 
 
@@ -487,7 +495,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             #    self.selectItemUnderCursor(on=True, clear=True)
             elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash,
                          Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
-                         Qt.Key_B, Qt.Key_Comma, Qt.Key_Period]:
+                         Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_O]:
                 sw.keyPressEvent(event) # pass it on to Sort window
             elif key in [Qt.Key_Enter, Qt.Key_Return]:
                 sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist

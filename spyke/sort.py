@@ -21,14 +21,15 @@ import numpy as np
 from numpy import sqrt
 import scipy
 #from scipy.cluster.hierarchy import fclusterdata
-#import pylab
+
+import pylab as pl
 
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
 from surf import EPOCH
-from plot import SpikeSortPanel
+from plot import SpikeSortPanel, WHITE
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -226,9 +227,8 @@ class Sort(object):
         print(fullfname)
 
     def exportgdffiles(self, basepath):
-        """Export spike data to text .gdf files under basepath, one file for all neurons
-           1st column is event id
-           2nd column is event time in ms res"""
+        """Export spike data to text .gdf files under basepath, one file for all neurons.
+        1st column is event id, 2nd column is event time in ms res"""
         ## TODO: make sure event ids in gdf format start from 1, and are contiguous. Also make
         ## sure to include stimulus start times labelled as event 1001 or something
         ## TODO: make export work on full track of data too, exporting to separate folders per
@@ -1434,6 +1434,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionFindNextMostSimilar_triggered)
         toolbar.addAction(actionFindNextMostSimilar)
 
+        actionCalcOverlap = QtGui.QAction("O", self)
+        actionCalcOverlap.setToolTip("Calculate overlap index between selected pair of clusters")
+        self.connect(actionCalcOverlap, QtCore.SIGNAL("triggered()"),
+                     self.on_actionCalcOverlap_triggered)
+        toolbar.addAction(actionCalcOverlap)
+
         return toolbar
 
     def get_sort(self):
@@ -1481,6 +1487,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
+        elif key == Qt.Key_O: # ignored in SpykeListViews
+            self.on_actionCalcOverlap_triggered()
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
 
@@ -1781,6 +1789,80 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionFindNextMostSimilar_triggered(self):
         self.findMostSimilarCluster('next')
+
+    def on_actionCalcOverlap_triggered(self):
+        """Calculate overlap index between the two selected clusters. Project all points
+        in both clusters onto line connecting centers of the two clusters. Take sum of
+        stdevs of projections of points from both clusters. Take ratio of that sum and the
+        distance between the cluster centers to get overlap index. An index > 1 suggests
+        the two clusters are ovelapping significantly.
+        
+        Or, could instead take sqrt of Jensen Shannon divergence, which is a metric
+        
+        Another way would be to simply take the fraction of area that the two distribs overlap.
+        For the two distribs, at each bin, take min value of the two. Add up all those min values,
+        and divide by the mass of the smaller distrib.
+        """
+        spw = self.spykewindow
+        clusters = spw.GetClusters()
+        if len(clusters) != 2:
+            print("need to select exactly 2 clusters to calculate overlap index")
+            return
+        # get param matrix X for points in both clusters, given current dim and channel selection:
+        dims = spw.GetClusterPlotDims()
+        sids = np.concatenate([clusters[0].neuron.sids, clusters[1].neuron.sids])
+        sids.sort()
+        X, sids = spw.get_param_matrix(sids=sids, dims=dims)
+        # calculate stdev of projection of each cluster's points onto line connecting the
+        # centers of the two clusters:
+        sid0is = sids.searchsorted(clusters[0].neuron.sids)
+        sid1is = sids.searchsorted(clusters[1].neuron.sids)
+        points0 = X[sid0is]
+        points1 = X[sid1is]
+        # centers of both clusters, use median:
+        c0 = np.median(points0, axis=0) # ndims vector
+        c1 = np.median(points1, axis=0)
+        # calc projections, with everything relative to c0:
+        line = c1-c0
+        proj0s = np.dot(points0-c0, line)
+        proj1s = np.dot(points1-c0, line)
+        sumstdev = proj0s.std() + proj1s.std()
+        d = np.linalg.norm(line)
+        overlapindex = sumstdev / d
+        projs = np.concatenate([proj0s, proj1s])
+        nbins = intround(np.sqrt(len(projs))) # seems like a good heuristic
+        #print('nbins = %d' % nbins)
+        edges = np.histogram(projs, bins=nbins)[1]
+        hist0 = np.histogram(proj0s, bins=edges)[0]
+        hist1 = np.histogram(proj1s, bins=edges)[0]
+        hist = np.asarray([hist0, hist1])
+        # Take the fraction of area that the two distribs overlap.
+        # At each bin, take min value of the two distribs. Add up all those min values,
+        # and divide by the mass of the smaller distrib.
+        masses = np.asarray([hist0.sum(), hist1.sum()])
+        sortedmassi = masses.argsort()
+        overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
+        djs = core.DJS(hist0, hist1)
+        # plotting:
+        ledges = edges[:-1] # keep just the left edges, discard the last right edge
+        assert len(ledges) == nbins
+        binwidth = ledges[1] - ledges[0]
+        f = pl.gcf() # reuse any existing matplotlib figure
+        pl.clf()
+        windowtitle = "cluster %d & %d overlap" % (clusters[0].id, clusters[1].id)
+        print(windowtitle)
+        f.canvas.parent().setWindowTitle(windowtitle)
+        title = ("index: %.3f, area ratio: %.3f, DJS: %.3f, sqrt(DJS): %.3f"
+                 % (overlapindex, overlaparearatio, djs, np.sqrt(djs)))
+        print(title)
+        pl.title(title)
+        cs = core.rgb2hex([ cluster.color for cluster in clusters ])
+        for i, c in enumerate(cs):
+            if c == WHITE:
+                cs[i] = 'black'
+        # plot the smaller cluster last, to maximize visibility:
+        for i in reversed(masses[sortedmassi]):
+            pl.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
 
     def findMostSimilarCluster(self, which='next'):
         try:

@@ -726,7 +726,7 @@ class SpykeListView(QtGui.QListView):
         ctrlup = not ctrldown
         if (key in [Qt.Key_M, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_NumberSign,
                     Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
-                    Qt.Key_Comma, Qt.Key_Period]
+                    Qt.Key_Comma, Qt.Key_Period, Qt.Key_O]
             or ctrlup and key == Qt.Key_Space):
             event.ignore() # pass it on up to the parent
         else:
@@ -1388,6 +1388,18 @@ def hex2rgb(hexcolours):
         rgb.append((r, g, b))
     return np.uint8(rgb)
 
+def rgb2hex(rgbcolours):
+    """Convert RGB array into hex string list"""
+    hx = []
+    for rgb in rgbcolours:
+        r, g, b = rgb
+        h = hex(r*2**16 + g*2**8 + b)
+        h = lrstrip(h, '0x', 'L')
+        pad = (6 - len(h)) * '0'
+        h = '#' + pad + h
+        hx.append(h)
+    return hx
+
 c = np.cos
 s = np.sin
 
@@ -1616,40 +1628,34 @@ def padarr(x, align=8):
     assert x.nbytes % align == 0
     return x
 
-def normpdf(p):
+def normpdf(p, lapcorrect=1e-10):
     """Ensure p is normalized (sums to 1). Return p unchanged if it's already normalized.
-    Otherwise, return it normalized. I guess this treats p as a pmf, not strictly a pdf"""
+    Otherwise, return it normalized. I guess this treats p as a pmf, not strictly a pdf.
+    Optional apply Laplacian correction to avoid 0s"""
     p = np.asarray(p)
+    if lapcorrect and (p == 0).any():
+        p += lapcorrect
     psum = p.sum()
     if not np.allclose(psum, 1.0) and psum > 0: # make sure the probs sum to 1
         #print("p sums to %f instead of 1, normalizing" % psum)
-        p = np.copy(p) # copy before modifying in-place
-        p /= float(psum)
+        p = np.float64(p) # copy and ensure it's float before modifying in-place
+        p /= psum
     return p
-
-def DKLi(pi, qi):
-    """Kullback-Leibler divergence from true probability distribution p to arbitrary
-    distribution q. Assumes pis and qis are both normalized and have no zeros in them"""
-    return sum(pi * np.log2(pi/qi))
 
 def DKL(p, q):
     """Kullback-Leibler divergence from true probability distribution p to arbitrary
     distribution q"""
     assert len(p) == len(q)
     p, q = normpdf(np.asarray(p)), normpdf(np.asarray(q))
-    i = p*q != 0 # avoid singularities
-    pi, qi = p[i], q[i]
-    return DKLi(pi, qi)
-
+    return sum(p * np.log2(p/q))
+    
 def DJS(p, q):
     """Jensen-Shannon divergence, a symmetric measure of divergence between
     distributions p and q"""
     assert len(p) == len(q)
     p, q = normpdf(np.asarray(p)), normpdf(np.asarray(q))
-    i = p*q != 0 # avoid singularities
-    pi, qi = p[i], q[i]
-    mi = (pi + qi) / 2
-    return (DKLi(pi, mi) + DKLi(qi, mi)) / 2
+    m = (p + q) / 2
+    return (DKL(p, m) + DKL(q, m)) / 2
 
 def updatenpyfilerows(fname, rows, arr):
     """Given a numpy formatted binary file (usually with .npy extension,

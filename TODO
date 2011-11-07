@@ -1,3 +1,17 @@
+- if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
+
+- make mpl window one of the tool windows, and always plot to it , ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
+
+- semi-automate pairwise cluster comparison, making use of one or more of the overlap measures
+    - designate an overlap threshold. Go through all pairs. For the first pair that exceeds the threshold, print a message, select them in the interface, and leave the user to examine them in more detail. Maybe first try each pair in PC space, and if they exceed overlap, try again in IC space, and if they still exceed, turn it over to the user, who will perhaps select a different set of channels to help distinguish the clusters.
+    - whatever overlap metric I use, once it works, I can use it to optimize first for the channel selection, and then for value of sigma that best separates the two clusters
+
+- maybe allow overlap plot for single cluster, even though you won't be calculating any overlap. Instead, just take the projection of all points along the first plot dimension (x). Don't remember why I thought this would be useful, maybe just to see how normally distributed the cluster is, perhaps to make it more obvious if it needs splitting, or if splitting isn't possible, if it should be marked as multiunit
+
+- need a quantitative criteria for deciding if a cluster should be classified as multiunit
+
+- some kind of line layering issue with the green chan selection lines. When you have chans selected, and a cluster selected, and then you go find next most similar, often the green lines underneath seem to disappear, but then when you clear the cluster selection, they reappear
+
 - JMS: add time to PCA to help with clustering over time with drift
 
 - maybe I should designate a cluster's physical position in x and y by running localization on it, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
@@ -1142,6 +1156,22 @@ DONE:
         4. for each dirty sid (sids should be sorted), calculate offset from start of file (array offset plus sid offset), f.seek() by that amount relative to start of file, write bytes to disk
     - for testing, make some sids dirty, save to existing .wave file by modifying it, then go and write another full one from wavedata in memory. Then check that the two files are indeed identical.
 - test dirty spikes functionality for max/min alignment - need to have .srf file open for this
+- calculate a cluster pair overlap index using means and stdevs of the two clusters I guess. This would assume normal distribs, which they aren't necessarily.
+    - unsure whether a single threshold setting will work well for all cluster pairs
+    - this overlap index sounds exactly like discussion with Nick on 2011-10-05 regarding an error measure between pairs of clusters in PC space
+    - calc projection of each point onto line connecting centers of the two clusters:
+        - find center of first cluster, subtract center coord from points of each cluster, and find center of 2nd cluster wrt first (which means taking 2nd center coord and subtracting the 1st)
+        - line connecting the two is now represented by 2nd center coord
+        - take dot product of each point with this vector to get projection of each point onto line
+        - take stdev of all dot products for this 1st cluster
+        - repeat above for 2nd cluster
+        - take average of the two stdevs, or maybe just their sum
+        - find distance between centers (sqrt(sum(sqr distance vector)))
+        - if distance < 2*average stdev, try again in ICA space
+            - or, maybe nicer to use the sum of the stdevs, instead of the average, and then check if distance < sum stdevs. Get exact same result either way
+        - if it's still the case, maybe they should be merged. stop and leave it to the user
+        - overlap index itself could be reported as ratio between sum(stdevs) and the distance. A value >= 1 indicates significant overlap
+
 
 
 
