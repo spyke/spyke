@@ -1434,11 +1434,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionFindNextMostSimilar_triggered)
         toolbar.addAction(actionFindNextMostSimilar)
 
-        actionCalcOverlap = QtGui.QAction("O", self)
-        actionCalcOverlap.setToolTip("Calculate overlap index between selected pair of clusters")
-        self.connect(actionCalcOverlap, QtCore.SIGNAL("triggered()"),
-                     self.on_actionCalcOverlap_triggered)
-        toolbar.addAction(actionCalcOverlap)
+        actionPlotClusterHist = QtGui.QAction("H", self)
+        actionPlotClusterHist.setToolTip("Plot cluster histogram, calculate overlap index if "
+                                     "2 clusters selected")
+        self.connect(actionPlotClusterHist, QtCore.SIGNAL("triggered()"),
+                     self.on_actionPlotClusterHist_triggered)
+        toolbar.addAction(actionPlotClusterHist)
 
         return toolbar
 
@@ -1487,8 +1488,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
-        elif key == Qt.Key_O: # ignored in SpykeListViews
-            self.on_actionCalcOverlap_triggered()
+        elif key == Qt.Key_H: # ignored in SpykeListViews
+            self.on_actionPlotClusterHist_triggered()
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
 
@@ -1790,78 +1791,96 @@ class SortWindow(SpykeToolWindow):
     def on_actionFindNextMostSimilar_triggered(self):
         self.findMostSimilarCluster('next')
 
-    def on_actionCalcOverlap_triggered(self):
-        """Calculate overlap index between the two selected clusters. Project all points
-        in both clusters onto line connecting centers of the two clusters. Take sum of
-        stdevs of projections of points from both clusters. Take ratio of that sum and the
-        distance between the cluster centers to get overlap index. An index > 1 suggests
+    def on_actionPlotClusterHist_triggered(self):
+        """Plot histogram of selected clusters along a single dimension. If two
+        clusters selected, also calculate overlap index between them. Project all points
+        in both clusters onto line connecting centers of the two clusters. Take avg of
+        stdevs of projections of points from both clusters. Take ratio of that 3 avg stdevs
+        and the distance between the cluster centers to get overlap index. An index > 1 suggests
         the two clusters are ovelapping significantly.
-        
-        Or, could instead take sqrt of Jensen Shannon divergence, which is a metric
         
         Another way would be to simply take the fraction of area that the two distribs overlap.
         For the two distribs, at each bin, take min value of the two. Add up all those min values,
         and divide by the mass of the smaller distrib.
+
+        Or, could instead take sqrt of Jensen Shannon divergence, which is a metric
         """
         spw = self.spykewindow
         clusters = spw.GetClusters()
-        if len(clusters) != 2:
-            print("need to select exactly 2 clusters to calculate overlap index")
+        if len(clusters) == 0:
+            print("no clusters selected")
             return
-        # get param matrix X for points in both clusters, given current dim and channel selection:
+        if len(clusters) == 2:
+            calc_overlap = True
+        else:
+            calc_overlap = False
+            projdimi = 0
+        # get param matrix X for points in all clusters, given current dim and channel selection:
         dims = spw.GetClusterPlotDims()
-        sids = np.concatenate([clusters[0].neuron.sids, clusters[1].neuron.sids])
+        sids = np.concatenate([ cluster.neuron.sids for cluster in clusters ])
         sids.sort()
-        X, sids = spw.get_param_matrix(sids=sids, dims=dims)
-        # calculate stdev of projection of each cluster's points onto line connecting the
-        # centers of the two clusters:
-        sid0is = sids.searchsorted(clusters[0].neuron.sids)
-        sid1is = sids.searchsorted(clusters[1].neuron.sids)
-        points0 = X[sid0is]
-        points1 = X[sid1is]
-        # centers of both clusters, use median:
-        c0 = np.median(points0, axis=0) # ndims vector
-        c1 = np.median(points1, axis=0)
-        # calc projections, with everything relative to c0:
-        line = c1-c0
-        proj0s = np.dot(points0-c0, line)
-        proj1s = np.dot(points1-c0, line)
-        sumstdev = proj0s.std() + proj1s.std()
-        d = np.linalg.norm(line)
-        overlapindex = sumstdev / d
-        projs = np.concatenate([proj0s, proj1s])
-        nbins = intround(np.sqrt(len(projs))) # seems like a good heuristic
+        X, sids = spw.get_param_matrix(sids=sids, dims=dims, scale=True)
+        points = [] # list of projection of each cluster's points onto dimi
+        for cluster in clusters:
+            sidis = sids.searchsorted(cluster.neuron.sids)
+            points.append(X[sidis])
+        if calc_overlap:
+            # centers of both clusters, use median:
+            c0 = np.median(points[0], axis=0) # ndims vector
+            c1 = np.median(points[1], axis=0)
+            # line connecting the centers of the two clusters, wrt c0
+            line = c1-c0
+            line /= np.linalg.norm(line) # make it unit length
+            #print('c0=%r, c1=%r, line=%r' % (c0, c1, line))
+        else:
+            line = np.zeros(len(dims))
+            line[projdimi] = 1.0 # pick out just the one component
+            c0 = 0.0 # set origin at 0
+        # calculate projection of each cluster's points onto line
+        projs = []
+        for cpoints in points:
+            projs.append(np.dot(cpoints-c0, line))
+        if calc_overlap:
+            d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
+            # measure whether centers are at least 3 of the bigger stdevs away from each other:
+            overlapindex = 3 * max(projs[0].std(), projs[1].std()) / d
+            #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
+        proj = np.concatenate(projs)
+        nbins = intround(np.sqrt(len(proj))) # seems like a good heuristic
         #print('nbins = %d' % nbins)
-        edges = np.histogram(projs, bins=nbins)[1]
-        hist0 = np.histogram(proj0s, bins=edges)[0]
-        hist1 = np.histogram(proj1s, bins=edges)[0]
-        hist = np.asarray([hist0, hist1])
+        edges = np.histogram(proj, bins=nbins)[1]
+        hists = []
+        for ci, cluster in enumerate(clusters):
+            hists.append(np.histogram(projs[ci], bins=edges)[0])
+        hist = np.concatenate([hists]) # one cluster hist per row
+        masses = np.asarray([ h.sum() for h in hist ])
+        sortedmassi = masses.argsort()
         # Take the fraction of area that the two distribs overlap.
         # At each bin, take min value of the two distribs. Add up all those min values,
         # and divide by the mass of the smaller distrib.
-        masses = np.asarray([hist0.sum(), hist1.sum()])
-        sortedmassi = masses.argsort()
-        overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
-        djs = core.DJS(hist0, hist1)
+        if calc_overlap:
+            overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
+            djs = core.DJS(hists[0], hists[1])
         # plotting:
         ledges = edges[:-1] # keep just the left edges, discard the last right edge
         assert len(ledges) == nbins
         binwidth = ledges[1] - ledges[0]
         f = pl.gcf() # reuse any existing matplotlib figure
         pl.clf()
-        windowtitle = "cluster %d & %d overlap" % (clusters[0].id, clusters[1].id)
+        windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
         print(windowtitle)
         f.canvas.parent().setWindowTitle(windowtitle)
-        title = ("index: %.3f, area ratio: %.3f, DJS: %.3f, sqrt(DJS): %.3f"
-                 % (overlapindex, overlaparearatio, djs, np.sqrt(djs)))
-        print(title)
-        pl.title(title)
+        if calc_overlap:
+            title = ("overlap: index=%.3f, area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
+                     % (overlapindex, overlaparearatio, djs, np.sqrt(djs)))
+            print(title)
+            pl.title(title)
         cs = core.rgb2hex([ cluster.color for cluster in clusters ])
         for i, c in enumerate(cs):
             if c == WHITE:
                 cs[i] = 'black'
         # plot the smaller cluster last, to maximize visibility:
-        for i in reversed(masses[sortedmassi]):
+        for i in sortedmassi[::-1]:
             pl.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
 
     def findMostSimilarCluster(self, which='next'):

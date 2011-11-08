@@ -495,7 +495,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             #    self.selectItemUnderCursor(on=True, clear=True)
             elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash,
                          Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
-                         Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_O]:
+                         Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_H]:
                 sw.keyPressEvent(event) # pass it on to Sort window
             elif key in [Qt.Key_Enter, Qt.Key_Return]:
                 sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist

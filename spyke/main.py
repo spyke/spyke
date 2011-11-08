@@ -869,6 +869,8 @@ class SpykeWindow(QtGui.QMainWindow):
             return # nothing to plot
         nids = s.spikes['nid'][sids]
         cw.plot(X, sids, nids)
+        sw = self.OpenWindow('Sort') # in case it isn't already open
+        sw.on_actionPlotClusterHist_triggered() # auto update cluster histogram plot
 
     @QtCore.pyqtSlot()
     def get_cleaning_density_hist(self):
