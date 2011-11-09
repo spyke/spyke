@@ -8,6 +8,8 @@
 
 - maybe allow overlap plot for single cluster, even though you won't be calculating any overlap. Instead, just take the projection of all points along the first plot dimension (x). Don't remember why I thought this would be useful, maybe just to see how normally distributed the cluster is, perhaps to make it more obvious if it needs splitting, or if splitting isn't possible, if it should be marked as multiunit
 
+- when calculating matches, calculate not just against unclustered spikes, but also against all multiunit spikes, ie all spikes with nid < 1
+
 - need a quantitative criteria for deciding if a cluster should be classified as multiunit
 
 - some kind of line layering issue with the green chan selection lines. When you have chans selected, and a cluster selected, and then you go find next most similar, often the green lines underneath seem to disappear, but then when you clear the cluster selection, they reappear
@@ -1171,6 +1173,8 @@ DONE:
             - or, maybe nicer to use the sum of the stdevs, instead of the average, and then check if distance < sum stdevs. Get exact same result either way
         - if it's still the case, maybe they should be merged. stop and leave it to the user
         - overlap index itself could be reported as ratio between sum(stdevs) and the distance. A value >= 1 indicates significant overlap
+- make cleaning histogram automatically use nbins = sqrt(npoints). This has worked really nicely in the cluster histogram
+
 
 
 

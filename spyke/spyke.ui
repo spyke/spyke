@@ -887,7 +887,7 @@
          <property name="geometry">
           <rect>
            <x>155</x>
-           <y>110</y>
+           <y>109</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -983,7 +983,7 @@
          <property name="geometry">
           <rect>
            <x>155</x>
-           <y>135</y>
+           <y>134</y>
            <width>62</width>
            <height>25</height>
           </rect>
@@ -1309,6 +1309,10 @@ Ctrl+click forces recalculation of components</string>
            <height>24</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Component analysis method. ICA seems to do better than PCA
+when one cluster in a pair has far more points than the other</string>
+         </property>
          <item>
           <property name="text">
            <string>PCA</string>
@@ -1351,33 +1355,17 @@ Ctrl+click forces recalculation of components</string>
         <property name="title">
          <string>Cleaning</string>
         </property>
-        <widget class="QSpinBox" name="cleanHistNbinsSpinBox">
-         <property name="geometry">
-          <rect>
-           <x>40</x>
-           <y>30</y>
-           <width>51</width>
-           <height>25</height>
-          </rect>
-         </property>
-         <property name="maximum">
-          <number>999999999</number>
-         </property>
-         <property name="value">
-          <number>100</number>
-         </property>
-        </widget>
         <widget class="QPushButton" name="cleanButton">
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>160</y>
+           <y>105</y>
            <width>46</width>
            <height>27</height>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Uncluster points &gt; nstds from origin of cluster density histogram</string>
+          <string>Remove points &gt; nstds from origin of cluster density histogram</string>
          </property>
          <property name="text">
           <string>Clean</string>
@@ -1387,7 +1375,7 @@ Ctrl+click forces recalculation of components</string>
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>55</y>
+           <y>25</y>
            <width>91</width>
            <height>20</height>
           </rect>
@@ -1399,24 +1387,11 @@ Ctrl+click forces recalculation of components</string>
           <bool>true</bool>
          </property>
         </widget>
-        <widget class="QLabel" name="label_37">
-         <property name="geometry">
-          <rect>
-           <x>5</x>
-           <y>35</y>
-           <width>46</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>nbins:</string>
-         </property>
-        </widget>
         <widget class="QPushButton" name="cleanHistButton">
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>75</y>
+           <y>45</y>
            <width>46</width>
            <height>27</height>
           </rect>
@@ -1432,7 +1407,7 @@ Ctrl+click forces recalculation of components</string>
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>135</y>
+           <y>80</y>
            <width>46</width>
            <height>16</height>
           </rect>
@@ -1445,7 +1420,7 @@ Ctrl+click forces recalculation of components</string>
          <property name="geometry">
           <rect>
            <x>40</x>
-           <y>130</y>
+           <y>75</y>
            <width>51</width>
            <height>25</height>
           </rect>

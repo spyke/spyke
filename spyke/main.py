@@ -883,7 +883,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ndims = X.shape[1]
         r = np.sqrt(np.square(X).sum(axis=1)) # all +ve values
         r /= r.std() # normalize to unit variance
-        nbins = self.ui.cleanHistNbinsSpinBox.value()
+        nbins = intround(np.sqrt(len(X))) # good heuristic
         rhist, edges = np.histogram(r, nbins) # distance hist, edges includes the right edge
         ledges = edges[:-1] # keep just the left edges, discard the last right edge
         assert len(ledges) == nbins
