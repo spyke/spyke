@@ -1202,7 +1202,10 @@ class SpykeWindow(QtGui.QMainWindow):
             dimlist.item(rowi).setSelected(True) # a little nicer
 
     def GetClusteringDims(self):
-        """Get selected clustering dimensions in dimlist"""
+        """Get selected clustering dimensions in dimlist. If dimlist disabled, use plot
+        dimensions instead"""
+        if not self.ui.dimlist.isEnabled():
+            return self.GetClusterPlotDims()
         items = self.ui.dimlist.selectedItems()
         if len(items) == 0:
             raise RuntimeError('No clustering dimensions selected')

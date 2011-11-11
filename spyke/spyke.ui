@@ -675,12 +675,15 @@
          <bool>false</bool>
         </property>
         <widget class="QListWidget" name="dimlist">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>25</y>
+           <y>40</y>
            <width>86</width>
-           <height>161</height>
+           <height>146</height>
           </rect>
          </property>
          <property name="toolTip">
@@ -996,6 +999,25 @@
          </property>
          <property name="value">
           <number>1000</number>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="enableDimlistCheckBox">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>20</y>
+           <width>81</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>dims</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
          </property>
         </widget>
        </widget>
@@ -2202,6 +2224,22 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
     <hint type="destinationlabel">
      <x>311</x>
      <y>323</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>enableDimlistCheckBox</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>dimlist</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>52</x>
+     <y>179</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>54</x>
+     <y>262</y>
     </hint>
    </hints>
   </connection>

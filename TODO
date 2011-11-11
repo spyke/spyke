@@ -12,13 +12,14 @@
 
 - need a quantitative criteria for deciding if a cluster should be classified as multiunit
 
+- seems the Qt nlist labelling bug, where 3 digit nids are replaced by ... when there are -ve numbers in the list, seems to go away once you hit values around 120, maybe cuz the two takes up more space?
+    - or, maybe it's when the negative numbers start hitting 2 digits
+
 - some kind of line layering issue with the green chan selection lines. When you have chans selected, and a cluster selected, and then you go find next most similar, often the green lines underneath seem to disappear, but then when you clear the cluster selection, they reappear
 
 - JMS: add time to PCA to help with clustering over time with drift
 
 - maybe I should designate a cluster's physical position in x and y by running localization on it, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
-
-- on cluster, check if selected cluster dimensions == current plot dimensions. If not, print a warning, maybe even raise a dialog box!
 
 - maybe I should mark sids as dirty for the .spike file too
     - would be more difficult to mark spike file entries as dirty, since they become so so much more often and in so many different ways. But, maybe the only code change required would be in one or two places, like in apply_clustering.
@@ -1174,6 +1175,7 @@ DONE:
         - if it's still the case, maybe they should be merged. stop and leave it to the user
         - overlap index itself could be reported as ratio between sum(stdevs) and the distance. A value >= 1 indicates significant overlap
 - make cleaning histogram automatically use nbins = sqrt(npoints). This has worked really nicely in the cluster histogram
+- disable cluster dimension list by default with checkbox, and if it's disabled, use the 3 dimensions selected in the plot dimension combo boxes - this will avoid the common situation where I'm plotting in one space, yet clustering in another, which is annoying and a bit dangerous
 
 
 

@@ -936,7 +936,8 @@ class NListModel(SpykeAbstractListModel):
             else: # role == Qt.ToolTipRole
                 neuron = neurons[nid]
                 pos = neuron.cluster.pos
-                return ('%d spikes\n' % neuron.nspikes +
+                return ('nid: %d\n' % nid +
+                        '%d spikes\n' % neuron.nspikes +
                         't: %d us\n' % pos['t'] +
                         'x0: %.4g um\n' % pos['x0'] +
                         'y0: %.4g um\n' % pos['y0'] +
