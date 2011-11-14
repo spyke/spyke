@@ -1362,6 +1362,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionChanSplitClusters_triggered)
         toolbar.addAction(actionChanSplitClusters)
 
+        actionRandomSplit = QtGui.QAction("\\", self)
+        actionRandomSplit.setToolTip('Randomly split clusters exceeding %d' % core.MAXNCLIMBPOINTS)
+        self.connect(actionRandomSplit, QtCore.SIGNAL("triggered()"),
+                     self.on_actionRandomSplit_triggered)
+        toolbar.addAction(actionRandomSplit)
+
         toolbar.addSeparator()
 
         actionRenumberClusters = QtGui.QAction("#", self)
@@ -1469,6 +1475,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionLabelMultiunit_triggered()
         elif key == Qt.Key_Slash: # ignored in SpykeListViews
             self.on_actionChanSplitClusters_triggered()
+        elif key == Qt.Key_Backslash: # ignored in SpykeListViews
+            self.on_actionRandomSplit_triggered()
         elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
             self.on_actionRenumberClusters_triggered()
         elif key == Qt.Key_C: # ignored in SpykeListViews
@@ -1648,6 +1656,11 @@ class SortWindow(SpykeToolWindow):
     def on_actionChanSplitClusters_triggered(self):
         """Split by channels button (/) click"""
         self.spykewindow.chansplit()
+
+    def on_actionRandomSplit_triggered(self):
+        """Randomly split each selected cluster if it has a population
+        of spikes > MAXNCLIMBPOINTS"""
+        self.spykewindow.randomsplit()
 
     def on_actionRenumberClusters_triggered(self):
         """Renumber single unit clusters consecutively from 1, ordered by y position,

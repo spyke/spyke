@@ -37,7 +37,7 @@ from copy import copy
 
 import core
 from core import toiter, tocontig, intround, rmserror, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g
+from core import DJS, g, MAXNCLIMBPOINTS
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
@@ -506,6 +506,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # since existing clusters are always deleted in apply_clustering and ApplyClusterChange,
         # and spikes that aren't in that subset would inadvertantly become unsorted
         sids = np.concatenate([self.GetClusterSpikes(), self.GetUnsortedSpikes()])
+        sids.sort()
         oldclusters = self.GetClusters() # all selected clusters
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes (sorted)
@@ -525,7 +526,6 @@ class SpykeWindow(QtGui.QMainWindow):
                 subsidss.append(oldcluster.neuron.sids)
                 msgs.append('oldcluster %d' % oldcluster.id)
             sids = np.concatenate(subsidss) # update
-            sids.sort()
         else: # just the selected spikes
             subsidss.append(sids)
             msgs.append('%d selected sids' % len(sids))
@@ -547,6 +547,44 @@ class SpykeWindow(QtGui.QMainWindow):
             nidsi = sids.searchsorted(subsids)
             nids[nidsi] = subnids + nidoffset
         return nids
+
+    def randomsplit(self):
+        """Check if any subsids are > MAXNCLIMBPOINTS long, and if so, randomly split them
+        into (approximately) equal size clusters of MAXCLIMBPOINTS or less. This is
+        done to increase climb() speed"""
+        oldclusters = self.GetClusters() # all selected clusters
+        subsidss = []
+        for cluster in oldclusters:
+            subsidss.append(cluster.neuron.sids)
+        sids = np.concatenate(subsidss)
+        sids.sort()
+        destsubsidss = []
+        for subsids in subsidss:
+            nsids = len(subsids)
+            if nsids > MAXNCLIMBPOINTS:
+                nclusters = nsids // MAXNCLIMBPOINTS + 1 # at least two
+                nsidspercluster = nsids // nclusters
+                remnsids = nsids % nclusters
+                nsidss = [nsidspercluster] * nclusters
+                nsidss[-1] += remnsids # throw any remainder into the last replacement subcluster
+                assert sum(nsidss) == nsids
+                np.random.shuffle(subsids)
+            else:
+                nsidss = [nsids]
+            start = 0
+            end = 0
+            for nsids in nsidss:
+                end += nsids
+                destsubsids = subsids[start:end]
+                destsubsids.sort() # sids should always go out sorted
+                destsubsidss.append(destsubsids)
+                start = end
+        nids = np.zeros(len(sids), dtype=np.int32) # init to unclustered, shouldn't be any once done
+        for i, destsubsids in enumerate(destsubsidss):
+            nids[sids.searchsorted(destsubsids)] = i + 1
+        if (nids == 0).any():
+            raise RuntimeError("there shouldn't be any unclustered points from randomsplit")
+        self.apply_clustering(oldclusters, sids, nids, verb='randomly split')
 
     def chansplit(self):
         """Split spikes into clusters of unique channel combinations"""

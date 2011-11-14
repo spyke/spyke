@@ -48,6 +48,8 @@ TW = -500, 500 # spike time window range, us, centered on thresh xing or main ph
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
+MAXNCLIMBPOINTS = 25000
+
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
 INVPI = 1 / pi
@@ -724,7 +726,7 @@ class SpykeListView(QtGui.QListView):
         modifiers = event.modifiers()
         ctrldown = bool(Qt.ControlModifier & modifiers)
         ctrlup = not ctrldown
-        if (key in [Qt.Key_M, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_NumberSign,
+        if (key in [Qt.Key_M, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_Backslash, Qt.Key_NumberSign,
                     Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_B,
                     Qt.Key_Comma, Qt.Key_Period, Qt.Key_H]
             or ctrlup and key == Qt.Key_Space):

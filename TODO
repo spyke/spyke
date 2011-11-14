@@ -1,3 +1,9 @@
+- for really big clusters >100k, merge step is still too slow
+    - might be good to have a feature where you randomly split the one and only one selected cluster in half. Might have to do it a couple of times to get reasonable sizes. Then cluster each one separately, and then merge results appropriately
+    - maybe the split should happen automatically if >100k
+
+- I think for num changed spike waveforms > some threshold, say 50k, it might be faster to resave the whole .wave file, instead of updating just the individual entries one at a time
+
 - if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
 
 - make mpl window one of the tool windows, and always plot to it , ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
