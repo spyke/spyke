@@ -1408,19 +1408,22 @@ class SortWindow(SpykeToolWindow):
 
         toolbar.addSeparator()
 
-        actionAlignMin = QtGui.QAction("Align min", self)
+        alignlabel = QtGui.QLabel('Align:')
+        toolbar.addWidget(alignlabel)
+
+        actionAlignMin = QtGui.QAction("min", self)
         actionAlignMin.setToolTip("Align neurons' spikes to min")
         self.connect(actionAlignMin, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignMin_triggered)
         toolbar.addAction(actionAlignMin)
 
-        actionAlignMax = QtGui.QAction("Align max", self)
+        actionAlignMax = QtGui.QAction("max", self)
         actionAlignMax.setToolTip("Align neurons' spikes to max")
         self.connect(actionAlignMax, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignMax_triggered)
         toolbar.addAction(actionAlignMax)
 
-        actionAlignBest = QtGui.QAction("Align best", self)
+        actionAlignBest = QtGui.QAction("best", self)
         actionAlignBest.setToolTip("Align neurons' spikes by best fit")
         self.connect(actionAlignBest, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignBest_triggered)
