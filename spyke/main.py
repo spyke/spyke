@@ -76,7 +76,7 @@ class SpykeWindow(QtGui.QMainWindow):
             if os.path.exists(path):
                 self.path = path
                 break
-        self.windows = {} # holds spike, chart, lfp, sort, and shell windows
+        self.windows = {} # holds child windows
         self.spiketw = DEFSPIKETW # spike window temporal window (us)
         self.charttw = DEFCHARTTW # chart window temporal window (us)
         self.lfptw = DEFLFPTW # lfp window temporal window width (us)
@@ -943,11 +943,8 @@ class SpykeWindow(QtGui.QMainWindow):
         gauss = g(0, 1, ris)
         gauss /= (gauss * binwidth).sum() # normalize to unit area
         djs = DJS(dhist, gauss)
-        if self.ui.reuseCleanPlotsCheckBox.isChecked():
-            f = pl.gcf()
-            pl.clf()
-        else:
-            f = pl.figure()
+        f = pl.gcf()
+        pl.clf()
         f.canvas.parent().setWindowTitle('dhist')
         pl.bar(ledges, dhist, width=binwidth)
         pl.plot(ris, gauss, '-') # plot Gaussian on top of density histogram
@@ -1011,11 +1008,8 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(errs) == 0:
             print('no unsorted spikes fit cluster %d' % cid)
             return
-        if self.ui.reuseMatchErrorPlotsCheckBox.isChecked():
-            f = pl.gcf()
-            pl.clf()
-        else:
-            f = pl.figure()
+        f = pl.gcf()
+        pl.clf()
         f.canvas.parent().setWindowTitle('cluster %d rmserror histogram' % cid)
         binsize = self.ui.matchErrorPlotBinSizeSpinBox.value()
         pl.hist(errs, bins=np.arange(0, 50, binsize))

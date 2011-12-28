@@ -54,7 +54,7 @@ logger.addHandler(shandler)
 info = logger.info
 
 DEBUG = False # print detection debug messages to log file? slows down detection
-MPMETHOD = 'pool' #'singleprocess', 'pool', 'detectionprocess'
+MPMETHOD = 'detectionprocess'#'pool' #'singleprocess', 'pool', 'detectionprocess'
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
@@ -64,7 +64,7 @@ if DEBUG:
     dt = dt.replace(':', '.')
     logfname = dt + '_detection.log'
     logf = open(logfname, 'w')
-    fhandler = logging.StreamHandler(strm=logf) # prints to file
+    fhandler = logging.StreamHandler(stream=logf) # prints to file
     fhandler.setFormatter(formatter)
     fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
     logger.addHandler(fhandler)
@@ -91,7 +91,9 @@ def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
     # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
     ps().detector = deepcopy(detector)
-
+    ps().detector.sort.stream.srff.path = detector.sort.stream.srff.path
+    ps().detector.sort.stream.srff.open()
+    
 
 class RandomBlockRanges(object):
     """Iterator that spits out time ranges of width bs with
@@ -237,6 +239,8 @@ class Detector(object):
                 dp = DetectionProcess()
                 # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
                 dp.detector = deepcopy(self)
+                dp.detector.sort.stream.srff.path = self.sort.stream.srff.path
+                dp.detector.sort.stream.srff.open()
                 dp.blockis = range(dpi, nblocks, nprocesses)
                 dp.blockranges = blockranges[dp.blockis]
                 dp.q = q

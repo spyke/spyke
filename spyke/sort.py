@@ -1810,8 +1810,8 @@ class SortWindow(SpykeToolWindow):
     def on_actionPlotClusterHist_triggered(self):
         """Plot histogram of selected clusters along a single dimension. If two
         clusters selected, also calculate overlap index between them. Project all points
-        in both clusters onto line connecting centers of the two clusters. Take avg of
-        stdevs of projections of points from both clusters. Take ratio of that 3 avg stdevs
+        in both clusters onto line connecting centers of the two clusters. Find max of
+        the two stdevs of projections of points from both clusters. Take ratio of 3*maxstdevs
         and the distance between the cluster centers to get overlap index. An index > 1 suggests
         the two clusters are ovelapping significantly.
         

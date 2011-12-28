@@ -1381,7 +1381,7 @@ when one cluster in a pair has far more points than the other</string>
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>105</y>
+           <y>80</y>
            <width>46</width>
            <height>27</height>
           </rect>
@@ -1393,27 +1393,11 @@ when one cluster in a pair has far more points than the other</string>
           <string>Clean</string>
          </property>
         </widget>
-        <widget class="QCheckBox" name="reuseCleanPlotsCheckBox">
-         <property name="geometry">
-          <rect>
-           <x>5</x>
-           <y>25</y>
-           <width>91</width>
-           <height>20</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>reuse plots</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
-        </widget>
         <widget class="QPushButton" name="cleanHistButton">
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>45</y>
+           <y>20</y>
            <width>46</width>
            <height>27</height>
           </rect>
@@ -1429,7 +1413,7 @@ when one cluster in a pair has far more points than the other</string>
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>80</y>
+           <y>55</y>
            <width>46</width>
            <height>16</height>
           </rect>
@@ -1442,7 +1426,7 @@ when one cluster in a pair has far more points than the other</string>
          <property name="geometry">
           <rect>
            <x>40</x>
-           <y>75</y>
+           <y>50</y>
            <width>51</width>
            <height>25</height>
           </rect>
@@ -1537,22 +1521,6 @@ unsorted spikes that fit it best</string>
         </property>
         <property name="text">
          <string>Plot</string>
-        </property>
-       </widget>
-       <widget class="QCheckBox" name="reuseMatchErrorPlotsCheckBox">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>70</y>
-          <width>91</width>
-          <height>20</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>reuse plots</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
         </property>
        </widget>
        <widget class="QDoubleSpinBox" name="matchErrorPlotBinSizeSpinBox">
