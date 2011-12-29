@@ -268,8 +268,8 @@ class Detector(object):
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
-        spikes['nid'] = -1
-        spikes['cid'] = -1 # unused, always leave as -1
+        spikes['nid'] = 0
+        spikes['cid'] = 0 # unused, always leave as 0
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         if not ordered(spikes['t']):
