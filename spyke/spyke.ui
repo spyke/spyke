@@ -1720,6 +1720,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
    <addaction name="separator"/>
    <addaction name="actionSortWindow"/>
    <addaction name="actionClusterWindow"/>
+   <addaction name="actionMPLWindow"/>
    <addaction name="separator"/>
    <addaction name="actionShell"/>
   </widget>
@@ -2070,6 +2071,21 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionExportGdfFiles">
    <property name="text">
     <string>.gdf files</string>
+   </property>
+  </action>
+  <action name="actionMPLWindow">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/cluster.png</normaloff>res/cluster.png</iconset>
+   </property>
+   <property name="text">
+    <string>Matplotlib Window</string>
+   </property>
+   <property name="toolTip">
+    <string>MPL Window</string>
    </property>
   </action>
  </widget>

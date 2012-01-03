@@ -19,6 +19,9 @@ from PyQt4.QtCore import Qt
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 
 import pylab as pl
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
 
 import scipy.stats
 import os
@@ -331,6 +334,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionClusterWindow_triggered(self):
         """Cluster window toggle menu/button event"""
         self.ToggleWindow('Cluster')
+
+    @QtCore.pyqtSlot()
+    def on_actionMPLWindow_triggered(self):
+        """Matplotlib window toggle menu/button event"""
+        self.ToggleWindow('MPL')
 
     @QtCore.pyqtSlot()
     def on_actionShell_triggered(self):
@@ -943,14 +951,16 @@ class SpykeWindow(QtGui.QMainWindow):
         gauss = g(0, 1, ris)
         gauss /= (gauss * binwidth).sum() # normalize to unit area
         djs = DJS(dhist, gauss)
-        f = pl.gcf()
-        pl.clf()
-        f.canvas.parent().setWindowTitle('dhist')
-        pl.bar(ledges, dhist, width=binwidth)
-        pl.plot(ris, gauss, '-') # plot Gaussian on top of density histogram
-        pl.title('%dD cluster density histogram, DJS = %.3f' % (ndims, djs))
-        pl.xlabel('nstdevs')
-        pl.ylabel('normalized density')
+        mplw = self.OpenWindow('MPL')
+        a = mplw.ax
+        a.clear()
+        mplw.setWindowTitle('Density Histogram')
+        a.bar(ledges, dhist, width=binwidth)
+        a.plot(ris, gauss, '-') # plot Gaussian on top of density histogram
+        a.set_title('%dD cluster density histogram, DJS = %.3f' % (ndims, djs))
+        a.set_xlabel('nstdevs')
+        a.set_ylabel('normalized density')
+        mplw.figurecanvas.draw()
 
     @QtCore.pyqtSlot()
     def on_cleanButton_clicked(self):
@@ -1497,10 +1507,8 @@ class SpykeWindow(QtGui.QMainWindow):
         and metaphorically, .sort file too"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
-        pl.close('all') # close any mpl figures plotted for usids matching
         for windowtype in self.windows.keys():
-            if windowtype != 'Shell': # leave shell window alone
-                self.CloseWindow(windowtype) # deletes from dict
+            self.CloseWindow(windowtype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
             if stream: stream.close()
         self.hpstream = None
@@ -1717,11 +1725,16 @@ class SpykeWindow(QtGui.QMainWindow):
                 y = self.pos().y()
                 from cluster import ClusterWindow # can't delay this any longer
                 window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
+            elif windowtype == 'MPL':
+                x = self.pos().x()
+                y = self.pos().y() + self.size().height() + METACITYHACK
+                window = MPLWindow(parent=self, pos=(x, y),
+                                   size=(self.size().width(), self.size().width()))
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype) # just show it
         if new: # do stuff that only works after first show
-            if windowtype != 'Cluster':
+            if windowtype not in ['Cluster', 'MPL']:
                 window.panel.draw_refs() # prevent plot artifacts
             if windowtype == 'Sort':
                 window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
@@ -2033,6 +2046,24 @@ class LFPWindow(DataWindow):
         self.setupUi(pos, size)
         self.setWindowTitle("LFP Window")
 
+
+class MPLWindow(SpykeToolWindow):
+    """Matplotlib window"""
+    def __init__(self, parent=None, pos=None, size=None):
+        SpykeToolWindow.__init__(self, parent)
+        figure = Figure()
+        self.f = figure
+        self.figurecanvas = FigureCanvas(figure)
+        self.setCentralWidget(self.figurecanvas)
+        self.toolbar = NavigationToolbar(self.figurecanvas, self, False)
+        self.addToolBar(self.toolbar)
+        QtCore.QObject.connect(self.toolbar, QtCore.SIGNAL("message"),
+                               self.statusBar().showMessage)
+        self.resize(*size)
+        self.move(*pos)
+        self.setWindowTitle("MPL Window")
+        self.ax = self.f.add_axes([0.1, 0.1, 0.8, 0.8])
+        
 
 class Match(object):
     """Just an object to store rmserror calculations between all clusters

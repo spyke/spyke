@@ -1881,23 +1881,26 @@ class SortWindow(SpykeToolWindow):
         ledges = edges[:-1] # keep just the left edges, discard the last right edge
         assert len(ledges) == nbins
         binwidth = ledges[1] - ledges[0]
-        f = pl.gcf() # reuse any existing matplotlib figure
-        pl.clf()
+        # plot:
+        mplw = spw.OpenWindow('MPL')
+        a = mplw.ax
+        a.clear()
         windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
         print(windowtitle)
-        f.canvas.parent().setWindowTitle(windowtitle)
+        mplw.setWindowTitle(windowtitle)
         if calc_overlap:
             title = ("overlap: index=%.3f, area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
                      % (overlapindex, overlaparearatio, djs, np.sqrt(djs)))
             print(title)
-            pl.title(title)
+            a.set_title(title)
         cs = core.rgb2hex([ cluster.color for cluster in clusters ])
         for i, c in enumerate(cs):
             if c == WHITE:
                 cs[i] = 'black'
         # plot the smaller cluster last, to maximize visibility:
         for i in sortedmassi[::-1]:
-            pl.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
+            a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
+        mplw.figurecanvas.draw()
 
     def findMostSimilarCluster(self, which='next'):
         try:

@@ -1,5 +1,3 @@
-- make mpl window one of the tool windows, and always plot to it, ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
-
 - make ENTER in nstds field activate the clean button
 
 - I think for num changed spike waveforms > some threshold, say 50k, it might be faster to resave the whole .wave file, instead of updating just the individual entries one at a time
@@ -23,7 +21,7 @@
 
 - JMS: add time to PCA to help with clustering over time with drift
 
-- maybe I should designate a cluster's physical position in x and y by running localization on it, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
+- maybe I should designate a cluster's physical position in x and y by running localization on its mean waveform, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
 
 - maybe I should mark sids as dirty for the .spike file too
     - would be more difficult to mark spike file entries as dirty, since they become so so much more often and in so many different ways. But, maybe the only code change required would be in one or two places, like in apply_clustering.
@@ -1183,6 +1181,7 @@ DONE:
 - for really big clusters >100k, merge step is still too slow
     - might be good to have a feature where you randomly split the one and only one selected cluster in half. Might have to do it a couple of times to get reasonable sizes. Then cluster each one separately, and then merge results appropriately
     - maybe the split should happen automatically if >100k
+- make mpl window one of the tool windows, and always plot to it, ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
 
 
 
