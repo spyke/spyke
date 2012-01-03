@@ -1728,8 +1728,9 @@ class SpykeWindow(QtGui.QMainWindow):
             elif windowtype == 'MPL':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height() + METACITYHACK
+                # the +1 is a hack to fix strange gap underneath histogram bars
                 window = MPLWindow(parent=self, pos=(x, y),
-                                   size=(self.size().width(), self.size().width()))
+                                   size=(self.size().width(), self.size().width()+1))
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype) # just show it
@@ -2062,7 +2063,7 @@ class MPLWindow(SpykeToolWindow):
         self.resize(*size)
         self.move(*pos)
         self.setWindowTitle("MPL Window")
-        self.ax = self.f.add_axes([0.1, 0.1, 0.8, 0.8])
+        self.ax = self.f.add_axes([0.1, 0.1, 0.85, 0.8])
         
 
 class Match(object):
