@@ -405,7 +405,8 @@ class File(object):
         lpmclayout.nchans = len(probes)
         lpmclayout.Probe = probe
         chans = [] # probe chans that were tapped off of the MCS patch board
-                   # assume the mapping between AD chans and probe chans (if not 1 to 1) was done correctly before recording
+                   # assume the mapping between AD chans and probe chans (if not 1 to 1) was done
+                   # correctly before recording
         ADchanlist = [] # corresponding A/D chans
         PROBEDESCRIPRE = re.compile(r'ch(?P<tappedchan>[0-9]+)') # find 'ch' followed by at least 1 digit
         for probe in probes:
@@ -450,7 +451,8 @@ class File(object):
         other = cPickle.load(pf)
         pf.close()
         for stream in [other.hpstream, other.lpstream]:
-            if stream: stream.srff = self # rebind self to other's non-None streams
+            if stream:
+                stream.srff = self # rebind self to other's non-None streams
         for name in other.__dict__:
             if name == 'f': # there should never be an other.f attrib
                 raise ValueError("pickled srff in .parse shouldn't have an .f attrib!")

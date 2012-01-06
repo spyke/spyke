@@ -1808,10 +1808,10 @@ class SortWindow(SpykeToolWindow):
         self.findMostSimilarCluster('next')
 
     def on_actionPlotClusterHist_triggered(self):
-        """Plot histogram of selected clusters along a single dimension. If two
-        clusters selected, also calculate overlap index between them. Project all points
-        in both clusters onto line connecting centers of the two clusters. Find max of
-        the two stdevs of projections of points from both clusters. Take ratio of 3*maxstdevs
+        """Plot histogram of selected clusters along a single dimension. If one cluster selected,
+        plot its distribution along its first (x) dimension. If two clusters are selected,
+        project them onto axis connecting their centers, and calculate overlap index between them.
+        Find max of the two stdevs of projections of points from both clusters. Take ratio of 3*maxstdevs
         and the distance between the cluster centers to get overlap index. An index > 1 suggests
         the two clusters are ovelapping significantly.
         

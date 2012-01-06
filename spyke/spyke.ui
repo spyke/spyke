@@ -1653,6 +1653,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
     <addaction name="separator"/>
     <addaction name="actionSortWindow"/>
     <addaction name="actionClusterWindow"/>
+    <addaction name="actionMPLWindow"/>
     <addaction name="separator"/>
     <addaction name="actionShell"/>
     <addaction name="separator"/>
@@ -2082,10 +2083,10 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
      <normaloff>res/cluster.png</normaloff>res/cluster.png</iconset>
    </property>
    <property name="text">
-    <string>Matplotlib Window</string>
+    <string>MPL Window</string>
    </property>
    <property name="toolTip">
-    <string>MPL Window</string>
+    <string>Matplotlib Window</string>
    </property>
   </action>
  </widget>

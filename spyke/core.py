@@ -87,7 +87,7 @@ class WaveForm(object):
     def __init__(self, data=None, ts=None, chans=None):
         self.data = data # in AD, potentially multichannel, depending on shape
         self.ts = ts # timestamps array in us, one for each sample (column) in data
-        self.chans = chans # channel ids corresponding to rows in .data. If None, channel ids == data row indices
+        self.chans = chans # channel ids corresponding to rows in .data
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id(s).
@@ -111,11 +111,9 @@ class WaveForm(object):
                 #assert len(set(keys)) == len(keys), "same channel specified more than once" # this is fine
             except AssertionError:
                 raise IndexError('invalid index %r' % key)
-            #i1 = np.asarray([ int(np.where(chan == chans)[0]) for chan in keys ]) # testing code
-            i = self.chans.searchsorted(keys) # appropriate indices into the rows of self.data
-            #try: assert (i1 == i).all() # testing code
-            #except AssertionError: import pdb; pdb.set_trace() # testing code
-            # TODO: should probably use .take here for speed:
+            #i = self.chans.searchsorted(keys) # indices into rows of data
+            # best not to assume that chans are sorted, often the case in LFP data:
+            i = [ np.where(chan == self.chans)[0] for chan in keys ] # indices into rows of data
             data = self.data[i] # grab the appropriate rows of data
             return WaveForm(data=data, ts=self.ts, chans=keys) # return a new WaveForm
 
@@ -992,7 +990,6 @@ class NSListModel(SListModel):
                 return self.spiketooltip(spike)
 
 
-
 class USListModel(SListModel):
     """Model for unsorted spike list view"""
     def rowCount(self, parent=None):
@@ -1046,6 +1043,7 @@ class ClusteringGroupBox(QtGui.QGroupBox):
         else:
             QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
+
 class PlottingGroupBox(QtGui.QGroupBox):
     """Make ENTER key event activate the plot button"""
     def __init__(self, parent):
@@ -1056,6 +1054,7 @@ class PlottingGroupBox(QtGui.QGroupBox):
             self.topLevelWidget().ui.plotButton.click()
         else:
             QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
+
 
 class Stack(list):
     """A list that doesn't allow -ve indices"""
@@ -1170,7 +1169,6 @@ def savez(file, *args, **kwargs):
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of fname (with full path)"""
     m = hashlib.sha1()
-    # automagically clean up after ourselves
     with file(fname, 'rb') as f:
         # continually update hash until EOF
         while True:
