@@ -1,3 +1,5 @@
+- during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on?
+
 - make ENTER in nstds field activate the clean button
 
 - I think for num changed spike waveforms > some threshold, say 50k, it might be faster to resave the whole .wave file, instead of updating just the individual entries one at a time

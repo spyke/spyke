@@ -2080,7 +2080,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
    </property>
    <property name="icon">
     <iconset>
-     <normaloff>res/cluster.png</normaloff>res/cluster.png</iconset>
+     <normaloff>res/hist.png</normaloff>res/hist.png</iconset>
    </property>
    <property name="text">
     <string>MPL Window</string>
