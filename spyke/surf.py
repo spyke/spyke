@@ -134,7 +134,7 @@ class File(object):
                     #'digitalsvalrecords' # also a hog, but useful to keep
                     ]
             for key in keys:
-                if key in keys:
+                if key in d:
                     del d[key]
                 # else self was probably restored from a .sort, so all of these attribs have
                 # probably already been stripped
