@@ -4,8 +4,6 @@
 
 - I think for num changed spike waveforms > some threshold, say 50k, it might be faster to resave the whole .wave file, instead of updating just the individual entries one at a time
 
-- if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
-
 - semi-automate pairwise cluster comparison, making use of one or more of the overlap measures
     - designate an overlap threshold. Go through all pairs. For the first pair that exceeds the threshold, print a message, select them in the interface, and leave the user to examine them in more detail. Maybe first try each pair in PC space, and if they exceed overlap, try again in IC space, and if they still exceed, turn it over to the user, who will perhaps select a different set of channels to help distinguish the clusters.
     - whatever overlap metric I use, once it works, I can use it to optimize first for the channel selection, and then for value of sigma that best separates the two clusters
@@ -1184,6 +1182,7 @@ DONE:
     - might be good to have a feature where you randomly split the one and only one selected cluster in half. Might have to do it a couple of times to get reasonable sizes. Then cluster each one separately, and then merge results appropriately
     - maybe the split should happen automatically if >100k
 - make mpl window one of the tool windows, and always plot to it, ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
+- if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
 
 
 

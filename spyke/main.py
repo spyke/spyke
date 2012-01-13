@@ -39,7 +39,7 @@ from copy import copy
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, rmserror, MICRO, ClusterChange, SpykeToolWindow
+from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g, MAXNCLIMBPOINTS
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
@@ -999,7 +999,7 @@ class SpykeWindow(QtGui.QMainWindow):
                     ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
                 except ValueError: # not comparable
                     continue
-                errs[cidi, sidi] = rmserror(ndata, sdata)
+                errs[cidi, sidi] = core.rms(ndata - sdata)
         errs = self.sort.converter.AD2uV(errs) # convert from AD units to uV, np.infs are OK
         self.match = Match(cids, sids, errs)
         print('done calculating rmserror between all %d clusters and all %d unsorted spikes'

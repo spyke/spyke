@@ -1565,9 +1565,13 @@ def lst2shrtstr(lst, sigfigs=4, brackets=False):
         s = string.join(['[', s, ']'], sep='')
     return s
 
-def rmserror(a, b):
-    """Return root-mean-squared difference between arrays a and b"""
-    return np.sqrt(((a - b)**2).mean())
+def rms(a, axis=None):
+    """Return root-mean-squared value of array a along axis"""
+    return np.sqrt(np.mean(a**2, axis))
+
+def rmserror(a, b, axis=None):
+    """Return root-mean-squared error between arrays a and b"""
+    return rms(a - b, axis=axis)
 
 def lstrip(s, strip):
     """What I think str.lstrip should really do"""

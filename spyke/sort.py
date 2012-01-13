@@ -27,7 +27,7 @@ import pylab as pl
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
-from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, rmserror
+from core import SpykeToolWindow, NList, NSList, USList, ClusterChange
 from surf import EPOCH
 from plot import SpikeSortPanel, WHITE
 
@@ -614,7 +614,7 @@ class Sort(object):
         except KeyError, ValueError:
             pass
 
-    def alignbest(self, sids, chans, method=rmserror):
+    def alignbest(self, sids, chans, method=core.rmserror):
         """Align all sids on chans by best fit according to error method.
         chans are assumed to be a subset of channels of sids. Return sids
         that were actually moved and therefore need to be marked as dirty"""
@@ -1910,18 +1910,33 @@ class SortWindow(SpykeToolWindow):
             return
         destinations = self.sort.clusters.values()
         destinations.remove(source)
+        selchans = np.sort(self.panel.chans_selected)
+        if len(selchans) > 0:
+            srcchans = np.intersect1d(source.neuron.wave.chans, selchans)
+            if len(srcchans) == 0:
+                print("source cluster doesn't overlap with selected chans")
+                return
+        else:
+            srcchans = source.neuron.wave.chans
         errors = []
         dests = []
         # compare source neuron waveform to all destination neuron waveforms
         for dest in destinations:
-            try:
-                error = rmserror(source.neuron, dest.neuron)
-            except ValueError: # not comparable
+            cmpchans = np.intersect1d(srcchans, dest.neuron.wave.chans)
+            if len(cmpchans) == 0: # not comparable
                 continue
+            # if no chans explicitly selected, ensure maxchan of both source and dest neuron
+            # are both in cmpchans
+            if len(selchans) == 0 and (source.neuron.chan not in cmpchans or
+                                       dest.neuron.chan not in cmpchans):
+                continue
+            srcwavedata = source.neuron.wave[cmpchans].data
+            dstwavedata = dest.neuron.wave[cmpchans].data
+            error = core.rms(srcwavedata - dstwavedata)
             errors.append(error)
             dests.append(dest)
         if len(errors) == 0:
-            print("no sufficiently overlapping clusters to compare to")
+            print("no sufficiently overlapping clusters on selected chans to compare to")
             return
         errors = np.asarray(errors)
         dests = np.asarray(dests)
