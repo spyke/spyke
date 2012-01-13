@@ -15,7 +15,7 @@
   </property>
   <property name="windowIcon">
    <iconset>
-    <normaloff>res/chart.png</normaloff>res/chart.png</iconset>
+    <normaloff>res/spike.png</normaloff>res/spike.png</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">

@@ -187,7 +187,7 @@ class Sort(object):
         """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
         stream, and undo any time delta in spike times"""
         userdescr = ''
-        nsamplebytes = 4
+        nsamplebytes = 4 # float32
         # build up list of PTCSNeuronRecords that have spikes in this stream,
         # and tally their spikes
         nrecs = []
@@ -1042,7 +1042,7 @@ class Neuron(object):
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
         chanpopulation = np.concatenate(chanslist)
-        neuronchans = np.unique(chanpopulation)
+        neuronchans = np.unique(chanpopulation) # comes out sorted
 
         wavedata = sort.wavedata[sids]
         if wavedata.ndim == 2: # should be 3, get only 2 if len(sids) == 1
@@ -1073,7 +1073,7 @@ class Neuron(object):
     def __sub__(self, other):
         """Return difference array between self and other neurons' waveforms
         on common channels"""
-        selfwavedata, otherwavedata = self.getCommonWaveData(other.chans, other.chans,
+        selfwavedata, otherwavedata = self.getCommonWaveData(other.chan, other.chans,
                                                              other.wave.data)
         return selfwavedata - otherwavedata
 

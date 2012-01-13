@@ -113,7 +113,7 @@ class WaveForm(object):
                 raise IndexError('invalid index %r' % key)
             #i = self.chans.searchsorted(keys) # indices into rows of data
             # best not to assume that chans are sorted, often the case in LFP data:
-            i = [ np.where(chan == self.chans)[0] for chan in keys ] # indices into rows of data
+            i = [ int(np.where(chan == self.chans)[0]) for chan in keys ] # indices into rows of data
             data = self.data[i] # grab the appropriate rows of data
             return WaveForm(data=data, ts=self.ts, chans=keys) # return a new WaveForm
 
