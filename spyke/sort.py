@@ -1903,6 +1903,10 @@ class SortWindow(SpykeToolWindow):
         mplw.figurecanvas.draw()
 
     def findMostSimilarCluster(self, which='next'):
+        """If no chans selected, compare source to next or previous most similar cluster
+        based on chans the two have in common, while requiring the two have each others'
+        max chans in common. If chans have been selected, use them as a starting set of
+        chans to compare on"""
         try:
             source = self.getClusterComparisonSource()
         except RuntimeError, errmsg:
@@ -1920,15 +1924,18 @@ class SortWindow(SpykeToolWindow):
             srcchans = source.neuron.wave.chans
         errors = []
         dests = []
-        # compare source neuron waveform to all destination neuron waveforms
+        # try and compare source neuron waveform to all destination neuron waveforms
         for dest in destinations:
-            cmpchans = np.intersect1d(srcchans, dest.neuron.wave.chans)
+            dstchans = dest.neuron.wave.chans
+            if len(selchans) > 0:
+                if not set(selchans).issubset(dstchans):
+                    continue
+                dstchans = selchans
+            cmpchans = np.intersect1d(srcchans, dstchans)
             if len(cmpchans) == 0: # not comparable
                 continue
-            # if no chans explicitly selected, ensure maxchan of both source and dest neuron
-            # are both in cmpchans
-            if len(selchans) == 0 and (source.neuron.chan not in cmpchans or
-                                       dest.neuron.chan not in cmpchans):
+            # ensure maxchan of both source and dest neuron are both in cmpchans
+            if source.neuron.chan not in cmpchans or dest.neuron.chan not in cmpchans:
                 continue
             srcwavedata = source.neuron.wave[cmpchans].data
             dstwavedata = dest.neuron.wave[cmpchans].data
