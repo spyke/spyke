@@ -1835,7 +1835,11 @@ class SortWindow(SpykeToolWindow):
         dims = spw.GetClusterPlotDims()
         sids = np.concatenate([ cluster.neuron.sids for cluster in clusters ])
         sids.sort()
-        X, sids = spw.get_param_matrix(sids=sids, dims=dims, scale=True)
+        try:
+            X, sids = spw.get_param_matrix(sids=sids, dims=dims, scale=True)
+        except RuntimeError, errmsg:
+            print(errmsg)
+            return
         points = [] # list of projection of each cluster's points onto dimi
         for cluster in clusters:
             sidis = sids.searchsorted(cluster.neuron.sids)

@@ -910,7 +910,11 @@ class SpykeWindow(QtGui.QMainWindow):
             except AttributeError: pass
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         dims = self.GetClusterPlotDims()
-        X, sids = self.get_param_matrix(dims=dims)
+        try:
+            X, sids = self.get_param_matrix(dims=dims)
+        except RuntimeError, errmsg:
+            print(errmsg)
+            return
         if len(X) == 0:
             return # nothing to plot
         nids = s.spikes['nid'][sids]

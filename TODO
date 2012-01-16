@@ -1,3 +1,10 @@
+- sometimes you get spikes with rather different maxchans, and therefore very different sets of chans, that belong together in a cluster, yet it's hard to ensure they really do because they share so few chans. Have a button that reloads all the currently selected spikes such that they all share the same superset of chans. However, there is a max num chans you can include for each spike, and that's hardcoded into the wavedata and spikes array. So you'll have to prioritize the chans to store. Sort the potential chans in order of increasing distance from the mean of the selected spikes, or the chan closest to that mean. Then, ensure that each spike's maxchan is included in this new superset. If not, for any such spikes, replace the most distant chan from the mean with the maxchan. That way you ensure that you never lose the spikes maxchan as determined during detection.
+    - don't forget to also update chans and nchans for each spike
+    - the easier, though less correct thing to do, would be to consider spikes to have nothing but zeros on chans outside of their chanlist
+    - even easier would be to increase the inclusion radius a bit and redo detection
+
+- add ability to manipulate explicitly selected spikes already belonging to clusters, use modifier CTRL+ normal action. Make CTRL+merge take only the explicitly selected spikes and merge them into their own cluster; make CTRL+delete delete only the explicitly selected spikes
+
 - during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on?
 
 - make ENTER in nstds field activate the clean button
