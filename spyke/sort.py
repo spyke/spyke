@@ -1338,14 +1338,14 @@ class SortWindow(SpykeToolWindow):
         toolbar = QtGui.QToolBar("toolbar", self)
         toolbar.setFloatable(True)
 
-        actionDeleteClusters = QtGui.QAction("Del", self)
-        actionDeleteClusters.setToolTip('Delete cluster')
-        self.connect(actionDeleteClusters, QtCore.SIGNAL("triggered()"),
-                     self.on_actionDeleteClusters_triggered)
-        toolbar.addAction(actionDeleteClusters)
+        actionDelete = QtGui.QAction("Del", self)
+        actionDelete.setToolTip('Delete')
+        self.connect(actionDelete, QtCore.SIGNAL("triggered()"),
+                     self.on_actionDelete_triggered)
+        toolbar.addAction(actionDelete)
 
         actionMergeClusters = QtGui.QAction("M", self)
-        actionMergeClusters.setToolTip('Merge clusters')
+        actionMergeClusters.setToolTip('Merge')
         self.connect(actionMergeClusters, QtCore.SIGNAL("triggered()"),
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
@@ -1466,12 +1466,15 @@ class SortWindow(SpykeToolWindow):
         been set in the child lists to be ignored, so they propagate up to here"""
         key = event.key()
         modifiers = event.modifiers()
-        ctrldown = bool(Qt.ControlModifier & modifiers)
-        ctrlup = not ctrldown
+        shift = Qt.ShiftModifier == modifiers # only modifier is shift
+        ctrl = Qt.ControlModifier == modifiers # only modifier is ctrl
         if key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
         elif key == Qt.Key_Delete:
-            self.on_actionDeleteClusters_triggered()
+            if shift:
+                self.on_actionDeleteSpikes_triggered() # del selected spikes
+            else:
+                self.on_actionDeleteClusters_triggered() # del selected clusters
         elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
         elif key == Qt.Key_Minus: # ignored in SpykeListViews
@@ -1489,10 +1492,10 @@ class SortWindow(SpykeToolWindow):
         elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_activated()
         elif key == Qt.Key_Space: # ignored in SpykeListViews
-            if ctrlup:
-                self.on_actionSelectRandomSpikes_activated()
-            else:
+            if ctrl:
                 SpykeToolWindow.keyPressEvent(self, event) # pass it on
+            else:
+                self.on_actionSelectRandomSpikes_activated()
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
         elif key == Qt.Key_Comma: # ignored in SpykeListViews
@@ -1518,6 +1521,13 @@ class SortWindow(SpykeToolWindow):
             spw.SelectClusters(clusters, on=False)
         else:
             self.nlist.clearSelection()
+
+    def on_actionDelete_triggered(self):
+        """Del or SHIFT+Del click"""
+        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ShiftModifier:
+            self.on_actionDeleteSpikes_triggered()
+        else:
+            self.on_actionDeleteClusters_triggered()
 
     def on_actionDeleteClusters_triggered(self):
         """Del button click"""
@@ -1551,6 +1561,10 @@ class SortWindow(SpykeToolWindow):
         cc.save_new(newclusters, s.norder)
         spw.AddClusterChangeToStack(cc)
         print(cc.message)
+
+    def on_actionDeleteSpikes_triggered(self):
+        """SHIFT+Del button click"""
+        self.spykewindow.DeleteSpikes()
 
     def on_actionMergeClusters_triggered(self):
         """Merge button (M) click. For simple merging of clusters, easier to

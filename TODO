@@ -2,8 +2,7 @@
     - don't forget to also update chans and nchans for each spike
     - the easier, though less correct thing to do, would be to consider spikes to have nothing but zeros on chans outside of their chanlist
     - even easier would be to increase the inclusion radius a bit and redo detection
-
-- add ability to manipulate explicitly selected spikes already belonging to clusters, use modifier CTRL+ normal action. Make CTRL+merge take only the explicitly selected spikes and merge them into their own cluster; make CTRL+delete delete only the explicitly selected spikes
+    - easiest of all would be to always load all maxnumchans of data into the wavedata array for all spikes
 
 - during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on?
 
@@ -1190,6 +1189,7 @@ DONE:
     - maybe the split should happen automatically if >100k
 - make mpl window one of the tool windows, and always plot to it, ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
 - if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
+- make SHIFT+Del delete only explicitly selected spikes (technically, split the cluster into a new cluster plus a junk cluster 0)
 
 
 

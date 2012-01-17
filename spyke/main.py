@@ -1341,6 +1341,22 @@ class SpykeWindow(QtGui.QMainWindow):
         #print('newclusters: %r' % [c.id for c in newclusters])
         #print('bystanders: %r' % [c.id for c in bystanders])
 
+    def DeleteSpikes(self):
+        """Uncluster explicitly selected spikes. More accurately, split selected cluster(s)
+        into new cluster(s) plus a junk cluster 0. This is required to allow undo/redo"""
+        oldclusters = self.GetClusters()
+        s = self.sort
+        spikes = s.spikes
+        sids = np.concatenate([self.GetClusterSpikes(), self.GetUnsortedSpikes()])
+        sids.sort()
+        if len(sids) == 0:
+            return # do nothing
+        delsids = self.GetSpikes() # explicitly selected spikes
+        delsidis = sids.searchsorted(delsids)
+        nids = spikes[sids]['nid'] # seems to return a copy
+        nids[delsidis] = 0 # doesn't seem to overwrite nid values in spikes recarray
+        self.apply_clustering(oldclusters, sids, nids, verb='split')
+
     def join(self, fname):
         return os.path.join(self.path, fname)
 
