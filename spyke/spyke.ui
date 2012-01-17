@@ -1728,7 +1728,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionOpen">
    <property name="icon">
     <iconset>
-     <normaloff>res/open.png</normaloff>res/open.png</iconset>
+     <normaloff>res/document-open.svg</normaloff>res/document-open.svg</iconset>
    </property>
    <property name="text">
     <string>&amp;Open</string>
@@ -1743,7 +1743,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionUndo">
    <property name="icon">
     <iconset>
-     <normaloff>res/undo.png</normaloff>res/undo.png</iconset>
+     <normaloff>res/edit-undo.svg</normaloff>res/edit-undo.svg</iconset>
    </property>
    <property name="text">
     <string>&amp;Undo</string>
@@ -1758,7 +1758,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionNew">
    <property name="icon">
     <iconset>
-     <normaloff>res/new.png</normaloff>res/new.png</iconset>
+     <normaloff>res/document-new.svg</normaloff>res/document-new.svg</iconset>
    </property>
    <property name="text">
     <string>&amp;New</string>
@@ -1770,7 +1770,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionSaveSort">
    <property name="icon">
     <iconset>
-     <normaloff>res/save.png</normaloff>res/save.png</iconset>
+     <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
    <property name="text">
     <string>&amp;Save</string>
@@ -1795,7 +1795,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionRedo">
    <property name="icon">
     <iconset>
-     <normaloff>res/redo.png</normaloff>res/redo.png</iconset>
+     <normaloff>res/edit-redo.svg</normaloff>res/edit-redo.svg</iconset>
    </property>
    <property name="text">
     <string>Redo</string>
@@ -1914,7 +1914,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionShell">
    <property name="icon">
     <iconset>
-     <normaloff>res/pyshell.png</normaloff>res/pyshell.png</iconset>
+     <normaloff>res/utilities-terminal.svg</normaloff>res/utilities-terminal.svg</iconset>
    </property>
    <property name="text">
     <string>Shell</string>
@@ -2050,7 +2050,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionSaveSortAs">
    <property name="icon">
     <iconset>
-     <normaloff>res/save.png</normaloff>res/save.png</iconset>
+     <normaloff>res/document-save-as.svg</normaloff>res/document-save-as.svg</iconset>
    </property>
    <property name="text">
     <string>&amp;Save As</string>
