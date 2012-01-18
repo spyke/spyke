@@ -401,7 +401,7 @@ class SpykeWindow(QtGui.QMainWindow):
         text = """
         <h2>spyke %s</h2>
         <p>A tool for neuronal waveform visualization and spike sorting</p>
-        <p>Copyright &copy; 2008-2011 Martin Spacek, Reza Lotun<br>
+        <p>Copyright &copy; 2008-2012 Martin Spacek, Reza Lotun<br>
            University of British Columbia</p>
         <p>Python %s, Qt %s, PyQt %s<br>
         %s</p>""" % (__version__, platform.python_version(),
