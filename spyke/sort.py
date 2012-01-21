@@ -1142,7 +1142,7 @@ class PTCSHeader(object):
     """
     Polytrode clustered spikes file header:
 
-    formatversion: int64 (currently version 1)
+    formatversion: int64 (currently version 2, identical to version 1)
     ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
     descr: ndescrbytes of ASCII text
         (padded with null bytes if needed for 8 byte alignment)
@@ -1170,7 +1170,7 @@ class PTCSHeader(object):
         (human readable string representation of datetime, preferrably ISO 8601,
          padded with null bytes if needed for 8 byte alignment)
     """
-    FORMATVERSION = 1 # overall .ptcs file format version, not header format version
+    FORMATVERSION = 2 # overall .ptcs file format version, not header format version
     def __init__(self, sort, sortpath, stream, nneurons, nspikes, userdescr,
                  nsamplebytes, fullfname, exportdt):
         self.sort = sort

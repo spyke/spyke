@@ -14,7 +14,7 @@ Neuron description field might contain: cortical layer, neuron type (FS, RS, etc
 
 file header:
 -------------------
-formatversion: int64 (currently version 1)
+formatversion: int64 (currently version 2, identical to version 1)
 ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 descr: ndescrbytes of ASCII text
     (padded with null bytes if needed for 8 byte alignment)

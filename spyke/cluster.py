@@ -476,8 +476,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.zoom(-0.05)
             else:
                 self.pitch(5)
-        elif key in (Qt.Key_P, Qt.Key_T): # 'pick' or 'tooltip'
-            #print(self.pick(*self.cursorPosGL()))
+        elif key == Qt.Key_T: # 'tooltip'
             self.showToolTip()
         elif key == Qt.Key_0: # reset focus to origin
             self.focus = np.float32([0, 0, 0])
@@ -491,18 +490,18 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.selectItemUnderCursor(on=True, clear=False)
         elif key == Qt.Key_D: # deselect item under the cursor, if any
             self.selectItemUnderCursor(on=False, clear=False)
+        elif key == Qt.Key_P:
+            self.showProjectionDialog()            
         #elif key == Qt.Key_Space: # clear and select item under cursor, if any
         #    self.selectItemUnderCursor(on=True, clear=True)
-        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash, Qt.Key_Backslash,
-                     Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
-                     Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_H]:
-            sw.keyPressEvent(event) # pass it on to Sort window
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
             self.parent().keyPressEvent(event) # pass it on to parent Cluster window
-        elif key == Qt.Key_Backslash:
-            self.showProjectionDialog()            
+        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash, Qt.Key_Backslash,
+                     Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
+                     Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_H]:
+            sw.keyPressEvent(event) # pass it on to Sort window
 
         self.updateGL()
 
