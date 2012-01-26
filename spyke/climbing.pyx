@@ -183,7 +183,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         M = merge_scouts(M, sr, scouts, rmerge, rmerge2, still,
                          N, cids, ndims, &merged)
         if merged: # at least one merger happened on this iter
-            printf('M=%d', M)
+            printf('%d', M) # print the value of M
             nnomerges = 0 # reset
             merged = False # reset
         else: # no mergers happened on this iter

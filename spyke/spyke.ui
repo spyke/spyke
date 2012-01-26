@@ -2029,7 +2029,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   <action name="actionAboutSpyke">
    <property name="icon">
     <iconset>
-     <normaloff>res/chart.png</normaloff>res/chart.png</iconset>
+     <normaloff>res/spike.png</normaloff>res/spike.png</iconset>
    </property>
    <property name="text">
     <string>About spyke...</string>
