@@ -27,17 +27,21 @@ from matplotlib.lines import Line2D
 from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 
-nplots = 50
+nplots = 1
 nchans = 54
 npoints = 50
 x = np.tile(np.arange(0, 1, 1/npoints), nplots*nchans).reshape(nplots, nchans, npoints)
 y = np.random.random(x.shape)
+# add y offsets:
+for i in range(nchans):
+    y[:, i, :] += i
+
 segments = np.zeros((nplots, nchans, npoints, 2))
 segments[:, :, :, 0] = x
 segments[:, :, :, 1] = y
 
 linestyle = '-'
-linewidth = 0.2
+linewidth = 1#0.2
 zorder = 4
 visible = np.bool8(np.random.random_integers(0, 1, nchans))
 
@@ -49,6 +53,7 @@ class MyFigureCanvasQTAgg(FigureCanvasQTAgg):
         t0 = time.time()
         #self.init_lines()
         self.init_lc()
+        self.ax.set_ylim([0, nchans])
         print('initing artists took %.3f sec' % (time.time()-t0))
 
     def init_lines(self):
@@ -60,12 +65,13 @@ class MyFigureCanvasQTAgg(FigureCanvasQTAgg):
                 self.ax.add_line(line)
 
     def init_lc(self):
+        self.lcs = []
         for i in range(nplots):
-            lc = LineCollection(segments[i, visible], visible=True,
+            lc = LineCollection(segments[i], visible=True,
                                 linestyles=linestyle, linewidths=linewidth,
                                 zorder=zorder)
             self.ax.add_collection(lc)
-        
+            self.lcs.append(lc)
         
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
