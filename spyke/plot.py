@@ -431,6 +431,7 @@ class PlotPanel(FigureCanvas):
         self.show_rasters(False)
         self.draw() # draw all the enabled refs - defined in FigureCanvas
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
+        self.background = None # no longer valid
         for pltid, plt in self.used_plots.iteritems():
             visible = plotvisibility[pltid]
             plt.show(visible) # re-show just the plots that were previously visible
@@ -1174,6 +1175,7 @@ class SortPanel(PlotPanel):
             self.chans_selected = [] # clear channel selection
             self.manual_selection = False
             self.update_vlines()
+            self.draw_refs() # update
 
     def update_vlines(self):
         """Redraw all vlines, useful to call after arbitrarily changing self.chans_selected"""
@@ -1182,7 +1184,6 @@ class SortPanel(PlotPanel):
                 vline.set_color(VREFSELECTEDCOLOUR)
             else:
                 vline.set_color(VREFCOLOUR)
-        self.draw_refs() # update
                 
 
 class SpikeSortPanel(SortPanel, SpikePanel):
