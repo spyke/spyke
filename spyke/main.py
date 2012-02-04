@@ -1490,11 +1490,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if enable != None:
             for chan in chans:
                 self._chans_enabled[chan] = enable
-            for windowtype in WINDOWUPDATEORDER:
-                try:
-                    self.windows[windowtype].panel.enable_chans(chans, enable=enable)
-                except KeyError: # windowtype hasn't been opened yet
-                    pass
         # ...or, leave only chans enabled
         else:
             enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
@@ -1508,17 +1503,24 @@ class SpykeWindow(QtGui.QMainWindow):
                 self._chans_enabled[chan] = True
             for chan in chans2disable:
                 self._chans_enabled[chan] = False
-            # now change the actual plots in the plotpanels
-            for windowtype in WINDOWUPDATEORDER:
-                try:
-                    self.windows[windowtype].panel.enable_chans(chans2enable, enable=True)
-                    self.windows[windowtype].panel.enable_chans(chans2disable, enable=False)
-                except KeyError: # windowtype hasn't been opened yet
-                    pass
 
-        # update stream, might trigger change of stream type
+        # now set chans in plotpanels to reset colours:
+        for windowtype in WINDOWUPDATEORDER:
+            try:
+                self.windows[windowtype].panel.set_chans(self.chans_enabled)
+            except KeyError: # windowtype hasn't been opened yet
+                pass
+
+        # update stream
         if self.hpstream != None:
             self.hpstream.chans = self.chans_enabled
+        if self.lpstream != None:
+            # take intersection of lpstream.layout.chans and chans_enabled,
+            # conserving ordering in lpstream.layout.chans
+            self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
+                                    chan in  self.chans_enabled ]
+
+        self.plot() # replot
 
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 

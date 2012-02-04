@@ -547,12 +547,9 @@ class Stream(object):
                     # because ADchans map to probe chans 1 to 1, and both start from 0
                     dataxs = dataxs[self.chans]
             else: # self.kind == 'lowpass'
-                if nADchans != self.nchans:
-                    raise NotImplementedError("Can't deal with disabled LFP chans")
-                    # TODO: problem is there's no definitive list of all possible LFP chans,
-                    # only the set that are presently enabled, as described by self.chans.
-                    # Lowpass ADchans and probe chans don't map 1 to 1
-
+                # self.chans is a sorted subset of layout.chans, layout.chans are not sorted:
+                chanis = [ int(np.where(chan == self.layout.chans)[0]) for chan in self.chans ]
+                dataxs = dataxs[chanis]
         # now trim down to just the requested time range
         lo, hi = tsxs.searchsorted([key.start, key.stop])
         data = dataxs[:, lo:hi]
