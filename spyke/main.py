@@ -2037,11 +2037,6 @@ class DataWindow(SpykeToolWindow):
         self.resize(*size)
         self.move(*pos)
 
-    def closeEvent(self, event):
-        # remove 'Window' from class name
-        windowtype = type(self).__name__.replace('Window', '')
-        self.parent().HideWindow(windowtype)
-
 
 class SpikeWindow(DataWindow):
     """Window to hold the custom spike panel widget"""

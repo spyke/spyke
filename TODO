@@ -1,5 +1,3 @@
-- closing MPL window doesn't synch up toggle state of MPL window button in toolbar
-
 - add axes to cluster plot, not only to show which dimension is which, but also to show the size of the current setting for sigma. Make the length of the axes correspond to sigma. This would even make it feasible to make a good estimate of different sigmas in different dimensions. Easiest initial implementation would be 3 lines, red green and blue, representing x, y and z axes respectively, with their shared vertex at the origin. Axes should probably be disabled by default, and there should be a toggle button to show/hide them. Ultimately, it might be nice to have a feature that moves the axes vertex somehow, maybe to the current focal point.
     - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
 
@@ -55,8 +53,6 @@
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
 - add recalc for current cluster button to match tab - useful when you merge in some spikes and want to see what the plot has changed to, and what the next best usids are
-
-- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
 
 - finish implementing discretized cluster space using huge sparse matrix
 
@@ -1201,6 +1197,8 @@ DONE:
 - make mpl window one of the tool windows, and always plot to it, ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
 - if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
 - make SHIFT+Del delete only explicitly selected spikes (technically, split the cluster into a new cluster plus a junk cluster 0)
+- closing MPL window doesn't synch up toggle state of MPL window button in toolbar
+- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
 
 
 

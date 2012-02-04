@@ -689,6 +689,11 @@ class SpykeToolWindow(QtGui.QMainWindow):
         catches them?). Have to doubleclick on a part of the window with no widgets in it"""
         self.toggleMaximized()
 
+    def closeEvent(self, event):
+        # remove 'Window' from class name
+        windowtype = type(self).__name__.replace('Window', '')
+        self.parent().HideWindow(windowtype)
+
     def toggleMaximized(self):
         if not self.maximized:
             self.normalPos, self.normalSize = self.pos(), self.size()
