@@ -46,7 +46,6 @@ NEURONLINEWIDTH = 1.5
 NEURONLINESTYLE = '-'
 RASTERLINEWIDTH = 0.5
 RASTERLINESTYLE = '-'
-#RASTERLINECOLOUR = WHITE
 TREFLINEWIDTH = 0.5
 TREFCOLOUR = DARKGREY
 VREFLINEWIDTH = 0.5
@@ -131,7 +130,7 @@ class Plot(object):
                                  colors=colors,
                                  zorder=PLOTZORDER,
                                  antialiased=True,
-                                 visible=False, # keep invisible until needed
+                                 visible=True,
                                  pickradius=PICKRADIUS)
         self.panel.ax.add_collection(self.lc) # add to panel's axes' pool of LCs
         self.n = None # Neuron associated with this plot
@@ -199,78 +198,42 @@ class Plot(object):
         self.panel.ax.draw_artist(self.lc)
 
 
-class Raster(Plot):
-    """Raster plot slot, holds a set of vertical lines
-    for a single spike, one line per chan of that spike"""
-    def __init__(self, chans, panel):
-        self.lines = {} # chan to line mapping
+class Rasters(Plot):
+    """Holds a LineCollection of rasters corresponding
+    to all spikes visible in panel, one vertical line per chan per spike"""
+    def __init__(self, panel):
         self.panel = panel # panel that self belongs to
-        self.chans = set(chans) # all channels available in this Raster, lines can be enabled/disabled, but .chans shouldn't change. This is a superset of the lines required for a single spike
-        for chan in self.chans:
-            line = Line2D([],
-                          [], # TODO: will lack of data before first .draw() cause problems for blitting?
-                          linewidth=RASTERLINEWIDTH,
-                          linestyle=RASTERLINESTYLE,
-                          #color=RASTERLINECOLOUR,
-                          zorder=RASTERZORDER,
-                          antialiased=True,
-                          animated=False, # True keeps this line from being copied to buffer on panel.copy_from_bbox() call,
-                                          # but also unfortunately keeps it from being repainted upon occlusion
-                          visible=False) # keep invisible until needed
-            line.chan = chan
-            line.set_pickradius(PICKRADIUS)
-            #line.set_picker(PICKTHRESH)
-            self.lines[chan] = line
-            self.panel.ax.add_line(line) # add to panel's axes' pool of lines
+        self.lc = LineCollection([], linewidth=RASTERLINEWIDTH, linestyle=RASTERLINESTYLE,
+                                 zorder=RASTERZORDER,
+                                 antialiased=True,
+                                 visible=True,
+                                 pickradius=PICKRADIUS)
+        self.panel.ax.add_collection(self.lc) # add to panel's axes' pool of LCs
 
-    def update(self, spike, tref):
-        """Update lines data from spike['t'] and spike's chans"""
-        self.spike = spike
-        nchans = spike['nchans']
-        spikechans = spike['chans'][:nchans]
-        for chan in spikechans:
-            try:
-                line = self.lines[chan]
-            except KeyError:
-                continue # chan doesn't exist for this panel
-            xpos, ypos = self.panel.pos[chan]
-            x = spike['t'] - tref + xpos
-            chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
-            ylims = ypos - chanheight/2, ypos + chanheight/2
-            line.set_data([x, x], ylims) # update the line's x and y data
-            line.set_color(self.panel.vcolours[spike['chan']]) # colour according to max chan
-            line.set_visible(True) # enable this chan for this spike
-        notchans = self.chans.difference(spikechans)
-        for notchan in notchans: # disable all chans not in this spike
-            self.lines[notchan].set_visible(False)
-
-    def show(self, enable=True):
-        """Show/hide lines on all of spike's chans"""
-        try:
-            spike = self.spike
+    def update(self, spikes, tref):
+        """Update LineCollection from spikes, using spike times and chans"""
+        #self.spikes = spikes
+        #self.tref = tref
+        nsegments = spikes['nchans'].sum()
+        # 2 points per raster line, x vals in col 0, yvals in col 1
+        segments = np.zeros((nsegments, 2, 2))
+        colours = np.zeros(nsegments, dtype='|S7') # colours are length-7 strings
+        segmenti = 0
+        for spike in spikes:
             nchans = spike['nchans']
-            chans = spike['chans'][:nchans]
-        except AttributeError: # no spike
-            if enable == False:
-                chans = self.lines.keys() # disable all lines
-            else:
-                return # don't do anything
-        for chan in chans:
-            try:
-                line = self.lines[chan]
-            except KeyError:
-                continue # chan doesn't exist for this panel
-            line.set_visible(enable)
-
-    def hide(self):
-        """Hide lines on all of spike's chans"""
-        self.show(False)
-
-    def draw(self):
-        """Draw all the lines to axes buffer (or whatever),
-        avoiding unnecessary draws of all other artists in axes"""
-        for line in self.lines.values():
-            self.panel.ax.draw_artist(line)
+            # colour segments according to each spike's max chan:
+            colours[segmenti:segmenti+nchans] = self.panel.vcolours[spike['chan']]
+            spikechans = spike['chans'][:nchans]
+            for chan in spikechans:
+                xpos, ypos = self.panel.pos[chan]
+                x = spike['t'] - tref + xpos
+                chanheight = self.panel.RASTERHEIGHT # uV, TODO: calculate this somehow
+                ylims = ypos - chanheight/2, ypos + chanheight/2
+                segments[segmenti, :, 0] = x, x
+                segments[segmenti, :, 1] = ylims
+                segmenti += 1
+        self.lc.set_segments(segments)
+        self.lc.set_color(list(colours))
 
 
 class PlotPanel(FigureCanvas):
@@ -291,8 +254,7 @@ class PlotPanel(FigureCanvas):
         self.available_plots = [] # pool of available Plots
         self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
         self.qrplt = None # current quickly removable Plot with associated .background
-
-        self.rasters = [] # pool of available Rasters
+        self.rasters = None # Rasters object
 
         self.tw = tw # temporal window of each channel, in plot units (us ostensibly)
         self.cw = cw # temporal window of caret, in plot units
@@ -392,12 +354,9 @@ class PlotPanel(FigureCanvas):
         self.qrplt = Plot(chans=chans, panel=self) # just one for this base class
         self.used_plots[0] = self.qrplt
 
-    def init_rasters(self, nnewrasters=None):
-        """Add Rasters to the pool of existing ones"""
-        nnewrasters = nnewrasters or self.DEFNRASTERS
-        for rsti in range(nnewrasters):
-            rst = Raster(chans=self.chans, panel=self)
-            self.rasters.append(rst)
+    def init_rasters(self):
+        """Init Rasters object"""
+        self.rasters = Rasters(self)
 
     def add_ref(self, ref):
         """Helper method for external use"""
@@ -629,9 +588,9 @@ class PlotPanel(FigureCanvas):
         # update plots and rasters
         self.qrplt.update(wave, tref)
         self.qrplt.draw()
-        if self.spykeframe.ui.actionRasters.isChecked():
+        if self.spykeframe.ui.actionRasters.isChecked() and self.rasters != None:
             self.update_rasters(tref)
-            self.draw_rasters()
+            self.rasters.draw()
         self.blit(self.ax.bbox)
         #self.gui_repaint()
         #self.draw()
@@ -639,33 +598,19 @@ class PlotPanel(FigureCanvas):
 
     def update_rasters(self, tref):
         """Update spike raster positions and visibility wrt tref"""
-        # find out which spikes are within time window
         try:
             s = self.sort
             s.spikes
         except AttributeError: return # no sort/spikes exist yet
+        # find out which spikes are within time window:
         lo, hi = s.spikes['t'].searchsorted((tref+self.tw[0], tref+self.tw[1]))
         spikes = s.spikes[lo:hi] # spikes within range of current time window
-        while len(spikes) > len(self.rasters):
-            self.init_rasters() # append another batch to self.rasters
-        rasteriter = iter(self.rasters) # iterator over rasters
-        for spike in spikes:
-            raster = rasteriter.next()
-            raster.update(spike, tref)
-        for raster in rasteriter: # hide all the rest
-            raster.hide()
-
-    def draw_rasters(self):
-        for raster in self.rasters:
-            raster.draw()
+        self.rasters.update(spikes, tref)
 
     def show_rasters(self, enable=True):
         """Show/hide all rasters in this panel"""
-        for raster in self.rasters:
-            raster.show(enable)
-
-    def hide_rasters(self):
-        self.show_rasters(False)
+        if self.rasters != None:
+            self.rasters.show(enable)
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -802,7 +747,6 @@ class PlotPanel(FigureCanvas):
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
     layed out according to self.siteloc"""
-    DEFNRASTERS = 20 # default number of rasters to init
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
@@ -849,7 +793,6 @@ class SpikePanel(PlotPanel):
 class ChartPanel(PlotPanel):
     """Chart panel. Presents all channels layed out vertically according
     to the vertical order of their site coords in .siteloc"""
-    DEFNRASTERS = 40 # default number of rasters to init
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
@@ -900,9 +843,6 @@ class ChartPanel(PlotPanel):
 
 class LFPPanel(ChartPanel):
     """LFP Panel"""
-    DEFNRASTERS = 20 # default number of rasters to init
-    RASTERHEIGHT = 250 # uV, TODO: calculate this instead
-
     def __init__(self, *args, **kwargs):
         ChartPanel.__init__(self, *args, **kwargs)
         self.gain = 1
@@ -912,6 +852,10 @@ class LFPPanel(ChartPanel):
         # LFPPanel needs to filter chans after initing plots
         # get it right for first qrplt.update() call:
         self.set_chans(self.spykeframe.chans_enabled)
+
+    def init_rasters(self):
+        """Disable for LFPPanel"""
+        pass
 
     def get_stream(self):
         return self.spykeframe.lpstream # override ChartPanel(PlotPanel)'s hpstream
@@ -977,11 +921,7 @@ class SortPanel(PlotPanel):
             plt = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plt)
 
-    def init_rasters(self, nnewrasters=None):
-        """Disable for SortPanel"""
-        pass
-
-    def update_rasters(self, tref):
+    def init_rasters(self):
         """Disable for SortPanel"""
         pass
 

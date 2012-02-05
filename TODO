@@ -1,3 +1,5 @@
+- bug: open .srf file, and then open a corresponding .sort file - amplitude of LFP drops considerably for some reason. Must be something to do with some gain setting in the stream saved in the sort file?
+
 - add axes to cluster plot, not only to show which dimension is which, but also to show the size of the current setting for sigma. Make the length of the axes correspond to sigma. This would even make it feasible to make a good estimate of different sigmas in different dimensions. Easiest initial implementation would be 3 lines, red green and blue, representing x, y and z axes respectively, with their shared vertex at the origin. Axes should probably be disabled by default, and there should be a toggle button to show/hide them. Ultimately, it might be nice to have a feature that moves the axes vertex somehow, maybe to the current focal point.
     - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
 
