@@ -547,12 +547,9 @@ class Stream(object):
                     # because ADchans map to probe chans 1 to 1, and both start from 0
                     dataxs = dataxs[self.chans]
             else: # self.kind == 'lowpass'
-                if nADchans != self.nchans:
-                    raise NotImplementedError("Can't deal with disabled LFP chans")
-                    # TODO: problem is there's no definitive list of all possible LFP chans,
-                    # only the set that are presently enabled, as described by self.chans.
-                    # Lowpass ADchans and probe chans don't map 1 to 1
-
+                # self.chans is a sorted subset of layout.chans, layout.chans are not sorted:
+                chanis = [ int(np.where(chan == self.layout.chans)[0]) for chan in self.chans ]
+                dataxs = dataxs[chanis]
         # now trim down to just the requested time range
         lo, hi = tsxs.searchsorted([key.start, key.stop])
         data = dataxs[:, lo:hi]
@@ -691,6 +688,11 @@ class SpykeToolWindow(QtGui.QMainWindow):
         """Doesn't catch window titlebar doubleclicks for some reason (window manager
         catches them?). Have to doubleclick on a part of the window with no widgets in it"""
         self.toggleMaximized()
+
+    def closeEvent(self, event):
+        # remove 'Window' from class name
+        windowtype = type(self).__name__.replace('Window', '')
+        self.parent().HideWindow(windowtype)
 
     def toggleMaximized(self):
         if not self.maximized:
@@ -1380,7 +1382,9 @@ def hamming(t, N):
     return 0.54 - 0.46 * np.cos(pi * (2*t + N)/N)
 
 def hex2rgb(hexcolours):
-    """Convert colours hex string list into an RGB array"""
+    """Convert colours RGB hex string list into an RGB int array"""
+    if type(hexcolours) not in (list, tuple):
+        hexcolours = [hexcolours] # enclose in list
     rgb = []
     for s in hexcolours:
         s = s[len(s)-6:len(s)] # get last 6 characters
@@ -1389,8 +1393,24 @@ def hex2rgb(hexcolours):
         rgb.append((r, g, b))
     return np.uint8(rgb)
 
+def hex2rgba(hexcolours, alpha=255):
+    """Convert colours RGB hex string list into an RGBA int array"""
+    assert type(alpha) == int and 0 <= alpha <= 255
+    rgb = hex2rgb(hexcolours)
+    alphas = np.repeat(alpha, len(rgb))
+    alphas.shape = -1, 1 # make it 2D column vector
+    return np.concatenate([rgb, alphas], axis=1)
+
+def hex2floatrgba(hexcolours, alpha=255):
+    """Convert colours RGB hex string list into an RGBA float array"""
+    assert type(alpha) == int and 0 <= alpha <= 255
+    rgba = hex2rgba(hexcolours, alpha)
+    return np.float64(rgba) / 255.
+
 def rgb2hex(rgbcolours):
-    """Convert RGB array into hex string list"""
+    """Convert RGB int array into a hex string list"""
+    if type(rgbcolours) not in (list, tuple):
+        rgbcolours = [rgbcolours] # enclose in list
     hx = []
     for rgb in rgbcolours:
         r, g, b = rgb

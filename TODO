@@ -32,8 +32,6 @@
 - seems the Qt nlist labelling bug, where 3 digit nids are replaced by ... when there are -ve numbers in the list, seems to go away once you hit values around 120, maybe cuz the two takes up more space?
     - or, maybe it's when the negative numbers start hitting 2 digits
 
-- some kind of line layering issue with the green chan selection lines. When you have chans selected, and a cluster selected, and then you go find next most similar, often the green lines underneath seem to disappear, but then when you clear the cluster selection, they reappear
-
 - JMS: add time to PCA to help with clustering over time with drift
 
 - maybe I should designate a cluster's physical position in x and y by running localization on its mean waveform, instead of relying on averaging the physical positions of its constituent spikes. Might make sorting in order of y position a little more reliable wrt keeping clusters with similar mean waveforms close to each other
@@ -53,8 +51,6 @@
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
 - add recalc for current cluster button to match tab - useful when you merge in some spikes and want to see what the plot has changed to, and what the next best usids are
-
-- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
 
 - finish implementing discretized cluster space using huge sparse matrix
 
@@ -1199,6 +1195,11 @@ DONE:
 - make mpl window one of the tool windows, and always plot to it, ie always reuse plots and overwrite what might already be displayed there. Place it in a convenient spot relative to the other tool windows
 - if channels are selected, make findMostSimilarCluster compare clusters only on those chans - no more, no less. If not, do as it currently does, which is grab all chans that both clusters have in common
 - make SHIFT+Del delete only explicitly selected spikes (technically, split the cluster into a new cluster plus a junk cluster 0)
+- closing MPL window doesn't synch up toggle state of MPL window button in toolbar
+- replace mpl Lines with LineCollection for speed. See demo/line_collections.py
+- bug: open .srf file, and then open a corresponding .sort file - amplitude of LFP drops considerably for some reason. Must be something to do with some gain setting in the stream saved in the sort file?
+    - LFP panel was using the wrong AD2uV converter after opening a .sort file
+
 
 
 
