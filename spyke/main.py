@@ -676,7 +676,8 @@ class SpykeWindow(QtGui.QMainWindow):
         print('selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
         print('selection radius: %.1f um' % sx)
         panel.chans_selected = selchans
-        panel.update_vlines()
+        panel.update_vref_colours()
+        panel.draw_refs()
         panel.manual_selection = False
         return selchans
 

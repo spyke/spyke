@@ -397,37 +397,24 @@ class PlotPanel(FigureCanvas):
         self.blit(self.ax.bbox)
 
     def _add_tref(self):
-        """Add vertical time reference line(s)"""
-        # get column x positions
-        cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
-        ylims = self.ax.get_ylim()
-        self.tlines = []
-        for col in cols:
-            tline = Line2D([col, col],
-                           ylims,
-                           linewidth=TREFLINEWIDTH,
-                           color=TREFCOLOUR,
-                           zorder=TREFLINEZORDER,
-                           antialiased=True,
-                           visible=False)
-            self.tlines.append(tline)
-            self.ax.add_line(tline)
+        """Add vertical time reference LineCollection, one line per probe column"""
+        self.tlc = LineCollection([], linewidth=TREFLINEWIDTH,
+                                  colors=TREFCOLOUR,
+                                  zorder=TREFLINEZORDER,
+                                  antialiased=True,
+                                  visible=False)
+        self.ax.add_collection(self.tlc) # add to axes' pool of LCs
+        self._update_tref()
 
     def _add_vref(self):
-        """Add horizontal voltage reference lines"""
-        self.vlines = []
-        for chan, (xpos, ypos) in self.pos.iteritems():
-            vline = Line2D([xpos+self.tw[0], xpos+self.tw[1]],
-                           [ypos, ypos],
-                           linewidth=VREFLINEWIDTH,
-                           color=VREFCOLOUR,
-                           zorder=VREFLINEZORDER,
-                           antialiased=True,
-                           visible=False)
-            vline.chan = chan
-            vline.set_pickradius(0) # don't normally want these to be pickable
-            self.vlines.append(vline)
-            self.ax.add_line(vline)
+        """Add horizontal voltage reference LineCollection, one line per probe channel"""
+        self.vlc = LineCollection([], linewidth=VREFLINEWIDTH,
+                                  colors=VREFCOLOUR,
+                                  zorder=VREFLINEZORDER,
+                                  antialiased=True,
+                                  visible=False)
+        self.ax.add_collection(self.vlc) # add to axes' pool of LCs
+        self._update_vref()
 
     def _add_caret(self):
         """Add a shaded rectangle to represent the time window shown in the spike frame"""
@@ -444,16 +431,41 @@ class PlotPanel(FigureCanvas):
         self.ax.add_patch(self.caret)
 
     def _update_tref(self):
-        """Update position and size of vertical time reference line(s)"""
-        cols = list(set([ xpos for chan, (xpos, ypos) in self.pos.iteritems() ]))
+        """Update position and size of vertical time reference LineCollection"""
+        # get column x positions:
+        cols = np.unique([ xpos for (xpos, ypos) in self.pos.values() ])
         ylims = self.ax.get_ylim()
-        for col, tline in zip(cols, self.tlines):
-            tline.set_data([col, col], ylims)
+        nsegments = len(cols) # ie, ncols
+        # 2 points per vertical tref line, x vals in col 0, yvals in col 1
+        segments = np.zeros((nsegments, 2, 2))
+        x = np.repeat(cols, 2)
+        x.shape = nsegments, 2
+        y = np.tile(ylims, nsegments)
+        y.shape = nsegments, 2
+        segments[:, :, 0] = x
+        segments[:, :, 1] = y
+        self.tlc.set_segments(segments)
 
     def _update_vref(self):
-        """Update position and size of horizontal voltage reference lines"""
-        for (xpos, ypos), vline in zip(self.pos.itervalues(), self.vlines):
-            vline.set_data([xpos+self.tw[0], xpos+self.tw[0]], [ypos, ypos])
+        """Update position and size of horizontal voltage reference LineCollection"""
+        # somehow "chans, (xpos, ypos) = self.pos.items()" doesn't work...
+        cxy = np.asarray([ (chan, xpos, ypos) for chan, (xpos, ypos) in self.pos.items() ])
+        chans, xpos, ypos = cxy[:, 0], cxy[:, 1], cxy[:, 2]
+        self.chan2vrefsegmenti = {}
+        for segmenti, chan in enumerate(chans):
+            self.chan2vrefsegmenti[chan] = segmenti
+        nsegments = len(chans)
+        # 2 points per horizontal vref line, x vals in col 0, yvals in col 1
+        segments = np.zeros((nsegments, 2, 2))
+        x = np.repeat(xpos, 2)
+        x[0::2] += self.tw[0] # left edge of each vref
+        x[1::2] += self.tw[1] # right edge of each vref
+        x.shape = nsegments, 2
+        y = np.repeat(ypos, 2) # y vals are the same for left and right edge of each vref
+        y.shape = nsegments, 2
+        segments[:, :, 0] = x
+        segments[:, :, 1] = y
+        self.vlc.set_segments(segments)
 
     def _update_caret_width(self):
         """Update caret width"""
@@ -462,19 +474,17 @@ class PlotPanel(FigureCanvas):
 
     def _show_tref(self, enable=True):
         try:
-            self.tlines
+            self.tlc
         except AttributeError:
             self._add_tref()
-        for tline in self.tlines:
-            tline.set_visible(enable)
+        self.tlc.set_visible(enable)
 
     def _show_vref(self, enable=True):
         try:
-            self.vlines
+            self.vlc
         except AttributeError:
             self._add_vref()
-        for vline in self.vlines:
-            vline.set_visible(enable)
+        self.vlc.set_visible(enable)
 
     def _show_caret(self, enable=True):
         try:
@@ -935,8 +945,7 @@ class SortPanel(PlotPanel):
         """Increase pick radius for vrefs from default zero, since we're
         relying on them for tooltips"""
         PlotPanel._add_vref(self)
-        for vline in self.vlines:
-            vline.set_pickradius(PICKRADIUS)
+        self.vlc.set_pickradius(PICKRADIUS)
 
     def show_ref(self, ref, enable=True):
         PlotPanel.show_ref(self, ref, enable)
@@ -1103,34 +1112,30 @@ class SortPanel(PlotPanel):
             return None
 
     def OnButtonPress(self, evt):
-        """Toggle channel selection for clustering by waveform shape, or for other
+        """Toggle or clear channel selection for clustering by waveform shape, or for other
         potential uses as well"""
         button = evt.button
         if button == 1: # left click
             chan = self.get_closestchans(evt, n=1)
-            vline = self.vlines[chan] # there's one vline for every possibly enabled chan
+            vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             if chan not in self.chans_selected: # it's unselected, select it
                 self.chans_selected.append(chan)
-                vline.set_color(VREFSELECTEDCOLOUR)
             else: # it's selected, unselect it
                 self.chans_selected.remove(chan)
-                vline.set_color(VREFCOLOUR)
             self.manual_selection = True
-            self.draw_refs() # update
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
             self.manual_selection = False
-            self.update_vlines()
-            self.draw_refs() # update
+        self.update_vref_colours()
+        self.draw_refs() # update
 
-    def update_vlines(self):
-        """Redraw all vlines, useful to call after arbitrarily changing self.chans_selected"""
-        for chan, vline in enumerate(self.vlines): # assuming chans are contig from 0
-            if chan in self.chans_selected:
-                vline.set_color(VREFSELECTEDCOLOUR)
-            else:
-                vline.set_color(VREFCOLOUR)
-                
+    def update_vref_colours(self):
+        """Reset colours of vrefs given chans in self.chans_selected"""
+        colours = np.repeat(VREFCOLOUR, len(self.pos)) # clear all lines
+        for chan in self.chans_selected: # set line colour of selected chans
+            vrefsegmenti = self.chan2vrefsegmenti[chan]
+            colours[vrefsegmenti] = VREFSELECTEDCOLOUR
+        self.vlc.set_color(list(colours))
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):
