@@ -329,10 +329,8 @@ class PlotPanel(FigureCanvas):
     sort = property(get_sort)
 
     def get_AD2uV(self):
-        try:
-            return self.sort.converter.AD2uV
-        except AttributeError: # sort doesn't exist yet
-            return self.stream.converter.AD2uV
+        # use the stream for all panel types except SortPanel
+        return self.stream.converter.AD2uV
 
     AD2uV = property(get_AD2uV) # convenience for Plot objects to reference
 
@@ -913,6 +911,14 @@ class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         self.manual_selection = False
+
+    def get_AD2uV(self):
+        try: # use sort by default:
+            return self.sort.converter.AD2uV
+        except AttributeError: # sort doesn't exist yet
+            return self.stream.converter.AD2uV
+
+    AD2uV = property(get_AD2uV) # convenience for Plot objects to reference
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
