@@ -1944,6 +1944,8 @@ class SortWindow(SpykeToolWindow):
         dests = []
         # try and compare source neuron waveform to all destination neuron waveforms
         for dest in destinations:
+            if dest.neuron.wave.data == None: # hasn't been calculated yet
+                dest.neuron.update_wave()
             dstchans = dest.neuron.wave.chans
             if len(selchans) > 0:
                 if not set(selchans).issubset(dstchans):
