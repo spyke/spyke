@@ -534,6 +534,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 subsidss.append(oldcluster.neuron.sids)
                 msgs.append('oldcluster %d' % oldcluster.id)
             sids = np.concatenate(subsidss) # update
+            sids.sort()
         else: # just the selected spikes
             subsidss.append(sids)
             msgs.append('%d selected sids' % len(sids))
