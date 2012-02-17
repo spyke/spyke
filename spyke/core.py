@@ -80,28 +80,38 @@ class Converter(object):
 
 
 class WaveForm(object):
-    """Just a container for data, timestamps, and channels.
-    Sliceable in time, and indexable in channel space. Only
-    really used for convenient plotting. Everything else uses
-    the sort.wavedata array, and related sort.spikes fields"""
-    def __init__(self, data=None, ts=None, chans=None):
+    """Just a container for data, std of data, timestamps, and channels.
+    Sliceable in time, and indexable in channel space. Only really used for
+    convenient plotting. Everything else uses the sort.wavedata array, and
+    related sort.spikes fields"""
+    def __init__(self, data=None, std=None, ts=None, chans=None):
         self.data = data # in AD, potentially multichannel, depending on shape
+        self.std = std # std of data
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id(s).
         Return a new WaveForm"""
+        
+        # check for std field, won't exist for old saved Waveforms in .sort files:
+        try: self.std
+        except AttributeError: self.std = None
+        
         if type(key) == slice: # slice self in time
             if self.ts == None:
                 return WaveForm() # empty WaveForm
             else:
                 lo, hi = self.ts.searchsorted([key.start, key.stop])
                 data = self.data[:, lo:hi]
+                if self.std == None:
+                    std = None
+                else:
+                    std = self.std[:, lo:hi]
                 ts = self.ts[lo:hi]
                 #if np.asarray(data == self.data).all() and np.asarray(ts == self.ts).all():
                 #    return self # no need for a new WaveForm - but new WaveForms aren't expensive, only new data are
-                return WaveForm(data=data, ts=ts, chans=self.chans) # return a new WaveForm
+                return WaveForm(data=data, std=std, ts=ts, chans=self.chans) # return a new WaveForm
         else: # index into self by channel id(s)
             keys = toiter(key)
             #try: assert (self.chans == np.sort(self.chans)).all() # testing code
@@ -115,7 +125,11 @@ class WaveForm(object):
             # best not to assume that chans are sorted, often the case in LFP data:
             i = [ int(np.where(chan == self.chans)[0]) for chan in keys ] # indices into rows of data
             data = self.data[i] # grab the appropriate rows of data
-            return WaveForm(data=data, ts=self.ts, chans=keys) # return a new WaveForm
+            if self.std == None:
+                std = None
+            else:
+                std = self.std[i]
+            return WaveForm(data=data, std=std, ts=self.ts, chans=keys) # return a new WaveForm
 
     def __len__(self):
         """Number of data points in time"""

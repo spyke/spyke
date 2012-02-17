@@ -1024,8 +1024,18 @@ class Neuron(object):
         d['plt'] = None
         return d
 
+    def get_wave(self):
+        """Check for valid mean and std waveform before returning it"""
+        # many neuron waveforms saved in old .sort files won't have a wave.std field
+        try: self.wave.std
+        except AttributeError: return self.update_wave()
+        if self.wave == None or self.wave.data == None or self.wave.std == None:
+            return self.update_wave()
+        else:
+            return self.wave # return existing waveform
+
     def update_wave(self):
-        """Update mean waveform"""
+        """Update mean and std of waveform"""
         sort = self.sort
         spikes = sort.spikes
         if len(self.sids) == 0: # no member spikes, perhaps I should be deleted?
@@ -1047,9 +1057,9 @@ class Neuron(object):
         wavedata = sort.wavedata[sids]
         if wavedata.ndim == 2: # should be 3, get only 2 if len(sids) == 1
             wavedata.shape = 1, wavedata.shape[0], wavedata.shape[1] # give it a singleton 3rd dim
-        maxnt = wavedata.shape[-1]
+        nt = wavedata.shape[-1]
         maxnchans = len(neuronchans)
-        data = np.zeros((maxnchans, maxnt))
+        data = np.zeros((maxnchans, nt))
         # all spike have same nt, but not necessarily nchans, keep track of
         # how many spikes contributed to each of neuron's chans
         nspikes = np.zeros((maxnchans, 1), dtype=int)
@@ -1058,14 +1068,23 @@ class Neuron(object):
             data[chanis] += wd[:len(chans)] # accumulate
             nspikes[chanis] += 1 # inc spike count for this spike's chans
         #t0 = time.time()
-        data /= nspikes # normalize all data points appropriately
+        data /= nspikes # normalize all data points appropriately, this is now the mean
+        var = np.zeros((maxnchans, nt))
+        for chans, wd in zip(chanslist, wavedata):
+            chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
+            var[chanis] += (wd[:len(chans)] - data[chanis]) ** 2 # accumulate 2nd moment
+        var /= nspikes # normalize all data points appropriately, this is now the variance
+        std = np.sqrt(var)
         # keep only those chans that at least 1/2 the spikes contributed to
         bins = list(neuronchans) + [sys.maxint] # concatenate rightmost bin edge
         hist, bins = np.histogram(chanpopulation, bins=bins)
         newneuronchans = neuronchans[hist >= len(sids)/2]
         chanis = neuronchans.searchsorted(newneuronchans)
+        data = data[chanis]
+        std = std[chanis]
         # update this Neuron's Waveform object
-        self.wave.data = data[chanis]
+        self.wave.data = data
+        self.wave.std = std
         self.wave.chans = newneuronchans
         self.wave.ts = sort.twts
         return self.wave

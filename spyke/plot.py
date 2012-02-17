@@ -21,7 +21,8 @@ from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
-from matplotlib.collections import LineCollection
+from matplotlib.collections import LineCollection, PolyCollection
+from matplotlib.mlab import poly_between
 
 from core import MICRO, TW, hex2rgb, toiter
 
@@ -44,6 +45,7 @@ SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
 NEURONLINEWIDTH = 1.5
 NEURONLINESTYLE = '-'
+ERRORALPHA = 0.1
 RASTERLINEWIDTH = 0.5
 RASTERLINESTYLE = '-'
 TREFLINEWIDTH = 0.5
@@ -71,6 +73,7 @@ PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
 DEFNPLOTS = 50 # default number of plots to init in SortPanel
+DEFNFILLS = 50 # default number of fills to init in SortPanel
 
 CARETZORDER = 0 # layering
 VREFLINEZORDER = 1
@@ -78,24 +81,6 @@ TREFLINEZORDER = 2
 RASTERZORDER = 3
 ERRORZORDER = 4
 PLOTZORDER = 5
-
-
-def get_wave(obj, sort=None):
-    """Return object's waveform, whether a spike record or a neuron,
-    taken from sort.wavedata or sort.stream"""
-    if type(obj) != np.void: # it's a Neuron
-        n = obj
-        if n.wave == None or n.wave.data == None:
-            wave = n.update_wave() # call Neuron method
-            return wave
-        else:
-            return n.wave # return existing neuron waveform
-    # it's a spike record
-    assert sort != None
-    s = obj
-    sid = int(s['id'])
-    wave = sort.get_wave(sid)
-    return wave
 
 
 class ColourDict(dict):
@@ -122,7 +107,7 @@ CLUSTERCOLOURDICT = ColourDict(colours=CLUSTERCOLOURS)
 class Plot(object):
     """Plot slot, holds a LineCollection of visible chans for plotting
     a single stretch of data, contiguous in time"""
-    def __init__(self, chans, panel):
+    def __init__(self, chans, panel, visible=False):
         self.panel = panel # panel that self belongs to
         self.chans = chans # channels corresponding to current set of lines in LineCollection
         colors = [ self.panel.vcolours[chan] for chan in chans ]
@@ -130,29 +115,18 @@ class Plot(object):
                                  colors=colors,
                                  zorder=PLOTZORDER,
                                  antialiased=True,
-                                 visible=True,
+                                 visible=visible,
                                  pickradius=PICKRADIUS)
         self.panel.ax.add_collection(self.lc) # add to panel's axes' pool of LCs
         self.n = None # Neuron associated with this plot
         # string id that indexes into SortPanel.used_plots,
         # starts with 's' or 'n' for spike or neuron:
         self.id = None
-
-    def show(self, enable=True):
-        """Show/hide LC"""
-        self.lc.set_visible(enable)
-
-    def hide(self):
-        """Hide LC"""
-        self.show(False)
-
-    def visible(self):
-        """Visibility status"""
-        return self.lc.get_visible()
+        self.fill = None # associated Fill
 
     def update(self, wave, tref):
-        """Update LineCollection segments data from wave. It's up to the caller to
-        update colours if needed"""
+        """Update LineCollection segments data from wave, and associated Fill.
+        It's up to the caller to update colours if needed"""
         self.tref = tref
         AD2uV = self.panel.AD2uV
         nchans, npoints = wave.data.shape
@@ -162,7 +136,7 @@ class Plot(object):
             x = []
             y = []
         else:
-            x = np.tile(wave.ts-tref, nchans) # shape == nchans * npoints
+            x = np.tile(wave.ts-tref, nchans)
             x.shape = nchans, npoints
             segments[:, :, 0] = x
             segments[:, :, 1] = self.panel.gain * data
@@ -173,7 +147,24 @@ class Plot(object):
                 segments[chani, :, 1] += ypos
         self.lc.set_segments(segments)
         self.chans = wave.chans
-        self.lc.set_visible(True)
+        if self.fill != None:
+            self.fill.update(wave, tref)
+
+    def show(self, enable=True):
+        """Show/hide LC"""
+        self.lc.set_visible(enable)
+        if self.fill != None:
+            self.fill.show(enable)
+
+    def hide(self):
+        """Hide LC"""
+        self.show(False)
+        if self.fill != None:
+            self.fill.hide()
+
+    def visible(self):
+        """Visibility status"""
+        return self.lc.get_visible()
 
     def set_alpha(self, alpha):
         """Set alpha transparency for LC"""
@@ -182,6 +173,8 @@ class Plot(object):
     def set_colours(self, colours):
         """Set colour(s) for LC"""
         self.lc.set_color(colours)
+        if self.fill != None:
+            self.fill.set_colours(colours)
 
     def update_colours(self):
         colours = [ self.panel.vcolours[chan] for chan in self.chans ]
@@ -196,9 +189,72 @@ class Plot(object):
         """Draw LC to axes buffer (or whatever), avoiding unnecessary
         draws of all other artists in axes"""
         self.panel.ax.draw_artist(self.lc)
+        if self.fill != None:
+            self.fill.draw()
 
 
-class Rasters(Plot):
+class Fill(object):
+    """Fill slot, holds a PolyCollection of filled errors of visible neuron
+    mean waveforms - only applicable in a SortPanel"""
+    def __init__(self, chans, panel, visible=False):
+        self.panel = panel # panel that self belongs to
+        self.chans = chans # channels corresponding to current set of verts in PolyCollection
+        self.pc = PolyCollection([],
+                                 zorder=ERRORZORDER,
+                                 alpha=ERRORALPHA,
+                                 antialiased=True,
+                                 visible=visible)
+        self.panel.ax.add_collection(self.pc) # add to panel's axes' pool of PCs
+
+    def update(self, wave, tref):
+        """Update PolyCollection vertex data from wave. It's up to the caller to
+        update colours if needed"""
+        AD2uV = self.panel.AD2uV
+        nchans, npoints = wave.std.shape
+        # each timepoint has a +ve and a -ve vertex; x vals in col 0, yvals in col 1:
+        verts = np.zeros((nchans, 2*npoints, 2))
+        data = AD2uV(wave.data) # convert AD wave data to uV
+        err = 2 * AD2uV(wave.std) # convert AD wave std to uV, double it for better visibility
+        if wave.ts == None: # or maybe check if data.size == 0 too
+            x = []
+            y = []
+        else:
+            x = wave.ts-tref
+            lower = self.panel.gain * data - err
+            upper = self.panel.gain * data + err
+            for chani, chan in enumerate(wave.chans):
+                vert = poly_between(x, lower[chani], upper[chani])
+                vert = np.asarray(vert).T
+                # add offsets:
+                xpos, ypos = self.panel.pos[chan]
+                vert[:, 0] += xpos
+                vert[:, 1] += ypos
+                verts[chani] = vert
+        self.pc.set_verts(verts)
+
+    def show(self, enable=True):
+        """Show/hide PC"""
+        self.pc.set_visible(enable)
+
+    def hide(self):
+        """Hide PC"""
+        self.show(False)
+
+    def visible(self):
+        """Visibility status"""
+        return self.pc.get_visible()
+
+    def set_colours(self, colours):
+        """Set colour for PC, colours should really only ever be of length 1"""
+        self.pc.set_color(colours)
+
+    def draw(self):
+        """Draw PC to axes buffer (or whatever), avoiding unnecessary
+        draws of all other artists in axes"""
+        self.panel.ax.draw_artist(self.pc)
+
+
+class Rasters(object):
     """Holds a LineCollection of rasters corresponding
     to all spikes visible in panel, one vertical line per chan per spike"""
     def __init__(self, panel):
@@ -235,6 +291,23 @@ class Rasters(Plot):
         self.lc.set_segments(segments)
         self.lc.set_color(list(colours))
 
+    def show(self, enable=True):
+        """Show/hide LC"""
+        self.lc.set_visible(enable)
+
+    def hide(self):
+        """Hide LC"""
+        self.show(False)
+
+    def visible(self):
+        """Visibility status"""
+        return self.lc.get_visible()
+
+    def draw(self):
+        """Draw LC to axes buffer (or whatever), avoiding unnecessary
+        draws of all other artists in axes"""
+        self.panel.ax.draw_artist(self.lc)
+
 
 class PlotPanel(FigureCanvas):
     """A QtWidget with an embedded mpl figure. Base class for Data and Sort panels"""
@@ -252,6 +325,7 @@ class PlotPanel(FigureCanvas):
         self.spykeframe = parent.parent()
 
         self.available_plots = [] # pool of available Plots
+        self.available_fills = [] # pool of available Fills
         self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
         self.qrplt = None # current quickly removable Plot with associated .background
         self.rasters = None # Rasters object
@@ -349,7 +423,7 @@ class PlotPanel(FigureCanvas):
     def init_plots(self):
         """Create Plots for this panel"""
         chans = self.spykeframe.chans_enabled
-        self.qrplt = Plot(chans=chans, panel=self) # just one for this base class
+        self.qrplt = Plot(chans=chans, panel=self, visible=True) # just one for this base class
         self.used_plots[0] = self.qrplt
 
     def init_rasters(self):
@@ -932,10 +1006,15 @@ class SortPanel(PlotPanel):
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
-        totalnplots = len(self.available_plots) + len(self.used_plots) # total number of existing plots
-        for plti in range(totalnplots, totalnplots+nplots):
+        for i in range(nplots): # Plots are init'd as invisible:
             plt = Plot(chans=self.chans, panel=self)
             self.available_plots.append(plt)
+
+    def init_fills(self, nplots=DEFNFILLS):
+        """Add Fills to the pool of available ones"""
+        for i in range(nplots): # Fills are init'd as invisible:
+            fill = Fill(chans=self.chans, panel=self)
+            self.available_fills.append(fill)
 
     def init_rasters(self):
         """Disable for SortPanel"""
@@ -978,6 +1057,9 @@ class SortPanel(PlotPanel):
         plt.id = item
         id = int(item[1:])
         if item[0] == 'n': # it's a neuron
+            if len(self.available_fills) == 0: # if we've run out of fills for additional neurons
+                self.init_fills() # init another batch of fills
+            plt.fill = self.available_fills.pop() # pop a Fill, bind it to plot
             n = s.neurons[id]
             t = n.t
             colour = CLUSTERCOLOURDICT[id]
@@ -986,7 +1068,7 @@ class SortPanel(PlotPanel):
             width = NEURONLINEWIDTH
             n.plt = plt # bind plot to neuron
             plt.n = n # bind neuron to plot
-            wave = get_wave(n) # calls n.update_wave() if necessary
+            wave = n.get_wave() # calls n.update_wave() if necessary
         else: # item[0] == 's' # it's a spike
             t = s.spikes['t'][id]
             nid = s.spikes['nid'][id]
@@ -998,11 +1080,13 @@ class SortPanel(PlotPanel):
             width = SPIKELINEWIDTH
             wave = s.get_wave(id)
         plt.set_colours([colour])
-        plt.set_alpha(alpha)
+        plt.set_alpha(alpha) # doesn't affect Fill alpha, if any
         plt.set_stylewidth(style, width)
         self.used_plots[plt.id] = plt # push it to the used plot stack
         wave = wave[t+self.tw[0] : t+self.tw[1]] # slice wave according to time window of this panel
+        # also updates, shows, and draws Fill, if applicable:
         plt.update(wave, t)
+        plt.show()
         plt.draw()
         return plt
 
@@ -1037,12 +1121,17 @@ class SortPanel(PlotPanel):
         self.removeItems(items)
 
     def removeItem(self, item):
-        """Restore item's Plot from used to available plot pool, return the Plot"""
+        """Restore item's Plot from used to available plot pool, return the Plot.
+        Restore Fill as well, if applicable"""
         plt = self.used_plots.pop(item)
         # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
         if item[0] == 'n': # it's a neuron
             plt.n.plt = None # unbind plot from neuron
+            fill = plt.fill
+            fill.hide()
+            plt.fill = None
+            self.available_fills.append(fill)
         plt.hide() # hide all chan lines
         self.available_plots.append(plt)
         return plt
@@ -1079,7 +1168,7 @@ class SortPanel(PlotPanel):
         if item[0] == 'n': # it's a neuron
             n = s.neurons[id]
             t = n.t
-            wave = get_wave(n) # calls n.update_wave() if necessary
+            wave = n.get_wave() # calls n.update_wave() if necessary
         else: # item[0] == 's' # it's a spike
             t = s.spikes['t'][id]
             wave = s.get_wave(id)
