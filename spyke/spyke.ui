@@ -682,12 +682,18 @@
           <rect>
            <x>0</x>
            <y>40</y>
-           <width>86</width>
+           <width>66</width>
            <height>146</height>
           </rect>
          </property>
          <property name="toolTip">
           <string>Dimensions to cluster on</string>
+         </property>
+         <property name="verticalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
          </property>
          <property name="selectionMode">
           <enum>QAbstractItemView::ExtendedSelection</enum>
@@ -778,7 +784,7 @@
         <widget class="QLabel" name="label_22">
          <property name="geometry">
           <rect>
-           <x>95</x>
+           <x>75</x>
            <y>14</y>
            <width>56</width>
            <height>16</height>
@@ -791,7 +797,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="sigmaSpinBox">
          <property name="geometry">
           <rect>
-           <x>155</x>
+           <x>135</x>
            <y>9</y>
            <width>62</width>
            <height>25</height>
@@ -816,7 +822,7 @@
         <widget class="QLabel" name="label_23">
          <property name="geometry">
           <rect>
-           <x>95</x>
+           <x>75</x>
            <y>39</y>
            <width>56</width>
            <height>16</height>
@@ -829,7 +835,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="rmergeXSpinBox">
          <property name="geometry">
           <rect>
-           <x>155</x>
+           <x>135</x>
            <y>34</y>
            <width>62</width>
            <height>25</height>
@@ -851,7 +857,7 @@
         <widget class="QLabel" name="label_24">
          <property name="geometry">
           <rect>
-           <x>95</x>
+           <x>75</x>
            <y>89</y>
            <width>56</width>
            <height>16</height>
@@ -864,7 +870,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="alphaSpinBox">
          <property name="geometry">
           <rect>
-           <x>155</x>
+           <x>135</x>
            <y>84</y>
            <width>62</width>
            <height>25</height>
@@ -889,7 +895,7 @@
         <widget class="ClusterTabSpinBox" name="minpointsSpinBox">
          <property name="geometry">
           <rect>
-           <x>155</x>
+           <x>135</x>
            <y>109</y>
            <width>62</width>
            <height>25</height>
@@ -908,7 +914,7 @@
         <widget class="QLabel" name="label_27">
          <property name="geometry">
           <rect>
-           <x>95</x>
+           <x>75</x>
            <y>115</y>
            <width>56</width>
            <height>16</height>
@@ -921,7 +927,7 @@
         <widget class="QLabel" name="label_32">
          <property name="geometry">
           <rect>
-           <x>95</x>
+           <x>75</x>
            <y>64</y>
            <width>56</width>
            <height>16</height>
@@ -934,7 +940,7 @@
         <widget class="ClusterTabDoubleSpinBox" name="rneighXSpinBox">
          <property name="geometry">
           <rect>
-           <x>155</x>
+           <x>135</x>
            <y>59</y>
            <width>62</width>
            <height>25</height>
@@ -956,7 +962,7 @@
         <widget class="QPushButton" name="clusterButton">
          <property name="geometry">
           <rect>
-           <x>160</x>
+           <x>135</x>
            <y>160</y>
            <width>56</width>
            <height>27</height>
@@ -972,7 +978,7 @@
         <widget class="QLabel" name="label_35">
          <property name="geometry">
           <rect>
-           <x>95</x>
+           <x>75</x>
            <y>140</y>
            <width>56</width>
            <height>16</height>
@@ -985,7 +991,7 @@
         <widget class="ClusterTabSpinBox" name="maxgradSpinBox">
          <property name="geometry">
           <rect>
-           <x>155</x>
+           <x>135</x>
            <y>134</y>
            <width>62</width>
            <height>25</height>
@@ -1024,9 +1030,9 @@
        <widget class="PlottingGroupBox" name="plottingGroupBox">
         <property name="geometry">
          <rect>
-          <x>230</x>
+          <x>208</x>
           <y>5</y>
-          <width>146</width>
+          <width>166</width>
           <height>186</height>
          </rect>
         </property>
@@ -1036,46 +1042,58 @@
         <widget class="QLabel" name="label_29">
          <property name="geometry">
           <rect>
-           <x>15</x>
+           <x>25</x>
            <y>85</y>
            <width>16</width>
            <height>16</height>
           </rect>
          </property>
          <property name="text">
-          <string>x:</string>
+          <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Ubuntu'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; color:#b90000;&quot;&gt;x:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
         </widget>
         <widget class="QLabel" name="label_30">
          <property name="geometry">
           <rect>
-           <x>15</x>
+           <x>25</x>
            <y>110</y>
            <width>16</width>
            <height>16</height>
           </rect>
          </property>
          <property name="text">
-          <string>y:</string>
+          <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Ubuntu'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; color:#005500;&quot;&gt;y:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
         </widget>
         <widget class="QLabel" name="label_31">
          <property name="geometry">
           <rect>
-           <x>15</x>
+           <x>25</x>
            <y>135</y>
            <width>16</width>
            <height>16</height>
           </rect>
          </property>
          <property name="text">
-          <string>z:</string>
+          <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Ubuntu'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; color:#0055ff;&quot;&gt;z:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
         </widget>
         <widget class="QComboBox" name="xDimComboBox">
          <property name="geometry">
           <rect>
-           <x>35</x>
+           <x>45</x>
            <y>80</y>
            <width>76</width>
            <height>25</height>
@@ -1140,7 +1158,7 @@
         <widget class="QComboBox" name="yDimComboBox">
          <property name="geometry">
           <rect>
-           <x>35</x>
+           <x>45</x>
            <y>105</y>
            <width>76</width>
            <height>25</height>
@@ -1208,7 +1226,7 @@
         <widget class="QComboBox" name="zDimComboBox">
          <property name="geometry">
           <rect>
-           <x>35</x>
+           <x>45</x>
            <y>130</y>
            <width>76</width>
            <height>25</height>
@@ -1276,7 +1294,7 @@
         <widget class="QPushButton" name="plotButton">
          <property name="geometry">
           <rect>
-           <x>52</x>
+           <x>62</x>
            <y>160</y>
            <width>46</width>
            <height>27</height>
@@ -1292,9 +1310,9 @@
         <widget class="QPushButton" name="x0y0VppButton">
          <property name="geometry">
           <rect>
-           <x>0</x>
+           <x>-1</x>
            <y>45</y>
-           <width>71</width>
+           <width>56</width>
            <height>27</height>
           </rect>
          </property>
@@ -1308,9 +1326,9 @@
         <widget class="QPushButton" name="c0c1c2Button">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>57</x>
            <y>45</y>
-           <width>71</width>
+           <width>51</width>
            <height>27</height>
           </rect>
          </property>
@@ -1325,7 +1343,7 @@ Ctrl+click forces recalculation of components</string>
         <widget class="QComboBox" name="componentAnalysisComboBox">
          <property name="geometry">
           <rect>
-           <x>35</x>
+           <x>45</x>
            <y>20</y>
            <width>76</width>
            <height>24</height>
@@ -1354,7 +1372,7 @@ when one cluster in a pair has far more points than the other</string>
         <widget class="QLabel" name="label_36">
          <property name="geometry">
           <rect>
-           <x>15</x>
+           <x>25</x>
            <y>25</y>
            <width>16</width>
            <height>15</height>
@@ -1362,6 +1380,23 @@ when one cluster in a pair has far more points than the other</string>
          </property>
          <property name="text">
           <string>c = </string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="c0c1tButton">
+         <property name="geometry">
+          <rect>
+           <x>110</x>
+           <y>45</y>
+           <width>51</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Set plot dimensions to first 3 PCs/ICs
+Ctrl+click forces recalculation of components</string>
+         </property>
+         <property name="text">
+          <string>c0c1t</string>
          </property>
         </widget>
        </widget>

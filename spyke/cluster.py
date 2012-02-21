@@ -186,6 +186,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, slow
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
+        self.axes = True # display xyz axes by default
 
         format = QtOpenGL.QGLFormat()
         format.setDoubleBuffer(True) # req'd for picking
@@ -232,12 +233,31 @@ class GLWidget(QtOpenGL.QGLWidget):
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
+        if self.axes: # plot xyz axes
+            w, h = self.width(), self.height()
+            vt = self.getTranslation() # this is in eye coordinates
+            GL.glViewport(0, 0, w//8, h//8) # mini viewport at bottom left section of this widget
+            self.setTranslation((0, 0, -3)) # draw in center of this mini viewport
+            GL.glBegin(GL.GL_LINES)
+            GL.glColor3f(1, 0, 0) # red x axis
+            GL.glVertex3f(0, 0, 0)
+            GL.glVertex3f(1, 0, 0)
+            GL.glColor3f(0, 1, 0) # green y axis
+            GL.glVertex3f(0, 0, 0)
+            GL.glVertex3f(0, 1, 0)
+            GL.glColor3f(0, 0, 1) # blue z axis
+            GL.glVertex3f(0, 0, 0)
+            GL.glVertex3f(0, 0, 1)
+            GL.glEnd()
+            self.setTranslation(vt) # restore translation vector to MV matrix
+            GL.glViewport(0, 0, w, h) # restore full viewport
+
         # Don't load identity matrix. Do all transforms in place against current matrix
         # and take advantage of OpenGL's state-machineness.
         #GL.glLoadIdentity() # loads identity matrix into top of matrix stack
 
-        GL.glEnableClientState(GL.GL_COLOR_ARRAY);
-        GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        GL.glEnableClientState(GL.GL_COLOR_ARRAY)
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
         GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
@@ -358,8 +378,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         #GL.glDrawBuffer(GL_BACK) # defaults to back
         GL.glClearColor(1.0, 1.0, 1.0, 1.0) # highest possible RGB means no hit
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-        GL.glEnableClientState(GL.GL_COLOR_ARRAY);
-        GL.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        GL.glEnableClientState(GL.GL_COLOR_ARRAY)
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
         GL.glColorPointerub(self.rgbsids) # unsigned byte, ie uint8
         GL.glVertexPointerf(self.points) # float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints) # to back buffer
@@ -486,6 +506,32 @@ class GLWidget(QtOpenGL.QGLWidget):
             if sid != None:
                 self.focus = self.points[self.sids.searchsorted(sid)]
                 self.panTo() # pan to new focus
+        elif key == Qt.Key_A: # toggle xyz axes display
+            self.axes = not self.axes
+        elif key == Qt.Key_Z:
+            """
+            Make z axis point up. Work on top left 3x3 subset of MV matrix.
+            This was deduced by watching behaviour of MV matrix while manually
+            rotating the z axis up. This is what we want, where x**2 + y**2 = 1:
+
+            [x  0  y  *
+             y  0 -x  *
+             0  1  0  *
+             *  *  *  *]
+            """
+            MV = self.MV
+            MV[:3, 1] = 0, 0, 1 # 2nd col is up vector, make it point along z axis
+            # set bottom left and bottom right z values to zero:
+            MV[2, 0] = 0
+            MV[2, 2] = 0
+            x = MV[0, 0] # grab top left value
+            y = np.sqrt(1 - x**2) # calc new complementary value to get normalized vectors
+            if MV[1, 0] < 0:
+                y = -y # keep y -ve, reduce jumping around of axes
+            MV[1, 0] = y
+            MV[0, 2] = y
+            MV[1, 2] = -x # needs to be -ve of MV[0, 0]
+            self.MV = MV
         elif key == Qt.Key_S: # select item under the cursor, if any
             self.selectItemUnderCursor(on=True, clear=False)
         elif key == Qt.Key_D: # deselect item under the cursor, if any

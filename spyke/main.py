@@ -873,6 +873,15 @@ class SpykeWindow(QtGui.QMainWindow):
             except AttributeError: pass
         self.SetPlotDims('c0', 'c1', 'c2')
 
+    @QtCore.pyqtSlot()
+    def on_c0c1tButton_clicked(self):
+        """Cluster pane c0c1t button click. Set plot dims to c0, c1, and t"""
+        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
+            try:
+                del self.sort.comp # force recalc
+            except AttributeError: pass
+        self.SetPlotDims('c0', 'c1', 't')
+
     def SetPlotDims(self, x, y, z):
         """Set plot dimensions to x, y, z, and replot"""
         xi = self.ui.xDimComboBox.findText(x)
