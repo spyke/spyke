@@ -312,6 +312,54 @@ class GLWidget(QtOpenGL.QGLWidget):
         #return np.sqrt((v**2).sum()) # from data origin
         return np.sqrt(((v-self.focus)**2).sum()) # from focus
 
+    def lookDownXAxis(self):
+        """Look down x axis: make x, y, z axes point out, right, and up"""
+        MV = self.MV
+        MV[:3, :3] = [[0, 0, 1],
+                      [1, 0, 0],
+                      [0, 1, 0]]
+        self.MV = MV
+        
+    def lookUpXAxis(self):
+        """Look up x axis: make x, y, z axes point in, left, and up"""
+        MV = self.MV
+        MV[:3, :3] = [[ 0, 0,-1],
+                      [-1, 0, 0],
+                      [ 0, 1, 0]]
+        self.MV = MV
+        
+    def lookDownYAxis(self):
+        """Look down y axis: make x, y, z axes point left, out, and up"""
+        MV = self.MV
+        MV[:3, :3] = [[-1, 0, 0],
+                      [ 0, 0, 1],
+                      [ 0, 1, 0]]
+        self.MV = MV
+
+    def lookUpYAxis(self):
+        """Look up y axis: make x, y, z axes point right, in, and up"""
+        MV = self.MV
+        MV[:3, :3] = [[1, 0, 0],
+                      [0, 0,-1],
+                      [0, 1, 0]]
+        self.MV = MV
+
+    def lookDownZAxis(self):
+        """Look down z axis: make x, y, z axes point down, right, and out"""
+        MV = self.MV
+        MV[:3, :3] = [[0,-1, 0],
+                      [1, 0, 0],
+                      [0, 0, 1]]
+        self.MV = MV
+
+    def lookUpZAxis(self):
+        """Look up z axis: make x, y, z axes point up, right, and in"""
+        MV = self.MV
+        MV[:3, :3] = [[0, 1, 0],
+                      [1, 0, 0],
+                      [0, 0,-1]]
+        self.MV = MV
+
     def rotateXOut(self):
         """Make x axis point out. Work on top left 3x3 subset of MV matrix.
         This was deduced by watching behaviour of MV matrix while manually
@@ -581,6 +629,21 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.panTo() # pan to new focus
         elif key == Qt.Key_A: # toggle xyz axes display
             self.axes = not self.axes
+        elif key == Qt.Key_1: # look along x axis
+            if ctrl:
+                self.lookUpXAxis()
+            else:
+                self.lookDownXAxis()
+        elif key == Qt.Key_2: # look along y axis
+            if ctrl:
+                self.lookUpYAxis()
+            else:
+                self.lookDownYAxis()
+        elif key == Qt.Key_3: # look along z axis
+            if ctrl:
+                self.lookUpZAxis()
+            else:
+                self.lookDownZAxis()
         elif key == Qt.Key_X: # make x axis point out
             self.rotateXOut()
         elif key == Qt.Key_Y: # make y axis point right
