@@ -1,5 +1,6 @@
-- make xyz axes show the size of the current setting for sigma. Make the length of the axes correspond to sigma. This would even make it feasible to make a good estimate of different sigmas in different dimensions. Easiest initial implementation would be 3 lines, red green and blue, representing x, y and z axes respectively, with their shared vertex at the origin. Axes should probably be disabled by default, and there should be a toggle button to show/hide them. Ultimately, it might be nice to have a feature that moves the axes vertex somehow, maybe to the current focal point.
-    - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
+- ctrl+scroll in cluster window should modify sigma, step size should be same as scrolling it in the main spyke window
+
+- is there already a keyboard shortcut in the cluster window to cluster the data, so as to avoid having to move mouse over to main spyke window?
 
 - to prioritize pairwise comparisons of similar clusters, find all rms error values between all local pairwise clusters (local could be constrained to something really small, like 50um), and then sort them in increasing error. This could be controlled via CTRL+> and CTRL+<, and I guess would have to be recalculated on every keypress, just as it normally is, since in between you might merge/split/renumber clusters
 
@@ -1201,7 +1202,8 @@ DONE:
     - LFP panel was using the wrong AD2uV converter after opening a .sort file
 - add std to waveform means - use continuous transparent region around mean, of the same colour. Should be much more quantitative to compare the amount of scatter between two clusters, especially between a cluster and a newly split off junk cluster. The alternative, overplotting say 20 spikes at a time per selected cluster and visually estimating the std, isn't as quantitative.
 - add xyz axes to cluster plot
-
+- make xyz axes show the size of the current setting for sigma. Make the length of the axes correspond to sigma. This would even make it feasible to make a good estimate of different sigmas in different dimensions
+    - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
 
 
 

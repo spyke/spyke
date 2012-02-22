@@ -188,6 +188,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
         self.axes = True # display xyz axes by default
+        self.update_sigmasqrtndims()
+        self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
         format = QtOpenGL.QGLFormat()
         format.setDoubleBuffer(True) # req'd for picking
@@ -216,11 +218,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glClearColor(0.0, 0.0, 0.0, 1.0)
         GL.glClearDepth(1.0)
         GL.glEnable(GL.GL_DEPTH_TEST) # display points according to occlusion, not order of plotting
-        '''
         #GL.glEnable(GL.GL_POINT_SMOOTH) # doesn't seem to work right, proper way to antialiase?
-        #GL.glEnable(GL.GL_LINE_SMOOTH) # works better
+        GL.glEnable(GL.GL_LINE_SMOOTH) # works better, makes lines thicker
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
-        '''
         # set initial position and orientation of camera
         GL.glTranslate(0, 0, -VIEWDISTANCE)
         GL.glRotate(-45, 0, 0, 1)
@@ -234,24 +234,9 @@ class GLWidget(QtOpenGL.QGLWidget):
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        if self.axes: # plot xyz axes
-            w, h = self.width(), self.height()
-            vt = self.getTranslation() # this is in eye coordinates
-            GL.glViewport(0, 0, w//8, h//8) # mini viewport at bottom left section of this widget
-            self.setTranslation((0, 0, -3)) # draw in center of this mini viewport
-            GL.glBegin(GL.GL_LINES)
-            GL.glColor3f(1, 0, 0) # red x axis
-            GL.glVertex3f(0, 0, 0)
-            GL.glVertex3f(1, 0, 0)
-            GL.glColor3f(0, 1, 0) # green y axis
-            GL.glVertex3f(0, 0, 0)
-            GL.glVertex3f(0, 1, 0)
-            GL.glColor3f(0, 0, 1) # blue z axis
-            GL.glVertex3f(0, 0, 0)
-            GL.glVertex3f(0, 0, 1)
-            GL.glEnd()
-            self.setTranslation(vt) # restore translation vector to MV matrix
-            GL.glViewport(0, 0, w, h) # restore full viewport
+        if self.axes: # paint xyz axes
+            self.paint_mini_axes()
+            self.paint_focal_axes()
 
         # Don't load identity matrix. Do all transforms in place against current matrix
         # and take advantage of OpenGL's state-machineness.
@@ -274,6 +259,49 @@ class GLWidget(QtOpenGL.QGLWidget):
         GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
+    def paint_mini_axes(self):
+        """Paint mini xyz axes in bottom left of widget"""
+        w, h = self.width(), self.height()
+        vt = self.getTranslation() # this is in eye coordinates
+        GL.glViewport(0, 0, w//8, h//8) # mini viewport at bottom left of widget
+        self.setTranslation((0, 0, -3)) # draw in center of this mini viewport
+        self.paint_axes()
+        self.setTranslation(vt) # restore translation vector to MV matrix
+        GL.glViewport(0, 0, w, h) # restore full viewport
+
+    def paint_focal_axes(self):
+        """Paint xyz axes proportional in size to sigma, at focus"""
+        GL.glTranslate(*self.focus) # translate to focus
+        self.paint_axes(self.sigmasqrtndims)
+        GL.glTranslate(*-self.focus) # translate back
+
+    def update_focal_axes(self):
+        """Called ever time sigma is changed in main spyke window"""
+        self.update_sigmasqrtndims()
+        self.updateGL()
+
+    def update_sigmasqrtndims(self):
+        """Calculate sigma * sqrt(ndims) from main spyke window.
+        This is what's used for clustering. Save value as widget attrib"""
+        dims = self.spw.GetClusteringDims()
+        ndims = len(dims)
+        sigma = self.spw.ui.sigmaSpinBox.value()
+        self.sigmasqrtndims = sigma * np.sqrt(ndims)
+
+    def paint_axes(self, l=1):
+        """Paint axes at origin, with lines of length l"""
+        GL.glBegin(GL.GL_LINES)
+        GL.glColor3f(1, 0, 0) # red x axis
+        GL.glVertex3f(0, 0, 0)
+        GL.glVertex3f(l, 0, 0)
+        GL.glColor3f(0, 1, 0) # green y axis
+        GL.glVertex3f(0, 0, 0)
+        GL.glVertex3f(0, l, 0)
+        GL.glColor3f(0, 0, 1) # blue z axis
+        GL.glVertex3f(0, 0, 0)
+        GL.glVertex3f(0, 0, l)
+        GL.glEnd()
+    
     def get_MV(self):
         """Return modelview matrix"""
         return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
