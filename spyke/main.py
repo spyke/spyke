@@ -52,13 +52,17 @@ DEFCHARTTW = -25000, 25000 # chart window temporal window (us)
 DEFLFPTW = -500000, 500000 # lfp window temporal window (us)
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
+SCREENWIDTH = 1920 # TODO: this should be found programmatically
+#SCREENHEIGHT = 1080 # TODO: this should be found programmatically
+BORDERWIDTH = 1 # TODO: this should be found programmatically
+#BORDERHEIGHT = 0 # TODO: this should be found programmatically
 SPIKEWINDOWWIDTHPERCOLUMN = 80
-SPIKEWINDOWHEIGHT = 655
+SPIKEWINDOWHEIGHT = 655 # TODO: this should be calculated from SCREENHEIGHT
 CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
 METACITYHACK = 29 # metacity has vertical placement issues
-SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
-CLUSTERWINDOWSIZE = 879, 687
+#SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
+CLUSTERWINDOWHEIGHT = 700
 
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
@@ -1740,28 +1744,30 @@ class SpykeWindow(QtGui.QMainWindow):
                 window = SpikeWindow(parent=self, tw=self.spiketw, pos=(x, y),
                                      size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
             elif windowtype == 'Chart':
-                x = self.pos().x() + self.SPIKEWINDOWWIDTH
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH + 2*BORDERWIDTH
                 y = self.pos().y() + self.size().height() + METACITYHACK
                 window = ChartWindow(parent=self, tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
             elif windowtype == 'LFP':
-                x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0]
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0] + 4*BORDERWIDTH
                 y = self.pos().y() + self.size().height() + METACITYHACK
                 window = LFPWindow(parent=self, tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
             elif windowtype == 'Sort':
-                x = self.pos().x() + self.size().width()
+                x = self.pos().x() + self.size().width() + 2*BORDERWIDTH
                 y = self.pos().y()
                 window = SortWindow(parent=self, pos=(x, y))
             elif windowtype == 'Cluster':
-                x = self.pos().x() + self.size().width() + self.windows['Sort'].size().height()
+                x = self.pos().x() + self.size().width() + self.windows['Sort'].size().width() + 4*BORDERWIDTH
                 y = self.pos().y()
                 from cluster import ClusterWindow # can't delay this any longer
-                window = ClusterWindow(parent=self, pos=(x, y), size=CLUSTERWINDOWSIZE)
+                size = (SCREENWIDTH - x - 2*BORDERWIDTH, CLUSTERWINDOWHEIGHT)
+                window = ClusterWindow(parent=self, pos=(x, y), size=size)
             elif windowtype == 'MPL':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height() + METACITYHACK
-                # the +1 is a hack to fix strange gap underneath histogram bars
+                # the +1 is a hack to fix strange gap underneath histogram bars,
+                # but maybe this has something to do with BORDERWIDTH or BORDERHEIGHT
                 window = MPLWindow(parent=self, pos=(x, y),
                                    size=(self.size().width(), self.size().width()+1))
             self.windows[windowtype] = window
