@@ -145,6 +145,7 @@ class Cluster(object):
             self.pos[dim] = medians[compid]
             self.normpos[dim] = normmedians[compid]
 
+
 class ClusterWindow(SpykeToolWindow):
     def __init__(self, parent, pos=None, size=None):
         SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
@@ -310,6 +311,78 @@ class GLWidget(QtOpenGL.QGLWidget):
         # for pan and zoom, doesn't seem to matter whether d is from origin or focus
         #return np.sqrt((v**2).sum()) # from data origin
         return np.sqrt(((v-self.focus)**2).sum()) # from focus
+
+    def rotateXOut(self):
+        """Make x axis point out. Work on top left 3x3 subset of MV matrix.
+        This was deduced by watching behaviour of MV matrix while manually
+        rotating the x axis out. This is what we want, where a**2 + b**2 = 1:
+
+        [0  0  1  *
+         a -b  0  *
+         b  a  0  *
+         *  *  *  *]
+        """
+        MV = self.MV
+        MV[:3, 2] = 1, 0, 0 # 3rd col is normal vector, make it point along x axis
+        # set top left and top middle values to zero:
+        MV[0, 0] = 0
+        MV[0, 1] = 0
+        b = MV[2, 0] # grab bottom left value
+        a = np.sqrt(1 - b**2) # calc new complementary value to get normalized vectors
+        #if MV[1, 0] < 0:
+        #    a = -a # keep a -ve, reduce jumping around of axes
+        MV[1, 0] = a
+        MV[2, 1] = a
+        MV[1, 1] = -b # needs to be -ve of MV[2, 0]
+        self.MV = MV
+
+    def rotateYRight(self):
+        """Make y axis point right. Work on top left 3x3 subset of MV matrix.
+        This was deduced by watching behaviour of MV matrix while manually
+        rotating the y axis right. This is what we want, where a**2 + b**2 = 1:
+
+        [0  a  b  *
+         1  0  0  *
+         0  b -a  *
+         *  *  *  *]
+        """
+        MV = self.MV
+        MV[:3, 0] = 0, 1, 0 # 1st col is right vector, make it point along y axis
+        # set middle middle and middle right values to zero:
+        MV[1, 1] = 0
+        MV[1, 2] = 0
+        a = MV[0, 1] # grab top middle value
+        b = np.sqrt(1 - a**2) # calc new complementary value to get normalized vectors
+        if MV[2, 1] < 0:
+            b = -b # keep b -ve, reduce jumping around of axes
+        MV[2, 1] = b
+        MV[0, 2] = b
+        MV[2, 2] = -a # needs to be -ve of MV[0, 1]
+        self.MV = MV
+
+    def rotateZUp(self):
+        """Make z axis point up. Work on top left 3x3 subset of MV matrix.
+        This was deduced by watching behaviour of MV matrix while manually
+        rotating the z axis up. This is what we want, where a**2 + b**2 = 1:
+
+        [a  0  b  *
+         b  0 -a  *
+         0  1  0  *
+         *  *  *  *]
+        """
+        MV = self.MV
+        MV[:3, 1] = 0, 0, 1 # 2nd col is up vector, make it point along z axis
+        # set bottom left and bottom right z values to zero:
+        MV[2, 0] = 0
+        MV[2, 2] = 0
+        a = MV[0, 0] # grab top left value
+        b = np.sqrt(1 - a**2) # calc new complementary value to get normalized vectors
+        if MV[1, 0] < 0:
+            b = -b # keep b -ve, reduce jumping around of axes
+        MV[1, 0] = b
+        MV[0, 2] = b
+        MV[1, 2] = -a # needs to be -ve of MV[0, 0]
+        self.MV = MV
 
     def pan(self, dx, dy):
         """Translate along view right and view up vectors"""
@@ -508,30 +581,12 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.panTo() # pan to new focus
         elif key == Qt.Key_A: # toggle xyz axes display
             self.axes = not self.axes
-        elif key == Qt.Key_Z:
-            """
-            Make z axis point up. Work on top left 3x3 subset of MV matrix.
-            This was deduced by watching behaviour of MV matrix while manually
-            rotating the z axis up. This is what we want, where x**2 + y**2 = 1:
-
-            [x  0  y  *
-             y  0 -x  *
-             0  1  0  *
-             *  *  *  *]
-            """
-            MV = self.MV
-            MV[:3, 1] = 0, 0, 1 # 2nd col is up vector, make it point along z axis
-            # set bottom left and bottom right z values to zero:
-            MV[2, 0] = 0
-            MV[2, 2] = 0
-            x = MV[0, 0] # grab top left value
-            y = np.sqrt(1 - x**2) # calc new complementary value to get normalized vectors
-            if MV[1, 0] < 0:
-                y = -y # keep y -ve, reduce jumping around of axes
-            MV[1, 0] = y
-            MV[0, 2] = y
-            MV[1, 2] = -x # needs to be -ve of MV[0, 0]
-            self.MV = MV
+        elif key == Qt.Key_X: # make x axis point out
+            self.rotateXOut()
+        elif key == Qt.Key_Y: # make y axis point right
+            self.rotateYRight()
+        elif key == Qt.Key_Z: # make z axis point up
+            self.rotateZUp()
         elif key == Qt.Key_S: # select item under the cursor, if any
             self.selectItemUnderCursor(on=True, clear=False)
         elif key == Qt.Key_D: # deselect item under the cursor, if any
@@ -545,7 +600,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_F11:
             self.parent().keyPressEvent(event) # pass it on to parent Cluster window
         elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_Slash, Qt.Key_Backslash,
-                     Qt.Key_NumberSign, Qt.Key_C, Qt.Key_X, Qt.Key_R, Qt.Key_Space,
+                     Qt.Key_NumberSign, Qt.Key_C, Qt.Key_V, Qt.Key_R, Qt.Key_Space,
                      Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_H]:
             sw.keyPressEvent(event) # pass it on to Sort window
 

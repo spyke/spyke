@@ -1404,7 +1404,7 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionFocusCurrentCluster_triggered)
         toolbar.addAction(actionFocusCurrentCluster)
 
-        actionFocusCurrentSpike = QtGui.QAction("X", self)
+        actionFocusCurrentSpike = QtGui.QAction("V", self)
         actionFocusCurrentSpike.setToolTip('Focus current spike')
         self.connect(actionFocusCurrentSpike, QtCore.SIGNAL("triggered()"),
                      self.on_actionFocusCurrentSpike_triggered)
@@ -1507,7 +1507,7 @@ class SortWindow(SpykeToolWindow):
             self.on_actionRenumberClusters_triggered()
         elif key == Qt.Key_C: # ignored in SpykeListViews
             self.on_actionFocusCurrentCluster_triggered()
-        elif key == Qt.Key_X: # ignored in SpykeListViews
+        elif key == Qt.Key_V: # ignored in SpykeListViews
             self.on_actionFocusCurrentSpike_triggered()
         elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_activated()
