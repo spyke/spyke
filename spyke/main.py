@@ -42,7 +42,7 @@ import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g, MAXNCLIMBPOINTS
 import surf
-from sort import Sort, SortWindow, MAINSPLITTERPOS, MEANWAVESAMPLESIZE
+from sort import Sort, SortWindow, MAINSPLITTERPOS, HSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
 from detect import Detector
 from extract import Extractor
@@ -1778,6 +1778,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 window.panel.draw_refs() # prevent plot artifacts
             if windowtype == 'Sort':
                 window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
+                window.hsplitter.moveSplitter(HSPLITTERPOS, 1)
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, windowtype, enable=True):
