@@ -1515,7 +1515,8 @@ class SortWindow(SpykeToolWindow):
             if ctrl:
                 SpykeToolWindow.keyPressEvent(self, event) # pass it on
             else:
-                self.on_actionSelectRandomSpikes_activated()
+                #self.on_actionSelectRandomSpikes_activated()
+                self.spykewindow.on_clusterButton_clicked()
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
         elif key == Qt.Key_Comma: # ignored in SpykeListViews

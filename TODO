@@ -1,7 +1,3 @@
-- ctrl+scroll in cluster window should modify sigma, step size should be same as scrolling it in the main spyke window
-
-- is there already a keyboard shortcut in the cluster window to cluster the data, so as to avoid having to move mouse over to main spyke window?
-
 - to prioritize pairwise comparisons of similar clusters, find all rms error values between all local pairwise clusters (local could be constrained to something really small, like 50um), and then sort them in increasing error. This could be controlled via CTRL+> and CTRL+<, and I guess would have to be recalculated on every keypress, just as it normally is, since in between you might merge/split/renumber clusters
 
 - sometimes you get spikes with rather different maxchans, and therefore very different sets of chans, that belong together in a cluster, yet it's hard to ensure they really do because they share so few chans. Have a button that reloads all the currently selected spikes such that they all share the same superset of chans. However, there is a max num chans you can include for each spike, and that's hardcoded into the wavedata and spikes array. So you'll have to prioritize the chans to store. Sort the potential chans in order of increasing distance from the mean of the selected spikes, or the chan closest to that mean. Then, ensure that each spike's maxchan is included in this new superset. If not, for any such spikes, replace the most distant chan from the mean with the maxchan. That way you ensure that you never lose the spikes maxchan as determined during detection.
@@ -14,7 +10,8 @@
 
 - during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on?
 
-- add an optional "notes" attrib to each Neuron, so you can jot down stuff about the cluster, like although it looks like is should be split, it's really just one neuron that's drifted over time. This would save you time having to figure out why you hadn't split it previously, saves duplication
+- add an optional "notes" attrib to each Neuron, so you can jot down stuff about the cluster, like although it looks like it should be split, it's really just one neuron that's drifted over time. This would save you time having to figure out why you hadn't split it previously, saves duplication
+    - or better yet, devise a way of marking clusters that you know are good and clean, maybe by changing their text colour in the nlist. Give each neuron a "clean" or "done" boolean flag. Clear the flag whenever the cluster is modified in any way. Or maybe just give each neuron a "lock" flag. You can lock it for whatever reason you like. Toggle the lock with "L".
 
 - maybe allow overlap plot for single cluster, even though you won't be calculating any overlap. Instead, just take the projection of all points along the first plot dimension (x). Don't remember why I thought this would be useful, maybe just to see how normally distributed the cluster is, perhaps to make it more obvious if it needs splitting, or if splitting isn't possible, if it should be marked as multiunit
 
@@ -1204,6 +1201,8 @@ DONE:
 - add xyz axes to cluster plot
 - make xyz axes show the size of the current setting for sigma. Make the length of the axes correspond to sigma. This would even make it feasible to make a good estimate of different sigmas in different dimensions
     - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
+- ctrl+scroll in cluster window should modify sigma, step size should be same as scrolling it in the main spyke window
+- make SPACE a keyboard shortcut in sort and cluster windows to cluster the data, so as to avoid having to move mouse over to main spyke window
 
 
 

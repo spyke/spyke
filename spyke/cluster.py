@@ -608,8 +608,14 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint(event.pos())
 
     def wheelEvent(self, event):
-        self.zoom(event.delta() / 2000)
-        self.updateGL()
+        modifiers = event.modifiers()
+        ctrl = Qt.ControlModifier == modifiers # only modifier is ctrl
+        if ctrl: # zoom
+            self.zoom(event.delta() / 2000)
+            self.updateGL()
+        else: # modify sigma
+            # event.delta() seems to always be a multiple of 120 for some reason:
+            self.spw.ui.sigmaSpinBox.stepBy(event.delta() / 120)
 
     def keyPressEvent(self, event):
         key = event.key()
