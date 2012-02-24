@@ -655,7 +655,7 @@
          <rect>
           <x>5</x>
           <y>5</y>
-          <width>216</width>
+          <width>201</width>
           <height>186</height>
          </rect>
         </property>
@@ -1032,7 +1032,7 @@
          <rect>
           <x>208</x>
           <y>5</y>
-          <width>166</width>
+          <width>176</width>
           <height>186</height>
          </rect>
         </property>
@@ -1042,7 +1042,7 @@
         <widget class="QLabel" name="label_29">
          <property name="geometry">
           <rect>
-           <x>25</x>
+           <x>27</x>
            <y>85</y>
            <width>16</width>
            <height>16</height>
@@ -1059,7 +1059,7 @@ p, li { white-space: pre-wrap; }
         <widget class="QLabel" name="label_30">
          <property name="geometry">
           <rect>
-           <x>25</x>
+           <x>27</x>
            <y>110</y>
            <width>16</width>
            <height>16</height>
@@ -1076,7 +1076,7 @@ p, li { white-space: pre-wrap; }
         <widget class="QLabel" name="label_31">
          <property name="geometry">
           <rect>
-           <x>25</x>
+           <x>27</x>
            <y>135</y>
            <width>16</width>
            <height>16</height>
@@ -1093,7 +1093,7 @@ p, li { white-space: pre-wrap; }
         <widget class="QComboBox" name="xDimComboBox">
          <property name="geometry">
           <rect>
-           <x>45</x>
+           <x>47</x>
            <y>80</y>
            <width>76</width>
            <height>25</height>
@@ -1158,7 +1158,7 @@ p, li { white-space: pre-wrap; }
         <widget class="QComboBox" name="yDimComboBox">
          <property name="geometry">
           <rect>
-           <x>45</x>
+           <x>47</x>
            <y>105</y>
            <width>76</width>
            <height>25</height>
@@ -1226,7 +1226,7 @@ p, li { white-space: pre-wrap; }
         <widget class="QComboBox" name="zDimComboBox">
          <property name="geometry">
           <rect>
-           <x>45</x>
+           <x>47</x>
            <y>130</y>
            <width>76</width>
            <height>25</height>
@@ -1311,7 +1311,7 @@ p, li { white-space: pre-wrap; }
          <property name="geometry">
           <rect>
            <x>-1</x>
-           <y>45</y>
+           <y>49</y>
            <width>56</width>
            <height>27</height>
           </rect>
@@ -1327,8 +1327,8 @@ p, li { white-space: pre-wrap; }
          <property name="geometry">
           <rect>
            <x>57</x>
-           <y>45</y>
-           <width>51</width>
+           <y>49</y>
+           <width>56</width>
            <height>27</height>
           </rect>
          </property>
@@ -1343,10 +1343,10 @@ Ctrl+click forces recalculation of components</string>
         <widget class="QComboBox" name="componentAnalysisComboBox">
          <property name="geometry">
           <rect>
-           <x>45</x>
+           <x>47</x>
            <y>20</y>
            <width>76</width>
-           <height>24</height>
+           <height>25</height>
           </rect>
          </property>
          <property name="toolTip">
@@ -1372,7 +1372,7 @@ when one cluster in a pair has far more points than the other</string>
         <widget class="QLabel" name="label_36">
          <property name="geometry">
           <rect>
-           <x>25</x>
+           <x>27</x>
            <y>25</y>
            <width>16</width>
            <height>15</height>
@@ -1385,9 +1385,9 @@ when one cluster in a pair has far more points than the other</string>
         <widget class="QPushButton" name="c0c1tButton">
          <property name="geometry">
           <rect>
-           <x>110</x>
-           <y>45</y>
-           <width>51</width>
+           <x>115</x>
+           <y>49</y>
+           <width>56</width>
            <height>27</height>
           </rect>
          </property>
@@ -1681,6 +1681,8 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
     <property name="title">
      <string>&amp;View</string>
     </property>
+    <addaction name="actionClusteringLayout"/>
+    <addaction name="separator"/>
     <addaction name="actionSpikeWindow"/>
     <addaction name="actionChartWindow"/>
     <addaction name="actionLFPWindow"/>
@@ -1748,6 +1750,8 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
    <addaction name="separator"/>
    <addaction name="actionUndo"/>
    <addaction name="actionRedo"/>
+   <addaction name="separator"/>
+   <addaction name="actionClusteringLayout"/>
    <addaction name="separator"/>
    <addaction name="actionSpikeWindow"/>
    <addaction name="actionChartWindow"/>
@@ -2124,6 +2128,21 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
    </property>
    <property name="toolTip">
     <string>Matplotlib Window</string>
+   </property>
+  </action>
+  <action name="actionClusteringLayout">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/gnome-display-properties.svg</normaloff>res/gnome-display-properties.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Clustering layout</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle clustering layout</string>
    </property>
   </action>
  </widget>

@@ -60,7 +60,7 @@ SPIKEWINDOWWIDTHPERCOLUMN = 80
 SPIKEWINDOWHEIGHT = 655 # TODO: this should be calculated from SCREENHEIGHT
 CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
-METACITYHACK = 29 # metacity has vertical placement issues
+WINDOWTITLEHEIGHT = 29
 #SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWHEIGHT = 700
 
@@ -313,6 +313,50 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ApplyClusterChange(cc, direction='forward')
         self.cci += 1 # move pointer one change forward on the stack
         print('redo complete')
+
+    @QtCore.pyqtSlot()
+    def on_actionClusteringLayout_triggered(self):
+        """Clustering layout toggle menu/button event"""
+        if self.ui.actionClusteringLayout.isChecked():
+            self.ClusteringLayout()
+        else:
+            self.StandardLayout()
+
+    def ClusteringLayout(self):
+        """Layout sort, cluster, and MPL windows ideally for clustering"""
+        windowtypes = ['Sort', 'Cluster', 'MPL']
+        # make sure they can all be opened before doing any layout:
+        self.stdlayout = {} # save current layout as standard
+        for windowtype in windowtypes:
+            try:
+                win = self.windows[windowtype]
+                self.ShowWindow(windowtype) # show it
+            except KeyError: # window hasn't been opened yet
+                win = self.OpenWindow(windowtype)
+            self.stdlayout[windowtype] = {'pos': win.pos(), 'size': win.size()}
+        self.move(0, 0) # ensure main window is in top left
+        mw = self.windows['MPL']
+        mw.resize(self.size()) # set MPL window to be same size as main window
+        y = self.size().height() + WINDOWTITLEHEIGHT            
+        mw.move(0, y) # move MPL window to just below main window
+        sw = self.windows['Sort']
+        x = SCREENWIDTH - sw.size().width() - 2*BORDERWIDTH
+        sw.move(x, 0) # place sort window at top right corner of screen
+        cw = self.windows['Cluster']
+        w = SCREENWIDTH - self.size().width() - sw.size().width() - 6*BORDERWIDTH # or 4X?
+        h = self.size().height() + mw.size().height() + WINDOWTITLEHEIGHT
+        cw.resize(w, h)
+        x = self.size().width() + 2*BORDERWIDTH
+        cw.move(x, 0) # place cluster window between main & Sort windows
+
+    def StandardLayout(self):
+        """Restore standard layout of sort, cluster, and MPL windows"""
+        windowtypes = ['Sort', 'Cluster', 'MPL']
+        for windowtype in windowtypes:
+            win = self.windows[windowtype]
+            d = self.stdlayout[windowtype]
+            win.resize(d['size'])
+            win.move(d['pos'])
 
     @QtCore.pyqtSlot()
     def on_actionSpikeWindow_triggered(self):
@@ -1740,17 +1784,17 @@ class SpykeWindow(QtGui.QMainWindow):
         if new:
             if windowtype == 'Spike':
                 x = self.pos().x()
-                y = self.pos().y() + self.size().height() + METACITYHACK
+                y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = SpikeWindow(parent=self, tw=self.spiketw, pos=(x, y),
                                      size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
             elif windowtype == 'Chart':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + 2*BORDERWIDTH
-                y = self.pos().y() + self.size().height() + METACITYHACK
+                y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = ChartWindow(parent=self, tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
             elif windowtype == 'LFP':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0] + 4*BORDERWIDTH
-                y = self.pos().y() + self.size().height() + METACITYHACK
+                y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = LFPWindow(parent=self, tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
             elif windowtype == 'Sort':
@@ -1765,7 +1809,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 window = ClusterWindow(parent=self, pos=(x, y), size=size)
             elif windowtype == 'MPL':
                 x = self.pos().x()
-                y = self.pos().y() + self.size().height() + METACITYHACK
+                y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 # the +1 is a hack to fix strange gap underneath histogram bars,
                 # but maybe this has something to do with BORDERWIDTH or BORDERHEIGHT
                 window = MPLWindow(parent=self, pos=(x, y),

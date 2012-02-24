@@ -11,7 +11,7 @@
 - during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on?
 
 - add an optional "notes" attrib to each Neuron, so you can jot down stuff about the cluster, like although it looks like it should be split, it's really just one neuron that's drifted over time. This would save you time having to figure out why you hadn't split it previously, saves duplication
-    - or better yet, devise a way of marking clusters that you know are good and clean, maybe by changing their text colour in the nlist. Give each neuron a "clean" or "done" boolean flag. Clear the flag whenever the cluster is modified in any way. Or maybe just give each neuron a "lock" flag. You can lock it for whatever reason you like. Toggle the lock with "L".
+    - or better yet, devise a way of marking clusters that you know/feel are good and clean, maybe by changing their text colour in the nlist. Give each neuron a "good" boolean flag, toggled by G key. Don't prevent changes to it, make it purely a reminder from the user to the user
 
 - maybe allow overlap plot for single cluster, even though you won't be calculating any overlap. Instead, just take the projection of all points along the first plot dimension (x). Don't remember why I thought this would be useful, maybe just to see how normally distributed the cluster is, perhaps to make it more obvious if it needs splitting, or if splitting isn't possible, if it should be marked as multiunit
 
@@ -1203,6 +1203,7 @@ DONE:
     - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
 - ctrl+scroll in cluster window should modify sigma, step size should be same as scrolling it in the main spyke window
 - make SPACE a keyboard shortcut in sort and cluster windows to cluster the data, so as to avoid having to move mouse over to main spyke window
+- have a clustering layout toggle button in the View menu and the main toolbar that auto arranges windows in an alternate way, more ideal for clustering. Size the MPL window same as the main spyke window. Put it below the main window. Then put Sort window (full height) at right. Then take whatever horizontal space is left, and make that the cluster window width. Its height is the sum of the heights of the MPL and main windows, and it's positioned at the top. This all keeps the controls as close as possible to the cluster window, keeps the cluster window fairly large and centered in the screen, and it keeps a space below all the windows for the terminal messages to remain visible. 
 
 
 
