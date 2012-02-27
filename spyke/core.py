@@ -740,8 +740,8 @@ class SpykeListView(QtGui.QListView):
         modifiers = event.modifiers()
         ctrldown = bool(Qt.ControlModifier & modifiers)
         ctrlup = not ctrldown
-        if (key in [Qt.Key_M, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_Backslash, Qt.Key_NumberSign,
-                    Qt.Key_C, Qt.Key_V, Qt.Key_R, Qt.Key_B,
+        if (key in [Qt.Key_M, Qt.Key_G, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_Backslash,
+                    Qt.Key_NumberSign, Qt.Key_C, Qt.Key_V, Qt.Key_R, Qt.Key_B,
                     Qt.Key_Comma, Qt.Key_Period, Qt.Key_H]
             or ctrlup and key == Qt.Key_Space):
             event.ignore() # pass it on up to the parent
@@ -841,11 +841,12 @@ class NList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(NListModel(parent))
+        self.setItemDelegate(NListDelegate(parent))
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
         selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
-        if 1 <= len(selnids) <= 2: # populate nslist if exactly 1 or 2 neurons selected
+        if 1 <= len(selnids) <= 3: # populate nslist if exactly 1, 2 or 3 neurons selected
             self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
         else:
             self.sortwin.nslist.neurons = []
@@ -939,7 +940,7 @@ class NListModel(SpykeAbstractListModel):
             return 0
 
     def data(self, index, role=Qt.DisplayRole):
-        if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
+        if index.isValid():
             neurons = self.sortwin.sort.neurons
             norder = self.sortwin.sort.norder
             try:
@@ -949,7 +950,7 @@ class NListModel(SpykeAbstractListModel):
             #print('.data(): row=%d, val=%d' % (index.row(), nid))
             if role == Qt.DisplayRole:
                 return nid # no need to use QVariant() apparently
-            else: # role == Qt.ToolTipRole
+            elif role == Qt.ToolTipRole:
                 neuron = neurons[nid]
                 pos = neuron.cluster.pos
                 return ('nid: %d\n' % nid +
@@ -1022,6 +1023,64 @@ class USListModel(SListModel):
             else: # role == Qt.ToolTipRole
                 spike = self.sortwin.sort.spikes[sid]
                 return self.spiketooltip(spike)
+
+class NListDelegate(QtGui.QStyledItemDelegate):
+    """Delegate for neuron list view, modifies appearance of items"""
+    def __init__(self, parent):
+        QtGui.QStyledItemDelegate.__init__(self, parent)
+        self.sortwin = parent
+        palette = QtGui.QApplication.palette()
+        self.selectedgoodbrush = QtGui.QBrush(QtGui.QColor(0, 0, 255)) # blue
+        self.unselectedgoodbrush = QtGui.QBrush(QtGui.QColor(0, 128, 0)) # mid green
+        self.selectedbrush = palette.highlight()
+        self.unselectedbrush = palette.base()
+        self.selectedgoodpen = QtGui.QPen(Qt.white)
+        self.unselectedgoodpen = QtGui.QPen(Qt.white)
+        self.selectedpen = QtGui.QPen(palette.highlightedText().color())
+        self.unselectedpen = QtGui.QPen(palette.text().color())
+
+    def paint(self, painter, option, index):
+        """Change background colour for nids designated as "good"
+        Much of this is adapted from:
+        http://www.saltycrane.com/blog/2008/01/pyqt4-qitemdelegate-example-with/"""
+        model = index.model()
+        nid = model.data(index) # should come out as an int
+        good = nid in self.sortwin.sort.get_good()
+        #if nid not in self.sortwin.sort.get_good():
+        #    QtGui.QStyledItemDelegate.paint(self, painter, option, index)
+        #    return
+        painter.save()
+        # paint the background
+        painter.setPen(QtGui.QPen(Qt.NoPen))
+        # let's not care about whether self is active or inactive, only care about
+        # selection state and "good" state
+        selected = option.state & QtGui.QStyle.State_Selected
+        if selected:
+            if good:
+                painter.setBrush(self.selectedgoodbrush)
+            else: # use default selection brush
+                painter.setBrush(self.selectedbrush)
+        else: # unselected
+            if good:
+                painter.setBrush(self.unselectedgoodbrush)
+            else: # use default background brush
+                painter.setBrush(self.unselectedbrush)
+        painter.drawRect(option.rect)
+        # paint the foreground
+        value = index.data(Qt.DisplayRole)
+        if selected:
+            if good:
+                painter.setPen(self.selectedgoodpen)
+            else: # use default selection pen
+                painter.setPen(self.selectedpen)
+        else: # unselected
+            if good:
+                painter.setPen(self.unselectedgoodpen)
+            else: # use default background pen
+                painter.setPen(self.unselectedpen)
+        text = value.toString()
+        painter.drawText(option.rect, Qt.AlignCenter, text)
+        painter.restore()
 
 
 class ClusterTabSpinBox(QtGui.QSpinBox):

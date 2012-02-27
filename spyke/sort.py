@@ -89,6 +89,17 @@ class Sort(object):
 
     nextmuid = property(get_nextmuid)
 
+    def get_good(self):
+        """Return set of nids marked by user as 'good'"""
+        good = set()
+        for neuron in self.neurons.values():
+            try:
+                if neuron.good:
+                    good.add(neuron.id)
+            except AttributeError: # neuron is from older sort, no .good attrib
+                neuron.good = False
+        return good
+
     def get_stream(self):
         return self._stream
 
@@ -992,6 +1003,7 @@ class Neuron(object):
         self.t = 0 # relative reference timestamp, here for symmetry with fellow spike rec (obj.t comes up sometimes)
         self.plt = None # Plot currently holding self
         self.cluster = None
+        self.good = False # user can mark this neuron as "good" if so desired
         #self.srffname # not here, let's allow neurons to have spikes from different files?
 
     def get_chans(self):
@@ -1370,6 +1382,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
 
+        actionToggleClustersGood = QtGui.QAction("G", self)
+        actionToggleClustersGood.setToolTip('Toggle clusters as "good"')
+        self.connect(actionToggleClustersGood, QtCore.SIGNAL("triggered()"),
+                     self.on_actionToggleClustersGood_triggered)
+        toolbar.addAction(actionToggleClustersGood)
+
         actionLabelMultiunit = QtGui.QAction("-", self)
         actionLabelMultiunit.setToolTip('Label clusters as multiunit')
         self.connect(actionLabelMultiunit, QtCore.SIGNAL("triggered()"),
@@ -1497,6 +1515,8 @@ class SortWindow(SpykeToolWindow):
                 self.on_actionDeleteClusters_triggered() # del selected clusters
         elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
+        elif key == Qt.Key_G: # ignored in SpykeListViews
+            self.on_actionToggleClustersGood_triggered()
         elif key == Qt.Key_Minus: # ignored in SpykeListViews
             self.on_actionLabelMultiunit_triggered()
         elif key == Qt.Key_Slash: # ignored in SpykeListViews
@@ -1588,8 +1608,8 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.DeleteSpikes()
 
     def on_actionMergeClusters_triggered(self):
-        """Merge button (M) click. For simple merging of clusters, easier to
-        use than running climb() on selected clusters using a really big sigma to force
+        """Merge button (M) click. Merge selected clusters. Easier to use than
+        running climb() on selected clusters using a really big sigma to force
         them to all merge"""
         spw = self.spykewindow
         clusters = spw.GetClusters()
@@ -1644,6 +1664,16 @@ class SortWindow(SpykeToolWindow):
         spw.SelectClusters(newcluster)
         cc.message += ' into cluster %d' % newcluster.id
         print(cc.message)
+
+    def on_actionToggleClustersGood_triggered(self):
+        """'Good' button (G) click. For simple merging of clusters, easier to
+        use than running climb() on selected clusters using a really big sigma to force
+        them to all merge"""
+        spw = self.spykewindow
+        clusters = spw.GetClusters()
+        for cluster in clusters:
+            cluster.neuron.good = not cluster.neuron.good
+        self.nlist.updateAll() # nlist item colouring will change as a result
 
     def on_actionLabelMultiunit_triggered(self):
         """- button click. Label all selected clusters as multiunit by deleting them
