@@ -584,35 +584,41 @@ class GLWidget(QtOpenGL.QGLWidget):
     def mouseMoveEvent(self, event):
         buttons = event.buttons()
         modifiers = event.modifiers()
+        shift = modifiers == Qt.ShiftModifier # only modifier is shift
+        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         dx = event.x() - self.lastPos.x()
         dy = event.y() - self.lastPos.y()
 
         if buttons == QtCore.Qt.LeftButton:
-            if modifiers == Qt.ControlModifier:
-                self.roll(-0.5*dx - 0.5*dy)
-            elif modifiers == Qt.ShiftModifier:
+            if shift:
                 self.pan(dx/700, -dy/700) # qt viewport y axis points down
+            elif ctrl:
+                self.roll(-0.5*dx - 0.5*dy)
             else:
                 self.yaw(0.5*dx)
                 self.pitch(0.5*dy)
         elif buttons == QtCore.Qt.RightButton:
-            self.zoom(-dy/500) # qt viewport y axis points down
-
+            if shift or ctrl:
+                self.spw.ui.sigmaSpinBox.stepBy(-dy)
+            else:
+                self.zoom(-dy/500) # qt viewport y axis points down
+        '''
         # pop up a tooltip on mouse movement, requires mouse tracking enabled
         if buttons == Qt.NoButton:
             self.showToolTip()
         else:
             QtGui.QToolTip.hideText()
-
+        '''
         self.updateGL()
         self.lastPos = QtCore.QPoint(event.pos())
 
     def wheelEvent(self, event):
         modifiers = event.modifiers()
         shift = Qt.ShiftModifier == modifiers # only modifier is shift
-        if shift: # modify sigma
+        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
+        if shift or ctrl: # modify sigma
             # event.delta() seems to always be a multiple of 120 for some reason:
-            self.spw.ui.sigmaSpinBox.stepBy(event.delta() / 120)
+            self.spw.ui.sigmaSpinBox.stepBy(5 * event.delta() / 120)
         else: # zoom
             self.zoom(event.delta() / 2000)
             self.updateGL()
