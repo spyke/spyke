@@ -91,8 +91,7 @@ def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
     # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
     ps().detector = deepcopy(detector)
-    ps().detector.sort.stream.srff.path = detector.sort.stream.srff.path
-    ps().detector.sort.stream.srff.open()
+    ps().detector.sort.stream.open()
     
 
 class RandomBlockRanges(object):
@@ -239,8 +238,7 @@ class Detector(object):
                 dp = DetectionProcess()
                 # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
                 dp.detector = deepcopy(self)
-                dp.detector.sort.stream.srff.path = self.sort.stream.srff.path
-                dp.detector.sort.stream.srff.open()
+                dp.detector.sort.stream.open()
                 dp.blockis = range(dpi, nblocks, nprocesses)
                 dp.blockranges = blockranges[dp.blockis]
                 dp.q = q

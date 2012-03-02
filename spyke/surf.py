@@ -124,8 +124,6 @@ class File(object):
         by not pickling all records unless explicitly signalled to do so (for .parse files)
         """
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        if 'path' in d:
-            del d['path'] # leave path to only be set in __init__, don't save it
         if 'f' in d:
             del d['f'] # exclude open .srf file handle, if any
         if not self._pickle_all_records:
