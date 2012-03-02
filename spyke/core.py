@@ -961,8 +961,15 @@ class NListModel(SpykeAbstractListModel):
                         'Vpp: %.4g uV\n' % pos['Vpp'] +
                         'sx: %.4g um\n' % pos['sx'] +
                         'dphase: %.4g us' % pos['dphase'])
-
-
+            # this stuff is handled in NListDelegate:
+            '''
+            elif role == Qt.ForegroundRole:
+                if nid in self.sortwin.sort.get_good():
+                    return QtGui.QBrush(QtGui.QColor(255, 255, 255))
+            elif role == Qt.BackgroundRole:
+                if nid in self.sortwin.sort.get_good():
+                    return QtGui.QBrush(QtGui.QColor(0, 128, 0))
+            '''
 class SListModel(SpykeAbstractListModel):
     """Base model for spike list views"""
     def spiketooltip(self, spike):
@@ -1024,6 +1031,7 @@ class USListModel(SListModel):
                 spike = self.sortwin.sort.spikes[sid]
                 return self.spiketooltip(spike)
 
+
 class NListDelegate(QtGui.QStyledItemDelegate):
     """Delegate for neuron list view, modifies appearance of items"""
     def __init__(self, parent):
@@ -1038,23 +1046,22 @@ class NListDelegate(QtGui.QStyledItemDelegate):
         self.unselectedgoodpen = QtGui.QPen(Qt.white)
         self.selectedpen = QtGui.QPen(palette.highlightedText().color())
         self.unselectedpen = QtGui.QPen(palette.text().color())
+        self.focusedpen = QtGui.QPen(Qt.gray, 0, Qt.DashLine)
+        self.focusedpen.setDashPattern([1, 1])
+        self.focusedpen.setCapStyle(Qt.FlatCap)
 
     def paint(self, painter, option, index):
-        """Change background colour for nids designated as "good"
-        Much of this is adapted from:
-        http://www.saltycrane.com/blog/2008/01/pyqt4-qitemdelegate-example-with/"""
+        """Change background colour for nids designated as "good"""
         model = index.model()
         nid = model.data(index) # should come out as an int
         good = nid in self.sortwin.sort.get_good()
-        #if nid not in self.sortwin.sort.get_good():
-        #    QtGui.QStyledItemDelegate.paint(self, painter, option, index)
-        #    return
-        painter.save()
-        # paint the background
-        painter.setPen(QtGui.QPen(Qt.NoPen))
-        # let's not care about whether self is active or inactive, only care about
-        # selection state and "good" state
+        # don't care whether self is active or inactive, only care about
+        # selection, "good", and focused states
         selected = option.state & QtGui.QStyle.State_Selected
+        focused = option.state & QtGui.QStyle.State_HasFocus
+        painter.save()
+        # paint background:
+        painter.setPen(QtGui.QPen(Qt.NoPen))
         if selected:
             if good:
                 painter.setBrush(self.selectedgoodbrush)
@@ -1066,7 +1073,14 @@ class NListDelegate(QtGui.QStyledItemDelegate):
             else: # use default background brush
                 painter.setBrush(self.unselectedbrush)
         painter.drawRect(option.rect)
-        # paint the foreground
+        # paint focus rect:
+        if focused:
+            rect = copy(option.rect)
+            painter.setBrush(Qt.NoBrush) # no need to draw bg again
+            painter.setPen(self.focusedpen)
+            rect.adjust(0, 0, -1, -1) # make space for outline
+            painter.drawRect(rect)
+        # paint foreground:
         value = index.data(Qt.DisplayRole)
         if selected:
             if good:
