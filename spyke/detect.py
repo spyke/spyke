@@ -192,6 +192,8 @@ class Detector(object):
 
         assert (self.dt < np.abs(sort.TW)).all() # necessary when calling sort.align_neuron()
 
+        print('Detection trange: %r' % (self.trange,))
+
         t0 = time.time()
         self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
