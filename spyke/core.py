@@ -935,6 +935,9 @@ class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def rowCount(self, parent=None):
         try:
+            # update nlist tooltip before returning, only +ve nids count as neurons:
+            nneurons = (np.asarray(self.sortwin.sort.norder) > 0).sum()
+            self.sortwin.nlist.setToolTip("Neuron list\n%d neurons" % nneurons)
             return len(self.sortwin.sort.norder)
         except AttributeError: # sort doesn't exist
             return 0
@@ -973,7 +976,8 @@ class NListModel(SpykeAbstractListModel):
 class SListModel(SpykeAbstractListModel):
     """Base model for spike list views"""
     def spiketooltip(self, spike):
-        return ('t: %d us\n' % spike['t'] +
+        return ('sid: %d\n' % spike['id'] +
+                't: %d us\n' % spike['t'] +
                 'x0: %.4g um\n' % spike['x0'] +
                 'y0: %.4g um\n' % spike['y0'] +
                 'Vpp: %.4g uV\n' % spike['Vpp'] +
@@ -1002,6 +1006,8 @@ class NSListModel(SListModel):
     neurons = property(get_neurons, set_neurons)
 
     def rowCount(self, parent=None):
+        # update nslist tooltip before returning:
+        self.sortwin.nslist.setToolTip("Sorted spike list\n%d spikes" % self.nspikes)
         return self.nspikes
 
     def data(self, index, role=Qt.DisplayRole):
@@ -1009,7 +1015,7 @@ class NSListModel(SListModel):
             sid = int(self.sids[index.row()])
             if role == Qt.DisplayRole:
                 return sid
-            else: # role == Qt.ToolTipRole
+            elif role == Qt.ToolTipRole:
                 spike = self.sortwin.sort.spikes[sid]
                 return self.spiketooltip(spike)
 
@@ -1018,7 +1024,10 @@ class USListModel(SListModel):
     """Model for unsorted spike list view"""
     def rowCount(self, parent=None):
         try:
-            return len(self.sortwin.sort.usids)
+            nspikes = len(self.sortwin.sort.usids)
+            # update uslist tooltip before returning:
+            self.sortwin.uslist.setToolTip("Unsorted spike list\n%d spikes" % nspikes)
+            return nspikes
         except AttributeError: # sort doesn't exist
             return 0
 
@@ -1027,7 +1036,7 @@ class USListModel(SListModel):
             sid = int(self.sortwin.sort.usids[index.row()])
             if role == Qt.DisplayRole:
                 return sid
-            else: # role == Qt.ToolTipRole
+            elif role == Qt.ToolTipRole:
                 spike = self.sortwin.sort.spikes[sid]
                 return self.spiketooltip(spike)
 
