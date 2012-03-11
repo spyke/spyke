@@ -11,6 +11,7 @@ import random
 import numpy as np
 
 from PyQt4 import QtGui
+from PyQt4.QtCore import Qt
 
 from matplotlib import rcParams
 rcParams['lines.linestyle'] = '-'
@@ -740,24 +741,144 @@ class PlotPanel(FigureCanvas):
         evt.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
     '''
     def OnButtonPress(self, evt):
-        """Seek to timepoint as represented on chan closest to left mouse click.
-        Toggle specific chans on right click"""
+        """Seek to timepoint as represented on chan closest to left click.
+        Toggle specific chans on right click. On ctrl+left click, reset primary
+        phase timepoint and maxchan of currently selected spike. On ctrl+right click,
+        reset secondary phase timepoint"""
+        spw = self.topLevelWidget().parent() # spyke window
         button = evt.button
-        # TODO: evt.key is supposed to give us the modifier, if any (like ctrl or shift)
-        # but doesn't seem to work in qt. Also, evt.guiEvent always seems to be None in qt.
-        # Also, up and down scroll events don't work.
+        modifiers = QtGui.QApplication.keyboardModifiers()
+        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
+        # NOTE: evt.key is supposed to give us the modifier, if any (like ctrl or shift)
+        # but doesn't seem to work in MPL in qt. Also, evt.guiEvent always seems to be
+        # None in qt. Also, up and down scroll events don't work.
         chan = self.get_closestchans(evt, n=1)
-        if button == 1: # left click: seek to clicked timepoint
-            xpos = self.pos[chan][0]
-            # undo position correction and convert from relative to absolute time:
-            t = evt.xdata - xpos + self.qrplt.tref
-            self.spykeframe.seek(t) # call main spyke frame's seek method
-        elif button == 3: # right click: toggle closest chan
-            if chan not in self.spykeframe.chans_enabled:
-                enable = True
+        # find clicked timepoint:
+        xpos = self.pos[chan][0]
+        # undo position correction and convert from relative to absolute time:
+        t = evt.xdata - xpos + self.qrplt.tref
+        t = spw.get_nearest_timepoint(t)
+        if ctrl:
+            if button == 1: # left click
+                # set t as primary phase and align selected spike to it, set maxchan
+                self.alignselectedspike('primary', t, chan)
+                self.spykeframe.seek(t) # seek to t
+            elif button == 3: # right click
+                # designate t as secondary phase of selected spike
+                self.alignselectedspike('secondary', t)
+                self.spykeframe.seek(t) # seek to t
+        else:
+            if button == 1: # left click
+                self.spykeframe.seek(t) # seek to t
+            elif button == 3: # right click
+                # toggle closest chan
+                if chan not in self.spykeframe.chans_enabled:
+                    enable = True
+                else:
+                    enable = False
+                self.spykeframe.set_chans_enabled(chan, enable) # this calls self.set_chans()
+
+    def alignselectedspike(self, phasetype, t, chan=None):
+        """Align spike selected in sortwin to t, where t is designated as the
+        primary or secondary phase timepoint. Also optionally set the maxchan
+        of the spike to chan. Since this is happening in a DataWindow, it's safe
+        to assume that a .srf or .track file is open"""
+        #if srff not open:
+        #    print("can't align selected spike without .srf file(s)")
+        spw = self.topLevelWidget().parent() # spyke window
+        spikes = spw.sort.spikes
+        try:
+            sid = spw.GetSpike()
+        except RuntimeError, msg:
+            print(msg)
+            return
+        if phasetype == 'primary':
+            spw.primaryphaset = t
+        elif phasetype == 'secondary':
+            spw.secondaryphaset = t
+        if chan != None:
+            nchans = spikes[sid]['nchans']
+            chans = spikes[sid]['chans'][:nchans]
+            if chan in chans:
+                spw.alignspike2chan = chan
             else:
-                enable = False
-            self.spykeframe.set_chans_enabled(chan, enable) # this calls self.set_chans()
+                print('ERROR: selected maxchan not in spikes chanlist')
+
+    def reloadSelectedSpike(self):
+        spw = self.topLevelWidget().parent() # spyke window
+        sort = spw.sort
+        spikes = sort.spikes
+        AD2uV = sort.converter.AD2uV
+        try:
+            sid = spw.GetSpike()
+        except RuntimeError, msg:
+            print(msg)
+            return
+        abort = False
+        try:
+            if spw.primaryphaset == None or spw.secondaryphaset == None:
+                abort = True
+        except AttributeError:
+            abort = True
+        if abort:
+            print("new primary and secondary phases need to be set before "
+                  "reloading selected spike")
+            return
+        t = spw.primaryphaset
+        spikes[sid]['t'] = t # us
+        nchans = spikes[sid]['nchans']
+        chans = spikes[sid]['chans'][:nchans]
+        try:
+            if spw.alignspike2chan != None:
+                # update chan and chani:
+                chan = spw.alignspike2chan
+                assert chan in chans
+                spikes[sid]['chan'] = chan
+                spikes[sid]['chani'] = chans.searchsorted(chan) # chans are always sorted
+        except AttributeError:
+            pass
+        t0 = t + sort.TW[0]
+        t1 = t + sort.TW[1]
+        spikes[sid]['t0'] = t0 # us
+        spikes[sid]['t1'] = t1
+        wave = spw.hpstream[t0:t1][chans]
+        sort.wavedata[sid][:nchans] = wave.data
+        assert t != spw.secondaryphaset
+        if t < spw.secondaryphaset:
+            aligni = 0
+            phaset0i = wave.ts.searchsorted(t)
+            phaset1i = wave.ts.searchsorted(spw.secondaryphaset)
+        else:
+            aligni = 1
+            phaset0i = wave.ts.searchsorted(spw.secondaryphaset)
+            phaset1i = wave.ts.searchsorted(t)
+        # TODO: redo spatial localization.
+        # For now, cheat and make phasetis the same for all chans:
+        spikes[sid]['phasetis'][:nchans] = phaset0i, phaset1i
+        spikes[sid]['dphase'] = abs(spw.secondaryphaset - t) # us
+        chani = spikes[sid]['chani']
+        V0 = AD2uV(wave.data[chani, phaset0i]) # uV
+        V1 = AD2uV(wave.data[chani, phaset1i])
+        spikes[sid]['V0'] = V0
+        spikes[sid]['V1'] = V1
+        spikes[sid]['Vpp'] = abs(V1 - V0)
+
+        # mark sid as dirty in .wave file
+        spw.dirtysids.update([sid])
+
+        # reset for next alignment session
+        spw.primaryphaset = None
+        spw.secondaryphaset = None
+        spw.alignspike2chan = None
+        
+        # reload spike in sort panel
+        sortwin = spw.windows['Sort']
+        sortwin.panel.updateAllItems()
+        
+        # seek to new timepoint, this also automatically updates the raster line
+        spw.seek(t)
+        print('realigned and reloaded spike %d to t=%d on chan %d' % (sid, t, chan))
+        
     '''
     def OnPick(self, evt):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""

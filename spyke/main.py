@@ -54,13 +54,13 @@ SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ti
 
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
 #SCREENHEIGHT = 1080 # TODO: this should be found programmatically
+WINDOWTITLEHEIGHT = 29 # TODO: this should be found programmatically
 BORDERWIDTH = 1 # TODO: this should be found programmatically
 #BORDERHEIGHT = 0 # TODO: this should be found programmatically
 SPIKEWINDOWWIDTHPERCOLUMN = 80
 SPIKEWINDOWHEIGHT = 655 # TODO: this should be calculated from SCREENHEIGHT
 CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
 LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
-WINDOWTITLEHEIGHT = 29
 #SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWHEIGHT = 700
 
@@ -2046,12 +2046,16 @@ class SpykeWindow(QtGui.QMainWindow):
             t1 = int(float(t1))
         return t0, t1
 
-    def seek(self, offset=0):
-        """Seek to position in stream. offset is time in us"""
+    def get_nearest_timepoint(self, t):
+        """Round t to nearest (possibly interpolated) sample timepoint"""
+        t = intround(t / self.hpstream.tres) * self.hpstream.tres
+        t = min(max(t, self.range[0]), self.range[1]) # constrain to within .range
+        return t
+
+    def seek(self, t=0):
+        """Seek to position in stream. t is time in us"""
         oldt = self.t
-        # round to nearest (possibly interpolated) sample
-        self.t = intround(offset / self.hpstream.tres) * self.hpstream.tres
-        self.t = min(max(self.t, self.range[0]), self.range[1]) # constrain to within .range
+        self.t = self.get_nearest_timepoint(t)
         self.str2t['now'] = self.t # update
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
@@ -2059,15 +2063,11 @@ class SpykeWindow(QtGui.QMainWindow):
             self.ui.filePosLineEdit.setText(str(self.t))
             self.ui.slider.setValue(self.t // SLIDERTRES)
             self.plot()
-    '''
+    
     def step(self, direction):
         """Step one timepoint left or right"""
         self.seek(self.t + direction*self.hpstream.tres)
 
-    def page(self, direction):
-        """Page left or right"""
-        self.seek(self.t + direction*self.hpstream.tres)
-    '''
     def tell(self):
         """Return current position in surf file"""
         return self.t
@@ -2099,6 +2099,32 @@ class DataWindow(SpykeToolWindow):
         self.resize(*size)
         self.move(*pos)
 
+    def step(self, direction):
+        """Step left or right one caret width"""
+        panelwidth = self.panel.cw[1] - self.panel.cw[0]
+        spw = self.parent()
+        spw.seek(spw.t + direction * panelwidth)
+
+    def page(self, direction):
+        """Page left or right one panel width"""
+        panelwidth = self.panel.tw[1] - self.panel.tw[0]
+        spw = self.parent()
+        spw.seek(spw.t + direction * panelwidth)
+
+    def keyPressEvent(self, event):
+        spw = self.parent()
+        key = event.key()
+        if key == Qt.Key_Left:
+            self.step(-1)
+        elif key == Qt.Key_Right:
+            self.step(+1)
+        elif key == Qt.Key_PageUp:
+            self.page(-1)
+        elif key == Qt.Key_PageDown:
+            self.page(+1)
+        else:
+            SpykeToolWindow.keyPressEvent(self, event) # pass it on
+
 
 class SpikeWindow(DataWindow):
     """Window to hold the custom spike panel widget"""
@@ -2107,6 +2133,20 @@ class SpikeWindow(DataWindow):
         self.panel = SpikePanel(self, tw=tw, cw=cw)
         self.setupUi(pos, size)
         self.setWindowTitle("Spike Window")
+
+    def step(self, direction):
+        """Step left or right one sample timepoint"""
+        spw = self.parent()
+        spw.step(direction)
+
+    def keyPressEvent(self, event):
+        spw = self.parent()
+        key = event.key()
+        ctrl = event.modifiers() == Qt.ControlModifier # only modifier is ctrl
+        if ctrl and key in [Qt.Key_Enter, Qt.Key_Return]:
+            self.panel.reloadSelectedSpike()
+        else:
+            DataWindow.keyPressEvent(self, event) # pass it on
 
 
 class ChartWindow(DataWindow):

@@ -977,6 +977,7 @@ class SListModel(SpykeAbstractListModel):
     """Base model for spike list views"""
     def spiketooltip(self, spike):
         return ('sid: %d\n' % spike['id'] +
+                'nid: %d\n' % spike['nid'] +
                 't: %d us\n' % spike['t'] +
                 'x0: %.4g um\n' % spike['x0'] +
                 'y0: %.4g um\n' % spike['y0'] +
