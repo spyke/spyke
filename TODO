@@ -1,3 +1,7 @@
+- if any components (PCs/ICs) are selected for plotting, and you plot with no spikes or neurons selected, just return. Otherwise it tries to find common chans for all spikes in sort which can take a long time, and always eventually fails anyway
+
+- save and restore chan selection, component type selection, and xyz dimension selection on .sort file save and load
+
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
 
 - to prioritize pairwise comparisons of similar clusters, find all rms error values between all local pairwise clusters (local could be constrained to something really small, like 50um), and then sort them in increasing error. This could be controlled via CTRL+> and CTRL+<, and I guess would have to be recalculated on every keypress, just as it normally is, since in between you might merge/split/renumber clusters

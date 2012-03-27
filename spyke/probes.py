@@ -14,7 +14,11 @@ import numpy as np
 class Probe(object):
     """self.SiteLoc maps probe chan id to (x, y) position of site in um"""
     def siteloc_arr(self):
-        return np.asarray(self.SiteLoc.values())
+        #return np.asarray(self.SiteLoc.values()) # doesn't ensure sorted channel order
+        # ensure sorted channel order:
+        chans = self.SiteLoc.keys()
+        chans.sort()
+        return np.asarray([ self.SiteLoc[chan] for chan in chans ])
 
     def unique_coords(self, axis='x'):
         """Return sorted unique xcoords or ycoords"""

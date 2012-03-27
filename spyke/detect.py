@@ -40,7 +40,7 @@ IOError: [Errno 4] Interrupted system call
 
 which has to be caught and retried using _eintr_retry_call.
 '''
-
+import core
 from core import eucd, ordered, concatenate_destroy, intround, g2, cauchy2
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
@@ -187,6 +187,7 @@ class Detector(object):
         then combines the results"""
         self.calc_chans()
         sort = self.sort
+        self.mpmethod = MPMETHOD
         spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
         self.maxnt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
 
@@ -217,11 +218,16 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
+        # prevent out of memory errors due to copying of large stream.wavedata array
+        # when spawning multiple processes
+        if type(self.sort.stream) == core.TSFStream:
+            self.mpmethod = 'singleprocess'
+
+        ncores = mp.cpu_count()
         t0 = time.time()
 
         # mp.Pool is slightly faster than my own DetectionProcess
-        if not DEBUG and MPMETHOD == 'pool': # use a pool of processes
-            ncores = mp.cpu_count()
+        if not DEBUG and self.mpmethod == 'pool': # use a pool of processes
             nprocesses = min(ncores, nblocks)
             # send pickled copy of self to each process
             pool = mp.Pool(nprocesses, initializer, (self,))
@@ -229,8 +235,7 @@ class Detector(object):
             pool.close()
             # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
             spikes, wavedata = zip(*results)
-        elif not DEBUG and MPMETHOD == 'detectionprocess':
-            ncores = mp.cpu_count()
+        elif not DEBUG and self.mpmethod == 'detectionprocess':
             nprocesses = min(ncores, nblocks)
             dps = []
             q = mp.Queue()
@@ -255,7 +260,7 @@ class Detector(object):
             for dp in dps:
                 dp.join()
                 #_eintr_retry_call(dp.join) # eintr isn't raised anymore it seems
-        else: # use a single process, useful for debugging
+        else: # use a single process, useful for debugging or for .tsf files
             spikes = []
             wavedata = []
             for blockrange in blockranges:

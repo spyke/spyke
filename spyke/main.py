@@ -33,6 +33,7 @@ import gc
 import cPickle
 import random
 from copy import copy
+from struct import unpack
 
 # seems unnecessary: automatically add spyke to path
 #spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
@@ -40,7 +41,7 @@ from copy import copy
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, MAXNCLIMBPOINTS
+from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, HSPLITTERPOS, MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
@@ -114,7 +115,8 @@ class SpykeWindow(QtGui.QMainWindow):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
         fname = getOpenFileName(self, caption="Open .srf, .track or .sort file",
                                 directory=self.path,
-                                filter="Surf, track & sort files (*.srf *.track *.sort);;"
+                                filter="Surf, track & sort files "
+                                       "(*.srf *.track *.sort *.tsf);;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
@@ -1422,16 +1424,16 @@ class SpykeWindow(QtGui.QMainWindow):
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
         ext = os.path.splitext(fname)[1]
-        if ext in ['.srf', '.track']:
-            self.OpenSurfOrTrackFile(fname)
+        if ext in ['.srf', '.track', '.tsf']:
+            self.OpenSurfTrackTSFFile(fname)
         elif ext == '.sort':
             self.OpenSortFile(fname)
         else:
             critical = QtGui.QMessageBox.critical
-            critical(self, "Error", "%s is not a .srf, .track or .sort file" % fname)
+            critical(self, "Error", "%s is not a .srf, .track, .tsf, or .sort file" % fname)
 
-    def OpenSurfOrTrackFile(self, fname):
-        """Open a .srf or .track file, and update display accordingly"""
+    def OpenSurfTrackTSFFile(self, fname):
+        """Open a .srf, .track, or .tsf file, and update display accordingly"""
         if self.hpstream != None:
             self.CloseSurfOrTrackFile() # in case a .srf or .track file and windows are already open
         ext = os.path.splitext(fname)[1]
@@ -1452,6 +1454,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     srffs.append(srff) # build up list of open and parsed surf File objects
             self.hpstream = core.TrackStream(srffs, fname, kind='highpass')
             self.lpstream = core.TrackStream(srffs, fname, kind='lowpass')
+        elif ext == '.tsf':
+            self.hpstream = self.OpenTSFFile(fname)
         else:
             raise ValueError('unknown extension %r' % ext)
 
@@ -1626,8 +1630,8 @@ class SpykeWindow(QtGui.QMainWindow):
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
                 self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's probe type %r"
-                                   % (sortProbeType, streamProbeType))
+                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's "
+                                   "probe type %r" % (sortProbeType, streamProbeType))
 
         self.OpenSpikeFile(sort.spikefname)
 
@@ -1700,6 +1704,59 @@ class SpykeWindow(QtGui.QMainWindow):
                      ".wave file has a different number of spikes from the current Sort")
             raise RuntimeError
         return wavedata
+
+    def OpenTSFFile(self, fname):
+        """Open NVS's "test spike file" .tsf format for testing spike sorting
+        performance. This returns describes a single 2D contiguous array of raw waveform
+        data, within which are embedded a number of spikes from a number of neurons.
+        The ground truth is typically listed at the end of the file.
+        """
+        try: f = open(self.join(fname), 'rb')
+        except IOError:
+            print("can't find file %r" % fname)
+            return
+        header = f.read(16)
+        assert header == 'Test spike file '
+        format, = unpack('i', f.read(4))
+        assert format == 1000
+        nchans = 54 # assumed
+        siteloc = np.fromfile(f, dtype=np.int16, count=nchans*2)
+        siteloc.shape = nchans, 2
+        rawsampfreq, = unpack('i', f.read(4)) # 25k
+        masterclockfreq, = unpack('i', f.read(4)) # 1M
+        extgains = np.fromfile(f, dtype=np.uint16, count=64)
+        extgain = extgains[0]
+        intgain, = unpack('H', f.read(2))
+        # this nchans field should've been above siteloc field:
+        nchans2, = unpack('i', f.read(4))
+        assert nchans == nchans2 # make sure above assumption was right
+        nt, = unpack('i', f.read(4)) # 7.5M, eq'v to 300 sec data total
+        # read row major data, ie, chan loop is outer loop
+        wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
+        wavedata.shape = nchans, nt
+        stream = TSFStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
+                           extgain, intgain)
+        # not all .tsf files have ground truth data at end:
+        pos = f.tell()
+        groundtruth = f.read()
+        if groundtruth == '': # reached EOF
+            nbytes = f.tell()
+            print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
+            f.close()
+            return stream
+        else:
+            f.seek(pos) # go back and parse ground truth data
+        # something to do with how spikes were seeded vertically in space:
+        stream.vspacing, = unpack('i', f.read(4))
+        stream.nspikes, = unpack('i', f.read(4))
+        stream.spikets = np.fromfile(f, dtype=np.uint32, count=stream.nspikes)
+        stream.nids = np.fromfile(f, dtype=np.uint32, count=stream.nspikes)
+        stream.maxchans = np.fromfile(f, dtype=np.uint32, count=stream.nspikes)
+        pos = f.tell()
+        f.seek(0, 2)
+        nbytes = f.tell()
+        print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
+        return stream
 
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""

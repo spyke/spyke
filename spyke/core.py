@@ -33,6 +33,7 @@ np.set_printoptions(suppress=True)
 np.seterr(all='raise')
 
 import probes
+from probes import uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b
 
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
@@ -53,6 +54,10 @@ MAXNCLIMBPOINTS = 25000
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
 INVPI = 1 / pi
+
+
+class FakeLayout(object):
+    pass
 
 
 class Converter(object):
@@ -476,10 +481,10 @@ class Stream(object):
         self.srff.pickle()
 
     def __getitem__(self, key):
-        """Called when Stream object is indexed into using [] or with a slice object, indicating
-        start and end timepoints in us. Returns the corresponding WaveForm object, which has as
-        its attribs the 2D multichannel waveform array as well as the timepoints, potentially
-        spanning multiple ContinuousRecords"""
+        """Called when Stream object is indexed into using [] or with a slice object,
+        indicating start and end timepoints in us. Returns the corresponding WaveForm
+        object, which has as its attribs the 2D multichannel waveform array as well
+        as the timepoints, potentially spanning multiple ContinuousRecords"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
 
@@ -685,6 +690,119 @@ class Stream(object):
         return kernels
 
 
+class TSFStream(Stream):
+    """Stream based on wavedata from a .tsf file instead of a .srf file"""
+    def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
+                 extgain, intgain, sampfreq=None, shcorrect=None):
+        self._fname = fname
+        self.wavedata = wavedata
+        nchans, nt = wavedata.shape
+        self.chans = np.arange(nchans) # this sets self.nchans
+        self.nt = nt
+        self.nADchans = self.nchans
+        self.ADchans = np.arange(self.nADchans)
+        self.layout = FakeLayout()
+        self.layout.ADchanlist = self.ADchans # for the sake of self.resample()
+        probematch = False
+        for probetype in [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b]:
+            probe = probetype()
+            if (probe.siteloc_arr() == siteloc).all():
+                self.probe = probe
+                probematch = True
+                break
+        if not probematch:
+            raise ValueError("siteloc in %s doesn't match known probe type" % fname)
+        self.rawsampfreq = rawsampfreq
+        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
+        self.masterclockfreq = masterclockfreq
+        self.extgain = extgain
+        self.intgain = intgain
+        self.converter = Converter(intgain, extgain)
+        self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
+        self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
+        self.t0 = 0 # us
+        self.t1 = nt * self.rawtres
+        self.tranges = np.int64([[self.t0, self.t1]])
+
+    def open(self):
+        pass
+
+    def is_open(self):
+        return True
+
+    def close(self):
+        pass
+
+    def get_fname(self):
+        return self._fname
+
+    fname = property(get_fname)
+    
+    def __getstate__(self):
+        """Get object state for pickling"""
+        # copy it cuz we'll be making changes, this is fast because it's just a shallow copy
+        d = self.__dict__.copy()
+        try: del d['wavedata'] # takes up way too much space
+        except KeyError: pass
+        return d
+
+    def __getitem__(self, key):
+        """Called when Stream object is indexed into using [] or with a slice object,
+        indicating start and end timepoints in us. Returns the corresponding WaveForm
+        object, which has as its attribs the 2D multichannel waveform array as well
+        as the timepoints, potentially spanning multiple ContinuousRecords. Lots of
+        unavoidable code duplication from Stream.__getitem__"""
+        if key.step not in [None, 1]:
+            raise ValueError('unsupported slice step size: %s' % key.step)
+
+        nADchans = self.nADchans
+        rawtres = self.rawtres
+        resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
+        if resample:
+            # excess data in us at either end, to eliminate interpolation distortion at
+            # key.start and key.stop
+            xs = KERNELSIZE * rawtres
+        else:
+            xs = 0
+        # get a slightly greater range of raw data (with xs) than might be needed:
+        t0xsi = (key.start - xs) // rawtres # round down to nearest mult of rawtres
+        t1xsi = ((key.stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        # stay within stream limits, thereby avoiding interpolation edge effects:
+        t0xsi = max(t0xsi, self.t0 // rawtres)
+        t1xsi = min(t1xsi, self.t1 // rawtres)
+        # convert back to us:
+        t0xs = t0xsi * rawtres
+        t1xs = t1xsi * rawtres
+        tsxs = np.arange(t0xs, t1xs, rawtres)
+        ntxs = len(tsxs)
+
+        # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
+        dataxs = np.int32(self.wavedata[:, t0xsi:t1xsi])
+
+        # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as
+        # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
+        # AD to about 0.02
+        dataxs <<= 4 # data is still int32 at this point
+
+        # do any resampling if necessary, returning only self.chans data
+        if resample:
+            #tresample = time.time()
+            dataxs, tsxs = self.resample(dataxs, tsxs)
+            #print('resample took %.3f sec' % (time.time()-tresample))
+        else: # don't resample, just cut out self.chans data, if necessary
+            if range(nADchans) != list(self.chans):
+                # some chans are disabled. This is kind of a hack, but works because
+                # because ADchans map to probe chans 1 to 1, and both start from 0
+                dataxs = dataxs[self.chans]
+        # now trim down to just the requested time range
+        lo, hi = tsxs.searchsorted([key.start, key.stop])
+        data = dataxs[:, lo:hi]
+        ts = tsxs[lo:hi]
+
+        data = np.int16(data) # should be safe to convert back down to int16 now
+        return WaveForm(data=data, ts=ts, chans=self.chans)
+
+            
 class SpykeToolWindow(QtGui.QMainWindow):
     """Base class for all of spyke's tool windows"""
     def __init__(self, parent, flags=Qt.Tool):
