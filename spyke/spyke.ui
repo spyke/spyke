@@ -1703,11 +1703,6 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
     <property name="title">
      <string>&amp;Sampling</string>
     </property>
-    <addaction name="action25kHz"/>
-    <addaction name="action50kHz"/>
-    <addaction name="action100kHz"/>
-    <addaction name="separator"/>
-    <addaction name="actionSampleAndHoldCorrect"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">

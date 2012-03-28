@@ -74,6 +74,7 @@ class SpykeWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
+        self.layoutSamplingMenu()
         self.move(0, 0) # top left corner, to make space for data windows
 
         self.dpos = {} # positions of data windows relative to main spyke window
@@ -105,6 +106,21 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableSortWidgets(False)
         
         # TODO: load recent file history
+
+    def layoutSamplingMenu(self):
+        """Lay out the sampling menu, so that the sampling rates fall within a
+        QActionGroup such that only one is ever active at a time. This isn't possible
+        to do from within QtDesigner 4.7, so it's done here manually instead"""
+        ui = self.ui
+        samplingGroup = QtGui.QActionGroup(self)
+        samplingGroup.addAction(ui.action25kHz)
+        samplingGroup.addAction(ui.action50kHz)
+        samplingGroup.addAction(ui.action100kHz)
+        ui.menuSampling.addAction(ui.action25kHz)
+        ui.menuSampling.addAction(ui.action50kHz)
+        ui.menuSampling.addAction(ui.action100kHz)
+        ui.menuSampling.addSeparator()
+        ui.menuSampling.addAction(ui.actionSampleAndHoldCorrect)
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
@@ -424,12 +440,20 @@ class SpykeWindow(QtGui.QMainWindow):
         """Caret toggle menu event"""
         self.ToggleRef('Caret')
 
-    def OnSampling(self, evt):
-        """Sampling frequency menu choice event"""
-        menuitem = self.menubar.FindItemById(evt.GetId())
-        sampfreq = int(menuitem.GetLabel().rstrip(' kHz'))
-        sampfreq *= 1000 # convert from kHz to Hz
-        self.SetSampfreq(sampfreq)
+    @QtCore.pyqtSlot()
+    def on_action25kHz_triggered(self):
+        """25kHz menu choice event"""
+        self.SetSampfreq(25000)
+
+    @QtCore.pyqtSlot()
+    def on_action50kHz_triggered(self):
+        """50kHz menu choice event"""
+        self.SetSampfreq(50000)
+
+    @QtCore.pyqtSlot()
+    def on_action100kHz_triggered(self):
+        """100kHz menu choice event"""
+        self.SetSampfreq(100000)
 
     @QtCore.pyqtSlot()
     def on_actionSampleAndHoldCorrect_triggered(self):
@@ -2111,6 +2135,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def seek(self, t=0):
         """Seek to position in stream. t is time in us"""
+        # for some reason, sometimes seek is called during spyke's shutdown process,
+        # after hpstream has been removed. This prevents raising an error:
+        if self.hpstream == None:
+            return
         oldt = self.t
         self.t = self.get_nearest_timepoint(t)
         self.str2t['now'] = self.t # update
