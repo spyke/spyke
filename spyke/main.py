@@ -74,7 +74,7 @@ class SpykeWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
-        self.layoutSamplingMenu()
+        self.groupMenuSamplingRates()
         self.move(0, 0) # top left corner, to make space for data windows
 
         self.dpos = {} # positions of data windows relative to main spyke window
@@ -107,20 +107,15 @@ class SpykeWindow(QtGui.QMainWindow):
         
         # TODO: load recent file history
 
-    def layoutSamplingMenu(self):
-        """Lay out the sampling menu, so that the sampling rates fall within a
-        QActionGroup such that only one is ever active at a time. This isn't possible
-        to do from within QtDesigner 4.7, so it's done here manually instead"""
+    def groupMenuSamplingRates(self):
+        """Group sampling rates in sampling menu into a QActionGroup such that only
+        one is ever active at a time. This isn't possible to do from within
+        QtDesigner 4.7, so it's done here manually instead"""
         ui = self.ui
         samplingGroup = QtGui.QActionGroup(self)
         samplingGroup.addAction(ui.action25kHz)
         samplingGroup.addAction(ui.action50kHz)
         samplingGroup.addAction(ui.action100kHz)
-        ui.menuSampling.addAction(ui.action25kHz)
-        ui.menuSampling.addAction(ui.action50kHz)
-        ui.menuSampling.addAction(ui.action100kHz)
-        ui.menuSampling.addSeparator()
-        ui.menuSampling.addAction(ui.actionSampleAndHoldCorrect)
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
@@ -1770,12 +1765,21 @@ class SpykeWindow(QtGui.QMainWindow):
             return stream
         else:
             f.seek(pos) # go back and parse ground truth data
+        truth = core.EmptyClass()
         # something to do with how spikes were seeded vertically in space:
-        stream.vspacing, = unpack('i', f.read(4))
-        stream.nspikes, = unpack('i', f.read(4))
-        stream.spikets = np.fromfile(f, dtype=np.uint32, count=stream.nspikes)
-        stream.nids = np.fromfile(f, dtype=np.uint32, count=stream.nspikes)
-        stream.maxchans = np.fromfile(f, dtype=np.uint32, count=stream.nspikes)
+        truth.vspacing, = unpack('i', f.read(4))
+        truth.nspikes, = unpack('i', f.read(4))
+        # sample index of each spike:
+        spiketis = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)
+        sids = spiketis.argsort() # indices that sort spikes in time
+        truth.spikets = spiketis[sids] * stream.rawtres # in us
+        ## TODO: renumber ground truth nids according to vertical spatial order,
+        ## as I do in .sort
+        truth.nids = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)[sids]
+        truth.chans = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)[sids]
+        assert truth.chans.min() >= 1 # NVS stores these as 1-based
+        truth.chans -= 1 # convert to proper 0-based maxchan ids
+        stream.truth = truth
         pos = f.tell()
         f.seek(0, 2)
         nbytes = f.tell()

@@ -56,7 +56,7 @@ CHANFIELDLEN = 256 # channel string field length at start of .resample file
 INVPI = 1 / pi
 
 
-class FakeLayout(object):
+class EmptyClass(object):
     pass
 
 
@@ -701,7 +701,7 @@ class TSFStream(Stream):
         self.nt = nt
         self.nADchans = self.nchans
         self.ADchans = np.arange(self.nADchans)
-        self.layout = FakeLayout()
+        self.layout = EmptyClass()
         self.layout.ADchanlist = self.ADchans # for the sake of self.resample()
         probematch = False
         for probetype in [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b]:
