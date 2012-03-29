@@ -1729,6 +1729,30 @@ class SpykeWindow(QtGui.QMainWindow):
         performance. This returns describes a single 2D contiguous array of raw waveform
         data, within which are embedded a number of spikes from a number of neurons.
         The ground truth is typically listed at the end of the file.
+
+        .tsf file TODO:
+
+            - make data column-major for better seeking in time
+            - move nchans field before siteloc field
+            - make maxchans 0 based, ie same as labelled on probe design by UMich
+            - would be better to keep spikes sorted in time, instead of by cluster id
+            - no need for 64 extgain values, they're all the same, whether you're exporting
+              spike or LFP data. And if for some reason they could've been different, length
+              of extgains vector should be nchans, not fixed 64.
+            - number cluster ids in vertically spatial order, but mean of their template's
+              vertical spatial position, not just by their maxchan - subtle difference
+            - are .tsf spike times all aligned to +ve 0 crossing? One difference from .sort
+              is that they're all truncated to the nearest 25kHz sample point. Maybe it
+              would be best to save the spike time in us instead of in 25kHz sample point
+              indices
+            - increment format number. Maybe we should ultimately make a .nvs file
+              type, similar to .tsf format, for sharing with others, as a simplified
+              .srf file. Would require adding an LFP channel field to the end, or just make
+              the LFP chans look like normal spike chans, way oversampled
+            - add more cells, give them some range of amplitude variability to simulate
+              spike adaptation. Maybe even simulate spatial drift? That would be more
+              difficult
+
         """
         try: f = open(self.join(fname), 'rb')
         except IOError:
@@ -1773,18 +1797,46 @@ class SpykeWindow(QtGui.QMainWindow):
         spiketis = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)
         sids = spiketis.argsort() # indices that sort spikes in time
         truth.spikets = spiketis[sids] * stream.rawtres # in us
-        ## TODO: renumber ground truth nids according to vertical spatial order,
-        ## as I do in .sort
         truth.nids = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)[sids]
         truth.chans = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)[sids]
         assert truth.chans.min() >= 1 # NVS stores these as 1-based
         truth.chans -= 1 # convert to proper 0-based maxchan ids
+        self.renumber_tsf_truth(truth, stream)
         stream.truth = truth
         pos = f.tell()
         f.seek(0, 2)
         nbytes = f.tell()
         print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
         return stream
+
+    def renumber_tsf_truth(self, truth, stream):
+        """Renumber .tsf ground truth nids according to vertical spatial order of their
+        max chan, similar to what's done in .sort. Differences in labelling can still
+        arise because in a .sort, nids are ordered by the mean vertically modelled
+        position of each neuron's member spikes, not strictly by the maxchan of its
+        mean template"""
+        oldnid2sids = {}
+        nids = truth.nids
+        oldunids = np.unique(nids)
+        nnids = len(oldunids)
+        oldchans = np.zeros(nnids, dtype=truth.chans.dtype)
+        assert (oldunids == np.arange(1, nnids+1)).all()
+        for i, oldnid in enumerate(oldunids):
+            sids = nids == oldnid
+            oldnid2sids[oldnid] = sids # save these for next loop
+            chans = truth.chans[sids]
+            chan = chans[0]
+            assert (chans == chan).all() # check for surprises
+            oldchans[i] = chan
+        ypos = np.asarray([ stream.probe.SiteLoc[chan][1] for chan in oldchans ])
+        # as in sort.on_actionRenumberClusters_triggered(), this is a bit confusing:
+        # find indices that would sort old ids by y pos, but then what you really want
+        # is to find the y pos *rank* of each old id, so you need to take argsort again:
+        sortiis = ypos.argsort().argsort()
+        newunids = oldunids[sortiis] # sorted by vertical position
+        for oldnid, newnid in zip(oldunids, newunids):
+            sids = oldnid2sids[oldnid]
+            nids[sids] = newnid
 
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
