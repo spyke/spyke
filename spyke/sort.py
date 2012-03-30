@@ -222,8 +222,7 @@ class Sort(object):
         nneurons = len(nrecs)
 
         # write the file
-        srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
-        path = os.path.join(basepath, srffnameroot)
+        path = os.path.join(basepath, stream.srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
         fname = exportdt.replace(' ', '_')
@@ -1231,7 +1230,7 @@ class PTCSHeader(object):
         try: eval(d)
         except: raise ValueError("descr isn't a valid dictionary:\n%r" % d)
         self.descr = pad(d, align=8)
-        self.srcfname = pad(lstrip(stream.srff.fname, '../'), align=8)
+        self.srcfname = pad(lstrip(stream.fname, '../'), align=8)
         self.pttype = pad(stream.probe.name, align=8)
         self.dt = stream.datetime
         self.dtstr = pad(self.dt.isoformat(), align=8)
@@ -1291,10 +1290,11 @@ class PTCSNeuronRecord(object):
         self.neuron = neuron
         self.spikets = spikets # constrained to stream range, may be < neuron.sids
         self.wavedtype = {2: np.float16, 4: np.float32, 8: np.float64}[nsamplebytes]
-        if n.wave.data == None: # some may have never been displayed
+        if n.wave.data == None or n.wave.std == None: # some may have never been displayed
             n.update_wave()
-        self.wavedata = pad(self.wavedtype(AD2uV(n.wave.data)), align=8) # nchans * nt * nsamplebytes
-        self.wavestd = pad(self.wavedtype(np.array([])), align=8) # empty for now
+        # wavedata and wavestd are nchans * nt * nsamplebytes long:
+        self.wavedata = pad(self.wavedtype(AD2uV(n.wave.data)), align=8)
+        self.wavestd = pad(self.wavedtype(AD2uV(n.wave.std)), align=8)
         self.descr = pad(descr, align=8)
         
     def write(self, f):

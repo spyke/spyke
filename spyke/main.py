@@ -1738,13 +1738,15 @@ class SpykeWindow(QtGui.QMainWindow):
             - would be better to keep spikes sorted in time, instead of by cluster id
             - no need for 64 extgain values, they're all the same, whether you're exporting
               spike or LFP data. And if for some reason they could've been different, length
-              of extgains vector should be nchans, not fixed 64.
+              of extgains vector should be nchans, not fixed 64. Also, if extgains is a
+              vector, then so should intgains
             - number cluster ids in vertically spatial order, but mean of their template's
               vertical spatial position, not just by their maxchan - subtle difference
             - are .tsf spike times all aligned to +ve 0 crossing? One difference from .sort
               is that they're all truncated to the nearest 25kHz sample point. Maybe it
               would be best to save the spike time in us instead of in 25kHz sample point
               indices
+            - add some kind of datetime stamp, ala .ptcs
             - increment format number. Maybe we should ultimately make a .nvs file
               type, similar to .tsf format, for sharing with others, as a simplified
               .srf file. Would require adding an LFP channel field to the end, or just make
@@ -1821,13 +1823,15 @@ class SpykeWindow(QtGui.QMainWindow):
         nnids = len(oldunids)
         oldchans = np.zeros(nnids, dtype=truth.chans.dtype)
         assert (oldunids == np.arange(1, nnids+1)).all()
-        for i, oldnid in enumerate(oldunids):
+        # find maxchan of each nid, store in oldchans:
+        for chani, oldnid in enumerate(oldunids):
             sids = nids == oldnid
             oldnid2sids[oldnid] = sids # save these for next loop
             chans = truth.chans[sids]
             chan = chans[0]
             assert (chans == chan).all() # check for surprises
-            oldchans[i] = chan
+            oldchans[chani] = chan
+        # convert maxchans to y positions:
         ypos = np.asarray([ stream.probe.SiteLoc[chan][1] for chan in oldchans ])
         # as in sort.on_actionRenumberClusters_triggered(), this is a bit confusing:
         # find indices that would sort old ids by y pos, but then what you really want
@@ -1836,7 +1840,7 @@ class SpykeWindow(QtGui.QMainWindow):
         newunids = oldunids[sortiis] # sorted by vertical position
         for oldnid, newnid in zip(oldunids, newunids):
             sids = oldnid2sids[oldnid]
-            nids[sids] = newnid
+            nids[sids] = newnid # overwrite old nid values with new ones
 
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""

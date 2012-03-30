@@ -1207,6 +1207,8 @@ DONE:
 - have a clustering layout toggle button in the View menu and the main toolbar that auto arranges windows in an alternate way, more ideal for clustering. Size the MPL window same as the main spyke window. Put it below the main window. Then put Sort window (full height) at right. Then take whatever horizontal space is left, and make that the cluster window width. Its height is the sum of the heights of the MPL and main windows, and it's positioned at the top. This all keeps the controls as close as possible to the cluster window, keeps the cluster window fairly large and centered in the screen, and it keeps a space below all the windows for the terminal messages to remain visible. 
 - add an optional "notes" attrib to each Neuron, so you can jot down stuff about the cluster, like although it looks like it should be split, it's really just one neuron that's drifted over time. This would save you time having to figure out why you hadn't split it previously, saves duplication
     - or better yet, devise a way of marking clusters that you know/feel are good and clean, maybe by changing their text colour in the nlist. Give each neuron a "good" boolean flag, toggled by G key. Don't prevent changes to it, make it purely a reminder from the user to the user
+- save actual wavestd values to .ptcs files, now that it's being calculated and displayed during sorting
+
 
 
 

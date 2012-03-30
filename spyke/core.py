@@ -15,6 +15,7 @@ import sys
 import random
 import string
 from copy import copy
+import datetime
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -34,6 +35,8 @@ np.seterr(all='raise')
 
 import probes
 from probes import uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b
+
+UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
@@ -440,6 +443,11 @@ class Stream(object):
 
     srffnames = property(get_srffnames)
 
+    def get_srcfnameroot(self):
+        return lrstrip(self.fname, '../', '.srf')
+
+    srcfnameroot = property(get_srcfnameroot)
+
     def get_nchans(self):
         return len(self.chans)
 
@@ -737,6 +745,17 @@ class TSFStream(Stream):
         return self._fname
 
     fname = property(get_fname)
+
+    def get_srcfnameroot(self):
+        return lrstrip(self.fname, '../', '.tsf')
+
+    srcfnameroot = property(get_srcfnameroot)
+
+    def get_datetime(self):
+        """.tsf files don't currently have a datetime stamp, return Unix epoch instead"""
+        return UNIXEPOCH
+
+    datetime = property(get_datetime)
     
     def __getstate__(self):
         """Get object state for pickling"""

@@ -1,9 +1,9 @@
 .ptcs (polytrode clustered spikes) files
-version 1
+version 2
 
 Stick to 8 byte alignment for consistency and easy reading by eye in hex editor. Some fields are floats, most are ints.
 
-File desctription field might contain: the string ".ptcs (polytrode clustered spikes) file", date/time of clustering/extraction, clustering methods used, recordings/tracks that were clustered, brain area, etc.
+File description field might contain: the string ".ptcs (polytrode clustered spikes) file", date/time of clustering/extraction, clustering methods used, recordings/tracks that were clustered, brain area, etc.
 
 Extracting absolute file datetime from .srf files:
 
