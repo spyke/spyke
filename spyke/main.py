@@ -1746,15 +1746,21 @@ class SpykeWindow(QtGui.QMainWindow):
               is that they're all truncated to the nearest 25kHz sample point. Maybe it
               would be best to save the spike time in us instead of in 25kHz sample point
               indices
-            - add some kind of datetime stamp, ala .ptcs
+            - add some kind of datetime stamp, ala .srf. Maybe datetime the .tsf file was
+              generated
             - increment format number. Maybe we should ultimately make a .nvs file
               type, similar to .tsf format, for sharing with others, as a simplified
               .srf file. Would require adding an LFP channel field to the end, or just make
               the LFP chans look like normal spike chans, way oversampled
-            - add more cells, give them some range of amplitude variability to simulate
-              spike adaptation. Maybe even simulate spatial drift? That would be more
-              difficult
-
+            - add more cells, make some fraction of them bursting, give bursting cells
+              some prob distrib over number of spikes per burst, make each spike in a
+              burst say 5 or 10% smaller than the previous spike adaptation
+            - maybe even simulate spatial drift? That would be more difficult
+            - need far more spikes. Enforce a power law distribution in number spikes
+              per cell
+            - main thing is to look at how close in space and time spikes can be seeded
+              and still be detected and clustered correctly
+    
         """
         try: f = open(self.join(fname), 'rb')
         except IOError:

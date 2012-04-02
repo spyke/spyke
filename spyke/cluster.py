@@ -217,8 +217,12 @@ class GLWidget(QtOpenGL.QGLWidget):
         # these are the defaults anyway, but just to be thorough:
         GL.glClearColor(0.0, 0.0, 0.0, 1.0)
         GL.glClearDepth(1.0)
-        GL.glEnable(GL.GL_DEPTH_TEST) # display points according to occlusion, not order of plotting
-        #GL.glEnable(GL.GL_POINT_SMOOTH) # doesn't seem to work right, proper way to antialiase?
+        # ignore depth, draw back to front, incompatible with GL_DEPTH_TEST?:
+        #GL.glDepthFunc(GL.GL_NEVER)
+        # display points according to occlusion, not order of plotting:
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        # doesn't seem to work right, proper way to antialiase?:
+        #GL.glEnable(GL.GL_POINT_SMOOTH)
         GL.glEnable(GL.GL_LINE_SMOOTH) # works better, makes lines thicker
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         # set initial position and orientation of camera
@@ -234,19 +238,26 @@ class GLWidget(QtOpenGL.QGLWidget):
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        if self.axes: # paint xyz axes
-            self.paint_mini_axes()
-            self.paint_focal_axes()
-
         # Don't load identity matrix. Do all transforms in place against current matrix
         # and take advantage of OpenGL's state-machineness.
         #GL.glLoadIdentity() # loads identity matrix into top of matrix stack
+
+        # don't write to depth buffer, so axes aren't occluded by data points
+        GL.glDepthMask(GL.GL_FALSE)
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
         GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
+
+        # go back to writing to depth buffer, so lines in axes occlude each other properly:
+        GL.glDepthMask(GL.GL_TRUE)
+
+        if self.axes: # paint xyz axes
+            self.paint_mini_axes()
+            self.paint_focal_axes()
+
         # doesn't seem to be necessary, even though I'm in double-buffered mode with the
         # back buffer for RGB sid encoding, but do it anyway for completeness
         self.swapBuffers()
