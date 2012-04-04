@@ -1335,7 +1335,6 @@ class SortWindow(SpykeToolWindow):
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
         # make ENTER or double-click in nlist trigger the plot button:
-        self.nlist.activated.connect(self.spykewindow.ui.plotButton.click)
         self.nslist = NSList(self)
         self.nslist.setToolTip('Sorted spike list')
         self.uslist = USList(self) # should really be multicolumn tableview
@@ -1500,8 +1499,9 @@ class SortWindow(SpykeToolWindow):
 
     def keyPressEvent(self, event):
         """Alpha character keypresses are by default caught by the child lists for quickly
-        scrolling down to and selecting list items. However, the appropriate alpha keypresses have
-        been set in the child lists to be ignored, so they propagate up to here"""
+        scrolling down to and selecting list items. However, the appropriate alpha
+        keypresses have been set in the child lists to be ignored, so they propagate
+        up to here"""
         key = event.key()
         modifiers = event.modifiers()
         shift = Qt.ShiftModifier == modifiers # only modifier is shift
@@ -1545,6 +1545,10 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindNextMostSimilar_triggered()
         elif key == Qt.Key_H: # ignored in SpykeListViews
             self.on_actionPlotClusterHist_triggered()
+        elif key in [Qt.Key_Enter, Qt.Key_Return]:
+            # this is handled at a lower level by on_actionItem_activated
+            # in the various listview controls
+            pass
         else:
             SpykeToolWindow.keyPressEvent(self, event) # pass it on
 
@@ -1780,7 +1784,7 @@ class SortWindow(SpykeToolWindow):
 
         # replace old ids with new ids
         cw = spw.windows['Cluster']
-        oldclusters = s.clusters.copy() # no need to deepcopy, just copy references, not clusters
+        oldclusters = s.clusters.copy() # no need to deepcopy, just copy refs, not clusters
         dims = spw.GetClusterPlotDims()
         for oldid, newid in zip(oldids, newids):
             newid = int(newid) # keep as Python int, not numpy int
@@ -1809,7 +1813,8 @@ class SortWindow(SpykeToolWindow):
         # now do some final updates
         spw.UpdateClustersGUI()
         spw.ColourPoints(s.clusters.values())
-        # reselect the previously selected (but now renumbered) clusters - helps user keep track
+        # reselect the previously selected (but now renumbered) clusters,
+        # helps user keep track
         oldiis = [ list(oldids).index(oldselid) for oldselid in oldselids ]
         newselids = newids[oldiis]
         spw.SelectClusters([s.clusters[cid] for cid in newselids])
@@ -1873,18 +1878,19 @@ class SortWindow(SpykeToolWindow):
         self.findMostSimilarCluster('next')
 
     def on_actionPlotClusterHist_triggered(self):
-        """Plot histogram of selected clusters along a single dimension. If one cluster selected,
-        plot its distribution along its first (x) dimension. If two clusters are selected,
-        project them onto axis connecting their centers, and calculate overlap index between them.
-        Find max of the two stdevs of projections of points from both clusters. Take ratio of 3*maxstdevs
-        and the distance between the cluster centers to get overlap index. An index > 1 suggests
-        the two clusters are ovelapping significantly.
-        
-        Another way would be to simply take the fraction of area that the two distribs overlap.
-        For the two distribs, at each bin, take min value of the two. Add up all those min values,
-        and divide by the mass of the smaller distrib.
+        """Plot histogram of selected clusters along a single dimension. If one cluster
+        selected, plot its distribution along its first (x) dimension. If two clusters
+        are selected, project them onto axis connecting their centers, and calculate
+        overlap index between them. Find max of the two stdevs of projections of points
+        from both clusters. Take ratio of 3*maxstdevs and the distance between the cluster
+        centers to get overlap index. An index > 1 suggests the two clusters are ovelapping
+        significantly.
+                
+        Another way would be to simply take the fraction of area that the two distribs
+        overlap. For the two distribs, at each bin, take min value of the two. Add up all
+        those min values, and divide by the mass of the smaller distrib.
 
-        Or, could instead take sqrt of Jensen Shannon divergence, which is a metric
+        Or, could instead take sqrt of Jensen Shannon divergence, which is a metric.
         """
         spw = self.spykewindow
         clusters = spw.GetClusters()
@@ -1896,7 +1902,8 @@ class SortWindow(SpykeToolWindow):
         else:
             calc_overlap = False
             projdimi = 0
-        # get param matrix X for points in all clusters, given current dim and channel selection:
+        # get param matrix X for points in all clusters, given current dim and
+        # channel selection:
         dims = spw.GetClusterPlotDims()
         sids = np.concatenate([ cluster.neuron.sids for cluster in clusters ])
         sids.sort()
@@ -1927,7 +1934,8 @@ class SortWindow(SpykeToolWindow):
             projs.append(np.dot(cpoints-c0, line))
         if calc_overlap:
             d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
-            # measure whether centers are at least 3 of the bigger stdevs away from each other:
+            # measure whether centers are at least 3 of the bigger stdevs away from
+            # each other:
             overlapindex = 3 * max(projs[0].std(), projs[1].std()) / d
             #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
         proj = np.concatenate(projs)
@@ -2122,7 +2130,7 @@ class SortWindow(SpykeToolWindow):
         if len(sids) == 0:
             return # nothing to do
         spikes = self.sort.spikes
-        neuron.sids = np.setdiff1d(neuron.sids, sids) # return what's in first arr and not in the 2nd
+        neuron.sids = np.setdiff1d(neuron.sids, sids) # return what's in 1st arr and not in 2nd
         spikes['nid'][sids] = 0 # unbind neuron id of sids in spikes struct array
         if update:
             self.sort.update_usids()

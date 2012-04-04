@@ -979,6 +979,8 @@ class NList(SpykeListView):
         SpykeListView.__init__(self, parent)
         self.setModel(NListModel(parent))
         self.setItemDelegate(NListDelegate(parent))
+        self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
+                     self.on_actionItem_activated)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
@@ -987,6 +989,10 @@ class NList(SpykeListView):
             self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
         else:
             self.sortwin.nslist.neurons = []
+
+    def on_actionItem_activated(self, index):
+        sw = self.sortwin
+        sw.parent().ui.plotButton.click()
 
 
 class NSList(SpykeListView):
@@ -1006,6 +1012,8 @@ class NSList(SpykeListView):
             sid = self.sids[index.row()]
             spike = sw.sort.spikes[sid]
             sw.parent().seek(spike['t'])
+        else:
+            sw.parent().ui.plotButton.click()
 
     def get_neurons(self):
         return self.model().neurons
@@ -1048,6 +1056,8 @@ class USList(SpykeListView):
             sid = sw.sort.usids[index.row()]
             spike = sw.sort.spikes[sid]
             sw.parent().seek(spike['t'])
+        else:
+            sw.parent().ui.plotButton.click()
 
     def selectRandom(self, nsamples):
         """Select up to nsamples random rows"""
@@ -1111,7 +1121,7 @@ class NListModel(SpykeAbstractListModel):
                     return QtGui.QBrush(QtGui.QColor(0, 128, 0))
             '''
 class SListModel(SpykeAbstractListModel):
-    """Base model for spike list views"""
+    """Base model for spike list models"""
     def spiketooltip(self, spike):
         return ('sid: %d\n' % spike['id'] +
                 'nid: %d\n' % spike['nid'] +
