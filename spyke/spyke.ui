@@ -1621,6 +1621,121 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
         </property>
        </widget>
       </widget>
+      <widget class="QWidget" name="verifyTab">
+       <property name="baseSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <attribute name="title">
+        <string>Verify</string>
+       </attribute>
+       <widget class="QGroupBox" name="cgramsGroupBox">
+        <property name="geometry">
+         <rect>
+          <x>5</x>
+          <y>5</y>
+          <width>116</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>Correlograms</string>
+        </property>
+        <widget class="QPushButton" name="plotCgramsButton">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>20</y>
+           <width>46</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Calculate rmserror between all clusters and unsorted spikes. Don't
+forget to recalc when you merge/delete/split/renumber clusters!</string>
+         </property>
+         <property name="text">
+          <string>Plot</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QGroupBox" name="ISIsGroupBox">
+        <property name="geometry">
+         <rect>
+          <x>5</x>
+          <y>65</y>
+          <width>116</width>
+          <height>96</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>ISIs</string>
+        </property>
+        <widget class="QPushButton" name="ISICleanButton">
+         <property name="geometry">
+          <rect>
+           <x>5</x>
+           <y>60</y>
+           <width>46</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>Remove points &gt; nstds from origin of cluster density histogram</string>
+         </property>
+         <property name="text">
+          <string>Clean</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_18">
+         <property name="geometry">
+          <rect>
+           <x>95</x>
+           <y>35</y>
+           <width>13</width>
+           <height>15</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>us</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_19">
+         <property name="geometry">
+          <rect>
+           <x>8</x>
+           <y>35</y>
+           <width>66</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>ISI &lt;= </string>
+         </property>
+        </widget>
+        <widget class="QSpinBox" name="minISISpinBox">
+         <property name="geometry">
+          <rect>
+           <x>40</x>
+           <y>30</y>
+           <width>52</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="maximum">
+          <number>9999</number>
+         </property>
+         <property name="singleStep">
+          <number>20</number>
+         </property>
+         <property name="value">
+          <number>500</number>
+         </property>
+        </widget>
+       </widget>
+      </widget>
      </widget>
     </item>
    </layout>

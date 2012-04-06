@@ -1134,6 +1134,48 @@ class SpykeWindow(QtGui.QMainWindow):
         sw.uslist.clearSelection()
         sw.uslist.selectRows(sidis, on=True, scrollTo=False)
         print('matched %d spikes to cluster %d' % (len(sids), cid))
+
+    @QtCore.pyqtSlot()
+    def on_plotCgramsButton_clicked(self):
+        """Plot all cross/auto correlograms for all selected neurons, and display
+        them in an upper or lower triangle configuration"""
+        ## TODO: for now, just plot a single autocorrelogram
+        cluster = self.GetCluster()
+        sids = cluster.neuron.sids
+        spikets = self.sort.spikes[sids]['t']
+
+        trange = -100000, 100000 # us
+
+        dts = []
+        for spiket in spikets:
+            trangei = spikets.searchsorted(spiket + trange) # find where the trange around this spike would fit in other spikes
+            dt = spikets[trangei[0]:trangei[1]] - spiket # find dt between this spike and only those other spikes that are in trange of this spike
+            dts.append(dt)
+        dts = np.concatenate(dts) / 1000 # in ms now, converts to float64 array
+        dts = dts[dts != 0] # remove 0s for autocorr
+        nbins = intround(np.sqrt(len(dts))) # good heuristic
+        nbins = max(20, nbins) # enforce min nbins
+        nbins = min(100, nbins) # enforce max nbins
+        dtshist, edges = np.histogram(dts, bins=nbins)
+        ledges = edges[:-1] # keep just the left edges, discard the last right edge
+        assert len(ledges) == nbins
+        binwidth = ledges[1] - ledges[0]
+        dtshist = dtshist / (1000*binwidth) # spikes/bin / (1000*ms/bin) == spikes/second
+
+        # plot:
+        mplw = self.OpenWindow('MPL')
+        a = mplw.ax
+        a.clear()
+        windowtitle = "n%d autocorr" % cluster.id
+        print(windowtitle)
+        mplw.setWindowTitle(windowtitle)
+        a.set_title('binwidth: %.2f ms' % binwidth)
+        a.set_xlabel('ISI (ms)')
+        a.set_ylabel('ISI rate (Hz)')
+        c = 'black'
+        a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
+        mplw.figurecanvas.draw()
+        print(dts)
         
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
@@ -1726,9 +1768,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenTSFFile(self, fname):
         """Open NVS's "test spike file" .tsf format for testing spike sorting
-        performance. This returns describes a single 2D contiguous array of raw waveform
+        performance. This describes a single 2D contiguous array of raw waveform
         data, within which are embedded a number of spikes from a number of neurons.
-        The ground truth is typically listed at the end of the file.
+        The ground truth is typically listed at the end of the file. Return a TSFStream.
 
         .tsf file TODO:
 
