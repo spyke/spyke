@@ -9,6 +9,7 @@ import numpy as np
 import pyximport
 pyximport.install()
 from climbing import climb # .pyx file
+from util import acorr # .pyx file
 
 from IPython import embed
 from IPython.core import ultratb
@@ -1136,23 +1137,62 @@ class SpykeWindow(QtGui.QMainWindow):
         print('matched %d spikes to cluster %d' % (len(sids), cid))
 
     @QtCore.pyqtSlot()
-    def on_plotCgramsButton_clicked(self):
+    def on_plotXcorrsButton_clicked(self):
         """Plot all cross/auto correlograms for all selected neurons, and display
         them in an upper or lower triangle configuration"""
         ## TODO: for now, just plot a single autocorrelogram
+        autocorr = True
         cluster = self.GetCluster()
         sids = cluster.neuron.sids
-        spikets = self.sort.spikes[sids]['t']
+        spikets = self.sort.spikes['t'][sids]
+        ## The above is very very different from self.sort.spikes[sids]['t']
+        ## The first is C contig, the second is not! The first probably makes a copy,
+        ## while the second does not. First is much much faster for array ops, while
+        ## the second conserves memory, and avoids needless copying, which might be faster
+        ## if no array ops are involved. Should check all the code that pulls stuff out of
+        ## the spikes recarray!
+        nspikes = len(spikets)
 
-        trange = -100000, 100000 # us
+        trange = self.ui.xcorrsRangeSpinBox.value() * 1000 # us
+        trange = max(1000, trange) # enforce min trange, still in us
+        trange = np.array([-trange, trange]) # convert to +/- array, still in us
+        
+        t0 = time.time()
+        dts1 = acorr(spikets, trange=trange)
+        print('xcorr1 calc took %.3f sec' % (time.time()-t0))
+        if autocorr:
+            dts1 = dts1[dts1 != 0] # remove 0s for autocorr
+        print(dts1)
 
-        dts = []
+        
+        DTCHUNKSIZE = 1e6
+        t0 = time.time()
+        dts2 = np.zeros(DTCHUNKSIZE, dtype=np.int64)
+        dtsi = 0
         for spiket in spikets:
-            trangei = spikets.searchsorted(spiket + trange) # find where the trange around this spike would fit in other spikes
-            dt = spikets[trangei[0]:trangei[1]] - spiket # find dt between this spike and only those other spikes that are in trange of this spike
-            dts.append(dt)
-        dts = np.concatenate(dts) / 1000 # in ms now, converts to float64 array
-        dts = dts[dts != 0] # remove 0s for autocorr
+            # find where the trange around this spike fits in other spikes:
+            trangei = spikets.searchsorted(spiket + trange)
+            # find dt between this spike and all others nearby:
+            dt = spikets[trangei[0]:trangei[1]] - spiket
+            ndt = len(dt)
+            dts2[dtsi:dtsi+ndt] = dt # slot them in the right place
+            dtsi += ndt # for next loop
+        dts2 = dts2[:dtsi] # discard excess allocated memory
+        print('xcorr2 calc took %.3f sec' % (time.time()-t0))
+        if autocorr:
+            dts2 = dts2[dts2 != 0] # remove 0s for autocorr
+        print(dts2)
+
+        # directly compare results
+        assert (dts1 == dts2).all()
+
+        dts = dts1
+        
+        dts = dts / 1000 # in ms now, converts to float64 array
+        trange = trange / 1000 # in ms now, converts to float64 array
+        if autocorr:
+            dts = dts[dts != 0] # remove 0s for autocorr
+        ## also, keep only dts that are within trange, discard the rest!
         nbins = intround(np.sqrt(len(dts))) # good heuristic
         nbins = max(20, nbins) # enforce min nbins
         nbins = min(100, nbins) # enforce max nbins
@@ -1160,7 +1200,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ledges = edges[:-1] # keep just the left edges, discard the last right edge
         assert len(ledges) == nbins
         binwidth = ledges[1] - ledges[0]
-        dtshist = dtshist / (1000*binwidth) # spikes/bin / (1000*ms/bin) == spikes/second
+        #dtshist = dtshist / (1000*binwidth) # spikes/bin / (1000*ms/bin) == spikes/second
 
         # plot:
         mplw = self.OpenWindow('MPL')
@@ -1171,9 +1211,10 @@ class SpykeWindow(QtGui.QMainWindow):
         mplw.setWindowTitle(windowtitle)
         a.set_title('binwidth: %.2f ms' % binwidth)
         a.set_xlabel('ISI (ms)')
-        a.set_ylabel('ISI rate (Hz)')
+        #a.set_ylabel('ISI rate (Hz)')
         c = 'black'
         a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
+        a.set_xlim(trange)
         mplw.figurecanvas.draw()
         print(dts)
         

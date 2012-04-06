@@ -141,7 +141,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="detectTab">
        <attribute name="title">
@@ -1631,19 +1631,19 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
        <attribute name="title">
         <string>Verify</string>
        </attribute>
-       <widget class="QGroupBox" name="cgramsGroupBox">
+       <widget class="XCorrsGroupBox" name="xcorrsGroupBox">
         <property name="geometry">
          <rect>
           <x>5</x>
           <y>5</y>
-          <width>116</width>
-          <height>61</height>
+          <width>201</width>
+          <height>81</height>
          </rect>
         </property>
         <property name="title">
          <string>Correlograms</string>
         </property>
-        <widget class="QPushButton" name="plotCgramsButton">
+        <widget class="QPushButton" name="plotXcorrsButton">
          <property name="geometry">
           <rect>
            <x>5</x>
@@ -1660,12 +1660,60 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
           <string>Plot</string>
          </property>
         </widget>
+        <widget class="QLabel" name="label_20">
+         <property name="geometry">
+          <rect>
+           <x>175</x>
+           <y>25</y>
+           <width>21</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>ms</string>
+         </property>
+        </widget>
+        <widget class="QSpinBox" name="xcorrsRangeSpinBox">
+         <property name="geometry">
+          <rect>
+           <x>120</x>
+           <y>20</y>
+           <width>52</width>
+           <height>25</height>
+          </rect>
+         </property>
+         <property name="minimum">
+          <number>0</number>
+         </property>
+         <property name="maximum">
+          <number>10000</number>
+         </property>
+         <property name="singleStep">
+          <number>5</number>
+         </property>
+         <property name="value">
+          <number>50</number>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_21">
+         <property name="geometry">
+          <rect>
+           <x>65</x>
+           <y>25</y>
+           <width>61</width>
+           <height>16</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>range: +/-</string>
+         </property>
+        </widget>
        </widget>
        <widget class="QGroupBox" name="ISIsGroupBox">
         <property name="geometry">
          <rect>
           <x>5</x>
-          <y>65</y>
+          <y>90</y>
           <width>116</width>
           <height>96</height>
          </rect>
@@ -1707,7 +1755,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
           <rect>
            <x>8</x>
            <y>35</y>
-           <width>66</width>
+           <width>36</width>
            <height>16</height>
           </rect>
          </property>
@@ -2280,6 +2328,12 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
   </customwidget>
   <customwidget>
    <class>PlottingGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>core</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>XCorrsGroupBox</class>
    <extends>QGroupBox</extends>
    <header>core</header>
    <container>1</container>

@@ -285,3 +285,54 @@ def rowtake_cy(np.ndarray[np.int32_t, ndim=2] a,
             out[rowi, coli] = a[rowi, i[rowi, coli]]
 
     return out
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+@cython.profile(False)
+def acorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
+          #np.ndarray[np.int64_t, ndim=1, mode='c'] y,
+          np.ndarray[np.int64_t, ndim=1, mode='c'] trange):
+    """Calculate autocorrelation of x, constrained to lower and upper bounds
+    in trange"""
+    ## should do an assert on both to ensure contig, this seems to happen automatically though
+    ## assume timepoints in x are sorted
+    #cdef Py_ssize_t nt, lo, dtsi, ti
+    cdef long long nt, lo, dtsi, ti, maxti, t, dt
+    cdef long long low = trange[0]
+    cdef long long high = trange[1]
+    cdef long long DTSALLOCSIZE = 1000000
+    nt = x.shape[0]
+    maxti = nt-1
+
+    '''
+    binwidth = high - low
+    nbins = (x[maxti] - x[0]) // binwidth
+    print('binwidth, nbins: %r, %r' % (binwidth, nbins))
+    dthist = np.histogram(x, bins=nbins)[0]
+    print('dthist: %r' % dthist)
+    ndt = dthist.sum()
+    print('ndt: %r' % ndt)
+    '''
+    cdef np.ndarray[np.int64_t, ndim=1] dts = np.zeros(DTSALLOCSIZE, dtype=np.int64)
+    lo = 0
+    dtsi = 0
+    for ti in range(nt):
+        # t is our current timepoint we're comparing to all others in x:
+        t = x[ti]
+        while x[lo] - t < low: # keep checking lower trange bound
+            lo += 1
+        # start collecting dt values:
+        ti = lo
+        dt = x[ti] - t
+        while dt < high: # keep checking upper trange bound
+            dts[dtsi] = dt
+            #printf('%d ', dtsi)
+            dtsi += 1 # inc for next loop iter
+            ti += 1
+            if ti > maxti: # don't exceed maxti when indexing into x
+                break
+            dt = x[ti] - t # calc for next loop iter
+    dts = dts[:dtsi] # trim it down
+    return dts

@@ -1256,9 +1256,6 @@ class NListDelegate(QtGui.QStyledItemDelegate):
 
 class ClusterTabSpinBox(QtGui.QSpinBox):
     """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
-    def __init__(self, parent):
-        QtGui.QSpinBox.__init__(self, parent)
-
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             self.topLevelWidget().on_actionUndo_triggered()
@@ -1268,9 +1265,6 @@ class ClusterTabSpinBox(QtGui.QSpinBox):
 
 class ClusterTabDoubleSpinBox(QtGui.QDoubleSpinBox):
     """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
-    def __init__(self, parent):
-        QtGui.QDoubleSpinBox.__init__(self, parent)
-
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             self.topLevelWidget().on_actionUndo_triggered()
@@ -1280,9 +1274,6 @@ class ClusterTabDoubleSpinBox(QtGui.QDoubleSpinBox):
 
 class ClusteringGroupBox(QtGui.QGroupBox):
     """Make ENTER key event activate the cluster button"""
-    def __init__(self, parent):
-        QtGui.QGroupBox.__init__(self, parent)
-
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
             self.topLevelWidget().ui.clusterButton.click()
@@ -1292,12 +1283,18 @@ class ClusteringGroupBox(QtGui.QGroupBox):
 
 class PlottingGroupBox(QtGui.QGroupBox):
     """Make ENTER key event activate the plot button"""
-    def __init__(self, parent):
-        QtGui.QGroupBox.__init__(self, parent)
-
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
             self.topLevelWidget().ui.plotButton.click()
+        else:
+            QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
+
+
+class XCorrsGroupBox(QtGui.QGroupBox):
+    """Make ENTER key event activate the correlograms plot button"""
+    def keyPressEvent(self, event):
+        if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
+            self.topLevelWidget().ui.plotXcorrsButton.click()
         else:
             QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
