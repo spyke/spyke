@@ -287,10 +287,10 @@ def rowtake_cy(np.ndarray[np.int32_t, ndim=2] a,
     return out
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
-@cython.profile(False)
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
+#@cython.cdivision(True) # might be necessary to release the GIL?
+#@cython.profile(False)
 def acorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
           #np.ndarray[np.int64_t, ndim=1, mode='c'] y,
           np.ndarray[np.int64_t, ndim=1, mode='c'] trange):
@@ -305,7 +305,6 @@ def acorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
     cdef long long DTSALLOCSIZE = 1000000
     nt = x.shape[0]
     maxti = nt-1
-
     '''
     binwidth = high - low
     nbins = (x[maxti] - x[0]) // binwidth
@@ -316,6 +315,8 @@ def acorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
     print('ndt: %r' % ndt)
     '''
     cdef np.ndarray[np.int64_t, ndim=1] dts = np.zeros(DTSALLOCSIZE, dtype=np.int64)
+    cdef long long maxdtsi = dts.shape[0] - 1
+
     lo = 0
     dtsi = 0
     for ti in range(nt):
@@ -327,6 +328,12 @@ def acorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
         ti = lo
         dt = x[ti] - t
         while dt < high: # keep checking upper trange bound
+            if dtsi > maxdtsi:
+                # when growing an array, pretty much need to allocate a new one,
+                # can't very often do it in place:
+                dts = np.resize(dts, (dts.shape[0] + DTSALLOCSIZE,))
+                maxdtsi = dts.shape[0] - 1
+                printf('blarg! resized!\n')
             dts[dtsi] = dt
             #printf('%d ', dtsi)
             dtsi += 1 # inc for next loop iter

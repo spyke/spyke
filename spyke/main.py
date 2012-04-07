@@ -9,7 +9,7 @@ import numpy as np
 import pyximport
 pyximport.install()
 from climbing import climb # .pyx file
-from util import acorr # .pyx file
+import util # .pyx file
 
 from IPython import embed
 from IPython.core import ultratb
@@ -1158,14 +1158,14 @@ class SpykeWindow(QtGui.QMainWindow):
         trange = np.array([-trange, trange]) # convert to +/- array, still in us
         
         t0 = time.time()
-        dts1 = acorr(spikets, trange=trange)
+        dts1 = util.acorr(spikets, trange=trange)
         print('xcorr1 calc took %.3f sec' % (time.time()-t0))
         if autocorr:
             dts1 = dts1[dts1 != 0] # remove 0s for autocorr
         print(dts1)
 
-        
-        DTCHUNKSIZE = 1e6
+        '''
+        DTCHUNKSIZE = 5e6
         t0 = time.time()
         dts2 = np.zeros(DTCHUNKSIZE, dtype=np.int64)
         dtsi = 0
@@ -1178,14 +1178,14 @@ class SpykeWindow(QtGui.QMainWindow):
             dts2[dtsi:dtsi+ndt] = dt # slot them in the right place
             dtsi += ndt # for next loop
         dts2 = dts2[:dtsi] # discard excess allocated memory
-        print('xcorr2 calc took %.3f sec' % (time.time()-t0))
+        #print('xcorr2 calc took %.3f sec' % (time.time()-t0))
         if autocorr:
             dts2 = dts2[dts2 != 0] # remove 0s for autocorr
-        print(dts2)
+        #print(dts2)
 
         # directly compare results
         assert (dts1 == dts2).all()
-
+        '''
         dts = dts1
         
         dts = dts / 1000 # in ms now, converts to float64 array
@@ -1216,7 +1216,7 @@ class SpykeWindow(QtGui.QMainWindow):
         a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
         a.set_xlim(trange)
         mplw.figurecanvas.draw()
-        print(dts)
+        #print(dts)
         
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
