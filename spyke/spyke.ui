@@ -141,7 +141,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="detectTab">
        <attribute name="title">
@@ -1710,6 +1710,9 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
         </widget>
        </widget>
        <widget class="QGroupBox" name="ISIsGroupBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="geometry">
          <rect>
           <x>5</x>

@@ -1141,58 +1141,39 @@ class SpykeWindow(QtGui.QMainWindow):
         """Plot all cross/auto correlograms for all selected neurons, and display
         them in an upper or lower triangle configuration"""
         ## TODO: for now, just plot a single autocorrelogram
-        autocorr = True
-        cluster = self.GetCluster()
-        sids = cluster.neuron.sids
-        spikets = self.sort.spikes['t'][sids]
-        ## The above is very very different from self.sort.spikes[sids]['t']
+        clusters = self.GetClusters()
+        xsids = clusters[0].neuron.sids
+        if len(clusters) == 1:
+            autocorr = True
+            ysids = xsids # x and y are identical
+        elif len(clusters) == 2:
+            autocorr = False
+            ysids = clusters[1].neuron.sids
+        else:
+            raise NotImplementedError("can't deal with more than one xcorr for now")
+        xspikets = self.sort.spikes['t'][xsids]
+        yspikets = self.sort.spikes['t'][ysids]
+
+        ## TODO: spikes['t'][sids] is very different from spikes[sids]['t'] !
         ## The first is C contig, the second is not! The first probably makes a copy,
         ## while the second does not. First is much much faster for array ops, while
         ## the second conserves memory, and avoids needless copying, which might be faster
         ## if no array ops are involved. Should check all the code that pulls stuff out of
-        ## the spikes recarray!
-        nspikes = len(spikets)
-
+        ## the spikes recarray, and choose the best one more carefully!
+        
         trange = self.ui.xcorrsRangeSpinBox.value() * 1000 # us
-        trange = max(1000, trange) # enforce min trange, still in us
-        trange = np.array([-trange, trange]) # convert to +/- array, still in us
+        trange = max(1000, trange) # enforce min trange, in us
+        trange = np.array([-trange, trange]) # convert to a +/- array, in us
         
         t0 = time.time()
-        dts1 = util.acorr(spikets, trange=trange)
-        print('xcorr1 calc took %.3f sec' % (time.time()-t0))
-        if autocorr:
-            dts1 = dts1[dts1 != 0] # remove 0s for autocorr
-        print(dts1)
-
-        '''
-        DTCHUNKSIZE = 5e6
-        t0 = time.time()
-        dts2 = np.zeros(DTCHUNKSIZE, dtype=np.int64)
-        dtsi = 0
-        for spiket in spikets:
-            # find where the trange around this spike fits in other spikes:
-            trangei = spikets.searchsorted(spiket + trange)
-            # find dt between this spike and all others nearby:
-            dt = spikets[trangei[0]:trangei[1]] - spiket
-            ndt = len(dt)
-            dts2[dtsi:dtsi+ndt] = dt # slot them in the right place
-            dtsi += ndt # for next loop
-        dts2 = dts2[:dtsi] # discard excess allocated memory
-        #print('xcorr2 calc took %.3f sec' % (time.time()-t0))
-        if autocorr:
-            dts2 = dts2[dts2 != 0] # remove 0s for autocorr
-        #print(dts2)
-
-        # directly compare results
-        assert (dts1 == dts2).all()
-        '''
-        dts = dts1
-        
-        dts = dts / 1000 # in ms now, converts to float64 array
-        trange = trange / 1000 # in ms now, converts to float64 array
+        dts = util.xcorr(xspikets, yspikets, trange=trange) # in us
+        print('xcorr calc took %.3f sec' % (time.time()-t0))
         if autocorr:
             dts = dts[dts != 0] # remove 0s for autocorr
-        ## also, keep only dts that are within trange, discard the rest!
+        #print(dts)
+
+        dts = dts / 1000 # in ms, converts to float64 array
+        trange = trange / 1000 # in ms, converts to float64 array
         nbins = intround(np.sqrt(len(dts))) # good heuristic
         nbins = max(20, nbins) # enforce min nbins
         nbins = min(100, nbins) # enforce max nbins
@@ -1206,17 +1187,20 @@ class SpykeWindow(QtGui.QMainWindow):
         mplw = self.OpenWindow('MPL')
         a = mplw.ax
         a.clear()
-        windowtitle = "n%d autocorr" % cluster.id
-        print(windowtitle)
+        if autocorr:
+            windowtitle = "n%d autocorr" % clusters[0].id
+        else:
+            windowtitle = "n%d xcorr with n%d" % (clusters[0].id, clusters[1].id)
         mplw.setWindowTitle(windowtitle)
-        a.set_title('binwidth: %.2f ms' % binwidth)
+        title = windowtitle + '; binwidth: %.2f ms' % binwidth
+        print(title)
+        a.set_title(title)
         a.set_xlabel('ISI (ms)')
         #a.set_ylabel('ISI rate (Hz)')
         c = 'black'
         a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
         a.set_xlim(trange)
         mplw.figurecanvas.draw()
-        #print(dts)
         
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
