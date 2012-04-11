@@ -4,6 +4,8 @@
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
 
+- make channel selection more visible in sortpanel
+
 - to improve axes contrast against data points, especially for mini axes, first draw three fat black lines, then clear depth buffer, then draw the 3 coloured lines on top
 
 - to prioritize pairwise comparisons of similar clusters, find all rms error values between all local pairwise clusters (local could be constrained to something really small, like 50um), and then sort them in increasing error. This could be controlled via CTRL+> and CTRL+<, and I guess would have to be recalculated on every keypress, just as it normally is, since in between you might merge/split/renumber clusters

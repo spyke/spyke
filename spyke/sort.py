@@ -1370,13 +1370,13 @@ class SortWindow(SpykeToolWindow):
         toolbar.setFloatable(True)
 
         actionDelete = QtGui.QAction("Del", self)
-        actionDelete.setToolTip('Delete')
+        actionDelete.setToolTip('Delete clusters')
         self.connect(actionDelete, QtCore.SIGNAL("triggered()"),
                      self.on_actionDelete_triggered)
         toolbar.addAction(actionDelete)
 
         actionMergeClusters = QtGui.QAction("M", self)
-        actionMergeClusters.setToolTip('Merge')
+        actionMergeClusters.setToolTip('Merge clusters')
         self.connect(actionMergeClusters, QtCore.SIGNAL("triggered()"),
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)

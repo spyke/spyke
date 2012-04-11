@@ -49,9 +49,12 @@ NEURONLINESTYLE = '-'
 ERRORALPHA = 0.15
 RASTERLINEWIDTH = 0.5
 RASTERLINESTYLE = '-'
+TREFANTIALIASED = True
 TREFLINEWIDTH = 0.5
 TREFCOLOUR = DARKGREY
+VREFANTIALIASED = True
 VREFLINEWIDTH = 0.5
+SELECTEDVREFLINEWIDTH = 3
 VREFCOLOUR = DARKGREY
 VREFSELECTEDCOLOUR = GREEN
 CARETCOLOUR = LIGHTBLACK
@@ -77,8 +80,8 @@ DEFNPLOTS = 50 # default number of plots to init in SortPanel
 DEFNFILLS = 50 # default number of fills to init in SortPanel
 
 CARETZORDER = 0 # layering
-VREFLINEZORDER = 1
-TREFLINEZORDER = 2
+TREFLINEZORDER = 1
+VREFLINEZORDER = 2
 RASTERZORDER = 3
 ERRORZORDER = 4
 PLOTZORDER = 5
@@ -394,14 +397,14 @@ class PlotPanel(FigureCanvas):
         self.init_rasters()
 
     def get_stream(self):
-        return self.spykeframe.hpstream # overridden for LFPPanel
+        return self.spykeframe.hpstream # overridden in LFPPanel
 
     stream = property(get_stream)
 
-    def get_sort(self):
-        return self.spykeframe.sort
+    def get_tres(self):
+        return self.stream.tres # overriden in SortPanel
 
-    sort = property(get_sort)
+    tres = property(get_tres)
 
     def get_AD2uV(self):
         # use the stream for all panel types except SortPanel
@@ -476,7 +479,7 @@ class PlotPanel(FigureCanvas):
         self.tlc = LineCollection([], linewidth=TREFLINEWIDTH,
                                   colors=TREFCOLOUR,
                                   zorder=TREFLINEZORDER,
-                                  antialiased=True,
+                                  antialiased=TREFANTIALIASED,
                                   visible=False)
         self.ax.add_collection(self.tlc) # add to axes' pool of LCs
         self._update_tref()
@@ -486,7 +489,7 @@ class PlotPanel(FigureCanvas):
         self.vlc = LineCollection([], linewidth=VREFLINEWIDTH,
                                   colors=VREFCOLOUR,
                                   zorder=VREFLINEZORDER,
-                                  antialiased=True,
+                                  antialiased=VREFANTIALIASED,
                                   visible=False)
         self.ax.add_collection(self.vlc) # add to axes' pool of LCs
         self._update_vref()
@@ -533,8 +536,10 @@ class PlotPanel(FigureCanvas):
         # 2 points per horizontal vref line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
         x = np.repeat(xpos, 2)
-        x[0::2] += self.tw[0] # left edge of each vref
-        x[1::2] += self.tw[1] # right edge of each vref
+        extra = (self.tw[1] - self.tw[0]) / 20 # vref horizontal overhang
+        endbit = self.tres # the width of one timepoint
+        x[0::2] += self.tw[0] - extra # left edge of each vref
+        x[1::2] += self.tw[1] + extra - endbit # right edge of each vref
         x.shape = nsegments, 2
         y = np.repeat(ypos, 2) # y vals are the same for left and right edge of each vref
         y.shape = nsegments, 2
@@ -956,6 +961,8 @@ class SpikePanel(PlotPanel):
         PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
 
+    tres = property(PlotPanel.get_tres)
+
     def do_layout(self):
         self.hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
         self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
@@ -1124,6 +1131,11 @@ class SortPanel(PlotPanel):
             return self.stream.converter.AD2uV
 
     AD2uV = property(get_AD2uV) # convenience for Plot objects to reference
+
+    def get_tres(self):
+        return self.sort.tres # override PlotPanel's definition
+
+    tres = property(get_tres)
 
     def init_plots(self, nplots=DEFNPLOTS):
         """Add Plots to the pool of available ones"""
@@ -1327,7 +1339,6 @@ class SortPanel(PlotPanel):
         button = evt.button
         if button == 1: # left click
             chan = self.get_closestchans(evt, n=1)
-            vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             if chan not in self.chans_selected: # it's unselected, select it
                 self.chans_selected.append(chan)
             else: # it's selected, unselect it
@@ -1342,15 +1353,24 @@ class SortPanel(PlotPanel):
     def update_vref_colours(self):
         """Reset colours of vrefs given chans in self.chans_selected"""
         colours = np.repeat(VREFCOLOUR, len(self.pos)) # clear all lines
+        linewidths = np.repeat(VREFLINEWIDTH, len(self.pos)) # clear all lines
         for chan in self.chans_selected: # set line colour of selected chans
-            vrefsegmenti = self.chan2vrefsegmenti[chan]
+            vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
+            linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
         self.vlc.set_color(list(colours))
+        self.vlc.set_linewidth(list(linewidths))
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):
         kwargs['tw'] = TW
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
+
+    def get_sort(self):
+        return self.spykeframe.sort
+
+    sort = property(get_sort)
+
 
 #class ChartSortPanel(SortPanel, ChartPanel):

@@ -1647,7 +1647,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
          <property name="geometry">
           <rect>
            <x>5</x>
-           <y>20</y>
+           <y>45</y>
            <width>46</width>
            <height>27</height>
           </rect>
@@ -1663,7 +1663,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
         <widget class="QLabel" name="label_20">
          <property name="geometry">
           <rect>
-           <x>175</x>
+           <x>123</x>
            <y>25</y>
            <width>21</width>
            <height>16</height>
@@ -1676,7 +1676,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
         <widget class="QSpinBox" name="xcorrsRangeSpinBox">
          <property name="geometry">
           <rect>
-           <x>120</x>
+           <x>68</x>
            <y>20</y>
            <width>52</width>
            <height>25</height>
@@ -1698,7 +1698,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
         <widget class="QLabel" name="label_21">
          <property name="geometry">
           <rect>
-           <x>65</x>
+           <x>10</x>
            <y>25</y>
            <width>61</width>
            <height>16</height>

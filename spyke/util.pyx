@@ -303,8 +303,8 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
     cdef long long DTSALLOCSIZE = 1000000
     ntx = x.shape[0]
     nty = y.shape[0]
-    maxxti = ntx-1
-    maxyti = nty-1
+    maxxti = ntx - 1
+    maxyti = nty - 1
     cdef np.ndarray[np.int64_t, ndim=1] dts = np.zeros(DTSALLOCSIZE, dtype=np.int64)
     cdef long long maxdtsi = dts.shape[0] - 1
 
