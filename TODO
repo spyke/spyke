@@ -4,8 +4,6 @@
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
 
-- make channel selection more visible in sortpanel
-
 - to improve axes contrast against data points, especially for mini axes, first draw three fat black lines, then clear depth buffer, then draw the 3 coloured lines on top
 
 - to prioritize pairwise comparisons of similar clusters, find all rms error values between all local pairwise clusters (local could be constrained to something really small, like 50um), and then sort them in increasing error. This could be controlled via CTRL+> and CTRL+<, and I guess would have to be recalculated on every keypress, just as it normally is, since in between you might merge/split/renumber clusters
@@ -17,8 +15,6 @@
     - easiest of all would be to always load all maxnumchans of data into the wavedata array for all spikes
 
 - when loading a .sort and .spike file, in case of missing .wave file, have ability to reload all wavedata from .srf file(s). This way, huge .wave files need not be backed up, they're really only there for speed and convenience.
-
-- during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on?
 
 - I think for num changed spike waveforms > some threshold, say 50k, it might be faster to resave the whole .wave file, instead of updating just the individual entries one at a time
 
@@ -1212,7 +1208,9 @@ DONE:
 - add an optional "notes" attrib to each Neuron, so you can jot down stuff about the cluster, like although it looks like it should be split, it's really just one neuron that's drifted over time. This would save you time having to figure out why you hadn't split it previously, saves duplication
     - or better yet, devise a way of marking clusters that you know/feel are good and clean, maybe by changing their text colour in the nlist. Give each neuron a "good" boolean flag, toggled by G key. Don't prevent changes to it, make it purely a reminder from the user to the user
 - save actual wavestd values to .ptcs files, now that it's being calculated and displayed during sorting
-
+- make channel selection more visible in sortpanel
+- during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on? This is by design. It's a lot faster to use fake data. Reload manually if desired.
+- need a reload button to reload all currently selected spikes from stream
 
 
 

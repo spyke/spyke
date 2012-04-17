@@ -28,6 +28,7 @@ import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange
+from core import lrrep2Darrstripis, rollwin2D
 from surf import EPOCH
 from plot import SpikeSortPanel, WHITE
 
@@ -40,18 +41,6 @@ SORTWINDOWHEIGHT = 1080
 
 MEANWAVESAMPLESIZE = 1000
 
-"""
-TODO: before extracting features from events, first align all chans wrt maxchan.
-Keep tabs on how far and in what direction each chan had to be realigned. Maybe
-take sum(abs(phase1V*realignments)) over all chans in the event, (weighted by
-amount of signal at phase1 on that chan) and call that another feature.
-Events with lots of realignment are more likely BPAPs, or are certainly a different
-mode of spike than those with very little realignment. To find the min of each chan
-reliably even in noise, find all the local minima within some trange of the maxchan
-phase1t (say +/- max allowable dphase/2, ie ~ +/- 175 us) and outside of any preceding
-lockouts. Then, take the temporal median of all the local minima found within those constraints,
-and align the channel to that. That gives you some confidence about reslilience to noise.
-"""
 
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
@@ -630,11 +619,12 @@ class Sort(object):
         chans are assumed to be a subset of channels of sids. Return sids
         that were actually moved and therefore need to be marked as dirty"""
         spikes = self.spikes
-        # TODO: make maxshift a f'n of interpolation factor
+        streamopen = self.stream.is_open()
         nspikes = len(sids)
         nchans = len(chans)
         wd = self.wavedata
         nt = wd.shape[2] # num timepoints in each waveform
+        # TODO: make maxshift a f'n of interpolation factor
         maxshift = 2 # shift +/- this many timepoints
         #maxshiftus = maxshift * self.stream.tres
         shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
@@ -670,8 +660,10 @@ class Sort(object):
         errors = np.zeros(len(shifts))
         dirtysids = []
         for sidi, sid in enumerate(sids):
+            # for speed, always add fake values at start and end. Only load
+            # real data when explicitly ask for it via reloadSpikes()
             '''
-            if srffopen:
+            if streamopen:
                 wave = self.stream[-maxshiftus+spike['t0'] : spike['t1']+maxshiftus]
                 chanis = wave.chans.searchsorted(chans)
                 widesd = wave.data[chanis]
@@ -691,9 +683,18 @@ class Sort(object):
             bestshifti = errors.argmin()
             bestshift = shifts[bestshifti]
             if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
+                # update time values:
+                dt = bestshift * self.tres # time to shift by, signed, in us
+                spikes['t'][sid] += dt # should remain halfway between t0 and t1
+                spikes['t0'][sid] += dt
+                spikes['t1'][sid] += dt
+                # might result in some out of bounds phasetis because the original phases
+                # have shifted off the ends. Opposite sign, referencing within wavedata:
+                spikes['phasetis'][sid] -= bestshift
+                # update sort.wavedata
                 wd[sid] = tempshifts[bestshifti]
                 shiftedsubsd[sidi] = tempsubshifts[bestshifti]
-                dirtysids.append(sid)
+                dirtysids.append(sid) # mark sid as dirty
         AD2uV = self.converter.AD2uV
         stdevbefore = AD2uV(subsd.std(axis=0).mean())
         stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
@@ -703,8 +704,9 @@ class Sort(object):
     def alignminmax(self, sids, to):
         """Align sids by their min or max. Return those that were actually moved
         and therefore need to be marked as dirty"""
+        if not self.stream.is_open():
+            raise RuntimeError("no open stream to reload spikes from")
         spikes = self.spikes
-
         V0s = spikes['V0'][sids]
         V1s = spikes['V1'][sids]
         Vss = np.column_stack((V0s, V1s))
@@ -721,10 +723,6 @@ class Sort(object):
         print("realigning %d spikes" % nspikes)
         if nspikes == 0: # nothing to do
             return [] # no sids to mark as dirty
-
-        srffopen = self.stream.is_open()
-        if not srffopen:
-            raise RuntimeError(".srf file(s) not available, can't realign to %s" % to)
 
         multichanphasetis = spikes['phasetis'][sids] # nspikes x nchans x 2 arr
         chanis = spikes['chani'][sids] # nspikes arr of max chanis
@@ -758,14 +756,73 @@ class Sort(object):
         spikes['aligni'][sids[alignis1]] = 0
 
         # update wavedata for each shifted spike
-        for sid, spike in zip(sids, spikes[sids]):
-            wave = self.stream[spike['t0']:spike['t1']]
-            nchans = spike['nchans']
-            chans = spike['chans'][:nchans]
-            wave = wave[chans]
-            self.wavedata[sid, 0:nchans] = wave.data
+        self.reloadSpikes(sids)
         return sids # mark all sids as dirty
 
+    def reloadSpikes(self, sids, fixtvals=False):
+        """Update wavedata of designated spikes from stream. It's the caller's
+        responsibility to mark sids as dirty and trigger resaving of .wave file"""
+        stream = self.stream
+        if not stream.is_open():
+            raise RuntimeError("no open stream to reload spikes from")
+        spikes = self.spikes
+        print('reloading %d spikes' % len(sids))
+
+        if fixtvals and float(self.__version__) <= 0.3:
+            """In sort.__version__ <= 0.3, t, t0, t1, and phasetis were not updated
+            during alignbest() calls. To fix this, load new data with old potentially
+            incorrect t0 and t1 values, and compare this new data to existing old data
+            in wavedata array. Find where the non-repeating parts of the old data fits
+            into the new, and calculate the correction needed to fix the time values,
+            and also reload new data according to these corrected time values."""
+            print('fixing potentially wrong time values during spike reloading')
+            nfixed = 0
+            for sid in sids:
+                #print('reloading sid: %d' % sid)
+                spike = spikes[sid]
+                nchans = spike['nchans']
+                chans = spike['chans'][:nchans]
+                od = self.wavedata[sid, 0:nchans] # old data
+                # indices that strip const values from left and right ends:
+                lefti, righti = lrrep2Darrstripis(od)
+                od = od[:, lefti:righti] # stripped old data
+                # load new data, use old incorrect t0 and t1, but they should be wide
+                # enough to encompass the old data:
+                newwave = stream[spike['t0']:spike['t1']]
+                newwave = newwave[chans]
+                nd = newwave.data # new data
+                width = od.shape[1] # rolling window width
+                assert width <= nd.shape[1]
+                odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
+                assert len(odinndis) == 1 # ensure exactly one hit of old data in new
+                odinndi = odinndis[0] # pull it out
+                dnt = odinndi - lefti # num timepoints to correct by, signed
+                #print('dnt: %d' % dnt)
+                if dnt != 0:
+                    dt = dnt * self.tres # time to correct by, signed, in us
+                    spikes['t'][sid] += dt # should remain halfway between t0 and t1
+                    spikes['t0'][sid] += dt
+                    spikes['t1'][sid] += dt
+                    # might result in some out of bounds phasetis because the original phases
+                    # have shifted off the ends. Opposite sign, referencing within wavedata:
+                    spikes['phasetis'][sid] -= dnt
+                    spike = spikes[sid] # update local var
+                    # reload spike data again now that t0 and t1 have changed
+                    newwave = stream[spike['t0']:spike['t1']]
+                    newwave = newwave[chans]
+                    nfixed += 1
+                self.wavedata[sid, 0:nchans] = newwave.data # update wavedata
+            print('fixed time values of %d spikes' % nfixed)
+        else:
+            # assume time values for all spikes are accurate
+            for sid in sids:
+                spike = spikes[sid]
+                wave = stream[spike['t0']:spike['t1']]
+                nchans = spike['nchans']
+                chans = spike['chans'][:nchans]
+                wave = wave[chans]
+                self.wavedata[sid, 0:nchans] = wave.data
+        print('reloaded %d spikes' % len(sids))
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -1468,6 +1525,14 @@ class SortWindow(SpykeToolWindow):
 
         toolbar.addSeparator()
 
+        actionReloadSpikes = QtGui.QAction("Reload", self)
+        actionReloadSpikes.setToolTip("Reload selected spikes")
+        self.connect(actionReloadSpikes, QtCore.SIGNAL("triggered()"),
+                     self.on_actionReloadSpikes_triggered)
+        toolbar.addAction(actionReloadSpikes)
+
+        toolbar.addSeparator()
+
         actionFindPrevMostSimilar = QtGui.QAction("<", self)
         actionFindPrevMostSimilar.setToolTip("Find previous most similar cluster")
         self.connect(actionFindPrevMostSimilar, QtCore.SIGNAL("triggered()"),
@@ -1871,6 +1936,21 @@ class SortWindow(SpykeToolWindow):
     def on_actionAlignBest_triggered(self):
         self.Align('best')
 
+    def on_actionReloadSpikes_triggered(self):
+        spw = self.spykewindow
+        sids = spw.GetAllSpikes()
+        sort = self.sort
+        self.sort.reloadSpikes(sids, fixtvals=True)
+        # add sids to the set of dirtysids to be resaved to .wave file:
+        spw.dirtysids.update(sids)
+        # update neuron templates:
+        unids = np.unique(sort.spikes['nid'][sids])
+        neurons = [ sort.neurons[nid] for nid in unids ]
+        for neuron in neurons:
+            neuron.update_wave() # update affected mean waveforms
+        # auto-refresh all plots
+        self.panel.updateAllItems()
+
     def on_actionFindPrevMostSimilar_triggered(self):
         self.findMostSimilarCluster('previous')
 
@@ -2090,7 +2170,7 @@ class SortWindow(SpykeToolWindow):
         neurons = [ s.neurons[nid] for nid in unids ]
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
-        # add dirtysids to the set to be saved:
+        # add dirtysids to the set to be resaved to .wave file:
         spw.dirtysids.update(dirtysids)
         # auto-refresh all plots
         self.panel.updateAllItems()

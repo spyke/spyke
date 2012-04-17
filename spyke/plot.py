@@ -326,7 +326,7 @@ class PlotPanel(FigureCanvas):
         self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         self.updateGeometry()
 
-        self.spykeframe = parent.parent()
+        self.spykewindow = parent.parent()
 
         self.available_plots = [] # pool of available Plots
         self.available_fills = [] # pool of available Fills
@@ -390,14 +390,14 @@ class PlotPanel(FigureCanvas):
         self._show_caret(True)
         for ref in ['TimeRef', 'VoltageRef', 'Caret']:
             # enforce menu item toggle state
-            self.spykeframe.ui.__dict__['action%s' % ref].setChecked(True)
+            self.spykewindow.ui.__dict__['action%s' % ref].setChecked(True)
         self.draw() # do a full draw of the ref lines
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
         self.init_plots()
         self.init_rasters()
 
     def get_stream(self):
-        return self.spykeframe.hpstream # overridden in LFPPanel
+        return self.spykewindow.hpstream # overridden in LFPPanel
 
     stream = property(get_stream)
 
@@ -426,7 +426,7 @@ class PlotPanel(FigureCanvas):
 
     def init_plots(self):
         """Create Plots for this panel"""
-        chans = self.spykeframe.chans_enabled
+        chans = self.spykewindow.chans_enabled
         self.qrplt = Plot(chans=chans, panel=self, visible=True) # just one for this base class
         self.used_plots[0] = self.qrplt
 
@@ -676,7 +676,7 @@ class PlotPanel(FigureCanvas):
         # update plots and rasters
         self.qrplt.update(wave, tref)
         self.qrplt.draw()
-        if self.spykeframe.ui.actionRasters.isChecked() and self.rasters != None:
+        if self.spykewindow.ui.actionRasters.isChecked() and self.rasters != None:
             self.update_rasters(tref)
             self.rasters.draw()
         self.blit(self.ax.bbox)
@@ -742,7 +742,7 @@ class PlotPanel(FigureCanvas):
             direction = 1
         else: # backward
             direction = -1
-        self.spykeframe.seek(self.qrplt.tref + direction*self.stream.tres)
+        self.spykewindow.seek(self.qrplt.tref + direction*self.stream.tres)
         evt.Skip() # allow left, right, pgup and pgdn to propagate to OnKeyDown handler
     '''
     def OnButtonPress(self, evt):
@@ -767,21 +767,21 @@ class PlotPanel(FigureCanvas):
             if button == 1: # left click
                 # set t as primary phase and align selected spike to it, set maxchan
                 self.alignselectedspike('primary', t, chan)
-                self.spykeframe.seek(t) # seek to t
+                self.spykewindow.seek(t) # seek to t
             elif button == 3: # right click
                 # designate t as secondary phase of selected spike
                 self.alignselectedspike('secondary', t)
-                self.spykeframe.seek(t) # seek to t
+                self.spykewindow.seek(t) # seek to t
         else:
             if button == 1: # left click
-                self.spykeframe.seek(t) # seek to t
+                self.spykewindow.seek(t) # seek to t
             elif button == 3: # right click
                 # toggle closest chan
-                if chan not in self.spykeframe.chans_enabled:
+                if chan not in self.spykewindow.chans_enabled:
                     enable = True
                 else:
                     enable = False
-                self.spykeframe.set_chans_enabled(chan, enable) # this calls self.set_chans()
+                self.spykewindow.set_chans_enabled(chan, enable) # this calls self.set_chans()
 
     def alignselectedspike(self, phasetype, t, chan=None):
         """Align spike selected in sortwin to t, where t is designated as the
@@ -810,7 +810,7 @@ class PlotPanel(FigureCanvas):
                 print('ERROR: selected maxchan not in spikes chanlist')
 
     def reloadSelectedSpike(self):
-        spw = self.topLevelWidget().parent() # spyke window
+        spw = self.spykewindow
         sort = spw.sort
         spikes = sort.spikes
         AD2uV = sort.converter.AD2uV
@@ -982,10 +982,10 @@ class SpikePanel(PlotPanel):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
-        self.spykeframe.spiketw = self.tw
-        self.spykeframe.frames['chart'].panel.cw = self.tw # update caret width
-        self.spykeframe.frames['chart'].panel._update_caret_width()
-        self.spykeframe.plot(frametypes='spike') # replot
+        self.spykewindow.spiketw = self.tw
+        self.spykewindow.frames['chart'].panel.cw = self.tw # update caret width
+        self.spykewindow.frames['chart'].panel._update_caret_width()
+        self.spykewindow.plot(frametypes='spike') # replot
 
     def _add_caret(self):
         """Disable for SpikePanel"""
@@ -1027,10 +1027,10 @@ class ChartPanel(PlotPanel):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
-        self.spykeframe.charttw = self.tw
-        self.spykeframe.frames['lfp'].panel.cw = self.tw # update caret width
-        self.spykeframe.frames['lfp'].panel._update_caret_width()
-        self.spykeframe.plot(frametypes='chart') # replot
+        self.spykewindow.charttw = self.tw
+        self.spykewindow.frames['lfp'].panel.cw = self.tw # update caret width
+        self.spykewindow.frames['lfp'].panel._update_caret_width()
+        self.spykewindow.plot(frametypes='chart') # replot
 
     def _add_vref(self):
         """Disable for ChartPanel"""
@@ -1061,14 +1061,14 @@ class LFPPanel(ChartPanel):
         ChartPanel.init_plots(self)
         # LFPPanel needs to filter chans after initing plots
         # get it right for first qrplt.update() call:
-        self.set_chans(self.spykeframe.chans_enabled)
+        self.set_chans(self.spykewindow.chans_enabled)
 
     def init_rasters(self):
         """Disable for LFPPanel"""
         pass
 
     def get_stream(self):
-        return self.spykeframe.lpstream # override ChartPanel(PlotPanel)'s hpstream
+        return self.spykewindow.lpstream # override ChartPanel(PlotPanel)'s hpstream
 
     stream = property(get_stream)
 
@@ -1096,8 +1096,8 @@ class LFPPanel(ChartPanel):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
-        self.spykeframe.lfptw = self.tw
-        self.spykeframe.plot(frametypes='lfp') # replot
+        self.spykewindow.lfptw = self.tw
+        self.spykewindow.plot(frametypes='lfp') # replot
 
     def _add_vref(self):
         """Override ChartPanel"""
@@ -1305,7 +1305,8 @@ class SortPanel(PlotPanel):
         else: # item[0] == 's' # it's a spike
             t = s.spikes['t'][id]
             wave = s.get_wave(id)
-        wave = wave[t+self.tw[0] : t+self.tw[1]] # slice wave according to time window of this panel
+        # slice wave according to time window of this panel:
+        wave = wave[t+self.tw[0] : t+self.tw[1]]
         plt.update(wave, t)
         plt.draw()
 
@@ -1368,7 +1369,7 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         self.gain = 1.5
 
     def get_sort(self):
-        return self.spykeframe.sort
+        return self.spykewindow.sort
 
     sort = property(get_sort)
 

@@ -1894,6 +1894,103 @@ def padarr(x, align=8):
     assert x.nbytes % align == 0
     return x
 
+def rollwin(a, width):
+    """Return a.nd + 1 dimensional array, where the last dimension contains
+    consecutively shifted windows of a of the given width, each shifted by 1
+    along the last dimension of a. This allows for calculating rolling stats,
+    as well as searching for the existence and position of subarrays in a
+    larger array, all without having to resort to Python loops or making
+    copies of a.
+
+    Taken from:
+        http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html
+        http://stackoverflow.com/questions/7100242/python-numpy-first-occurrence-of-subarray
+        http://stackoverflow.com/questions/6811183/rolling-window-for-1d-arrays-in-numpy
+
+    Ex 1:
+    >>> x = np.arange(10).reshape((2,5))
+    >>> rollwin(x, 3)
+    array([[[0, 1, 2], [1, 2, 3], [2, 3, 4]],
+           [[5, 6, 7], [6, 7, 8], [7, 8, 9]]])    
+    >>> np.mean(rollwin(x, 3), -1)
+    array([[ 1.,  2.,  3.],
+           [ 6.,  7.,  8.]])
+
+    Ex 2:
+    >>> a = np.arange(10)
+    >>> np.random.shuffle(a)
+    >>> a
+    array([7, 3, 6, 8, 4, 0, 9, 2, 1, 5])
+    >>> rollwin(a, 3) == [8, 4, 0]
+    array([[False, False, False],
+           [False, False, False],
+           [False, False, False],
+           [ True,  True,  True],
+           [False, False, False],
+           [False, False, False],
+           [False, False, False],
+           [False, False, False]], dtype=bool)
+    >>> np.all(rollwin(a, 3) == [8, 4, 0], axis=1)
+    array([False, False, False,  True, False, False, False, False], dtype=bool)
+    >>> np.where(np.all(rollwin(a, 3) == [8, 4, 0], axis=1))[0][0]
+    3
+    """
+    shape = a.shape[:-1] + (a.shape[-1] - width + 1, width)
+    strides = a.strides + (a.strides[-1],)
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+def rollwin2D(a, width):
+    """A modified version of rollwin. Allows for easy columnar search of 2D
+    subarray b within larger 2D array a, assuming both have the same number of
+    rows.
+    
+    Ex.
+    >>> a
+    array([[44, 89, 34, 67, 11, 92, 22, 72, 10, 81],
+           [52, 40, 29, 35, 67, 10, 24, 23, 65, 51],
+           [70, 58, 14, 34, 11, 66, 47, 68, 11, 56],
+           [70, 55, 47, 30, 39, 79, 71, 70, 67, 33]])    
+    >>> b
+    array([[67, 11, 92],
+           [35, 67, 10],
+           [34, 11, 66],
+           [30, 39, 79]])
+    >>> np.where((rollwin2D(a, 3) == b).all(axis=1).all(axis=1))[0]
+    array([3])
+    """
+    assert a.ndim == 2
+    shape = (a.shape[1] - width + 1, a.shape[0], width)
+    strides = (a.strides[-1],) + a.strides
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+def argcolsubarr2D(a, b):
+    """Return column index of smaller subarray b within bigger array a. Both
+    must be 2D and have the same number of rows. Raises IndexError if b is not
+    a subarray of a"""
+    assert a.ndim == b.ndim == 2
+    assert a.shape[0] == b.shape[0] # same nrows
+    width = b.shape[1] # ncols in b
+    return np.where((rollwin2D(a, width) == b).all(axis=1).all(axis=1))[0]
+
+def lrrep2Darrstripis(a):
+    """Return left and right slice indices that strip repeated values from all rows
+    from left and right ends of 2D array a, such that a[:, lefti:righti] gives you
+    the stripped version"""
+    assert a.ndim == 2
+    left = a[:, :1] # 2D column vector
+    right = a[:, -1:] # 2D column vector
+    leftcolis = argcolsubarr2D(a, left)
+    if len(leftcolis) == 1: # only 1 hit, at the far left edge
+        lefti = 0
+    else: # multiple hits, get slice index of rightmost consecutive hit
+        lefti = max(np.where(np.diff(leftcolis) == 1)[0]) + 1
+    rightcolis = argcolsubarr2D(a, right)
+    if len(rightcolis) == 1: # only 1 hit, at the far right edge
+        righti = a.shape[1]
+    else: # multiple hits, get slice index of leftmost consecutive hit
+        righti = -(max(np.where(np.diff(rightcolis)[::-1] == 1)[0]) + 1)
+    return lefti, righti
+
 def normpdf(p, lapcorrect=1e-10):
     """Ensure p is normalized (sums to 1). Return p unchanged if it's already normalized.
     Otherwise, return it normalized. I guess this treats p as a pmf, not strictly a pdf.
