@@ -303,6 +303,26 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
+    def on_actionConvert_0_3_to_0_4_triggered(self):
+        """Convert self.sort from version 0.3 to 0.4 by reloading all spike waveforms
+        and fixing all of their time values"""
+        s = self.sort
+        v = float(s.__version__)
+        if v > 0.3:
+            print('no conversion necessary')
+            return
+        if v != 0.3:
+            print('best not to try and convert from anything other than v0.3')
+            return
+        print('converting sort from version 0.3 to 0.4')
+        sids = np.arange(s.nspikes)
+        s.reloadSpikes(sids, fixtvals=True)
+        # add sids to the set of dirtysids to be resaved to .wave file:
+        self.dirtysids.update(sids)
+        s.__version__ = '0.4' # update
+        print('done converting sort from version 0.3 to 0.4. Now save me!')
+
+    @QtCore.pyqtSlot()
     def on_actionClose_triggered(self):
         # TODO: add confirmation dialog if Sort not saved
         self.CloseSurfOrTrackFile()
@@ -2024,25 +2044,6 @@ class SpykeWindow(QtGui.QMainWindow):
             core.updatenpyfilerows(self.join(fname), sids, s.wavedata)
         print('done saving wave file, took %.3f sec' % (time.time()-t0))
         s.wavefname = fname
-
-    def convertpoint3topoint4(self):
-        """Convert self.sort from version 0.3 to 0.4 by reloading all spike waveforms
-        and fixing all of their time values"""
-        s = self.sort
-        v = float(s.__version__)
-        if v > 0.3:
-            print('no conversion necessary')
-            return
-        if v != 0.3:
-            print('best not to try and convert from anything other than v0.3')
-            return
-        print('converting sort from version 0.3 to 0.4')
-        sids = np.arange(s.nspikes)
-        s.reloadSpikes(sids, fixtvals=True)
-        # add sids to the set of dirtysids to be resaved to .wave file:
-        self.dirtysids.update(sids)
-        s.__version__ = '0.4' # update
-        print('done converting sort from version 0.3 to 0.4. Now save me!')
 
     def OpenWindow(self, windowtype):
         """Create and bind a window, show it, plot its data if applicable"""
