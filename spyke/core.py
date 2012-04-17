@@ -1944,7 +1944,7 @@ def rollwin2D(a, width):
     subarray b within larger 2D array a, assuming both have the same number of
     rows.
     
-    Ex.
+    Ex:
     >>> a
     array([[44, 89, 34, 67, 11, 92, 22, 72, 10, 81],
            [52, 40, 29, 35, 67, 10, 24, 23, 65, 51],
@@ -1975,7 +1975,17 @@ def argcolsubarr2D(a, b):
 def lrrep2Darrstripis(a):
     """Return left and right slice indices that strip repeated values from all rows
     from left and right ends of 2D array a, such that a[:, lefti:righti] gives you
-    the stripped version"""
+    the stripped version.
+
+    Ex:
+    >>> a
+    array([[44, 44, 44, 44, 89, 34, 67, 11, 92, 22, 72, 10, 81, 81, 81],
+           [52, 52, 52, 52, 40, 29, 35, 67, 10, 24, 23, 65, 51, 51, 51],
+           [70, 70, 70, 70, 58, 14, 34, 11, 66, 47, 68, 11, 56, 56, 56],
+           [70, 70, 70, 70, 55, 47, 30, 39, 79, 71, 70, 67, 33, 33, 33]])
+    >>> lrrep2Darrstripis(a)
+    (3, -2)
+    """
     assert a.ndim == 2
     left = a[:, :1] # 2D column vector
     right = a[:, -1:] # 2D column vector

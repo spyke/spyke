@@ -997,8 +997,11 @@ class SpykeWindow(QtGui.QMainWindow):
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
         if sids == None:
             sids = self.GetAllSpikes() # only selected spikes
-        if len(sids) == 0: # if none selected, return all spike ids
-            sids = self.sort.spikes['id']
+        if len(sids) == 0: # if none selected
+            if comps: # if component analysis selected
+                raise RuntimeError('need non-empty spike selection to do component analysis')
+            else: # return all spike ids
+                sids = self.sort.spikes['id']
         selchans = None
         kind = None
         if comps: # only potentially do auto chan selection if using PCs/ICs:

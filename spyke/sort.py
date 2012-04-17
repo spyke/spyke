@@ -1391,7 +1391,6 @@ class SortWindow(SpykeToolWindow):
         self._source = None # source cluster for comparison
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
-        # make ENTER or double-click in nlist trigger the plot button:
         self.nslist = NSList(self)
         self.nslist.setToolTip('Sorted spike list')
         self.uslist = USList(self) # should really be multicolumn tableview
@@ -1546,8 +1545,8 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionFindNextMostSimilar)
 
         actionPlotClusterHist = QtGui.QAction("H", self)
-        actionPlotClusterHist.setToolTip("Plot cluster histogram, calculate overlap index if "
-                                     "2 clusters selected")
+        actionPlotClusterHist.setToolTip("Plot cluster histogram, calculate overlap index "
+                                         "if 2 clusters selected")
         self.connect(actionPlotClusterHist, QtCore.SIGNAL("triggered()"),
                      self.on_actionPlotClusterHist_triggered)
         toolbar.addAction(actionPlotClusterHist)

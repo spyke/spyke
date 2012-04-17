@@ -1,5 +1,3 @@
-- if any components (PCs/ICs) are selected for plotting, and you plot with no spikes or neurons selected, just return. Otherwise it tries to find common chans for all spikes in sort which can take a long time, and always eventually fails anyway
-
 - save and restore chan selection, component type selection, and xyz dimension selection on .sort file save and load
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
@@ -1211,6 +1209,7 @@ DONE:
 - make channel selection more visible in sortpanel
 - during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on? This is by design. It's a lot faster to use fake data. Reload manually if desired.
 - need a reload button to reload all currently selected spikes from stream
+- if any components (PCs/ICs) are selected for plotting, and you plot with no spikes or neurons selected, just return. Otherwise it tries to find common chans for all spikes in sort which can take a long time, and always eventually fails anyway
 
 
 
