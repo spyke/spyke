@@ -35,6 +35,7 @@ from plot import SpikeSortPanel, WHITE
 MAXCHANTOLERANCE = 100 # um
 
 MAINSPLITTERPOS = 300
+VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
 HSPLITTERPOS = intround(MAINSPLITTERPOS * 3 / 4) # maximize nlist width
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1080
@@ -1389,6 +1390,14 @@ class SortWindow(SpykeToolWindow):
         toolbar = self.setupToolbar()
 
         self._source = None # source cluster for comparison
+        self.slider = QtGui.QSlider(Qt.Horizontal, self)
+        self.slider.setInvertedControls(True)
+        self.slider.setToolTip('Position of sliding spike selection time window')
+        self.connect(self.slider, QtCore.SIGNAL("valueChanged(int)"),
+                     self.on_slider_valueChanged)
+        self.connect(self.slider, QtCore.SIGNAL("sliderPressed()"),
+                     self.on_slider_sliderPressed)
+
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
         self.nslist = NSList(self)
@@ -1402,6 +1411,7 @@ class SortWindow(SpykeToolWindow):
         self.hsplitter.addWidget(self.nslist)
 
         self.vsplitter = QtGui.QSplitter(Qt.Vertical)
+        self.vsplitter.addWidget(self.slider)
         self.vsplitter.addWidget(self.hsplitter)
         self.vsplitter.addWidget(self.uslist)
 
@@ -2057,6 +2067,35 @@ class SortWindow(SpykeToolWindow):
         for i in sortedmassi[::-1]:
             a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
         mplw.figurecanvas.draw()
+
+    def on_slider_valueChanged(self, slideri):
+        self.nslist.clearSelection() # emits selectionChanged signal, .reset() doesn't
+        if self.nslist.model().sliding == False:
+            self.nslist.model().sids.sort() # change from nid order to sid order
+            self.nslist.updateAll() # update to reflect new ordering
+            self.nslist.model().sliding = True
+        nsamples = int(self.nsamplesComboBox.currentText())
+        rows = np.arange(slideri, slideri+nsamples)
+        self.nslist.selectRows(rows)
+
+    def on_slider_sliderPressed(self):
+        """Make slider click (without movement) highlight the first nsamples
+        or fewer spikes when slider is at 0 position"""
+        slideri = self.slider.value()
+        if slideri == 0:
+            nsamples = int(self.nsamplesComboBox.currentText())
+            nsamples = min(nsamples, self.nslist.model().nspikes)
+            rows = np.arange(nsamples)
+            self.nslist.selectRows(rows)
+
+    def update_slider(self):
+        """Update slider limits and step sizes"""
+        nsamples = int(self.nsamplesComboBox.currentText())
+        nsids = len(self.nslist.sids)
+        ulim = max(nsids-nsamples, 1) # upper limit
+        self.slider.setRange(0, ulim)
+        self.slider.setSingleStep(1)
+        self.slider.setPageStep(nsamples)
 
     def findMostSimilarCluster(self, which='next'):
         """If no chans selected, compare source to next or previous most similar cluster

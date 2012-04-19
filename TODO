@@ -1,3 +1,5 @@
+- highlight currently selected spikes in cluster window somehow, assuming they're plotted in cluster window. Maybe make them 2x2 pix instead of just a single pixel?
+
 - save and restore chan selection, component type selection, and xyz dimension selection on .sort file save and load
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
@@ -1210,6 +1212,10 @@ DONE:
 - during best fit alignment, message claims fake data is being used on either side, even when the correct .srf file is open. What's going on? This is by design. It's a lot faster to use fake data. Reload manually if desired.
 - need a reload button to reload all currently selected spikes from stream
 - if any components (PCs/ICs) are selected for plotting, and you plot with no spikes or neurons selected, just return. Otherwise it tries to find common chans for all spikes in sort which can take a long time, and always eventually fails anyway
+- add sort slider
+    - make spike slider click select spikes at window position zero. Otherwise, you need to slide to at least position 1 before any spikes are selected
+- keyboard movement of sliders doesn't seem to trigger sliderMoved(). Same goes for mouse scrolling - use valueChanged instead
+
 
 
 

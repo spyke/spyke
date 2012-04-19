@@ -44,7 +44,8 @@ import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
 import surf
-from sort import Sort, SortWindow, MAINSPLITTERPOS, HSPLITTERPOS, MEANWAVESAMPLESIZE
+from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, HSPLITTERPOS
+from sort import MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
 from detect import Detector
 from extract import Extractor
@@ -537,8 +538,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.seek(self.str2t['end'])
 
     @QtCore.pyqtSlot(int)
-    def on_slider_sliderMoved(self, slideri):
-        self.seek(slideri * SLIDERTRES)
+    def on_slider_valueChanged(self, slideri):
+        t = slideri * SLIDERTRES
+        self.seek(t)
 
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
@@ -1620,6 +1622,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.slider.setValue(self.t // SLIDERTRES)
         self.ui.slider.setSingleStep(1)
         self.ui.slider.setPageStep((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
+        self.ui.slider.setInvertedControls(True)
 
         self.EnableSurfWidgets(True)
         self.EnableSortWidgets(True) # sorting is now possible
@@ -2089,6 +2092,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 window.panel.draw_refs() # prevent plot artifacts
             if windowtype == 'Sort':
                 window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
+                window.vsplitter.moveSplitter(VSPLITTERPOS, 1)
                 window.hsplitter.moveSplitter(HSPLITTERPOS, 1)
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
@@ -2332,7 +2336,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # performance, maybe mpl is already doing something like this?
         if self.t != oldt: # update controls first so they don't lag
             self.ui.filePosLineEdit.setText(str(self.t))
-            self.ui.slider.setValue(self.t // SLIDERTRES)
+            if self.t % SLIDERTRES == 0: # only update slider if at a SLIDERTRES tick
+                self.ui.slider.setValue(self.t // SLIDERTRES)
             self.plot()
     
     def step(self, direction):
