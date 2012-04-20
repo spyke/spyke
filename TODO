@@ -1,4 +1,7 @@
+- as a final verification pass, for each cluster, you could take its localized position in x, y and plot against all other clusters within lockout radius of it. But really, I'm basically doing that already. If I select all of a clusters chans while doing find next/previous most similar, then I'm comparing to all other clusters within the lockout radius. The upshot of the way I'm doing it already is that those results are sorted in terms of waveform similarity.
+
 - highlight currently selected spikes in cluster window somehow, assuming they're plotted in cluster window. Maybe make them 2x2 pix instead of just a single pixel?
+    - this would also make manual spike selection in cluster window much more useful. You'd have visual feedback about which points you have and haven't selected!
 
 - save and restore chan selection, component type selection, and xyz dimension selection on .sort file save and load
 

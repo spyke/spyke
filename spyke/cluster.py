@@ -540,10 +540,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         # grab back buffer
         #GL.glReadBuffer(GL.GL_BACK) # defaults to back
         # find rgb at or around cursor coords, decode sid
-        backbuffer = GL.glReadPixelsub(x-1, y-1, 3, 3, GL.GL_RGB) # unsigned byte
+        pb = 2 # pixel border to include, around x, y
+        backbuffer = GL.glReadPixelsub(x-pb, y-pb, 2*pb+1, 2*pb+1, GL.GL_RGB) # unsigned byte
         if (backbuffer == 255).all(): # no hit
             return
-        sid = self.decodeRGB(backbuffer[1, 1])
+        sid = self.decodeRGB(backbuffer[pb, pb]) # check center of backbuffer
         if sid != None:
             #print('hit at exact cursor pos')
             return sid # hit at exact cursor position
