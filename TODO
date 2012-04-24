@@ -1,3 +1,20 @@
+- make separation index a proper metric somehow? From -1 to 1, and if it's < 0, the distribution pair has poor seperation?
+
+- I'm often duplicating my efforts, comparing the same pair of clusters over and over, even when they haven't changed their spike populations, like when say they've been renumbered and recoloured. This is especially bad when a pair isn't obviously different, and needs to be plotted on a specific set of chans, and maybe needs ICA and/or time. I need two things to solve this:
+    1 - a way of designating that a pair of clusters is significantly different from each other. Then, when I go cycling through clusters most similar to current one, those that are significantly different should be highlighted differently somehow
+        - maybe the S key in the sort window can be used to designate a pair as significantly different, shouldn't conflict with S key in cluster window for selecting spikes under cursor
+        - maybe the "S" button on the sortwin toolbar should be togglable, and only enabled when exactly two clusters are currently selected. Then, the user looks at the state of the toggle button to find out if they've previously been found to be significantly different. Could also colour significantly different pairs say black when highlighted
+    2 - a way of keeping track of pairs when their IDs change, and a way to stop keeping track of them when either of their member spikes change. Might use hashes for this somehow. Maybe take the hash of the set of sids of the neuron pair, use that as a key into a dict, and store a boolean to represent whether they're significantly different or not. Could also store the overlap index, overlap area ratio, what chans and what dimensions they were deemed significant on. How expensive is it to be constantly calculating hashes of thousands or hundreds of thousands of integers?
+        - to be really careful, should hash each neuron's sids separately, then hash the hashes. That way, if two neurons have swapped some spikes, the hash is different, which is what we want
+        - a package called joblib might be useful: http://packages.python.org/joblib/memory.html
+        - looks like hashlib.md5(arr).hexdigest() is lightning fast, even on 1e6 length numpy int arrays. This is good! Looks like it only works on the data, not the shape or data type. md5 isn't secure against attacks, but it's fast and that's all I care about
+        - note that order matters in a hash. All sids in a neuron are sorted, so that's fine, but then I need to be consistent about hashing the two hashes together. Maybe hash them in order of which has the lowest id spike.
+        - store a dict with fields:
+            - significant: overlap index/separation index? or just boolean? maybe just boolean, since overlap/separation index can always be recalc'd given info below
+            - CA: component analysis (PCA, PCA/ICA, ICA)
+            - dims: x, y, z dimensions
+            - chans: arr or list of selected chans
+
 - as a final verification pass, for each cluster, you could take its localized position in x, y and plot against all other clusters within lockout radius of it. But really, I'm basically doing that already. If I select all of a clusters chans while doing find next/previous most similar, then I'm comparing to all other clusters within the lockout radius. The upshot of the way I'm doing it already is that those results are sorted in terms of waveform similarity.
 
 - highlight currently selected spikes in cluster window somehow, assuming they're plotted in cluster window. Maybe make them 2x2 pix instead of just a single pixel?
@@ -30,6 +47,7 @@
 - when calculating matches, calculate not just against unclustered spikes, but also against all multiunit spikes, ie all spikes with nid < 1
 
 - need a quantitative criteria for deciding if a cluster should be classified as multiunit
+    - some kind of Vpp of template to stdev ratio, something akin to signal to noise ratio
 
 - seems the Qt nlist labelling bug, where 3 digit nids are replaced by ... when there are -ve numbers in the list, seems to go away once you hit values around 120, maybe cuz the two takes up more space?
     - or, maybe it's when the negative numbers start hitting 2 digits
@@ -56,7 +74,7 @@
 
 - finish implementing discretized cluster space using huge sparse matrix
 
-- NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, and a bit of noise (but how much? some fraction of sigma?) when they stop moving (or just by default on every iter)
+- NVS: try using x nearest neighbours instead of sigma, and to keep scout points from getting stuck in local density maxima, add a bit of noise (but how much? some fraction of sigma?) when they stop moving (or just by default on every iter)
 
 - WISHLIST: add vertical line threshold indicator to match error histogram, and make it user settable, and keep it synchronized with the match thresh spin edit in match tab
 

@@ -1970,10 +1970,10 @@ class SortWindow(SpykeToolWindow):
         """Plot histogram of selected clusters along a single dimension. If one cluster
         selected, plot its distribution along its first (x) dimension. If two clusters
         are selected, project them onto axis connecting their centers, and calculate
-        overlap index between them. Find max of the two stdevs of projections of points
-        from both clusters. Take ratio of 3*maxstdevs and the distance between the cluster
-        centers to get overlap index. An index > 1 suggests the two clusters are ovelapping
-        significantly.
+        separation index between them. Find max of the two stdevs of projections of points
+        from both clusters. Take ratio of distance between the cluster centers and
+        3*maxstdevs to get separation index. An index < 1 suggests the two clusters are
+        not significantly separated from each other.
                 
         Another way would be to simply take the fraction of area that the two distribs
         overlap. For the two distribs, at each bin, take min value of the two. Add up all
@@ -1987,9 +1987,9 @@ class SortWindow(SpykeToolWindow):
             print("no clusters selected")
             return
         if len(clusters) == 2:
-            calc_overlap = True
+            calc_measures = True
         else:
-            calc_overlap = False
+            calc_measures = False
             projdimi = 0
         # get param matrix X for points in all clusters, given current dim and
         # channel selection:
@@ -2005,7 +2005,7 @@ class SortWindow(SpykeToolWindow):
         for cluster in clusters:
             sidis = sids.searchsorted(cluster.neuron.sids)
             points.append(X[sidis])
-        if calc_overlap:
+        if calc_measures:
             # centers of both clusters, use median:
             c0 = np.median(points[0], axis=0) # ndims vector
             c1 = np.median(points[1], axis=0)
@@ -2021,11 +2021,11 @@ class SortWindow(SpykeToolWindow):
         projs = []
         for cpoints in points:
             projs.append(np.dot(cpoints-c0, line))
-        if calc_overlap:
+        if calc_measures:
             d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
             # measure whether centers are at least 3 of the bigger stdevs away from
             # each other:
-            overlapindex = 3 * max(projs[0].std(), projs[1].std()) / d
+            sepindex = d / (3 * max(projs[0].std(), projs[1].std()))
             #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
         proj = np.concatenate(projs)
         nbins = intround(np.sqrt(len(proj))) # seems like a good heuristic
@@ -2040,7 +2040,7 @@ class SortWindow(SpykeToolWindow):
         # Take the fraction of area that the two distribs overlap.
         # At each bin, take min value of the two distribs. Add up all those min values,
         # and divide by the mass of the smaller distrib.
-        if calc_overlap:
+        if calc_measures:
             overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
             djs = core.DJS(hists[0], hists[1])
         # plotting:
@@ -2054,9 +2054,11 @@ class SortWindow(SpykeToolWindow):
         windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
         print(windowtitle)
         mplw.setWindowTitle(windowtitle)
-        if calc_overlap:
-            title = ("overlap: index=%.3f, area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
-                     % (overlapindex, overlaparearatio, djs, np.sqrt(djs)))
+        if calc_measures:
+            #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
+            #         % (sepindex, overlaparearatio, djs, np.sqrt(djs)))
+            title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f"
+                     % (sepindex, overlaparearatio, djs))
             print(title)
             a.set_title(title)
         cs = core.rgb2hex([ cluster.color for cluster in clusters ])
