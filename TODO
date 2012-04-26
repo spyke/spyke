@@ -1,5 +1,3 @@
-- make separation index a proper metric somehow? From -1 to 1, and if it's < 0, the distribution pair has poor seperation?
-
 - I'm often duplicating my efforts, comparing the same pair of clusters over and over, even when they haven't changed their spike populations, like when say they've been renumbered and recoloured. This is especially bad when a pair isn't obviously different, and needs to be plotted on a specific set of chans, and maybe needs ICA and/or time. I need two things to solve this:
     1 - a way of designating that a pair of clusters is significantly different from each other. Then, when I go cycling through clusters most similar to current one, those that are significantly different should be highlighted differently somehow
         - maybe the S key in the sort window can be used to designate a pair as significantly different, shouldn't conflict with S key in cluster window for selecting spikes under cursor
@@ -15,6 +13,10 @@
             - dims: x, y, z dimensions
             - chans: arr or list of selected chans
 
+- when checking to see if should use saved PCs/ICs for plotting or clustering, would probably be best to use a hash of the chans and spike ids and whatever else is needed, instead of relying on just the chans and cluster ids, which I think I currently do, to signify that the previous set of calculated components are valid for the currently requested set of spikes and chans
+
+- add adjustable size brushes for spike selection - would be nice to actually see the brush too when the "S" select key is held down in the cluster window
+
 - as a final verification pass, for each cluster, you could take its localized position in x, y and plot against all other clusters within lockout radius of it. But really, I'm basically doing that already. If I select all of a clusters chans while doing find next/previous most similar, then I'm comparing to all other clusters within the lockout radius. The upshot of the way I'm doing it already is that those results are sorted in terms of waveform similarity.
 
 - highlight currently selected spikes in cluster window somehow, assuming they're plotted in cluster window. Maybe make them 2x2 pix instead of just a single pixel?
@@ -26,9 +28,11 @@
 
 - to improve axes contrast against data points, especially for mini axes, first draw three fat black lines, then clear depth buffer, then draw the 3 coloured lines on top
 
+- make separation index a proper metric somehow? From -1 to 1, and if it's < 0, the distribution pair has poor seperation?
+
 - to prioritize pairwise comparisons of similar clusters, find all rms error values between all local pairwise clusters (local could be constrained to something really small, like 50um), and then sort them in increasing error. This could be controlled via CTRL+> and CTRL+<, and I guess would have to be recalculated on every keypress, just as it normally is, since in between you might merge/split/renumber clusters
 
-- sometimes you get spikes with rather different maxchans, and therefore very different sets of chans, that belong together in a cluster, yet it's hard to ensure they really do because they share so few chans. Have a button that reloads all the currently selected spikes such that they all share the same superset of chans. However, there is a max num chans you can include for each spike, and that's hardcoded into the wavedata and spikes array. So you'll have to prioritize the chans to store. Sort the potential chans in order of increasing distance from the mean of the selected spikes, or the chan closest to that mean. Then, ensure that each spike's maxchan is included in this new superset. If not, for any such spikes, replace the most distant chan from the mean with the maxchan. That way you ensure that you never lose the spikes maxchan as determined during detection.
+- sometimes you get spikes with rather different maxchans, and therefore very different sets of chans, that belong together in a cluster, yet it's hard to ensure they really do because they share so few chans. This seems to happen most often for spikes clost to a dead channel on the polytrode. Have a button that reloads all the currently selected spikes such that they all share the same superset of chans. However, there is a max num chans you can include for each spike, and that's hardcoded into the wavedata and spikes array. So you'll have to prioritize the chans to store. Sort the potential chans in order of increasing distance from the mean of the selected spikes, or the chan closest to that mean. Then, ensure that each spike's maxchan is included in this new superset. If not, for any such spikes, replace the most distant chan from the mean with the maxchan. That way you ensure that you never lose the spikes maxchan as determined during detection.
     - don't forget to also update chans and nchans for each spike
     - the easier, though less correct thing to do, would be to consider spikes to have nothing but zeros on chans outside of their chanlist
     - even easier would be to increase the inclusion radius a bit and redo detection
@@ -1236,6 +1240,7 @@ DONE:
 - add sort slider
     - make spike slider click select spikes at window position zero. Otherwise, you need to slide to at least position 1 before any spikes are selected
 - keyboard movement of sliders doesn't seem to trigger sliderMoved(). Same goes for mouse scrolling - use valueChanged instead
+- when called during select keypress, pick() should return all points under the brush, not just the first one found. This would help make painting larger areas of points a lot easier
 
 
 

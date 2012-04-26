@@ -986,10 +986,10 @@ class NList(SpykeListView):
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
         selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
-        if 1 <= len(selnids) <= 3: # populate nslist if exactly 1, 2 or 3 neurons selected
-            self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
-        else:
-            self.sortwin.nslist.neurons = []
+        #if 1 <= len(selnids) <= 3: # populate nslist if exactly 1, 2 or 3 neurons selected
+        self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
+        #else:
+        #    self.sortwin.nslist.neurons = []
 
     def on_actionItem_activated(self, index):
         sw = self.sortwin
@@ -1036,11 +1036,11 @@ class NSList(SpykeListView):
         if self.model().sliding == True:
             self.neurons = self.neurons # trigger NSListModel.set_neurons() call
             self.model().sliding = False
-        start = 0
         for neuron in self.neurons:
-            stop = start + neuron.nspikes
-            SpykeListView.selectRandom(self, start, stop, nsamples)
-            start = stop # update for next neuron
+            allrows = self.sids.searchsorted(neuron.sids)
+            nsamples = min(nsamples, len(allrows))
+            rows = random.sample(allrows, nsamples)
+            self.selectRows(rows, scrollTo=False)
 
 
 class USList(SpykeListView):
@@ -1151,6 +1151,7 @@ class NSListModel(SListModel):
         self._neurons = neurons
         if neurons:
             self.sids = np.concatenate([ neuron.sids for neuron in neurons ])
+            self.sids.sort() # keep them sorted
             self.sortwin.slider.setEnabled(True)
         else:
             self.sids = np.empty(0, dtype=np.int32)

@@ -517,8 +517,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         MV[3, :2] = x, y # set first two entries of 4th row to x, y
         self.MV = MV
 
-    def pick(self, x, y):
-        """Return sid of point at window coords x, y (bottom left origin)"""
+    def pick(self, x, y, pb=2, multiple=False):
+        """Return sid of point at window coords x, y (bottom left origin),
+        or first or multiple sids that fall within 2*pb+1 pix on a side square centered
+        on x, y. pb is the pixel border to include around x, y"""
         width = self.size().width()
         height = self.size().height()
         #print('coords: %d, %d' % (x, y))
@@ -540,19 +542,22 @@ class GLWidget(QtOpenGL.QGLWidget):
         # grab back buffer
         #GL.glReadBuffer(GL.GL_BACK) # defaults to back
         # find rgb at or around cursor coords, decode sid
-        pb = 2 # pixel border to include, around x, y
         backbuffer = GL.glReadPixelsub(x-pb, y-pb, 2*pb+1, 2*pb+1, GL.GL_RGB) # unsigned byte
         if (backbuffer == 255).all(): # no hit
             return
-        sid = self.decodeRGB(backbuffer[pb, pb]) # check center of backbuffer
-        if sid != None:
-            #print('hit at exact cursor pos')
-            return sid # hit at exact cursor position
+        if not multiple:
+            sid = self.decodeRGB(backbuffer[pb, pb]) # check center of backbuffer
+            if sid != None:
+                #print('hit at exact cursor pos')
+                return sid # hit at exact cursor position
         hitpix = (backbuffer != [255, 255, 255]).sum(axis=2) # 2D array with nonzero entries at hits
-        ri = np.where(hitpix.ravel())[0][0] # get ravelled index of first hit
-        i, j = np.unravel_index(ri, dims=hitpix.shape) # unravel to 2D index
-        #print('hit at %d, %d' % (i, j))
-        return self.decodeRGB(backbuffer[i, j]) # should be a valid sid
+        if not multiple:
+            ri = np.where(hitpix.ravel())[0][0] # get ravelled index of first hit
+            i, j = np.unravel_index(ri, dims=hitpix.shape) # unravel to 2D index
+            #print('hit at %d, %d' % (i, j))
+            return self.decodeRGB(backbuffer[i, j]) # should be a valid sid
+        ijs = zip(*np.where(hitpix)) # list of ij tuples
+        return np.asarray([ self.decodeRGB(backbuffer[i, j]) for i, j in ijs ])
 
     def decodeRGB(self, rgb):
         """Convert encoded rgb value to sid"""
@@ -584,7 +589,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def mouseDoubleClickEvent(self, event):
         """Clear selection and select spike and/or cluster under the cursor, if any"""
-        self.selectItemUnderCursor(clear=True)
+        self.selectItemsUnderCursor(clear=True)
 
     def mouseMoveEvent(self, event):
         buttons = event.buttons()
@@ -696,13 +701,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_Z: # make z axis point up
             self.rotateZUp()
         elif key == Qt.Key_S: # select item under the cursor, if any
-            self.selectItemUnderCursor(on=True, clear=False)
+            self.selectItemsUnderCursor(on=True, clear=False)
         elif key == Qt.Key_D: # deselect item under the cursor, if any
-            self.selectItemUnderCursor(on=False, clear=False)
+            self.selectItemsUnderCursor(on=False, clear=False)
         elif key == Qt.Key_P:
             self.showProjectionDialog()            
         #elif key == Qt.Key_Space: # clear and select item under cursor, if any
-        #    self.selectItemUnderCursor(on=True, clear=True)
+        #    self.selectItemsUnderCursor(on=True, clear=True)
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
@@ -744,7 +749,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         else:
             QtGui.QToolTip.hideText()
 
-    def selectItemUnderCursor(self, on=True, clear=False):
+    def selectItemsUnderCursor(self, on=True, clear=False):
         spw = self.spw
         sw = spw.windows['Sort']
         if clear:
@@ -754,9 +759,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         pos = self.mapFromGlobal(globalPos)
         x = pos.x()
         y = self.size().height() - pos.y()
-        sid = self.pick(x, y)
-        if sid != None:
-            spw.SelectSpike(sid, on=on) # select/deselect spike & its cluster too, if need be
+        sids = self.pick(x, y, pb=10, multiple=True)
+        if sids != None:
+            # select/deselect spikes & their clusters too, if need be
+            spw.SelectSpikes(sids, on=on)
         #self.showToolTip()
 
     def showProjectionDialog(self):
