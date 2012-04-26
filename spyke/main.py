@@ -1803,9 +1803,23 @@ class SpykeWindow(QtGui.QMainWindow):
         sw.uslist.updateAll()
 
         cw = self.OpenWindow('Cluster')
+        # try and restore saved component analysis selection
+        try:
+            CAid = self.ui.componentAnalysisComboBox.findText(sort.selCA)
+            self.ui.componentAnalysisComboBox.setCurrentIndex(CAid)
+        except AttributeError: pass # wasn't saved, loading from old .sort file
         # try and restore saved cluster selection
         try: self.SelectClusters(sort.selnids)
-        except AttributeError: pass
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        # try and restore saved sort window channel selection, and manual selection flag
+        try:
+            sw.panel.chans_selected = sort.selchans
+            sw.panel.update_vref_colours()
+            sw.panel.draw_refs() # update
+            sw.panel.manual_selection = sort.selchansmanual
+            # don't save x, y, z dimension selection, leave it at default xyVpp
+            # for maximum speed when loading sort file
+        except AttributeError: pass # wasn't saved, loading from old .sort file
         self.on_plotButton_clicked() # create glyph on first open
         # try and restore saved camera view
         try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
@@ -2004,11 +2018,15 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SaveSpikeFile(s.spikefname) # always (re)save .spike when saving .sort
         print('saving sort file %r' % fname)
         t0 = time.time()
+        sw = self.windows['Sort'] # should be open if s.spikes exists
+        s.selCA = str(self.ui.componentAnalysisComboBox.currentText())
+        s.selnids = self.GetClusterIDs() # save current cluster selection
+        s.selchans = sw.panel.chans_selected
+        s.selchansmanual = sw.panel.manual_selection
         try:
             cw = self.windows['Cluster']
             s.MV, s.focus = cw.glWidget.MV, cw.glWidget.focus # save camera view
         except KeyError: pass # cw hasn't been opened yet, no camera view to save
-        s.selnids = self.GetClusterIDs() # save current cluster selection
         s.sortfname = fname # bind it now that it's about to be saved
         f = open(self.join(fname), 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol

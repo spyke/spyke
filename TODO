@@ -15,14 +15,12 @@
 
 - when checking to see if should use saved PCs/ICs for plotting or clustering, would probably be best to use a hash of the chans and spike ids and whatever else is needed, instead of relying on just the chans and cluster ids, which I think I currently do, to signify that the previous set of calculated components are valid for the currently requested set of spikes and chans
 
-- add adjustable size brushes for spike selection - would be nice to actually see the brush too when the "S" select key is held down in the cluster window
-
-- as a final verification pass, for each cluster, you could take its localized position in x, y and plot against all other clusters within lockout radius of it. But really, I'm basically doing that already. If I select all of a clusters chans while doing find next/previous most similar, then I'm comparing to all other clusters within the lockout radius. The upshot of the way I'm doing it already is that those results are sorted in terms of waveform similarity.
-
 - highlight currently selected spikes in cluster window somehow, assuming they're plotted in cluster window. Maybe make them 2x2 pix instead of just a single pixel?
     - this would also make manual spike selection in cluster window much more useful. You'd have visual feedback about which points you have and haven't selected!
+    - or maybe invert the point's colour, or change its shape or something?
 
-- save and restore chan selection, component type selection, and xyz dimension selection on .sort file save and load
+- make brush visible when the "S" select key is held down in the cluster window
+    - adjustable size brushes for spike selection might be nice too
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
 
@@ -1241,6 +1239,7 @@ DONE:
     - make spike slider click select spikes at window position zero. Otherwise, you need to slide to at least position 1 before any spikes are selected
 - keyboard movement of sliders doesn't seem to trigger sliderMoved(). Same goes for mouse scrolling - use valueChanged instead
 - when called during select keypress, pick() should return all points under the brush, not just the first one found. This would help make painting larger areas of points a lot easier
+- save and restore chan selection and component analysis selection on .sort file save and load
 
 
 
