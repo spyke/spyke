@@ -384,8 +384,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.StandardLayout()
 
     def ClusteringLayout(self):
-        """Layout sort, cluster, and MPL windows ideally for clustering"""
-        windowtypes = ['Sort', 'Cluster', 'MPL']
+        """Lay out sort and cluster windows ideally for clustering"""
+        windowtypes = ['Sort', 'Cluster']
         # make sure they can all be opened before doing any layout:
         self.stdlayout = {} # save current layout as standard
         for windowtype in windowtypes:
@@ -396,23 +396,19 @@ class SpykeWindow(QtGui.QMainWindow):
                 win = self.OpenWindow(windowtype)
             self.stdlayout[windowtype] = {'pos': win.pos(), 'size': win.size()}
         self.move(0, 0) # ensure main window is in top left
-        mw = self.windows['MPL']
-        mw.resize(self.size()) # set MPL window to be same size as main window
-        y = self.size().height() + WINDOWTITLEHEIGHT            
-        mw.move(0, y) # move MPL window to just below main window
         sw = self.windows['Sort']
         x = SCREENWIDTH - sw.size().width() - 2*BORDERWIDTH
         sw.move(x, 0) # place sort window at top right corner of screen
         cw = self.windows['Cluster']
         w = SCREENWIDTH - self.size().width() - sw.size().width() - 6*BORDERWIDTH # or 4X?
-        h = self.size().height() + mw.size().height() + WINDOWTITLEHEIGHT
+        h = self.size().height()*2 + WINDOWTITLEHEIGHT
         cw.resize(w, h)
         x = self.size().width() + 2*BORDERWIDTH
         cw.move(x, 0) # place cluster window between main & Sort windows
 
     def StandardLayout(self):
-        """Restore standard layout of sort, cluster, and MPL windows"""
-        windowtypes = ['Sort', 'Cluster', 'MPL']
+        """Restore standard layout of sort and cluster windows"""
+        windowtypes = ['Sort', 'Cluster']
         for windowtype in windowtypes:
             win = self.windows[windowtype]
             d = self.stdlayout[windowtype]
