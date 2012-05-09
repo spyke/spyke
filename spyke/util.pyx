@@ -141,7 +141,7 @@ def testrange(np.ndarray[np.int32_t, ndim=1] a,
 def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     """Spike phase sharpness measure which takes (accumulated height)**2 / width
     for each phase, and relies on zero crossings to demarcate borders between phases.
-    First, update npoints, check for extremum and update ext. Then, then look forward
+    First, update npoints, check for extremum and update ext. Then, look ahead
     for 0-crossing or end of signal, and calc sharpness if you find either is the case.
 
     TODO: test if double math is faster than float math. They're probably identical.

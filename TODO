@@ -13,16 +13,25 @@
             - dims: x, y, z dimensions
             - chans: arr or list of selected chans
 
+- would be nice if PCs/ICs weren't recalculated when you're going through and manually plucking spikes out using SHIFT+DEL. This doesn't make any difference to the display in PCA, because all the same points are still there, just differently coloured. But, it does make a difference during ICA, because ICA is not deterministic. Either way, if you have a lot of points plotted, recalculating can get annoyingly slow. Or, maybe it's the recalculation of the mean waveform that's slowing things down?
+
+- might also be nice to not auto-select cluster 0 after doing a SHIFT+DEL. Just leave the original cluster selected, so you can continue cleaning it out
+
 - when checking to see if should use saved PCs/ICs for plotting or clustering, would probably be best to use a hash of the chans and spike ids and whatever else is needed, instead of relying on just the chans and cluster ids, which I think I currently do, to signify that the previous set of calculated components are valid for the currently requested set of spikes and chans
 
 - highlight currently selected spikes in cluster window somehow, assuming they're plotted in cluster window. Maybe make them 2x2 pix instead of just a single pixel?
     - this would also make manual spike selection in cluster window much more useful. You'd have visual feedback about which points you have and haven't selected!
     - or maybe invert the point's colour, or change its shape or something?
+    - maybe just use a colour that isn't already being plotted. Make a list of bright colours, and cycle through them until you find one that isn't being used. Could sort existing colour table by brightness, sum RGB values for each entry to get brightness
+    - then of course when you hit ESC to clear the selection, you have to restore the original colours/shapes
+    - maybe when selecting specific spikes, desaturate the unselected ones all by a set amount, and leave the selected ones saturated. Then when you clear the selection, set them all to be saturated again
 
 - make brush visible when the "S" select key is held down in the cluster window
     - adjustable size brushes for spike selection might be nice too
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
+
+- NVS says Vpp**2 fits a Gaussian better fit than Vpp. Maybe I should try this during spatial localization
 
 - to improve axes contrast against data points, especially for mini axes, first draw three fat black lines, then clear depth buffer, then draw the 3 coloured lines on top
 

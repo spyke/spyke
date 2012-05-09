@@ -401,6 +401,11 @@ class PlotPanel(FigureCanvas):
 
     stream = property(get_stream)
 
+    def get_sort(self):
+        return self.spykewindow.sort
+
+    sort = property(get_sort)
+
     def get_tres(self):
         return self.stream.tres # overriden in SortPanel
 
@@ -961,8 +966,6 @@ class SpikePanel(PlotPanel):
         PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
 
-    tres = property(PlotPanel.get_tres)
-
     def do_layout(self):
         self.hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
         self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
@@ -1367,11 +1370,6 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         kwargs['tw'] = TW
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
-
-    def get_sort(self):
-        return self.spykewindow.sort
-
-    sort = property(get_sort)
 
 
 #class ChartSortPanel(SortPanel, ChartPanel):
