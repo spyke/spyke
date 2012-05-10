@@ -585,13 +585,43 @@ class GLWidget(QtOpenGL.QGLWidget):
         return QtCore.QPoint(x, y)
 
     def mousePressEvent(self, event):
+        """Record left or right click mouse position, for use in mouseReleaseEvent and
+        mouseMoveEvent. On middle click, randomly sample spikes. On left and right click,
+        clear selection"""
+        sw = self.spw.windows['Sort']
+        buttons = event.buttons()
+        if buttons == QtCore.Qt.MiddleButton:
+            sw.on_actionSelectRandomSpikes_activated()
+        elif buttons == QtCore.Qt.LeftButton | QtCore.Qt.RightButton: # simultaneously
+            sw.clear()
+        else:
+            self.lastPos = QtCore.QPoint(event.pos())
+        self.movement = False # no mouse movement yet
+    
+    def mouseReleaseEvent(self, event):
+        # seems have to use event.button(), not event.buttons(). I guess you can't
+        # release multiple buttons simultaneously the way you can press them simultaneously?
+        button = event.button()
+        if not self.movement: # no mouse movement, handle the clicks
+            if button == QtCore.Qt.LeftButton:
+                self.selectItemsUnderCursor()
+            elif button == QtCore.Qt.RightButton:
+                sids = self.selectItemsUnderCursor(on=False)
+                if sids == None: # clear current selection
+                    sw = self.spw.windows['Sort']
+                    sw.clear()
         self.lastPos = QtCore.QPoint(event.pos())
+        self.movement = False # clear mouse movement flag, for completeness
 
     def mouseDoubleClickEvent(self, event):
-        """Clear selection and select spike and/or cluster under the cursor, if any"""
-        self.selectItemsUnderCursor(clear=True)
+        """Clear selection and select spikes and/or clusters under the cursor, if any"""
+        if event.button() == QtCore.Qt.LeftButton:
+            self.selectItemsUnderCursor(clear=True)
+        else:
+            self.mousePressEvent(event) # register it as a normal mousePressEvent
 
     def mouseMoveEvent(self, event):
+        self.movement = True # mouse has moved since mousePressEvent
         buttons = event.buttons()
         modifiers = event.modifiers()
         shift = modifiers == Qt.ShiftModifier # only modifier is shift
@@ -764,6 +794,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             # select/deselect spikes & their clusters too, if need be
             spw.SelectSpikes(sids, on=on)
         #self.showToolTip()
+        return sids
 
     def showProjectionDialog(self):
         """Get and set OpenGL ModelView matrix and focus.

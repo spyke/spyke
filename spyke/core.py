@@ -872,6 +872,14 @@ class SpykeListView(QtGui.QListView):
         self.setBatchSize(300)
         #self.setViewMode(QtGui.QListView.IconMode)
 
+    def mousePressEvent(self, event):
+        sw = self.sortwin
+        buttons = event.buttons()
+        if buttons == QtCore.Qt.LeftButton:
+            QtGui.QListView.mousePressEvent(self, event) # handle as usual
+        else:
+            self.sortwin.mousePressEvent(event) # pass on up to Sort window
+
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()

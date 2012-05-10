@@ -1571,6 +1571,15 @@ class SortWindow(SpykeToolWindow):
     def closeEvent(self, event):
         self.spykewindow.HideWindow('Sort')
 
+    def mousePressEvent(self, event):
+        """These are mostly passed on up from spyke list views and sort panel. Left
+        clicks are (or should be) filtered out"""
+        buttons = event.buttons()
+        if buttons == QtCore.Qt.MiddleButton:
+            self.on_actionSelectRandomSpikes_activated()
+        elif buttons == QtCore.Qt.RightButton:
+            self.clear()
+
     def keyPressEvent(self, event):
         """Alpha character keypresses are by default caught by the child lists for quickly
         scrolling down to and selecting list items. However, the appropriate alpha

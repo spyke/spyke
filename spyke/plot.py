@@ -1126,6 +1126,7 @@ class SortPanel(PlotPanel):
     def __init__(self, *args, **kwargs):
         PlotPanel.__init__(self, *args, **kwargs)
         self.manual_selection = False
+        self.sortwin = self.parent()
 
     def get_AD2uV(self):
         try: # use sort by default:
@@ -1348,6 +1349,8 @@ class SortPanel(PlotPanel):
             else: # it's selected, unselect it
                 self.chans_selected.remove(chan)
             self.manual_selection = True
+        elif button == 2:
+            self.sortwin.on_actionSelectRandomSpikes_activated()
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
             self.manual_selection = False
