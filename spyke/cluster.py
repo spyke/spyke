@@ -525,7 +525,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         height = self.size().height()
         #print('coords: %d, %d' % (x, y))
         # constrain to within border 1 pix smaller than widget, for glReadPixels call
-        if not (1 <= x < width-1 and 1 <= y < height-1): # cursor out of range
+        if not (pb <= x < width-pb and pb <= y < height-pb): # cursor out of range
             return
         if self.npoints > 2**24-2: # the last one is the full white background used as a no hit
             raise OverflowError("Can't pick from more than 2**24-2 sids")
@@ -585,17 +585,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         return QtCore.QPoint(x, y)
 
     def mousePressEvent(self, event):
-        """Record left or right click mouse position, for use in mouseReleaseEvent and
-        mouseMoveEvent. On middle click, randomly sample spikes. On left and right click,
-        clear selection"""
+        """Record mouse position on button press, for use in mouseMoveEvent. On middle
+        click, randomly sample spikes"""
         sw = self.spw.windows['Sort']
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
             sw.on_actionSelectRandomSpikes_activated()
-        elif buttons == QtCore.Qt.LeftButton | QtCore.Qt.RightButton: # simultaneously
-            sw.clear()
-        else:
-            self.lastPos = QtCore.QPoint(event.pos())
+        self.lastPos = QtCore.QPoint(event.pos())
         self.movement = False # no mouse movement yet
     
     def mouseReleaseEvent(self, event):
@@ -610,16 +606,15 @@ class GLWidget(QtOpenGL.QGLWidget):
                 if sids == None: # clear current selection
                     sw = self.spw.windows['Sort']
                     sw.clear()
-        self.lastPos = QtCore.QPoint(event.pos())
         self.movement = False # clear mouse movement flag, for completeness
-
+    '''
     def mouseDoubleClickEvent(self, event):
         """Clear selection and select spikes and/or clusters under the cursor, if any"""
         if event.button() == QtCore.Qt.LeftButton:
             self.selectItemsUnderCursor(clear=True)
         else:
             self.mousePressEvent(event) # register it as a normal mousePressEvent
-
+    '''
     def mouseMoveEvent(self, event):
         self.movement = True # mouse has moved since mousePressEvent
         buttons = event.buttons()
