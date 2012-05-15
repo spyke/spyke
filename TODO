@@ -1,5 +1,9 @@
 - add time in hours and time in fraction of stream trange to tooltips, as alternatives to time in us
 
+- maybe on merge, instead of the final cluster acquiring the id of the lower id'd cluster, it should take on the id of the biggest cluster?
+
+- would be nice to have a translucent plane in the cluster window representing the current time position of the spike slider in the sort window, if time is one of the plotted dimensions
+
 - I'm often duplicating my efforts, comparing the same pair of clusters over and over, even when they haven't changed their spike populations, like when say they've been renumbered and recoloured. This is especially bad when a pair isn't obviously different, and needs to be plotted on a specific set of chans, and maybe needs ICA and/or time. I need two things to solve this:
     1 - a way of designating that a pair of clusters is significantly different from each other. Then, when I go cycling through clusters most similar to current one, those that are significantly different should be highlighted differently somehow
         - maybe the S key in the sort window can be used to designate a pair as significantly different, shouldn't conflict with S key in cluster window for selecting spikes under cursor

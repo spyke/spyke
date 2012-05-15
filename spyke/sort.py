@@ -40,8 +40,6 @@ HSPLITTERPOS = intround(MAINSPLITTERPOS * 3 / 4) # maximize nlist width
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1080
 
-MEANWAVESAMPLESIZE = 1000
-
 
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
@@ -1109,53 +1107,14 @@ class Neuron(object):
         sort = self.sort
         spikes = sort.spikes
         if len(self.sids) == 0: # no member spikes, perhaps I should be deleted?
-            raise RuntimeError("neuron %d has no spikes and its waveform can't be updated" % self.id)
-            #self.wave = WaveForm() # empty waveform
-            #return self.wave
-        sids = self.sids
-        if len(sids) > MEANWAVESAMPLESIZE:
-            print('neuron %d: update_wave() taking random sample of %d spikes instead '
-                  'of all %d of them' % (self.id, MEANWAVESAMPLESIZE, len(sids)))
-            sids = np.asarray(random.sample(sids, MEANWAVESAMPLESIZE))
+            raise RuntimeError("neuron %d has no spikes and its waveform can't be updated"
+                               % self.id)
+        wave = core.get_mean_wave(sort, self.sids, nid=self.id)
 
-        chanss = spikes['chans'][sids]
-        nchanss = spikes['nchans'][sids]
-        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
-        chanpopulation = np.concatenate(chanslist)
-        neuronchans = np.unique(chanpopulation) # comes out sorted
-
-        wavedata = sort.wavedata[sids]
-        if wavedata.ndim == 2: # should be 3, get only 2 if len(sids) == 1
-            wavedata.shape = 1, wavedata.shape[0], wavedata.shape[1] # give it a singleton 3rd dim
-        nt = wavedata.shape[-1]
-        maxnchans = len(neuronchans)
-        data = np.zeros((maxnchans, nt))
-        # all spike have same nt, but not necessarily nchans, keep track of
-        # how many spikes contributed to each of neuron's chans
-        nspikes = np.zeros((maxnchans, 1), dtype=int)
-        for chans, wd in zip(chanslist, wavedata):
-            chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
-            data[chanis] += wd[:len(chans)] # accumulate
-            nspikes[chanis] += 1 # inc spike count for this spike's chans
-        #t0 = time.time()
-        data /= nspikes # normalize all data points appropriately, this is now the mean
-        var = np.zeros((maxnchans, nt))
-        for chans, wd in zip(chanslist, wavedata):
-            chanis = neuronchans.searchsorted(chans) # each spike's chans is a subset of neuronchans
-            var[chanis] += (wd[:len(chans)] - data[chanis]) ** 2 # accumulate 2nd moment
-        var /= nspikes # normalize all data points appropriately, this is now the variance
-        std = np.sqrt(var)
-        # keep only those chans that at least 1/2 the spikes contributed to
-        bins = list(neuronchans) + [sys.maxint] # concatenate rightmost bin edge
-        hist, bins = np.histogram(chanpopulation, bins=bins)
-        newneuronchans = neuronchans[hist >= len(sids)/2]
-        chanis = neuronchans.searchsorted(newneuronchans)
-        data = data[chanis]
-        std = std[chanis]
-        # update this Neuron's Waveform object
-        self.wave.data = data
-        self.wave.std = std
-        self.wave.chans = newneuronchans
+        # update self's Waveform object
+        self.wave.data = wave.data
+        self.wave.std = wave.std
+        self.wave.chans = wave.chans
         self.wave.ts = sort.twts
         return self.wave
 
