@@ -42,9 +42,10 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, MAXNCLIMBPOINTS, MEANWAVESAMPLESIZE, TSFStream
+from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, HSPLITTERPOS
+from sort import MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
 from detect import Detector
 from extract import Extractor

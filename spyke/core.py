@@ -47,8 +47,6 @@ KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems 
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
-MEANWAVESAMPLESIZE = 1000
-
 TW = -500, 500 # spike time window range, us, centered on thresh xing or main phase of spike
 
 MAXLONGLONG = 2**63-1
@@ -186,57 +184,6 @@ class WaveForm(object):
         padded_data[commonis] = self.data[chanis] # for overlapping chans, overwrite the zeros with data
         return padded_data
     '''
-
-def get_mean_wave(sort, sids, nid=None):
-    """Return the mean and std waveform of spike waveforms in sids"""
-    print('in get_mean_wave')
-    spikes = sort.spikes
-    nsids = len(sids)
-    if nsids > MEANWAVESAMPLESIZE:
-        s = ("update_wave() taking random sample of %d spikes instead of all %d of them"
-             % (MEANWAVESAMPLESIZE, nsids))
-        if nid != None:
-            s = "neuron %d: " % nid + s
-        print(s)
-        sids = np.asarray(random.sample(sids, MEANWAVESAMPLESIZE))
-        nsids = len(sids) # update
-
-    chanss = spikes['chans'][sids]
-    nchanss = spikes['nchans'][sids]
-    chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
-    chanpopulation = np.concatenate(chanslist)
-    groupchans = np.unique(chanpopulation) # comes out sorted
-
-    wavedata = sort.wavedata[sids]
-    if wavedata.ndim == 2: # should be 3, get only 2 if nsids == 1
-        wavedata.shape = 1, wavedata.shape[0], wavedata.shape[1] # give it a singleton 3rd dim
-    nt = wavedata.shape[-1]
-    maxnchans = len(groupchans)
-    data = np.zeros((maxnchans, nt))
-    # all spike have same nt, but not necessarily nchans, keep track of
-    # how many spikes contributed to each of the group's chans
-    nspikes = np.zeros((maxnchans, 1), dtype=int)
-    for chans, wd in zip(chanslist, wavedata):
-        chanis = groupchans.searchsorted(chans) # each spike's chans is a subset of groupchans
-        data[chanis] += wd[:len(chans)] # accumulate
-        nspikes[chanis] += 1 # inc spike count for this spike's chans
-    #t0 = time.time()
-    data /= nspikes # normalize all data points appropriately, this is now the mean
-    var = np.zeros((maxnchans, nt))
-    for chans, wd in zip(chanslist, wavedata):
-        chanis = groupchans.searchsorted(chans) # each spike's chans is a subset of groupchans
-        var[chanis] += (wd[:len(chans)] - data[chanis]) ** 2 # accumulate 2nd moment
-    var /= nspikes # normalize all data points appropriately, this is now the variance
-    std = np.sqrt(var)
-    # keep only those chans that at least 1/2 the spikes contributed to
-    bins = list(groupchans) + [sys.maxint] # concatenate rightmost bin edge
-    hist, bins = np.histogram(chanpopulation, bins=bins)
-    chans = groupchans[hist >= nsids/2]
-    chanis = groupchans.searchsorted(chans)
-    data = data[chanis]
-    std = std[chanis]
-    return WaveForm(data=data, std=std, chans=chans)
-    
 
 class TrackStream(object):
     """A collection of streams, all from the same track. This is used to simultaneously
