@@ -174,7 +174,7 @@ class Sort(object):
         spikes = self.spikes
         nsids = len(sids)
         if nsids > MEANWAVESAMPLESIZE:
-            s = ("update_wave() taking random sample of %d spikes instead of all %d of them"
+            s = ("get_mean_wave() taking random sample of %d spikes instead of all %d of them"
                  % (MEANWAVESAMPLESIZE, nsids))
             if nid != None:
                 s = "neuron %d: " % nid + s
@@ -809,22 +809,54 @@ class Sort(object):
         self.reloadSpikes(sids)
         return sids # mark all sids as dirty
 
-    def reloadSpikes(self, sids, fixtvals=False):
-        """Update wavedata of designated spikes from stream. It's the caller's
+    def reloadSpikes(self, sids, fixtvals=False, usemeanchans=False):
+        """Update wavedata of designated spikes from stream. Optionally fix incorrect
+        time values from .sort 0.3 files. Optionally choose new set of channels for all
+        sids based on the chans closest to the mean of the sids. It's the caller's
         responsibility to mark sids as dirty and trigger resaving of .wave file"""
         stream = self.stream
         if not stream.is_open():
             raise RuntimeError("no open stream to reload spikes from")
         spikes = self.spikes
+        ver_lte_03 = float(self.__version__) <= 0.3
         print('reloading %d spikes' % len(sids))
+        if usemeanchans:
+            if ver_lte_03:
+                raise RuntimeError("Best not to choose new chans from mean until after "
+                                   "converting to .sort >= 0.4")
+            print('choosing new channel set for all selected spikes')
+            # get mean waveform of all sids, then find the mean's chan with max Vpp, then
+            # choose det.maxnchansperspike channels around that maxchan
+            meanwave = self.get_mean_wave(sids)
+            # mean chan with max Vpp:
+            maxchan = meanwave.chans[meanwave.data.ptp(axis=1).argmax()]
+            det = self.detector
+            maxchani = det.chans.searchsorted(maxchan)
+            distances = det.dm.data[maxchani]
+            # keep the maxnchansperspike closest chans to maxchan, including maxchan:
+            chanis = distances.argsort()[:det.maxnchansperspike]
+            meanchans = det.chans[chanis]
+            meanchans.sort() # keep them sorted
+            print('meanchans: %r' % meanchans)
+            furthestchan = det.chans[chanis[-1]]
+            print('furthestchan: %d' % furthestchan)
+            furthestchani = meanchans.searchsorted(furthestchan)
+            nmeanchans = len(meanchans)
+            # just to be sure:
+            assert nmeanchans == det.maxnchansperspike
+            assert maxchan in meanchans
 
-        if fixtvals and float(self.__version__) <= 0.3:
+        if fixtvals and ver_lte_03:
             """In sort.__version__ <= 0.3, t, t0, t1, and phasetis were not updated
             during alignbest() calls. To fix this, load new data with old potentially
             incorrect t0 and t1 values, and compare this new data to existing old data
             in wavedata array. Find where the non-repeating parts of the old data fits
             into the new, and calculate the correction needed to fix the time values,
             and also reload new data according to these corrected time values."""
+            if usemeanchans == True:
+                # this could be complicated, avoid it
+                raise RuntimeError("Best not to fix time values and simultaneously choose "
+                                   "new chans from mean. Do one, then the other")
             print('fixing potentially wrong time values during spike reloading')
             nfixed = 0
             for sid in sids:
@@ -863,11 +895,22 @@ class Sort(object):
                     nfixed += 1
                 self.wavedata[sid, 0:nchans] = newwave.data # update wavedata
             print('fixed time values of %d spikes' % nfixed)
-        else:
-            # assume time values for all spikes are accurate
+        else: # assume time values for all spikes are accurate
+            if usemeanchans:
+                # update spikes array entries for all sids:
+                spikes['nchans'][sids] = nmeanchans
+                spikes['chans'][sids] = meanchans # using max num chans, assign full array
             for sid in sids:
                 spike = spikes[sid]
                 wave = stream[spike['t0']:spike['t1']]
+                if usemeanchans:
+                    # check that each spike's maxchan is in meanchans:
+                    chan = spike['chan']
+                    if chan not in meanchans:
+                        # replace furthest chan with spike's maxchan:
+                        print("spike %d: replacing furthestchan %d with spike's maxchan %d"
+                              % (sid, furthestchan, chan))
+                        spikes['chans'][sid][furthestchani] = chan
                 nchans = spike['nchans']
                 chans = spike['chans'][:nchans]
                 wave = wave[chans]
@@ -1446,7 +1489,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.setFloatable(True)
 
         actionDelete = QtGui.QAction("Del", self)
-        actionDelete.setToolTip('Delete clusters')
+        actionDelete.setToolTip('Delete clusters\nSHIFT: Delete spikes')
         self.connect(actionDelete, QtCore.SIGNAL("triggered()"),
                      self.on_actionDelete_triggered)
         toolbar.addAction(actionDelete)
@@ -1545,7 +1588,8 @@ class SortWindow(SpykeToolWindow):
         toolbar.addSeparator()
 
         actionReloadSpikes = QtGui.QAction("Reload", self)
-        actionReloadSpikes.setToolTip("Reload selected spikes")
+        actionReloadSpikes.setToolTip("Reload selected spikes\nSHIFT: Use mean waveform "
+                                      "to choose chans to reload")
         self.connect(actionReloadSpikes, QtCore.SIGNAL("triggered()"),
                      self.on_actionReloadSpikes_triggered)
         toolbar.addAction(actionReloadSpikes)
@@ -1968,7 +2012,10 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         sids = spw.GetAllSpikes()
         sort = self.sort
-        self.sort.reloadSpikes(sids, fixtvals=True)
+        usemeanchans = False
+        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ShiftModifier:
+            usemeanchans = True
+        self.sort.reloadSpikes(sids, fixtvals=True, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
         spw.dirtysids.update(sids)
         # update neuron templates:

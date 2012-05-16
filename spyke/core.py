@@ -1117,6 +1117,7 @@ class NListModel(SpykeAbstractListModel):
                 pos = neuron.cluster.pos
                 return ('nid: %d\n' % nid +
                         '%d spikes\n' % neuron.nspikes +
+                        'chan: %d\n' % neuron.chan +
                         't: %d us\n' % pos['t'] +
                         'x0: %.4g um\n' % pos['x0'] +
                         'y0: %.4g um\n' % pos['y0'] +
@@ -1137,6 +1138,7 @@ class SListModel(SpykeAbstractListModel):
     def spiketooltip(self, spike):
         return ('sid: %d\n' % spike['id'] +
                 'nid: %d\n' % spike['nid'] +
+                'chan: %d\n' % spike['chan'] +
                 't: %d us\n' % spike['t'] +
                 'x0: %.4g um\n' % spike['x0'] +
                 'y0: %.4g um\n' % spike['y0'] +
@@ -1523,7 +1525,7 @@ def argcut(ts, trange):
 
 def eucd(coords):
     """Generates Euclidean distance matrix from a
-    sequence of n dimensional coordinates. Nice and fast.
+    sequence of n m-dimensional coordinates. Nice and fast.
     Written by Willi Richert
     Taken from:
     http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498246
