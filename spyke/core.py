@@ -1093,11 +1093,14 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def rowCount(self, parent=None):
+        sort = self.sortwin.sort
         try:
             # update nlist tooltip before returning, only +ve nids count as neurons:
-            nneurons = (np.asarray(self.sortwin.sort.norder) > 0).sum()
-            self.sortwin.nlist.setToolTip("Neuron list\n%d neurons" % nneurons)
-            return len(self.sortwin.sort.norder)
+            nneurons = (np.asarray(sort.norder) > 0).sum()
+            ngood = len(sort.get_good())
+            self.sortwin.nlist.setToolTip("Neuron list\n%d neurons, %d good"
+                                          % (nneurons, ngood))
+            return len(sort.norder)
         except AttributeError: # sort doesn't exist
             return 0
 
