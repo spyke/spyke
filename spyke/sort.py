@@ -80,15 +80,17 @@ class Sort(object):
     nextmuid = property(get_nextmuid)
 
     def get_good(self):
-        """Return set of nids marked by user as 'good'"""
-        good = set()
+        """Return array of nids marked by user as 'good'"""
+        good = []
         for neuron in self.neurons.values():
             try:
                 if neuron.good:
-                    good.add(neuron.id)
+                    good.append(neuron.id)
             except AttributeError: # neuron is from older sort, no .good attrib
                 neuron.good = False
-        return good
+        return np.asarray(good)
+
+    good = property(get_good)
 
     def get_stream(self):
         return self._stream
@@ -243,9 +245,8 @@ class Sort(object):
         # and tally their spikes
         nrecs = []
         nspikes = 0
-        for nid in sorted(self.neurons):
-            if nid <= 0:
-                continue # don't save any multiunit neurons or junk neuron
+        # only export neurons marked as "good", could be single or multi unit:
+        for nid in sorted(self.good):
             neuron = self.neurons[nid]
             spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
             assert spikets.flags['OWNDATA'] # should now be safe to modify in place
@@ -276,48 +277,56 @@ class Sort(object):
                 nrec.write(f)
         print(fullfname)
 
-    def exportgdffiles(self, basepath):
-        """Export spike data to text .gdf files under basepath, one file for all neurons.
-        1st column is event id, 2nd column is event time in ms res"""
-        ## TODO: make sure event ids in gdf format start from 1, and are contiguous. Also make
-        ## sure to include stimulus start times labelled as event 1001 or something
-        ## TODO: make export work on full track of data too, exporting to separate folders per
-        ## .srf file
-        
+    def exportgdffiles(self, basepath=None):
+        """Export spike data to text .gdf files under basepath, one file per recording"""
+        print("WARNING: .gdf multirecording export hasn't been tested for bugs!!!")
         spikes = self.spikes
-        dt = str(datetime.datetime.now()) # get an export datetime stamp
-        dt = dt.split('.')[0] # ditch the us
-        dt = dt.replace(' ', '_')
-        dt = dt.replace(':', '.')
-        srffnames = self.stream.srffnames
+        exportdt = str(datetime.datetime.now()) # get an export datetime stamp
+        exportdt = exportdt.split('.')[0] # ditch the us
         try: # self.stream is a TrackStream?
-            streamtranges = self.stream.streamtranges # includes offsets
+            streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
-            streamtranges = np.int64([[self.stream.t0, self.stream.t1]])
+            streams = [self.stream]
+        # only export spikes from neurons marked as "good", could be single or multi unit:
+        good = np.zeros(len(spikes), dtype=bool) # init False array
+        for nid in self.good:
+            good[self.neurons[nid].sids] = True
+        sids, = np.where(good == True) # sids to export across all streams
         print('exporting clustered spikes to:')
         # do a separate export for each recording
-        '''
-        for srffname, streamtrange in zip(srffnames, streamtranges):
-            srffnameroot = lrstrip(srffname, '../', '.srf')
-            path = os.path.join(basepath, srffnameroot)
-            try: os.mkdir(path)
-            except OSError: pass # path already exists?
-            # if any existing folders in srffname path end with the name '.best.sort',
-            # then remove the '.best' from their name
-            for name in os.listdir(path):
-                fullname = os.path.join(path, name)
-                if os.path.isdir(fullname):
-                    shutil.rmtree(fullname) # aw hell, just delete them to minimize junk
-        '''
-        srffname = srffnames[0]
-        i = spikes['nid'] > 0 # don't export unsorted/multiunit spikes
-        nspikes = i.sum()
-        idts = np.empty((nspikes, 2), dtype=np.int64)
-        idts[:, 0] = spikes[i]['nid']
-        idts[:, 1] = intround(spikes[i]['t'] / 1e3) # convert to int ms resolution
-        path = os.path.join(basepath, dt+'-'+srffname+'.gdf')
-        np.savetxt(path, idts, '%d')
-        print(path)
+        for stream in streams:
+            # get time delta between stream i and stream 0, could be 0:
+            td = stream.datetime - streams[0].datetime
+            self.exportgdffile(sids, stream, td, exportdt, basepath)
+
+    def exportgdffile(self, sids, stream, td, exportdt, basepath):
+        """Export spikes in sids to text .gdf file in basepath. Constrain to spikes in
+        stream, and undo any time delta in spike times. 1st column is event id, 2nd column
+        is event time in ms res"""
+        nids = self.spikes['nid'][sids] # not modifying in place, no need for a copy
+        spikets = self.spikes['t'][sids] # should be a sorted copy
+        assert spikets.flags['OWNDATA'] # should now be safe to modify in place
+        spikets -= td2usec(td) # export spike times relative to t=0 of this recording
+        # only include spikes that occurred during this recording
+        lo, hi = spikets.searchsorted([stream.t0, stream.t1])
+        spikets = spikets[lo:hi]
+        nids = nids[lo:hi]
+        nspikes = len(spikets)
+        ## TODO: interleave stimulus times
+        idts = np.empty((nspikes, 2), dtype=np.int64) # init array to export as text
+        idts[:, 0] = nids
+        idts[:, 1] = intround(spikets / 1e3) # convert to int ms resolution
+
+        # write the file
+        path = os.path.join(basepath, stream.srcfnameroot)
+        try: os.mkdir(path)
+        except OSError: pass # path already exists?
+        fname = exportdt.replace(' ', '_')
+        fname = fname.replace(':', '.')
+        fname = fname + '.gdf'
+        fullfname = os.path.join(path, fname)
+        np.savetxt(fullfname, idts, '%d') # default delimiter is ' '
+        print(fullfname)
 
     def exportspkfiles(self, basepath):
         """Export spike data to binary .spk files under basepath, one file per neuron"""
