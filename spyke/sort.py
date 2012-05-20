@@ -278,8 +278,8 @@ class Sort(object):
         print(fullfname)
 
     def exportgdffiles(self, basepath=None):
-        """Export spike data to text .gdf files under basepath, one file per recording"""
-        print("WARNING: .gdf multirecording export hasn't been tested for bugs!!!")
+        """Export spike and stim data to text .gdf files under basepath, one file per
+        recording"""
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
@@ -301,9 +301,10 @@ class Sort(object):
 
     def exportgdffile(self, sids, stream, td, exportdt, basepath):
         """Export spikes in sids to text .gdf file in basepath. Constrain to spikes in
-        stream, and undo any time delta in spike times. 1st column is event id, 2nd column
-        is event time in ms res"""
+        stream, and undo any time delta in spike times. Also export stim data. 1st column is
+        event id, 2nd column is event time in ms res"""
         nids = self.spikes['nid'][sids] # not modifying in place, no need for a copy
+        assert nids.max() < 1000 # don't confuse any nids with stim event ids
         spikets = self.spikes['t'][sids] # should be a sorted copy
         assert spikets.flags['OWNDATA'] # should now be safe to modify in place
         spikets -= td2usec(td) # export spike times relative to t=0 of this recording
@@ -312,10 +313,26 @@ class Sort(object):
         spikets = spikets[lo:hi]
         nids = nids[lo:hi]
         nspikes = len(spikets)
-        ## TODO: interleave stimulus times
-        idts = np.empty((nspikes, 2), dtype=np.int64) # init array to export as text
-        idts[:, 0] = nids
-        idts[:, 1] = intround(spikets / 1e3) # convert to int ms resolution
+        svalrecs = stream.srff.digitalsvalrecords
+        stimts = svalrecs['TimeStamp'] # stimulus raster times
+        svals = np.int64(svalrecs['SVal']) # stim vals at those times, convert from uint16
+        changeis = np.where(np.diff(svals) != 0)[0] + 1 # indices at which svals change
+        # keep first sval, plus just the ones that change:
+        changeis = np.concatenate([[0], changeis])
+        stimts = stimts[changeis]
+        svals = svals[changeis]
+        nsvals = len(svals)
+        nevents = nsvals + nspikes
+        idts = np.empty((nevents, 2), dtype=np.int64) # init array to export as text
+        # stick stim events at start for now:
+        idts[:nsvals, 0] = svals + 1000 # .gdf stim event ids start from 1000
+        idts[:nsvals, 1] = intround(stimts / 1e3) # convert to int ms resolution
+        # followed by the spikes:
+        idts[nsvals:, 0] = nids
+        idts[nsvals:, 1] = intround(spikets / 1e3) # convert to int ms resolution
+        # now sort them in time:
+        sortis = idts[:, 1].argsort()
+        idts = idts[sortis]
 
         # write the file
         path = os.path.join(basepath, stream.srcfnameroot)
