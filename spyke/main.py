@@ -2520,15 +2520,7 @@ def set_excepthook():
 if __name__ == '__main__':
     QtCore.pyqtRemoveInputHook() # prevents "The event loop is already running" errors
     set_excepthook()
-    #from IPython.lib.guisupport import get_app_qt4, start_event_loop_qt4
-    #app = get_app_qt4(sys.argv)
     app = QtGui.QApplication(sys.argv)
     spykewindow = SpykeWindow()
     spykewindow.show()
-    '''
-    # this used to work in IPython 0.10:
-    from IPython import appstart_qt4
-    appstart_qt4(app)
-    '''
-    #start_event_loop_qt4(app)
     sys.exit(app.exec_())
