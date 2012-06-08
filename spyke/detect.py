@@ -453,6 +453,10 @@ class Detector(object):
                     maxadjii = 1 # choose adjacent peak that falls after maxsharpi
                 maxadjiis[cii] = maxadjii # save
                 adjpi = adjpeakis[cii, maxadjii]
+                # if max sharpness peak is the only one, then I think ppsharp comes out
+                # as zero, and chan cii is therefore ignored when searching for biggest
+                # ppsharp. Not sure if that's ideal, maybe ppsharp in such a case should
+                # just be the max sharpness value
                 ppsharp[cii] = localsharp[cii, maxsharpi] - localsharp[cii, adjpi]
 
             oldti = ti # save

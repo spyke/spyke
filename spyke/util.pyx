@@ -139,10 +139,13 @@ def testrange(np.ndarray[np.int32_t, ndim=1] a,
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
-    """Spike phase sharpness measure which takes (accumulated height)**2 / width
+    """Spike phase sharpness measure which takes (height)**2 / width
     for each phase, and relies on zero crossings to demarcate borders between phases.
-    First, update npoints, check for extremum and update ext. Then, look ahead
-    for 0-crossing or end of signal, and calc sharpness if you find either is the case.
+    First, update npoints, check for extremum and update ext. Then, look one step ahead
+    for 0-crossing and calc sharpness if one is about to occur.
+
+    Return array of same size as signal, filled mostly with zeros, with signed
+    sharpness values at the points corresponding to phase peaks.
 
     TODO: test if double math is faster than float math. They're probably identical.
 
