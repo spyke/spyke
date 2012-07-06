@@ -1,3 +1,14 @@
+- NVS: as a cleaning step (not alignment step): take rms difference between spike and template across all temporal shifts (in my case, 5 of them), find shift with min rms difference, as before. Then, take that shift and the two on either side (at least one of which is already calculated), and take the 2nd derivative of all 3 (left - 2*mid + right). Then, plot distribution of these 2nd dtive values, see if get some bimodality. NVS says that even with a threshold that's constant across clusters and even .srf files, this is a great way to pull out crap spikes that don't match the template very well at all, ie have very little sharpness in their rms fit, even at the best shift.
+
+- maybe I should freeze scouts only if they haven't moved less than a threshold distance some threshold number of iterations, as NVS does. Currently, I freeze a scout as soon as it moves less than 10^-5 in a single iteration. This could be pretty easily done by changing the still boolean array into an int array, and then instead of checking whether it's true or false at certain parts of the code, check if its still count has reached threshold
+
+- consider implementing NVS's measure of cluster overlap. for a pair of clusters:
+    o_kl = (1 - p_k)/(1 - e_kl) where p_k = u_k/N_k and u_k is the number of points in cluster k whose nearest neighbour is also in k. Cluster k is the smaller of k and l (N_k < N_l). e_kl = N_k / (N_k + N_l)
+    - this wouldn't suffer from the 1D limitation that projecting onto the line connecting the cluster centers has. But, it would be slow, because for each point in each cluster
+
+- consider implementing NVS's 2nd derivative weighted measure of template center, which effectively aligns to the sharpest peak in the template. All the member spikes then go along for the ride. Good for accurately comparing templates.
+    - also, consider using it on a single spike basis? maybe this could be a more principled replacement for my own sharpness measure
+
 - add time in hours and time in fraction of stream trange to tooltips, as alternatives to time in us
 
 - maybe on merge, instead of the final cluster acquiring the id of the lower id'd cluster, it should take on the id of the biggest cluster?

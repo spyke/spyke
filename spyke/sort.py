@@ -1641,6 +1641,12 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionPlotClusterHist_triggered)
         toolbar.addAction(actionPlotClusterHist)
 
+        actionSave = QtGui.QAction("S", self)
+        actionSave.setToolTip("Save sort panel to file")
+        self.connect(actionSave, QtCore.SIGNAL("triggered()"),
+                     self.on_actionSave_triggered)
+        toolbar.addAction(actionSave)
+
         return toolbar
 
     def get_sort(self):
@@ -1708,6 +1714,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindNextMostSimilar_triggered()
         elif key == Qt.Key_H: # ignored in SpykeListViews
             self.on_actionPlotClusterHist_triggered()
+        elif key == Qt.Key_S: # ignored in SpykeListViews
+            self.on_actionSave_triggered()
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             # this is handled at a lower level by on_actionItem_activated
             # in the various listview controls
@@ -2162,6 +2170,40 @@ class SortWindow(SpykeToolWindow):
             a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
         mplw.figurecanvas.draw()
 
+    def on_actionSave_triggered(self):
+        """Save sort panel to file"""
+        f = self.panel.figure
+
+        # copied from matplotlib.backend_qt4.NavigationToolbar2QT.save_figure():
+        filetypes = f.canvas.get_supported_filetypes_grouped()
+        sorted_filetypes = filetypes.items()
+        sorted_filetypes.sort()
+        default_filetype = f.canvas.get_default_filetype()
+
+        start = f.canvas.get_default_filename()
+        filters = []
+        selectedFilter = None
+        for name, exts in sorted_filetypes:
+            exts_list = " ".join(['*.%s' % ext for ext in exts])
+            filter = '%s (%s)' % (name, exts_list)
+            if default_filetype in exts:
+                selectedFilter = filter
+            filters.append(filter)
+        filters = ';;'.join(filters)
+
+        #from matplotlib.backends.qt4_compat import _getSaveFileName
+        fname = QtGui.QFileDialog.getSaveFileName(self.panel, "Save sort panel to",
+                                                  start, filters, selectedFilter)
+        if fname:
+            fname = str(fname) # convert from QString
+            try:
+                f.canvas.print_figure(fname, facecolor=None, edgecolor=None)
+            except Exception as e:
+                QtGui.QMessageBox.critical(
+                    self.panel, "Error saving file", str(e),
+                    QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+        print('sort panel saved to %r' % fname)
+        
     def on_slider_valueChanged(self, slideri):
         self.nslist.clearSelection() # emits selectionChanged signal, .reset() doesn't
         if self.nslist.model().sliding == False:

@@ -515,10 +515,10 @@ class Detector(object):
             phasetis = np.zeros((nchans, 2), dtype=int) # holds phasetis for each lockchani
             phasetis[maxcii] = maxchanphasetis
 
-            # pick corresponding peaks on other chans according to how
-            # close they are to those on maxchan, Don't consider the sign of the peaks on each
-            # chan, just their proximity in time. In other words, allow for spike inversion
-            # across space
+            # pick corresponding peaks on other chans according to how close they are
+            # to those on maxchan, Don't consider the sign of the peaks on each
+            # chan, just their proximity in time. In other words, allow for spike
+            # inversion across space
             localsharp = sharp[chanis, t0i:t1i]
             phaset0i, phaset1i = maxchanphasetis
             for cii in range(nchans):
