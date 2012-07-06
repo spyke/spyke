@@ -725,8 +725,11 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.rotateYRight()
         elif key == Qt.Key_Z: # make z axis point up
             self.rotateZUp()
-        elif key == Qt.Key_S: # select item under the cursor, if any
-            self.selectItemsUnderCursor(on=True, clear=False)
+        elif key == Qt.Key_S:
+            if shift:
+                self.save()
+            else: # select item under the cursor, if any
+                self.selectItemsUnderCursor(on=True, clear=False)
         elif key == Qt.Key_D: # deselect item under the cursor, if any
             self.selectItemsUnderCursor(on=False, clear=False)
         elif key == Qt.Key_P:
@@ -743,6 +746,22 @@ class GLWidget(QtOpenGL.QGLWidget):
             sw.keyPressEvent(event) # pass it on to Sort window
 
         self.updateGL()
+
+    def save(self):
+        """Save cluster plot to file"""
+        fname = QtGui.QFileDialog.getSaveFileName(self, "Save cluster plot to",
+                                                  'cluster_plot.png')
+        if fname:
+            fname = str(fname) # convert from QString
+            image = self.grabFrameBuffer() # defaults to withAlpha=False, makes no difference
+            try:
+                image.save(fname)
+            except Exception as e:
+                QtGui.QMessageBox.critical(
+                    self.panel, "Error saving file", str(e),
+                    QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+            print('cluster plot saved to %r' % fname)
+
 
     def showToolTip(self):
         """Pop up a nid or sid tooltip at current mouse cursor position"""

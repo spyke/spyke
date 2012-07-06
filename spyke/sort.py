@@ -2202,7 +2202,7 @@ class SortWindow(SpykeToolWindow):
                 QtGui.QMessageBox.critical(
                     self.panel, "Error saving file", str(e),
                     QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
-        print('sort panel saved to %r' % fname)
+            print('sort panel saved to %r' % fname)
         
     def on_slider_valueChanged(self, slideri):
         self.nslist.clearSelection() # emits selectionChanged signal, .reset() doesn't
