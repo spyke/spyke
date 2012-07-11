@@ -1,11 +1,16 @@
 """Some functions written in Cython for max performance"""
+
 cimport cython
+from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
 
 cdef extern from "math.h":
     int abs(int x)
     float fabs(float x)
+
+cdef extern from "float.h":
+    double DBL_MAX
 
 cdef extern from "stdio.h":
     int printf(char *, ...)
@@ -341,3 +346,119 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
             dt = y[yti] - t # update for next loop iter
     dts = dts[:dtsi] # trim it down
     return dts
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+@cython.profile(False)
+def NDsepmetric(np.ndarray[np.float32_t, ndim=2, mode='c'] C0,
+                np.ndarray[np.float32_t, ndim=2, mode='c'] C1,
+                int Nmax=1000):
+    """Calculate N-dimensional cluster seperation metric, for a pair of clusters. This is
+    based on nearest neighbour membership: assuming cluster 0 is smaller than cluster 1,
+    calculate fraction of points in cluster 0 whose nearest neighbour is another point in
+    cluster 0.
+
+    Points are down each array's rows, dimensions are across columns.
+    This returns 1 - overlap index in Swindale & Spacek, 2012"""
+    cdef int N, N0, N1, ndim, ci, i, j, k, nself
+    cdef double f0, O, S
+    assert C0.shape[1] == C1.shape[1]
+    ndim = C0.shape[1]
+    '''
+    # for speed, limit npoints in each cluster:
+    for ci in [0, 1]:
+        if ci == 0:
+            N = C0.shape[0]
+        else:
+            N = C1.shape[0]
+        if N > Nmax:
+            # randomly sample rows in cluster ci:
+            randis = np.arange(N)
+            np.random.shuffle(randis) # in place
+            #randis = randis[Nmax] # can't slice with this, for some reason causes:
+            # "ValueError: Buffer has wrong number of dimensions (expected 2, got 1)"
+            if ci == 0:
+                C0 = C0[randis] # have to slice with full length
+                C0 = C0[:Nmax] # now C0 is of length Nmax
+            else:
+                C1 = C1[randis] # have to slice with full length
+                C1 = C1[:Nmax] # now C1 is of length Nmax
+    '''
+    # ensure cluster 0 is smaller than cluster 1:
+    if not C0.shape[0] <= C1.shape[0]:
+        C0, C1 = C1, C0 # swap them
+        
+    N0 = C0.shape[0]
+    N1 = C1.shape[0]
+    N = N0 + N1 # total npoints across clusters
+    
+    # check nearest neighbour membership of each point in C0:
+    #to use prange, might need to have data in 2D float array instead of 2d numpy array,
+    #to prevent segfaults:
+    nself = 0
+    #for i in range(N0):
+    for i in prange(N0, nogil=True, schedule='static'):
+        # how is it you define variables as private to a thread, vs shared between threads?
+        # Cython does it implcitly
+        nself += NNmembership(i, N0, N1, ndim, C0, C1)
+
+    f0 = <double>nself / <double>N0 # nearest neighbour fraction belonging to same cluster
+    O = (1 - f0) / (1 - <double>N0/<double>N) # overlap index
+    S = 1 - O # seperation metric
+    print('nself=%d, N0=%d, N1=%d'  % (nself, N0, N1))
+    print('f0=%.3f, O=%.3f, S=%.3f' % (f0, O, S))
+    return S
+
+
+cdef int NNmembership(int i, int N0, int N1, int ndim,
+                      np.ndarray[np.float32_t, ndim=2, mode='c'] C0,
+                      np.ndarray[np.float32_t, ndim=2, mode='c'] C1) nogil:
+    cdef int j, k, nself=0
+    cdef bint continuei, continuej
+    cdef double d, d02, d12, min_d02=DBL_MAX, min_d12=DBL_MAX
+    for j in range(N0):
+        if i == j:
+            continue # to next j
+        d02 = 0.0
+        for k in range(ndim):
+            d = C0[i, k] - C0[j, k]
+            #d02 += d * d # faster than calling **2
+            d02 = d02 + d * d # faster than calling **2
+            if d02 > min_d02: # break out of k loop, continue to next j
+                continuej = True
+                break # out of k loop
+        if continuej:
+            continuej = False
+            continue # to next j
+        if d02 < min_d02:
+            min_d02 = d02 # update
+            
+    for j in range(N1):
+        d12 = 0.0
+        for k in range(ndim):
+            d = C0[i, k] - C1[j, k]
+            #d12 += d * d
+            d12 = d12 + d * d
+            if d12 > min_d12: # break out of k loop, continue to next j
+                continuej = True
+                break # out of k loop
+        if continuej:
+            continuej = False
+            continue # to next j
+        if d12 < min_d12:
+            min_d12 = d12 # update
+        if min_d12 < min_d02: # nearest point is not in cluster 0
+            continuei = True
+            break # out of j loop
+
+    if continuei:
+        continuei = False
+        continue # to next i
+
+    if min_d02 < min_d12:
+        # point i's closest neighbour is also in cluster 0, count it:
+        nself += 1
+
+    return nself

@@ -5,7 +5,7 @@
 
 """Nick Swindale's gradient-ascent (mountain-climbing) clustering algorithm"""
 
-#cimport cython # not sure why this was needed before
+#cimport cython # this was only needed for decorators like @cython.boundscheck(False)
 from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
@@ -302,7 +302,7 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
             if continuej:
                 continuej = False # reset
                 j += 1
-                continue # to next j loop
+                continue # to next j
             if d2 <= rmerge2:
                 # merge the scouts: keep scout i, ditch scout j
                 M = merge(i, j, M, sr, still, N, cids)
@@ -337,7 +337,7 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
             ds[k] = points[j][k] - scouts[sr[i]][k]
-            if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j loop
+            if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
             d2s[k] = ds[k] * ds[k] # used twice, so calc it only once

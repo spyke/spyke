@@ -5,6 +5,11 @@ from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+import numpy as np
+import pyximport
+pyximport.install()
+import util # .pyx file
+
 import os
 import sys
 import time
@@ -2104,8 +2109,11 @@ class SortWindow(SpykeToolWindow):
         points = [] # list of projection of each cluster's points onto dimi
         for cluster in clusters:
             sidis = sids.searchsorted(cluster.neuron.sids)
-            points.append(X[sidis])
+            points.append(np.ascontiguousarray(X[sidis]))
         if calc_measures:
+            t0 = time.time()
+            sepmetric = util.NDsepmetric(*points)
+            print('sepmetric calc took %.3f sec' % (time.time()-t0))
             # centers of both clusters, use median:
             c0 = np.median(points[0], axis=0) # ndims vector
             c1 = np.median(points[1], axis=0)
@@ -2157,8 +2165,8 @@ class SortWindow(SpykeToolWindow):
         if calc_measures:
             #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
             #         % (sepindex, overlaparearatio, djs, np.sqrt(djs)))
-            title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f"
-                     % (sepindex, overlaparearatio, djs))
+            title = ("sep metric=%.3f, sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f"
+                     % (sepmetric, sepindex, overlaparearatio, djs))
             print(title)
             a.set_title(title)
         cs = core.rgb2hex([ cluster.color for cluster in clusters ])
