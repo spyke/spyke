@@ -377,13 +377,13 @@ def NDsepmetric(np.float32_t[:, :] C0,
         C0, C1 = C1, C0 # swap them
         N0, N1 = N1, N0
 
-    # for speed, limit first Nmax points in each cluster:
+    # for speed, limit to first Nmax points in each cluster:
     if N0 > Nmax:
-        C0 = C0[:Nmax, :] # not really necessary, but doesn't take any time
-        N0 = Nmax
+        C0 = C0[:Nmax, :] # strangely, doing this slice improves performance
+        N0 = C0.shape[0] # update
     if N1 > Nmax:
-        C1 = C1[:Nmax, :] # not really necessary, but doesn't take any time
-        N1 = Nmax
+        C1 = C1[:Nmax, :] # strangely, doing this slice improves performance
+        N1 = C1.shape[0] # update
     N = N0 + N1 # total npoints across clusters
 
     # check nearest neighbour membership of each point in C0:
@@ -392,7 +392,7 @@ def NDsepmetric(np.float32_t[:, :] C0,
     nself = 0
     for i in prange(N0, nogil=True, schedule='dynamic'):
         # how is it you define variables as private to a thread, vs shared between threads?
-        # Cython does it implcitly
+        # Cython does it implicitly
         nself += NNmembership(i, ndim, N0, N1, C0, C1)
 
     f0 = <double>nself / <double>N0 # nearest neighbour fraction belonging to same cluster
