@@ -357,7 +357,7 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
 @cython.profile(False)
 def NDsepmetric(np.float32_t[:, :] C0,
                 np.float32_t[:, :] C1,
-                int Nmax=100000):
+                int Nmax=INT_MAX):
     """Calculate N-dimensional cluster seperation metric, for a pair of clusters. This is
     based on nearest neighbour membership: assuming cluster 0 is smaller than cluster 1,
     calculate fraction of points in cluster 0 whose nearest neighbour is another point in
@@ -379,18 +379,13 @@ def NDsepmetric(np.float32_t[:, :] C0,
 
     # for speed, limit first Nmax points in each cluster:
     if N0 > Nmax:
-        #np.random.shuffle(C0.base) # in place, this can get slow for big arrays, omit
-        C0 = C0[:Nmax, :]
+        C0 = C0[:Nmax, :] # not really necessary, but doesn't take any time
         N0 = Nmax
     if N1 > Nmax:
-        #np.random.shuffle(C1.base) # in place, this can get slow for big arrays, omit
-        C1 = C1[:Nmax, :]
+        C1 = C1[:Nmax, :] # not really necessary, but doesn't take any time
         N1 = Nmax
     N = N0 + N1 # total npoints across clusters
 
-    ## TODO: to speed this up even more, sort points in C1 by their 0th dimension,
-    ## which will usually be PC0
-    
     # check nearest neighbour membership of each point in C0:
     #to use prange, might need to have data in 2D float array instead of 2d numpy array,
     #to prevent segfaults:
@@ -398,11 +393,11 @@ def NDsepmetric(np.float32_t[:, :] C0,
     for i in prange(N0, nogil=True, schedule='dynamic'):
         # how is it you define variables as private to a thread, vs shared between threads?
         # Cython does it implcitly
-        nself += NNmembership(i, N0, N1, ndim, C0, C1)
+        nself += NNmembership(i, ndim, N0, N1, C0, C1)
 
     f0 = <double>nself / <double>N0 # nearest neighbour fraction belonging to same cluster
     O = (1 - f0) / (1 - <double>N0/<double>N) # overlap index
-    S = 1 - O # seperation metric
+    S = 1 - O # separation metric
     print('nself=%d, N0=%d, N1=%d'  % (nself, N0, N1))
     print('f0=%.3f, O=%.3f, S=%.3f' % (f0, O, S))
     return S
@@ -412,7 +407,7 @@ def NDsepmetric(np.float32_t[:, :] C0,
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 @cython.profile(False)
-cdef int NNmembership(int i, int N0, int N1, int ndim,
+cdef int NNmembership(int i, int ndim, int N0, int N1,
                       np.float32_t[:, :] C0,
                       np.float32_t[:, :] C1) nogil:
     """Determine membership of nearest neighbour of point i, assumed to be a point

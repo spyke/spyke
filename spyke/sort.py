@@ -2109,11 +2109,12 @@ class SortWindow(SpykeToolWindow):
         points = [] # list of projection of each cluster's points onto dimi
         for cluster in clusters:
             sidis = sids.searchsorted(cluster.neuron.sids)
-            points.append(X[sidis].copy())
+            # don't seem to need contig points for NDsepmetric, no need for copy:
+            points.append(X[sidis])
             #points.append(np.ascontiguousarray(X[sidis]))
         if calc_measures:
             t0 = time.time()
-            NDsep = util.NDsepmetric(*points)
+            NDsep = util.NDsepmetric(*points, Nmax=100000)
             print('NDsep calc took %.3f sec' % (time.time()-t0))
             # centers of both clusters, use median:
             c0 = np.median(points[0], axis=0) # ndims vector
