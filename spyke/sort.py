@@ -2109,11 +2109,12 @@ class SortWindow(SpykeToolWindow):
         points = [] # list of projection of each cluster's points onto dimi
         for cluster in clusters:
             sidis = sids.searchsorted(cluster.neuron.sids)
-            points.append(np.ascontiguousarray(X[sidis]))
+            points.append(X[sidis].copy())
+            #points.append(np.ascontiguousarray(X[sidis]))
         if calc_measures:
             t0 = time.time()
-            sepmetric = util.NDsepmetric(*points)
-            print('sepmetric calc took %.3f sec' % (time.time()-t0))
+            NDsep = util.NDsepmetric(*points)
+            print('NDsep calc took %.3f sec' % (time.time()-t0))
             # centers of both clusters, use median:
             c0 = np.median(points[0], axis=0) # ndims vector
             c1 = np.median(points[1], axis=0)
@@ -2133,7 +2134,7 @@ class SortWindow(SpykeToolWindow):
             d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
             # measure whether centers are at least 3 of the bigger stdevs away from
             # each other:
-            sepindex = d / (3 * max(projs[0].std(), projs[1].std()))
+            oneDsep = d / (3 * max(projs[0].std(), projs[1].std()))
             #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
         proj = np.concatenate(projs)
         nbins = intround(np.sqrt(len(proj))) # seems like a good heuristic
@@ -2164,9 +2165,9 @@ class SortWindow(SpykeToolWindow):
         mplw.setWindowTitle(windowtitle)
         if calc_measures:
             #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
-            #         % (sepindex, overlaparearatio, djs, np.sqrt(djs)))
-            title = ("sep metric=%.3f, sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f"
-                     % (sepmetric, sepindex, overlaparearatio, djs))
+            #         % (oneDsep, overlaparearatio, djs, np.sqrt(djs)))
+            title = ("%dDsep=%.3f, 1Dsep=%.3f, overlap area ratio=%.3f, DJS=%.3f"
+                     % (len(dims), NDsep, oneDsep, overlaparearatio, djs))
             print(title)
             a.set_title(title)
         cs = core.rgb2hex([ cluster.color for cluster in clusters ])

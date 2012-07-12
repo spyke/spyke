@@ -9,6 +9,9 @@ cdef extern from "math.h":
     int abs(int x)
     float fabs(float x)
 
+cdef extern from "limits.h":
+    int INT_MAX
+
 cdef extern from "float.h":
     double DBL_MAX
 
@@ -352,9 +355,9 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 @cython.profile(False)
-def NDsepmetric(np.ndarray[np.float32_t, ndim=2, mode='c'] C0,
-                np.ndarray[np.float32_t, ndim=2, mode='c'] C1,
-                int Nmax=1000):
+def NDsepmetric(np.float32_t[:, :] C0,
+                np.float32_t[:, :] C1,
+                int Nmax=100000):
     """Calculate N-dimensional cluster seperation metric, for a pair of clusters. This is
     based on nearest neighbour membership: assuming cluster 0 is smaller than cluster 1,
     calculate fraction of points in cluster 0 whose nearest neighbour is another point in
@@ -366,40 +369,33 @@ def NDsepmetric(np.ndarray[np.float32_t, ndim=2, mode='c'] C0,
     cdef double f0, O, S
     assert C0.shape[1] == C1.shape[1]
     ndim = C0.shape[1]
-    '''
-    # for speed, limit npoints in each cluster:
-    for ci in [0, 1]:
-        if ci == 0:
-            N = C0.shape[0]
-        else:
-            N = C1.shape[0]
-        if N > Nmax:
-            # randomly sample rows in cluster ci:
-            randis = np.arange(N)
-            np.random.shuffle(randis) # in place
-            #randis = randis[Nmax] # can't slice with this, for some reason causes:
-            # "ValueError: Buffer has wrong number of dimensions (expected 2, got 1)"
-            if ci == 0:
-                C0 = C0[randis] # have to slice with full length
-                C0 = C0[:Nmax] # now C0 is of length Nmax
-            else:
-                C1 = C1[randis] # have to slice with full length
-                C1 = C1[:Nmax] # now C1 is of length Nmax
-    '''
+
     # ensure cluster 0 is smaller than cluster 1:
-    if not C0.shape[0] <= C1.shape[0]:
-        C0, C1 = C1, C0 # swap them
-        
     N0 = C0.shape[0]
     N1 = C1.shape[0]
+    if not N0 <= N1:
+        C0, C1 = C1, C0 # swap them
+        N0, N1 = N1, N0
+
+    # for speed, limit first Nmax points in each cluster:
+    if N0 > Nmax:
+        #np.random.shuffle(C0.base) # in place, this can get slow for big arrays, omit
+        C0 = C0[:Nmax, :]
+        N0 = Nmax
+    if N1 > Nmax:
+        #np.random.shuffle(C1.base) # in place, this can get slow for big arrays, omit
+        C1 = C1[:Nmax, :]
+        N1 = Nmax
     N = N0 + N1 # total npoints across clusters
+
+    ## TODO: to speed this up even more, sort points in C1 by their 0th dimension,
+    ## which will usually be PC0
     
     # check nearest neighbour membership of each point in C0:
     #to use prange, might need to have data in 2D float array instead of 2d numpy array,
     #to prevent segfaults:
     nself = 0
-    #for i in range(N0):
-    for i in prange(N0, nogil=True, schedule='static'):
+    for i in prange(N0, nogil=True, schedule='dynamic'):
         # how is it you define variables as private to a thread, vs shared between threads?
         # Cython does it implcitly
         nself += NNmembership(i, N0, N1, ndim, C0, C1)
@@ -412,10 +408,16 @@ def NDsepmetric(np.ndarray[np.float32_t, ndim=2, mode='c'] C0,
     return S
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+@cython.profile(False)
 cdef int NNmembership(int i, int N0, int N1, int ndim,
-                      np.ndarray[np.float32_t, ndim=2, mode='c'] C0,
-                      np.ndarray[np.float32_t, ndim=2, mode='c'] C1) nogil:
-    cdef int j, k, nself=0
+                      np.float32_t[:, :] C0,
+                      np.float32_t[:, :] C1) nogil:
+    """Determine membership of nearest neighbour of point i, assumed to be a point
+    in cluster C0. Return 1 if nearest neighbour is in C0, 0 otherwise"""
+    cdef int j, k
     cdef bint continuei, continuej
     cdef double d, d02, d12, min_d02=DBL_MAX, min_d12=DBL_MAX
     for j in range(N0):
@@ -424,8 +426,7 @@ cdef int NNmembership(int i, int N0, int N1, int ndim,
         d02 = 0.0
         for k in range(ndim):
             d = C0[i, k] - C0[j, k]
-            #d02 += d * d # faster than calling **2
-            d02 = d02 + d * d # faster than calling **2
+            d02 += d * d # faster than calling **2
             if d02 > min_d02: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
@@ -439,8 +440,7 @@ cdef int NNmembership(int i, int N0, int N1, int ndim,
         d12 = 0.0
         for k in range(ndim):
             d = C0[i, k] - C1[j, k]
-            #d12 += d * d
-            d12 = d12 + d * d
+            d12 += d * d
             if d12 > min_d12: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
@@ -449,16 +449,9 @@ cdef int NNmembership(int i, int N0, int N1, int ndim,
             continue # to next j
         if d12 < min_d12:
             min_d12 = d12 # update
-        if min_d12 < min_d02: # nearest point is not in cluster 0
-            continuei = True
-            break # out of j loop
+            if min_d12 < min_d02: # nearest point is not in cluster 0
+                return 0
 
-    if continuei:
-        continuei = False
-        continue # to next i
-
-    if min_d02 < min_d12:
-        # point i's closest neighbour is also in cluster 0, count it:
-        nself += 1
-
-    return nself
+    # we have min_d02 <= min_d12, so point i's closest neighbour is also in
+    # cluster 0, count it as having the same membership
+    return 1
