@@ -2179,11 +2179,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Show/hide a TimeRef, VoltageRef, or the Caret. Force menu states to correspond"""
         self.ui.__dict__['action%s' % ref].setChecked(enable)
         for windowtype, window in self.windows.items():
-            if windowtype in ['Spike', 'Chart', 'LFP']:
+            if windowtype in ['Spike', 'Chart', 'LFP', 'Sort']:
                 window.panel.show_ref(ref, enable=enable)
-            elif windowtype == 'Sort':
-                window.spikesortpanel.show_ref(ref, enable=enable)
-                #window.chartsortpanel.show_ref(ref, enable=enable)
 
     def SetSampfreq(self, sampfreq):
         """Set highpass stream sampling frequency, update widgets"""

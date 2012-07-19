@@ -9,6 +9,8 @@
 - consider implementing NVS's 2nd derivative weighted measure of template center, which effectively aligns to the sharpest peak in the template. All the member spikes then go along for the ride. Good for accurately comparing templates.
     - also, consider using it on a single spike basis? maybe this could be a more principled replacement for my own sharpness measure
 
+- add a "clusters only" checkbox or toggle button next to the cluster plot button, which plots only the selected clusters and no spikes, probably using some kind of spheres instead of just singular points
+
 - add time in hours and time in fraction of stream trange to tooltips, as alternatives to time in us
 
 - maybe on merge, instead of the final cluster acquiring the id of the lower id'd cluster, it should take on the id of the biggest cluster?

@@ -388,7 +388,7 @@ def NDsepmetric(np.float32_t[:, :] C0,
 
     # check nearest neighbour membership of each point in C0:
     #to use prange, might need to have data in 2D float array instead of 2d numpy array,
-    #to prevent segfaults:
+    #to prevent segfaults. Actually, that no longer seems to be the case:
     nself = 0
     for i in prange(N0, nogil=True, schedule='dynamic'):
         # how is it you define variables as private to a thread, vs shared between threads?

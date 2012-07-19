@@ -58,7 +58,7 @@ SELECTEDVREFLINEWIDTH = 3
 VREFCOLOUR = DARKGREY
 VREFSELECTEDCOLOUR = GREEN
 CARETCOLOUR = LIGHTBLACK
-CHANVBORDER = 75 # uV, vertical border space between top and bottom chans and axes edge
+CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
 
 DEFUVPERUM = 2
 DEFUSPERUM = 17
