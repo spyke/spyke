@@ -475,6 +475,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ToggleRef('VoltageRef')
 
     @QtCore.pyqtSlot()
+    def on_actionScale_triggered(self):
+        """Scale toggle menu event"""
+        self.ToggleRef('Scale')
+
+    @QtCore.pyqtSlot()
     def on_actionCaret_triggered(self):
         """Caret toggle menu event"""
         self.ToggleRef('Caret')
@@ -2171,12 +2176,12 @@ class SpykeWindow(QtGui.QMainWindow):
                 self.plot(windowtype)
 
     def ToggleRef(self, ref):
-        """Toggle visibility of TimeRef, VoltageRef, or the Caret"""
+        """Toggle visibility of TimeRef, VoltageRef, Scale, or the Caret"""
         enable = self.ui.__dict__['action%s' % ref].isChecked()
         self.ShowRef(ref, enable)
 
     def ShowRef(self, ref, enable=True):
-        """Show/hide a TimeRef, VoltageRef, or the Caret. Force menu states to correspond"""
+        """Show/hide a TimeRef, VoltageRef, Scale, or the Caret. Force menu states to correspond"""
         self.ui.__dict__['action%s' % ref].setChecked(enable)
         for windowtype, window in self.windows.items():
             if windowtype in ['Spike', 'Chart', 'LFP', 'Sort']:

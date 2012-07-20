@@ -57,6 +57,8 @@ VREFLINEWIDTH = 0.5
 SELECTEDVREFLINEWIDTH = 3
 VREFCOLOUR = DARKGREY
 VREFSELECTEDCOLOUR = GREEN
+SCALELINEWIDTH = 2
+SCALECOLOUR = WHITE
 CARETCOLOUR = LIGHTBLACK
 CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
 
@@ -65,7 +67,8 @@ DEFUSPERUM = 17
 
 BACKGROUNDCOLOUR = 'black'
 
-PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, GREY, WHITE, BROWN]
+PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
+               GREY, WHITE, BROWN]
 CLUSTERCOLOURS = copy(PLOTCOLOURS)
 CLUSTERCOLOURS.remove(GREY)
 
@@ -82,9 +85,10 @@ DEFNFILLS = 50 # default number of fills to init in SortPanel
 CARETZORDER = 0 # layering
 TREFLINEZORDER = 1
 VREFLINEZORDER = 2
-RASTERZORDER = 3
-ERRORZORDER = 4
-PLOTZORDER = 5
+SCALEZORDER = 3
+RASTERZORDER = 4
+ERRORZORDER = 5
+PLOTZORDER = 6
 
 
 class ColourDict(dict):
@@ -387,8 +391,9 @@ class PlotPanel(FigureCanvas):
         # add reference lines and caret in layered order
         self._show_tref(True) # call the _ methods directly, to prevent unnecessary draws
         self._show_vref(True)
+        self._show_scale(True)
         self._show_caret(True)
-        for ref in ['TimeRef', 'VoltageRef', 'Caret']:
+        for ref in ['TimeRef', 'VoltageRef', 'Scale', 'Caret']:
             # enforce menu item toggle state
             self.spykewindow.ui.__dict__['action%s' % ref].setChecked(True)
         self.draw() # do a full draw of the ref lines
@@ -445,6 +450,8 @@ class PlotPanel(FigureCanvas):
             self._add_tref()
         elif ref == 'VoltageRef':
             self._add_vref()
+        elif ref == 'Scale':
+            self._add_scale()
         elif ref == 'Caret':
             self._add_caret()
         else:
@@ -456,6 +463,8 @@ class PlotPanel(FigureCanvas):
             self._show_tref(enable)
         elif ref == 'VoltageRef':
             self._show_vref(enable)
+        elif ref == 'Scale':
+            self._show_scale(enable)
         elif ref == 'Caret':
             self._show_caret(enable)
         else:
@@ -469,7 +478,7 @@ class PlotPanel(FigureCanvas):
             plotvisibility[pltid] = plt.visible()
             plt.hide()
         self.show_rasters(False)
-        self.draw() # draw all the enabled refs - defined in FigureCanvas
+        self.draw() # only draw all enabled refs - defined in FigureCanvas
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
         self.background = None # no longer valid
         for pltid, plt in self.used_plots.iteritems():
@@ -498,6 +507,19 @@ class PlotPanel(FigureCanvas):
                                   visible=False)
         self.ax.add_collection(self.vlc) # add to axes' pool of LCs
         self._update_vref()
+
+    def _add_scale(self):
+        """Add time and voltage "L" scale bar, as a LineCollection"""
+        # left and bottom offsets fine tuned for SpikeSortPanel
+        l, b = self.ax.get_xlim()[0] + 50, self.ax.get_ylim()[0] + 15
+        tbar = (l, b), (l+500, b) # us
+        vbar = (l, b), (l, b+100) # uV
+        self.scale = LineCollection([tbar, vbar], linewidth=SCALELINEWIDTH,
+                                    colors=SCALECOLOUR,
+                                    zorder=SCALEZORDER,
+                                    antialiased=True,
+                                    visible=False)
+        self.ax.add_collection(self.scale) # add to axes' pool of LCs
 
     def _add_caret(self):
         """Add a shaded rectangle to represent the time window shown in the spike frame"""
@@ -570,6 +592,13 @@ class PlotPanel(FigureCanvas):
         except AttributeError:
             self._add_vref()
         self.vlc.set_visible(enable)
+
+    def _show_scale(self, enable=True):
+        try:
+            self.scale
+        except AttributeError:
+            self._add_scale()
+        self.scale.set_visible(enable)
 
     def _show_caret(self, enable=True):
         try:

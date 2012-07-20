@@ -1869,8 +1869,10 @@ If 1 neuron selected, plot autocorrelogram</string>
     <addaction name="separator"/>
     <addaction name="actionWaveforms"/>
     <addaction name="actionRasters"/>
+    <addaction name="separator"/>
     <addaction name="actionTimeRef"/>
     <addaction name="actionVoltageRef"/>
+    <addaction name="actionScale"/>
     <addaction name="actionCaret"/>
    </widget>
    <widget class="QMenu" name="menuSampling">
@@ -2325,6 +2327,17 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Convert .sort version 0.3 to 0.4</string>
+   </property>
+  </action>
+  <action name="actionScale">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Scale</string>
    </property>
   </action>
  </widget>
