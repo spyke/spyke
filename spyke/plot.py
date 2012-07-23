@@ -57,6 +57,7 @@ VREFLINEWIDTH = 0.5
 SELECTEDVREFLINEWIDTH = 3
 VREFCOLOUR = DARKGREY
 VREFSELECTEDCOLOUR = GREEN
+SCALE = 500, 100 # scalebar size in (us, uV)
 SCALELINEWIDTH = 2
 SCALECOLOUR = WHITE
 CARETCOLOUR = LIGHTBLACK
@@ -512,8 +513,8 @@ class PlotPanel(FigureCanvas):
         """Add time and voltage "L" scale bar, as a LineCollection"""
         # left and bottom offsets fine tuned for SpikeSortPanel
         l, b = self.ax.get_xlim()[0] + 50, self.ax.get_ylim()[0] + 15
-        tbar = (l, b), (l+500, b) # us
-        vbar = (l, b), (l, b+100) # uV
+        tbar = (l, b), (l+SCALE[0], b) # us
+        vbar = (l, b), (l, b+SCALE[1]) # uV
         self.scale = LineCollection([tbar, vbar], linewidth=SCALELINEWIDTH,
                                     colors=SCALECOLOUR,
                                     zorder=SCALEZORDER,
