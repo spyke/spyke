@@ -2072,26 +2072,25 @@ class SortWindow(SpykeToolWindow):
         self.findMostSimilarCluster('next')
 
     def on_actionPlotClusterHist_triggered(self):
-        """Plot histogram of selected clusters along a single dimension. If one cluster
-        selected, plot its distribution along its first (x) dimension. If two clusters
-        are selected, project them onto axis connecting their centers, and calculate
-        separation index between them. Find max of the two stdevs of projections of points
-        from both clusters. Take ratio of distance between the cluster centers and
-        3*maxstdevs to get separation index. An index < 1 suggests the two clusters are
-        not significantly separated from each other.
-                
-        Another way would be to simply take the fraction of area that the two distribs
-        overlap. For the two distribs, at each bin, take min value of the two. Add up all
-        those min values, and divide by the mass of the smaller distrib.
-
-        Or, could instead take sqrt of Jensen Shannon divergence, which is a metric.
+        """Plot histogram of selected clusters along a single dimension. If two clusters are
+        selected, project them onto axis connecting their centers, and calculate separation
+        indices between them. Otherwise, plot the distribution of all selected clusters
+        (up to a limit) along the first (x) dimension.
         """
         spw = self.spykewindow
+        mplw = spw.OpenWindow('MPL')
         clusters = spw.GetClusters()
         if len(clusters) == 0:
+            mplw.ax.clear()
+            mplw.figurecanvas.draw()
             print("no clusters selected")
             return
-        if len(clusters) == 2:
+        elif len(clusters) > 5: # to prevent slowdowns, don't plot too many
+            mplw.ax.clear()
+            mplw.figurecanvas.draw()
+            print("too many clusters selected for cluster histogram")
+            return
+        elif len(clusters) == 2:
             calc_measures = True
         else:
             calc_measures = False
