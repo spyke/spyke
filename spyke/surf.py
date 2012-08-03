@@ -455,7 +455,7 @@ class File(object):
             if name == 'f': # there should never be an other.f attrib
                 raise ValueError("pickled srff in .parse shouldn't have an .f attrib!")
             # don't overwrite fnames, fnames in .track files have a leading '../'
-            if name not in ['fname', 'parsefname']:
+            if name not in ['fname', 'parsefname', 'path']:
                 setattr(self, name, getattr(other, name))
         print('Recovered parse info from %r' % self.parsefname)
         
