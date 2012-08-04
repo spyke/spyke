@@ -1217,6 +1217,7 @@ class NSListModel(SListModel):
         SpykeAbstractListModel.__init__(self, parent)
         self._neurons = []
         self.nspikes = 0
+        self.sids = np.empty(0, dtype=np.int32)
 
     def get_neurons(self):
         return self._neurons
