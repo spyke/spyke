@@ -348,7 +348,7 @@
           <double>9999.000000000000000</double>
          </property>
          <property name="value">
-          <double>50.000000000000000</double>
+          <double>40.000000000000000</double>
          </property>
         </widget>
         <widget class="QLabel" name="label_6">
@@ -1996,9 +1996,6 @@ If 1 neuron selected, plot autocorrelogram</string>
   <action name="actionSaveParse">
    <property name="text">
     <string>Save .&amp;parse</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+P</string>
    </property>
   </action>
   <action name="actionSaveWave">

@@ -514,14 +514,75 @@ class Stream(object):
         # convert back to us:
         t0xs = t0xsi * rawtres
         t1xs = t1xsi * rawtres
+        print('t0xs=%d, t1xs=%d' % (t0xs, t1xs))
         tsxs = np.arange(t0xs, t1xs, rawtres)
         ntxs = len(tsxs)
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.zeros((nADchans, ntxs), dtype=np.int32) # any gaps will have zeros
-        # first and last record indices corresponding to the slice
-        loreci, hireci = self.records['TimeStamp'].searchsorted([t0xs, t1xs], side='right')
-        # always get back at least 1 record
-        records = self.records[max(loreci-1, 0):max(hireci, 1)]
+
+        # find all tranges that t0xs and t1xs span, if any:
+        trange0i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
+        trange1i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
+        tranges = []
+        if len(trange0i) > 0 and len(trange1i) > 0:
+            trangeis = np.arange(trange0i, trange1i+1)
+            tranges = self.tranges[trangeis]
+        print('tranges=%s' % (tranges,))
+        # collect relevant records from spanned tranges, if any:
+        records = []
+        for trange in tranges:
+            #print(trange)
+            trrec0i, trrec1i = self.records['TimeStamp'].searchsorted(trange)
+            trrecis = np.arange(trrec0i, trrec1i)
+            trrts = self.records['TimeStamp'][trrecis]
+            trrecs = self.records[trrecis]
+            #print(trrts)
+            #rec0i = max(np.where(trrts <= t0xs)[0])
+            #rec1i = max(np.where(trrts <  t1xs)[0])
+            rec0i, rec1i = trrts.searchsorted([t0xs, t1xs])
+            rec0i = max(rec0i-1, 0)
+            #print(rec0i)
+            #print(rec1i)
+            recis = np.arange(rec0i, rec1i)
+            #recis = np.arange(rec0i, rec1i+1)
+            #recis = np.unique([rec0i, rec1i])
+            #print(recis)
+            records.append(trrecs[recis])
+        if len(records) > 0:
+            records = np.concatenate(records)
+        #print('rec0is:')
+        #print(rts <= t0xs)
+        #print(t0xs < rts)
+        #print('rec1is:')
+        #print(rts <= t1xs)
+        #print(t1xs < rts)
+        #rec0i = max(np.where(rts <= t0xs)[0])
+        #rec1i = max(np.where(rts <  t1xs)[0])
+        #print(rec0i)
+        #print(rec1i)
+        #rec0is, = np.where(rec0is)
+        #rec1is, = np.where(rec1is)
+        #recis = np.unique([rec0i, rec1i])
+        #recis = (t0xs <= rts) & (rts < t1xs)
+        #print(recis)
+        #records = self.records[recis]
+        """
+        loreci, hireci = self.records['TimeStamp'].searchsorted([t0xs, t1xs])
+        # each trange (at least a few seconds) is always greater in span than a record (100ms)
+        # only return 0 records if t0xs and t1xs fall in the same recording gap
+        if t1xs - t0xs < 
+        if loreci == hireci and loreci > 0:
+            records = self.records[loreci-1:hireci]
+            print(loreci-1, hireci)
+        else:
+            records = self.records[loreci:hireci]
+            print(loreci, hireci)
+        """
+        print('records:')
+        if len(records) > 0:
+            print(records['TimeStamp'])
+        else:
+            print(records)
 
         # load up data+excess, from all relevant records
         # TODO: fix code duplication

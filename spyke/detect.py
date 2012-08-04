@@ -54,7 +54,7 @@ logger.addHandler(shandler)
 info = logger.info
 
 DEBUG = False # print detection debug messages to log file? slows down detection
-MPMETHOD = 'detectionprocess'#'pool' #'singleprocess', 'pool', 'detectionprocess'
+MPMETHOD = 'detectionprocess' #'singleprocess', 'detectionprocess', 'pool'
 
 if DEBUG:
     # print detection info and debug msgs to file, and info msgs to screen
