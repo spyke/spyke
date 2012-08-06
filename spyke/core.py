@@ -520,15 +520,15 @@ class Stream(object):
         dataxs = np.zeros((nADchans, ntxs), dtype=np.int32) # any gaps will have zeros
 
         # find all contiguous tranges that t0xs and t1xs span, if any:
+        ## TODO: this is wrong, doesn't deal with case where trange0i or trange1i
+        ## have lengths > 1. Trigger this error by asking for a slice longer than any
+        ## one trange or gap between tranges, like by calling:
+        ## >>> self.hpstream[self.hpstream[201900000:336700000]
+        ## on file ptc15.74:
         trange0i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
         trange1i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
         tranges = []
         if len(trange0i) > 0 and len(trange1i) > 0:
-            ## TODO: this is wrong, doesn't deal with case where trange0i or trange1i
-            ## have lengths > 1. Trigger this error by asking for a slice longer than any
-            ## one trange or gap between tranges, like by calling:
-            ## >>> self.hpstream[self.hpstream[201900000:336700000]
-            ## on file ptc15.74
             trangeis = np.arange(trange0i, trange1i+1)
             tranges = self.tranges[trangeis]
         print('tranges:', tranges)
@@ -1830,33 +1830,44 @@ def ordered(ts):
     # or, you could compare the array to an explicitly sorted version of itself,
     # and see if they're identical
 
-def concatenate_destroy(arrays):
+def concatenate_destroy(arrs):
     """Concatenate list of arrays along 0th axis, destroying them in the process.
     Doesn't duplicate everything in arrays, as does numpy.concatenate. Only
     temporarily duplicates one array at a time, saving memory"""
-    if type(arrays) not in (list, tuple):
-        raise TypeError('arrays must be list or tuple')
-    arrays = list(arrays)
+    if type(arrs) != list:
+        raise TypeError('arrays must be in a list')
+    #arrs = list(arrs) # don't do this! this prevents destruction of the original arrs
     nrows = 0
-    a0 = arrays[0]
-    subshape = a0.shape[1::] # dims excluding concatenation dim
-    dtype = a0.dtype
-    for i, a in enumerate(arrays):
+    subshape = arrs[0].shape[1::] # dims excluding concatenation dim
+    dtype = arrs[0].dtype
+    for i, a in enumerate(arrs):
         nrows += len(a)
         if a.shape[1::] != subshape:
             raise TypeError("array %d has subshape %r instead of %r" % (a.shape[1::], subshape))
         if a.dtype != dtype:
             raise TypeError("array %d has type %r instead of %r" % (a.dtype, dtype))
-    shape = [nrows] + list(subshape)
+    subshape = list(subshape)
+    shape = [nrows] + subshape
 
-    # use np.empty to size up to memory + virtual memory before throwing MemoryError
-    a = np.empty(shape, dtype=dtype)
+    resize = False
+    try:
+        # fast, but temporarily ~ doubles the amount of virtual memory used:
+        a = np.empty(shape, dtype=dtype) # empty only allocates virtual memory, not real memory
+    except MemoryError:
+        # slow, but uses absolute minimum of memory. Allocate 'a' one tiny piece at a time,
+        # resizing just enough for each additional array in arrs:
+        print("concatenate_destroy: couldn't allocate full array, resizing on each input "
+              "array instead")
+        a = np.empty([0]+subshape, dtype=dtype) # init length 0 array for now
+        resize = True
+        
     rowi = 0
-    narrays = len(arrays)
-    for i in range(narrays):
-        array = arrays.pop(0)
-        nrows = len(array)
-        a[rowi:rowi+nrows] = array # concatenate along 0th axis
+    for i in range(len(arrs)):
+        arr = arrs.pop(0)
+        nrows = len(arr)
+        if resize:
+            a.resize([len(a)+nrows]+subshape, refcheck=False)
+        a[rowi:rowi+nrows] = arr # concatenate along 0th axis
         rowi += nrows
     return a
 
