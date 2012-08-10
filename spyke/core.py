@@ -1840,33 +1840,29 @@ def concatenate_destroy(arrs):
     nrows = 0
     subshape = arrs[0].shape[1::] # dims excluding concatenation dim
     dtype = arrs[0].dtype
+    # ensure all arrays in arrs are compatible:
     for i, a in enumerate(arrs):
         nrows += len(a)
         if a.shape[1::] != subshape:
-            raise TypeError("array %d has subshape %r instead of %r" % (a.shape[1::], subshape))
+            raise TypeError("array %d has subshape %r instead of %r" %
+                           (i, a.shape[1::], subshape))
         if a.dtype != dtype:
-            raise TypeError("array %d has type %r instead of %r" % (a.dtype, dtype))
+            raise TypeError("array %d has dtype %r instead of %r" % (i, a.dtype, dtype))
     subshape = list(subshape)
     shape = [nrows] + subshape
 
-    resize = False
+    # unlike np.zeros, it seems np.empty doesn't allocate real memory, but does temporarily
+    # allocate virtual memory, which is then converted to real memory as 'a' is filled:
     try:
-        # fast, but temporarily ~ doubles the amount of virtual memory used:
-        a = np.empty(shape, dtype=dtype) # empty only allocates virtual memory, not real memory
+        a = np.empty(shape, dtype=dtype) # empty only allocates virtual memory
     except MemoryError:
-        # slow, but uses absolute minimum of memory. Allocate 'a' one tiny piece at a time,
-        # resizing just enough for each additional array in arrs:
-        print("concatenate_destroy: couldn't allocate full array, resizing on each input "
-              "array instead")
-        a = np.empty([0]+subshape, dtype=dtype) # init length 0 array for now
-        resize = True
+        raise MemoryError("concatenate_destroy: not enough virtual memory to allocate "
+                          "destination array. Create/grow swap file?")
         
     rowi = 0
     for i in range(len(arrs)):
         arr = arrs.pop(0)
         nrows = len(arr)
-        if resize:
-            a.resize([len(a)+nrows]+subshape, refcheck=False)
         a[rowi:rowi+nrows] = arr # concatenate along 0th axis
         rowi += nrows
     return a
