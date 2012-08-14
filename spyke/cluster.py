@@ -187,7 +187,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, slow
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
-        self.axes = True # display xyz axes by default
+        self.axes = 'both' # display both mini and focal xyz axes by default
         self.update_sigmasqrtndims()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
@@ -248,8 +248,10 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         if self.axes: # paint xyz axes
             GL.glClear(GL.GL_DEPTH_BUFFER_BIT) # make axes paint on top of data points
-            self.paint_mini_axes()
-            self.paint_focal_axes()
+            if self.axes in ['both', 'mini']:
+                self.paint_mini_axes()
+            if self.axes in ['both', 'focal']:
+                self.paint_focal_axes()
 
         # doesn't seem to be necessary, even though I'm in double-buffered mode with the
         # back buffer for RGB sid encoding, but do it anyway for completeness
@@ -702,8 +704,15 @@ class GLWidget(QtOpenGL.QGLWidget):
             if sid != None:
                 self.focus = self.points[self.sids.searchsorted(sid)]
                 self.panTo() # pan to new focus
-        elif key == Qt.Key_A: # toggle xyz axes display
-            self.axes = not self.axes
+        elif key == Qt.Key_A: # cycle through xyz axes display
+            if self.axes == False:
+                self.axes = 'both'
+            elif self.axes == 'both':
+                self.axes = 'mini'
+            elif self.axes == 'mini':
+                self.axes = 'focal'
+            elif self.axes == 'focal':
+                self.axes = False
         elif key == Qt.Key_1: # look along x axis
             if ctrl:
                 self.lookUpXAxis()
