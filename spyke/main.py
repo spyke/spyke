@@ -1,6 +1,7 @@
 """Main spyke window"""
 
 from __future__ import division
+from __future__ import print_function
 from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
@@ -18,6 +19,8 @@ from IPython.frontend.terminal.ipapp import load_default_config
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
+
+from scipy.misc import comb
 
 import pylab as pl
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -1254,6 +1257,69 @@ class SpykeWindow(QtGui.QMainWindow):
         a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
         a.set_xlim(trange)
         mplw.figurecanvas.draw()
+
+    @QtCore.pyqtSlot()
+    def on_compareAllAutoCorrPairs_clicked(self, RP=750):
+        """For each neuron pair, calculate autocorr of each neuron, find number of ISIs <=
+        RP, sum this up for both neurons, then temporarily merge the spike trains of the two
+        neurons, calculate autocorr of merger, and find its number of ISIs <= RP. Take
+        difference between this and the previous sum, normalize by total number of intervals
+        to get change in refractory period contamination drpc. Sort neuron pairs in
+        decreasing order of drpc. Those with the biggest drpc have an autocorr that's most
+        affected by the incorrect merger. This should help demonstrate that even in the
+        worst case scenario, the autocorr is a poor diagnostic of contaminated spike
+        trains."""
+        sort = self.sort
+        nids = sort.good
+        nn = len(nids)
+        npairs = comb(nn, 2, exact=True)
+        print('RP = %d' % RP)
+        print('npairs = %d' % npairs)
+        # refractor period contamination array, one row per neuron pair:
+        # each row: [nid0, nid1, rpc0, rpc1, drpc]
+        rpc = np.zeros((npairs, 5), dtype=np.float64)
+        # convert RP to half trange array, in us
+        trange = np.array([0, RP])
+        pairi = 0
+        for nidi0 in range(nn):
+            for nidi1 in range(nidi0+1, nn): # for all neuron pairs
+                nid0 = nids[nidi0]
+                nid1 = nids[nidi1]
+                sids0 = sort.neurons[nid0].sids
+                sids1 = sort.neurons[nid1].sids
+                s0 = sort.spikes['t'][sids0]
+                s1 = sort.spikes['t'][sids1]
+                dts0 = util.xcorr(s0, s0, trange)
+                dts0 = dts0[dts0 != 0] # remove 0s for autocorr
+                dts1 = util.xcorr(s1, s1, trange)
+                dts1 = dts1[dts1 != 0] # remove 0s for autocorr
+                # now do it for the merged spike trains:
+                s = np.concatenate([s0, s1])
+                s.sort() # necessary for xcorr
+                dts = util.xcorr(s, s, trange)
+                dts = dts[dts != 0] # remove 0s for autocorr
+                nISI0 = len(s0) - 1
+                nISI1 = len(s1) - 1
+                nISI = len(s) - 1
+                rpc0 = len(dts0) / nISI0
+                rpc1 = len(dts1) / nISI1
+                drpc = (len(dts) - (len(dts0) + len(dts1))) / nISI
+                rpc[pairi] = nid0, nid1, rpc0, rpc1, drpc
+                pairi += 1
+                print('.', end='')
+        sortis = np.argsort(rpc[:, 4])
+        sortis = sortis[::-1] # reverse
+        rpc = rpc[sortis] # sorted by decreasing drpc values
+        print(rpc)
+        print('first <= 50 pairs:')
+        print(rpc[:50])
+        f = pl.figure()
+        pl.get_current_fig_manager().set_window_title('delta RPC')
+        pl.plot(rpc[:, 4], 'k-', linewidth=4)
+        pl.xlabel('pair number')
+        #pl.ylabel(r'$\Delta$RPC for ISI $\leq$ %.2f ms' % (RP/1000))
+        pl.ylabel(r'$\Delta$RPC')        
+        import pdb; pdb.set_trace()
         
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
@@ -1889,7 +1955,7 @@ class SpykeWindow(QtGui.QMainWindow):
               spike or LFP data. And if for some reason they could've been different, length
               of extgains vector should be nchans, not fixed 64. Also, if extgains is a
               vector, then so should intgains
-            - number cluster ids in vertically spatial order, but mean of their template's
+            - number cluster ids in vertically spatial order, by mean of their template's
               vertical spatial position, not just by their maxchan - subtle difference
             - are .tsf spike times all aligned to +ve 0 crossing? One difference from .sort
               is that they're all truncated to the nearest 25kHz sample point. Maybe it
