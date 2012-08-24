@@ -531,7 +531,7 @@ class Stream(object):
         if len(trange0i) > 0 and len(trange1i) > 0:
             trangeis = np.arange(trange0i, trange1i+1)
             tranges = self.tranges[trangeis]
-        print('tranges:', tranges)
+        #print('tranges:', tranges)
         # collect relevant records from spanned tranges, if any:
         records = []
         for trange in tranges:
@@ -910,6 +910,7 @@ class SpykeListView(QtGui.QListView):
         ctrlup = not ctrldown
         if (key in [Qt.Key_M, Qt.Key_G, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_Backslash,
                     Qt.Key_NumberSign, Qt.Key_C, Qt.Key_V, Qt.Key_R, Qt.Key_B,
+                    Qt.Key_BracketLeft, Qt.Key_BracketRight,
                     Qt.Key_Comma, Qt.Key_Period, Qt.Key_H, Qt.Key_S]
             or ctrlup and key == Qt.Key_Space):
             event.ignore() # pass it on up to the parent
@@ -1950,6 +1951,24 @@ def padarr(x, align=8):
     x.resize(nitems + npaditems, refcheck=False) # pads with npaditems zeros, each of length dtypenbytes
     assert x.nbytes % align == 0
     return x
+
+def shiftpad(a, n):
+    """Horizontally shift 2D array a *in-place* by n points. -ve n shifts
+    left, +ve shifts right. Pad with edge values at the appropriate end.
+    This is probably the same as np.roll(), except edge values are padded
+    instead of wrapped. Also, I think np.roll returns a copy"""
+    assert a.ndim == 2
+    assert type(n) == int
+    assert n != 0
+    if n > 0: # shift right, pad with left edge
+        ledge = a[:, 0, None] # keep it 2D (nrows x 1)
+        a[:, n:] = a[:, :-n] # throw away right edge
+        a[:, 1:n] = ledge # pad with left edge
+    else: # n < 0, shift left, pad with right edge
+        redge = a[:, -1, None] # keep it 2D (nrows x 1)
+        a[:, :n] = a[:, -n:] # throw away left edge
+        a[:, n:-1] = redge # pad with right edge
+    # no need to return anything
 
 def rollwin(a, width):
     """Return a.nd + 1 dimensional array, where the last dimension contains

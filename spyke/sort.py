@@ -695,6 +695,27 @@ class Sort(object):
         except KeyError, ValueError:
             pass
 
+    def shift(self, sids, nt):
+        """Shift sid waveforms by nt timepoints: -ve shifts waveforms left, +ve shifts right.
+        For speed, pad waveforms with edge values at the appropriate end"""
+        spikes = self.spikes
+        wd = self.wavedata
+        for sid in sids: # maybe there's a more efficient way than iterating over sids
+            core.shiftpad(wd[sid], nt) # modifies wd in-place
+        # update spike parameters:
+        dt = nt * self.tres # time shifted by, signed, in us
+        # so we can later reload the wavedata accurately, shifting the waveform right and
+        # padding it on its left requires decrementing the associated timepoints
+        # (and vice versa)
+        spikes['t'][sids] -= dt
+        spikes['t0'][sids] -= dt
+        spikes['t1'][sids] -= dt
+        # might result in some out of bounds phasetis because the original phases
+        # have shifted off the ends. Opposite sign wrt timepoints above, referencing within
+        # wavedata:
+        spikes['phasetis'][sid] += nt
+        # caller should treat all sids as dirty
+
     def alignbest(self, sids, chans, method=core.rmserror):
         """Align all sids on chans by best fit according to error method.
         chans are assumed to be a subset of channels of sids. Return sids
@@ -1599,22 +1620,34 @@ class SortWindow(SpykeToolWindow):
         toolbar.addWidget(alignlabel)
 
         actionAlignMin = QtGui.QAction("min", self)
-        actionAlignMin.setToolTip("Align neurons' spikes to min")
+        actionAlignMin.setToolTip("Align selected spikes to min")
         self.connect(actionAlignMin, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignMin_triggered)
         toolbar.addAction(actionAlignMin)
 
         actionAlignMax = QtGui.QAction("max", self)
-        actionAlignMax.setToolTip("Align neurons' spikes to max")
+        actionAlignMax.setToolTip("Align selected spikes to max")
         self.connect(actionAlignMax, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignMax_triggered)
         toolbar.addAction(actionAlignMax)
 
         actionAlignBest = QtGui.QAction("best", self)
-        actionAlignBest.setToolTip("Align neurons' spikes by best fit")
+        actionAlignBest.setToolTip("Align selected spikes by best fit")
         self.connect(actionAlignBest, QtCore.SIGNAL("triggered()"),
                      self.on_actionAlignBest_triggered)
         toolbar.addAction(actionAlignBest)
+
+        actionShiftLeft = QtGui.QAction("[", self)
+        actionShiftLeft.setToolTip("Shift selected spikes left")
+        self.connect(actionShiftLeft, QtCore.SIGNAL("triggered()"),
+                     self.on_actionShiftLeft_triggered)
+        toolbar.addAction(actionShiftLeft)
+
+        actionShiftRight = QtGui.QAction("]", self)
+        actionShiftRight.setToolTip("Shift selected spikes right")
+        self.connect(actionShiftRight, QtCore.SIGNAL("triggered()"),
+                     self.on_actionShiftRight_triggered)
+        toolbar.addAction(actionShiftRight)
 
         toolbar.addSeparator()
 
@@ -1713,6 +1746,10 @@ class SortWindow(SpykeToolWindow):
                 self.spykewindow.on_clusterButton_clicked()
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
+        elif key == Qt.Key_BracketLeft: # ignored in SpykeListViews
+            self.on_actionShiftLeft_triggered()
+        elif key == Qt.Key_BracketRight: # ignored in SpykeListViews
+            self.on_actionShiftRight_triggered()
         elif key == Qt.Key_Comma: # ignored in SpykeListViews
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
@@ -2047,6 +2084,12 @@ class SortWindow(SpykeToolWindow):
     def on_actionAlignBest_triggered(self):
         self.Align('best')
 
+    def on_actionShiftLeft_triggered(self):
+        self.Shift(-2)
+        
+    def on_actionShiftRight_triggered(self):        
+        self.Shift(2)
+
     def on_actionReloadSpikes_triggered(self):
         spw = self.spykewindow
         sids = spw.GetAllSpikes()
@@ -2323,6 +2366,23 @@ class SortWindow(SpykeToolWindow):
             self._source = None # reset for tidiness
             raise RuntimeError(errmsg)
         return source
+
+    def Shift(self, nt):
+        """Shift selected sids by nt timepoints"""
+        s = self.sort
+        spikes = s.spikes
+        spw = self.spykewindow
+        sids = np.concatenate((spw.GetClusterSpikes(), spw.GetUnsortedSpikes()))
+        self.sort.shift(sids, nt)
+        print('shifted %d spikes by %d timepoints' % (len(sids), nt))
+        unids = np.unique(spikes['nid'][sids])
+        neurons = [ s.neurons[nid] for nid in unids ]
+        for neuron in neurons:
+            neuron.update_wave() # update affected mean waveforms
+        # add dirtysids to the set to be resaved to .wave file:
+        spw.dirtysids.update(sids)
+        # auto-refresh all plots
+        self.panel.updateAllItems()
 
     def Align(self, to):
         """Align all implicitly selected spikes to min or max, or best fit
