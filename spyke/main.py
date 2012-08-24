@@ -1678,6 +1678,11 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             raise ValueError('unknown extension %r' % ext)
 
+        try:
+            self.sort.stream = self.hpstream # restore newly opened stream to sort
+        except AttributeError: # no sort yet
+            pass
+
         self.caption = fname # update
         self.setWindowTitle(self.caption) # update the caption
         self.ui.__dict__['action%dkHz' % (self.hpstream.sampfreq / 1000)].setChecked(True)
