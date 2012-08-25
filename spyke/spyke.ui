@@ -1833,7 +1833,7 @@ If 1 neuron selected, plot autocorrelogram</string>
       <addaction name="actionExportPtcsFiles"/>
       <addaction name="actionExportGdfFiles"/>
       <addaction name="actionExportSpkFiles"/>
-      <addaction name="actionExportTsChID"/>
+      <addaction name="actionExportTsChIDFiles"/>
      </widget>
      <addaction name="menuSpikes"/>
      <addaction name="actionExportDIN"/>
@@ -2046,7 +2046,7 @@ If 1 neuron selected, plot autocorrelogram</string>
     <string>All</string>
    </property>
   </action>
-  <action name="actionExportTsChID">
+  <action name="actionExportTsChIDFiles">
    <property name="text">
     <string>.tschid Files</string>
    </property>

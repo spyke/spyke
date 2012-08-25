@@ -249,7 +249,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
-    def on_actionExportSpikes_triggered(self):
+    def on_actionExportSpkFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .spk files to",
                                     directory=self.path)
@@ -259,7 +259,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
-    def on_actionExportTsChId_triggered(self):
+    def on_actionExportTsChIdFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export tschid(s) to",
                                     directory=self.path)
@@ -357,26 +357,26 @@ class SpykeWindow(QtGui.QMainWindow):
         print('done updating sort from version 0.4 to 0.5')
 
     @QtCore.pyqtSlot()
-    def on_actionCloseStream_triggered(self):
-        self.CloseSurfOrTrackFile()
-        print('closed streams')
-
-    @QtCore.pyqtSlot()
     def on_actionCloseSort_triggered(self):
         # TODO: add confirmation dialog if Sort not saved
         self.CloseSortFile()
         print('closed sort')
 
     @QtCore.pyqtSlot()
+    def on_actionCloseStream_triggered(self):
+        self.CloseSurfOrTrackFile()
+        print('closed streams')
+
+    @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
-        self.on_actionCloseStream_triggered()
         self.on_actionCloseSort_triggered()
+        self.on_actionCloseStream_triggered()
         self.close() # call close() before destroy() to avoid segfault
         self.destroy()
 
     def closeEvent(self, event):
-        self.on_actionCloseStream_triggered()
         self.on_actionCloseSort_triggered()
+        self.on_actionCloseStream_triggered()
         QtGui.QMainWindow.closeEvent(self, event)
 
     def keyPressEvent(self, event):
@@ -1763,246 +1763,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableSurfWidgets(True)
         self.EnableSortWidgets(True) # sorting is now possible
 
-    def CreateNewSort(self):
-        """Create a new Sort, bind it to self, and return it"""
-        self.DeleteSort()
-        self.sort = Sort(detector=None, # detector is assigned in on_detectButton_clicked
-                         stream=self.hpstream)
-        self.EnableSortWidgets(True)
-        return self.sort
-
-    def DeleteSort(self):
-        """Delete any existing Sort"""
-        try:
-            # TODO: if Save button is enabled, check if Sort is saved,
-            # if not, prompt to save
-            #print('deleting existing Sort and entries in list controls')
-            #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
-            del self.sort
-        except AttributeError:
-            pass
-        if 'Sort' in self.windows:
-            sw = self.windows['Sort']
-            sw.nlist.reset()
-            sw.nslist.reset()
-            sw.nslist.neurons = []
-            sw.uslist.reset()
-            sw.panel.removeAllItems()
-        if 'Cluster' in self.windows:
-            cw = self.windows['Cluster']
-            cw.glWidget.reset()
-        if 'MPL' in self.windows:
-            mplw = self.windows['MPL']
-            mplw.ax.clear()
-            mplw.figurecanvas.draw()
-        del self.cchanges[:]
-        self.cci = -1
-        self.ui.progressBar.setFormat('0 spikes')
-        # make sure self.sort and especially self.sort.spikes is really gone
-        # TODO: check if this is necessary once everything works with new streamlined
-        # (no objects) spikes struct array
-        gc.collect()
-
-    def get_chans_enabled(self):
-        return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems() if enable ], dtype=np.uint8)
-
-    def set_chans_enabled(self, chans, enable=None):
-        """Updates which chans are enabled in ._chans_enabled dict and in the
-        plot panels, and in the highpass stream. If enable is set, chans specifies
-        which chans should have their enable flag overwritten. Otherwise,
-        chans specifies all the chans we want enabled.
-        The code for the 2nd case is quite elaborate, such that the visibility
-        state of any given plot in all plotpanels isn't needlessly toggled,
-        which slows things down and causes flicker, I think"""
-
-        # inits and checks
-        try:
-            allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
-        except AttributeError: # no hpstream yet
-            allchans = []
-        if chans == None: # None means all chans
-            chans = allchans
-        chans = toiter(chans) # need not be contiguous
-        try:
-            self._chans_enabled
-        except AttributeError:
-            self._chans_enabled = {} #dict(zip(allchans, [ True for chan in allchans ]))
-
-        # overwrite enable flag of chans...
-        if enable != None:
-            for chan in chans:
-                self._chans_enabled[chan] = enable
-        # ...or, leave only chans enabled
-        else:
-            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
-            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==False ]
-            notchans = set(allchans).difference(chans) # chans we don't want enabled
-            # find the difference between currently enabled chans and the chans we want enabled
-            chans2disable = set(enabledchans).difference(chans)
-            # find the difference between currently disabled chans and the chans we want disabled
-            chans2enable = set(disabledchans).difference(notchans)
-            for chan in chans2enable:
-                self._chans_enabled[chan] = True
-            for chan in chans2disable:
-                self._chans_enabled[chan] = False
-
-        # now set chans in plotpanels to reset colours:
-        for windowtype in WINDOWUPDATEORDER:
-            try:
-                self.windows[windowtype].panel.set_chans(self.chans_enabled)
-            except KeyError: # windowtype hasn't been opened yet
-                pass
-
-        # update stream
-        if self.hpstream != None:
-            self.hpstream.chans = self.chans_enabled
-        if self.lpstream != None:
-            # take intersection of lpstream.layout.chans and chans_enabled,
-            # conserving ordering in lpstream.layout.chans
-            self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
-                                    chan in  self.chans_enabled ]
-
-        self.plot() # replot
-
-    chans_enabled = property(get_chans_enabled, set_chans_enabled)
-
-    def CloseSurfOrTrackFile(self):
-        """Close data windows and streams"""
-        # need to specifically get a list of keys, not an iterator,
-        # since self.windows dict changes size during iteration
-        for windowtype in self.windows.keys():
-            if windowtype in ['Spike', 'Chart', 'LFP']:
-                self.CloseWindow(windowtype) # deletes from dict
-        for stream in [self.hpstream, self.lpstream]:
-            if stream: stream.close()
-        self.hpstream = None
-        self.lpstream = None
-        self.chans_enabled = []
-        self.t = None
-        self.spiketw = DEFSPIKETW # reset
-        self.charttw = DEFCHARTTW
-        self.lfptw = DEFLFPTW
-        self.ShowRasters(False) # reset
-        self.updateTitle()
-        self.EnableSurfWidgets(False)
-        
-
-    def CloseSortFile(self):
-        self.DeleteSort()
-        self.updateTitle()
-        self.EnableSortWidgets(False)
-        
-    def OpenSortFile(self, fname):
-        """Open a Sort from a .sort file, try and open a .wave file
-        with the same name, restore the stream"""
-        self.DeleteSort() # delete any existing Sort
-        print('opening sort file %r' % fname)
-        t0 = time.time()
-        f = open(self.join(fname), 'rb')
-        sort = cPickle.load(f)
-        print('done opening sort file, took %.3f sec' % (time.time()-t0))
-        print('sort file was %d bytes long' % f.tell())
-        f.close()
-        self.sort = sort
-
-        # try auto-updating sort to latest version:
-        if float(sort.__version__) < float(__version__):
-            self.update_sort_version()
-        
-        sortProbeType = type(sort.probe)
-        if self.hpstream != None:
-            streamProbeType = type(self.hpstream.probe)
-            if sortProbeType != streamProbeType:
-                self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's "
-                                   "probe type %r" % (sortProbeType, streamProbeType))
-
-        self.OpenSpikeFile(sort.spikefname)
-
-        if self.hpstream != None:
-            sort.stream = self.hpstream # restore missing stream object to Sort
-        self.SetSampfreq(sort.sampfreq)
-        self.SetSHCorrect(sort.shcorrect)
-        self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
-        self.ui.menuSampling.setEnabled(False) # disable sampling menu
-        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
-        self.EnableSpikeWidgets(True)
-
-        self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
-        sw = self.OpenWindow('Sort') # ensure it's open
-        # restore unsorted spike listview
-        sw.uslist.updateAll()
-
-        cw = self.OpenWindow('Cluster')
-        # try and restore saved component analysis selection
-        try:
-            CAid = self.ui.componentAnalysisComboBox.findText(sort.selCA)
-            self.ui.componentAnalysisComboBox.setCurrentIndex(CAid)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved cluster selection
-        try: self.SelectClusters(sort.selnids)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved sort window channel selection, and manual selection flag
-        try:
-            sw.panel.chans_selected = sort.selchans
-            sw.panel.update_vref_colours()
-            sw.panel.draw_refs() # update
-            sw.panel.manual_selection = sort.selchansmanual
-            # don't save x, y, z dimension selection, leave it at default xyVpp
-            # for maximum speed when loading sort file
-        except AttributeError: pass # wasn't saved, loading from old .sort file
-        self.on_plotButton_clicked() # create glyph on first open
-        # try and restore saved camera view
-        try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
-        except AttributeError: pass
-        self.RestoreClusters2GUI()
-        self.updateTitle()
-        self.update_gui_from_sort()
-        self.EnableSortWidgets(True)
-
-    def OpenSpikeFile(self, fname):
-        sort = self.sort
-        print('loading spike file %r' % fname)
-        t0 = time.time()
-        f = open(self.join(fname), 'rb')
-        spikes = np.load(f)
-        print('done opening spike file, took %.3f sec' % (time.time()-t0))
-        print('spike file was %d bytes long' % f.tell())
-        f.close()
-        sort.spikes = spikes
-        # when loading a spike file, make sure the nid field is overwritten
-        # in the spikes array. The nids in sort.neurons are always the definitive ones
-        for neuron in sort.neurons.values():
-            spikes['nid'][neuron.sids] = neuron.id
-        sort.update_usids()
-        # try loading .wave file of the same name
-        wavefname = os.path.splitext(fname)[0] + '.wave'
-        sort.wavedata = self.OpenWaveFile(wavefname)
-
-    def OpenWaveFile(self, fname):
-        """Open a .wave file and return wavedata array"""
-        sort = self.sort
-        print('opening wave file %r' % fname)
-        t0 = time.time()
-        try: f = open(self.join(fname), 'rb')
-        except IOError:
-            print("can't find file %r" % fname)
-            return
-        try:
-            del sort.wavedata
-            #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
-        except AttributeError: pass
-        wavedata = np.load(f)
-        print('done opening wave file, took %.3f sec' % (time.time()-t0))
-        print('wave file was %d bytes long' % f.tell())
-        f.close()
-        if len(wavedata) != sort.nspikes:
-            critical = QtGui.QMessageBox.critical
-            critical(self, "Error",
-                     ".wave file has a different number of spikes from the current Sort")
-            raise RuntimeError
-        return wavedata
-
     def OpenTSFFile(self, fname):
         """Open NVS's "test spike file" .tsf format for testing spike sorting
         performance. This describes a single 2D contiguous array of raw waveform
@@ -2127,14 +1887,126 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = oldnid2sids[oldnid]
             nids[sids] = newnid # overwrite old nid values with new ones
 
-    def RestoreClusters2GUI(self):
-        """Stuff that needs to be done to synch the GUI with newly imported clusters"""
-        self.UpdateClustersGUI() # restore nlist and uslist
+    def OpenSortFile(self, fname):
+        """Open a Sort from a .sort file, try and open a .wave file
+        with the same name, restore the stream"""
+        self.DeleteSort() # delete any existing Sort
+        print('opening sort file %r' % fname)
+        t0 = time.time()
+        f = open(self.join(fname), 'rb')
+        sort = cPickle.load(f)
+        print('done opening sort file, took %.3f sec' % (time.time()-t0))
+        print('sort file was %d bytes long' % f.tell())
+        f.close()
+        self.sort = sort
+
+        # try auto-updating sort to latest version:
+        if float(sort.__version__) < float(__version__):
+            self.update_sort_version()
+        
+        sortProbeType = type(sort.probe)
+        if self.hpstream != None:
+            streamProbeType = type(self.hpstream.probe)
+            if sortProbeType != streamProbeType:
+                self.CreateNewSort() # overwrite the failed Sort
+                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's "
+                                   "probe type %r" % (sortProbeType, streamProbeType))
+
+        self.OpenSpikeFile(sort.spikefname)
+
+        if self.hpstream != None:
+            sort.stream = self.hpstream # restore missing stream object to Sort
+        self.SetSampfreq(sort.sampfreq)
+        self.SetSHCorrect(sort.shcorrect)
+        self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
+        self.ui.menuSampling.setEnabled(False) # disable sampling menu
+        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.EnableSpikeWidgets(True)
+
+        self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
+        sw = self.OpenWindow('Sort') # ensure it's open
+        # restore unsorted spike listview
+        sw.uslist.updateAll()
+
+        cw = self.OpenWindow('Cluster')
+        # try and restore saved component analysis selection
         try:
-            self.sort.spikes
-            self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
-        except AttributeError: pass # no spikes
-        self.OpenWindow('Sort')
+            CAid = self.ui.componentAnalysisComboBox.findText(sort.selCA)
+            self.ui.componentAnalysisComboBox.setCurrentIndex(CAid)
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        # try and restore saved cluster selection
+        try: self.SelectClusters(sort.selnids)
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        # try and restore saved sort window channel selection, and manual selection flag
+        try:
+            sw.panel.chans_selected = sort.selchans
+            sw.panel.update_vref_colours()
+            sw.panel.draw_refs() # update
+            sw.panel.manual_selection = sort.selchansmanual
+            # don't save x, y, z dimension selection, leave it at default xyVpp
+            # for maximum speed when loading sort file
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        self.on_plotButton_clicked() # create glyph on first open
+        # try and restore saved camera view
+        try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
+        except AttributeError: pass
+        self.RestoreClusters2GUI()
+        self.updateTitle()
+        self.update_gui_from_sort()
+        self.EnableSortWidgets(True)
+
+    def OpenSpikeFile(self, fname):
+        sort = self.sort
+        print('loading spike file %r' % fname)
+        t0 = time.time()
+        f = open(self.join(fname), 'rb')
+        spikes = np.load(f)
+        print('done opening spike file, took %.3f sec' % (time.time()-t0))
+        print('spike file was %d bytes long' % f.tell())
+        f.close()
+        sort.spikes = spikes
+        # when loading a spike file, make sure the nid field is overwritten
+        # in the spikes array. The nids in sort.neurons are always the definitive ones
+        for neuron in sort.neurons.values():
+            spikes['nid'][neuron.sids] = neuron.id
+        sort.update_usids()
+        # try loading .wave file of the same name
+        wavefname = os.path.splitext(fname)[0] + '.wave'
+        sort.wavedata = self.OpenWaveFile(wavefname)
+
+    def OpenWaveFile(self, fname):
+        """Open a .wave file and return wavedata array"""
+        sort = self.sort
+        print('opening wave file %r' % fname)
+        t0 = time.time()
+        try: f = open(self.join(fname), 'rb')
+        except IOError:
+            print("can't find file %r" % fname)
+            return
+        try:
+            del sort.wavedata
+            #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
+        except AttributeError: pass
+        wavedata = np.load(f)
+        print('done opening wave file, took %.3f sec' % (time.time()-t0))
+        print('wave file was %d bytes long' % f.tell())
+        f.close()
+        if len(wavedata) != sort.nspikes:
+            critical = QtGui.QMessageBox.critical
+            critical(self, "Error",
+                     ".wave file has a different number of spikes from the current Sort")
+            raise RuntimeError
+        return wavedata
+
+
+
+    def CreateNewSort(self):
+        """Create a new Sort, bind it to self, and return it"""
+        self.DeleteSort()
+        self.sort = Sort(detector=None, # detector is assigned in on_detectButton_clicked
+                         stream=self.hpstream)
+        self.EnableSortWidgets(True)
+        return self.sort
 
     def SaveSortFile(self, fname):
         """Save sort to a .sort file"""
@@ -2210,6 +2082,137 @@ class SpykeWindow(QtGui.QMainWindow):
             core.updatenpyfilerows(self.join(fname), sids, s.wavedata)
         print('done saving wave file, took %.3f sec' % (time.time()-t0))
         s.wavefname = fname
+
+    def DeleteSort(self):
+        """Delete any existing Sort"""
+        try:
+            # TODO: if Save button is enabled, check if Sort is saved,
+            # if not, prompt to save
+            #print('deleting existing Sort and entries in list controls')
+            #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
+            del self.sort
+        except AttributeError:
+            pass
+        if 'Sort' in self.windows:
+            sw = self.windows['Sort']
+            sw.nlist.reset()
+            sw.nslist.reset()
+            sw.nslist.neurons = []
+            sw.uslist.reset()
+            sw.panel.removeAllItems()
+        if 'Cluster' in self.windows:
+            cw = self.windows['Cluster']
+            cw.glWidget.reset()
+        if 'MPL' in self.windows:
+            mplw = self.windows['MPL']
+            mplw.ax.clear()
+            mplw.figurecanvas.draw()
+        del self.cchanges[:]
+        self.cci = -1
+        self.ui.progressBar.setFormat('0 spikes')
+        # make sure self.sort and especially self.sort.spikes is really gone
+        # TODO: check if this is necessary once everything works with new streamlined
+        # (no objects) spikes struct array
+        gc.collect()
+
+    def get_chans_enabled(self):
+        return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems()
+                            if enable ], dtype=np.uint8)
+
+    def set_chans_enabled(self, chans, enable=None):
+        """Updates which chans are enabled in ._chans_enabled dict and in the
+        plot panels, and in the highpass stream. If enable is set, chans specifies
+        which chans should have their enable flag overwritten. Otherwise,
+        chans specifies all the chans we want enabled.
+        The code for the 2nd case is quite elaborate, such that the visibility
+        state of any given plot in all plotpanels isn't needlessly toggled,
+        which slows things down and causes flicker, I think"""
+
+        # inits and checks
+        try:
+            allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
+        except AttributeError: # no hpstream yet
+            allchans = []
+        if chans == None: # None means all chans
+            chans = allchans
+        chans = toiter(chans) # need not be contiguous
+        try:
+            self._chans_enabled
+        except AttributeError:
+            self._chans_enabled = {} #dict(zip(allchans, [ True for chan in allchans ]))
+
+        # overwrite enable flag of chans...
+        if enable != None:
+            for chan in chans:
+                self._chans_enabled[chan] = enable
+        # ...or, leave only chans enabled
+        else:
+            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
+            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==False ]
+            notchans = set(allchans).difference(chans) # chans we don't want enabled
+            # find the difference between currently enabled chans and the chans we want enabled
+            chans2disable = set(enabledchans).difference(chans)
+            # find the difference between currently disabled chans and the chans we want disabled
+            chans2enable = set(disabledchans).difference(notchans)
+            for chan in chans2enable:
+                self._chans_enabled[chan] = True
+            for chan in chans2disable:
+                self._chans_enabled[chan] = False
+
+        # now set chans in plotpanels to reset colours:
+        for windowtype in WINDOWUPDATEORDER:
+            try:
+                self.windows[windowtype].panel.set_chans(self.chans_enabled)
+            except KeyError: # windowtype hasn't been opened yet
+                pass
+
+        # update stream
+        if self.hpstream != None:
+            self.hpstream.chans = self.chans_enabled
+        if self.lpstream != None:
+            # take intersection of lpstream.layout.chans and chans_enabled,
+            # conserving ordering in lpstream.layout.chans
+            self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
+                                    chan in  self.chans_enabled ]
+
+        self.plot() # replot
+
+    chans_enabled = property(get_chans_enabled, set_chans_enabled)
+
+    def CloseSurfOrTrackFile(self):
+        """Close data windows and streams"""
+        # need to specifically get a list of keys, not an iterator,
+        # since self.windows dict changes size during iteration
+        for windowtype in self.windows.keys():
+            if windowtype in ['Spike', 'Chart', 'LFP']:
+                self.CloseWindow(windowtype) # deletes from dict
+        for stream in [self.hpstream, self.lpstream]:
+            if stream: stream.close()
+        self.hpstream = None
+        self.lpstream = None
+        self.chans_enabled = []
+        self.t = None
+        self.spiketw = DEFSPIKETW # reset
+        self.charttw = DEFCHARTTW
+        self.lfptw = DEFLFPTW
+        self.ShowRasters(False) # reset
+        self.updateTitle()
+        self.EnableSurfWidgets(False)
+        
+
+    def CloseSortFile(self):
+        self.DeleteSort()
+        self.updateTitle()
+        self.EnableSortWidgets(False)
+        
+    def RestoreClusters2GUI(self):
+        """Stuff that needs to be done to synch the GUI with newly imported clusters"""
+        self.UpdateClustersGUI() # restore nlist and uslist
+        try:
+            self.sort.spikes
+            self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
+        except AttributeError: pass # no spikes
+        self.OpenWindow('Sort')
 
     def OpenWindow(self, windowtype):
         """Create and bind a window, show it, plot its data if applicable"""
