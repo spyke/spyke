@@ -87,7 +87,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.move(0, 0) # top left corner, to make space for data windows
 
         self.dpos = {} # positions of data windows relative to main spyke window
-        self.caption = '' # used for setting title caption
         self.path = os.getcwd() # init
         for d in ('~/data', '/data'): # use first existing of these paths, if any
             path = os.path.expanduser(d)
@@ -169,15 +168,19 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveSort_triggered(self):
         try:
-            self.SaveSortFile(self.sort.sortfname) # save to existing sort fname
-        except AttributeError: # sort or sort.sortfname don't exist
+            self.sort
+        except AttributeError: # sort doesn't exist
+            return
+        if self.sort.fname:
+            self.SaveSortFile(self.sort.fname) # save to existing sort fname
+        else:
             self.on_actionSaveSortAs_triggered()
 
     @QtCore.pyqtSlot()
     def on_actionSaveSortAs_triggered(self):
         """Save Sort to new .sort file"""
         try:
-            defaultfname = self.sort.sortfname
+            defaultfname = self.sort.fname
         except AttributeError: # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
             fname = self.hpstream.fname.replace(' ', '_')
@@ -186,7 +189,6 @@ class SpykeWindow(QtGui.QMainWindow):
             dt = dt.replace(' ', '_')
             dt = dt.replace(':', '.')
             defaultfname = fname + '_' + dt + '.sort'
-        #defaultfname = self.join(defaultfname) # add path to it
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption="Save .sort file",
                                 directory=defaultfname,
@@ -213,7 +215,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveWave_triggered(self):
         """Save waveforms to a .wave file"""
-        defaultfname = os.path.splitext(self.sort.sortfname)[0] + '.wave'
+        defaultfname = os.path.splitext(self.sort.fname)[0] + '.wave'
         #defaultfname = self.join(defaultfname) # add path to it
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption="Save .wave file",
@@ -307,38 +309,74 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
-    def on_actionConvert_0_3_to_0_4_triggered(self):
-        """Convert self.sort from version 0.3 to 0.4 by reloading all spike waveforms
-        and fixing all of their time values"""
+    def on_actionUpdateSortVersion_triggered(self):
+        self.update_sort_version()
+
+    def update_sort_version(self):
+        """Update self.sort to latest version"""
         s = self.sort
-        v = float(s.__version__)
-        if v > 0.3:
-            print('no conversion necessary')
+        v = float(s.__version__) # sort version
+        lv = float(__version__) # latest version
+        if v > lv:
+            raise RuntimeError('versioning error')
+        if v == lv:
+            print('no update necessary')
             return
-        if v != 0.3:
-            print('best not to try and convert from anything other than v0.3')
+        if v < 0.3:
+            print('best not to try and auto update from anything older than 0.3')
             return
-        print('converting sort from version 0.3 to 0.4')
+        if v == 0.3:
+            self.update_0_3_to_0_4()
+            v = float(s.__version__)
+        if v == 0.4:
+            self.update_0_4_to_0_5()
+        print('now save me!')
+            
+    def update_0_3_to_0_4(self):
+        '''Update sort 0.3 to 0.4:
+            - reload all spike waveforms and fix all of their time values
+        '''        
+        print('updating sort from version 0.3 to 0.4')
+        s = self.sort
         sids = np.arange(s.nspikes)
         s.reloadSpikes(sids, fixtvals=True)
         # add sids to the set of dirtysids to be resaved to .wave file:
         self.dirtysids.update(sids)
         s.__version__ = '0.4' # update
-        print('done converting sort from version 0.3 to 0.4. Now save me!')
+        print('done updating sort from version 0.3 to 0.4')
+        
+    def update_0_4_to_0_5(self):
+        '''Update sort 0.4 to 0.5:
+            - rename sort.sortfname to sort.fname"""
+        '''        
+        print('updating sort from version 0.4 to 0.5')
+        s = self.sort
+        s.fname = s.sortfname
+        del s.sortfname
+        s.__version__ = '0.5' # update
+        print('done updating sort from version 0.4 to 0.5')
 
     @QtCore.pyqtSlot()
-    def on_actionClose_triggered(self):
-        # TODO: add confirmation dialog if Sort not saved
+    def on_actionCloseStream_triggered(self):
         self.CloseSurfOrTrackFile()
+        print('closed streams')
+
+    @QtCore.pyqtSlot()
+    def on_actionCloseSort_triggered(self):
+        # TODO: add confirmation dialog if Sort not saved
+        self.CloseSortFile()
+        print('closed sort')
 
     @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
-        self.on_actionClose_triggered()
+        self.on_actionCloseStream_triggered()
+        self.on_actionCloseSort_triggered()
         self.close() # call close() before destroy() to avoid segfault
         self.destroy()
 
     def closeEvent(self, event):
-        self.on_actionClose_triggered()
+        self.on_actionCloseStream_triggered()
+        self.on_actionCloseSort_triggered()
         QtGui.QMainWindow.closeEvent(self, event)
 
     def keyPressEvent(self, event):
@@ -1640,6 +1678,18 @@ class SpykeWindow(QtGui.QMainWindow):
     def join(self, fname):
         return os.path.join(self.path, fname)
 
+    def updateTitle(self):
+        """Update main spyke window title based on open stream and sort, if any"""
+        if hasattr(self.hpstream, 'fname'):
+            title = self.hpstream.fname
+            if hasattr(self, 'sort') and self.sort.fname:
+                title += ', ' + self.sort.fname
+        elif hasattr(self, 'sort') and self.sort.fname:
+            title = self.sort.fname
+        else:
+            title = 'spyke'
+        self.setWindowTitle(title) # update the title
+
     def OpenFile(self, fname):
         """Open a .srf, .sort or .wave file"""
         ext = os.path.splitext(fname)[1]
@@ -1683,8 +1733,8 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: # no sort yet
             pass
 
-        self.caption = fname # update
-        self.setWindowTitle(self.caption) # update the caption
+        self.updateTitle()
+
         self.ui.__dict__['action%dkHz' % (self.hpstream.sampfreq / 1000)].setChecked(True)
         self.ui.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
 
@@ -1727,20 +1777,24 @@ class SpykeWindow(QtGui.QMainWindow):
             # TODO: if Save button is enabled, check if Sort is saved,
             # if not, prompt to save
             #print('deleting existing Sort and entries in list controls')
-            clusters = self.sort.clusters # need it below
             #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
             del self.sort
         except AttributeError:
-            clusters = {}
+            pass
         if 'Sort' in self.windows:
             sw = self.windows['Sort']
             sw.nlist.reset()
             sw.nslist.reset()
+            sw.nslist.neurons = []
             sw.uslist.reset()
             sw.panel.removeAllItems()
         if 'Cluster' in self.windows:
             cw = self.windows['Cluster']
             cw.glWidget.reset()
+        if 'MPL' in self.windows:
+            mplw = self.windows['MPL']
+            mplw.ax.clear()
+            mplw.figurecanvas.draw()
         del self.cchanges[:]
         self.cci = -1
         self.ui.progressBar.setFormat('0 spikes')
@@ -1813,12 +1867,12 @@ class SpykeWindow(QtGui.QMainWindow):
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
     def CloseSurfOrTrackFile(self):
-        """Destroy data and sort windows, clean up, close streams,
-        and metaphorically, .sort file too"""
+        """Close data windows and streams"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
         for windowtype in self.windows.keys():
-            self.CloseWindow(windowtype) # deletes from dict
+            if windowtype in ['Spike', 'Chart', 'LFP']:
+                self.CloseWindow(windowtype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
             if stream: stream.close()
         self.hpstream = None
@@ -1829,15 +1883,15 @@ class SpykeWindow(QtGui.QMainWindow):
         self.charttw = DEFCHARTTW
         self.lfptw = DEFLFPTW
         self.ShowRasters(False) # reset
-        self.setWindowTitle('spyke') # update caption
+        self.updateTitle()
         self.EnableSurfWidgets(False)
-        self.caption = ''
-        self.CloseSortFile()
+        
 
     def CloseSortFile(self):
         self.DeleteSort()
+        self.updateTitle()
         self.EnableSortWidgets(False)
-
+        
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort file, try and open a .wave file
         with the same name, restore the stream"""
@@ -1850,6 +1904,11 @@ class SpykeWindow(QtGui.QMainWindow):
         print('sort file was %d bytes long' % f.tell())
         f.close()
         self.sort = sort
+
+        # try auto-updating sort to latest version:
+        if float(sort.__version__) < float(__version__):
+            self.update_sort_version()
+        
         sortProbeType = type(sort.probe)
         if self.hpstream != None:
             streamProbeType = type(self.hpstream.probe)
@@ -1897,7 +1956,7 @@ class SpykeWindow(QtGui.QMainWindow):
         try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
         except AttributeError: pass
         self.RestoreClusters2GUI()
-        self.setWindowTitle(self.caption + ' | ' + self.sort.sortfname)
+        self.updateTitle()
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)
 
@@ -2099,12 +2158,12 @@ class SpykeWindow(QtGui.QMainWindow):
             cw = self.windows['Cluster']
             s.MV, s.focus = cw.glWidget.MV, cw.glWidget.focus # save camera view
         except KeyError: pass # cw hasn't been opened yet, no camera view to save
-        s.sortfname = fname # bind it now that it's about to be saved
+        s.fname = fname # bind it now that it's about to be saved
         f = open(self.join(fname), 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
-        self.setWindowTitle(self.caption + ' | ' + s.sortfname)
+        self.updateTitle()
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file"""

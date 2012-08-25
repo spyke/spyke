@@ -55,11 +55,11 @@ class Sort(object):
     TW = TW # save a reference
     def __init__(self, detector=None, stream=None):
         self.__version__ = __version__
+        self.fname = ''
         self.detector = detector # this Sort's current Detector object
         self.stream = stream
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
-
         self.neurons = {}
         self.clusters = {} # neurons with multidm params scaled for plotting
         self.norder = [] # stores order of neuron ids display in nlist
@@ -1374,7 +1374,7 @@ class PTCSHeader(object):
         self.userdescr = userdescr
         self.nsamplebytes = nsamplebytes
         homelessfullfname = lstrip(fullfname, os.path.expanduser('~'))
-        sortfname = sort.sortfname
+        sortfname = sort.fname
         sortfullfname = os.path.join(sortpath, sortfname)
         sortfmoddt = str(datetime.datetime.fromtimestamp(os.path.getmtime(sortfullfname)))
         sortfmoddt = sortfmoddt.split('.')[0] # ditch the us

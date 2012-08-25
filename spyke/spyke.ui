@@ -1804,10 +1804,6 @@ If 1 neuron selected, plot autocorrelogram</string>
          <string>compareAllAutoCorrPairs</string>
         </property>
        </widget>
-       <zorder>xcorrsGroupBox</zorder>
-       <zorder>ISIsGroupBox</zorder>
-       <zorder>compareAllAutoCorrPairs</zorder>
-       <zorder>compareAllAutoCorrPairs</zorder>
       </widget>
      </widget>
     </item>
@@ -1846,12 +1842,6 @@ If 1 neuron selected, plot autocorrelogram</string>
      <addaction name="separator"/>
      <addaction name="actionExportLFP"/>
     </widget>
-    <widget class="QMenu" name="menuConvert">
-     <property name="title">
-      <string>Convert</string>
-     </property>
-     <addaction name="actionConvert_0_3_to_0_4"/>
-    </widget>
     <addaction name="actionNew"/>
     <addaction name="actionOpen"/>
     <addaction name="separator"/>
@@ -1860,9 +1850,11 @@ If 1 neuron selected, plot autocorrelogram</string>
     <addaction name="actionSaveParse"/>
     <addaction name="actionSaveWave"/>
     <addaction name="menuExport"/>
-    <addaction name="menuConvert"/>
     <addaction name="separator"/>
-    <addaction name="actionClose"/>
+    <addaction name="actionUpdateSortVersion"/>
+    <addaction name="separator"/>
+    <addaction name="actionCloseSort"/>
+    <addaction name="actionCloseStream"/>
     <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
@@ -1966,10 +1958,10 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/document-open.svg</normaloff>res/document-open.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Open</string>
+    <string>&amp;Open...</string>
    </property>
    <property name="toolTip">
-    <string>Open .srf, .track or .sort</string>
+    <string>Open .srf, .track, .tsf or .sort</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
@@ -2008,7 +2000,10 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Save</string>
+    <string>&amp;Save .sort</string>
+   </property>
+   <property name="toolTip">
+    <string>Save .sort</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
@@ -2053,7 +2048,10 @@ If 1 neuron selected, plot autocorrelogram</string>
   </action>
   <action name="actionExportTsChID">
    <property name="text">
-    <string>.tschid files</string>
+    <string>.tschid Files</string>
+   </property>
+   <property name="toolTip">
+    <string>.tschid Files</string>
    </property>
   </action>
   <action name="actionExportLFP">
@@ -2061,13 +2059,16 @@ If 1 neuron selected, plot autocorrelogram</string>
     <string>LFP</string>
    </property>
   </action>
-  <action name="actionClose">
+  <action name="actionCloseStream">
    <property name="icon">
     <iconset>
      <normaloff>res/window-close.svg</normaloff>res/window-close.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Close</string>
+    <string>&amp;Close .srf, .track or .tsf</string>
+   </property>
+   <property name="toolTip">
+    <string>Close .srf, .track or .tsf</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+W</string>
@@ -2288,25 +2289,34 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/document-save-as.svg</normaloff>res/document-save-as.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Save As</string>
+    <string>&amp;Save .sort As...</string>
    </property>
    <property name="toolTip">
-    <string>Save .sort as</string>
+    <string>Save .sort As</string>
    </property>
   </action>
   <action name="actionExportPtcsFiles">
    <property name="text">
-    <string>.ptcs files</string>
+    <string>.ptcs Files</string>
+   </property>
+   <property name="toolTip">
+    <string>.ptcs Files</string>
    </property>
   </action>
   <action name="actionExportSpkFiles">
    <property name="text">
-    <string>.spk files</string>
+    <string>.spk Files</string>
+   </property>
+   <property name="toolTip">
+    <string>.spk Files</string>
    </property>
   </action>
   <action name="actionExportGdfFiles">
    <property name="text">
-    <string>.gdf files</string>
+    <string>.gdf Files</string>
+   </property>
+   <property name="toolTip">
+    <string>.gdf Files</string>
    </property>
   </action>
   <action name="actionMPLWindow">
@@ -2333,18 +2343,18 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/gnome-display-properties.svg</normaloff>res/gnome-display-properties.svg</iconset>
    </property>
    <property name="text">
-    <string>Clustering layout</string>
+    <string>Clustering Layout</string>
    </property>
    <property name="toolTip">
     <string>Toggle clustering layout</string>
    </property>
   </action>
-  <action name="actionConvert_0_3_to_0_4">
+  <action name="actionUpdateSortVersion">
    <property name="text">
-    <string>Convert .sort 0.3 to 0.4</string>
+    <string>Update .sort Version</string>
    </property>
    <property name="toolTip">
-    <string>Convert .sort version 0.3 to 0.4</string>
+    <string>Update .sort Version</string>
    </property>
   </action>
   <action name="actionScale">
@@ -2356,6 +2366,14 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="text">
     <string>Scale</string>
+   </property>
+  </action>
+  <action name="actionCloseSort">
+   <property name="text">
+    <string>Close .sort</string>
+   </property>
+   <property name="toolTip">
+    <string>Close .sort</string>
    </property>
   </action>
  </widget>

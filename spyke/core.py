@@ -1117,15 +1117,16 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def rowCount(self, parent=None):
-        sort = self.sortwin.sort
         try:
             # update nlist tooltip before returning, only +ve nids count as neurons:
+            sort = self.sortwin.sort
             nneurons = (np.asarray(sort.norder) > 0).sum()
             ngood = len(sort.get_good())
             self.sortwin.nlist.setToolTip("Neuron list\n%d neurons, %d good"
                                           % (nneurons, ngood))
             return len(sort.norder)
         except AttributeError: # sort doesn't exist
+            self.sortwin.nlist.setToolTip("Neuron list")
             return 0
 
     def data(self, index, role=Qt.DisplayRole):
@@ -1228,6 +1229,7 @@ class USListModel(SListModel):
             self.sortwin.uslist.setToolTip("Unsorted spike list\n%d spikes" % nspikes)
             return nspikes
         except AttributeError: # sort doesn't exist
+            self.sortwin.uslist.setToolTip("Unsorted spike list")
             return 0
 
     def data(self, index, role=Qt.DisplayRole):
