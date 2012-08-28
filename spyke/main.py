@@ -29,6 +29,7 @@ from matplotlib.figure import Figure
 
 import scipy.stats
 import os
+from os.path import join
 import sys
 import platform
 import time
@@ -87,11 +88,13 @@ class SpykeWindow(QtGui.QMainWindow):
         self.move(0, 0) # top left corner, to make space for data windows
 
         self.dpos = {} # positions of data windows relative to main spyke window
-        self.path = os.getcwd() # init
+        self.streampath = os.getcwd() # init
+        self.sortpath = os.getcwd() # init
         for d in ('~/data', '/data'): # use first existing of these paths, if any
             path = os.path.expanduser(d)
             if os.path.exists(path):
-                self.path = path
+                self.streampath = path
+                self.sortpath = path
                 break
         self.windows = {} # holds child windows
         self.spiketw = DEFSPIKETW # spike window temporal window (us)
@@ -118,23 +121,15 @@ class SpykeWindow(QtGui.QMainWindow):
         # automatically load some files, for testing:
         '''
         srffname = "/home/mspacek/data/ptc22/03-tr1-driftbar_shortbar.srf"
-        head, tail = os.path.split(srffname)
-        self.path = head # update path
-        self.OpenFile(tail)
+        self.OpenFile(srffname)
         sortfname = "/home/mspacek/data/ptc22/tr1/03-tr1-driftbar_shortbar.srf_2012-02-07_21.25.19.sort"
-        head, tail = os.path.split(sortfname)
-        self.path = head # update path
-        self.OpenFile(tail)
+        self.OpenFile(sortfname)
         '''
         '''
         trackfname = "/media/NVS-07/data/ptc22/tr1/track1.track"
-        head, tail = os.path.split(trackfname)
-        self.path = head # update path
-        self.OpenFile(tail)
+        self.OpenFile(trackfname)
         sortfname = "/home/mspacek/data/ptc22/tr1/track1.track_2012-03-02_15.56.59.sort"
-        head, tail = os.path.split(sortfname)
-        self.path = head # update path
-        self.OpenFile(tail)
+        self.OpenFile(sortfname)
         '''
 
     def groupMenuSamplingRates(self):
@@ -154,16 +149,14 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
-        fname = getOpenFileName(self, caption="Open .srf, .track or .sort file",
-                                directory=self.path,
-                                filter="Surf, track & sort files "
-                                       "(*.srf *.track *.sort *.tsf);;"
+        fname = getOpenFileName(self, caption="Open .srf, .track, .tsf or .sort file",
+                                directory=self.streampath,
+                                filter="Surf, track, tsf & sort files "
+                                       "(*.srf *.track *.tsf *.sort );;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
-            head, tail = os.path.split(fname)
-            self.path = head # update path
-            self.OpenFile(tail)
+            self.OpenFile(fname)
 
     @QtCore.pyqtSlot()
     def on_actionSaveSort_triggered(self):
@@ -200,7 +193,7 @@ class SpykeWindow(QtGui.QMainWindow):
             if ext != '.sort':
                 fname = base + '.sort' # make sure it has .sort extension
             head, tail = os.path.split(fname)
-            self.path = head # update path
+            self.sortpath = head # update sort path
             # make way for new .spike and .wave files
             try: del self.sort.spikefname
             except AttributeError: pass
@@ -211,12 +204,13 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveParse_triggered(self):
         self.hpstream.pickle()
-
+    '''
+    ## not really necessary, .wave is now always saved by default with .sort
     @QtCore.pyqtSlot()
     def on_actionSaveWave_triggered(self):
         """Save waveforms to a .wave file"""
         defaultfname = os.path.splitext(self.sort.fname)[0] + '.wave'
-        #defaultfname = self.join(defaultfname) # add path to it
+        #defaultfname = join(self.sortpath, defaultfname) # add path to it
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption="Save .wave file",
                                 directory=defaultfname,
@@ -225,24 +219,24 @@ class SpykeWindow(QtGui.QMainWindow):
         fname = str(fname)
         if fname:
             head, tail = os.path.split(fname)
-            self.path = head # update path
+            self.sortpath = head # update sort path
             self.SaveWaveFile(tail)
-
+    '''
     @QtCore.pyqtSlot()
     def on_actionExportPtcsFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .ptcs file(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
-            self.sort.exportptcsfiles(sortpath=self.path, basepath=path)
+            self.sort.exportptcsfiles(sortpath=self.sortpath, basepath=path)
             # don't update path
 
     @QtCore.pyqtSlot()
     def on_actionExportGdfFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .gdf file(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exportgdffiles(path)
@@ -252,7 +246,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportSpkFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .spk files to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exportspikes(path)
@@ -262,7 +256,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportTsChIdFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export tschid(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exporttschid(path)
@@ -272,7 +266,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportDIN_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export DIN(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exportdin(path)
@@ -282,7 +276,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportTextheader_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export textheader(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exporttextheader(path)
@@ -292,7 +286,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportAll_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export spikes, DIN(s) and textheader(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exportall(path)
@@ -302,7 +296,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportLFP_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export LFP(s) to",
-                                    directory=self.path)
+                                    directory=self.sortpath)
         path = str(path)
         if path:
             self.sort.exportlfp(path)
@@ -364,8 +358,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionCloseStream_triggered(self):
-        self.CloseSurfOrTrackFile()
-        print('closed streams')
+        self.CloseStream()
+        print('closed stream')
 
     @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
@@ -1675,9 +1669,6 @@ class SpykeWindow(QtGui.QMainWindow):
         nids[delsidis] = 0 # doesn't seem to overwrite nid values in spikes recarray
         self.apply_clustering(oldclusters, sids, nids, verb='split')
 
-    def join(self, fname):
-        return os.path.join(self.path, fname)
-
     def updateTitle(self):
         """Update main spyke window title based on open stream and sort, if any"""
         if hasattr(self.hpstream, 'fname'):
@@ -1691,34 +1682,39 @@ class SpykeWindow(QtGui.QMainWindow):
         self.setWindowTitle(title) # update the title
 
     def OpenFile(self, fname):
-        """Open a .srf, .sort or .wave file"""
-        ext = os.path.splitext(fname)[1]
+        """Open a stream or sort file. fname in this case must contain a full path"""
+        head, tail = os.path.split(fname)
+        assert head # make sure fname has a path to it
+        ext = os.path.splitext(tail)[1]
         if ext in ['.srf', '.track', '.tsf']:
-            self.OpenSurfTrackTSFFile(fname)
+            self.streampath = head
+            self.OpenStreamFile(tail)
         elif ext == '.sort':
-            self.OpenSortFile(fname)
+            self.sortpath = head
+            self.OpenSortFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
             critical(self, "Error", "%s is not a .srf, .track, .tsf, or .sort file" % fname)
 
-    def OpenSurfTrackTSFFile(self, fname):
-        """Open a .srf, .track, or .tsf file, and update display accordingly"""
+    def OpenStreamFile(self, fname):
+        """Open a stream (.srf, .track, or .tsf file) and update display accordingly.
+        fname is assumed to be relative to self.streampath"""
         if self.hpstream != None:
-            self.CloseSurfOrTrackFile() # in case a .srf or .track file and windows are already open
+            self.CloseStream() # in case a stream is already open
         ext = os.path.splitext(fname)[1]
         if ext == '.srf':
-            srff = surf.File(fname, self.path)
+            srff = surf.File(fname, self.streampath)
             srff.parse() # TODO: parsing progress dialog
             self.hpstream = srff.hpstream # highpass record (spike) stream
             self.lpstream = srff.lpstream # lowpassmultichan record (LFP) stream
         elif ext == '.track':
             srffs = []
-            with open(self.join(fname), 'r') as trackfile:
+            with open(join(self.streampath, fname), 'r') as trackfile:
                 for line in trackfile: # one srf filename per line
                     if line.startswith('#'): # it's a comment line
                         continue # skip it
                     srffname = line.rstrip('\n')
-                    srff = surf.File(srffname, self.path)
+                    srff = surf.File(srffname, self.streampath)
                     srff.parse()
                     srffs.append(srff) # build up list of open and parsed surf File objects
             self.hpstream = core.TrackStream(srffs, fname, kind='highpass')
@@ -1769,6 +1765,8 @@ class SpykeWindow(QtGui.QMainWindow):
         data, within which are embedded a number of spikes from a number of neurons.
         The ground truth is typically listed at the end of the file. Return a TSFStream.
 
+        fname is assumed to be relative to self.streampath.
+
         .tsf file TODO:
 
             - make data column-major for better seeking in time
@@ -1801,7 +1799,7 @@ class SpykeWindow(QtGui.QMainWindow):
               and still be detected and clustered correctly
     
         """
-        try: f = open(self.join(fname), 'rb')
+        try: f = open(join(self.streampath, fname), 'rb')
         except IOError:
             print("can't find file %r" % fname)
             return
@@ -1888,12 +1886,12 @@ class SpykeWindow(QtGui.QMainWindow):
             nids[sids] = newnid # overwrite old nid values with new ones
 
     def OpenSortFile(self, fname):
-        """Open a Sort from a .sort file, try and open a .wave file
-        with the same name, restore the stream"""
+        """Open a Sort from a .sort and .spike file, try and open a .wave file
+        with the same name, restore the (closed) stream"""
         self.DeleteSort() # delete any existing Sort
         print('opening sort file %r' % fname)
         t0 = time.time()
-        f = open(self.join(fname), 'rb')
+        f = open(join(self.sortpath, fname), 'rb')
         sort = cPickle.load(f)
         print('done opening sort file, took %.3f sec' % (time.time()-t0))
         print('sort file was %d bytes long' % f.tell())
@@ -1959,7 +1957,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sort = self.sort
         print('loading spike file %r' % fname)
         t0 = time.time()
-        f = open(self.join(fname), 'rb')
+        f = open(join(self.sortpath, fname), 'rb')
         spikes = np.load(f)
         print('done opening spike file, took %.3f sec' % (time.time()-t0))
         print('spike file was %d bytes long' % f.tell())
@@ -1979,7 +1977,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sort = self.sort
         print('opening wave file %r' % fname)
         t0 = time.time()
-        try: f = open(self.join(fname), 'rb')
+        try: f = open(join(self.sortpath, fname), 'rb')
         except IOError:
             print("can't find file %r" % fname)
             return
@@ -1998,8 +1996,6 @@ class SpykeWindow(QtGui.QMainWindow):
             raise RuntimeError
         return wavedata
 
-
-
     def CreateNewSort(self):
         """Create a new Sort, bind it to self, and return it"""
         self.DeleteSort()
@@ -2009,7 +2005,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return self.sort
 
     def SaveSortFile(self, fname):
-        """Save sort to a .sort file"""
+        """Save sort to a .sort file. fname is assumed to be relative to self.sortpath"""
         s = self.sort
         try: s.spikes
         except AttributeError: raise RuntimeError("Sort has no spikes to save")
@@ -2031,14 +2027,14 @@ class SpykeWindow(QtGui.QMainWindow):
             s.MV, s.focus = cw.glWidget.MV, cw.glWidget.focus # save camera view
         except KeyError: pass # cw hasn't been opened yet, no camera view to save
         s.fname = fname # bind it now that it's about to be saved
-        f = open(self.join(fname), 'wb')
+        f = open(join(self.sortpath, fname), 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
 
     def SaveSpikeFile(self, fname):
-        """Save spikes to a .spike file"""
+        """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
         s = self.sort
         try: s.spikes
         except AttributeError: raise RuntimeError("Sort has no spikes to save")
@@ -2054,7 +2050,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.dirtysids.clear() # no longer dirty
         print('saving spike file %r' % fname)
         t0 = time.time()
-        f = open(self.join(fname), 'wb')
+        f = open(join(self.sortpath, fname), 'wb')
         np.save(f, s.spikes)
         f.close()
         print('done saving spike file, took %.3f sec' % (time.time()-t0))
@@ -2062,7 +2058,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def SaveWaveFile(self, fname, sids=None):
         """Save waveform data to a .wave file. Optionally, update only sids
-        in existing .wave file"""
+        in existing .wave file. fname is assumed to be relative to self.sortpath"""
         s = self.sort
         try: s.wavedata
         except AttributeError: return # no wavedata to save
@@ -2074,12 +2070,12 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = None # resave all of them for speed
         if sids == None: # write the whole file
             print('updating all %d spikes in wave file %r' % (s.nspikes, fname))
-            f = open(self.join(fname), 'wb')
+            f = open(join(self.sortpath, fname), 'wb')
             np.save(f, s.wavedata)
             f.close()
         else: # write only sids
             print('updating %d spikes in wave file %r' % (len(sids), fname))
-            core.updatenpyfilerows(self.join(fname), sids, s.wavedata)
+            core.updatenpyfilerows(join(self.sortpath, fname), sids, s.wavedata)
         print('done saving wave file, took %.3f sec' % (time.time()-t0))
         s.wavefname = fname
 
@@ -2179,8 +2175,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
-    def CloseSurfOrTrackFile(self):
-        """Close data windows and streams"""
+    def CloseStream(self):
+        """Close data windows and stream (both hpstream and lpstream)"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
         for windowtype in self.windows.keys():
@@ -2199,7 +2195,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.updateTitle()
         self.EnableSurfWidgets(False)
         
-
     def CloseSortFile(self):
         self.DeleteSort()
         self.updateTitle()

@@ -1848,7 +1848,6 @@ If 1 neuron selected, plot autocorrelogram</string>
     <addaction name="actionSaveSort"/>
     <addaction name="actionSaveSortAs"/>
     <addaction name="actionSaveParse"/>
-    <addaction name="actionSaveWave"/>
     <addaction name="menuExport"/>
     <addaction name="separator"/>
     <addaction name="actionUpdateSortVersion"/>
