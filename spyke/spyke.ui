@@ -141,7 +141,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="detectTab">
        <attribute name="title">
@@ -1850,8 +1850,6 @@ If 1 neuron selected, plot autocorrelogram</string>
     <addaction name="actionSaveParse"/>
     <addaction name="menuExport"/>
     <addaction name="separator"/>
-    <addaction name="actionUpdateSortVersion"/>
-    <addaction name="separator"/>
     <addaction name="actionCloseSort"/>
     <addaction name="actionCloseStream"/>
     <addaction name="actionQuit"/>
@@ -1959,7 +1957,7 @@ If 1 neuron selected, plot autocorrelogram</string>
     <string>&amp;Open...</string>
    </property>
    <property name="toolTip">
-    <string>Open .srf, .track, .tsf or .sort</string>
+    <string>Open stream or sort</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
@@ -1998,23 +1996,25 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Save .sort</string>
+    <string>&amp;Save sort</string>
    </property>
    <property name="toolTip">
-    <string>Save .sort</string>
+    <string>Save sort</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
    </property>
   </action>
   <action name="actionSaveParse">
-   <property name="text">
-    <string>Save .&amp;parse</string>
+   <property name="icon">
+    <iconset>
+     <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
-  </action>
-  <action name="actionSaveWave">
    <property name="text">
-    <string>Save .&amp;wave</string>
+    <string>Save &amp;parse</string>
+   </property>
+   <property name="toolTip">
+    <string>Save parse</string>
    </property>
   </action>
   <action name="actionRedo">
@@ -2063,10 +2063,10 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/window-close.svg</normaloff>res/window-close.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Close .srf, .track or .tsf</string>
+    <string>&amp;Close stream</string>
    </property>
    <property name="toolTip">
-    <string>Close .srf, .track or .tsf</string>
+    <string>Close stream</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+W</string>
@@ -2276,10 +2276,10 @@ If 1 neuron selected, plot autocorrelogram</string>
      <normaloff>res/document-save-as.svg</normaloff>res/document-save-as.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Save .sort As...</string>
+    <string>Save sort &amp;As...</string>
    </property>
    <property name="toolTip">
-    <string>Save .sort As</string>
+    <string>Save sort As</string>
    </property>
   </action>
   <action name="actionExportPtcsFiles">
@@ -2336,14 +2336,6 @@ If 1 neuron selected, plot autocorrelogram</string>
     <string>Toggle clustering layout</string>
    </property>
   </action>
-  <action name="actionUpdateSortVersion">
-   <property name="text">
-    <string>Update .sort Version</string>
-   </property>
-   <property name="toolTip">
-    <string>Update .sort Version</string>
-   </property>
-  </action>
   <action name="actionScale">
    <property name="checkable">
     <bool>true</bool>
@@ -2357,10 +2349,10 @@ If 1 neuron selected, plot autocorrelogram</string>
   </action>
   <action name="actionCloseSort">
    <property name="text">
-    <string>Close .sort</string>
+    <string>Close sort</string>
    </property>
    <property name="toolTip">
-    <string>Close .sort</string>
+    <string>Close sort</string>
    </property>
   </action>
  </widget>

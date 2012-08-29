@@ -204,24 +204,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveParse_triggered(self):
         self.hpstream.pickle()
-    '''
-    ## not really necessary, .wave is now always saved by default with .sort
-    @QtCore.pyqtSlot()
-    def on_actionSaveWave_triggered(self):
-        """Save waveforms to a .wave file"""
-        defaultfname = os.path.splitext(self.sort.fname)[0] + '.wave'
-        #defaultfname = join(self.sortpath, defaultfname) # add path to it
-        getSaveFileName = QtGui.QFileDialog.getSaveFileName
-        fname = getSaveFileName(self, caption="Save .wave file",
-                                directory=defaultfname,
-                                filter="Wave files (*.wave);;"
-                                       "All files (*.*)")
-        fname = str(fname)
-        if fname:
-            head, tail = os.path.split(fname)
-            self.sortpath = head # update sort path
-            self.SaveWaveFile(tail)
-    '''
+
     @QtCore.pyqtSlot()
     def on_actionExportPtcsFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
@@ -301,10 +284,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if path:
             self.sort.exportlfp(path)
             # don't update path
-
-    @QtCore.pyqtSlot()
-    def on_actionUpdateSortVersion_triggered(self):
-        self.update_sort_version()
 
     def update_sort_version(self):
         """Update self.sort to latest version"""
@@ -2343,6 +2322,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.menuSampling.setEnabled(not enable)
         self.ui.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
+        self.ui.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
         '''
         self.menubar.Enable(wx.ID_SORTWIN, enable)
         self.toolbar.EnableTool(wx.ID_SORTWIN, enable)
