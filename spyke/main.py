@@ -113,7 +113,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.dirtysids = set() # sids whose waveforms in .wave file are out of date
         
         # disable most widgets until a .srf or .sort file is opened
-        self.EnableSurfWidgets(False)
+        self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
         
         # TODO: load recent file history
@@ -490,11 +490,6 @@ class SpykeWindow(QtGui.QMainWindow):
         set_excepthook()
 
     @QtCore.pyqtSlot()
-    def on_actionWaveforms_triggered(self):
-        """Spike waveforms toggle menu event"""
-        self.ToggleWaveforms()
-
-    @QtCore.pyqtSlot()
     def on_actionRasters_triggered(self):
         """Spike rasters toggle menu event"""
         self.ToggleRasters()
@@ -592,14 +587,8 @@ class SpykeWindow(QtGui.QMainWindow):
         sort.tres = sort.stream.tres # for convenience
 
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
-        self.EnableSpikeWidgets(True)
-        # disable sampling menu, don't want to allow sampfreq or shcorrect changes
-        # now that we've had a detection run
-        self.ui.menuSampling.setEnabled(False)
-        self.ui.actionRasters.setEnabled(True) # enable raster menu, now that spikes exist
-        self.ShowRasters() # show spike rasters for open data windows
+        self.EnableSortWidgets(True)
         sw = self.OpenWindow('Sort') # ensure it's open
-        self.EnableSpikeWidgets(True) # now that we (probably) have some spikes
         if sort.nspikes > 0:
             self.on_plotButton_clicked()
 
@@ -1756,8 +1745,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.slider.setPageStep((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
         self.ui.slider.setInvertedControls(True)
 
-        self.EnableSurfWidgets(True)
-        self.EnableSortWidgets(True) # sorting is now possible
+        self.EnableStreamWidgets(True)
 
     def OpenTSFFile(self, fname):
         """Open NVS's "test spike file" .tsf format for testing spike sorting
@@ -1913,13 +1901,10 @@ class SpykeWindow(QtGui.QMainWindow):
         self.OpenSpikeFile(sort.spikefname)
 
         if self.hpstream != None:
-            sort.stream = self.hpstream # restore missing stream object to Sort
+            sort.stream = self.hpstream # restore open stream to sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
-        self.ShowRasters(True) # turn rasters on and update rasters menu item now that we have a sort
-        self.ui.menuSampling.setEnabled(False) # disable sampling menu
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
-        self.EnableSpikeWidgets(True)
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         sw = self.OpenWindow('Sort') # ensure it's open
@@ -2193,7 +2178,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.lfptw = DEFLFPTW
         self.ShowRasters(False) # reset
         self.updateTitle()
-        self.EnableSurfWidgets(False)
+        self.EnableStreamWidgets(False)
         
     def CloseSortFile(self):
         self.DeleteSort()
@@ -2287,9 +2272,6 @@ class SpykeWindow(QtGui.QMainWindow):
         window = self.windows.pop(windowtype)
         window.destroy()
 
-    def ToggleWaveforms(self):
-        raise NotImplementedError
-
     def ToggleRasters(self):
         """Toggle visibility of rasters"""
         enable = self.ui.actionRasters.isChecked()
@@ -2330,8 +2312,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.actionSampleAndHoldCorrect.setChecked(enable)
         self.plot()
 
-    def EnableSurfWidgets(self, enable):
-        """Enable/disable all widgets that require an open .srf file"""
+    def EnableStreamWidgets(self, enable):
+        """Enable/disable all widgets that require an open stream"""
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
         self.ui.filePosEndButton.setEnabled(enable)
@@ -2357,8 +2339,10 @@ class SpykeWindow(QtGui.QMainWindow):
         self.file_max_label.Show(enable)
         '''
     def EnableSortWidgets(self, enable):
-        """Enable/disable all widgets that require an "open" .sort file"""
-        self.ui.tabWidget.setEnabled(enable)
+        """Enable/disable all widgets that require a sort"""
+        self.ui.menuSampling.setEnabled(not enable)
+        self.ui.actionRasters.setEnabled(enable)
+        self.ShowRasters(enable)
         '''
         self.menubar.Enable(wx.ID_SORTWIN, enable)
         self.toolbar.EnableTool(wx.ID_SORTWIN, enable)

@@ -1879,7 +1879,6 @@ If 1 neuron selected, plot autocorrelogram</string>
     <addaction name="separator"/>
     <addaction name="actionShell"/>
     <addaction name="separator"/>
-    <addaction name="actionWaveforms"/>
     <addaction name="actionRasters"/>
     <addaction name="separator"/>
     <addaction name="actionTimeRef"/>
@@ -2161,17 +2160,6 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Shell</string>
-   </property>
-  </action>
-  <action name="actionWaveforms">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Waveforms</string>
    </property>
   </action>
   <action name="actionRasters">
