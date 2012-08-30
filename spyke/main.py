@@ -149,7 +149,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
-        fname = getOpenFileName(self, caption="Open .srf, .track, .tsf or .sort file",
+        fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
                                 filter="Surf, track, tsf & sort files "
                                        "(*.srf *.track *.tsf *.sort );;"
@@ -171,7 +171,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionSaveSortAs_triggered(self):
-        """Save Sort to new .sort file"""
+        """Save sort to new .sort file"""
         try:
             defaultfname = self.sort.fname
         except AttributeError: # sort hasn't been previously saved
@@ -183,7 +183,7 @@ class SpykeWindow(QtGui.QMainWindow):
             dt = dt.replace(':', '.')
             defaultfname = fname + '_' + dt + '.sort'
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
-        fname = getSaveFileName(self, caption="Save .sort file",
+        fname = getSaveFileName(self, caption="Save sort As",
                                 directory=defaultfname,
                                 filter="Sort files (*.sort);;"
                                        "All files (*.*)")
@@ -296,7 +296,7 @@ class SpykeWindow(QtGui.QMainWindow):
             print('no update necessary')
             return
         if v < 0.3:
-            print('best not to try and auto update from anything older than 0.3')
+            print("can't auto update from sort version < 0.3")
             return
         if v == 0.3:
             self.update_0_3_to_0_4()
@@ -2319,7 +2319,7 @@ class SpykeWindow(QtGui.QMainWindow):
         '''
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require a sort"""
-        self.ui.menuSampling.setEnabled(not enable)
+        self.EnableSamplingMenu(not enable)
         self.ui.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
         self.ui.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
@@ -2333,6 +2333,14 @@ class SpykeWindow(QtGui.QMainWindow):
         self.menubar.Enable(wx.ID_RASTERS, enable)
         '''
         self.EnableSpikeWidgets(enable)
+
+    def EnableSamplingMenu(self, enable):
+        """Enable/disable all items in Sampling menu, while still allowing
+        the menu to be opened and its contents viewed"""
+        self.ui.action25kHz.setEnabled(enable)
+        self.ui.action50kHz.setEnabled(enable)
+        self.ui.action100kHz.setEnabled(enable)
+        self.ui.actionSampleAndHoldCorrect.setEnabled(enable)
 
     def EnableSpikeWidgets(self, enable):
         """Enable/disable all widgets that require the current Sort to have spikes"""
