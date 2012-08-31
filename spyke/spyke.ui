@@ -2046,10 +2046,10 @@ If 1 neuron selected, plot autocorrelogram</string>
   </action>
   <action name="actionExportTsChIDFiles">
    <property name="text">
-    <string>.tschid Files</string>
+    <string>tschid Files</string>
    </property>
    <property name="toolTip">
-    <string>.tschid Files</string>
+    <string>Export tschid Files</string>
    </property>
   </action>
   <action name="actionExportLFP">
@@ -2284,26 +2284,26 @@ If 1 neuron selected, plot autocorrelogram</string>
   </action>
   <action name="actionExportPtcsFiles">
    <property name="text">
-    <string>.ptcs Files</string>
+    <string>ptcs Files</string>
    </property>
    <property name="toolTip">
-    <string>.ptcs Files</string>
+    <string>Export ptcs Files</string>
    </property>
   </action>
   <action name="actionExportSpkFiles">
    <property name="text">
-    <string>.spk Files</string>
+    <string>spk Files</string>
    </property>
    <property name="toolTip">
-    <string>.spk Files</string>
+    <string>Export spk Files</string>
    </property>
   </action>
   <action name="actionExportGdfFiles">
    <property name="text">
-    <string>.gdf Files</string>
+    <string>gdf Files</string>
    </property>
    <property name="toolTip">
-    <string>.gdf Files</string>
+    <string>Export gdf Files</string>
    </property>
   </action>
   <action name="actionMPLWindow">

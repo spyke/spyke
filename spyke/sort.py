@@ -1541,7 +1541,8 @@ class SortWindow(SpykeToolWindow):
         toolbar.setFloatable(True)
 
         actionDelete = QtGui.QAction("Del", self)
-        actionDelete.setToolTip('Delete clusters\nSHIFT: Delete spikes')
+        actionDelete.setToolTip('Delete clusters\n'
+                                'CTRL: Delete spikes')
         self.connect(actionDelete, QtCore.SIGNAL("triggered()"),
                      self.on_actionDelete_triggered)
         toolbar.addAction(actionDelete)
@@ -1578,11 +1579,12 @@ class SortWindow(SpykeToolWindow):
 
         toolbar.addSeparator()
 
-        actionRenumberClusters = QtGui.QAction("#", self)
-        actionRenumberClusters.setToolTip('Renumber clusters')
-        self.connect(actionRenumberClusters, QtCore.SIGNAL("triggered()"),
-                     self.on_actionRenumberClusters_triggered)
-        toolbar.addAction(actionRenumberClusters)
+        actionRenumber = QtGui.QAction("#", self)
+        actionRenumber.setToolTip('Renumber clusters in vertical spatial order\n'
+                                  'CTRL: Renumber selected cluster')
+        self.connect(actionRenumber, QtCore.SIGNAL("triggered()"),
+                     self.on_actionRenumber_triggered)
+        toolbar.addAction(actionRenumber)
 
         toolbar.addSeparator()
 
@@ -1652,8 +1654,8 @@ class SortWindow(SpykeToolWindow):
         toolbar.addSeparator()
 
         actionReloadSpikes = QtGui.QAction("Reload", self)
-        actionReloadSpikes.setToolTip("Reload selected spikes\nSHIFT: Use mean waveform "
-                                      "to choose chans to reload")
+        actionReloadSpikes.setToolTip('Reload selected spikes\n'
+                                      'CTRL: Use mean waveform to choose chans to reload')
         self.connect(actionReloadSpikes, QtCore.SIGNAL("triggered()"),
                      self.on_actionReloadSpikes_triggered)
         toolbar.addAction(actionReloadSpikes)
@@ -1711,15 +1713,11 @@ class SortWindow(SpykeToolWindow):
         up to here"""
         key = event.key()
         modifiers = event.modifiers()
-        shift = Qt.ShiftModifier == modifiers # only modifier is shift
-        ctrl = Qt.ControlModifier == modifiers # only modifier is ctrl
+        ctrl = Qt.ControlModifier & modifiers # ctrl is down
         if key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
         elif key == Qt.Key_Delete:
-            if shift:
-                self.on_actionDeleteSpikes_triggered() # del selected spikes
-            else:
-                self.on_actionDeleteClusters_triggered() # del selected clusters
+            self.on_actionDelete_triggered()
         elif key == Qt.Key_M: # ignored in SpykeListViews
             self.on_actionMergeClusters_triggered()
         elif key == Qt.Key_G: # ignored in SpykeListViews
@@ -1731,7 +1729,7 @@ class SortWindow(SpykeToolWindow):
         elif key == Qt.Key_Backslash: # ignored in SpykeListViews
             self.on_actionRandomSplit_triggered()
         elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
-            self.on_actionRenumberClusters_triggered()
+            self.on_actionRenumber_triggered()
         elif key == Qt.Key_C: # ignored in SpykeListViews
             self.on_actionFocusCurrentCluster_triggered()
         elif key == Qt.Key_V: # ignored in SpykeListViews
@@ -1781,14 +1779,14 @@ class SortWindow(SpykeToolWindow):
             self.nlist.clearSelection()
 
     def on_actionDelete_triggered(self):
-        """Del or SHIFT+Del click"""
-        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ShiftModifier:
-            self.on_actionDeleteSpikes_triggered()
+        """Delete selected spikes or clusters"""
+        if QtGui.QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+            self.delete_spikes()
         else:
-            self.on_actionDeleteClusters_triggered()
+            self.delete_clusters()
 
-    def on_actionDeleteClusters_triggered(self):
-        """Del button click"""
+    def delete_clusters(self):
+        """Del button press/click"""
         spw = self.spykewindow
         clusters = spw.GetClusters()
         s = self.sort
@@ -1820,8 +1818,8 @@ class SortWindow(SpykeToolWindow):
         spw.AddClusterChangeToStack(cc)
         print(cc.message)
 
-    def on_actionDeleteSpikes_triggered(self):
-        """SHIFT+Del button click"""
+    def delete_spikes(self):
+        """CTRL+Del button press/click"""
         self.spykewindow.DeleteSpikes()
 
     def on_actionMergeClusters_triggered(self):
@@ -1947,13 +1945,54 @@ class SortWindow(SpykeToolWindow):
         of spikes > MAXNCLIMBPOINTS"""
         self.spykewindow.randomsplit()
 
-    def on_actionRenumberClusters_triggered(self):
-        """Renumber single unit clusters consecutively from 1, ordered by y position,
-        on "#" button click. Do the same for multiunit (-ve number) clusters, starting
-        from -1. Sorting by y position makes user inspection of clusters more orderly,
-        makes the presence of duplicate clusters more obvious, and allows for maximal
-        spatial separation between clusters of the same colour, reducing colour
-        conflicts"""
+    def on_actionRenumber_triggered(self):
+        if QtGui.QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+            self.renumber_selected_cluster()
+        else:
+            self.renumber_all_clusters()
+
+    def renumber_selected_cluster(self):
+        """Renumber a single selected cluster to whatever free ID the user wants, for
+        colouring purposes"""
+        spw = self.spykewindow
+        s = self.sort
+        spikes = s.spikes
+
+        cluster = spw.GetCluster() # exactly one selected cluster
+        oldid = cluster.id
+        newid = max(s.norder) + 1
+        newid, ok = QtGui.QInputDialog.getInt(self, 'Renumber cluster',
+                                              'Enter new ID:', value=newid)
+        if not ok:
+            return
+        if newid in s.norder:
+            print("choose a non-existing nid to renumber to")
+            return
+        # deselect cluster
+        spw.SelectClusters(cluster, on=False)
+
+        # rename to newid
+        cluster.id = newid # this indirectly updates neuron.id
+        # update cluster and neuron dicts, and spikes array
+        s.clusters[newid] = cluster
+        s.neurons[newid] = cluster.neuron
+        sids = cluster.neuron.sids
+        spikes['nid'][sids] = newid
+        # remove duplicate oldid dict entries
+        del s.clusters[oldid]
+        del s.neurons[oldid]
+        # replace oldid with newid in norder
+        s.norder[s.norder.index(oldid)] = newid
+        # reselect cluster
+        spw.SelectClusters(cluster)
+        print('renumbered neuron %d to %d' % (oldid, newid))
+
+    def renumber_all_clusters(self):
+        """Renumber single unit clusters consecutively from 1, ordered by y position. Do the
+        same for multiunit (-ve number) clusters, starting from -1. Sorting by y position
+        makes user inspection of clusters more orderly, makes the presence of duplicate
+        clusters more obvious, and allows for maximal spatial separation between clusters of
+        the same colour, reducing colour conflicts"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
@@ -1965,23 +2004,26 @@ class SortWindow(SpykeToolWindow):
         # this is a bit confusing: find indices that would sort old ids by y pos, but then
         # what you really want is to find the y pos *rank* of each old id, so you need to
         # take argsort again:
-        newsuids = np.asarray([ s.clusters[cid].pos['y0'] for cid in oldsuids ]).argsort().argsort() + 1
-        newmuids = np.asarray([ s.clusters[cid].pos['y0'] for cid in oldmuids ]).argsort().argsort() + 1
+        newsuids = np.asarray([ s.clusters[cid].pos['y0']
+                                for cid in oldsuids ]).argsort().argsort() + 1
+        newmuids = np.asarray([ s.clusters[cid].pos['y0']
+                                for cid in oldmuids ]).argsort().argsort() + 1
         newmuids = -newmuids
         # multiunit, followed by single unit, no 0 junk cluster. Can't seem to do it the other
         # way around as of Qt 4.7.2 - it seems QListViews don't like having a -ve value in
         # the last entry. Doing so causes all 2 digit values in the list to become blank,
-        # suggests a spacing calculation bug. Reproduce by making last entry multiunit, undoing,
-        # then redoing. Actually, maybe the bug is it doesn't like having a number in the last
-        # entry with fewer digits than the preceding entry. Only seems to be a problem when
-        # setting self.setUniformItemSizes(True).
+        # suggests a spacing calculation bug. Reproduce by making last entry multiunit,
+        # undoing then redoing. Actually, maybe the bug is it doesn't like having a number
+        # in the last entry with fewer digits than the preceding entry. Only seems to be a
+        # problem when setting self.setUniformItemSizes(True).
         newids = np.concatenate([newmuids, newsuids])
 
         # test
         if np.all(oldids == newids):
             print('nothing to renumber: cluster IDs already ordered in y0 and contiguous')
             return
-        oldids = np.concatenate([oldmuids, oldsuids]) # update for replacing oldids with newids
+        # update for replacing oldids with newids
+        oldids = np.concatenate([oldmuids, oldsuids])
 
         # deselect current selections
         selclusters = spw.GetClusters()
@@ -2095,7 +2137,7 @@ class SortWindow(SpykeToolWindow):
         sids = spw.GetAllSpikes()
         sort = self.sort
         usemeanchans = False
-        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ShiftModifier:
+        if QtGui.QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
         self.sort.reloadSpikes(sids, fixtvals=True, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
