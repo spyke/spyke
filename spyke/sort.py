@@ -21,6 +21,7 @@ import shutil
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
+from PyQt4.QtGui import QAction, QIcon, QApplication
 
 import numpy as np
 from numpy import sqrt
@@ -1488,7 +1489,7 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
         size = (MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
-        self.setWindowTitle("Sort Window")
+        self.setWindowTitle('Sort Window')
         self.move(*pos)
         self.resize(*size)
 
@@ -1498,9 +1499,9 @@ class SortWindow(SpykeToolWindow):
         self.slider = QtGui.QSlider(Qt.Horizontal, self)
         self.slider.setInvertedControls(True)
         self.slider.setToolTip('Position of sliding spike selection time window')
-        self.connect(self.slider, QtCore.SIGNAL("valueChanged(int)"),
+        self.connect(self.slider, QtCore.SIGNAL('valueChanged(int)'),
                      self.on_slider_valueChanged)
-        self.connect(self.slider, QtCore.SIGNAL("sliderPressed()"),
+        self.connect(self.slider, QtCore.SIGNAL('sliderPressed()'),
                      self.on_slider_sliderPressed)
 
         self.nlist = NList(self)
@@ -1537,72 +1538,78 @@ class SortWindow(SpykeToolWindow):
         #QtCore.QMetaObject.connectSlotsByName(self)
 
     def setupToolbar(self):
-        toolbar = QtGui.QToolBar("toolbar", self)
+        toolbar = QtGui.QToolBar('toolbar', self)
         toolbar.setFloatable(True)
+        toolbar.setIconSize(QtCore.QSize(16, 16)) # like in main spyke window
 
-        actionDelete = QtGui.QAction("Del", self)
-        actionDelete.setToolTip('Delete clusters\n'
-                                'CTRL: Delete spikes')
-        self.connect(actionDelete, QtCore.SIGNAL("triggered()"),
+        actionDelete = QAction(QIcon('res/edit-delete.svg'), 'Del', self)
+        tt = ('<nobr><b>Del</b> &nbsp; Delete clusters</nobr>\n'
+              '<nobr><b>CTRL+Del</b> &nbsp; Delete spikes</nobr>')
+        actionDelete.setToolTip(tt)
+        self.connect(actionDelete, QtCore.SIGNAL('triggered()'),
                      self.on_actionDelete_triggered)
         toolbar.addAction(actionDelete)
 
-        actionMergeClusters = QtGui.QAction("M", self)
-        actionMergeClusters.setToolTip('Merge clusters')
-        self.connect(actionMergeClusters, QtCore.SIGNAL("triggered()"),
+        actionMergeClusters = QAction('M', self)
+        tt = '<nobr><b>M</b> &nbsp; Merge clusters</nobr>'
+        actionMergeClusters.setToolTip(tt)
+        self.connect(actionMergeClusters, QtCore.SIGNAL('triggered()'),
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
 
-        actionToggleClustersGood = QtGui.QAction("G", self)
-        actionToggleClustersGood.setToolTip('Toggle clusters as "good"')
-        self.connect(actionToggleClustersGood, QtCore.SIGNAL("triggered()"),
+        actionToggleClustersGood = QAction(QIcon('res/dialog-apply.svg'), 'G', self)
+        tt = '<nobr><b>G</b> &nbsp; Toggle clusters as "good"</nobr>'
+        actionToggleClustersGood.setToolTip(tt)
+        self.connect(actionToggleClustersGood, QtCore.SIGNAL('triggered()'),
                      self.on_actionToggleClustersGood_triggered)
         toolbar.addAction(actionToggleClustersGood)
 
-        actionLabelMultiunit = QtGui.QAction("-", self)
-        actionLabelMultiunit.setToolTip('Label clusters as multiunit')
-        self.connect(actionLabelMultiunit, QtCore.SIGNAL("triggered()"),
+        actionLabelMultiunit = QAction(QIcon('res/window-close.svg'), '-', self)
+        tt = '<nobr><b>-</b> &nbsp; Label clusters as multiunit</nobr>'
+        actionLabelMultiunit.setToolTip(tt)
+        self.connect(actionLabelMultiunit, QtCore.SIGNAL('triggered()'),
                      self.on_actionLabelMultiunit_triggered)
         toolbar.addAction(actionLabelMultiunit)
 
-        actionChanSplitClusters = QtGui.QAction("/", self)
-        actionChanSplitClusters.setToolTip('Split clusters by channels')
-        self.connect(actionChanSplitClusters, QtCore.SIGNAL("triggered()"),
+        actionChanSplitClusters = QAction('/', self)
+        tt = '<nobr><b>/</b> &nbsp; Split clusters by channels</nobr>'
+        actionChanSplitClusters.setToolTip(tt)
+        self.connect(actionChanSplitClusters, QtCore.SIGNAL('triggered()'),
                      self.on_actionChanSplitClusters_triggered)
         toolbar.addAction(actionChanSplitClusters)
 
-        actionRandomSplit = QtGui.QAction("\\", self)
-        actionRandomSplit.setToolTip('Randomly split clusters exceeding %d' % core.MAXNCLIMBPOINTS)
-        self.connect(actionRandomSplit, QtCore.SIGNAL("triggered()"),
+        actionRandomSplit = QAction('\\', self)
+        tt = ('<nobr><b>\\</b> &nbsp; Randomly split clusters exceeding %d</nobr>'
+              % core.MAXNCLIMBPOINTS)
+        actionRandomSplit.setToolTip(tt)
+        self.connect(actionRandomSplit, QtCore.SIGNAL('triggered()'),
                      self.on_actionRandomSplit_triggered)
         toolbar.addAction(actionRandomSplit)
 
         toolbar.addSeparator()
 
-        actionRenumber = QtGui.QAction("#", self)
-        actionRenumber.setToolTip('Renumber clusters in vertical spatial order\n'
-                                  'CTRL: Renumber selected cluster')
-        self.connect(actionRenumber, QtCore.SIGNAL("triggered()"),
+        actionRenumber = QAction(QIcon('res/gtk-edit.svg'), '#', self)
+        tt = ('<nobr><b>#</b> &nbsp; Renumber clusters in vertical spatial order</nobr>\n'
+              '<nobr><b>CTRL+#</b> &nbsp; Renumber selected cluster</nobr>')
+        actionRenumber.setToolTip(tt)
+        self.connect(actionRenumber, QtCore.SIGNAL('triggered()'),
                      self.on_actionRenumber_triggered)
         toolbar.addAction(actionRenumber)
 
         toolbar.addSeparator()
 
-        actionFocusCurrentCluster = QtGui.QAction("C", self)
-        actionFocusCurrentCluster.setToolTip('Focus current cluster')
-        self.connect(actionFocusCurrentCluster, QtCore.SIGNAL("triggered()"),
-                     self.on_actionFocusCurrentCluster_triggered)
-        toolbar.addAction(actionFocusCurrentCluster)
+        actionFind = QAction(QIcon('res/edit-find.svg'), 'Find', self)
+        tt = ('<nobr>Find cluster in cluster plot</nobr>\n'
+              '<nobr><b>CTRL+F</b> &nbsp; Find spike in cluster plot</nobr>')
+        actionFind.setToolTip(tt)
+        self.connect(actionFind, QtCore.SIGNAL('triggered()'),
+                     self.on_actionFind_triggered)
+        toolbar.addAction(actionFind)
 
-        actionFocusCurrentSpike = QtGui.QAction("V", self)
-        actionFocusCurrentSpike.setToolTip('Focus current spike')
-        self.connect(actionFocusCurrentSpike, QtCore.SIGNAL("triggered()"),
-                     self.on_actionFocusCurrentSpike_triggered)
-        toolbar.addAction(actionFocusCurrentSpike)
-
-        actionSelectRandomSpikes = QtGui.QAction("R", self)
-        actionSelectRandomSpikes.setToolTip('Select random sample of spikes of current cluster')
-        self.connect(actionSelectRandomSpikes, QtCore.SIGNAL("triggered()"),
+        actionSelectRandomSpikes = QAction('R', self)
+        tt = '<nobr><b>R</b> &nbsp; Select random sample of spikes of current cluster</nobr>'
+        actionSelectRandomSpikes.setToolTip(tt)
+        self.connect(actionSelectRandomSpikes, QtCore.SIGNAL('triggered()'),
                      self.on_actionSelectRandomSpikes_activated)
         toolbar.addAction(actionSelectRandomSpikes)
 
@@ -1612,7 +1619,7 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox.addItems(['1', '5', '10', '20', '50', '100'])
         nsamplesComboBox.setCurrentIndex(3)
         toolbar.addWidget(nsamplesComboBox)
-        self.connect(nsamplesComboBox, QtCore.SIGNAL("activated(int)"),
+        self.connect(nsamplesComboBox, QtCore.SIGNAL('activated(int)'),
                      self.on_actionSelectRandomSpikes_activated)
         self.nsamplesComboBox = nsamplesComboBox
 
@@ -1621,69 +1628,68 @@ class SortWindow(SpykeToolWindow):
         alignlabel = QtGui.QLabel('Align:')
         toolbar.addWidget(alignlabel)
 
-        actionAlignMin = QtGui.QAction("min", self)
-        actionAlignMin.setToolTip("Align selected spikes to min")
-        self.connect(actionAlignMin, QtCore.SIGNAL("triggered()"),
+        actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
+        actionAlignMin.setToolTip('Align selected spikes to min')
+        self.connect(actionAlignMin, QtCore.SIGNAL('triggered()'),
                      self.on_actionAlignMin_triggered)
         toolbar.addAction(actionAlignMin)
 
-        actionAlignMax = QtGui.QAction("max", self)
-        actionAlignMax.setToolTip("Align selected spikes to max")
-        self.connect(actionAlignMax, QtCore.SIGNAL("triggered()"),
+        actionAlignMax = QAction(QIcon('res/go-top.svg'), 'Max', self)
+        actionAlignMax.setToolTip('Align selected spikes to max')
+        self.connect(actionAlignMax, QtCore.SIGNAL('triggered()'),
                      self.on_actionAlignMax_triggered)
         toolbar.addAction(actionAlignMax)
 
-        actionAlignBest = QtGui.QAction("best", self)
-        actionAlignBest.setToolTip("Align selected spikes by best fit")
-        self.connect(actionAlignBest, QtCore.SIGNAL("triggered()"),
+        actionAlignBest = QAction(QIcon('res/emblem-OK.png'), 'Best', self)
+        tt = '<nobr><b>B</b> &nbsp; Align selected spikes by best fit</nobr>'
+        actionAlignBest.setToolTip(tt)
+        self.connect(actionAlignBest, QtCore.SIGNAL('triggered()'),
                      self.on_actionAlignBest_triggered)
         toolbar.addAction(actionAlignBest)
 
-        actionShiftLeft = QtGui.QAction("[", self)
-        actionShiftLeft.setToolTip("Shift selected spikes left")
-        self.connect(actionShiftLeft, QtCore.SIGNAL("triggered()"),
+        actionShiftLeft = QAction('[', self)
+        tt = '<nobr><b>[</b> &nbsp; Shift selected spikes left</nobr>'
+        actionShiftLeft.setToolTip(tt)
+        self.connect(actionShiftLeft, QtCore.SIGNAL('triggered()'),
                      self.on_actionShiftLeft_triggered)
         toolbar.addAction(actionShiftLeft)
 
-        actionShiftRight = QtGui.QAction("]", self)
-        actionShiftRight.setToolTip("Shift selected spikes right")
-        self.connect(actionShiftRight, QtCore.SIGNAL("triggered()"),
+        actionShiftRight = QAction(']', self)
+        tt = '<nobr><b>]</b> &nbsp; Shift selected spikes right</nobr>'
+        actionShiftRight.setToolTip(tt)
+        self.connect(actionShiftRight, QtCore.SIGNAL('triggered()'),
                      self.on_actionShiftRight_triggered)
         toolbar.addAction(actionShiftRight)
 
         toolbar.addSeparator()
 
-        actionReloadSpikes = QtGui.QAction("Reload", self)
-        actionReloadSpikes.setToolTip('Reload selected spikes\n'
-                                      'CTRL: Use mean waveform to choose chans to reload')
-        self.connect(actionReloadSpikes, QtCore.SIGNAL("triggered()"),
-                     self.on_actionReloadSpikes_triggered)
-        toolbar.addAction(actionReloadSpikes)
-
-        toolbar.addSeparator()
-
-        actionFindPrevMostSimilar = QtGui.QAction("<", self)
-        actionFindPrevMostSimilar.setToolTip("Find previous most similar cluster")
-        self.connect(actionFindPrevMostSimilar, QtCore.SIGNAL("triggered()"),
+        actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)
+        tt = '<nobr><b>&lt;</b> &nbsp; Find previous most similar cluster</nobr>'
+        actionFindPrevMostSimilar.setToolTip(tt)
+        self.connect(actionFindPrevMostSimilar, QtCore.SIGNAL('triggered()'),
                      self.on_actionFindPrevMostSimilar_triggered)
         toolbar.addAction(actionFindPrevMostSimilar)
 
-        actionFindNextMostSimilar = QtGui.QAction(">", self)
-        actionFindNextMostSimilar.setToolTip("Find next most similar cluster")
-        self.connect(actionFindNextMostSimilar, QtCore.SIGNAL("triggered()"),
+        actionFindNextMostSimilar = QAction(QIcon('res/go-next.svg'), '>', self)
+        tt = '<nobr><b>&gt;</b> &nbsp; Find next most similar cluster</nobr>'
+        actionFindNextMostSimilar.setToolTip(tt)
+        self.connect(actionFindNextMostSimilar, QtCore.SIGNAL('triggered()'),
                      self.on_actionFindNextMostSimilar_triggered)
         toolbar.addAction(actionFindNextMostSimilar)
 
-        actionPlotClusterHist = QtGui.QAction("H", self)
-        actionPlotClusterHist.setToolTip("Plot cluster histogram, calculate overlap index "
-                                         "if 2 clusters selected")
-        self.connect(actionPlotClusterHist, QtCore.SIGNAL("triggered()"),
-                     self.on_actionPlotClusterHist_triggered)
-        toolbar.addAction(actionPlotClusterHist)
+        toolbar.addSeparator()
 
-        actionSave = QtGui.QAction("S", self)
-        actionSave.setToolTip("Save sort panel to file")
-        self.connect(actionSave, QtCore.SIGNAL("triggered()"),
+        actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
+        tt = ('<nobr>Reload selected spikes</nobr>\n'
+              '<nobr><b>CTRL</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
+        actionReloadSpikes.setToolTip(tt)
+        self.connect(actionReloadSpikes, QtCore.SIGNAL('triggered()'),
+                     self.on_actionReloadSpikes_triggered)
+        toolbar.addAction(actionReloadSpikes)
+
+        actionSave = QAction(QIcon('res/document-save.svg'), '&Save', self)
+        actionSave.setToolTip('Save sort panel to file')
+        self.connect(actionSave, QtCore.SIGNAL('triggered()'),
                      self.on_actionSave_triggered)
         toolbar.addAction(actionSave)
 
@@ -1730,10 +1736,11 @@ class SortWindow(SpykeToolWindow):
             self.on_actionRandomSplit_triggered()
         elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
             self.on_actionRenumber_triggered()
-        elif key == Qt.Key_C: # ignored in SpykeListViews
-            self.on_actionFocusCurrentCluster_triggered()
-        elif key == Qt.Key_V: # ignored in SpykeListViews
-            self.on_actionFocusCurrentSpike_triggered()
+        elif key == Qt.Key_F: # ignored in SpykeListViews
+            if ctrl:
+                self.FindSpike()
+            else:
+                self.FindCluster()
         elif key == Qt.Key_R: # ignored in SpykeListViews
             self.on_actionSelectRandomSpikes_activated()
         elif key == Qt.Key_Space: # ignored in SpykeListViews
@@ -1752,8 +1759,6 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
-        elif key == Qt.Key_H: # ignored in SpykeListViews
-            self.on_actionPlotClusterHist_triggered()
         elif key == Qt.Key_S: # ignored in SpykeListViews
             self.on_actionSave_triggered()
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
@@ -1780,7 +1785,7 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionDelete_triggered(self):
         """Delete selected spikes or clusters"""
-        if QtGui.QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+        if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             self.delete_spikes()
         else:
             self.delete_clusters()
@@ -1946,7 +1951,7 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.randomsplit()
 
     def on_actionRenumber_triggered(self):
-        if QtGui.QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+        if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             self.renumber_selected_cluster()
         else:
             self.renumber_all_clusters()
@@ -2078,8 +2083,16 @@ class SortWindow(SpykeToolWindow):
         spw.cci = -1
         print('renumbering complete')
 
-    def on_actionFocusCurrentCluster_triggered(self):
-        """Move focus to location focus of currently selected (single) cluster"""
+    def on_actionFind_triggered(self):
+        """Find current cluster or spike"""
+        ctrl = QApplication.instance().keyboardModifiers() & Qt.ControlModifier
+        if ctrl:
+            self.FindSpike()
+        else:
+            self.FindCluster()
+
+    def FindCluster(self):
+        """Move focus to location of currently selected (single) cluster"""
         spw = self.spykewindow
         try:
             cluster = spw.GetCluster()
@@ -2092,7 +2105,7 @@ class SortWindow(SpykeToolWindow):
         gw.panTo() # pan to new focus
         gw.updateGL()
 
-    def on_actionFocusCurrentSpike_triggered(self):
+    def FindSpike(self):
         """Move focus to location of currently selected (single) spike"""
         spw = self.spykewindow
         try:
@@ -2137,7 +2150,7 @@ class SortWindow(SpykeToolWindow):
         sids = spw.GetAllSpikes()
         sort = self.sort
         usemeanchans = False
-        if QtGui.QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+        if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
         self.sort.reloadSpikes(sids, fixtvals=True, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
@@ -2155,114 +2168,6 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionFindNextMostSimilar_triggered(self):
         self.findMostSimilarCluster('next')
-
-    def on_actionPlotClusterHist_triggered(self):
-        """Plot histogram of selected clusters along a single dimension. If two clusters are
-        selected, project them onto axis connecting their centers, and calculate separation
-        indices between them. Otherwise, plot the distribution of all selected clusters
-        (up to a limit) along the first (x) dimension.
-        """
-        spw = self.spykewindow
-        mplw = spw.OpenWindow('MPL')
-        clusters = spw.GetClusters()
-        if len(clusters) == 0:
-            mplw.ax.clear()
-            mplw.figurecanvas.draw()
-            print("no clusters selected")
-            return
-        elif len(clusters) > 5: # to prevent slowdowns, don't plot too many
-            mplw.ax.clear()
-            mplw.figurecanvas.draw()
-            print("too many clusters selected for cluster histogram")
-            return
-        elif len(clusters) == 2:
-            calc_measures = True
-        else:
-            calc_measures = False
-            projdimi = 0
-        # get param matrix X for points in all clusters, given current dim and
-        # channel selection:
-        dims = spw.GetClusterPlotDims()
-        sids = np.concatenate([ cluster.neuron.sids for cluster in clusters ])
-        sids.sort()
-        try:
-            X, sids = spw.get_param_matrix(sids=sids, dims=dims, scale=True)
-        except RuntimeError, errmsg:
-            print(errmsg)
-            return
-        points = [] # list of projection of each cluster's points onto dimi
-        for cluster in clusters:
-            sidis = sids.searchsorted(cluster.neuron.sids)
-            # don't seem to need contig points for NDsepmetric, no need for copy:
-            points.append(X[sidis])
-            #points.append(np.ascontiguousarray(X[sidis]))
-        if calc_measures:
-            t0 = time.time()
-            NDsep = util.NDsepmetric(*points, Nmax=100000)
-            print('NDsep calc took %.3f sec' % (time.time()-t0))
-            # centers of both clusters, use median:
-            c0 = np.median(points[0], axis=0) # ndims vector
-            c1 = np.median(points[1], axis=0)
-            # line connecting the centers of the two clusters, wrt c0
-            line = c1-c0
-            line /= np.linalg.norm(line) # make it unit length
-            #print('c0=%r, c1=%r, line=%r' % (c0, c1, line))
-        else:
-            line = np.zeros(len(dims))
-            line[projdimi] = 1.0 # pick out just the one component
-            c0 = 0.0 # set origin at 0
-        # calculate projection of each cluster's points onto line
-        projs = []
-        for cpoints in points:
-            projs.append(np.dot(cpoints-c0, line))
-        if calc_measures:
-            d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
-            # measure whether centers are at least 3 of the bigger stdevs away from
-            # each other:
-            oneDsep = d / (3 * max(projs[0].std(), projs[1].std()))
-            #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
-        proj = np.concatenate(projs)
-        nbins = intround(np.sqrt(len(proj))) # seems like a good heuristic
-        #print('nbins = %d' % nbins)
-        edges = np.histogram(proj, bins=nbins)[1]
-        hists = []
-        for ci, cluster in enumerate(clusters):
-            hists.append(np.histogram(projs[ci], bins=edges)[0])
-        hist = np.concatenate([hists]) # one cluster hist per row
-        masses = np.asarray([ h.sum() for h in hist ])
-        sortedmassi = masses.argsort()
-        # Take the fraction of area that the two distribs overlap.
-        # At each bin, take min value of the two distribs. Add up all those min values,
-        # and divide by the mass of the smaller distrib.
-        if calc_measures:
-            overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
-            djs = core.DJS(hists[0], hists[1])
-        # plotting:
-        ledges = edges[:-1] # keep just the left edges, discard the last right edge
-        assert len(ledges) == nbins
-        binwidth = ledges[1] - ledges[0]
-        # plot:
-        mplw = spw.OpenWindow('MPL')
-        a = mplw.ax
-        a.clear()
-        windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
-        print(windowtitle)
-        mplw.setWindowTitle(windowtitle)
-        if calc_measures:
-            #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
-            #         % (oneDsep, overlaparearatio, djs, np.sqrt(djs)))
-            title = ("%dDsep=%.3f, 1Dsep=%.3f, overlap area ratio=%.3f, DJS=%.3f"
-                     % (len(dims), NDsep, oneDsep, overlaparearatio, djs))
-            print(title)
-            a.set_title(title)
-        cs = core.rgb2hex([ cluster.color for cluster in clusters ])
-        for i, c in enumerate(cs):
-            if c == WHITE:
-                cs[i] = 'black'
-        # plot the smaller cluster last, to maximize visibility:
-        for i in sortedmassi[::-1]:
-            a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
-        mplw.figurecanvas.draw()
 
     def on_actionSave_triggered(self):
         """Save sort panel to file"""
@@ -2505,3 +2410,110 @@ class SortWindow(SpykeToolWindow):
             self.nslist.neurons = self.nslist.neurons # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
 
+    def PlotClusterHistogram(self):
+        """Plot histogram of selected clusters along a single dimension. If two clusters are
+        selected, project them onto axis connecting their centers, and calculate separation
+        indices between them. Otherwise, plot the distribution of all selected clusters
+        (up to a limit) along the first (x) dimension.
+        """
+        spw = self.spykewindow
+        mplw = spw.OpenWindow('MPL')
+        clusters = spw.GetClusters()
+        if len(clusters) == 0:
+            mplw.ax.clear()
+            mplw.figurecanvas.draw()
+            print("no clusters selected")
+            return
+        elif len(clusters) > 5: # to prevent slowdowns, don't plot too many
+            mplw.ax.clear()
+            mplw.figurecanvas.draw()
+            print("too many clusters selected for cluster histogram")
+            return
+        elif len(clusters) == 2:
+            calc_measures = True
+        else:
+            calc_measures = False
+            projdimi = 0
+        # get param matrix X for points in all clusters, given current dim and
+        # channel selection:
+        dims = spw.GetClusterPlotDims()
+        sids = np.concatenate([ cluster.neuron.sids for cluster in clusters ])
+        sids.sort()
+        try:
+            X, sids = spw.get_param_matrix(sids=sids, dims=dims, scale=True)
+        except RuntimeError, errmsg:
+            print(errmsg)
+            return
+        points = [] # list of projection of each cluster's points onto dimi
+        for cluster in clusters:
+            sidis = sids.searchsorted(cluster.neuron.sids)
+            # don't seem to need contig points for NDsepmetric, no need for copy:
+            points.append(X[sidis])
+            #points.append(np.ascontiguousarray(X[sidis]))
+        if calc_measures:
+            t0 = time.time()
+            NDsep = util.NDsepmetric(*points, Nmax=100000)
+            print('NDsep calc took %.3f sec' % (time.time()-t0))
+            # centers of both clusters, use median:
+            c0 = np.median(points[0], axis=0) # ndims vector
+            c1 = np.median(points[1], axis=0)
+            # line connecting the centers of the two clusters, wrt c0
+            line = c1-c0
+            line /= np.linalg.norm(line) # make it unit length
+            #print('c0=%r, c1=%r, line=%r' % (c0, c1, line))
+        else:
+            line = np.zeros(len(dims))
+            line[projdimi] = 1.0 # pick out just the one component
+            c0 = 0.0 # set origin at 0
+        # calculate projection of each cluster's points onto line
+        projs = []
+        for cpoints in points:
+            projs.append(np.dot(cpoints-c0, line))
+        if calc_measures:
+            d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
+            # measure whether centers are at least 3 of the bigger stdevs away from
+            # each other:
+            oneDsep = d / (3 * max(projs[0].std(), projs[1].std()))
+            #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
+        proj = np.concatenate(projs)
+        nbins = intround(np.sqrt(len(proj))) # seems like a good heuristic
+        #print('nbins = %d' % nbins)
+        edges = np.histogram(proj, bins=nbins)[1]
+        hists = []
+        for ci, cluster in enumerate(clusters):
+            hists.append(np.histogram(projs[ci], bins=edges)[0])
+        hist = np.concatenate([hists]) # one cluster hist per row
+        masses = np.asarray([ h.sum() for h in hist ])
+        sortedmassi = masses.argsort()
+        # Take the fraction of area that the two distribs overlap.
+        # At each bin, take min value of the two distribs. Add up all those min values,
+        # and divide by the mass of the smaller distrib.
+        if calc_measures:
+            overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
+            djs = core.DJS(hists[0], hists[1])
+        # plotting:
+        ledges = edges[:-1] # keep just the left edges, discard the last right edge
+        assert len(ledges) == nbins
+        binwidth = ledges[1] - ledges[0]
+        # plot:
+        mplw = spw.OpenWindow('MPL')
+        a = mplw.ax
+        a.clear()
+        windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
+        print(windowtitle)
+        mplw.setWindowTitle(windowtitle)
+        if calc_measures:
+            #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
+            #         % (oneDsep, overlaparearatio, djs, np.sqrt(djs)))
+            title = ("%dDsep=%.3f, 1Dsep=%.3f, overlap area ratio=%.3f, DJS=%.3f"
+                     % (len(dims), NDsep, oneDsep, overlaparearatio, djs))
+            print(title)
+            a.set_title(title)
+        cs = core.rgb2hex([ cluster.color for cluster in clusters ])
+        for i, c in enumerate(cs):
+            if c == WHITE:
+                cs[i] = 'black'
+        # plot the smaller cluster last, to maximize visibility:
+        for i in sortedmassi[::-1]:
+            a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
+        mplw.figurecanvas.draw()

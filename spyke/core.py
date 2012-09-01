@@ -909,9 +909,9 @@ class SpykeListView(QtGui.QListView):
         ctrldown = bool(Qt.ControlModifier & modifiers)
         ctrlup = not ctrldown
         if (key in [Qt.Key_M, Qt.Key_G, Qt.Key_Minus, Qt.Key_Slash, Qt.Key_Backslash,
-                    Qt.Key_NumberSign, Qt.Key_C, Qt.Key_V, Qt.Key_R, Qt.Key_B,
+                    Qt.Key_NumberSign, Qt.Key_F, Qt.Key_R, Qt.Key_B,
                     Qt.Key_BracketLeft, Qt.Key_BracketRight,
-                    Qt.Key_Comma, Qt.Key_Period, Qt.Key_H, Qt.Key_S]
+                    Qt.Key_Comma, Qt.Key_Period]
             or ctrlup and key == Qt.Key_Space):
             event.ignore() # pass it on up to the parent
         else:

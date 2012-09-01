@@ -845,6 +845,8 @@ class PlotPanel(FigureCanvas):
                 print('ERROR: selected maxchan not in spikes chanlist')
 
     def reloadSelectedSpike(self):
+        """Reload selected spike according to primary and secondary
+        phase alignments previously set by clicking on raw waveform in self"""
         spw = self.spykewindow
         sort = spw.sort
         spikes = sort.spikes

@@ -1,4 +1,8 @@
-spyke is a Python package for visualization, navigation, and spike sorting of extracellular waveform data, and currently works with Swindale Lab .srf files. Some of its functionality is inherited from Tim Blanche's Delphi program "SurfBawd".
+spyke is a Python package for visualization, navigation, and spike sorting of extracellular
+waveform data, and currently works with Swindale Lab .srf files. Some of its functionality
+was inherited from Tim Blanche's Delphi program "SurfBawd".
+
+Some icons were copied from Ubuntu's Humanity icon theme: http://launchpad.net/humanity
 
 To install:
 
@@ -8,6 +12,11 @@ To develop:
 
 >>> python setup.py build_ext --inplace
 
-Launch the program by running spyke/main.py
+Launch the program by running:
 
-For clustering, you need to use keyboard commands. Take a look in cluster.SpykeMayaviScene.OnKeyDown to see what various keys do what.
+>>> python main.py
+
+in the "spyke" directory.
+
+Many keyboard shortcuts are available. Tooltips give some hints. You can also discover them
+by searching for "keyPressEvent" methods in the code.

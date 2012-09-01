@@ -2327,7 +2327,7 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="icon">
     <iconset>
-     <normaloff>res/gnome-display-properties.svg</normaloff>res/gnome-display-properties.svg</iconset>
+     <normaloff>res/view-restore.svg</normaloff>res/view-restore.svg</iconset>
    </property>
    <property name="text">
     <string>Clustering Layout</string>

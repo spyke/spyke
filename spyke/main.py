@@ -525,14 +525,29 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionAboutSpyke_triggered(self):
+        lf = open('../LICENSE', 'r')
+        LICENSE = lf.read()
+        lf.close()
+        system = """<p>Python %s, Qt %s, PyQt %s<br>
+                    %s</p>""" % (platform.python_version(),
+                                 QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR,
+                                 platform.platform())
         text = """
-        <h2>spyke %s</h2>
+        <h2><a href=http://swindale.ecc.ubc.ca/spyke>spyke</a> %s</h2>
         <p>A tool for neuronal waveform visualization and spike sorting</p>
+
         <p>Copyright &copy; 2008-2012 Martin Spacek, Reza Lotun<br>
+           <a href=http://swindale.ecc.ubc.ca>Swindale</a> Lab,
            University of British Columbia</p>
-        <p>Python %s, Qt %s, PyQt %s<br>
-        %s</p>""" % (__version__, platform.python_version(),
-        QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR, platform.platform())
+
+        <p>Some functionality inherited from Tim Blanche's Delphi program "SurfBawd".</p>
+
+        <p>Many icons were copied from Ubuntu's <a
+        href=http://launchpad.net/humanity>Humanity</a> icon theme.</p>
+
+        <p>%s</p>
+
+        %s""" % (__version__, LICENSE, system)
         QtGui.QMessageBox.about(self, "About spyke", text)
 
     @QtCore.pyqtSlot()
@@ -747,7 +762,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def climb(self, sids, dims):
         """Cluster sids along dims, using NVS's gradient ascent algorithm"""
         s = self.sort
-        waveclustering = np.any([ dim.startswith('peaks') for dim in dims ])
+        waveclustering = np.any([ dim.startswith('pk') for dim in dims ])
         if waveclustering: # do waveform clustering
             if len(dims) > 1:
                 raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
@@ -1057,7 +1072,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nids = s.spikes['nid'][sids]
         cw.plot(X, sids, nids)
         sw = self.OpenWindow('Sort') # in case it isn't already open
-        sw.on_actionPlotClusterHist_triggered() # auto update cluster histogram plot
+        sw.PlotClusterHistogram() # auto update cluster histogram plot
 
     @QtCore.pyqtSlot()
     def get_cleaning_density_hist(self):
