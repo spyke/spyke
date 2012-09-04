@@ -1599,7 +1599,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addSeparator()
 
         actionFind = QAction(QIcon('res/edit-find.svg'), 'Find', self)
-        tt = ('<nobr>Find cluster in cluster plot</nobr>\n'
+        tt = ('<nobr><b>F</b> &nbsp; Find cluster in cluster plot</nobr>\n'
               '<nobr><b>CTRL+F</b> &nbsp; Find spike in cluster plot</nobr>')
         actionFind.setToolTip(tt)
         self.connect(actionFind, QtCore.SIGNAL('triggered()'),
@@ -1607,7 +1607,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionFind)
 
         actionSelectRandomSpikes = QAction('R', self)
-        tt = '<nobr><b>R</b> &nbsp; Select random sample of spikes of current cluster</nobr>'
+        tt = '<nobr><b>R</b> &nbsp; Select random sample of spikes of current clusters</nobr>'
         actionSelectRandomSpikes.setToolTip(tt)
         self.connect(actionSelectRandomSpikes, QtCore.SIGNAL('triggered()'),
                      self.on_actionSelectRandomSpikes_activated)
@@ -1624,10 +1624,10 @@ class SortWindow(SpykeToolWindow):
         self.nsamplesComboBox = nsamplesComboBox
 
         toolbar.addSeparator()
-
+        '''
         alignlabel = QtGui.QLabel('Align:')
         toolbar.addWidget(alignlabel)
-
+        '''
         actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
         actionAlignMin.setToolTip('Align selected spikes to min')
         self.connect(actionAlignMin, QtCore.SIGNAL('triggered()'),
@@ -1648,14 +1648,16 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionAlignBest)
 
         actionShiftLeft = QAction('[', self)
-        tt = '<nobr><b>[</b> &nbsp; Shift selected spikes left</nobr>'
+        tt = ('<nobr><b>[</b> &nbsp; Shift selected spikes 2 points left</nobr>\n'
+              '<nobr><b>CTRL+[</b> &nbsp; Shift selected spikes 1 point left</nobr>')
         actionShiftLeft.setToolTip(tt)
         self.connect(actionShiftLeft, QtCore.SIGNAL('triggered()'),
                      self.on_actionShiftLeft_triggered)
         toolbar.addAction(actionShiftLeft)
 
         actionShiftRight = QAction(']', self)
-        tt = '<nobr><b>]</b> &nbsp; Shift selected spikes right</nobr>'
+        tt = ('<nobr><b>]</b> &nbsp; Shift selected spikes 2 points right</nobr>\n'
+              '<nobr><b>CTRL+]</b> &nbsp; Shift selected spikes 1 point right</nobr>')
         actionShiftRight.setToolTip(tt)
         self.connect(actionShiftRight, QtCore.SIGNAL('triggered()'),
                      self.on_actionShiftRight_triggered)
@@ -2140,10 +2142,18 @@ class SortWindow(SpykeToolWindow):
         self.Align('best')
 
     def on_actionShiftLeft_triggered(self):
-        self.Shift(-2)
+        if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+            nt = -1
+        else:
+            nt = -2
+        self.Shift(nt)
         
     def on_actionShiftRight_triggered(self):        
-        self.Shift(2)
+        if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+            nt = 1
+        else:
+            nt = 2
+        self.Shift(nt)
 
     def on_actionReloadSpikes_triggered(self):
         spw = self.spykewindow
