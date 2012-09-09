@@ -71,6 +71,7 @@ LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
 #SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWHEIGHT = 700
 
+MAXRECENTFILES = 10
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
 # if updating at least this many select spikes in .wave file, update them all
@@ -85,6 +86,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
         self.groupMenuSamplingRates()
+        self.addRecentFileActions()
+        self.updateRecentFiles()
+        
         self.move(0, 0) # top left corner, to make space for data windows
 
         self.dpos = {} # positions of data windows relative to main spyke window
@@ -131,6 +135,18 @@ class SpykeWindow(QtGui.QMainWindow):
         sortfname = "/home/mspacek/data/ptc22/tr1/track1.track_2012-03-02_15.56.59.sort"
         self.OpenFile(sortfname)
         '''
+
+    def addRecentFileActions(self):
+        """Init recent file QActions and insert them into the right place in the
+        File menu. Leave them invisible until needed"""
+        self.recentFileActions = []
+        for i in range(MAXRECENTFILES):
+            action = QtGui.QAction(self)
+            action.setVisible(False)
+            action.triggered.connect(self.OpenRecentFile)
+            self.recentFileActions.append(action)
+            self.ui.menuFile.insertAction(self.ui.actionSaveSort, action)
+        self.ui.menuFile.insertSeparator(self.ui.actionSaveSort)
 
     def groupMenuSamplingRates(self):
         """Group sampling rates in sampling menu into a QActionGroup such that only
@@ -1664,6 +1680,40 @@ class SpykeWindow(QtGui.QMainWindow):
             title = 'spyke'
         self.setWindowTitle(title) # update the title
 
+    def OpenRecentFile(self):
+        """Open a filename from the clicked recent file in the File menu"""
+        action = self.sender()
+        if action:
+            fullfname = str(action.data().toString())
+            self.OpenFile(fullfname)
+
+    def updateRecentFiles(self, fullfname=None):
+        """Update list of recent files in File menu, optionally specifying the
+        last fname opened or closed, which should hence go to the top of the list.
+        Some of this code is taken from PySide's examples/mainwindows/recentfiles.py"""
+        settings = QtCore.QSettings('Swindale Lab', 'spyke') # retrieve setting
+        fullfnames = settings.value('recentFileList').toList()
+        for i in range(len(fullfnames)): # convert each entry from QVariant to QString
+            fullfnames[i] = fullfnames[i].toString()
+        if fullfname:
+            try:
+                fullfnames.remove(fullfname)
+            except ValueError:
+                pass
+            fullfnames.insert(0, fullfname)
+        del fullfnames[MAXRECENTFILES:]
+        settings.setValue('recentFileList', fullfnames) # update setting
+
+        # update menu to match fullfnames:
+        nrecent = len(fullfnames)
+        for i, fullfname in enumerate(fullfnames):
+            self.recentFileActions[i].setText(fullfname)
+            self.recentFileActions[i].setData(fullfname)
+            self.recentFileActions[i].setVisible(True)
+
+        for j in range(nrecent, MAXRECENTFILES):
+            self.recentFileActions[j].setVisible(False)
+
     def OpenFile(self, fname):
         """Open a stream or sort file. fname in this case must contain a full path"""
         head, tail = os.path.split(fname)
@@ -1713,6 +1763,7 @@ class SpykeWindow(QtGui.QMainWindow):
             pass
 
         self.updateTitle()
+        self.updateRecentFiles(join(self.streampath, fname))
 
         self.ui.__dict__['action%dkHz' % (self.hpstream.sampfreq / 1000)].setChecked(True)
         self.ui.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
@@ -1929,6 +1980,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: pass
         self.RestoreClusters2GUI()
         self.updateTitle()
+        self.updateRecentFiles(join(self.sortpath, fname))
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)
 
@@ -2011,6 +2063,7 @@ class SpykeWindow(QtGui.QMainWindow):
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
+        self.updateRecentFiles(join(self.sortpath, fname))
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
