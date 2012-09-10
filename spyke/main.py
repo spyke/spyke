@@ -1691,7 +1691,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update list of recent files in File menu, optionally specifying the
         last fname opened or closed, which should hence go to the top of the list.
         Some of this code is taken from PySide's examples/mainwindows/recentfiles.py"""
-        settings = QtCore.QSettings('Swindale Lab', 'spyke') # retrieve setting
+        settings = QtCore.QSettings('spyke', 'spyke') # retrieve setting
         fullfnames = settings.value('recentFileList').toList()
         for i in range(len(fullfnames)): # convert each entry from QVariant to QString
             fullfnames[i] = fullfnames[i].toString()
