@@ -1707,7 +1707,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # update menu to match fullfnames:
         nrecent = len(fullfnames)
         for i, fullfname in enumerate(fullfnames):
-            self.recentFileActions[i].setText(fullfname)
+            text = "&%d %s" % (i, fullfname) # add keyboard accelerator
+            self.recentFileActions[i].setText(text)
             self.recentFileActions[i].setData(fullfname)
             self.recentFileActions[i].setVisible(True)
 
