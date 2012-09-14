@@ -1589,7 +1589,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addSeparator()
 
         actionRenumber = QAction(QIcon('res/gtk-edit.svg'), '#', self)
-        tt = ('<nobr><b>#</b> &nbsp; Renumber clusters in vertical spatial order</nobr>\n'
+        tt = ('<nobr><b>#</b> &nbsp; Renumber all clusters in vertical spatial order</nobr>\n'
               '<nobr><b>CTRL+#</b> &nbsp; Renumber selected cluster</nobr>')
         actionRenumber.setToolTip(tt)
         self.connect(actionRenumber, QtCore.SIGNAL('triggered()'),
@@ -2000,6 +2000,13 @@ class SortWindow(SpykeToolWindow):
         makes user inspection of clusters more orderly, makes the presence of duplicate
         clusters more obvious, and allows for maximal spatial separation between clusters of
         the same colour, reducing colour conflicts"""
+        val = QtGui.QMessageBox.question(self.panel,
+                                         "Renumber all clusters",
+                                         "Are you sure? This is not undoable.",
+                                         QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+        if val == QtGui.QMessageBox.No:
+            return
+
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
