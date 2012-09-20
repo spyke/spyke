@@ -71,7 +71,7 @@ LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
 #SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWHEIGHT = 700
 
-MAXRECENTFILES = 10
+MAXRECENTFILES = 10 # anything > 10 will probably mess up keyboard accelerators
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
 # if updating at least this many select spikes in .wave file, update them all

@@ -21,8 +21,8 @@ VIEWDISTANCE = 50
 
 
 class Cluster(object):
-    """Just a simple container for scaled multidim cluster parameters. A
-    Cluster will always correspond to a Neuron"""
+    """A container for scaled multidim cluster parameters.
+    A Cluster will always correspond to a Neuron"""
     def __init__(self, neuron):
         self.neuron = neuron
         self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
