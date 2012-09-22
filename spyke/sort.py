@@ -714,7 +714,7 @@ class Sort(object):
         # might result in some out of bounds phasetis because the original phases
         # have shifted off the ends. Opposite sign wrt timepoints above, referencing within
         # wavedata:
-        spikes['phasetis'][sid] += nt
+        spikes['phasetis'][sids] += nt
         # caller should treat all sids as dirty
 
     def alignbest(self, sids, chans, method=core.rmserror):
