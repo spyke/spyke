@@ -274,7 +274,6 @@ class Detector(object):
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
         spikes['nid'] = 0
-        spikes['cid'] = 0 # unused, always leave as 0
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         if not ordered(spikes['t']):
@@ -303,25 +302,17 @@ class Detector(object):
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
 
-        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16), ('cid', np.int16),
-                           ('chan', np.uint8), ('chans', np.uint8, self.maxnchansperspike),
-                           ('nchans', np.uint8), ('chani', np.uint8),
-                           # TODO: maybe it would be more efficient to store ti, t0i,
-                           # and t1i wrt start of surf file instead of times in us?
+        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16),
+                           ('chan', np.uint8), ('nchans', np.uint8),
+                           ('chans', np.uint8, self.maxnchansperspike),
+                           ('chani', np.uint8),
                            ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
-                           ('V0', np.float32), ('V1', np.float32),
-                           ('Vpp', np.float32),
-                           ('phasetis', np.uint8, (self.maxnchansperspike, 2)),
+                           ('dt', np.int16), # time between peaks, in us
+                           ('tis', np.uint8, (self.maxnchansperspike, 2)), # peak positions
                            ('aligni', np.uint8),
+                           ('V0', np.float32), ('V1', np.float32), ('Vpp', np.float32),
                            ('x0', np.float32), ('y0', np.float32),
                            ('sx', np.float32), ('sy', np.float32),
-                           ('dphase', np.int16), # in us
-                           #('w0', np.float32), ('w1', np.float32), ('w2', np.float32),
-                           #('w3', np.float32), ('w4', np.float32),
-                           ('s0', np.float32), ('s1', np.float32),
-                           #('mVpp', np.float32),
-                           #('mV0', np.float32), ('mV1', np.float32),
-                           #('mdphase', np.float32),
                            ]
 
     def searchblock(self, blockrange):
@@ -577,9 +568,9 @@ class Detector(object):
             # use ts = np.arange(s['t0'], s['t1'], stream.tres) to reconstruct
             s['t0'], s['t1'] = wave.ts[t0i], wave.ts[t1i]
             inclphasetis = phasetis[inclciis]
-            s['phasetis'][:ninclchans] = inclphasetis # wrt t0i
+            s['tis'][:ninclchans] = inclphasetis # wrt t0i
             s['aligni'] = aligni # 0 or 1
-            s['dphase'] = int(abs(ts[phasetis[maxcii, 0]] - ts[phasetis[maxcii, 1]])) # in us
+            s['dt'] = int(abs(ts[phasetis[maxcii, 0]] - ts[phasetis[maxcii, 1]])) # in us
             s['V0'], s['V1'] = AD2uV(Vs) # in uV
             s['Vpp'] = AD2uV(Vpp) # in uV
             s['chan'], s['chans'][:ninclchans], s['nchans'] = chan, inclchans, ninclchans

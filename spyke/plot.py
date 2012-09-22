@@ -896,8 +896,8 @@ class PlotPanel(FigureCanvas):
             phaset1i = wave.ts.searchsorted(t)
         # TODO: redo spatial localization.
         # For now, cheat and make phasetis the same for all chans:
-        spikes[sid]['phasetis'][:nchans] = phaset0i, phaset1i
-        spikes[sid]['dphase'] = abs(spw.secondaryphaset - t) # us
+        spikes[sid]['tis'][:nchans] = phaset0i, phaset1i
+        spikes[sid]['dt'] = abs(spw.secondaryphaset - t) # us
         chani = spikes[sid]['chani']
         V0 = AD2uV(wave.data[chani, phaset0i]) # uV
         V1 = AD2uV(wave.data[chani, phaset1i])

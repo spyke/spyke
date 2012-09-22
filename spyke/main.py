@@ -315,10 +315,11 @@ class SpykeWindow(QtGui.QMainWindow):
             print("can't auto update from sort version < 0.3")
             return
         if v == 0.3:
-            self.update_0_3_to_0_4()
-            v = float(s.__version__)
+            v = self.update_0_3_to_0_4()
         if v == 0.4:
-            self.update_0_4_to_0_5()
+            v = self.update_0_4_to_0_5()
+        if v == 0.5:
+            v = self.update_0_5_to_0_6()
         print('now save me!')
             
     def update_0_3_to_0_4(self):
@@ -333,6 +334,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.dirtysids.update(sids)
         s.__version__ = '0.4' # update
         print('done updating sort from version 0.3 to 0.4')
+        return float(s.__version__)
         
     def update_0_4_to_0_5(self):
         '''Update sort 0.4 to 0.5:
@@ -344,6 +346,55 @@ class SpykeWindow(QtGui.QMainWindow):
         del s.sortfname
         s.__version__ = '0.5' # update
         print('done updating sort from version 0.4 to 0.5')
+        return float(s.__version__)
+
+    def update_0_5_to_0_6(self):
+        '''Update sort 0.5 to 0.6:
+            - rename sort.spikes field names 'phasetis' and 'dphase' to
+            'tis' and 'dt' respectively"""
+            - remove unused 'cid', 's0' and 's1' fields from sort.spikes, reorder fields
+        '''        
+        print('updating sort from version 0.5 to 0.6')
+        s = self.sort
+        names = list(s.spikes.dtype.names) # convert from tuple
+        phasetis_index = names.index('phasetis')
+        dphase_index = names.index('dphase')
+        assert (phasetis_index, dphase_index) == (13, 19)
+        names[phasetis_index] = 'tis' # rename 'phasetis' to 'tis'
+        names[dphase_index] = 'dt' # rename 'dphase' to 'dt'
+        s.spikes.dtype.names = names # checks length and auto converts back to tuple
+        # also rename fields in detector's SPIKEDTYPE:
+        for i in [phasetis_index, dphase_index]:
+            field = list(s.detector.SPIKEDTYPE[i])
+            field[0] = names[i]
+            s.detector.SPIKEDTYPE[i] = tuple(field)
+
+        # new name order, leaves out unused 'cid', 's0' and 's1'
+        newnames = ['id', 'nid', 'chan', 'nchans', 'chans', 'chani', 't', 't0', 't1', 'dt',
+                    'tis', 'aligni', 'V0', 'V1', 'Vpp', 'x0', 'y0', 'sx', 'sy']
+        olddtype = s.detector.SPIKEDTYPE # list of tuples
+        oldnames = [ field[0] for field in olddtype ]
+        newdtype = []
+        for name in newnames:
+            newdtype.append(olddtype[oldnames.index(name)])
+        s.detector.SPIKEDTYPE = newdtype # replace detector's SPIKEDTYPE
+        newspikes = np.empty(s.spikes.shape, dtype=newdtype)
+        from numpy.lib import recfunctions as rfn
+        newspikes = rfn.recursive_fill_fields(s.spikes, newspikes) # copy from old to new
+        s.spikes = newspikes # overwrite
+
+        # in cluster.pos and .normpos, remove 's0' and 's1', and rename 'dphase' to 'dt':
+        for c in s.clusters.values():
+            c.pos.pop('s0')
+            c.pos.pop('s1')
+            c.pos['dt'] = c.pos.pop('dphase')
+            c.normpos.pop('s0')
+            c.normpos.pop('s1')
+            c.normpos['dt'] = c.normpos.pop('dphase')
+
+        s.__version__ = '0.6' # update
+        print('done updating sort from version 0.5 to 0.6')
+        return float(s.__version__)
 
     @QtCore.pyqtSlot()
     def on_actionCloseSort_triggered(self):
@@ -1932,10 +1983,6 @@ class SpykeWindow(QtGui.QMainWindow):
         f.close()
         self.sort = sort
 
-        # try auto-updating sort to latest version:
-        if float(sort.__version__) < float(__version__):
-            self.update_sort_version()
-        
         sortProbeType = type(sort.probe)
         if self.hpstream != None:
             streamProbeType = type(self.hpstream.probe)
@@ -1946,6 +1993,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.OpenSpikeFile(sort.spikefname)
 
+        # try auto-updating sort to latest version:
+        if float(sort.__version__) < float(__version__):
+            self.update_sort_version()
+        
         if self.hpstream != None:
             sort.stream = self.hpstream # restore open stream to sort
         self.SetSampfreq(sort.sampfreq)

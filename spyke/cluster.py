@@ -26,10 +26,10 @@ class Cluster(object):
     def __init__(self, neuron):
         self.neuron = neuron
         self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
-                    'dphase':0, 't':0, 's0':0, 's1':0}
+                    'dt':0, 't':0}
         # cluster normpos are scaled values, suitable for plotting
         self.normpos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
-                        'dphase':0, 't':0, 's0':0, 's1':0}
+                        'dt':0, 't':0}
 
     def get_id(self):
         return self.neuron.id

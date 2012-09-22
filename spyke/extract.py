@@ -389,6 +389,8 @@ class Extractor(object):
         '''
         for spike in spikes:
             V0, V1, s0, s1, Voff = self.spike2temporal(spike)
+            ## NOTE: this will raise a ValueError since 's0' and 's1' have been removed
+            ## from the spikes array due to disuse:
             spike['s0'], spike['s1'] = abs(s0), abs(s1)
             #spike['mVpp'] = AD2uV(V1 - V0)
             #spike['mV0'], spike['mV1'] = AD2uV([V0, V1])

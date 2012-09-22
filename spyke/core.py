@@ -1147,11 +1147,11 @@ class NListModel(SpykeAbstractListModel):
                         '%d spikes\n' % neuron.nspikes +
                         'chan: %d\n' % neuron.chan +
                         't: %d us\n' % pos['t'] +
+                        'dt: %.4g us\n' % pos['dt'] + 
                         'x0: %.4g um\n' % pos['x0'] +
                         'y0: %.4g um\n' % pos['y0'] +
                         'Vpp: %.4g uV\n' % pos['Vpp'] +
-                        'sx: %.4g um\n' % pos['sx'] +
-                        'dphase: %.4g us' % pos['dphase'])
+                        'sx: %.4g um' % pos['sx'])
             # this stuff is handled in NListDelegate:
             '''
             elif role == Qt.ForegroundRole:
@@ -1168,11 +1168,11 @@ class SListModel(SpykeAbstractListModel):
                 'nid: %d\n' % spike['nid'] +
                 'chan: %d\n' % spike['chan'] +
                 't: %d us\n' % spike['t'] +
+                'dt: %.4g us\n' % spike['dt'] +
                 'x0: %.4g um\n' % spike['x0'] +
                 'y0: %.4g um\n' % spike['y0'] +
                 'Vpp: %.4g uV\n' % spike['Vpp'] +
-                'sx: %.4g um\n' % spike['sx'] +
-                'dphase: %.4g us' % spike['dphase'])
+                'sx: %.4g um' % spike['sx'])
 
 
 class NSListModel(SListModel):

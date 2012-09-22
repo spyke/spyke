@@ -711,10 +711,10 @@ class Sort(object):
         spikes['t'][sids] -= dt
         spikes['t0'][sids] -= dt
         spikes['t1'][sids] -= dt
-        # might result in some out of bounds phasetis because the original phases
+        # might result in some out of bounds tis because the original phases
         # have shifted off the ends. Opposite sign wrt timepoints above, referencing within
         # wavedata:
-        spikes['phasetis'][sids] += nt
+        spikes['tis'][sids] += nt
         # caller should treat all sids as dirty
 
     def alignbest(self, sids, chans, method=core.rmserror):
@@ -791,9 +791,9 @@ class Sort(object):
                 spikes['t'][sid] += dt # should remain halfway between t0 and t1
                 spikes['t0'][sid] += dt
                 spikes['t1'][sid] += dt
-                # might result in some out of bounds phasetis because the original phases
+                # might result in some out of bounds tis because the original phases
                 # have shifted off the ends. Opposite sign, referencing within wavedata:
-                spikes['phasetis'][sid] -= bestshift
+                spikes['tis'][sid] -= bestshift
                 # update sort.wavedata
                 wd[sid] = tempshifts[bestshifti]
                 shiftedsubsd[sidi] = tempsubshifts[bestshifti]
@@ -827,13 +827,13 @@ class Sort(object):
         if nspikes == 0: # nothing to do
             return [] # no sids to mark as dirty
 
-        multichanphasetis = spikes['phasetis'][sids] # nspikes x nchans x 2 arr
+        multichanphasetis = spikes['tis'][sids] # nspikes x nchans x 2 arr
         chanis = spikes['chani'][sids] # nspikes arr of max chanis
         # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
         phasetis = np.int32(multichanphasetis[np.arange(nspikes), chanis]) # nspikes x 2 arr
         # NOTE: phasetis aren't always in temporal order!
         dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
-        dphases = spikes['dphase'][sids] # stored as +ve
+        dphases = spikes['dt'][sids] # stored as +ve
 
         # for each spike, decide whether to add or subtract dphase to/from its temporal values
         ordered  = dphasetis > 0 # in temporal order
@@ -854,7 +854,7 @@ class Sort(object):
         spikes['t'][sids] += dts
         spikes['t0'][sids] += dts
         spikes['t1'][sids] += dts
-        spikes['phasetis'][sids] += dtis[:, None, None] # update wrt new t0i
+        spikes['tis'][sids] += dtis[:, None, None] # update wrt new t0i
         spikes['aligni'][sids[alignis0]] = 1
         spikes['aligni'][sids[alignis1]] = 0
 
@@ -940,7 +940,7 @@ class Sort(object):
                     spikes['t1'][sid] += dt
                     # might result in some out of bounds phasetis because the original phases
                     # have shifted off the ends. Opposite sign, referencing within wavedata:
-                    spikes['phasetis'][sid] -= dnt
+                    spikes['tis'][sid] -= dnt
                     spike = spikes[sid] # update local var
                     # reload spike data again now that t0 and t1 have changed
                     newwave = stream[spike['t0']:spike['t1']]
@@ -1058,7 +1058,7 @@ class Sort(object):
         for spike in spikes:
             f.write('s%d\t' % spike['id'])
         f.write('\n')
-        for parami, param in enumerate(['Vpp', 'dphase', 'x0', 'y0', 'sx', 'sy', 'theta']):
+        for parami, param in enumerate(['Vpp', 'dt', 'x0', 'y0', 'sx', 'sy', 'theta']):
             f.write(param+'\t'+param+'\t')
             for val in X[:, parami]:
                 f.write('%f\t' % val)
