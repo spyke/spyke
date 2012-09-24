@@ -139,8 +139,10 @@ class DistanceMatrix(object):
         """SiteLoc is a dictionary of (x, y) tuples, with chans as the keys. See probes.py"""
         chans_coords = SiteLoc.items() # list of (chan, coords) tuples
         chans_coords.sort() # sort by chan
-        self.chans = np.uint8([ chan_coord[0] for chan_coord in chans_coords ]) # pull out the sorted chans
-        self.coords = [ chan_coord[1] for chan_coord in chans_coords ] # pull out the coords, now in chan order
+        # pull out the sorted chans:
+        self.chans = np.uint8([ chan_coord[0] for chan_coord in chans_coords ])
+        # pull out the coords, now in chan order:
+        self.coords = [ chan_coord[1] for chan_coord in chans_coords ]
         self.data = eucd(self.coords)
 
 
@@ -189,16 +191,18 @@ class Detector(object):
         sort = self.sort
         self.mpmethod = MPMETHOD
         spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
-        self.maxnt = int(sort.stream.sampfreq * spikewidth) # num timepoints to allocate per spike
+        # num timepoints to allocate per spike:
+        self.maxnt = int(sort.stream.sampfreq * spikewidth)
 
         assert (self.dt < np.abs(sort.TW)).all() # necessary when calling sort.align_neuron()
 
         print('Detection trange: %r' % (self.trange,))
 
         t0 = time.time()
-        self.dti = int(self.dt // sort.stream.tres) # convert from numpy.int64 to normal int for inline C
+        # convert from numpy.int64 to normal int for inline C:
+        self.dti = int(self.dt // sort.stream.tres)
         self.thresh = self.get_thresh() # abs, in AD units, one per chan in self.chans
-        self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # peak-to-peak threshold, abs, in AD units
+        self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult)) # abs, in AD units
         AD2uV = sort.converter.AD2uV
         info('thresh calcs took %.3f sec' % (time.time()-t0))
         info('thresh   = %s' % AD2uV(self.thresh))
@@ -210,10 +214,12 @@ class Detector(object):
         nblocks = len(blockranges)
 
         self.nchans = len(self.chans) # number of enabled chans
-        self.nspikes = 0 # total num spikes found across all chans so far by this Detector, reset at start of every search
+        # total num spikes found across all chans so far by this Detector,
+        # reset at start of every search:
+        self.nspikes = 0
 
         # want an nchan*2 array of [chani, x/ycoord]
-        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) coords in chan order
+        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) in chan order
         xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
@@ -278,7 +284,7 @@ class Detector(object):
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         if not ordered(spikes['t']):
             raise RuntimeError("spikes aren't sorted for some reason")
-        spikes['id'] = np.arange(self.nspikes) # assign ids (spikes should be in temporal order)
+        spikes['id'] = np.arange(self.nspikes) # assign ids (should be in temporal order)
         self.datetime = datetime.datetime.now()
         return spikes, wavedata
 
@@ -288,15 +294,18 @@ class Detector(object):
         sort = self.sort
         self.enabledSiteLoc = {}
         for chan in self.chans: # for all enabled chans
-            self.enabledSiteLoc[chan] = sort.stream.probe.SiteLoc[chan] # grab its (x, y) coordinate
-        self.dm = DistanceMatrix(self.enabledSiteLoc) # distance matrix for the chans enabled for this search, sorted by chans
+            self.enabledSiteLoc[chan] = sort.stream.probe.SiteLoc[chan] # get its (x, y)
+        # distance matrix for the chans enabled for this search, sorted by chans:
+        self.dm = DistanceMatrix(self.enabledSiteLoc)
         # dict of neighbourhood of chanis for each chani
         self.locknbhdi = {} # for lockout around a spike
         self.inclnbhdi = {} # for inclusion of wavedata as part of a spike
         maxnchansperspike = 0
         for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
-            lockchanis, = np.uint8(np.where(distances <= self.lockr)) # at what col indices does the returned row fall within lockr?
-            inclchanis, = np.uint8(np.where(distances <= self.inclr)) # at what col indices does the returned row fall within inclr?
+            # at what col indices does the returned row fall within lockr?:
+            lockchanis, = np.uint8(np.where(distances <= self.lockr))
+            # at what col indices does the returned row fall within inclr?:
+            inclchanis, = np.uint8(np.where(distances <= self.inclr))
             self.locknbhdi[chani] = lockchanis
             self.inclnbhdi[chani] = inclchanis
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
@@ -362,7 +371,8 @@ class Detector(object):
 
         print('%s: found %d spikes' % (ps().name, len(spikes)))
         #import cProfile
-        #cProfile.runctx('spikes, wavedata = self.check_wave(wave, cutrange)', globals(), locals())
+        #cProfile.runctx('spikes, wavedata = self.check_wave(wave, cutrange)',
+        #                globals(), locals())
         #spikes, wavedata = [], []
         return spikes, wavedata
 
@@ -381,19 +391,22 @@ class Detector(object):
             weights2f = sort.extractor.weights2f
             f = g2 # 2D Gaussian
             #f = cauchy2 # 2D Cauchy
-        lockouts = np.zeros(self.nchans, dtype=np.int64) # holds time indices for each enabled chan until which each enabled chani is locked out, updated on every found spike
+        # holds time indices for each enabled chan until which each enabled chani is
+        # locked out, updated on every found spike
+        lockouts = np.zeros(self.nchans, dtype=np.int64)
 
         tsharp = time.time()
         sharp = util.sharpness2D(wave.data)
         info('%s: sharpness2D() took %.3f sec' % (ps().name, time.time()-tsharp))
         targthreshsharp = time.time()
-        peakis = util.argthreshsharp(wave.data, self.thresh, sharp) # thresh exceeding peak indices
+        # thresh exceeding peak indices:
+        peakis = util.argthreshsharp(wave.data, self.thresh, sharp)
         info('%s: argthreshsharp() took %.3f sec' % (ps().name, time.time()-targthreshsharp))
 
         maxti = len(wave.ts) - 1
         dti = self.dti
         twi = sort.twi
-        sdti = dti // 2 # spatial dti - max dti allowed between maxchan and all other chans
+        sdti = dti // 2 # spatial dti: max dti allowed between maxchan and all other chans
         nspikes = 0
         npeaks = len(peakis)
         spikes = np.zeros(npeaks, self.SPIKEDTYPE) # nspikes will always be <= npeaks
@@ -401,7 +414,8 @@ class Detector(object):
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each peak for validity
         for ti, chani in peakis:
-            if DEBUG: debug('*** trying thresh peak at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
+            if DEBUG: debug('*** trying thresh peak at t=%d chan=%d'
+                            % (wave.ts[ti], self.chans[chani]))
             # is this thresh exceeding peak locked out?
             if ti <= lockouts[chani]:
                 if DEBUG: debug('peak is locked out')
@@ -434,7 +448,8 @@ class Detector(object):
                 maxsharpis[cii] = maxsharpi
                 # get one adjacent peak to left and right each, due to limits, either or
                 # both may be identical to the max sharpness peak
-                adjpeakis[cii] = localpeakis[[max(maxsharpii-1, 0), min(maxsharpii+1, lastpeakii)]]
+                adjpeakis[cii] = localpeakis[[max(maxsharpii-1, 0), min(maxsharpii+1,
+                                              lastpeakii)]]
                 if localsharp[cii, maxsharpi] < 0:
                     maxadjii = localsharp[cii, adjpeakis[cii]].argmax() # look for +ve adj peak
                 else:
@@ -454,21 +469,26 @@ class Detector(object):
             oldchani = chani # save
 
             # choose chan with biggest ppsharp as maxchan, check that this is identical to
-            # the trigger chan, that its sharpest phase isn't locked out, that it falls within
+            # the trigger chan, that its sharpest peak isn't locked out, that it falls within
             # cutrange, and that it meets both Vp and Vpp thresh criteria
             maxcii = abs(ppsharp).argmax()
             chani = chanis[maxcii] # update maxchan
             if chani != oldchani:
-                if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for this event, pass on this peak and wait for the true sharpest peak to come later")
+                if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for "
+                                "this event, pass on this peak and wait for the true "
+                                "sharpest peak to come later")
                 continue
             maxsharpi = maxsharpis[maxcii]
             ti = t0i + maxsharpi # choose sharpest peak of maxchan, absolute
             # if sharpest peak is in the past, use it. If it's yet to come, wait for it
             if ti > oldti:
-                if DEBUG: debug("triggered off early adjacent peak for this event, pass on this peak and wait for the true sharpest peak to come later")
+                if DEBUG: debug("triggered off early adjacent peak for this event, "
+                                "pass on this peak and wait for the true sharpest peak "
+                                "to come later")
                 continue
             if ti <= lockouts[chani]: # sharpest peak is locked out
-                if DEBUG: debug('sharpest peak at t=%d chan=%d is locked out' % (wave.ts[ti], self.chans[chani]))
+                if DEBUG: debug('sharpest peak at t=%d chan=%d is locked out'
+                                % (wave.ts[ti], self.chans[chani]))
                 continue
             if not (cutrange[0] <= wave.ts[ti] <= cutrange[1]):
                 if DEBUG:
@@ -476,76 +496,80 @@ class Detector(object):
                     debug("spike time %r falls outside cutrange for this searchblock "
                           "call, discarding" % wave.ts[ti])
                 continue # skip to next peak
-            # check that Vp thresh is exceeded by one of the two sharpest phases
+            # check that Vp thresh is exceeded by one of the two sharpest peaks
             adjpi = adjpeakis[maxcii, maxadjiis[maxcii]]
-            maxchanphasetis = np.array([maxsharpi, adjpi]) # relative to t0i, not necessarily in temporal order
-            Vp = abs(window[maxcii, maxchanphasetis]).max() # grab biggest phase
+            # relative to t0i, not necessarily in temporal order:
+            maxchantis = np.array([maxsharpi, adjpi])
+            Vp = abs(window[maxcii, maxchantis]).max() # grab biggest peak
             if Vp < self.thresh[chani]:
-                if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both < Vp' % (wave.ts[ti], self.chans[chani]))
+                if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both < Vp'
+                                % (wave.ts[ti], self.chans[chani]))
                 continue
-            # check that Vpp thresh is exceeded by the two sharpest phases
-            Vs = window[maxcii, maxchanphasetis]
+            # check that Vpp thresh is exceeded by the two sharpest peaks
+            Vs = window[maxcii, maxchantis]
             Vpp = abs(Vs).sum() # Vs are of opposite sign
             if Vpp < self.ppthresh[chani]:
-                if DEBUG: debug('peaks at t=%r chan=%d are < Vpp' % (wave.ts[[ti, t0i+adjpi]], self.chans[chani]))
+                if DEBUG: debug('peaks at t=%r chan=%d are < Vpp'
+                                % (wave.ts[[ti, t0i+adjpi]], self.chans[chani]))
                 continue
-            if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d' % (wave.ts[ti], self.chans[chani]))
+            if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d'
+                            % (wave.ts[ti], self.chans[chani]))
 
             # get new spatiotemporal neighbourhood, with full window
             # align to -ve of the two sharpest peaks
-            aligni = localsharp[maxcii, maxchanphasetis].argmin()
+            aligni = localsharp[maxcii, maxchantis].argmin()
             #oldti = ti # save
-            ti = t0i + maxchanphasetis[aligni] # new absolute time index to align to
+            ti = t0i + maxchantis[aligni] # new absolute time index to align to
             # cut new window
             oldt0i = t0i
             t0i = max(ti+twi[0], 0)
             t1i = min(ti+twi[1]+1, maxti) # end inclusive
             window = wave.data[chanis, t0i:t1i] # multichan data window, might not be contig
             maxcii, = np.where(chanis == chani)
-            maxchanphasetis += oldt0i - t0i # relative to new t0i
-            phasetis = np.zeros((nchans, 2), dtype=int) # holds phasetis for each lockchani
-            phasetis[maxcii] = maxchanphasetis
+            maxchantis += oldt0i - t0i # relative to new t0i
+            tis = np.zeros((nchans, 2), dtype=int) # holds time indices for each lockchani
+            tis[maxcii] = maxchantis
 
             # pick corresponding peaks on other chans according to how close they are
             # to those on maxchan, Don't consider the sign of the peaks on each
             # chan, just their proximity in time. In other words, allow for spike
             # inversion across space
             localsharp = sharp[chanis, t0i:t1i]
-            phaset0i, phaset1i = maxchanphasetis
+            peak0ti, peak1ti = maxchantis
             for cii in range(nchans):
                 if cii == maxcii: # already set
                     continue
                 localpeakis, = np.where(localsharp[cii] != 0.0)
                 if len(localpeakis) == 0: # empty
-                    phasetis[cii] = maxchanphasetis # use same tis as maxchan
+                    tis[cii] = maxchantis # use same tis as maxchan
                     continue
                 lastpeakii = len(localpeakis) - 1
-                # find peak on this chan that's temporally closest to primary phase on maxchan.
+                # find peak on this chan that's temporally closest to primary peak on maxchan.
                 # If two peaks are equally close, this picks the first one, although we should
                 # probably pick the sharpest one instead:
-                dt0is = abs(localpeakis-phaset0i)
+                dt0is = abs(localpeakis-peak0ti)
                 peak0ii = dt0is.argmin()
-                # save primary phase for this cii
+                # save primary peak for this cii
                 dt0i = dt0is[peak0ii]
                 if dt0i > sdti: # too distant in time
-                    phasetis[cii, 0] = phaset0i # use same t0i as maxchan
+                    tis[cii, 0] = peak0ti # use same t0i as maxchan
                 else: # give it its own t0i
-                    phasetis[cii, 0] = localpeakis[peak0ii]
-                # save 2ndary phase for this cii
-                if phaset0i < phaset1i: # primary phase comes first (more common case)
-                    peak1ii = peak0ii + 1 # 2ndary phase is 1 to the right
-                else: # phaset1i < phaset0i, ie 2ndary phase comes first
-                    peak1ii = peak0ii - 1 # 2ndary phase is 1 to the left
-                dt1is = abs(localpeakis-phaset1i)
+                    tis[cii, 0] = localpeakis[peak0ii]
+                # save 2ndary peak for this cii
+                if peak0ti < peak1ti: # primary peak comes first (more common case)
+                    peak1ii = peak0ii + 1 # 2ndary peak is 1 to the right
+                else: # peak1ti < peak0ti, ie 2ndary peak comes first
+                    peak1ii = peak0ii - 1 # 2ndary peak is 1 to the left
+                dt1is = abs(localpeakis-peak1ti)
                 try:
                     dt1i = dt1is[peak1ii]
-                except IndexError: # no local peak relative to primary phase
-                    phasetis[cii, 1] = phaset1i # use same t1i as maxchan
+                except IndexError: # no local peak relative to primary peak
+                    tis[cii, 1] = peak1ti # use same t1i as maxchan
                     continue
                 if dt1i > sdti: # too distant in time
-                    phasetis[cii, 1] = phaset1i # use same t1i as maxchan
+                    tis[cii, 1] = peak1ti # use same t1i as maxchan
                 else:
-                    phasetis[cii, 1] = localpeakis[peak1ii]
+                    tis[cii, 1] = localpeakis[peak1ii]
 
             # find inclchanis, get corresponding indices into locknbhd of chanis
             inclchanis = self.inclnbhdi[chani]
@@ -555,8 +579,8 @@ class Detector(object):
             inclchani = int(np.where(inclchans == chan)[0]) # != chani!
             inclciis = chanis.searchsorted(inclchanis)
 
-            if DEBUG: debug("final window params: t0=%r, t1=%r, Vs=%r, phasets=\n%r"
-                            % (wave.ts[t0i], wave.ts[t1i], list(AD2uV(Vs)), wave.ts[t0i+phasetis]))
+            if DEBUG: debug("final window params: t0=%r, t1=%r, Vs=%r, peakts=\n%r"
+                            % (wave.ts[t0i], wave.ts[t1i], list(AD2uV(Vs)), wave.ts[t0i+tis]))
 
             # build up spike record
             s = spikes[nspikes]
@@ -567,10 +591,10 @@ class Detector(object):
             ts = wave.ts[t0i:t1i]
             # use ts = np.arange(s['t0'], s['t1'], stream.tres) to reconstruct
             s['t0'], s['t1'] = wave.ts[t0i], wave.ts[t1i]
-            inclphasetis = phasetis[inclciis]
-            s['tis'][:ninclchans] = inclphasetis # wrt t0i
+            incltis = tis[inclciis]
+            s['tis'][:ninclchans] = incltis # wrt t0i
             s['aligni'] = aligni # 0 or 1
-            s['dt'] = int(abs(ts[phasetis[maxcii, 0]] - ts[phasetis[maxcii, 1]])) # in us
+            s['dt'] = int(abs(ts[tis[maxcii, 0]] - ts[tis[maxcii, 1]])) # in us
             s['V0'], s['V1'] = AD2uV(Vs) # in uV
             s['Vpp'] = AD2uV(Vpp) # in uV
             s['chan'], s['chans'][:ninclchans], s['nchans'] = chan, inclchans, ninclchans
@@ -579,21 +603,22 @@ class Detector(object):
             nt = inclwindow.shape[1] # isn't always full width if recording has gaps
             wavedata[nspikes, :ninclchans, :nt] = inclwindow
             if self.extractparamsondetect:
-                # Get Vpp at each inclchan's phasetis, use as spatial weights:
+                # Get Vpp at each inclchan's tis, use as spatial weights:
                 # see core.rowtake() or util.rowtake_cy() for indexing explanation:
-                w = np.float32(inclwindow[np.arange(ninclchans)[:, None], inclphasetis])
+                w = np.float32(inclwindow[np.arange(ninclchans)[:, None], incltis])
                 w = abs(w).sum(axis=1)
                 x = self.siteloc[inclchanis, 0] # 1D array (row)
                 y = self.siteloc[inclchanis, 1]
                 s['x0'], s['y0'], s['sx'], s['sy'] = weights2f(f, w, x, y, inclchani)
 
             if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
-                            % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0], self.siteloc[chani, 1]))
+                            % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0],
+                               self.siteloc[chani, 1]))
 
             # give each chan a distinct lockout, based on how each chan's
-            # sharpest phases line up with those of the maxchan. This fixes double
+            # sharpest peaks line up with those of the maxchan. This fixes double
             # triggers that happened about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
-            lockouts[chanis] = t0i + phasetis.max(axis=1)
+            lockouts[chanis] = t0i + tis.max(axis=1)
             if DEBUG: debug('lockouts=%r\nfor chans=%r' %
                            (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
             nspikes += 1
@@ -648,13 +673,15 @@ class Detector(object):
             # blocks of self.blocksize, without replacement
             tload = time.time()
             print('loading data to calculate noise')
-            if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]): # sample width exceeds search trange
+            if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]):
+                # sample width exceeds search trange
                 blockranges = [self.trange] # use a single block of data, as defined by trange
             else:
                 nblocks = intround(self.fixednoisewin / self.blocksize)
                 blockranges = RandomBlockRanges(self.trange, bs=self.blocksize, bx=0,
                                                 maxntranges=nblocks, replacement=False)
-            # preallocating memory doesn't seem to help here, all the time is in loading from stream:
+            # preallocating memory doesn't seem to help here, all the time is in loading
+            # from stream:
             data = []
             for blockrange in blockranges:
                 wave = self.sort.stream[blockrange[0]:blockrange[1]]
@@ -667,9 +694,11 @@ class Detector(object):
             info('get_noise took %.3f sec' % (time.time()-tnoise))
             thresh = noise * self.noisemult # float AD units
             thresh = np.int16(np.round(thresh)) # int16 AD units
-            thresh = thresh.clip(self.fixedthresh, thresh.max()) # clip so that all threshes are at least fixedthresh
+            # clip so that all threshes are at least fixedthresh
+            thresh = thresh.clip(self.fixedthresh, thresh.max())
         elif self.threshmethod == 'Dynamic':
-            # dynamic threshes are calculated on the fly during the search, so leave as zero for now
+            # dynamic threshes are calculated on the fly during the search, so leave
+            # as zero for now
             thresh = np.zeros(len(self.chans), dtype=np.int16)
         else:
             raise ValueError

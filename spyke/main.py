@@ -2508,7 +2508,7 @@ class SpykeWindow(QtGui.QMainWindow):
         det.noisemult = ui.dynamicNoiseXSpinBox.value()
         det.noisemethod = str(ui.noiseMethodComboBox.currentText())
         det.ppthreshmult = ui.vppThreshXSpinBox.value()
-        det.dt = ui.phaseDTSpinBox.value()
+        det.dt = ui.dtSpinBox.value()
         det.trange = self.get_detectortrange()
         det.blocksize = int(float(ui.blockSizeLineEdit.text())) # allow exp notation
         det.lockr = ui.lockRSpinBox.value()
@@ -2538,7 +2538,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ui.dynamicNoiseXSpinBox.setValue(det.noisemult)
         ui.noiseMethodComboBox.setCurrentIndex(ui.noiseMethodComboBox.findText(det.noisemethod))
         ui.vppThreshXSpinBox.setValue(det.ppthreshmult)
-        ui.phaseDTSpinBox.setValue(det.dt)
+        ui.dtSpinBox.setValue(det.dt)
         ui.rangeStartLineEdit.setText(str(det.trange[0]))
         ui.rangeEndLineEdit.setText(str(det.trange[1]))
         ui.blockSizeLineEdit.setText(str(det.blocksize))

@@ -221,7 +221,9 @@ class Extractor(object):
         self.tls = TemporalLeastSquares(self.debug)
         self.MAXX0 = max(abs(sort.probe.unique_coords('x'))) * 3
         self.MAXY0 = max(abs(sort.probe.unique_coords('y'))) * 3
-        #self.ksis = [41, 11, 39, 40, 20] # best wave coeffs according kstest of wavedec of full ptc18.14 sort, using Haar wavelets
+        # best wave coeffs according kstest of wavedec of full ptc18.14 sort,
+        # using Haar wavelets:
+        #self.ksis = [41, 11, 39, 40, 20]
 
     def choose_XY_fun(self):
         if self.XYmethod.lower() == 'gaussian fit':
@@ -250,8 +252,11 @@ class Extractor(object):
 
         for sid in xrange(nspikes):
             maxchanwavedata = wavedata[maxchani]
-            # TODO: maybe normalize amplitude of spike to match that of the ICs (maybe keep everything normalized to 1). That way, You're really just looking at spike shape, and not allowing amplitude to add to the variability. Amplitude can remain a clusterable parameter via Vp or Vpp.
-            weights = maxchanwavedata * invICs # weights of ICs for this spike's maxchan waveform
+            ## TODO: maybe normalize amplitude of spike to match that of the ICs (maybe keep
+            ## everything normalized to 1). That way, You're really just looking at spike
+            ## shape, and not allowing amplitude to add to the variability. Amplitude can
+            ## remain a clusterable parameter via Vp or Vpp.
+            weights = maxchanwavedata * invICs # IC weights for this spike's maxchan waveform
             spikes['IC0'][sid] = weights[0, 0]
             spikes['IC1'][sid] = weights[0, 1]
     '''
@@ -361,7 +366,8 @@ class Extractor(object):
         try:
             wavedata = sort.wavedata
         except AttributeError:
-            raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
+            raise RuntimeError("Sort has no saved wavedata in memory to extract "
+                               "parameters from")
         print("Extracting temporal parameters from spikes")
         tstart = time.time()
         '''
@@ -394,7 +400,7 @@ class Extractor(object):
             spike['s0'], spike['s1'] = abs(s0), abs(s1)
             #spike['mVpp'] = AD2uV(V1 - V0)
             #spike['mV0'], spike['mV1'] = AD2uV([V0, V1])
-            #spike['mdphase'] = t1 - t0
+            #spike['mdt'] = t1 - t0
 
         print("Extracting temporal parameters from all %d spikes took %.3f sec" %
              (nspikes, time.time()-tstart))
@@ -409,7 +415,8 @@ class Extractor(object):
         V = self.sort.wavedata[sid, maxchani]
         # get timestamps relative to start of waveform
         ts = np.arange(0, spike['t1'] - spike['t0'], self.sort.tres)
-        t0, t1 = ts[[spike['phaset0i'], spike['phaset1i']]]
+        ## NOTE: next line needs testing:
+        t0, t1 = ts[spike['tis'][maxchani]]
         V0, V1 = spike['V0'], spike['V1']
         tls = self.tls
         tls.t0, tls.t1 = t0, t1
@@ -438,12 +445,13 @@ class Extractor(object):
         chanis = det.chans.searchsorted(chans) # det.chans are always sorted
         sid = spike['id']
         wavedata = self.sort.wavedata[sid, :nchans] # chans in wavedata are sorted
-        phasetis = spike['phaset0i'], spike['phaset1i']
+        ## NOTE: next line needs testing:
+        maxchantis = spike['tis'][maxchani]
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
 
-        w = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
+        w = self.get_Vpp_weights(wavedata, maxchani, maxchantis, aligni)
         A = w[maxchani]
         x0, y0 = self.weights2spatialmean(w, x, y, maxchani)
         # or, init with just the coordinates of the max weight, doesn't save time
@@ -453,33 +461,39 @@ class Extractor(object):
         return x, y, w, A, x0, y0
 
     def spike2spatial(self, f, spike):
-        """A convenient way of plotting spatial fits, one spike at a time.
-        Fits location first, followed by spread, using a global constant intial guess for spread"""
+        """A convenient way of plotting spatial fits, one spike at a time. Fits location
+        first, followed by spread, using a global constant intial guess for spread"""
         x, y, w, A, x0, y0 = self.spike2xyw(spike)
         sls = self.sls
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSY
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([x0, y0])
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx, sls.sy])
         sls.calc_sxsy(f, x, y, w) # sx and sy free
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.plot(f, x, y, w, spike)
 
     def spike2spatial2(self, f, spike):
-        """A convenient way of plotting spatial fits, one spike at a time.
-        Fits spread first, followed by location, using spatialmean as intial guess for location"""
+        """A convenient way of plotting spatial fits, one spike at a time. Fits spread
+        first, followed by location, using spatialmean as intial guess for location"""
         x, y, w, A, x0, y0 = self.spike2xyw(spike)
         sls = self.sls
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSY
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx, sls.sy])
         sls.calc_sxsy(f, x, y, w) # sx and sy free
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.x0, sls.y0])
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.plot(f, x, y, w, spike)
 
     def spike2spatial3(self, f, spike):
@@ -489,13 +503,16 @@ class Extractor(object):
         x, y, w, A, x0, y0 = self.spike2xyw(spike)
         sls = self.sls
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = A, x0, y0, DEFSX, DEFSX
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.sx])
         sls.calc_s(f, x, y, w) # s free (sx == sy)
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.p0 = np.array([sls.x0, sls.y0])
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
-        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f' % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
+        print('A:%.1f, x0:%.1f, y0:%.1f, sx:%.1f, sy:%.1f'
+              % (sls.A, sls.x0, sls.y0, sls.sx, sls.sy))
         sls.plot(f, x, y, w, spike)
 
     def extract_all_XY(self):
@@ -510,7 +527,8 @@ class Extractor(object):
         try:
             wavedata = sort.wavedata
         except AttributeError:
-            raise RuntimeError("Sort has no saved wavedata in memory to extract parameters from")
+            raise RuntimeError("Sort has no saved wavedata in memory to extract "
+                               "parameters from")
         print("Extracting XY parameters from spikes")
         t0 = time.time()
         if not self.debug: # use multiprocessing
@@ -551,29 +569,30 @@ class Extractor(object):
         spikes['IC1'][sid] = weights[0, 0]
         spikes['IC2'][sid] = weights[0, 1]
         '''
-        phasetis = spike['phaset0i'], spike['phaset1i']
+        ## NOTE: next line needs testing:
+        maxchantis = spike['tis'][maxchani]
         aligni = spike['aligni']
         x = det.siteloc[chanis, 0] # 1D array (row)
         y = det.siteloc[chanis, 1]
         # just x and y params for now
-        return self.wavedata2spatial(wavedata, maxchani, phasetis, aligni, x, y)
+        return self.wavedata2spatial(wavedata, maxchani, maxchantis, aligni, x, y)
 
-    def wavedata2spatial(self, wavedata, maxchani, phasetis, aligni, x, y):
+    def wavedata2spatial(self, wavedata, maxchani, maxchantis, aligni, x, y):
         """Convert wavedata to per-channel weights. Vpp weights seem more clusterable
         than Vp weights.
         TODO: consider using some feature other than Vp or Vpp, like a wavelet,
         for extracting weights across chans
         """
-        weights = self.get_Vpp_weights(wavedata, maxchani, phasetis, aligni)
-        #weights = self.get_Vp_weights(wavedata, maxchani, phasetis, aligni)
+        weights = self.get_Vpp_weights(wavedata, maxchani, maxchantis, aligni)
+        #weights = self.get_Vp_weights(wavedata, maxchani, maxchantis, aligni)
         return self.weights2spatial(weights, x, y, maxchani)
 
-    def get_Vp_weights(self, wavedata, maxchani, phasetis, aligni):
+    def get_Vp_weights(self, wavedata, maxchani, maxchantis, aligni):
         """Using just Vp instead of Vpp doesn't seem to improve clusterability"""
-        dti = max((phasetis[1]-phasetis[0]) // 2, 1) # varies from spike to spike
-        phaseti = phasetis[aligni]
-        V = wavedata[maxchani, phaseti]
-        window = wavedata[:, max(phaseti-dti,0):phaseti+dti]
+        dti = max((maxchantis[1]-maxchantis[0]) // 2, 1) # varies from spike to spike
+        ti = maxchantis[aligni]
+        V = wavedata[maxchani, ti]
+        window = wavedata[:, max(ti-dti,0):ti+dti]
         if V < 0:
             weights = np.float32(window.min(axis=1))
             weights = np.fmin(weights, 0) # clip any +ve values to 0
@@ -582,37 +601,38 @@ class Extractor(object):
             weights = np.fmax(weights, 0) # clip any -ve values to 0
         return weights
 
-    def get_Vpp_weights(self, wavedata, maxchani, phasetis, aligni=None):
-        """NOTE: you get better clustering if you allow phasetis to
+    def get_Vpp_weights(self, wavedata, maxchani, maxchantis, aligni=None):
+        """NOTE: you get better clustering if you allow the peak time indices to
         vary at least slightly for each chan, since they're never simultaneous across
         chans, and sometimes they're very delayed or advanced in time
         NOTE: sometimes neighbouring chans have inverted polarity, see ptc15.87.50880, 68840"""
 
-        # find peaks on each chan around phasetis, assign weights by Vpp.
-        # Dividing dti by 2 seems safer, since not looking for other phase, just
-        # looking for same phase maybe slightly shifted. Check clusterability
+        # find peaks on each chan around maxchantis, assign weights by Vpp.
+        # Dividing dti by 2 seems safer, since not looking for other peak, just
+        # looking for same peak maybe slightly shifted. Check clusterability
         # and if this reduces cluster pollution from double-triggered spikes.
         # Catch is that some cells have spikes that really are shifted by as
-        # much as dphase
+        # much as dt
         #dti = self.sort.detector.dti // 2 # constant
 
         # TODO: seach for peaks within dti, not just max/min value on each chan.
-        # If you don't find a peak within the window for a given chan, then default to using the
-        # timepoint from the maxchan
+        # If you don't find a peak within the window for a given chan, then default to
+        # using the timepoint from the maxchan
 
-        # TODO: use the same per-channel amplitude weighted slope measure to return weights for each chan
+        # TODO: use the same per-channel amplitude weighted slope measure to return
+        # weights for each chan
 
-        phasetis = np.int32(phasetis) # prevent over/underflow of uint8
-        dti = max((phasetis[1]-phasetis[0]), 1) # varies from spike to spike
-        V0, V1 = wavedata[maxchani, phasetis]
-        window0 = wavedata[:, max(phasetis[0]-dti,0):phasetis[0]+dti]
-        window1 = wavedata[:, max(phasetis[1]-dti,0):phasetis[1]+dti]
-        if V0 < V1: # 1st phase is a min on maxchan, 2nd phase is a max
+        maxchantis = np.int32(maxchantis) # prevent over/underflow of uint8
+        dti = max((maxchantis[1]-maxchantis[0]), 1) # varies from spike to spike
+        V0, V1 = wavedata[maxchani, maxchantis]
+        window0 = wavedata[:, max(maxchantis[0]-dti,0):maxchantis[0]+dti]
+        window1 = wavedata[:, max(maxchantis[1]-dti,0):maxchantis[1]+dti]
+        if V0 < V1: # 1st peak is a min on maxchan, 2nd peak is a max
             #weights = np.float32(window0.min(axis=1))
             V0s = np.float32(window0.min(axis=1))
             V1s = np.float32(window1.max(axis=1))
             weights = V1s - V0s
-        else: # 1st phase is a max on maxchan, 2nd phase is a min
+        else: # 1st peak is a max on maxchan, 2nd peak is a min
             #weights = np.float32(window0.max(axis=1))
             V0s = np.float32(window0.max(axis=1))
             V1s = np.float32(window1.min(axis=1))

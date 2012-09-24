@@ -783,8 +783,8 @@ class PlotPanel(FigureCanvas):
     def OnButtonPress(self, evt):
         """Seek to timepoint as represented on chan closest to left click.
         Toggle specific chans on right click. On ctrl+left click, reset primary
-        phase timepoint and maxchan of currently selected spike. On ctrl+right click,
-        reset secondary phase timepoint"""
+        peak timepoint and maxchan of currently selected spike. On ctrl+right click,
+        reset secondary peak timepoint"""
         spw = self.topLevelWidget().parent() # spyke window
         button = evt.button
         modifiers = QtGui.QApplication.keyboardModifiers()
@@ -800,11 +800,11 @@ class PlotPanel(FigureCanvas):
         t = spw.get_nearest_timepoint(t)
         if ctrl:
             if button == 1: # left click
-                # set t as primary phase and align selected spike to it, set maxchan
+                # set t as primary peak and align selected spike to it, set maxchan
                 self.alignselectedspike('primary', t, chan)
                 self.spykewindow.seek(t) # seek to t
             elif button == 3: # right click
-                # designate t as secondary phase of selected spike
+                # designate t as secondary peak of selected spike
                 self.alignselectedspike('secondary', t)
                 self.spykewindow.seek(t) # seek to t
         else:
@@ -818,9 +818,9 @@ class PlotPanel(FigureCanvas):
                     enable = False
                 self.spykewindow.set_chans_enabled(chan, enable) # this calls self.set_chans()
 
-    def alignselectedspike(self, phasetype, t, chan=None):
+    def alignselectedspike(self, peaktype, t, chan=None):
         """Align spike selected in sortwin to t, where t is designated as the
-        primary or secondary phase timepoint. Also optionally set the maxchan
+        primary or secondary peak timepoint. Also optionally set the maxchan
         of the spike to chan. Since this is happening in a DataWindow, it's safe
         to assume that a .srf or .track file is open"""
         #if srff not open:
@@ -832,10 +832,10 @@ class PlotPanel(FigureCanvas):
         except RuntimeError, msg:
             print(msg)
             return
-        if phasetype == 'primary':
-            spw.primaryphaset = t
-        elif phasetype == 'secondary':
-            spw.secondaryphaset = t
+        if peaktype == 'primary':
+            spw.primarypeakt = t
+        elif peaktype == 'secondary':
+            spw.secondarypeakt = t
         if chan != None:
             nchans = spikes[sid]['nchans']
             chans = spikes[sid]['chans'][:nchans]
@@ -846,7 +846,7 @@ class PlotPanel(FigureCanvas):
 
     def reloadSelectedSpike(self):
         """Reload selected spike according to primary and secondary
-        phase alignments previously set by clicking on raw waveform in self"""
+        peak alignments previously set by clicking on raw waveform in self"""
         spw = self.spykewindow
         sort = spw.sort
         spikes = sort.spikes
@@ -858,15 +858,15 @@ class PlotPanel(FigureCanvas):
             return
         abort = False
         try:
-            if spw.primaryphaset == None or spw.secondaryphaset == None:
+            if spw.primarypeakt == None or spw.secondarypeakt == None:
                 abort = True
         except AttributeError:
             abort = True
         if abort:
-            print("new primary and secondary phases need to be set before "
+            print("new primary and secondary peaks need to be set before "
                   "reloading selected spike")
             return
-        t = spw.primaryphaset
+        t = spw.primarypeakt
         spikes[sid]['t'] = t # us
         nchans = spikes[sid]['nchans']
         chans = spikes[sid]['chans'][:nchans]
@@ -885,22 +885,22 @@ class PlotPanel(FigureCanvas):
         spikes[sid]['t1'] = t1
         wave = spw.hpstream[t0:t1][chans]
         sort.wavedata[sid][:nchans] = wave.data
-        assert t != spw.secondaryphaset
-        if t < spw.secondaryphaset:
+        assert t != spw.secondarypeakt
+        if t < spw.secondarypeakt:
             aligni = 0
-            phaset0i = wave.ts.searchsorted(t)
-            phaset1i = wave.ts.searchsorted(spw.secondaryphaset)
+            peak0ti = wave.ts.searchsorted(t)
+            peak1ti = wave.ts.searchsorted(spw.secondarypeakt)
         else:
             aligni = 1
-            phaset0i = wave.ts.searchsorted(spw.secondaryphaset)
-            phaset1i = wave.ts.searchsorted(t)
+            peak0ti = wave.ts.searchsorted(spw.secondarypeakt)
+            peak1ti = wave.ts.searchsorted(t)
         # TODO: redo spatial localization.
-        # For now, cheat and make phasetis the same for all chans:
-        spikes[sid]['tis'][:nchans] = phaset0i, phaset1i
-        spikes[sid]['dt'] = abs(spw.secondaryphaset - t) # us
+        # For now, cheat and make peaktis the same for all chans:
+        spikes[sid]['tis'][:nchans] = peak0ti, peak1ti
+        spikes[sid]['dt'] = abs(spw.secondarypeakt - t) # us
         chani = spikes[sid]['chani']
-        V0 = AD2uV(wave.data[chani, phaset0i]) # uV
-        V1 = AD2uV(wave.data[chani, phaset1i])
+        V0 = AD2uV(wave.data[chani, peak0ti]) # uV
+        V1 = AD2uV(wave.data[chani, peak1ti])
         spikes[sid]['V0'] = V0
         spikes[sid]['V1'] = V1
         spikes[sid]['Vpp'] = abs(V1 - V0)
@@ -909,8 +909,8 @@ class PlotPanel(FigureCanvas):
         spw.dirtysids.update([sid])
 
         # reset for next alignment session
-        spw.primaryphaset = None
-        spw.secondaryphaset = None
+        spw.primarypeakt = None
+        spw.secondarypeakt = None
         spw.alignspike2chan = None
         
         # reload spike in sort panel

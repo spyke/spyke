@@ -41,13 +41,16 @@ UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
-DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample frequency, in Hz
+DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample freq, Hz
 DEFHIGHPASSSHCORRECT = True
-KERNELSIZE = 12 # apparently == number of kernel zero crossings, but that seems to depend on the phase of the kernel, some have one less. Anyway, total number of points in the kernel is this plus 1 (for the middle point) - see Blanche2006
+# apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
+# the phase of the kernel, some have one less. Anyway, total number of points in the
+# kernel is this plus 1 (for the middle point) - see Blanche2006
+KERNELSIZE = 12
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
-TW = -500, 500 # spike time window range, us, centered on thresh xing or main phase of spike
+TW = -500, 500 # spike time window range, us, centered on thresh xing or main peak of spike
 
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows

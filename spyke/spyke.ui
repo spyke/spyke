@@ -156,6 +156,9 @@
           <height>27</height>
          </rect>
         </property>
+        <property name="toolTip">
+         <string>Start detection</string>
+        </property>
         <property name="text">
          <string>Detect</string>
         </property>
@@ -300,14 +303,17 @@
           <bool>true</bool>
          </property>
         </widget>
-        <widget class="QSpinBox" name="phaseDTSpinBox">
+        <widget class="QSpinBox" name="dtSpinBox">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>45</x>
            <y>130</y>
            <width>52</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Maximum separation of peaks in a spike</string>
          </property>
          <property name="maximum">
           <number>9999</number>
@@ -322,7 +328,7 @@
         <widget class="QLabel" name="label_5">
          <property name="geometry">
           <rect>
-           <x>130</x>
+           <x>100</x>
            <y>135</y>
            <width>13</width>
            <height>15</height>
@@ -382,12 +388,12 @@
           <rect>
            <x>10</x>
            <y>135</y>
-           <width>66</width>
+           <width>36</width>
            <height>16</height>
           </rect>
          </property>
          <property name="text">
-          <string>phasedt &lt;= </string>
+          <string>dt &lt;= </string>
          </property>
         </widget>
         <widget class="QDoubleSpinBox" name="dynamicNoiseXSpinBox">
@@ -417,6 +423,9 @@
            <width>62</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Peak-to-peak voltage threshold multiplier</string>
          </property>
          <property name="decimals">
           <number>1</number>
@@ -453,6 +462,9 @@
            <height>25</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Detection start time</string>
+         </property>
          <property name="text">
           <string>start</string>
          </property>
@@ -481,6 +493,9 @@
            <width>96</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Detection end time</string>
          </property>
          <property name="text">
           <string>end</string>
@@ -523,6 +538,9 @@
            <width>96</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Detection block size</string>
          </property>
          <property name="inputMask">
           <string/>
@@ -569,6 +587,9 @@
            <height>25</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Spatial extent of lockout following a spike</string>
+         </property>
          <property name="maximum">
           <number>9999</number>
          </property>
@@ -584,6 +605,9 @@
            <width>52</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Spatial extent of channels to save as part of a spike</string>
          </property>
          <property name="maximum">
           <number>9999</number>
@@ -737,7 +761,7 @@
          </item>
          <item>
           <property name="text">
-           <string>dphase</string>
+           <string>dt</string>
           </property>
          </item>
          <item>
@@ -1126,7 +1150,7 @@ p, li { white-space: pre-wrap; }
          </item>
          <item>
           <property name="text">
-           <string>dphase</string>
+           <string>dt</string>
           </property>
          </item>
          <item>
@@ -1194,7 +1218,7 @@ p, li { white-space: pre-wrap; }
          </item>
          <item>
           <property name="text">
-           <string>dphase</string>
+           <string>dt</string>
           </property>
          </item>
          <item>
@@ -1262,7 +1286,7 @@ p, li { white-space: pre-wrap; }
          </item>
          <item>
           <property name="text">
-           <string>dphase</string>
+           <string>dt</string>
           </property>
          </item>
          <item>
@@ -2399,7 +2423,7 @@ If 1 neuron selected, plot autocorrelogram</string>
   <tabstop>dynamicNoiseXSpinBox</tabstop>
   <tabstop>noiseMethodComboBox</tabstop>
   <tabstop>vppThreshXSpinBox</tabstop>
-  <tabstop>phaseDTSpinBox</tabstop>
+  <tabstop>dtSpinBox</tabstop>
   <tabstop>detectButton</tabstop>
   <tabstop>rangeStartLineEdit</tabstop>
   <tabstop>rangeEndLineEdit</tabstop>

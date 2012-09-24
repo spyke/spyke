@@ -114,7 +114,7 @@ class Sort(object):
         twts = np.arange(self.TW[0], self.TW[1], tres) # temporal window timepoints wrt thresh xing or spike time
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twts = twts
-        # time window indices wrt thresh xing or 1st phase:
+        # time window indices of a spike wrt thresh xing or its 1st peak:
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres)
         #info('twi = %s' % (self.twi,))
 
@@ -711,7 +711,7 @@ class Sort(object):
         spikes['t'][sids] -= dt
         spikes['t0'][sids] -= dt
         spikes['t1'][sids] -= dt
-        # might result in some out of bounds tis because the original phases
+        # might result in some out of bounds tis because the original peaks
         # have shifted off the ends. Opposite sign wrt timepoints above, referencing within
         # wavedata:
         spikes['tis'][sids] += nt
@@ -791,7 +791,7 @@ class Sort(object):
                 spikes['t'][sid] += dt # should remain halfway between t0 and t1
                 spikes['t0'][sid] += dt
                 spikes['t1'][sid] += dt
-                # might result in some out of bounds tis because the original phases
+                # might result in some out of bounds tis because the original peaks
                 # have shifted off the ends. Opposite sign, referencing within wavedata:
                 spikes['tis'][sid] -= bestshift
                 # update sort.wavedata
@@ -816,9 +816,9 @@ class Sort(object):
         alignis = spikes['aligni'][sids]
         b = np.column_stack((alignis==0, alignis==1)) # 2D boolean array
         if to == 'min':
-            i = Vss[b] > 0 # indices into sids of spikes aligned to the max phase
+            i = Vss[b] > 0 # indices into sids of spikes aligned to the max peak
         elif to == 'max':
-            i = Vss[b] < 0 # indices into sids of spikes aligned to the min phase
+            i = Vss[b] < 0 # indices into sids of spikes aligned to the min peak
         else:
             raise ValueError('unknown to %r' % to)
         sids = sids[i] # sids that need realigning
@@ -827,29 +827,29 @@ class Sort(object):
         if nspikes == 0: # nothing to do
             return [] # no sids to mark as dirty
 
-        multichanphasetis = spikes['tis'][sids] # nspikes x nchans x 2 arr
+        multichantis = spikes['tis'][sids] # nspikes x nchans x 2 arr
         chanis = spikes['chani'][sids] # nspikes arr of max chanis
-        # phasetis of max chan of each spike, convert from uint8 to int32 for safe math
-        phasetis = np.int32(multichanphasetis[np.arange(nspikes), chanis]) # nspikes x 2 arr
-        # NOTE: phasetis aren't always in temporal order!
-        dphasetis = phasetis[:, 1] - phasetis[:, 0] # could be +ve or -ve
-        dphases = spikes['dt'][sids] # stored as +ve
+        # peak tis on max chan of each spike, convert from uint8 to int32 for safe math
+        tis = np.int32(multichantis[np.arange(nspikes), chanis]) # nspikes x 2 arr
+        # NOTE: tis aren't always in temporal order!
+        dpeaktis = tis[:, 1] - tis[:, 0] # could be +ve or -ve
+        dpeaks = spikes['dt'][sids] # stored as +ve
 
-        # for each spike, decide whether to add or subtract dphase to/from its temporal values
-        ordered  = dphasetis > 0 # in temporal order
-        reversed = dphasetis < 0 # in reversed temporal order
+        # for each spike, decide whether to add or subtract dpeak to/from its temporal values
+        ordered  = dpeaktis > 0 # in temporal order
+        reversed = dpeaktis < 0 # in reversed temporal order
         alignis = spikes['aligni'][sids]
         alignis0 = alignis == 0
         alignis1 = alignis == 1
-        dphasei = np.zeros(nspikes, dtype=int)
-        # add dphase to temporal values to align to later phase
-        dphasei[ordered & alignis0 | reversed & alignis1] = 1
-        # subtact dphase from temporal values to align to earlier phase
-        dphasei[ordered & alignis1 | reversed & alignis0] = -1
+        dpeaki = np.zeros(nspikes, dtype=int)
+        # add dpeak to temporal values to align to later peak
+        dpeaki[ordered & alignis0 | reversed & alignis1] = 1
+        # subtact dpeak from temporal values to align to earlier peak
+        dpeaki[ordered & alignis1 | reversed & alignis0] = -1
 
         #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
-        dts = dphasei * dphases
-        dtis = -dphasei * abs(dphasetis)
+        dts = dpeaki * dpeaks
+        dtis = -dpeaki * abs(dpeaktis)
         # shift values
         spikes['t'][sids] += dts
         spikes['t0'][sids] += dts
@@ -900,7 +900,7 @@ class Sort(object):
             assert maxchan in meanchans
 
         if fixtvals and ver_lte_03:
-            """In sort.__version__ <= 0.3, t, t0, t1, and phasetis were not updated
+            """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
             during alignbest() calls. To fix this, load new data with old potentially
             incorrect t0 and t1 values, and compare this new data to existing old data
             in wavedata array. Find where the non-repeating parts of the old data fits
@@ -938,7 +938,7 @@ class Sort(object):
                     spikes['t'][sid] += dt # should remain halfway between t0 and t1
                     spikes['t0'][sid] += dt
                     spikes['t1'][sid] += dt
-                    # might result in some out of bounds phasetis because the original phases
+                    # might result in some out of bounds tis because the original peaks
                     # have shifted off the ends. Opposite sign, referencing within wavedata:
                     spikes['tis'][sid] -= dnt
                     spike = spikes[sid] # update local var
@@ -1068,16 +1068,18 @@ class Sort(object):
     def hcluster(self, t=1.0):
         """Hierarchically cluster self.spikes
 
-        TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0, y0).
-        Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx, theta),
-        then by temporal distrib (dphase, s1, s2). This will ensure that the lousier params will
-        only be considered after the best ones already have, and therefore that you start off
-        with pretty good clusters that are then only slightly refined using the lousy params
+        TODO: consider doing multiple cluster runs. First, cluster by spatial location (x0,
+        y0). Then split those clusters up by Vpp. Then those by spatial distrib (sy/sx,
+        theta), then by temporal distrib (dt, s1, s2). This will ensure that the lousier
+        params will only be considered after the best ones already have, and therefore that
+        you start off with pretty good clusters that are then only slightly refined using
+        the lousy params
         """
         spikes = self.get_spikes_sortedby('id')
         X = self.get_component_matrix()
         print X
-        cids = fclusterdata(X, t=t, method='single', metric='euclidean') # try 'weighted' or 'average' with 'mahalanobis'
+        # try 'weighted' or 'average' with 'mahalanobis'
+        cids = fclusterdata(X, t=t, method='single', metric='euclidean')
         n2sids, s2nids = self.get_ids(cids, spikes)
         return n2sids
 
