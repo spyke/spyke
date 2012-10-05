@@ -1985,6 +1985,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         sortProbeType = type(sort.probe)
         if self.hpstream != None:
+            sort.stream = self.hpstream # restore open stream to sort
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
                 self.CreateNewSort() # overwrite the failed Sort
@@ -1997,8 +1998,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if float(sort.__version__) < float(__version__):
             self.update_sort_version()
         
-        if self.hpstream != None:
-            sort.stream = self.hpstream # restore open stream to sort
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)

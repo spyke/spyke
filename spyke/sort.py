@@ -929,9 +929,14 @@ class Sort(object):
                 width = od.shape[1] # rolling window width
                 assert width <= nd.shape[1]
                 odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
-                assert len(odinndis) == 1 # ensure exactly one hit of old data in new
-                odinndi = odinndis[0] # pull it out
-                dnt = odinndi - lefti # num timepoints to correct by, signed
+                if len(odinndis) == 0: # no hits of old data in new
+                    dnt = 0 # reload data based on current timepoints
+                elif len(odinndis) == 1: # exactly 1 hit of old data in new
+                    odinndi = odinndis[0] # pull it out
+                    dnt = odinndi - lefti # num timepoints to correct by, signed
+                else:
+                    raise RuntimeError("multiple hits of old data in new, don't know how to "
+                                       "reload spike %d" % sid)
                 #print('dnt: %d' % dnt)
                 if dnt != 0:
                     dt = dnt * self.tres # time to correct by, signed, in us
@@ -940,7 +945,8 @@ class Sort(object):
                     spikes['t1'][sid] += dt
                     # might result in some out of bounds tis because the original peaks
                     # have shifted off the ends. Opposite sign, referencing within wavedata:
-                    spikes['tis'][sid] -= dnt
+                    # in versions <= 0.3, this 'tis' was named 'phasetis':
+                    spikes['phasetis'][sid] -= dnt
                     spike = spikes[sid] # update local var
                     # reload spike data again now that t0 and t1 have changed
                     newwave = stream[spike['t0']:spike['t1']]
