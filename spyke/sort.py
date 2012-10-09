@@ -1769,8 +1769,6 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
-        elif key == Qt.Key_S: # ignored in SpykeListViews
-            self.on_actionSave_triggered()
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             # this is handled at a lower level by on_actionItem_activated
             # in the various listview controls
