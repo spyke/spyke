@@ -498,9 +498,11 @@ class Sort(object):
         spikes = self.spikes
         if sids == None:
             sids = spikes['id'] # default to all spikes
-        comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
-        if comps:
-            X = self.get_component_matrix(kind, sids, chans=selchans)
+        comps = [ dim for dim in dims if dim.startswith('c') and dim[-1].isdigit() ]
+        ncomps = len(comps)
+        hascomps = ncomps > 0
+        if hascomps:
+            X = self.get_component_matrix(kind, sids, chans=selchans, minncomps=ncomps)
         data = []
         for dim in dims:
             if dim in spikes.dtype.fields:
@@ -528,9 +530,10 @@ class Sort(object):
                     d /= d.std()
         return data
 
-    def get_component_matrix(self, kind, sids, chans=None):
+    def get_component_matrix(self, kind, sids, chans=None, minncomps=None):
         """Find set of chans common to all sids, and do PCA/ICA on those waveforms. Or,
-        if chans are specified, limit PCA/ICA to them"""
+        if chans are specified, limit PCA/ICA to them. Return component matrix with at
+        least minncomps dimensions"""
         import mdp # delay as late as possible
         spikes = self.spikes
         chanss = spikes['chans'][sids]
@@ -570,9 +573,13 @@ class Sort(object):
             data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
             #comp = mdp.pca(data, output_dim=5, svd=False)
             comp = mdp.pca(data, output_dim=5) # keep just 1st 5 components
+            if len(comp) < minncomps:
+                raise RuntimeError("can't satisfy minncomps=%d request" % minncomps)
         else: # kind in ['ICA', 'PCA+ICA']:
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(sqrt(nspikes))
+            if maxncomp < minncomps:
+                raise RuntimeError("can't satisfy minncomps=%d request" % minncomps)
             if kind == 'ICA':
                 # for speed, keep only the largest 14% of points, per chan. Largest points are
                 # probably the most important ones
@@ -637,7 +644,7 @@ class Sort(object):
             ki = k.argsort()[::-1] # decreasing order of kurtosis
             #std = comp.std(axis=0)
             #stdi = std.argsort()[::-1] # decreasing order of std
-            comp = comp[:, ki] # sort 'em
+            comp = comp[:, ki] # sort them
             #comp = comp[:, :5] # keep just 1st 5 components
             #print(pm)
             #print('k:', k)

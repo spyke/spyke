@@ -2086,13 +2086,12 @@ def normpdf(p, lapcorrect=1e-10):
     """Ensure p is normalized (sums to 1). Return p unchanged if it's already normalized.
     Otherwise, return it normalized. I guess this treats p as a pmf, not strictly a pdf.
     Optional apply Laplacian correction to avoid 0s"""
-    p = np.asarray(p)
+    p = np.float64(p) # copy and ensure it's float before modifying in-place
     if lapcorrect and (p == 0).any():
         p += lapcorrect
     psum = p.sum()
     if not np.allclose(psum, 1.0) and psum > 0: # make sure the probs sum to 1
         #print("p sums to %f instead of 1, normalizing" % psum)
-        p = np.float64(p) # copy and ensure it's float before modifying in-place
         p /= psum
     return p
 
