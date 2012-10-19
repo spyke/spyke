@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>497</width>
-    <height>345</height>
+    <height>347</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,6 +16,9 @@
   <property name="windowIcon">
    <iconset>
     <normaloff>res/spike.png</normaloff>res/spike.png</iconset>
+  </property>
+  <property name="toolButtonStyle">
+   <enum>Qt::ToolButtonIconOnly</enum>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -1986,6 +1989,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="shortcut">
     <string>Ctrl+O</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionUndo">
    <property name="icon">
@@ -2001,6 +2007,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="shortcut">
     <string>Ctrl+Z</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionNew">
    <property name="icon">
@@ -2012,6 +2021,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>New sort</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionSaveSort">
@@ -2028,6 +2040,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="shortcut">
     <string>Ctrl+S</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionSaveParse">
    <property name="icon">
@@ -2040,6 +2055,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="toolTip">
     <string>Save parse</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionRedo">
    <property name="icon">
@@ -2051,6 +2069,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Y</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionExportDIN">
@@ -2095,6 +2116,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="shortcut">
     <string>Ctrl+W</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionQuit">
    <property name="icon">
@@ -2113,6 +2137,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="menuRole">
     <enum>QAction::QuitRole</enum>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionSpikeWindow">
    <property name="checkable">
@@ -2124,6 +2151,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="text">
     <string>Spike Window</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionChartWindow">
@@ -2137,6 +2167,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="text">
     <string>Chart Window</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionLFPWindow">
    <property name="checkable">
@@ -2148,6 +2181,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="text">
     <string>LFP Window</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionSortWindow">
@@ -2161,6 +2197,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="text">
     <string>Sort Window</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionClusterWindow">
    <property name="checkable">
@@ -2173,6 +2212,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="text">
     <string>Cluster Window</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionShell">
    <property name="icon">
@@ -2184,6 +2226,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Shell</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionRasters">
@@ -2285,6 +2330,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="menuRole">
     <enum>QAction::AboutRole</enum>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionAboutQt">
    <property name="text">
@@ -2304,6 +2352,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Save sort As</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionExportPtcsFiles">
@@ -2344,6 +2395,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    <property name="toolTip">
     <string>Matplotlib Window</string>
    </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionClusteringLayout">
    <property name="checkable">
@@ -2358,6 +2412,9 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Toggle clustering layout</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionScale">
