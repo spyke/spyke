@@ -61,7 +61,7 @@ SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ti
 
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
 #SCREENHEIGHT = 1080 # TODO: this should be found programmatically
-WINDOWTITLEHEIGHT = 29 # TODO: this should be found programmatically
+WINDOWTITLEHEIGHT = 26 # TODO: this should be found programmatically
 BORDERWIDTH = 1 # TODO: this should be found programmatically
 #BORDERHEIGHT = 0 # TODO: this should be found programmatically
 SPIKEWINDOWWIDTHPERCOLUMN = 80

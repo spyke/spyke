@@ -44,7 +44,7 @@ MAINSPLITTERPOS = 300
 VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
 HSPLITTERPOS = intround(MAINSPLITTERPOS * 3 / 4) # maximize nlist width
 SPIKESORTPANELWIDTHPERCOLUMN = 120
-SORTWINDOWHEIGHT = 1080
+SORTWINDOWHEIGHT = 1032 # TODO: this should be set programmatically
 
 MEANWAVESAMPLESIZE = 1000
 
