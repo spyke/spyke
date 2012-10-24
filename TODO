@@ -37,8 +37,6 @@
 - why don't I have an alignment rule during detection that says "if this spike's sharpest negative phase comes after the sharpest positive phase, align to the positive phase"? Maybe because for some spikes the sharpest -ve phase will vary between the first and second, and you'll misalign by a whole lot. But then, all I do now is align to the sharpest -ve phase anyway, which can result in the same misaglinment. So, maybe it would indeed be good to limit the misalignment to a shorter time span by choosing to align to the sharpest +ve phase if the sharpest -ve phase follows it. That way, you know you're at most only one phase away from the correct alignment. The way it currently stands, you can end up two phases away from the correct alignment.
     - ah, but this wouldn't work in the case where there isn't much of a +ve phase to speak of, ie, a mostly single -ve phasic spike. Or, the case where there are two significant +ve phases, but they alternate from one spike to the next in terms of which is sharpest
 
-- add ability to align a whole selection of spikes (maybe via cluster selection) to their mean waveform's global min or max, on the selected single channel. This should then simply shift the alignment of all member spikes by a fixed amount left or right, therefore shifting the mean's alignment a fixed amount left or right. Shape shouldn't change. This is for spikes/clusters which are well aligned among themselves, but their max/min isn't centered. Maybe make CTRL+align_min and CTRL+align_max trigger this kind of mean waveform alignment
-
 - would be nice if PCs/ICs weren't recalculated when you're going through and manually plucking spikes out using SHIFT+DEL. This doesn't seem to happen the first time, but it does the second time, for some reason. This doesn't make any difference to the display in PCA, because all the same points are still there, just differently coloured. But, it does make a difference during ICA, because ICA is not deterministic. Either way, if you have a lot of points plotted, recalculating can get annoyingly slow. Or, maybe it's the recalculation of the mean waveform that's slowing things down?
 
 - might also be nice to not auto-select cluster 0 after doing a SHIFT+DEL. Just leave the original cluster selected, so you can continue cleaning it out
@@ -1276,6 +1274,7 @@ DONE:
 - when called during select keypress, pick() should return all points under the brush, not just the first one found. This would help make painting larger areas of points a lot easier
 - save and restore chan selection and component analysis selection on .sort file save and load
 - make center click random sample
+- add ability to align a whole selection of spikes (maybe via cluster selection) to their mean waveform's global min or max, on the selected single channel. This should then simply shift the alignment of all member spikes by a fixed amount left or right, therefore shifting the mean's alignment a fixed amount left or right. Shape shouldn't change. This is for spikes/clusters which are well aligned among themselves, but their max/min isn't centered. Maybe make CTRL+align_min and CTRL+align_max trigger this kind of mean waveform alignment
 
 
 

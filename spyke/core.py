@@ -980,10 +980,12 @@ class SpykeListView(QtGui.QListView):
         #    print(index, index.row(), index.column(), index.data())
         sm.select(sel, flag)
         #print('end select loop')
-        
+        '''
+        # constantly scrolling to selection slows everything quite noticeably, especially
+        # when using the spike selection sortwin.slider
         if scrollTo and on and len(rows) > 0: # scroll to last row that was just selected
             self.scrollTo(m.index(rows[-1]))
-
+        '''
     def selectedRows(self):
         """Return list of selected rows"""
         return [ i.row() for i in self.selectedIndexes() ]
