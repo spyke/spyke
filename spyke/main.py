@@ -62,12 +62,11 @@ SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ti
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
 #SCREENHEIGHT = 1080 # TODO: this should be found programmatically
 WINDOWTITLEHEIGHT = 26 # TODO: this should be found programmatically
-BORDERWIDTH = 1 # TODO: this should be found programmatically
-#BORDERHEIGHT = 0 # TODO: this should be found programmatically
+BORDER = 2 # TODO: this should be found programmatically
 SPIKEWINDOWWIDTHPERCOLUMN = 80
-SPIKEWINDOWHEIGHT = 655 # TODO: this should be calculated from SCREENHEIGHT
-CHARTWINDOWSIZE = 900, SPIKEWINDOWHEIGHT
-LFPWINDOWSIZE = 250, SPIKEWINDOWHEIGHT
+SPIKEWINDOWHEIGHT = 655 + 2*BORDER # TODO: this should be calculated from SCREENHEIGHT
+CHARTWINDOWSIZE = 900+2*BORDER, SPIKEWINDOWHEIGHT
+LFPWINDOWSIZE = 250+2*BORDER, SPIKEWINDOWHEIGHT
 #SHELLSIZE = CHARTWINDOWSIZE[0], CHARTWINDOWSIZE[1]/2
 CLUSTERWINDOWHEIGHT = 700
 
@@ -478,13 +477,16 @@ class SpykeWindow(QtGui.QMainWindow):
             self.stdlayout[windowtype] = {'pos': win.pos(), 'size': win.size()}
         self.move(0, 0) # ensure main window is in top left
         sw = self.windows['Sort']
-        x = SCREENWIDTH - sw.size().width() - 2*BORDERWIDTH
+        x = SCREENWIDTH - sw.size().width() - 2*BORDER
+        #print('sort x: %d' % x)
         sw.move(x, 0) # place sort window at top right corner of screen
         cw = self.windows['Cluster']
-        w = SCREENWIDTH - self.size().width() - sw.size().width() - 6*BORDERWIDTH # or 4X?
+        w = SCREENWIDTH - self.size().width() - sw.size().width() - 6*BORDER
         h = self.size().height()*2 + WINDOWTITLEHEIGHT
         cw.resize(w, h)
-        x = self.size().width() + 2*BORDERWIDTH
+        x = self.size().width() + 2*BORDER
+        #print('cluster x: %d' % x)
+        #print('cluster size: %r' % ((w, h),))
         cw.move(x, 0) # place cluster window between main & Sort windows
 
     def StandardLayout(self):
@@ -2293,7 +2295,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.OpenWindow('Sort')
 
     def OpenWindow(self, windowtype):
-        """Create and bind a window, show it, plot its data if applicable"""
+        """Create and bind a window, show it, plot its data if applicable. Much of this
+        BORDER stuff is just an empirically derived hack"""
         new = windowtype not in self.windows
         if new:
             if windowtype == 'Spike':
@@ -2302,32 +2305,33 @@ class SpykeWindow(QtGui.QMainWindow):
                 window = SpikeWindow(parent=self, tw=self.spiketw, pos=(x, y),
                                      size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
             elif windowtype == 'Chart':
-                x = self.pos().x() + self.SPIKEWINDOWWIDTH + 2*BORDERWIDTH
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH + 2*BORDER
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = ChartWindow(parent=self, tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
             elif windowtype == 'LFP':
-                x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0] + 4*BORDERWIDTH
+                x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0] + 4*BORDER
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = LFPWindow(parent=self, tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
             elif windowtype == 'Sort':
-                x = self.pos().x() + self.size().width() + 2*BORDERWIDTH
+                x = self.pos().x() + self.size().width() + 2*BORDER
                 y = self.pos().y()
+                #print('sort x: %d' % x)
                 window = SortWindow(parent=self, pos=(x, y))
             elif windowtype == 'Cluster':
-                x = self.pos().x() + self.size().width() + self.windows['Sort'].size().width() + 4*BORDERWIDTH
+                x = self.pos().x() + self.size().width() + self.windows['Sort'].size().width() + 4*BORDER
                 y = self.pos().y()
                 from cluster import ClusterWindow # can't delay this any longer
-                size = (SCREENWIDTH - x - 2*BORDERWIDTH, CLUSTERWINDOWHEIGHT)
+                size = (SCREENWIDTH - x - 2*BORDER, CLUSTERWINDOWHEIGHT)
+                #print('cluster x: %d' % x)
+                #print('cluster size: %r' % (size,))
                 window = ClusterWindow(parent=self, pos=(x, y), size=size)
             elif windowtype == 'MPL':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
-                # the +1 is a hack to fix strange gap underneath histogram bars,
-                # but maybe this has something to do with BORDERWIDTH or BORDERHEIGHT
                 window = MPLWindow(parent=self, pos=(x, y),
-                                   size=(self.size().width(), self.size().width()+1))
+                                   size=(self.size().width(), self.size().width()))
             self.windows[windowtype] = window
             self.dpos[windowtype] = window.pos() - self.pos()
         self.ShowWindow(windowtype) # just show it

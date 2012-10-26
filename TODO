@@ -1,3 +1,15 @@
+- key bindings:
+    - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected
+    - P: PCA
+    - I: PCA+ICA
+    - C: c0c1c2
+    - T: c0c1t
+    - X: x0y0Vpp
+    - spike slider: all key events except arrow keys should be passed on to Sort window
+
+- save "good" state as an attribute of each ClusterChange
+    - just add "good" list to save_old and save_new, and then make use of it in ApplyClusterChange?
+
 - maybe each neuron's dt value should be the mean of all its constituent spikes (a float), not simply the (integer) value of the mean template
 
 - NVS: as a cleaning step (not alignment step): take rms difference between spike and template across all temporal shifts (in my case, 5 of them), find shift with min rms difference, as before. Then, take that shift and the two on either side (at least one of which is already calculated), and take the 2nd derivative of all 3 (left - 2*mid + right). Then, plot distribution of these 2nd dtive values, see if get some bimodality. NVS says that even with a threshold that's constant across clusters and even .srf files, this is a great way to pull out crap spikes that don't match the template very well at all, ie have very little sharpness in their rms fit, even at the best shift.
