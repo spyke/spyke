@@ -1357,6 +1357,15 @@ class XCorrsGroupBox(QtGui.QGroupBox):
             QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
 
+class SpikeSelectionSlider(QtGui.QSlider):
+    """Make ENTER key event activate the plot button"""
+    def keyPressEvent(self, event):
+        if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
+            self.topLevelWidget().spykewindow.ui.plotButton.click()
+        else:
+            QtGui.QSlider.keyPressEvent(self, event) # handle it as usual
+
+
 class Stack(list):
     """A list that doesn't allow -ve indices"""
     def __getitem__(self, key):

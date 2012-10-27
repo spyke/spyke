@@ -33,7 +33,7 @@ import pylab as pl
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
-from core import SpykeToolWindow, NList, NSList, USList, ClusterChange
+from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
 from core import lrrep2Darrstripis, rollwin2D
 from surf import EPOCH
 from plot import SpikeSortPanel, WHITE
@@ -1523,7 +1523,7 @@ class SortWindow(SpykeToolWindow):
         toolbar = self.setupToolbar()
 
         self._source = None # source cluster for comparison
-        self.slider = QtGui.QSlider(Qt.Horizontal, self)
+        self.slider = SpikeSelectionSlider(Qt.Horizontal, self)
         self.slider.setInvertedControls(True)
         self.slider.setToolTip('Position of sliding spike selection time window')
         self.connect(self.slider, QtCore.SIGNAL('valueChanged(int)'),

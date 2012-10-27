@@ -1,6 +1,5 @@
 - key bindings:
     - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected
-    - spike slider: all key events except arrow keys should be passed on to Sort window
 
 - maybe each neuron's dt value should be the mean of all its constituent spikes (a float), not simply the (integer) value of the mean template
 
@@ -1286,6 +1285,7 @@ DONE:
     - I: PCA+ICA
     - C: c0c1c2
     - T: c0c1t
+    - spike slider: ENTER activates plot button
 
 
 
