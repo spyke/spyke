@@ -694,7 +694,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.zoom(-0.05)
             else:
                 self.pitch(5)
-        elif key == Qt.Key_T: # 'tooltip'
+        elif key == Qt.Key_Question:
             self.showToolTip()
         elif key == Qt.Key_0: # reset focus to origin
             self.focus = np.float32([0, 0, 0])
@@ -741,7 +741,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.selectItemsUnderCursor(on=True, clear=False)
         elif key == Qt.Key_D: # deselect item under the cursor, if any
             self.selectItemsUnderCursor(on=False, clear=False)
-        elif key == Qt.Key_P:
+        elif key == Qt.Key_V: # V for View
             self.showProjectionDialog()            
         #elif key == Qt.Key_Space: # clear and select item under cursor, if any
         #    self.selectItemsUnderCursor(on=True, clear=True)
@@ -751,7 +751,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.parent().keyPressEvent(event) # pass it on to parent Cluster window
         elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_G, Qt.Key_Minus,
                      Qt.Key_Slash, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_R,
-                     Qt.Key_Space, Qt.Key_B, Qt.Key_Comma, Qt.Key_Period]:
+                     Qt.Key_Space, Qt.Key_B, Qt.Key_Comma, Qt.Key_Period,
+                     Qt.Key_C, Qt.Key_T, Qt.Key_P, Qt.Key_I]:
             sw.keyPressEvent(event) # pass it on to Sort window
 
         self.updateGL()
