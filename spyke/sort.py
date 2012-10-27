@@ -2025,8 +2025,9 @@ class SortWindow(SpykeToolWindow):
         cluster = spw.GetCluster() # exactly one selected cluster
         oldid = cluster.id
         newid = max(s.norder) + 1
-        newid, ok = QtGui.QInputDialog.getInt(self, 'Renumber cluster',
-                                              'Enter new ID:', value=newid)
+        newid, ok = QtGui.QInputDialog.getInt(self, "Renumber cluster",
+                    "This will clear the undo/redo stack, and is not undoable.\n"
+                    "Enter new ID:", value=newid)
         if not ok:
             return
         if newid in s.norder:
@@ -2049,6 +2050,9 @@ class SortWindow(SpykeToolWindow):
         s.norder[s.norder.index(oldid)] = newid
         # reselect cluster
         spw.SelectClusters(cluster)
+        # some cluster changes in stack may no longer be applicable, reset cchanges
+        del spw.cchanges[:]
+        spw.cci = -1
         print('renumbered neuron %d to %d' % (oldid, newid))
 
     def renumber_all_clusters(self):
@@ -2057,10 +2061,9 @@ class SortWindow(SpykeToolWindow):
         makes user inspection of clusters more orderly, makes the presence of duplicate
         clusters more obvious, and allows for maximal spatial separation between clusters of
         the same colour, reducing colour conflicts"""
-        val = QtGui.QMessageBox.question(self.panel,
-                                         "Renumber all clusters",
-                                         "Are you sure? This is not undoable.",
-                                         QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+        val = QtGui.QMessageBox.question(self.panel, "Renumber all clusters",
+              "Are you sure? This will clear the undo/redo stack, and is not undoable.",
+              QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
         if val == QtGui.QMessageBox.No:
             return
 
