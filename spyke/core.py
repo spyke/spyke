@@ -1375,19 +1375,21 @@ class ClusterChange(object):
     def __repr__(self):
         return self.message
 
-    def save_old(self, oldclusters, oldnorder):
+    def save_old(self, oldclusters, oldnorder, oldgood):
         self.oldnids = self.spikes['nid'][self.sids] # this seems to create a copy
         self.oldunids = [ c.id for c in oldclusters ]
         self.oldposs = [ c.pos.copy() for c in oldclusters ]
         self.oldnormposs = [ c.normpos.copy() for c in oldclusters ]
         self.oldnorder = copy(oldnorder)
+        self.oldgood = copy(oldgood)
 
-    def save_new(self, newclusters, newnorder):
+    def save_new(self, newclusters, newnorder, newgood):
         self.newnids = self.spikes['nid'][self.sids] # this seems to create a copy
         self.newunids = [ c.id for c in newclusters ]
         self.newposs = [ c.pos.copy() for c in newclusters ]
         self.newnormposs = [ c.normpos.copy() for c in newclusters ]
         self.newnorder = copy(newnorder)
+        self.newgood = copy(newgood)
 
 '''
 def save(fname, arr):

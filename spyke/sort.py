@@ -96,7 +96,19 @@ class Sort(object):
                 neuron.good = False
         return np.asarray(good)
 
-    good = property(get_good)
+    def set_good(self, good):
+        """Set good flag to True for nids in good, False otherwise"""
+        nids = self.neurons.keys()
+        assert np.all([ nid in nids for nid in good ]) # make sure all nids in good exist
+        notgood = np.setdiff1d(nids, good)
+        for nid in notgood:
+            neuron = self.neurons[nid]
+            neuron.good = False
+        for nid in good:
+            neuron = self.neurons[nid]
+            neuron.good = True
+
+    good = property(get_good, set_good)
 
     def get_stream(self):
         return self._stream
@@ -1819,7 +1831,7 @@ class SortWindow(SpykeToolWindow):
         # save some undo/redo stuff
         message = 'delete clusters %r' % [ c.id for c in clusters ]
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters, s.norder)
+        cc.save_old(clusters, s.norder, s.good)
 
         # deselect and delete clusters
         spw.DelClusters(clusters)
@@ -1834,7 +1846,7 @@ class SortWindow(SpykeToolWindow):
 
         # save more undo/redo stuff
         newclusters = []
-        cc.save_new(newclusters, s.norder)
+        cc.save_new(newclusters, s.norder, s.good)
         spw.AddClusterChangeToStack(cc)
         print(cc.message)
 
@@ -1862,7 +1874,7 @@ class SortWindow(SpykeToolWindow):
         # save some undo/redo stuff
         message = 'merge clusters %r' % [ c.id for c in clusters ]
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters, s.norder)
+        cc.save_old(clusters, s.norder, s.good)
 
         # get ordered index of first selected cluster, if any
         inserti = None
@@ -1888,7 +1900,7 @@ class SortWindow(SpykeToolWindow):
         newcluster.update_pos()
 
         # save more undo/redo stuff
-        cc.save_new([newcluster], s.norder)
+        cc.save_new([newcluster], s.norder, s.good)
         spw.AddClusterChangeToStack(cc)
 
         # now do some final updates
@@ -1929,7 +1941,7 @@ class SortWindow(SpykeToolWindow):
         # save some undo/redo stuff
         message = 'label as multiunit clusters %r' % [ c.id for c in clusters ]
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(clusters, s.norder)
+        cc.save_old(clusters, s.norder, s.good)
 
         # delete old clusters
         inserti = s.norder.index(clusters[0].id)
@@ -1952,7 +1964,7 @@ class SortWindow(SpykeToolWindow):
         spw.SelectClusters(newclusters)
 
         # save more undo/redo stuff
-        cc.save_new(newclusters, s.norder)
+        cc.save_new(newclusters, s.norder, s.good)
         spw.AddClusterChangeToStack(cc)
         print(cc.message)
 

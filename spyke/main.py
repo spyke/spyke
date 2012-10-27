@@ -909,18 +909,18 @@ class SpykeWindow(QtGui.QMainWindow):
             # save some undo/redo stuff
             message = 'delete junk cluster 0'
             cc = ClusterChange(s.neurons[0].sids, spikes, message)
-            cc.save_old([s.clusters[0]], s.norder)
+            cc.save_old([s.clusters[0]], s.norder, s.good)
             # delete it
             s.remove_neuron(0)
             # save more undo/redo stuff
-            cc.save_new([], s.norder)
+            cc.save_new([], s.norder, s.good)
             self.AddClusterChangeToStack(cc)
             print(cc.message)
 
         # save some undo/redo stuff
         message = '%s clusters %r' % (verb, [ c.id for c in oldclusters ])
         cc = ClusterChange(sids, spikes, message)
-        cc.save_old(oldclusters, s.norder)
+        cc.save_old(oldclusters, s.norder, s.good)
 
         # start insertion indices of new clusters from first selected cluster, if any
         unids = np.unique(nids)
@@ -945,11 +945,12 @@ class SpykeWindow(QtGui.QMainWindow):
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             if len(nsids) == 0:
-                raise RuntimeError('WARNING: neuron %d has no spikes for some reason' % neuron.id)
+                raise RuntimeError('WARNING: neuron %d has no spikes for some reason'
+                                   % neuron.id)
             cluster.update_pos()
 
         # save more undo/redo stuff
-        cc.save_new(newclusters, s.norder)
+        cc.save_new(newclusters, s.norder, s.good)
         self.AddClusterChangeToStack(cc)
 
         # now do some final updates
@@ -1655,6 +1656,7 @@ class SpykeWindow(QtGui.QMainWindow):
             poss = cc.oldposs
             normposs = cc.oldnormposs
             norder = cc.oldnorder
+            good = cc.oldgood
         else: # direction == 'forward'
             #newnids = cc.oldnids # not needed
             oldnids = cc.newnids
@@ -1663,6 +1665,7 @@ class SpykeWindow(QtGui.QMainWindow):
             poss = cc.newposs
             normposs = cc.newnormposs
             norder = cc.newnorder
+            good = cc.newgood
 
         # delete newly added clusters
         newclusters = [ s.clusters[nid] for nid in newunids ]
@@ -1690,8 +1693,9 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
             cluster.pos = pos
             cluster.normpos = normpos
-        # restore norder
+        # restore norder and good
         s.norder = copy(norder)
+        s.good = copy(good)
 
         # now do some final updates
         self.UpdateClustersGUI()
