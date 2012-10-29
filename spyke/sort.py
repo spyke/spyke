@@ -1789,28 +1789,7 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
-        elif key == Qt.Key_C: # ignored in SpykeListViews
-            spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
-        elif key == Qt.Key_T: # ignored in SpykeListViews
-            spw.on_c0c1tButton_clicked() # plot against time
-            # alternate code to toggle plotting against time:
-            '''
-            z = str(spw.ui.zDimComboBox.currentText())
-            if z == 't':
-                spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
-            else:
-                spw.on_c0c1tButton_clicked() # plot against time
-            '''
-        elif key == Qt.Key_P: # switch to PCA, ignored in SpykeListViews
-            index = spw.ui.componentAnalysisComboBox.findText('PCA')
-            spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
-            spw.on_plotButton_clicked()
-        elif key == Qt.Key_I: # swith to PCA+ICA, ignored in SpykeListViews
-            index = spw.ui.componentAnalysisComboBox.findText('PCA+ICA')
-            spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
-            spw.on_plotButton_clicked()
-            # alternate code to toggle between PCA and PCA+ICA:
-            '''
+        elif key == Qt.Key_C: # toggle between PCA and PCA+ICA, ignored in SpykeListViews
             c = str(spw.ui.componentAnalysisComboBox.currentText())
             if c == 'PCA':
                 index = spw.ui.componentAnalysisComboBox.findText('PCA+ICA')
@@ -1819,7 +1798,12 @@ class SortWindow(SpykeToolWindow):
                 index = spw.ui.componentAnalysisComboBox.findText('PCA')
                 spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
             spw.on_plotButton_clicked()
-            '''
+        elif key == Qt.Key_T: # toggle plotting against time, ignored in SpykeListViews
+            z = str(spw.ui.zDimComboBox.currentText())
+            if z == 't':
+                spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
+            else:
+                spw.on_c0c1tButton_clicked() # plot against time
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             # this is handled at a lower level by on_actionItem_activated
             # in the various listview controls
