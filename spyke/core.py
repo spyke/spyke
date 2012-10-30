@@ -1068,6 +1068,14 @@ class NSList(SpykeListView):
 
     sids = property(get_sids)
 
+    def keyPressEvent(self, event):
+        sw = self.sortwin
+        key = event.key()
+        if key in [Qt.Key_Enter, Qt.Key_Return]:
+            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+        else:
+            SpykeListView.keyPressEvent(self, event) # handle it as usual
+
     def selectRandom(self, nsamples):
         """Select up to nsamples random rows per neuron"""
         if self.model().sliding == True:
@@ -1087,6 +1095,14 @@ class USList(SpykeListView):
         self.setModel(USListModel(parent))
         self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
                      self.on_actionItem_activated)
+
+    def keyPressEvent(self, event):
+        sw = self.sortwin
+        key = event.key()
+        if key in [Qt.Key_Enter, Qt.Key_Return]:
+            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+        else:
+            SpykeListView.keyPressEvent(self, event) # handle it as usual
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
