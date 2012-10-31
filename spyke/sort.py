@@ -534,7 +534,8 @@ class Sort(object):
                 d -= d.mean()
                 if dim in ['x0', 'y0']:
                     d /= x0std
-                #elif dim == 't': # the longer the recording in hours, the greater the scaling in time
+                #elif dim == 't': # the longer the recording in hours, the greater the
+                #                 # scaling in time
                 #    trange = d.max() - d.min()
                 #    tscale = trange / (60*60*1e6)
                 #    d *= tscale / d.std()
@@ -542,7 +543,7 @@ class Sort(object):
                     d /= d.std()
         return data
 
-    def get_component_matrix(self, kind, sids, chans=None, minncomps=None):
+    def get_component_matrix(self, kind, sids, tis=(15, 35), chans=None, minncomps=None):
         """Find set of chans common to all sids, and do PCA/ICA on those waveforms. Or,
         if chans are specified, limit PCA/ICA to them. Return component matrix with at
         least minncomps dimensions"""
@@ -574,12 +575,17 @@ class Sort(object):
             raise ValueError('unknown kind %r' % kind)
         nt = self.wavedata.shape[2]
         print('doing %s on chans %r of %d spikes' % (kind, list(chans), nspikes))
+        print('tis: %r' % (tis,))
+        t0i, t1i = tis
+        assert t0i < t1i <= nt
+        nt = t1i - t0i
         # MDP complains of roundoff errors with float32 for large covariance matrices
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
-            data[sii] = self.wavedata[sid][spikechanis]
+            data[sii] = self.wavedata[sid][spikechanis, t0i:t1i]
+        print('!!!!!!!!!!!! input data shape for component analysis: %r' % (data.shape,))
         t0 = time.time()
         if kind == 'PCA':
             data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns

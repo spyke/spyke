@@ -1,3 +1,6 @@
+- let user designate just how much of each waveform to consider for dimension reduction. Often, I only want the central 0.25 or 0.5 ms, I don't care about other stuff outside of that (like near conincident spikes). Put a spin box or drop down list in Sort toolbar, use that to control the length of the green selection lines in the sort panel (normal unselected horizontal vref lines can stay full length). Use only timepoints within that window for dimension reduction.
+    - see cluster 247 on chan 36 with about 32k spikes
+
 - key bindings:
     - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected
 
