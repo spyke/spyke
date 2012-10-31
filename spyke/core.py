@@ -1071,8 +1071,10 @@ class NSList(SpykeListView):
     def keyPressEvent(self, event):
         sw = self.sortwin
         key = event.key()
-        if key in [Qt.Key_Enter, Qt.Key_Return]:
-            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+        # passing horizontal keys to nlist assumes nslist is a single column
+        # and are therefore not needed:
+        if key in [Qt.Key_Enter, Qt.Key_Return, Qt.Key_Left, Qt.Key_Right]:
+            sw.nlist.keyPressEvent(event) # pass on to nlist
         else:
             SpykeListView.keyPressEvent(self, event) # handle it as usual
 
@@ -1100,7 +1102,7 @@ class USList(SpykeListView):
         sw = self.sortwin
         key = event.key()
         if key in [Qt.Key_Enter, Qt.Key_Return]:
-            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            sw.nlist.keyPressEvent(event) # pass on to nlist
         else:
             SpykeListView.keyPressEvent(self, event) # handle it as usual
 
