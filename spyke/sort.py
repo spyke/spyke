@@ -504,7 +504,7 @@ class Sort(object):
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
-    def get_param_matrix(self, kind=None, sids=None, tis=None, dims=None, selchans=None,
+    def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, dims=None,
                          scale=True):
         """Organize dims parameters from sids into a data matrix, each column
         corresponding to a dim. To do PCA/ICA clustering on all spikes, one maxchan at
@@ -556,8 +556,8 @@ class Sort(object):
         if kind not in ['PCA', 'ICA', 'PCA+ICA']:
             raise ValueError('unknown kind %r' % kind)
         nt = self.wavedata.shape[2]
-        if tis == None:
-            tis = (0, nt)
+        if tis == None: # use full waveform
+            tis = np.asarray([0, nt])
         #print('tis: %r' % (tis,))
         t0i, t1i = tis
         assert t0i < t1i <= nt
@@ -582,11 +582,11 @@ class Sort(object):
             Xhash = hashlib.md5()
             Xhash.update(kind)
             Xhash.update(sids)
-            Xhash.update(str(tis))
+            Xhash.update(tis)
             Xhash.update(chans)
             if Xhash.hexdigest() == self.Xhash:
                 print('cache hit, using cached %ss from tis=%r, chans=%r of %d spikes' %
-                     (kind[:-1], tis, list(chans), nspikes))
+                     (kind[:-1], list(tis), list(chans), nspikes))
                 return self.X # no need to recalculate
         except AttributeError: # no self.Xhash and/or self.X
             pass
@@ -594,15 +594,15 @@ class Sort(object):
         print('cache miss, (re)calculating %ss' % kind[:-1])
 
         # collect data between tis from chans from all spikes:
-        print('doing %s on tis=%r & chans=%r of %d spikes' %
-             (kind, tis, list(chans), nspikes))
+        print('doing %s on tis=%r, chans=%r of %d spikes' %
+             (kind, list(tis), list(chans), nspikes))
         # MDP complains of roundoff errors with float32 for large covariance matrices
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = self.wavedata[sid][spikechanis, t0i:t1i]
-        print('input data shape for %s: %r' % (kind, data.shape))
+        print('input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
         if kind == 'PCA':
             data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
@@ -610,6 +610,7 @@ class Sort(object):
             X = mdp.pca(data, output_dim=5) # keep just 1st 5 components
             if X.shape[1] < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
+            print('reshaped input for %s: %r' % (kind, data.shape))
         else: # kind in ['ICA', 'PCA+ICA']:
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(sqrt(nspikes))
@@ -636,10 +637,11 @@ class Sort(object):
             else: # kind == 'PCA+ICA'
                 # do PCA first, to reduce dimensionality and speed up ICA:
                 data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-                ncomp = min(maxncomp, 7*nchans) # keep up to 7 components per chan on average
+                # keep up to 7 components per chan on average:
+                ncomp = min((7*nchans, maxncomp, data.shape[1]))
                 print('ncomp = %d' % ncomp)
                 data = mdp.pca(data, output_dim=ncomp)
-            print('output data shape for %s: %r' % (kind, data.shape))
+            print('reshaped input for %s: %r' % (kind, data.shape))
             if data.shape[0] <= data.shape[1]:
                 raise RuntimeError('need more observations than dimensions for ICA')
             trycount = 0
@@ -701,6 +703,7 @@ class Sort(object):
             pl.colorbar()
             pl.title('decreasing std projmatrix')
             '''
+        print('output shape for %s: %r' % (kind, X.shape))
         self.X = X # cache for fast future retrieval
         self.Xhash = Xhash.hexdigest() # save hash as identifier
         print('%s took %.3f sec' % (kind, time.time()-t0))
@@ -1711,6 +1714,22 @@ class SortWindow(SpykeToolWindow):
 
         toolbar.addSeparator()
 
+        incltComboBox = QtGui.QComboBox(self)
+        incltComboBox.setToolTip("Centered waveform duration to include for component "
+                                 "analysis\n'Full' means use full waveform")
+        incltComboBox.setFocusPolicy(Qt.NoFocus)
+        incltComboBox.addItems(['Full', '100', '200', '300', '400', '500', '600', '700',
+                                '800', '900'])
+        incltComboBox.setCurrentIndex(0)
+        toolbar.addWidget(incltComboBox)
+        self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
+                     self.on_incltComboBox_activated)
+        self.incltComboBox = incltComboBox
+        incltunitsLabel = QtGui.QLabel('us', self)
+        toolbar.addWidget(incltunitsLabel)
+
+        toolbar.addSeparator()
+
         actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)
         tt = '<nobr><b>&lt;</b> &nbsp; Find previous most similar cluster</nobr>'
         actionFindPrevMostSimilar.setToolTip(tt)
@@ -1796,7 +1815,6 @@ class SortWindow(SpykeToolWindow):
             if ctrl:
                 SpykeToolWindow.keyPressEvent(self, event) # pass it on
             else:
-                #self.on_actionSelectRandomSpikes_activated()
                 spw.on_clusterButton_clicked()
         elif key == Qt.Key_B: # ignored in SpykeListViews
             self.on_actionAlignBest_triggered()
@@ -2224,6 +2242,21 @@ class SortWindow(SpykeToolWindow):
         else:
             nt = 2
         self.Shift(nt)
+
+    def on_incltComboBox_activated(self):
+        """Change length of chan selection lines, optionally trigger cluster replot"""
+        #self.spykewindow.ui.plotButton.click()
+        pass
+
+    def get_inclt(self):
+        """Return inclt value in incltComboBox, replacing 'Full' with None"""
+        try:
+            inclt = int(self.incltComboBox.currentText()) # us
+        except ValueError:
+            inclt = None # means "use full waveform"
+        return inclt
+
+    inclt = property(get_inclt)
 
     def on_actionReloadSpikes_triggered(self):
         spw = self.spykewindow

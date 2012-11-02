@@ -1104,6 +1104,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Given list of dims, get clustering parameter matrix according to
         current selection of sids and channels"""
         s = self.sort
+        sw = self.OpenWindow('Sort') # in case it isn't already open
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
         if sids == None:
@@ -1113,12 +1114,18 @@ class SpykeWindow(QtGui.QMainWindow):
                 raise RuntimeError('need non-empty spike selection to do component analysis')
             else: # return all spike ids
                 sids = self.sort.spikes['id']
-        selchans = None
         kind = None
-        if comps: # only potentially do auto chan selection if using PCs/ICs:
-            selchans = self.get_selchans(sids)
+        tis = None # None means "use full waveform"
+        selchans = None
+        if comps: # only do kind, tis and selchans grab if doing CA:
             kind = str(self.ui.componentAnalysisComboBox.currentText())
-        X = s.get_param_matrix(kind=kind, sids=sids, dims=dims, selchans=selchans, scale=scale)
+            inclt = sw.inclt # length of waveform to include, centered on spike (us)
+            if inclt != None: # None means "use full waveform"
+                incltdiv2 = inclt // 2
+                tis = s.twts.searchsorted([-incltdiv2, incltdiv2])
+            selchans = self.get_selchans(sids)
+        X = s.get_param_matrix(kind=kind, sids=sids, tis=tis, selchans=selchans,
+                               dims=dims, scale=scale)
         return X, sids
 
     @QtCore.pyqtSlot()
