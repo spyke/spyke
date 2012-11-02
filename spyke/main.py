@@ -997,8 +997,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # find mean waveform of selected spikes, randomly sampling first for speed
         # if nspikes exceeds a threshold
         if len(sids) > MEANWAVESAMPLESIZE:
-            print('get_waveclustering_data() taking random sample of %d spikes for mean '
-                  'instead of all %d of them' % (MEANWAVESAMPLESIZE, len(sids)))
+            print('get_waveclustering_data() random sampling %d spikes '
+                  'instead of all %d' % (MEANWAVESAMPLESIZE, len(sids)))
             siis = np.arange(nspikes)
             subsiis = np.asarray(random.sample(siis, MEANWAVESAMPLESIZE))
             template = data[subsiis].mean(axis=0)
@@ -1142,7 +1142,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nids = s.spikes['nid'][sids]
         cw.plot(X, sids, nids)
         sw = self.OpenWindow('Sort') # in case it isn't already open
-        sw.PlotClusterHistogram() # auto update cluster histogram plot
+        sw.PlotClusterHistogram(X, sids, nids) # auto update cluster histogram plot
 
     @QtCore.pyqtSlot()
     def get_cleaning_density_hist(self):

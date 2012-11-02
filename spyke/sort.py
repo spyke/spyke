@@ -18,6 +18,8 @@ from copy import copy
 import operator
 import random
 import shutil
+import hashlib
+
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -138,7 +140,7 @@ class Sort(object):
         d = self.__dict__.copy()
         # Spikes and wavedata arrays are (potentially) saved separately.
         # usids and PCs/ICs can be regenerated from the spikes array.
-        for attr in ['spikes', 'wavedata', 'usids', 'comp', 'compkind', 'compsids', 'compchans']:
+        for attr in ['spikes', 'wavedata', 'usids', 'X', 'Xhash']:
             # keep _stream during normal pickling for multiprocessing, but remove it
             # manually when pickling to .sort
             try: del d[attr]
@@ -194,7 +196,7 @@ class Sort(object):
         spikes = self.spikes
         nsids = len(sids)
         if nsids > MEANWAVESAMPLESIZE:
-            s = ("get_mean_wave() taking random sample of %d spikes instead of all %d of them"
+            s = ("get_mean_wave() random sampling %d spikes instead of all %d"
                  % (MEANWAVESAMPLESIZE, nsids))
             if nid != None:
                 s = "neuron %d: " % nid + s
@@ -502,7 +504,8 @@ class Sort(object):
               uVperAD=uVperAD) # save it
         print(lfpfname)
 
-    def get_param_matrix(self, kind=None, sids=None, dims=None, selchans=None, scale=True):
+    def get_param_matrix(self, kind=None, sids=None, tis=None, dims=None, selchans=None,
+                         scale=True):
         """Organize dims parameters from sids into a data matrix, each column
         corresponding to a dim. To do PCA/ICA clustering on all spikes, one maxchan at
         a time, caller needs to call this multiple times, one for each set of
@@ -511,10 +514,11 @@ class Sort(object):
         if sids == None:
             sids = spikes['id'] # default to all spikes
         comps = [ dim for dim in dims if dim.startswith('c') and dim[-1].isdigit() ]
-        ncomps = len(comps)
-        hascomps = ncomps > 0
+        ncomp = len(comps)
+        hascomps = ncomp > 0
         if hascomps:
-            X = self.get_component_matrix(kind, sids, chans=selchans, minncomps=ncomps)
+            X = self.get_component_matrix(kind, sids, tis=tis, chans=selchans,
+                                          minncomp=ncomp)
         data = []
         for dim in dims:
             if dim in spikes.dtype.fields:
@@ -543,12 +547,21 @@ class Sort(object):
                     d /= d.std()
         return data
 
-    def get_component_matrix(self, kind, sids, tis=(15, 35), chans=None, minncomps=None):
+    def get_component_matrix(self, kind, sids, tis=None, chans=None, minncomp=None):
         """Find set of chans common to all sids, and do PCA/ICA on those waveforms. Or,
         if chans are specified, limit PCA/ICA to them. Return component matrix with at
-        least minncomps dimensions"""
+        least minncomp dimensions"""
         import mdp # delay as late as possible
         spikes = self.spikes
+        if kind not in ['PCA', 'ICA', 'PCA+ICA']:
+            raise ValueError('unknown kind %r' % kind)
+        nt = self.wavedata.shape[2]
+        if tis == None:
+            tis = (0, nt)
+        #print('tis: %r' % (tis,))
+        t0i, t1i = tis
+        assert t0i < t1i <= nt
+        nt = t1i - t0i
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
@@ -563,41 +576,45 @@ class Sort(object):
         nspikes = len(sids)
         if nchans == 0:
             raise RuntimeError("Spikes have no common chans for %s" % kind)
-        if (hasattr(self, 'comp') and
-            hasattr(self, 'compkind') and kind == self.compkind and
-            hasattr(self, 'compsids') and np.all(sids == self.compsids) and
-            hasattr(self, 'compchans') and np.all(chans == self.compchans)):
-            print('using saved %ss from chans %r of %d spikes' % (kind[:-1], list(chans), nspikes))
-            return self.comp # no need to recalculate
 
-        # collect data from chans from all spikes:
-        if kind not in ['PCA', 'ICA', 'PCA+ICA']:
-            raise ValueError('unknown kind %r' % kind)
-        nt = self.wavedata.shape[2]
-        print('doing %s on chans %r of %d spikes' % (kind, list(chans), nspikes))
-        print('tis: %r' % (tis,))
-        t0i, t1i = tis
-        assert t0i < t1i <= nt
-        nt = t1i - t0i
+        # check if desired components have already been calculated (cache hit):
+        try:
+            Xhash = hashlib.md5()
+            Xhash.update(kind)
+            Xhash.update(sids)
+            Xhash.update(str(tis))
+            Xhash.update(chans)
+            if Xhash.hexdigest() == self.Xhash:
+                print('cache hit, using cached %ss from tis=%r, chans=%r of %d spikes' %
+                     (kind[:-1], tis, list(chans), nspikes))
+                return self.X # no need to recalculate
+        except AttributeError: # no self.Xhash and/or self.X
+            pass
+
+        print('cache miss, (re)calculating %ss' % kind[:-1])
+
+        # collect data between tis from chans from all spikes:
+        print('doing %s on tis=%r & chans=%r of %d spikes' %
+             (kind, tis, list(chans), nspikes))
         # MDP complains of roundoff errors with float32 for large covariance matrices
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = self.wavedata[sid][spikechanis, t0i:t1i]
-        print('!!!!!!!!!!!! input data shape for component analysis: %r' % (data.shape,))
+        print('input data shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
         if kind == 'PCA':
             data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-            #comp = mdp.pca(data, output_dim=5, svd=False)
-            comp = mdp.pca(data, output_dim=5) # keep just 1st 5 components
-            if len(comp) < minncomps:
-                raise RuntimeError("can't satisfy minncomps=%d request" % minncomps)
+            #X = mdp.pca(data, output_dim=5, svd=False)
+            X = mdp.pca(data, output_dim=5) # keep just 1st 5 components
+            if X.shape[1] < minncomp:
+                raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
         else: # kind in ['ICA', 'PCA+ICA']:
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(sqrt(nspikes))
-            if maxncomp < minncomps:
-                raise RuntimeError("can't satisfy minncomps=%d request" % minncomps)
+            if maxncomp < minncomp:
+                raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
             if kind == 'ICA':
                 # for speed, keep only the largest 14% of points, per chan. Largest points are
                 # probably the most important ones
@@ -609,7 +626,7 @@ class Sort(object):
                 datai = datai.ravel() # 1D of len nchans*ntkeep
                 data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
                 data = data[:, datai] # nspikes x (nchans*ntkeep)
-                print datai
+                print('datai: %r' % datai)
                 if data.shape[1] > maxncomp:
                     mean = data.mean(axis=0) # mean across all spikes, gives nchans*ntkeep vector
                     pointis = abs(mean).argsort()[::-1] # highest to lowest amplitude points
@@ -622,18 +639,18 @@ class Sort(object):
                 ncomp = min(maxncomp, 7*nchans) # keep up to 7 components per chan on average
                 print('ncomp = %d' % ncomp)
                 data = mdp.pca(data, output_dim=ncomp)
-            print('data.shape = %r' % (data.shape,))
+            print('output data shape for %s: %r' % (kind, data.shape))
             if data.shape[0] <= data.shape[1]:
                 raise RuntimeError('need more observations than dimensions for ICA')
             trycount = 0
             while True:
                 try:
                     node = mdp.nodes.FastICANode()
-                    comp = node(data)
+                    X = node(data)
                     pm = node.get_projmatrix()
-                    comp = comp[:, np.any(pm, axis=0)] # keep only the non zero columns
-                    if comp.shape[1] < 3: # need at least 3 columns
-                        raise RuntimeError()
+                    X = X[:, np.any(pm, axis=0)] # keep only the non zero columns
+                    if X.shape[1] < 3:
+                        raise RuntimeError('need at least 3 columns')
                     break
                 except:
                     print('ICA failed, retrying...')
@@ -658,12 +675,12 @@ class Sort(object):
             ## captured variance, maybe the ICs will come out that way too, and I don't
             ## need to measure kurtosis anymore? Nope, not the case it seems.
             
-            k = scipy.stats.kurtosis(comp, axis=0) # find kurtosis of each IC (column)
+            k = scipy.stats.kurtosis(X, axis=0) # find kurtosis of each IC (column)
             ki = k.argsort()[::-1] # decreasing order of kurtosis
-            #std = comp.std(axis=0)
+            #std = X.std(axis=0)
             #stdi = std.argsort()[::-1] # decreasing order of std
-            comp = comp[:, ki] # sort them
-            #comp = comp[:, :5] # keep just 1st 5 components
+            X = X[:, ki] # sort them
+            #X = X[:, :5] # keep just 1st 5 components
             #print(pm)
             #print('k:', k)
             #print('by k: ', ki)
@@ -684,18 +701,16 @@ class Sort(object):
             pl.colorbar()
             pl.title('decreasing std projmatrix')
             '''
-        self.comp = comp
+        self.X = X # cache for fast future retrieval
+        self.Xhash = Xhash.hexdigest() # save hash as identifier
         print('%s took %.3f sec' % (kind, time.time()-t0))
-        self.compkind = kind
-        self.compsids = sids
-        self.compchans = copy(chans) # make sure this isn't just a pointer to panel.selected_chans
         unids = list(np.unique(spikes['nid'][sids])) # set of all nids that sids span
         for nid in unids:
             # don't update pos of junk cluster, if any, since it might not have any chans
             # common to all its spikes, and therefore can't have PCA/ICA done on it
             if nid != 0:
-                self.clusters[nid].update_comppos()
-        return self.comp
+                self.clusters[nid].update_comppos(X, sids)
+        return self.X
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
@@ -761,8 +776,8 @@ class Sort(object):
         # collect spike waveform data on chans, and calc mean
         '''
         if len(sids) > MEANWAVESAMPLESIZE:
-            print('taking random sample of %d spikes instead of all %d of them' %
-                  (MEANWAVESAMPLESIZE, nspikes)
+            print('random sampling %d spikes instead of all %d' %
+                 (MEANWAVESAMPLESIZE, nspikes)
             sidis = np.random.randint(0, nspikes, MEANWAVESAMPLESIZE)
         else:
             sidis = np.arange(nspikes)
@@ -1264,10 +1279,8 @@ class Neuron(object):
         """Get object state for pickling"""
         d = self.__dict__.copy()
         # don't save any calculated PCs/ICs:
-        #d.pop('comp', None)
-        #d.pop('compkind', None)
-        #d.pop('compsids', None)
-        #d.pop('compchans', None)
+        #d.pop('X', None)
+        #d.pop('Xhash', None)
         # don't save plot self is assigned to, since that'll change anyway on unpickle
         d['plt'] = None
         return d
@@ -2477,15 +2490,15 @@ class SortWindow(SpykeToolWindow):
             self.nslist.neurons = self.nslist.neurons # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
 
-    def PlotClusterHistogram(self):
-        """Plot histogram of selected clusters along a single dimension. If two clusters are
-        selected, project them onto axis connecting their centers, and calculate separation
-        indices between them. Otherwise, plot the distribution of all selected clusters
-        (up to a limit) along the first (x) dimension.
-        """
+    def PlotClusterHistogram(self, X, sids, nids):
+        """Plot histogram of given clusters along a single dimension. If two clusters are
+        given, project them onto axis connecting their centers, and calculate separation
+        indices between them. Otherwise, plot the distribution of all given clusters
+        (up to a limit) along the first dimension in X."""
         spw = self.spykewindow
         mplw = spw.OpenWindow('MPL')
-        clusters = spw.GetClusters()
+        unids = np.unique(nids)
+        clusters = [ self.sort.clusters[unid] for unid in unids ]
         if len(clusters) == 0:
             mplw.ax.clear()
             mplw.figurecanvas.draw()
@@ -2501,19 +2514,11 @@ class SortWindow(SpykeToolWindow):
         else:
             calc_measures = False
             projdimi = 0
-        # get param matrix X for points in all clusters, given current dim and
-        # channel selection:
-        dims = spw.GetClusterPlotDims()
-        sids = np.concatenate([ cluster.neuron.sids for cluster in clusters ])
-        sids.sort()
-        try:
-            X, sids = spw.get_param_matrix(sids=sids, dims=dims, scale=True)
-        except RuntimeError, errmsg:
-            print(errmsg)
-            return
+
+        ndims = X.shape[1]
         points = [] # list of projection of each cluster's points onto dimi
         for cluster in clusters:
-            sidis = sids.searchsorted(cluster.neuron.sids)
+            sidis, = np.where(nids == cluster.id)
             # don't seem to need contig points for NDsepmetric, no need for copy:
             points.append(X[sidis])
             #points.append(np.ascontiguousarray(X[sidis]))
@@ -2529,7 +2534,7 @@ class SortWindow(SpykeToolWindow):
             line /= np.linalg.norm(line) # make it unit length
             #print('c0=%r, c1=%r, line=%r' % (c0, c1, line))
         else:
-            line = np.zeros(len(dims))
+            line = np.zeros(ndims)
             line[projdimi] = 1.0 # pick out just the one component
             c0 = 0.0 # set origin at 0
         # calculate projection of each cluster's points onto line
@@ -2563,7 +2568,6 @@ class SortWindow(SpykeToolWindow):
         assert len(ledges) == nbins
         binwidth = ledges[1] - ledges[0]
         # plot:
-        mplw = spw.OpenWindow('MPL')
         a = mplw.ax
         a.clear()
         windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
@@ -2573,7 +2577,7 @@ class SortWindow(SpykeToolWindow):
             #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
             #         % (oneDsep, overlaparearatio, djs, np.sqrt(djs)))
             title = ("%dDsep=%.3f, 1Dsep=%.3f, overlap area ratio=%.3f, DJS=%.3f"
-                     % (len(dims), NDsep, oneDsep, overlaparearatio, djs))
+                     % (ndims, NDsep, oneDsep, overlaparearatio, djs))
             print(title)
             a.set_title(title)
         cs = core.rgb2hex([ cluster.color for cluster in clusters ])

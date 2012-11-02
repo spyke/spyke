@@ -72,8 +72,8 @@ class Cluster(object):
             dims = list(self.pos) # some of these might not exist in spikes array
         sids = self.neuron.sids
         if nsamples and len(sids) > nsamples: # subsample spikes
-            print('neuron %d: update_pos() taking random sample of %d spikes instead '
-                  'of all %d of them' % (self.id, nsamples, len(sids)))
+            print('neuron %d: update_pos() random sampling of %d spikes instead '
+                  'of all %d' % (self.id, nsamples, len(sids)))
             sids = np.asarray(random.sample(sids, nsamples))
 
         # check for pre-calculated spike param means and stds
@@ -117,29 +117,26 @@ class Cluster(object):
             # update normalized position
             self.normpos[dim] = np.median(subdata)
 
-    def update_comppos(self, nsamples=CLUSTERPARAMSAMPLESIZE):
+    def update_comppos(self, X, sids, nsamples=CLUSTERPARAMSAMPLESIZE):
         """Update component analysis (PCA/ICA) values for self"""
         sort = self.neuron.sort
-        #comp = sort.get_component_matrix()
-        comp = sort.comp
-        ncomp = comp.shape[1]
-        compsids = sort.compsids
+        ncomp = X.shape[1]
         nsids = self.neuron.sids
-        # consider only nsids that were included in last CA:
-        nsids = np.intersect1d(nsids, compsids, assume_unique=True)
+        # get all sids that belong to self:
+        nsids = np.intersect1d(sids, nsids, assume_unique=True)
         if nsamples and len(nsids) > nsamples: # subsample spikes
-            print('neuron %d: update_comppos() taking random sample of %d spikes instead '
-                  'of all %d that were included in last CA' % (self.id, nsamples, len(nsids)))
+            print('neuron %d: update_comppos() random sampling %d spikes instead '
+                  'of all %d in last CA' % (self.id, nsamples, len(nsids)))
             nsids = np.asarray(random.sample(nsids, nsamples))
-        compsidis = compsids.searchsorted(nsids)
-        subcomp = comp[compsidis].copy()
-        medians = np.median(subcomp, axis=0)
-        mean = comp.mean(axis=0)
-        std = comp.std(axis=0)
-        subcomp -= mean
-        subcomp /= std
-        normmedians = np.median(subcomp, axis=0)
-        # write comp fields to dicts:
+        sidis = sids.searchsorted(nsids)
+        subX = X[sidis].copy() # this copy is necessary for in-place subtraction and division
+        medians = np.median(subX, axis=0)
+        mean = X.mean(axis=0)
+        std = X.std(axis=0)
+        subX -= mean
+        subX /= std
+        normmedians = np.median(subX, axis=0)
+        # write component fields to dicts:
         for compid in range(ncomp):
             dim = 'c%d' % compid
             self.pos[dim] = medians[compid]
@@ -785,10 +782,10 @@ class GLWidget(QtOpenGL.QGLWidget):
             spos = []
             dims = spw.GetClusterPlotDims()
             for dim in dims:
-                if dim.startswith('c') and dim[-1].isdigit():
+                if dim.startswith('c') and dim[-1].isdigit(): # it's a CA dim
                     compid = int(lstrip(dim, 'c'))
-                    compsidi = sort.compsids.searchsorted(sid)
-                    spos.append(sort.comp[compsidi, compid])
+                    sidi = self.sids.searchsorted(sid)
+                    spos.append(sort.X[sidi, compid])
                 else: # it's a standard dim stored in spikes array
                     spos.append(sort.spikes[sid][dim])
             tip = 'sid: %d' % sid
