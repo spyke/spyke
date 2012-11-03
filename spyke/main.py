@@ -884,7 +884,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
         print('selection radius: %.1f um' % sx)
         panel.chans_selected = selchans
-        panel.update_vref_colours()
+        panel.update_selvrefs()
         panel.draw_refs()
         panel.manual_selection = False
         return selchans
@@ -2032,7 +2032,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # try and restore saved sort window channel selection, and manual selection flag
         try:
             sw.panel.chans_selected = sort.selchans
-            sw.panel.update_vref_colours()
+            sw.panel.update_selvrefs()
             sw.panel.draw_refs() # update
             sw.panel.manual_selection = sort.selchansmanual
             # don't save x, y, z dimension selection, leave it at default xyVpp

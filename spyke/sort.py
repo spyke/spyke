@@ -2245,8 +2245,9 @@ class SortWindow(SpykeToolWindow):
 
     def on_incltComboBox_activated(self):
         """Change length of chan selection lines, optionally trigger cluster replot"""
+        self.panel.update_selvrefs()
+        self.panel.draw_refs()
         #self.spykewindow.ui.plotButton.click()
-        pass
 
     def get_inclt(self):
         """Return inclt value in incltComboBox, replacing 'Full' with None"""

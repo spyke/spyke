@@ -564,16 +564,17 @@ class PlotPanel(FigureCanvas):
         # 2 points per horizontal vref line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
         x = np.repeat(xpos, 2)
-        extra = (self.tw[1] - self.tw[0]) / 20 # vref horizontal overhang
-        endbit = self.tres # the width of one timepoint
-        x[0::2] += self.tw[0] - extra # left edge of each vref
-        x[1::2] += self.tw[1] + extra - endbit # right edge of each vref
+        #extra = (self.tw[1] - self.tw[0]) / 20 # vref horizontal overhang
+        #endbit = self.tres # the width of one timepoint
+        x[0::2] += self.tw[0]# - extra # left edge of each vref
+        x[1::2] += self.tw[1]# + extra - endbit # right edge of each vref
         x.shape = nsegments, 2
         y = np.repeat(ypos, 2) # y vals are the same for left and right edge of each vref
         y.shape = nsegments, 2
         segments[:, :, 0] = x
         segments[:, :, 1] = y
         self.vlc.set_segments(segments)
+        self.segments = segments # save for potential later use
 
     def _update_caret_width(self):
         """Update caret width"""
@@ -1386,17 +1387,26 @@ class SortPanel(PlotPanel):
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
             self.manual_selection = False
-        self.update_vref_colours()
+        self.update_selvrefs()
         self.draw_refs() # update
 
-    def update_vref_colours(self):
-        """Reset colours of vrefs given chans in self.chans_selected"""
+    def update_selvrefs(self):
+        """Set line widths, lengths, and colours of vrefs according to chans in
+        self.chans_selected"""
+        segments = self.segments.copy()
         colours = np.repeat(VREFCOLOUR, len(self.pos)) # clear all lines
         linewidths = np.repeat(VREFLINEWIDTH, len(self.pos)) # clear all lines
+        inclt = self.sortwin.inclt
+        if inclt != None: # None means plot vref as default full width
+            incltdiv2 = self.sortwin.inclt // 2
         for chan in self.chans_selected: # set line colour of selected chans
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
+            xpos = self.pos[chan][0] # chan xpos center (us)
+            if inclt != None: # modify the x values of this segment:                
+                segments[vrefsegmenti][:, 0] = xpos-incltdiv2, xpos+incltdiv2
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
+        self.vlc.set_segments(segments)
         self.vlc.set_color(list(colours))
         self.vlc.set_linewidth(list(linewidths))
 
