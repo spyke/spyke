@@ -564,10 +564,10 @@ class PlotPanel(FigureCanvas):
         # 2 points per horizontal vref line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
         x = np.repeat(xpos, 2)
-        #extra = (self.tw[1] - self.tw[0]) / 20 # vref horizontal overhang
-        #endbit = self.tres # the width of one timepoint
-        x[0::2] += self.tw[0]# - extra # left edge of each vref
-        x[1::2] += self.tw[1]# + extra - endbit # right edge of each vref
+        extra = (self.tw[1] - self.tw[0]) / 20 # vref horizontal overhang
+        endbit = self.tres # the width of one timepoint
+        x[0::2] += self.tw[0] - extra # left edge of each vref
+        x[1::2] += self.tw[1] + extra - endbit # right edge of each vref
         x.shape = nsegments, 2
         y = np.repeat(ypos, 2) # y vals are the same for left and right edge of each vref
         y.shape = nsegments, 2
