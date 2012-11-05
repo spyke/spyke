@@ -1077,7 +1077,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane c0c1c2 button click. Set plot dims to c0, c1, and c2"""
         if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
             try:
-                del self.sort.comp # force recalc
+                del self.sort.Xhash # force recalc
             except AttributeError: pass
         self.SetPlotDims('c0', 'c1', 'c2')
 
@@ -1086,7 +1086,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane c0c1t button click. Set plot dims to c0, c1, and t"""
         if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
             try:
-                del self.sort.comp # force recalc
+                del self.sort.Xhash # force recalc
             except AttributeError: pass
         self.SetPlotDims('c0', 'c1', 't')
 
@@ -1135,7 +1135,7 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
             try:
-                del s.comp # force recalc
+                del s.Xhash # force recalc
             except AttributeError: pass
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         dims = self.GetClusterPlotDims()
