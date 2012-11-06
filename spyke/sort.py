@@ -1718,8 +1718,8 @@ class SortWindow(SpykeToolWindow):
         incltComboBox.setToolTip("Centered waveform duration to include for component "
                                  "analysis\n'Full' means use full waveform")
         incltComboBox.setFocusPolicy(Qt.NoFocus)
-        incltComboBox.addItems(['Full', '100', '200', '300', '400', '500', '600', '700',
-                                '800', '900'])
+        incltComboBox.addItems(['Full', '900', '800', '700', '600', '500', '400', '300',
+                                '200', '100', '50'])
         incltComboBox.setCurrentIndex(0)
         toolbar.addWidget(incltComboBox)
         self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
