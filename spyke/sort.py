@@ -2259,6 +2259,17 @@ class SortWindow(SpykeToolWindow):
 
     inclt = property(get_inclt)
 
+    def get_tis(self):
+        """Return tis (start and end timepoint indices) of inclt centered on t=0 spike time"""
+        s = self.sort
+        inclt = self.inclt # length of waveform to include, centered on spike (us)
+        if inclt == None: # use full waveform
+            inclt = sys.maxint
+        incltdiv2 = inclt // 2
+        return s.twts.searchsorted([-incltdiv2, incltdiv2])
+
+    tis = property(get_tis)
+
     def on_actionReloadSpikes_triggered(self):
         spw = self.spykewindow
         sids = spw.GetAllSpikes()

@@ -1115,14 +1115,11 @@ class SpykeWindow(QtGui.QMainWindow):
             else: # return all spike ids
                 sids = self.sort.spikes['id']
         kind = None
-        tis = None # None means "use full waveform"
+        tis = None
         selchans = None
         if comps: # only do kind, tis and selchans grab if doing CA:
             kind = str(self.ui.componentAnalysisComboBox.currentText())
-            inclt = sw.inclt # length of waveform to include, centered on spike (us)
-            if inclt != None: # None means "use full waveform"
-                incltdiv2 = inclt // 2
-                tis = s.twts.searchsorted([-incltdiv2, incltdiv2])
+            tis = sw.tis # waveform time indices to include, centered on spike
             selchans = self.get_selchans(sids)
         X = s.get_param_matrix(kind=kind, sids=sids, tis=tis, selchans=selchans,
                                dims=dims, scale=scale)
