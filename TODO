@@ -1,6 +1,4 @@
-- optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading
-
-- make alignbest() consider only the selected waveform time span in incltComboBox
+- optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading, or turn on subsampling again?
 
 - make template comparisons only consider the selected waveform time span in incltComboBox?
 
@@ -1294,6 +1292,7 @@ DONE:
     - spike slider: ENTER activates plot button
 - when checking to see if should use saved PCs/ICs for plotting or clustering, would probably be best to use a hash of the chans and spike ids and whatever else is needed, instead of relying on just the chans and cluster ids, which I think I currently do, to signify that the previous set of calculated components are valid for the currently requested set of spikes and chans
 - let user designate just how much of each waveform to consider for dimension reduction. Often, I only want the central 0.25 or 0.5 ms, I don't care about other stuff outside of that (like near conincident spikes). Put a spin box or drop down list in Sort toolbar, use that to control the length of the green selection lines in the sort panel (normal unselected horizontal vref lines can stay full length). Use only timepoints within that window for dimension reduction.
+- make alignbest() consider only the selected waveform time span in incltComboBox
 
 
 

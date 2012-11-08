@@ -559,9 +559,9 @@ class Sort(object):
         if tis == None: # use full waveform
             tis = np.asarray([0, nt])
         #print('tis: %r' % (tis,))
-        t0i, t1i = tis
-        assert t0i < t1i <= nt
-        nt = t1i - t0i
+        ti0, ti1 = tis
+        assert ti0 < ti1 <= nt
+        nt = ti1 - ti0
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
@@ -601,7 +601,7 @@ class Sort(object):
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = np.searchsorted(spikechans, chans)
-            data[sii] = self.wavedata[sid][spikechanis, t0i:t1i]
+            data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
         print('input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
         if kind == 'PCA':
@@ -760,8 +760,8 @@ class Sort(object):
         spikes['tis'][sids] += nt
         # caller should treat all sids as dirty
 
-    def alignbest(self, sids, chans, method=core.rmserror):
-        """Align all sids on chans by best fit according to error method.
+    def alignbest(self, sids, tis, chans, method=core.rmserror):
+        """Align all sids between tis on chans by best fit according to error method.
         chans are assumed to be a subset of channels of sids. Return sids
         that were actually moved and therefore need to be marked as dirty"""
         spikes = self.spikes
@@ -770,13 +770,19 @@ class Sort(object):
         nchans = len(chans)
         wd = self.wavedata
         nt = wd.shape[2] # num timepoints in each waveform
+        ti0, ti1 = tis
+        subnt = ti1 - ti0 # num timepoints to slice from each waveform
         # TODO: make maxshift a f'n of interpolation factor
         maxshift = 2 # shift +/- this many timepoints
+        subntdiv2 = subnt // 2
+        print('subntdiv2 on either side of t=0: %d' % subntdiv2)
+        if subntdiv2 < maxshift:
+            raise ValueError("Selected waveform duration too short")
         #maxshiftus = maxshift * self.stream.tres
         shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
         print("padding waveforms with up to +/- %d points of fake data" % maxshift)
 
-        # collect spike waveform data on chans, and calc mean
+        # collect spike waveform data between tis on chans, and calc mean
         '''
         if len(sids) > MEANWAVESAMPLESIZE:
             print('random sampling %d spikes instead of all %d' %
@@ -785,14 +791,14 @@ class Sort(object):
         else:
             sidis = np.arange(nspikes)
         '''
-        subsd = np.zeros((nspikes, nchans, nt), dtype=wd.dtype)
+        subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype)
         spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
         for sidi, sid in enumerate(sids):
             spike = spikes[sid]
             nspikechans = spike['nchans']
             spikechans = spike['chans'][:nspikechans]
             spikechanis[sidi] = spikechans.searchsorted(chans)
-            subsd[sidi] = wd[sid, spikechanis[sidi]]
+            subsd[sidi] = wd[sid, spikechanis[sidi], ti0:ti1]
         meandata = subsd.mean(axis=0) # float64
 
         # choose best shifted waveform for each spike
@@ -802,7 +808,7 @@ class Sort(object):
         widesd = np.zeros((maxnchans, maxshift+nt+maxshift), dtype=wd.dtype)        
         shiftedsubsd = subsd.copy()
         tempshifts = np.zeros((len(shifts), maxnchans, nt), dtype=wd.dtype)
-        tempsubshifts = np.zeros((len(shifts), nchans, nt), dtype=wd.dtype)
+        tempsubshifts = np.zeros((len(shifts), nchans, subnt), dtype=wd.dtype)
         errors = np.zeros(len(shifts))
         dirtysids = []
         for sidi, sid in enumerate(sids):
@@ -822,9 +828,9 @@ class Sort(object):
             widesd[:, -maxshift:] = sd[:, -1, None] # pad end with last point per chan
             errors.fill(0.0) # reset
             for shifti, shift in enumerate(shifts):
-                t0i = maxshift + shift
+                t0i = maxshift + shift # not the same as ti0!
                 tempshifts[shifti] = widesd[:, t0i:t0i+nt]
-                tempsubshifts[shifti] = tempshifts[shifti, chanis]
+                tempsubshifts[shifti] = tempshifts[shifti, chanis, ti0:ti1]
                 errors[shifti] = method(tempsubshifts[shifti], meandata)
             bestshifti = errors.argmin()
             bestshift = shifts[bestshifti]
@@ -890,7 +896,8 @@ class Sort(object):
         # subtact dpeak from temporal values to align to earlier peak
         dpeaki[ordered & alignis1 | reversed & alignis0] = -1
 
-        #dalignis = -np.int32(alignis)*2 + 1 # upcast aligni from 1 byte to an int before doing arithmetic on it
+        # upcast aligni from 1 byte to an int before doing arithmetic on it:
+        #dalignis = -np.int32(alignis)*2 + 1
         dts = dpeaki * dpeaks
         dtis = -dpeaki * abs(dpeaktis)
         # shift values
@@ -2464,21 +2471,24 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         sids = np.concatenate((spw.GetClusterSpikes(), spw.GetUnsortedSpikes()))
         if to == 'best':
+            tis = self.tis
             selchans = spw.get_selchans(sids)
-            # find which chans are common to all sids
+            # find which chans are common to all sids:
             chanss = spikes['chans'][sids]
             nchanss = spikes['nchans'][sids]
-            chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
+            # list of arrays:
+            chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
             common_chans = core.intersect1d(chanslist) # find intersection
             # check selected chans
             for selchan in selchans:
                 if selchan not in common_chans:
                     raise RuntimeError("chan %d not common to all spikes, pick from %r"
                                        % (selchan, list(common_chans)))
-            print('doing best fit alignment on %d spikes on chans %r' % (len(sids), selchans))
-            dirtysids = s.alignbest(sids, selchans)
+            print('best fit aligning %d spikes between tis=%r on chans=%r' %
+                  (len(sids), list(tis), selchans))
+            dirtysids = s.alignbest(sids, tis, selchans)
         else: # to in ['min', 'max']
-            print('doing %s alignment on %d spikes' % (to, len(sids)))
+            print('aligning %d spikes to %s' % (len(sids), to))
             dirtysids = s.alignminmax(sids, to)
         print('aligned %d spikes' % len(dirtysids))
         unids = np.unique(spikes['nid'][dirtysids])
