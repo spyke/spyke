@@ -240,7 +240,7 @@ class Sort(object):
         std = std[chanis]
         return WaveForm(data=data, std=std, chans=chans)
 
-    def exportptcsfiles(self, sortpath=None, basepath=None):
+    def exportptcsfiles(self, basepath, sortpath):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
@@ -249,14 +249,14 @@ class Sort(object):
             streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]
-        print('exporting clustered spikes to:')
+        print('exporting "good" clusters to:')
         # do a separate export for each recording
         for stream in streams:
             # get time delta between stream i and stream 0, could be 0:
             td = stream.datetime - streams[0].datetime
-            self.exportptcsfile(stream, td, exportdt, sortpath, basepath)
+            self.exportptcsfile(stream, basepath, td, exportdt, sortpath)
 
-    def exportptcsfile(self, stream, td, exportdt, sortpath, basepath):
+    def exportptcsfile(self, stream, basepath, td, exportdt, sortpath):
         """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
         stream, and undo any time delta in spike times"""
         userdescr = ''
@@ -483,10 +483,10 @@ class Sort(object):
             f.close()
             print(fullfname)
 
-    def exportall(self, basepath):
+    def exportall(self, basepath, sortpath):
         """Export spike data, stimulus textheader, and din to path in
         the classic way for use in neuropy"""
-        self.exportspikes(basepath)
+        self.exportptcsfiles(basepath, sortpath)
         self.exportdin(basepath)
         self.exporttextheader(basepath)
 
@@ -775,7 +775,7 @@ class Sort(object):
         # TODO: make maxshift a f'n of interpolation factor
         maxshift = 2 # shift +/- this many timepoints
         subntdiv2 = subnt // 2
-        print('subntdiv2 on either side of t=0: %d' % subntdiv2)
+        #print('subntdiv2 on either side of t=0: %d' % subntdiv2)
         if subntdiv2 < maxshift:
             raise ValueError("Selected waveform duration too short")
         #maxshiftus = maxshift * self.stream.tres
@@ -940,7 +940,7 @@ class Sort(object):
             chanis = distances.argsort()[:det.maxnchansperspike]
             meanchans = det.chans[chanis]
             meanchans.sort() # keep them sorted
-            print('meanchans: %r' % meanchans)
+            print('meanchans: %r' % list(meanchans))
             furthestchan = det.chans[chanis[-1]]
             print('furthestchan: %d' % furthestchan)
             furthestchani = meanchans.searchsorted(furthestchan)

@@ -1,5 +1,7 @@
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading, or turn on subsampling again?
 
+- if more than X number of spikes are selected in nslist or uslist, don't plot them. Then, when it comes time to unselect those spikes, don't raise the error from the plot panel that those plots are missing
+
 - make template comparisons only consider the selected waveform time span in incltComboBox?
 
 - make more use of the component analysis cache: make sort.X a dict of arrays (instead of just one), with MD5 hash values as keys. Storing up to say 10 at a time shouldn't have much impact on memory usage.

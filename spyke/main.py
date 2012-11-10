@@ -227,7 +227,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                     directory=self.sortpath)
         path = str(path)
         if path:
-            self.sort.exportptcsfiles(sortpath=self.sortpath, basepath=path)
+            self.sort.exportptcsfiles(path, self.sortpath)
             # don't update path
 
     @QtCore.pyqtSlot()
@@ -253,7 +253,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportTsChIdFiles_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export tschid(s) to",
+        path = getExistingDirectory(self, caption="Export .tschid file(s) to",
                                     directory=self.sortpath)
         path = str(path)
         if path:
@@ -263,7 +263,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportDIN_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export DIN(s) to",
+        path = getExistingDirectory(self, caption="Export .din file(s) to",
                                     directory=self.sortpath)
         path = str(path)
         if path:
@@ -273,7 +273,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportTextheader_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export textheader(s) to",
+        path = getExistingDirectory(self, caption="Export .textheader file(s) to",
                                     directory=self.sortpath)
         path = str(path)
         if path:
@@ -283,11 +283,12 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportAll_triggered(self):
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export spikes, DIN(s) and textheader(s) to",
+        path = getExistingDirectory(self,
+                                    caption="Export .ptcs, .din and .textheader file(s) to",
                                     directory=self.sortpath)
         path = str(path)
         if path:
-            self.sort.exportall(path)
+            self.sort.exportall(basepath=path, sortpath=self.sortpath)
             # don't update path
 
     @QtCore.pyqtSlot()
