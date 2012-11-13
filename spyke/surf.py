@@ -21,15 +21,18 @@ NULL = '\x00'
 DEFNHIGHPASSRECORDS = 50000
 DEFNLOWPASSRECORDS = 300000
 DEFNDIGITALSVALRECORDS = 600000
-CTSRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('dataoffset', '<i8')]
-LPMCRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'), ('lpreci', '<i4')]
+CTSRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'),
+                  ('dataoffset', '<i8')]
+LPMCRECORDDTYPE = [('TimeStamp', '<i8'), ('Probe', '<i2'), ('NumSamples', '<i4'),
+                   ('lpreci', '<i4')]
 DIGITALSVALDTYPE = [('TimeStamp', np.int64), ('SVal', np.uint16)]
-EPOCH = datetime.datetime(1899, 12, 30, 0, 0, 0) # epoch for message and display record DateTime stamps
+# epoch for message and display record DateTime stamps:
+EPOCH = datetime.datetime(1899, 12, 30, 0, 0, 0)
 
-# create a couple of Struct objects with compiled format strings
-# and call them as needed for the most common record types.
-# Using np.fromfile to load one dtype record at a time without intermediate string isn't any faster
-# Without little endian < symbol, struct.unpack uses 4 byte native size and alignment
+"""Create a couple of Struct objects with compiled format strings and call them as needed
+for the most common record types. Using np.fromfile to load one dtype record at a time
+without intermediate string isn't any faster. Without little endian < symbol, struct.unpack
+uses 4 byte native size and alignment"""
 ctsstruct = Struct('qqhhii')
 dsvalstruct = Struct('qqhhi')
 unpackctsrec = ctsstruct.unpack
@@ -402,26 +405,31 @@ class File(object):
         lpmclayout = copy(lplayout) # start with the layout of a lp single chan record
         lpmclayout.nchans = len(probes)
         lpmclayout.Probe = probe
-        chans = [] # probe chans that were tapped off of the MCS patch board
-                   # assume the mapping between AD chans and probe chans (if not 1 to 1) was done
-                   # correctly before recording
+        # probe chans that were tapped off of the MCS patch board. Assume the mapping
+        # between AD chans and probe chans (if not 1 to 1) was done correctly before
+        # recording:
+        chans = []
         ADchanlist = [] # corresponding A/D chans
-        PROBEDESCRIPRE = re.compile(r'ch(?P<tappedchan>[0-9]+)') # find 'ch' followed by at least 1 digit
+        # find 'ch' followed by at least 1 digit:
+        PROBEDESCRIPRE = re.compile(r'ch(?P<tappedchan>[0-9]+)')
         for probe in probes:
             layout = self.layoutrecords[probe]
             mo = PROBEDESCRIPRE.search(layout.probe_descrip) # match object
             if mo != None:
                 chan = int(mo.groupdict()['tappedchan'])
                 chans.append(chan)
-                assert len(layout.ADchanlist) == 1 # shouldn't have more than one ADchan per lowpassrecord
+                # shouldn't have more than one ADchan per lowpassrecord:
+                assert len(layout.ADchanlist) == 1
                 ADchan = layout.ADchanlist[0]
                 ADchanlist.append(ADchan)
             else:
                 raise ValueError('cannot parse LFP chan from probe description: %r' %
                                  layout.probe_descrip)
         lpmclayout.chans = np.asarray(chans)
-        lpmclayout.ADchanlist = np.asarray(ADchanlist) # replace single chan A/D chanlist with our new multichan highpass probe based one
-        lpmclayout.probe_descrip = "LFP probe chans: %r; A/D chans: %r" % (lpmclayout.chans, lpmclayout.ADchanlist)
+        # replace single chan A/D chanlist with our new multichan highpass probe based one:
+        lpmclayout.ADchanlist = np.asarray(ADchanlist)
+        lpmclayout.probe_descrip = "LFP probe chans: %r; A/D chans: %r" %
+                                   (lpmclayout.chans, lpmclayout.ADchanlist)
         # lowpassmultichans have the same probe layout as the highpass probe,
         # just fewer chans, lower sampling, and via different analog filters
         lpmclayout.electrode_name = hplayout.electrode_name
@@ -435,7 +443,8 @@ class File(object):
         self._pickle_all_records = True # signal to __getstate__ to pickle all records
         wasopen = self.is_open()
         if wasopen: self.close()
-        cPickle.dump(self, pf, protocol=-1) # pickle self to .parse file, use most efficient (least human readable) protocol
+        # pickle self to .parse file, use most efficient (least human readable) protocol:
+        cPickle.dump(self, pf, protocol=-1)
         pf.close()
         if wasopen: self.open() # reopen it
         self._pickle_all_records = False # reset to not pickle all records by default
