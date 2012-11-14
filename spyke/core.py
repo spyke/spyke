@@ -2102,15 +2102,17 @@ def lrrep2Darrstripis(a):
     left = a[:, :1] # 2D column vector
     right = a[:, -1:] # 2D column vector
     leftcolis = argcolsubarr2D(a, left)
-    if len(leftcolis) == 1: # only 1 hit, at the far left edge
-        lefti = 0
-    else: # multiple hits, get slice index of rightmost consecutive hit
-        lefti = max(np.where(np.diff(leftcolis) == 1)[0]) + 1
+    lefti = 0 # at least 1 hit, at the far left edge
+    if len(leftcolis) > 1: # multiple hits, get slice index of rightmost consecutive hit
+        consecis = np.where(np.diff(leftcolis) == 1)[0]
+        if len(consecis) > 0:
+            lefti = max(consecis) + 1
     rightcolis = argcolsubarr2D(a, right)
-    if len(rightcolis) == 1: # only 1 hit, at the far right edge
-        righti = a.shape[1]
-    else: # multiple hits, get slice index of leftmost consecutive hit
-        righti = -(max(np.where(np.diff(rightcolis)[::-1] == 1)[0]) + 1)
+    righti = a.shape[1] # at least 1 hit, at the far right edge
+    if len(rightcolis) > 1: # multiple hits, get slice index of leftmost consecutive hit
+        consecis = np.where(np.diff(rightcolis)[::-1] == 1)[0]
+        if len(consecis) > 0:
+            righti = -(max(consecis) + 1)
     return lefti, righti
 
 def normpdf(p, lapcorrect=1e-10):

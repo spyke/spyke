@@ -428,8 +428,8 @@ class File(object):
         lpmclayout.chans = np.asarray(chans)
         # replace single chan A/D chanlist with our new multichan highpass probe based one:
         lpmclayout.ADchanlist = np.asarray(ADchanlist)
-        lpmclayout.probe_descrip = "LFP probe chans: %r; A/D chans: %r" %
-                                   (lpmclayout.chans, lpmclayout.ADchanlist)
+        lpmclayout.probe_descrip = ("LFP probe chans: %r; A/D chans: %r" %
+                                    (lpmclayout.chans, lpmclayout.ADchanlist))
         # lowpassmultichans have the same probe layout as the highpass probe,
         # just fewer chans, lower sampling, and via different analog filters
         lpmclayout.electrode_name = hplayout.electrode_name
