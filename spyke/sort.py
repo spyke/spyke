@@ -259,10 +259,11 @@ class Sort(object):
     def exportptcsfile(self, stream, basepath, td, exportdt, sortpath):
         """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
         stream, and undo any time delta in spike times"""
-        userdescr = ''
-        nsamplebytes = 4 # float32
+
         # build up list of PTCSNeuronRecords that have spikes in this stream,
         # and tally their spikes
+        userdescr = ''
+        nsamplebytes = 4 # float32
         nrecs = []
         nspikes = 0
         # only export neurons marked as "good", could be single or multi unit:
@@ -281,7 +282,7 @@ class Sort(object):
             nspikes += len(spikets)
         nneurons = len(nrecs)
 
-        # write the file
+        # create the header and write everything to file
         path = os.path.join(basepath, stream.srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
@@ -289,9 +290,9 @@ class Sort(object):
         fname = fname.replace(':', '.')
         fname = fname + '.ptcs'
         fullfname = os.path.join(path, fname)
+        header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, userdescr,
+                            nsamplebytes, fullfname, exportdt)
         with open(fullfname, 'wb') as f:
-            header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, userdescr,
-                                nsamplebytes, fullfname, exportdt)
             header.write(f)
             for nrec in nrecs:
                 nrec.write(f)
@@ -484,8 +485,7 @@ class Sort(object):
             print(fullfname)
 
     def exportall(self, basepath, sortpath):
-        """Export spike data, stimulus textheader, and din to path in
-        the classic way for use in neuropy"""
+        """Export spike data, stimulus din and textheader to basepath"""
         self.exportptcsfiles(basepath, sortpath)
         self.exportdin(basepath)
         self.exporttextheader(basepath)
