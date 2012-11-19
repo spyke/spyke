@@ -1544,12 +1544,11 @@ class SortWindow(SpykeToolWindow):
         SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
-        size = (MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN * ncols, SORTWINDOWHEIGHT)
+        width = max(MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN*ncols, 566)
+        size = (width, SORTWINDOWHEIGHT)
         self.setWindowTitle('Sort Window')
         self.move(*pos)
         self.resize(*size)
-
-        toolbar = self.setupToolbar()
 
         self._source = None # source cluster for comparison
         self.slider = SpikeSelectionSlider(Qt.Horizontal, self)
@@ -1584,12 +1583,17 @@ class SortWindow(SpykeToolWindow):
 
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(toolbar)
         layout.addWidget(self.mainsplitter)
 
         mainwidget = QtGui.QWidget(self)
         mainwidget.setLayout(layout)
         self.setCentralWidget(mainwidget)
+
+        toolbar = self.setupToolbar()
+        #toolbar2 = self.setupToolbar()
+        self.addToolBar(toolbar)
+        #self.addToolBarBreak(Qt.TopToolBarArea) # stack the 2nd toolbar at top edge too
+        #self.addToolBar(toolbar2)
 
         #QtCore.QMetaObject.connectSlotsByName(self)
 
@@ -1642,8 +1646,6 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionRandomSplit_triggered)
         toolbar.addAction(actionRandomSplit)
 
-        toolbar.addSeparator()
-
         actionRenumber = QAction(QIcon('res/gtk-edit.svg'), '#', self)
         tt = ('<nobr><b>#</b> &nbsp; Renumber all clusters in vertical spatial order</nobr>\n'
               '<nobr><b>CTRL+#</b> &nbsp; Renumber selected cluster</nobr>')
@@ -1651,8 +1653,6 @@ class SortWindow(SpykeToolWindow):
         self.connect(actionRenumber, QtCore.SIGNAL('triggered()'),
                      self.on_actionRenumber_triggered)
         toolbar.addAction(actionRenumber)
-
-        toolbar.addSeparator()
 
         actionFind = QAction(QIcon('res/edit-find.svg'), 'Find', self)
         tt = ('<nobr><b>F</b> &nbsp; Find cluster in cluster plot</nobr>\n'
@@ -1679,11 +1679,6 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionSelectRandomSpikes_activated)
         self.nsamplesComboBox = nsamplesComboBox
 
-        toolbar.addSeparator()
-        '''
-        alignlabel = QtGui.QLabel('Align:')
-        toolbar.addWidget(alignlabel)
-        '''
         actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
         actionAlignMin.setToolTip('Align selected spikes to min')
         self.connect(actionAlignMin, QtCore.SIGNAL('triggered()'),
@@ -1719,10 +1714,8 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionShiftRight_triggered)
         toolbar.addAction(actionShiftRight)
 
-        toolbar.addSeparator()
-
         incltComboBox = QtGui.QComboBox(self)
-        incltComboBox.setToolTip("Centered waveform duration to include for component "
+        incltComboBox.setToolTip("Centered waveform duration (us) to include for component "
                                  "analysis\n'Full' means use full waveform")
         incltComboBox.setFocusPolicy(Qt.NoFocus)
         incltComboBox.addItems(['Full', '900', '800', '700', '600', '500', '400', '300',
@@ -1732,10 +1725,8 @@ class SortWindow(SpykeToolWindow):
         self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
                      self.on_incltComboBox_activated)
         self.incltComboBox = incltComboBox
-        incltunitsLabel = QtGui.QLabel('us', self)
-        toolbar.addWidget(incltunitsLabel)
-
-        toolbar.addSeparator()
+        #incltunitsLabel = QtGui.QLabel('us', self)
+        #toolbar.addWidget(incltunitsLabel)
 
         actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)
         tt = '<nobr><b>&lt;</b> &nbsp; Find previous most similar cluster</nobr>'
@@ -1750,8 +1741,6 @@ class SortWindow(SpykeToolWindow):
         self.connect(actionFindNextMostSimilar, QtCore.SIGNAL('triggered()'),
                      self.on_actionFindNextMostSimilar_triggered)
         toolbar.addAction(actionFindNextMostSimilar)
-
-        toolbar.addSeparator()
 
         actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
         tt = ('<nobr>Reload selected spikes</nobr>\n'

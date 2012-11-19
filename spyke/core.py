@@ -6,7 +6,6 @@ from __future__ import with_statement
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import cPickle
-import gzip
 import hashlib
 import time
 from datetime import timedelta
