@@ -1427,6 +1427,6 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         # incltComboBox is sorted in decreasing order, hence the negation of di:
         i = min(max(cbox.currentIndex()-di, 0), nitems-1)
         cbox.setCurrentIndex(i)
-        sw.on_incltComboBox_activated()
+        sw.on_incltComboBox_activated() # trigger chan selection line redraw
 
 #class ChartSortPanel(SortPanel, ChartPanel):

@@ -17,6 +17,7 @@ from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
 from plot import CMAP, GREYRGB
 
 CLUSTERPARAMSAMPLESIZE = 1000
+CLUSTERSELECTMAXNPOINTS = 100
 VIEWDISTANCE = 50
 
 
@@ -599,18 +600,18 @@ class GLWidget(QtOpenGL.QGLWidget):
         button = event.button()
         if not self.movement: # no mouse movement, handle the clicks
             if button == QtCore.Qt.LeftButton:
-                self.selectItemsUnderCursor()
+                self.selectPointsUnderCursor()
             elif button == QtCore.Qt.RightButton:
-                sids = self.selectItemsUnderCursor(on=False)
+                sids = self.selectPointsUnderCursor(on=False)
                 if sids == None: # clear current selection
                     sw = self.spw.windows['Sort']
                     sw.clear()
         self.movement = False # clear mouse movement flag, for completeness
     '''
     def mouseDoubleClickEvent(self, event):
-        """Clear selection and select spikes and/or clusters under the cursor, if any"""
+        """Clear selection and select points under the cursor, if any"""
         if event.button() == QtCore.Qt.LeftButton:
-            self.selectItemsUnderCursor(clear=True)
+            self.selectPointsUnderCursor(clear=True)
         else:
             self.mousePressEvent(event) # register it as a normal mousePressEvent
     '''
@@ -734,14 +735,14 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_S:
             if shift:
                 self.save()
-            else: # select item under the cursor, if any
-                self.selectItemsUnderCursor(on=True, clear=False)
-        elif key == Qt.Key_D: # deselect item under the cursor, if any
-            self.selectItemsUnderCursor(on=False, clear=False)
+            else: # select points under the cursor, if any
+                self.selectPointsUnderCursor(on=True, clear=False)
+        elif key == Qt.Key_D: # deselect points under the cursor, if any
+            self.selectPointsUnderCursor(on=False, clear=False)
         elif key == Qt.Key_V: # V for View
             self.showProjectionDialog()            
-        #elif key == Qt.Key_Space: # clear and select item under cursor, if any
-        #    self.selectItemsUnderCursor(on=True, clear=True)
+        #elif key == Qt.Key_Space: # clear and select points under cursor, if any
+        #    self.selectPointsUnderCursor(on=True, clear=True)
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
@@ -800,7 +801,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         else:
             QtGui.QToolTip.hideText()
 
-    def selectItemsUnderCursor(self, on=True, clear=False):
+    def selectPointsUnderCursor(self, on=True, clear=False):
         spw = self.spw
         sw = spw.windows['Sort']
         if clear:
@@ -812,7 +813,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         y = self.size().height() - pos.y()
         sids = self.pick(x, y, pb=10, multiple=True)
         if sids != None:
-            # select/deselect spikes & their clusters too, if need be
+            # select/deselect spikes & their clusters too, if need be.
+            # for speed, cap max number of sids - maybe this should be a random selection:
+            sids = sids[:CLUSTERSELECTMAXNPOINTS]
             spw.SelectSpikes(sids, on=on)
         #self.showToolTip()
         return sids
