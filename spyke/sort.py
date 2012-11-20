@@ -465,7 +465,10 @@ class Sort(object):
             streams = [self.stream]
         print('exporting text header(s) to:')
         for stream in streams:
-            displayrecords = stream.srff.displayrecords
+            try:
+                displayrecords = stream.srff.displayrecords
+            except AttributeError: # no displayrecords
+                displayrecords = []
             if len(displayrecords) == 0: # no textheader to export for this stream
                 continue
             if len(displayrecords) > 1:
