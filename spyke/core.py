@@ -56,6 +56,8 @@ MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.
 
 MAXNCLIMBPOINTS = 25000
 
+MAXNSPIKEPLOTS = 500
+
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
 INVPI = 1 / pi
@@ -926,6 +928,26 @@ class SpykeListView(QtGui.QListView):
         addis = [ i.data().toInt()[0] for i in selected.indexes() ]
         remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
+        # for speed, don't allow more than MAXNSPIKEPLOTS spikes to be plotted in sort panel:
+        if prefix == 's':
+            '''
+            # note that self.nrowsSelected seems to report nrows selected *including* those
+            # added and removed by the current selection event
+            net = len(addis) - len(remis)
+            print('num selected %d' % self.nrowsSelected)
+            print('net change is %d' % net)
+            nwereselected = self.nrowsSelected - net
+            print('num were selected is %d' % nwereselected)
+            maxnadd = max(MAXNSPIKEPLOTS - nwereselected + len(remis), 0)
+            print('maxnadd is %d' % maxnadd)
+            addis = addis[:maxnadd]
+            '''
+            nadd = len(addis)
+            maxnadd = MAXNSPIKEPLOTS - self.nrowsSelected + nadd
+            if maxnadd < nadd:
+                print('randomly adding %d plots of %d selected spikes'
+                      % (maxnadd, self.nrowsSelected))
+                addis = random.sample(addis, maxnadd)
         panel.addItems([ prefix+str(i) for i in addis ])
         #print("done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 

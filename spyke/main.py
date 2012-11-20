@@ -409,10 +409,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
-        self.on_actionCloseSort_triggered()
-        self.on_actionCloseStream_triggered()
-        self.close() # call close() before destroy() to avoid segfault
-        self.destroy()
+        self.close()
+        #self.destroy() # no longer seems necessary, causes segfault
 
     def closeEvent(self, event):
         self.on_actionCloseSort_triggered()

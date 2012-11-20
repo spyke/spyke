@@ -1293,7 +1293,10 @@ class SortPanel(PlotPanel):
     def removeItem(self, item):
         """Restore item's Plot from used to available plot pool, return the Plot.
         Restore Fill as well, if applicable"""
-        plt = self.used_plots.pop(item)
+        try:
+            plt = self.used_plots.pop(item)
+        except KeyError: # item isn't plotted, return None
+            return
         # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
         if item[0] == 'n': # it's a neuron
