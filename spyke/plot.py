@@ -1382,7 +1382,7 @@ class SortPanel(PlotPanel):
             else: # it's selected, unselect it
                 self.chans_selected.remove(chan)
             self.manual_selection = True
-        elif button == 2:
+        elif button == 2: # middle click
             self.sortwin.on_actionSelectRandomSpikes_activated()
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
@@ -1410,11 +1410,23 @@ class SortPanel(PlotPanel):
         self.vlc.set_color(list(colours))
         self.vlc.set_linewidth(list(linewidths))
 
+
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, *args, **kwargs):
         kwargs['tw'] = TW
         SortPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
 
+    def wheelEvent(self, event):
+        """Control incltComboBox on mouse wheel scroll"""
+        sw = self.topLevelWidget() # SortWindow
+        cbox = sw.incltComboBox
+        nitems = cbox.count()
+        # event.delta() seems to always be a multiple of 120 for some reason:
+        di = event.delta() / 120
+        # incltComboBox is sorted in decreasing order, hence the negation of di:
+        i = min(max(cbox.currentIndex()-di, 0), nitems-1)
+        cbox.setCurrentIndex(i)
+        sw.on_incltComboBox_activated()
 
 #class ChartSortPanel(SortPanel, ChartPanel):
