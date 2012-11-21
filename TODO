@@ -5,6 +5,8 @@
 
 - make more use of the component analysis cache: make sort.X a dict of arrays (instead of just one), with MD5 hash values as keys. Storing up to say 10 at a time shouldn't have much impact on memory usage.
 
+- save inclt to .sort file
+
 - key bindings:
     - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected
 

@@ -50,7 +50,7 @@ from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, HSPLITTERPOS
 from sort import MEANWAVESAMPLESIZE
-from plot import SpikePanel, ChartPanel, LFPPanel, CMAP, GREYRGB
+from plot import SpikePanel, ChartPanel, LFPPanel, CLUSTERCOLOURSRGB, GREYRGB
 from detect import Detector
 from extract import Extractor
 
@@ -1593,8 +1593,8 @@ class SpykeWindow(QtGui.QMainWindow):
             coloris = gw.sids.searchsorted(commonsids)
             if neuron.id < 1: # junk or multiunit cluster
                 gw.colors[coloris] = GREYRGB
-            else:
-                gw.colors[coloris] = CMAP[neuron.id % len(CMAP) - 1] # single unit nids are 1-based
+            else: # single unit nids are 1-based:
+                gw.colors[coloris] = CLUSTERCOLOURSRGB[neuron.id % len(CLUSTERCOLOURSRGB) - 1]
         gw.updateGL()
 
     def DeColourPoints(self, sids):

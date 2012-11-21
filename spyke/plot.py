@@ -73,8 +73,8 @@ PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
 CLUSTERCOLOURS = copy(PLOTCOLOURS)
 CLUSTERCOLOURS.remove(GREY)
 
-CMAP = hex2rgb(CLUSTERCOLOURS)
-GREYRGB = hex2rgb([GREY])[0]
+CLUSTERCOLOURSRGB = hex2rgb(CLUSTERCOLOURS)
+GREYRGB = hex2rgb([GREY])[0] # pull it out of the list
 
 NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
@@ -97,12 +97,13 @@ class ColourDict(dict):
     like say a chan id or a neuron id. Better than using a generator,
     cuz you don't need to keep calling .next(). This is like a dict
     of inifite length"""
-    def __init__(self, colours=None):
+    def __init__(self, colours=None, nocolour=None):
         self.colours = colours
+        self.nocolour = nocolour
 
     def __getitem__(self, key):
         if key < 1: # unclustered/multiunit
-            return GREY
+            return self.nocolour
         i = key % len(self.colours) - 1 # single unit nids are 1 based
         return self.colours[i]
 
@@ -110,7 +111,8 @@ class ColourDict(dict):
         raise RuntimeError('ColourDict is unsettable')
 
 
-CLUSTERCOLOURDICT = ColourDict(colours=CLUSTERCOLOURS)
+CLUSTERCOLOURDICT = ColourDict(colours=CLUSTERCOLOURS, nocolour=GREY)
+CLUSTERCOLOURRGBDICT = ColourDict(colours=CLUSTERCOLOURSRGB, nocolour=GREYRGB)
 
 
 class Plot(object):

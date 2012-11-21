@@ -38,7 +38,7 @@ from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec,
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
 from core import lrrep2Darrstripis, rollwin2D
 from surf import EPOCH
-from plot import SpikeSortPanel, WHITE
+from plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
 
 MAXCHANTOLERANCE = 100 # um
 
@@ -514,6 +514,7 @@ class Sort(object):
         a time, caller needs to call this multiple times, one for each set of
         maxchan unique spikes,"""
         spikes = self.spikes
+        dtypefields = list(spikes.dtype.fields)
         if sids == None:
             sids = spikes['id'] # default to all spikes
         comps = [ dim for dim in dims if dim.startswith('c') and dim[-1].isdigit() ]
@@ -524,7 +525,7 @@ class Sort(object):
                                           minncomp=ncomp)
         data = []
         for dim in dims:
-            if dim in spikes.dtype.fields:
+            if dim in dtypefields:
                 data.append( np.float32(spikes[dim][sids]) )
             elif dim.startswith('c') and dim[-1].isdigit():
                 compid = int(lstrip(dim, 'c'))
@@ -536,7 +537,7 @@ class Sort(object):
         if scale:
             # ensure 0 mean, and unit variance/stdev
             x0std = spikes['x0'].std()
-            assert x0std != 0
+            assert x0std != 0.0
             for dim, d in zip(dims, data.T): # d iterates over columns
                 d -= d.mean()
                 if dim in ['x0', 'y0']:
@@ -547,7 +548,9 @@ class Sort(object):
                 #    tscale = trange / (60*60*1e6)
                 #    d *= tscale / d.std()
                 else: # normalize all other dims by their std
-                    d /= d.std()
+                    dstd = d.std()
+                    if dstd != 0.0:
+                        d /= dstd
         return data
 
     def get_component_matrix(self, kind, sids, tis=None, chans=None, minncomp=None):
@@ -577,6 +580,8 @@ class Sort(object):
             print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
         nchans = len(chans)
         nspikes = len(sids)
+        if nspikes < 2:
+            raise RuntimeError("Need at least 2 spikes for %s" % kind)
         if nchans == 0:
             raise RuntimeError("Spikes have no common chans for %s" % kind)
 
@@ -2544,19 +2549,19 @@ class SortWindow(SpykeToolWindow):
         (up to a limit) along the first dimension in X."""
         spw = self.spykewindow
         mplw = spw.OpenWindow('MPL')
-        unids = np.unique(nids)
-        clusters = [ self.sort.clusters[unid] for unid in unids ]
-        if len(clusters) == 0:
+        unids = np.unique(nids) # each unid corresponds to a cluster, except possibly unid 0
+        nclusters = len(unids)
+        if nclusters == 0:
             mplw.ax.clear()
             mplw.figurecanvas.draw()
-            print("no clusters selected")
+            print("no spikes selected")
             return
-        elif len(clusters) > 5: # to prevent slowdowns, don't plot too many
+        elif nclusters > 5: # to prevent slowdowns, don't plot too many
             mplw.ax.clear()
             mplw.figurecanvas.draw()
             print("too many clusters selected for cluster histogram")
             return
-        elif len(clusters) == 2:
+        elif nclusters == 2:
             calc_measures = True
         else:
             calc_measures = False
@@ -2564,8 +2569,8 @@ class SortWindow(SpykeToolWindow):
 
         ndims = X.shape[1]
         points = [] # list of projection of each cluster's points onto dimi
-        for cluster in clusters:
-            sidis, = np.where(nids == cluster.id)
+        for unid in unids:
+            sidis, = np.where(nids == unid)
             # don't seem to need contig points for NDsepmetric, no need for copy:
             points.append(X[sidis])
             #points.append(np.ascontiguousarray(X[sidis]))
@@ -2595,20 +2600,20 @@ class SortWindow(SpykeToolWindow):
             oneDsep = d / (3 * max(projs[0].std(), projs[1].std()))
             #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
         proj = np.concatenate(projs)
-        nbins = intround(np.sqrt(len(proj))) # seems like a good heuristic
+        nbins = max(intround(np.sqrt(len(proj))), 2) # seems like a good heuristic
         #print('nbins = %d' % nbins)
         edges = np.histogram(proj, bins=nbins)[1]
         hists = []
-        for ci, cluster in enumerate(clusters):
-            hists.append(np.histogram(projs[ci], bins=edges)[0])
+        for i in range(nclusters):
+            hists.append(np.histogram(projs[i], bins=edges)[0])
         hist = np.concatenate([hists]) # one cluster hist per row
         masses = np.asarray([ h.sum() for h in hist ])
-        sortedmassi = masses.argsort()
+        sortedmassis = masses.argsort()
         # Take the fraction of area that the two distribs overlap.
         # At each bin, take min value of the two distribs. Add up all those min values,
         # and divide by the mass of the smaller distrib.
         if calc_measures:
-            overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassi[0]]
+            overlaparearatio = hist.min(axis=0).sum() / masses[sortedmassis[0]]
             djs = core.DJS(hists[0], hists[1])
         # plotting:
         ledges = edges[:-1] # keep just the left edges, discard the last right edge
@@ -2617,7 +2622,7 @@ class SortWindow(SpykeToolWindow):
         # plot:
         a = mplw.ax
         a.clear()
-        windowtitle = "clusters %r" % ([ cluster.id for cluster in clusters ])
+        windowtitle = "clusters %r" % list(unids)
         print(windowtitle)
         mplw.setWindowTitle(windowtitle)
         if calc_measures:
@@ -2627,11 +2632,12 @@ class SortWindow(SpykeToolWindow):
                      % (ndims, NDsep, oneDsep, overlaparearatio, djs))
             print(title)
             a.set_title(title)
-        cs = core.rgb2hex([ cluster.color for cluster in clusters ])
+        cs = [ CLUSTERCOLOURDICT[unid] for unid in unids ]
         for i, c in enumerate(cs):
+            # due to white background, replace white clusters with black:
             if c == WHITE:
                 cs[i] = 'black'
         # plot the smaller cluster last, to maximize visibility:
-        for i in sortedmassi[::-1]:
+        for i in sortedmassis[::-1]:
             a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
         mplw.figurecanvas.draw()

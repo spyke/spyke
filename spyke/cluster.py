@@ -14,7 +14,7 @@ from PyQt4.QtCore import Qt
 from OpenGL import GL, GLU
 
 from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
-from plot import CMAP, GREYRGB
+from plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
 
 CLUSTERPARAMSAMPLESIZE = 1000
 CLUSTERSELECTMAXNPOINTS = 100
@@ -39,15 +39,13 @@ class Cluster(object):
         self.neuron.id = id
 
     id = property(get_id, set_id)
-
+    '''
+    # unused:
     def get_color(self):
-        if self.id < 1:
-            return GREYRGB # unclustered or multiunit
-        else:
-            return CMAP[self.id % len(CMAP) - 1] # single unit nids are 1-based
+        return CLUSTERCOLOURRGBDICT[self.id]
 
     color = property(get_color)
-
+    '''
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
@@ -173,7 +171,8 @@ class ClusterWindow(SpykeToolWindow):
         gw.npoints = len(X)
         gw.sids = sids
         gw.nids = nids
-        gw.colors = CMAP[nids % len(CMAP) - 1] # uint8, single unit nids are 1-based
+        # uint8, single unit nids are 1-based:
+        gw.colors = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1]
         gw.colors[nids < 1] = GREYRGB # overwrite unclustered/multiunit points with GREYRGB
         gw.updateGL()
 
