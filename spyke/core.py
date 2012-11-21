@@ -943,7 +943,7 @@ class SpykeListView(QtGui.QListView):
             addis = addis[:maxnadd]
             '''
             nadd = len(addis)
-            maxnadd = MAXNSPIKEPLOTS - self.nrowsSelected + nadd
+            maxnadd = max(MAXNSPIKEPLOTS - self.nrowsSelected + nadd, 0)
             if maxnadd < nadd:
                 print('randomly adding %d plots of %d selected spikes'
                       % (maxnadd, self.nrowsSelected))

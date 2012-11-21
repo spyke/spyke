@@ -1,7 +1,5 @@
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading, or turn on subsampling again?
-
-- if more than X number of spikes are selected in nslist or uslist, don't plot them. Then, when it comes time to unselect those spikes, don't raise the error from the plot panel that those plots are missing
-    - in fact, maybe all such missing plot errors should be suppressed - they can be very annoying, and don't help the user fix any stray plots that haven't been cleared
+    - huh? how would subsampling work?
 
 - make template comparisons only consider the selected waveform time span in incltComboBox?
 
@@ -1297,6 +1295,9 @@ DONE:
 - let user designate just how much of each waveform to consider for dimension reduction. Often, I only want the central 0.25 or 0.5 ms, I don't care about other stuff outside of that (like near conincident spikes). Put a spin box or drop down list in Sort toolbar, use that to control the length of the green selection lines in the sort panel (normal unselected horizontal vref lines can stay full length). Use only timepoints within that window for dimension reduction.
 - make alignbest() consider only the selected waveform time span in incltComboBox
 - make scroll in spikesortpanel cycle through tis dropdown, ie, just send scroll events to this dropdown
+- if more than X number of spikes are selected in nslist or uslist, don't plot them. Then, when it comes time to unselect those spikes, don't raise the error from the plot panel that those plots are missing
+    - in fact, maybe all such missing plot errors should be suppressed - they can be very annoying, and don't help the user fix any stray plots that haven't been cleared
+
 
 
 
