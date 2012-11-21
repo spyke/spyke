@@ -187,9 +187,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveSortAs_triggered(self):
         """Save sort to new .sort file"""
-        try:
-            defaultfname = self.sort.fname
-        except AttributeError: # sort hasn't been previously saved
+        if self.sort.fname == '': # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
             fname = self.hpstream.fname.replace(' ', '_')
             dt = str(datetime.datetime.now()) # get an export timestamp
@@ -2013,36 +2011,42 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         sw = self.OpenWindow('Sort') # ensure it's open
-        # restore unsorted spike listview
-        sw.uslist.updateAll()
-
-        cw = self.OpenWindow('Cluster')
-        # try and restore saved component analysis selection
-        try:
-            CAid = self.ui.componentAnalysisComboBox.findText(sort.selCA)
-            self.ui.componentAnalysisComboBox.setCurrentIndex(CAid)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved cluster selection
-        try: self.SelectClusters(sort.selnids)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved sort window channel selection, and manual selection flag
-        try:
-            sw.panel.chans_selected = sort.selchans
-            sw.panel.update_selvrefs()
-            sw.panel.draw_refs() # update
-            sw.panel.manual_selection = sort.selchansmanual
-            # don't save x, y, z dimension selection, leave it at default xyVpp
-            # for maximum speed when loading sort file
-        except AttributeError: pass # wasn't saved, loading from old .sort file
-        self.on_plotButton_clicked() # create glyph on first open
-        # try and restore saved camera view
-        try: cw.glWidget.MV, cw.glWidget.focus = sort.MV, sort.focus
-        except AttributeError: pass
+        sw.uslist.updateAll() # restore unsorted spike listview
+        self.restore_clustering_state()
         self.RestoreClusters2GUI()
         self.updateTitle()
         self.updateRecentFiles(join(self.sortpath, fname))
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)
+
+    def restore_clustering_state(self):
+        """Restore state of last user-selected clustering parameters, specifically those
+        that are otherwise not bound to the sort outside of saving it to file. Performs
+        reverse of save_clustering_state()"""
+        s = self.sort
+        sw = self.OpenWindow('Sort')
+        cw = self.OpenWindow('Cluster')
+        # try and restore saved component analysis selection
+        try:
+            CAid = self.ui.componentAnalysisComboBox.findText(s.selCA)
+            self.ui.componentAnalysisComboBox.setCurrentIndex(CAid)
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        # try and restore saved cluster selection
+        try: self.SelectClusters(s.selnids)
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        # try and restore saved sort window channel selection, and manual selection flag
+        try:
+            sw.panel.chans_selected = s.selchans
+            sw.panel.update_selvrefs()
+            sw.panel.draw_refs() # update
+            sw.panel.manual_selection = s.selchansmanual
+            # don't save x, y, z dimension selection, leave it at default xyVpp
+            # for maximum speed when loading sort file
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        self.on_plotButton_clicked() # create glyph on first open
+        # try and restore saved camera view
+        try: cw.glWidget.MV, cw.glWidget.focus = s.MV, s.focus
+        except AttributeError: pass
 
     def OpenSpikeFile(self, fname):
         sort = self.sort
@@ -2108,6 +2112,20 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SaveSpikeFile(s.spikefname) # always (re)save .spike when saving .sort
         print('saving sort file %r' % fname)
         t0 = time.time()
+        self.save_clustering_state()
+        s.fname = fname # bind it now that it's about to be saved
+        f = open(join(self.sortpath, fname), 'wb')
+        cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
+        f.close()
+        print('done saving sort file, took %.3f sec' % (time.time()-t0))
+        self.updateTitle()
+        self.updateRecentFiles(join(self.sortpath, fname))
+
+    def save_clustering_state(self):
+        """Save state of last user-selected clustering parameters. Unlike parameters such as
+        sort.sigma, these parameters aren't bound to the sort during normal operation
+        yet they're useful to restore when .sort file is reopened"""
+        s = self.sort
         sw = self.windows['Sort'] # should be open if s.spikes exists
         s.selCA = str(self.ui.componentAnalysisComboBox.currentText())
         s.selnids = self.GetClusterIDs() # save current cluster selection
@@ -2116,14 +2134,9 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             cw = self.windows['Cluster']
             s.MV, s.focus = cw.glWidget.MV, cw.glWidget.focus # save camera view
-        except KeyError: pass # cw hasn't been opened yet, no camera view to save
-        s.fname = fname # bind it now that it's about to be saved
-        f = open(join(self.sortpath, fname), 'wb')
-        cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
-        f.close()
-        print('done saving sort file, took %.3f sec' % (time.time()-t0))
-        self.updateTitle()
-        self.updateRecentFiles(join(self.sortpath, fname))
+        except KeyError:
+            # cw hasn't been opened yet, no camera view to save
+            pass
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
