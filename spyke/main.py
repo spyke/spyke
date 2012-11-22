@@ -1072,19 +1072,21 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_c0c1c2Button_clicked(self):
         """Cluster pane c0c1c2 button click. Set plot dims to c0, c1, and c2"""
+        s = self.sort
         if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
             try:
-                del self.sort.Xhash # force recalc
-            except AttributeError: pass
+                del s.X[s.get_Xhash(*self.get_Xhash_args())] # force recalc
+            except (AttributeError, KeyError): pass
         self.SetPlotDims('c0', 'c1', 'c2')
 
     @QtCore.pyqtSlot()
     def on_c0c1tButton_clicked(self):
         """Cluster pane c0c1t button click. Set plot dims to c0, c1, and t"""
+        s = self.sort
         if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
             try:
-                del self.sort.Xhash # force recalc
-            except AttributeError: pass
+                del s.X[s.get_Xhash(*self.get_Xhash_args())] # force recalc
+            except (AttributeError, KeyError): pass
         self.SetPlotDims('c0', 'c1', 't')
 
     def SetPlotDims(self, x, y, z):
@@ -1122,6 +1124,17 @@ class SpykeWindow(QtGui.QMainWindow):
                                dims=dims, scale=scale)
         return X, sids
 
+    def get_Xhash_args(self):
+        """Return currently selected clustering paramater that would be used to generate the
+        identifying hash for the dimension reduced matrix if it were to be calculated at this
+        point in time"""
+        sw = self.OpenWindow('Sort') # in case it isn't already open
+        kind = str(self.ui.componentAnalysisComboBox.currentText())
+        sids = self.GetAllSpikes() # only selected spikes
+        tis = sw.tis # waveform time indices to include, centered on spike
+        chans = np.asarray(self.get_selchans(sids))
+        return kind, sids, tis, chans
+
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
         """Cluster pane plot button click. Plot points and colour them
@@ -1129,8 +1142,8 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
             try:
-                del s.Xhash # force recalc
-            except AttributeError: pass
+                del s.X[s.get_Xhash(*self.get_Xhash_args())] # force recalc
+            except (AttributeError, KeyError): pass
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         dims = self.GetClusterPlotDims()
         try:

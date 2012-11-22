@@ -140,7 +140,7 @@ class Sort(object):
         d = self.__dict__.copy()
         # Spikes and wavedata arrays are (potentially) saved separately.
         # usids and PCs/ICs can be regenerated from the spikes array.
-        for attr in ['spikes', 'wavedata', 'usids', 'X', 'Xhash']:
+        for attr in ['spikes', 'wavedata', 'usids', 'X']:
             # keep _stream during normal pickling for multiprocessing, but remove it
             # manually when pickling to .sort
             try: del d[attr]
@@ -586,18 +586,13 @@ class Sort(object):
             raise RuntimeError("Spikes have no common chans for %s" % kind)
 
         # check if desired components have already been calculated (cache hit):
-        try:
-            Xhash = hashlib.md5()
-            Xhash.update(kind)
-            Xhash.update(sids)
-            Xhash.update(tis)
-            Xhash.update(chans)
-            if Xhash.hexdigest() == self.Xhash:
-                print('cache hit, using cached %ss from tis=%r, chans=%r of %d spikes' %
-                     (kind[:-1], list(tis), list(chans), nspikes))
-                return self.X # no need to recalculate
-        except AttributeError: # no self.Xhash and/or self.X
-            pass
+        Xhash = self.get_Xhash(kind, sids, tis, chans)
+        try: self.X
+        except AttributeError: self.X = {} # init the dimension reduction cache attrib
+        if Xhash in self.X:
+            print('cache hit, using cached %ss from tis=%r, chans=%r of %d spikes' %
+                 (kind[:-1], list(tis), list(chans), nspikes))
+            return self.X[Xhash] # no need to recalculate
 
         print('cache miss, (re)calculating %ss' % kind[:-1])
 
@@ -712,8 +707,7 @@ class Sort(object):
             pl.title('decreasing std projmatrix')
             '''
         print('output shape for %s: %r' % (kind, X.shape))
-        self.X = X # cache for fast future retrieval
-        self.Xhash = Xhash.hexdigest() # save hash as identifier
+        self.X[Xhash] = X # cache for fast future retrieval
         print('%s took %.3f sec' % (kind, time.time()-t0))
         unids = list(np.unique(spikes['nid'][sids])) # set of all nids that sids span
         for nid in unids:
@@ -721,7 +715,17 @@ class Sort(object):
             # common to all its spikes, and therefore can't have PCA/ICA done on it
             if nid != 0:
                 self.clusters[nid].update_comppos(X, sids)
-        return self.X
+        return X
+
+    def get_Xhash(self, kind, sids, tis, chans):
+        """Return MD5 hex digest of args, for uniquely identifying the matrix resulting
+        from dimension reduction of spike data"""
+        h = hashlib.md5()
+        h.update(kind)
+        h.update(sids)
+        h.update(tis)
+        h.update(chans)
+        return h.hexdigest()
 
     def create_neuron(self, id=None, inserti=None):
         """Create and return a new Neuron with a unique ID"""
@@ -1298,7 +1302,6 @@ class Neuron(object):
         d = self.__dict__.copy()
         # don't save any calculated PCs/ICs:
         #d.pop('X', None)
-        #d.pop('Xhash', None)
         # don't save plot self is assigned to, since that'll change anyway on unpickle
         d['plt'] = None
         return d
