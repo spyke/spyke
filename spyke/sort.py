@@ -2368,7 +2368,7 @@ class SortWindow(SpykeToolWindow):
         """If no chans selected, compare source to next or previous most similar cluster
         based on chans the two have in common, while requiring the two have each others'
         max chans in common. If chans have been selected, use them as a starting set of
-        chans to compare on"""
+        chans to compare on. Also, use only the timepoint range selected in incltComboBox"""
         try:
             source = self.getClusterComparisonSource()
         except RuntimeError, errmsg:
@@ -2386,6 +2386,7 @@ class SortWindow(SpykeToolWindow):
             srcchans = source.neuron.wave.chans
         errors = []
         dests = []
+        t0, t1 = self.tis # timepoint range selected in incltComboBox
         # try and compare source neuron waveform to all destination neuron waveforms
         for dest in destinations:
             if dest.neuron.wave.data == None: # hasn't been calculated yet
@@ -2401,8 +2402,8 @@ class SortWindow(SpykeToolWindow):
             # ensure maxchan of both source and dest neuron are both in cmpchans
             if source.neuron.chan not in cmpchans or dest.neuron.chan not in cmpchans:
                 continue
-            srcwavedata = source.neuron.wave[cmpchans].data
-            dstwavedata = dest.neuron.wave[cmpchans].data
+            srcwavedata = source.neuron.wave[cmpchans].data[:, t0:t1]
+            dstwavedata = dest.neuron.wave[cmpchans].data[:, t0:t1]
             error = core.rms(srcwavedata - dstwavedata)
             errors.append(error)
             dests.append(dest)
