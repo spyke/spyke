@@ -283,7 +283,8 @@ class Sort(object):
         nneurons = len(nrecs)
 
         # create the header and write everything to file
-        path = os.path.join(basepath, stream.srcfnameroot)
+        srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
+        path = os.path.join(basepath, srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
         fname = exportdt.replace(' ', '_')
@@ -292,11 +293,21 @@ class Sort(object):
         fullfname = os.path.join(path, fname)
         header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, userdescr,
                             nsamplebytes, fullfname, exportdt)
+        
         with open(fullfname, 'wb') as f:
             header.write(f)
             for nrec in nrecs:
                 nrec.write(f)
         print(fullfname)
+
+    def process_srcfnameroot(self, srcfnameroot):
+        """Process a srcfnameroot name to make older recording names more compact"""
+        srcfnameroot = srcfnameroot.replace(' - track 5 ', '-tr5-')
+        srcfnameroot = srcfnameroot.replace(' - track 6 ', '-tr6-')
+        srcfnameroot = srcfnameroot.replace(' - track 7c ', '-tr7c-')
+        # replace any remaining spaces with underscores
+        srcfnameroot = srcfnameroot.replace(' ', '_')
+        return srcfnameroot
 
     def exportgdffiles(self, basepath=None):
         """Export spike and stim data to text .gdf files under basepath, one file per
@@ -356,7 +367,8 @@ class Sort(object):
         idts = idts[sortis]
 
         # write the file
-        path = os.path.join(basepath, stream.srcfnameroot)
+        srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
+        path = os.path.join(basepath, srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
         fname = exportdt.replace(' ', '_')
@@ -368,6 +380,7 @@ class Sort(object):
 
     def exportspkfiles(self, basepath):
         """Export spike data to binary .spk files under basepath, one file per neuron"""
+        raise NotImplementedError("this hasn't been tested in a long time and is likely buggy")
         spikes = self.spikes
         dt = str(datetime.datetime.now()) # get an export datetime stamp
         dt = dt.split('.')[0] # ditch the us
@@ -383,6 +396,7 @@ class Sort(object):
         # do a separate export for each recording
         for srffname, streamtrange in zip(srffnames, streamtranges):
             srffnameroot = lrstrip(srffname, '../', '.srf')
+            srffnameroot = self.process_srcfnameroot(srffnameroot)
             path = os.path.join(basepath, srffnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
@@ -436,11 +450,11 @@ class Sort(object):
             digitalsvalrecords = stream.srff.digitalsvalrecords
             if len(digitalsvalrecords) == 0: # no din to export for this stream
                 continue
-            srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
-            path = os.path.join(basepath, srffnameroot)
+            srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
+            path = os.path.join(basepath, srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
-            dinfname = srffnameroot + '.din'
+            dinfname = srcfnameroot + '.din'
             fullfname = os.path.join(path, dinfname)
             # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
@@ -475,16 +489,15 @@ class Sort(object):
                 print("*** WARNING: multiple display records for file %r\n"
                       "Exporting textheader from only the first display record"
                       % stream.srff.fname)
-            srffnameroot = lrstrip(stream.srff.fname, '../', '.srf')
-            path = os.path.join(basepath, srffnameroot)
+            srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
+            path = os.path.join(basepath, srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
             textheader = displayrecords[0].Header.python_tbl
-            textheaderfname = srffnameroot + '.textheader'
+            textheaderfname = srcfnameroot + '.textheader'
             fullfname = os.path.join(path, textheaderfname)
-            f = open(fullfname, 'w')
-            f.write(textheader) # save it
-            f.close()
+            with open(fullfname, 'w') as f:
+                f.write(textheader) # save it
             print(fullfname)
 
     def exportall(self, basepath, sortpath):
@@ -496,8 +509,8 @@ class Sort(object):
     def exportlfp(self, basepath):
         """Export LFP data to binary .lfp file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
-        srffnameroot = srffnameroot.replace(' ', '_')
-        lfpfname = srffnameroot + '.lfp'
+        srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
+        lfpfname = srcfnameroot + '.lfp'
         lps = lpstream
         wave = lps[lps.t0:lps.t1]
         uVperAD = lps.converter.AD2uV(1)

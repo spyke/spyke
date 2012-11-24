@@ -1,3 +1,5 @@
+- save window layout across sessions
+
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading, or turn on subsampling again?
     - huh? how would subsampling work?
 
