@@ -301,7 +301,7 @@ class Sort(object):
         print(fullfname)
 
     def process_srcfnameroot(self, srcfnameroot):
-        """Process a srcfnameroot name to make older recording names more compact"""
+        """Process srcfnameroot to make older recording names more compact"""
         srcfnameroot = srcfnameroot.replace(' - track 5 ', '-tr5-')
         srcfnameroot = srcfnameroot.replace(' - track 6 ', '-tr6-')
         srcfnameroot = srcfnameroot.replace(' - track 7c ', '-tr7c-')
@@ -1605,24 +1605,25 @@ class SortWindow(SpykeToolWindow):
         self.mainsplitter.addWidget(self.panel)
         #self.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1) # only works after self is shown
 
-        layout = QtGui.QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.mainsplitter)
+        self.layout = QtGui.QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(self.mainsplitter)
 
         mainwidget = QtGui.QWidget(self)
-        mainwidget.setLayout(layout)
+        mainwidget.setLayout(self.layout)
         self.setCentralWidget(mainwidget)
 
-        toolbar = self.setupToolbar()
+        self.toolbar = self.setupToolbar()
         #toolbar2 = self.setupToolbar()
-        self.addToolBar(toolbar)
+        self.addToolBar(self.toolbar)
         #self.addToolBarBreak(Qt.TopToolBarArea) # stack the 2nd toolbar at top edge too
         #self.addToolBar(toolbar2)
 
         #QtCore.QMetaObject.connectSlotsByName(self)
 
     def setupToolbar(self):
-        toolbar = QtGui.QToolBar('toolbar', self)
+        toolbar = QtGui.QToolBar(self)
+        toolbar.setObjectName('toolbar')
         toolbar.setFloatable(True)
         toolbar.setIconSize(QtCore.QSize(16, 16)) # like in main spyke window
 

@@ -90,7 +90,6 @@ class SpykeWindow(QtGui.QMainWindow):
         
         self.move(0, 0) # top left corner, to make space for data windows
 
-        self.dpos = {} # positions of data windows relative to main spyke window
         self.streampath = os.getcwd() # init
         self.sortpath = os.getcwd() # init
         for d in ('~/data', '/data'): # use first existing of these paths, if any
@@ -2133,6 +2132,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('saving sort file %r' % fname)
         t0 = time.time()
         self.save_clustering_selections()
+        self.save_window_states()
         s.fname = fname # bind it now that it's about to be saved
         f = open(join(self.sortpath, fname), 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
@@ -2158,6 +2158,16 @@ class SpykeWindow(QtGui.QMainWindow):
         except KeyError:
             # cw hasn't been opened yet, no camera view to save
             pass
+
+    def save_window_states(self):
+        """Save window geometries and states (toolbar positions, etc.) to .sort file"""
+        s = self.sort
+        s.windowGeometries = {}
+        s.windowStates = {}
+        for windowtype, window in self.windows.items():
+            print('saving state of %s window' % windowtype)
+            s.windowGeometries[windowtype] = window.saveGeometry()
+            s.windowStates[windowtype] = window.saveState()
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
@@ -2374,15 +2384,20 @@ class SpykeWindow(QtGui.QMainWindow):
                 window = MPLWindow(parent=self, pos=(x, y),
                                    size=(self.size().width(), self.size().width()))
             self.windows[windowtype] = window
-            self.dpos[windowtype] = window.pos() - self.pos()
+            try: # try and load saved window geometry and state from sort
+                window.restoreGeometry(self.sort.windowGeometries[windowtype])
+                window.restoreState(self.sort.windowStates[windowtype])
+            except(AttributeError, KeyError):
+                pass
         self.ShowWindow(windowtype) # just show it
         if new: # do stuff that only works after first show
             if windowtype not in ['Cluster', 'MPL']:
                 window.panel.draw_refs() # prevent plot artifacts
+            # unnecessary after restoring state above, but vsplitter isn't restored properly:
             if windowtype == 'Sort':
-                window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
+                #window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
                 window.vsplitter.moveSplitter(VSPLITTERPOS, 1)
-                window.hsplitter.moveSplitter(HSPLITTERPOS, 1)
+                #window.hsplitter.moveSplitter(HSPLITTERPOS, 1)
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, windowtype, enable=True):
@@ -2746,6 +2761,7 @@ class MPLWindow(SpykeToolWindow):
         self.figurecanvas = FigureCanvas(figure)
         self.setCentralWidget(self.figurecanvas)
         self.toolbar = NavigationToolbar(self.figurecanvas, self, False)
+        self.toolbar.setObjectName('toolbar')
         self.addToolBar(self.toolbar)
         QtCore.QObject.connect(self.toolbar, QtCore.SIGNAL("message"),
                                self.statusBar().showMessage)
