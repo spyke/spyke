@@ -44,7 +44,7 @@ MAXCHANTOLERANCE = 100 # um
 
 MAINSPLITTERPOS = 300
 VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
-HSPLITTERPOS = intround(MAINSPLITTERPOS * 3 / 4) # maximize nlist width
+NSLISTWIDTH = 70 # minimize nslist width, enough for 7 digit spike IDs
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1032 # TODO: this should be set programmatically
 

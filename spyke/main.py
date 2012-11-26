@@ -48,7 +48,7 @@ import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
 import surf
-from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, HSPLITTERPOS
+from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVESAMPLESIZE
 from plot import SpikePanel, ChartPanel, LFPPanel, CLUSTERCOLOURSRGB, GREYRGB
 from detect import Detector
@@ -2122,7 +2122,7 @@ class SpykeWindow(QtGui.QMainWindow):
         s.windowGeometries = {}
         s.windowStates = {}
         for windowtype, window in self.windows.items():
-            print('saving state of %s window' % windowtype)
+            #print('saving state of %s window' % windowtype)
             s.windowGeometries[windowtype] = window.saveGeometry()
             s.windowStates[windowtype] = window.saveState()
 
@@ -2350,11 +2350,12 @@ class SpykeWindow(QtGui.QMainWindow):
         if new: # do stuff that only works after first show
             if windowtype not in ['Cluster', 'MPL']:
                 window.panel.draw_refs() # prevent plot artifacts
-            # unnecessary after restoring state above, but vsplitter isn't restored properly:
+            # should be unnecessary after restoring window state above, but vsplitter
+            # and hsplitter aren't restored properly, set them manually:
             if windowtype == 'Sort':
                 #window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
                 window.vsplitter.moveSplitter(VSPLITTERPOS, 1)
-                #window.hsplitter.moveSplitter(HSPLITTERPOS, 1)
+                window.hsplitter.moveSplitter(window.hsplitter.width()-NSLISTWIDTH, 1)
         return self.windows[windowtype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, windowtype, enable=True):
