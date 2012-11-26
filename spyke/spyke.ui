@@ -1892,8 +1892,6 @@ If 1 neuron selected, plot autocorrelogram</string>
     <property name="title">
      <string>&amp;View</string>
     </property>
-    <addaction name="actionClusteringLayout"/>
-    <addaction name="separator"/>
     <addaction name="actionSpikeWindow"/>
     <addaction name="actionChartWindow"/>
     <addaction name="actionLFPWindow"/>
@@ -1962,8 +1960,6 @@ If 1 neuron selected, plot autocorrelogram</string>
    <addaction name="separator"/>
    <addaction name="actionUndo"/>
    <addaction name="actionRedo"/>
-   <addaction name="separator"/>
-   <addaction name="actionClusteringLayout"/>
    <addaction name="separator"/>
    <addaction name="actionSpikeWindow"/>
    <addaction name="actionChartWindow"/>
@@ -2394,24 +2390,6 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Matplotlib Window</string>
-   </property>
-   <property name="iconVisibleInMenu">
-    <bool>true</bool>
-   </property>
-  </action>
-  <action name="actionClusteringLayout">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>res/view-restore.svg</normaloff>res/view-restore.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Clustering Layout</string>
-   </property>
-   <property name="toolTip">
-    <string>Toggle clustering layout</string>
    </property>
    <property name="iconVisibleInMenu">
     <bool>true</bool>

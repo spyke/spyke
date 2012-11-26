@@ -452,49 +452,6 @@ class SpykeWindow(QtGui.QMainWindow):
         print('redo complete')
 
     @QtCore.pyqtSlot()
-    def on_actionClusteringLayout_triggered(self):
-        """Clustering layout toggle menu/button event"""
-        if self.ui.actionClusteringLayout.isChecked():
-            self.ClusteringLayout()
-        else:
-            self.StandardLayout()
-
-    def ClusteringLayout(self):
-        """Lay out sort and cluster windows ideally for clustering"""
-        windowtypes = ['Sort', 'Cluster']
-        # make sure they can all be opened before doing any layout:
-        self.stdlayout = {} # save current layout as standard
-        for windowtype in windowtypes:
-            try:
-                win = self.windows[windowtype]
-                self.ShowWindow(windowtype) # show it
-            except KeyError: # window hasn't been opened yet
-                win = self.OpenWindow(windowtype)
-            self.stdlayout[windowtype] = {'pos': win.pos(), 'size': win.size()}
-        self.move(0, 0) # ensure main window is in top left
-        sw = self.windows['Sort']
-        x = SCREENWIDTH - sw.size().width() - 2*BORDER
-        #print('sort x: %d' % x)
-        sw.move(x, 0) # place sort window at top right corner of screen
-        cw = self.windows['Cluster']
-        w = SCREENWIDTH - self.size().width() - sw.size().width() - 6*BORDER
-        h = self.size().height()*2 + WINDOWTITLEHEIGHT
-        cw.resize(w, h)
-        x = self.size().width() + 2*BORDER
-        #print('cluster x: %d' % x)
-        #print('cluster size: %r' % ((w, h),))
-        cw.move(x, 0) # place cluster window between main & Sort windows
-
-    def StandardLayout(self):
-        """Restore standard layout of sort and cluster windows"""
-        windowtypes = ['Sort', 'Cluster']
-        for windowtype in windowtypes:
-            win = self.windows[windowtype]
-            d = self.stdlayout[windowtype]
-            win.resize(d['size'])
-            win.move(d['pos'])
-
-    @QtCore.pyqtSlot()
     def on_actionSpikeWindow_triggered(self):
         """Spike window toggle menu/button event"""
         self.ToggleWindow('Spike')
