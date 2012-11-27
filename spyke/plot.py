@@ -981,16 +981,7 @@ class PlotPanel(FigureCanvas):
               'V=%.1f %s\n' % (v, MICRO+'V') + \
               'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
         self.setToolTip(tip)
-    '''
-    def OnMouseWheel(self, evt):
-        """Zoom horizontally on CTRL+mouse wheel scroll"""
-        if evt.ControlDown():
-            #lines = evt.GetWheelRotation() / evt.GetWheelDelta() # +ve or -ve num lines to scroll
-            #x = 1.1**lines # transform -ve line to 0<x<1, and +ve line to 1<x<inf
-            #self._zoomx(x)
-            sign = np.sign(evt.GetWheelRotation())
-            self._zoomx(1.5**sign)
-    '''
+
 
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
@@ -1002,11 +993,14 @@ class SpikePanel(PlotPanel):
         self.gain = 1.5
 
     def do_layout(self):
-        self.hchans = self.get_spatialchans('horizontal') # ordered left to right, bottom to top
-        self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
+        # ordered left to right, bottom to top:
+        self.hchans = self.get_spatialchans('horizontal')
+        # ordered bottom to top, left to right
+        self.vchans = self.get_spatialchans('vertical')
         #print 'horizontal ordered chans in Spikepanel:\n%r' % self.hchans
+        # x origin at center:
         self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) + self.tw[0],
-                         self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1]) # x origin at center
+                         self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1])
         self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
                          self.um2uv(self.siteloc[self.vchans[-1]][1]) + CHANVBORDER)
         colourgen = itertools.cycle(iter(PLOTCOLOURS))
@@ -1014,7 +1008,8 @@ class SpikePanel(PlotPanel):
             # chan order doesn't matter for setting .pos, but it does for setting .colours
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
                               self.um2uv(self.siteloc[chan][1]))
-            self.vcolours[chan] = colourgen.next() # assign colours so that they cycle vertically in space
+            # assign colours so that they cycle vertically in space:
+            self.vcolours[chan] = colourgen.next()
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -1053,13 +1048,16 @@ class ChartPanel(PlotPanel):
         self.ax.set_xlim(0 + self.tw[0], 0 + self.tw[1]) # x origin at center
         miny = self.um2uv(self.siteloc[self.vchans[0]][1])
         maxy = self.um2uv(self.siteloc[self.vchans[-1]][1])
-        vspace = (maxy - miny) / (self.nchans-1) # average vertical spacing between chans, in uV
+        # average vertical spacing between chans, in uV:
+        vspace = (maxy - miny) / (self.nchans-1)
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
         colourgen = itertools.cycle(iter(PLOTCOLOURS))
         for chani, chan in enumerate(self.vchans):
             #self.pos[chan] = (0, self.um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
-            self.pos[chan] = (0, chani*vspace) # x=0 centers horizontally, equal vertical spacing
-            self.vcolours[chan] = colourgen.next() # assign colours so that they cycle vertically in space
+            # x=0 centers horizontally, equal vertical spacing:
+            self.pos[chan] = (0, chani*vspace)
+            # assign colours so that they cycle vertically in space:
+            self.vcolours[chan] = colourgen.next()
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -1209,9 +1207,11 @@ class SortPanel(PlotPanel):
             return # do nothing
         if len(items) == 1:
             # before blitting this single item to screen, grab current buffer,
-            # save as new background for quick restore if the next action is removal of this very same item
+            # save as new background for quick restore if the next action is removal of
+            # this very same item:
             self.background = self.copy_from_bbox(self.ax.bbox)
-            self.qrplt = self.addItem(items[0]) # add the single item, save reference to its plot
+            # add the single item, save reference to its plot:
+            self.qrplt = self.addItem(items[0])
             #print 'saved quick remove plot %r' % self.qrplt
         else:
             self.background = None
@@ -1229,7 +1229,8 @@ class SortPanel(PlotPanel):
         plt.id = item
         id = int(item[1:])
         if item[0] == 'n': # it's a neuron
-            if len(self.available_fills) == 0: # if we've run out of fills for additional neurons
+            if len(self.available_fills) == 0:
+                # if we've run out of fills for additional neurons                
                 self.init_fills() # init another batch of fills
             plt.fill = self.available_fills.pop() # pop a Fill, bind it to plot
             n = s.neurons[id]
@@ -1255,7 +1256,8 @@ class SortPanel(PlotPanel):
         plt.set_alpha(alpha) # doesn't affect Fill alpha, if any
         plt.set_stylewidth(style, width)
         self.used_plots[plt.id] = plt # push it to the used plot stack
-        wave = wave[t+self.tw[0] : t+self.tw[1]] # slice wave according to time window of this panel
+        # slice wave according to time window of this panel:
+        wave = wave[t+self.tw[0] : t+self.tw[1]]
         # also updates, shows, and draws Fill, if applicable:
         plt.update(wave, t)
         plt.show()
@@ -1273,17 +1275,21 @@ class SortPanel(PlotPanel):
             plt = self.removeItem(item)
         # now remove items from actual plot
         if self.used_plots == {}:
-            self.restore_region(self.reflines_background) # restore blank background with just the ref lines
-        # remove the last added plot if a saved bg is available
+            # restore blank background with just the ref lines:
+            self.restore_region(self.reflines_background)
         elif len(items) == 1 and plt == self.qrplt and self.background != None:
+            # remove the last added plot if a saved bg is available
             #print 'quick removing plot %r' % self.qrplt
             self.restore_region(self.background) # restore saved bg
-        # remove more than one, but not all items
         else:
-            self.restore_region(self.reflines_background) # restore blank background with just the ref lines
+            # remove more than one, but not all items
+            # restore blank background with just the ref lines:
+            self.restore_region(self.reflines_background)
             for plt in self.used_plots.values():
                 plt.draw() # redraw the remaining plots in .used_plots
-        self.background = None # what was background is no longer useful for quick restoration on any other item removal
+        # what was background is no longer useful for quick restoration on any other
+        # item removal:
+        self.background = None
         self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
@@ -1425,15 +1431,22 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         self.gain = 1.5
 
     def wheelEvent(self, event):
-        """Control incltComboBox on mouse wheel scroll"""
+        """Scroll gainComboBox or incltComboBox on mouse wheel scroll"""
+        modifiers = event.modifiers()
+        ctrl = Qt.ControlModifier == modifiers # only modifier is ctrl
         sw = self.topLevelWidget() # SortWindow
-        cbox = sw.incltComboBox
+        if ctrl: # scroll gainComboBox
+            cbox = sw.gainComboBox
+            on_box_activated = sw.on_gainComboBox_activated
+        else: # scroll incltComboBox
+            cbox = sw.incltComboBox
+            on_box_activated = sw.on_incltComboBox_activated
         nitems = cbox.count()
         # event.delta() seems to always be a multiple of 120 for some reason:
         di = event.delta() / 120
-        # incltComboBox is sorted in decreasing order, hence the negation of di:
+        # both combo boxes are sorted in decreasing order, hence the negation of di:
         i = min(max(cbox.currentIndex()-di, 0), nitems-1)
         cbox.setCurrentIndex(i)
-        sw.on_incltComboBox_activated() # trigger chan selection line redraw
+        on_box_activated() # as if it were user selected
 
 #class ChartSortPanel(SortPanel, ChartPanel):
