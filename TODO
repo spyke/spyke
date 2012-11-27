@@ -1300,7 +1300,8 @@ DONE:
 - make template comparisons only consider the selected waveform time span in incltComboBox
 - save window layout to .sort file
 - sort window gain combo box
-
+- NDsep calc can take 8 sec for a pair of clusters of 50k points each, even though it's multithreaded. Should NDsep subsample, or does it already?
+    - it keeps up to Nmax of the first points - increase speed by calling it with a decreased Nmax of 25000. To reduce bias, make it skip an integer number of points when subsampling, instead of just taking the first Nmax points
 
 
 

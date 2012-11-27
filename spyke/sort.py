@@ -2609,7 +2609,7 @@ class SortWindow(SpykeToolWindow):
             #points.append(np.ascontiguousarray(X[sidis]))
         if calc_measures:
             t0 = time.time()
-            NDsep = util.NDsepmetric(*points, Nmax=100000)
+            NDsep = util.NDsepmetric(*points, Nmax=25000)
             print('NDsep calc took %.3f sec' % (time.time()-t0))
             # centers of both clusters, use median:
             c0 = np.median(points[0], axis=0) # ndims vector

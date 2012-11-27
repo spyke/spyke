@@ -8,6 +8,7 @@ cimport numpy as np
 cdef extern from "math.h":
     int abs(int x)
     float fabs(float x)
+    double ceil(double x) nogil
 
 cdef extern from "limits.h":
     int INT_MAX
@@ -81,7 +82,7 @@ cdef double mean_short(short *a, int N):
 def mean(np.ndarray[np.float64_t, ndim=1] a):
     """Uses new simpler numpy type notation for fast indexing, but is still a
     bit slower than the classical way, because you currently can't
-    use the new notation with cdefs"""
+    use the new notation with cdefs. (This may no longer be true...)"""
     cdef Py_ssize_t i, N = len(a)
     cdef double s=0
     for i in range(N):
@@ -377,13 +378,20 @@ def NDsepmetric(np.float32_t[:, :] C0,
         C0, C1 = C1, C0 # swap them
         N0, N1 = N1, N0
 
-    # for speed, limit to first Nmax points in each cluster:
+    # for speed, limit to up to Nmax points in each cluster, keeping only every
+    # skip'th point
     if N0 > Nmax:
-        C0 = C0[:Nmax, :] # strangely, doing this slice improves performance
+        skip = <int> ceil(<double>(N0) / Nmax) # round up
+        #print('Nmax: %d, N0: %d, skip: %d' % (Nmax, N0, skip))
+        C0 = C0[::skip, :]
         N0 = C0.shape[0] # update
+        #print('new N0: %d' % N0)
     if N1 > Nmax:
-        C1 = C1[:Nmax, :] # strangely, doing this slice improves performance
+        skip = <int> ceil(<double>(N1) / Nmax) # round up
+        #print('Nmax: %d, N1: %d, skip: %d' % (Nmax, N1, skip))
+        C1 = C1[::skip, :]
         N1 = C1.shape[0] # update
+        #print('new N1: %d' % N1)
     N = N0 + N1 # total npoints across clusters
 
     # check nearest neighbour membership of each point in C0:
