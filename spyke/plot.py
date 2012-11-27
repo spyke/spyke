@@ -1316,12 +1316,11 @@ class SortPanel(PlotPanel):
         Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""
         if items == []: # do nothing
             return
-        if len(items) == 1:
-            plt = self.used_plots[items[0]]
-            if plt != None and plt == self.qrplt and self.background != None:
-                #print('quick removing and replotting plot %r' % self.qrplt)
-                self.restore_region(self.background) # restore saved bg
-                self.updateItem(items[0])
+        plt0 = self.used_plots[items[0]]
+        if len(items) == 1 and plt0 != None and plt0 == self.qrplt and self.background != None:
+            #print('quick removing and replotting plot %r' % self.qrplt)
+            self.restore_region(self.background) # restore saved bg
+            self.updateItem(items[0])
         else: # update and redraw all items
             # restore blank background with just the ref lines:
             self.restore_region(self.reflines_background)
