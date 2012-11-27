@@ -1323,10 +1323,13 @@ class SortPanel(PlotPanel):
                 self.restore_region(self.background) # restore saved bg
                 self.updateItem(items[0])
         else: # update and redraw all items
-            self.restore_region(self.reflines_background) # restore blank background with just the ref lines
+            # restore blank background with just the ref lines:
+            self.restore_region(self.reflines_background)
             for item in items:
                 self.updateItem(item)
-            self.background = None # what was background is no longer useful for quick restoration on any other item removal
+            # what was background is no longer useful for quick restoration on any other
+            # item removal:
+            self.background = None
             self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 

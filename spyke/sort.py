@@ -1704,6 +1704,16 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionSelectRandomSpikes_activated)
         self.nsamplesComboBox = nsamplesComboBox
 
+        gainComboBox = QtGui.QComboBox(self)
+        gainComboBox.setToolTip('Waveform gain (default: 1.5)')
+        gainComboBox.setFocusPolicy(Qt.NoFocus)
+        gainComboBox.addItems(['2.25', '2', '1.75', '1.5', '1.25', '1', '0.75', '0.5', '0.25'])
+        gainComboBox.setCurrentIndex(3)
+        toolbar.addWidget(gainComboBox)
+        self.connect(gainComboBox, QtCore.SIGNAL('activated(int)'),
+                     self.on_gainComboBox_activated)
+        self.gainComboBox = gainComboBox
+
         actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
         actionAlignMin.setToolTip('Align selected spikes to min')
         self.connect(actionAlignMin, QtCore.SIGNAL('triggered()'),
@@ -2240,6 +2250,11 @@ class SortWindow(SpykeToolWindow):
             slist = self.uslist
         slist.clearSelection() # emits selectionChanged signal, .reset() doesn't
         slist.selectRandom(nsamples)
+
+    def on_gainComboBox_activated(self):
+        """Set gain of panel based on gainComboBox selection"""
+        self.panel.gain = float(self.gainComboBox.currentText())
+        self.panel.updateAllItems()
 
     def on_actionAlignMin_triggered(self):
         self.Align('min')
