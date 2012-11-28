@@ -1,6 +1,8 @@
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading, or turn on subsampling again?
     - huh? how would subsampling work?
 
+MEANWAVESAMPLESIZE - rename to MEANWAVEMAXSAMPLES, set to 2000, and subsample by skipping every N//2000 + 1 skip'th point, as in NDsepmetric(). This will make calculating a neuron's mean waveform faster *and* deterministic.
+
 - cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window
 
 - key bindings:

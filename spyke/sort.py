@@ -785,12 +785,11 @@ class Sort(object):
         spikes['tis'][sids] += nt
         # caller should treat all sids as dirty
 
-    def alignbest(self, sids, tis, chans, method=core.rmserror):
-        """Align all sids between tis on chans by best fit according to error method.
+    def alignbest(self, sids, tis, chans):
+        """Align all sids between tis on chans by best fit according to mean squared error.
         chans are assumed to be a subset of channels of sids. Return sids
         that were actually moved and therefore need to be marked as dirty"""
         spikes = self.spikes
-        streamopen = self.stream.is_open()
         nspikes = len(sids)
         nchans = len(chans)
         wd = self.wavedata
@@ -804,60 +803,58 @@ class Sort(object):
         if subntdiv2 < maxshift:
             raise ValueError("Selected waveform duration too short")
         #maxshiftus = maxshift * self.stream.tres
+        # NOTE: in this case, it may be faster to keep shifts and sti0s and sti1s as lists
+        # of ints instead of np int arrays, maybe because their values are faster to iterate
+        # over or index with in python loops and lists:
         shifts = range(-maxshift, maxshift+1) # from -maxshift to maxshift, inclusive
+        nshifts = len(shifts)
+        sti0s = [ ti0+shifti for shifti in range(nshifts) ] # shifted ti0 values
+        sti1s = [ ti1+shifti for shifti in range(nshifts) ] # shifted ti1 values
+        sti0ssti1s = zip(sti0s, sti1s)
         print("padding waveforms with up to +/- %d points of fake data" % maxshift)
 
-        # collect spike waveform data between tis on chans, and calc mean
-        '''
-        if len(sids) > MEANWAVESAMPLESIZE:
-            print('random sampling %d spikes instead of all %d' %
-                 (MEANWAVESAMPLESIZE, nspikes)
-            sidis = np.random.randint(0, nspikes, MEANWAVESAMPLESIZE)
-        else:
-            sidis = np.arange(nspikes)
-        '''
-        subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype)
+        # not worth subsampling here while calculating meandata, since all this
+        # stuff in this loop is needed in the shift loop below
+        subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype) # subset of spike data
         spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
+        t0 = time.time()
         for sidi, sid in enumerate(sids):
             spike = spikes[sid]
             nspikechans = spike['nchans']
             spikechans = spike['chans'][:nspikechans]
             spikechanis[sidi] = spikechans.searchsorted(chans)
             subsd[sidi] = wd[sid, spikechanis[sidi], ti0:ti1]
+        print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
+        t0 = time.time()
         meandata = subsd.mean(axis=0) # float64
+        print('mean for best shift took %.3f sec' % (time.time()-t0))
 
         # choose best shifted waveform for each spike
-        # widesd holds spike data plus extra data on either side
+        # widesd holds current spike data plus padding on either side
         # to allow for full width slicing for all time shifts:
         maxnchans = spikes['nchans'].max() # of all spikes in sort
         widesd = np.zeros((maxnchans, maxshift+nt+maxshift), dtype=wd.dtype)        
-        shiftedsubsd = subsd.copy()
-        tempshifts = np.zeros((len(shifts), maxnchans, nt), dtype=wd.dtype)
-        tempsubshifts = np.zeros((len(shifts), nchans, subnt), dtype=wd.dtype)
-        errors = np.zeros(len(shifts))
+        shiftedsubsd = subsd.copy() # init
+        tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
         dirtysids = []
+        t0 = time.time()
         for sidi, sid in enumerate(sids):
-            # for speed, always add fake values at start and end. Only load
-            # real data when explicitly ask for it via reloadSpikes()
-            '''
-            if streamopen:
-                wave = self.stream[-maxshiftus+spike['t0'] : spike['t1']+maxshiftus]
-                chanis = wave.chans.searchsorted(chans)
-                widesd = wave.data[chanis]
-            else: # add fake values at start and end if .srf file isn't available.
-            '''
-            sd = wd[sid] # spike data
+            # for speed, instead of adding real data, pad start and end with fake values
             chanis = spikechanis[sidi]
+            sd = wd[sid] # sid's spike data
             widesd[:, maxshift:-maxshift] = sd # 2D
             widesd[:, :maxshift] = sd[:, 0, None] # pad start with first point per chan
             widesd[:, -maxshift:] = sd[:, -1, None] # pad end with last point per chan
-            errors.fill(0.0) # reset
-            for shifti, shift in enumerate(shifts):
-                t0i = maxshift + shift # not the same as ti0!
-                tempshifts[shifti] = widesd[:, t0i:t0i+nt]
-                tempsubshifts[shifti] = tempshifts[shifti, chanis, ti0:ti1]
-                errors[shifti] = method(tempsubshifts[shifti], meandata)
-            bestshifti = errors.argmin()
+            wideshortsd = widesd[chanis] # sid's padded spike data on chanis, 2D
+            
+            for shifti, (sti0, sti1) in enumerate(sti0ssti1s):
+                tempsubshifts[shifti] = wideshortsd[:, sti0:sti1] # len: subnt
+            
+            errors = tempsubshifts - meandata # (nshifts, nchans, subnt) - (nchans, subnt)
+            # get mean squared errors by taking mean across highest two dims - for purpose
+            # of error comparison, don't need to take square root:
+            mserrors = (errors**2).mean(axis=2).mean(axis=1) # nshifts long
+            bestshifti = mserrors.argmin()
             bestshift = shifts[bestshifti]
             if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
                 # update time values:
@@ -869,9 +866,10 @@ class Sort(object):
                 # have shifted off the ends. Opposite sign, referencing within wavedata:
                 spikes['tis'][sid] -= bestshift
                 # update sort.wavedata
-                wd[sid] = tempshifts[bestshifti]
+                wd[sid] = widesd[:, bestshifti:bestshifti+nt]
                 shiftedsubsd[sidi] = tempsubshifts[bestshifti]
                 dirtysids.append(sid) # mark sid as dirty
+        print('shifting loop took %.3f sec' % (time.time()-t0))
         AD2uV = self.converter.AD2uV
         stdevbefore = AD2uV(subsd.std(axis=0).mean())
         stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
