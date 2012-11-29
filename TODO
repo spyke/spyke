@@ -1,5 +1,3 @@
-MEANWAVESAMPLESIZE - rename to MEANWAVEMAXSAMPLES, set to 2000, and subsample by skipping every N//2000 + 1 skip'th point, as in NDsepmetric(). This will make calculating a neuron's mean waveform faster *and* deterministic.
-
 - cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window
 
 - key bindings:
@@ -1302,7 +1300,7 @@ DONE:
 - NDsep calc can take 8 sec for a pair of clusters of 50k points each, even though it's multithreaded. Should NDsep subsample, or does it already?
     - it keeps up to Nmax of the first points - increase speed by calling it with a decreased Nmax of 25000. To reduce bias, make it skip an integer number of points when subsampling, instead of just taking the first Nmax points
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading
-
+rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by stepping by N // MEANWAVESAMPLESIZE + 1 points, as in NDsepmetric(). This makes calculating a neuron's mean waveform faster *and* deterministic.
 
 
 

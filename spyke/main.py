@@ -49,7 +49,7 @@ from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWind
 from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
-from sort import MEANWAVESAMPLESIZE
+from sort import MEANWAVEMAXSAMPLES
 from plot import SpikePanel, ChartPanel, LFPPanel, CLUSTERCOLOURSRGB, GREYRGB
 from detect import Detector
 from extract import Extractor
@@ -947,14 +947,14 @@ class SpykeWindow(QtGui.QMainWindow):
             spikechanis = np.searchsorted(spikechans, chans)
             data[sii] = s.wavedata[sid, spikechanis]
 
-        # find mean waveform of selected spikes, randomly sampling first for speed
-        # if nspikes exceeds a threshold
-        if len(sids) > MEANWAVESAMPLESIZE:
-            print('get_waveclustering_data() random sampling %d spikes '
-                  'instead of all %d' % (MEANWAVESAMPLESIZE, len(sids)))
-            siis = np.arange(nspikes)
-            subsiis = np.asarray(random.sample(siis, MEANWAVESAMPLESIZE))
-            template = data[subsiis].mean(axis=0)
+        # find mean waveform of selected spikes, evenly sampling for speed
+        # if nspikes exceeds a threshold:
+        if nspikes > MEANWAVEMAXSAMPLES:
+            step = nspikes // MEANWAVEMAXSAMPLES + 1 
+            print('get_waveclustering_data() sampling every %d spikes instead of all %d'
+                  % (step, nspikes))
+            siis = np.arange(0, nspikes, step) # eq'v to: np.arange(nspikes)[::step]
+            template = data[siis].mean(axis=0)
         else:
             template = data.mean(axis=0)
 

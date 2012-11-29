@@ -48,7 +48,7 @@ NSLISTWIDTH = 70 # minimize nslist width, enough for 7 digit spike IDs
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1032 # TODO: this should be set programmatically
 
-MEANWAVESAMPLESIZE = 1000
+MEANWAVEMAXSAMPLES = 2000
 
 
 class Sort(object):
@@ -195,13 +195,14 @@ class Sort(object):
         """Return the mean and std waveform of spike waveforms in sids"""
         spikes = self.spikes
         nsids = len(sids)
-        if nsids > MEANWAVESAMPLESIZE:
-            s = ("get_mean_wave() random sampling %d spikes instead of all %d"
-                 % (MEANWAVESAMPLESIZE, nsids))
+        if nsids > MEANWAVEMAXSAMPLES:
+            step = nsids // MEANWAVEMAXSAMPLES + 1 
+            s = ("get_mean_wave() sampling every %d spikes instead of all %d"
+                 % (step, nsids))
             if nid != None:
                 s = "neuron %d: " % nid + s
             print(s)
-            sids = np.asarray(random.sample(sids, MEANWAVESAMPLESIZE))
+            sids = sids[::step]
             nsids = len(sids) # update
     
         chanss = spikes['chans'][sids]
@@ -216,7 +217,7 @@ class Sort(object):
         nt = wavedata.shape[-1]
         maxnchans = len(groupchans)
         data = np.zeros((maxnchans, nt))
-        # all spike have same nt, but not necessarily nchans, keep track of
+        # all spikes have same nt, but not necessarily same nchans, keep track of
         # how many spikes contributed to each of the group's chans
         nspikes = np.zeros((maxnchans, 1), dtype=int)
         for chans, wd in zip(chanslist, wavedata):

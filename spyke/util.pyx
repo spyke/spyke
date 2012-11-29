@@ -385,17 +385,17 @@ def NDsepmetric(np.float32_t[:, :] C0,
         N0, N1 = N1, N0
 
     # for speed, limit to up to Nmax points in each cluster, keeping only every
-    # skip'th point
+    # step'th point
     if N0 > Nmax:
-        skip = <int> ceil(<double>(N0) / Nmax) # round up
-        #print('Nmax: %d, N0: %d, skip: %d' % (Nmax, N0, skip))
-        C0 = C0[::skip, :]
+        step = <int> ceil(<double>(N0) / Nmax) # round up
+        #print('Nmax: %d, N0: %d, step: %d' % (Nmax, N0, step))
+        C0 = C0[::step, :]
         N0 = C0.shape[0] # update
         #print('new N0: %d' % N0)
     if N1 > Nmax:
-        skip = <int> ceil(<double>(N1) / Nmax) # round up
-        #print('Nmax: %d, N1: %d, skip: %d' % (Nmax, N1, skip))
-        C1 = C1[::skip, :]
+        step = <int> ceil(<double>(N1) / Nmax) # round up
+        #print('Nmax: %d, N1: %d, step: %d' % (Nmax, N1, step))
+        C1 = C1[::step, :]
         N1 = C1.shape[0] # update
         #print('new N1: %d' % N1)
     N = N0 + N1 # total npoints across clusters
