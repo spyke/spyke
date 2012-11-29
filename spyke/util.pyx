@@ -514,7 +514,7 @@ def alignbest_cy(sort,
     cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
     t0 = time.time()
     cdef int sidi, sid
-    cdef int shifti, chani, ti, spikechani
+    cdef int shifti, chani, ti, spikechani = 0
     cdef long long chan
     for sidi in range(nspikes):
         sid = sids[sidi]
@@ -535,9 +535,9 @@ def alignbest_cy(sort,
     # widesd holds current spike data plus padding on either side
     # to allow for full width slicing for all time shifts:
     cdef int maxnchans = spikes_nchans.max() # of all sids
+    cdef int wident = MAXSHIFT+nt+MAXSHIFT
     cdef np.ndarray[np.int16_t, ndim=2, mode='c'] sd = np.zeros((maxnchans, nt), dtype=wd.dtype)        
-    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd = np.zeros((maxnchans, MAXSHIFT+nt+MAXSHIFT), dtype=wd.dtype)        
-    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] wideshortsd = np.zeros((maxnchans, MAXSHIFT+nt+MAXSHIFT), dtype=wd.dtype)        
+    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd = np.zeros((maxnchans, wident), dtype=wd.dtype)        
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
     cdef int bestshifti
@@ -548,20 +548,23 @@ def alignbest_cy(sort,
     dirtysids = []
     t0 = time.time()
     for sidi in range(nspikes):
-        # for speed, instead of adding real data, pad start and end with fake values
+        # pad start and end with first and last points per chan:
         sid = sids[sidi]
-        sd[:, :] = wd[sid, :, :] # sid's spike data
-        widesd[:, MAXSHIFT:-MAXSHIFT] = sd[:, :] # 2D
-        widesd[:, :MAXSHIFT] = sd[:, 0, None] # pad start with first point per chan
-        widesd[:, -MAXSHIFT:] = sd[:, -1, None] # pad end with last point per chan
-        wideshortsd = widesd[spikechanis[sidi]] # sid's padded spike data on chanis, 2D
+        for chani in range(maxnchans):
+            for ti in range(nt):
+                sd[chani, ti] = wd[sid, chani, ti] # sid's spike data
+                widesd[chani, ti+MAXSHIFT] = sd[chani, ti] # 2D
+            for ti in range(MAXSHIFT):
+                widesd[chani, ti] = sd[chani, 0] # pad start with first point per chan
+                widesd[chani, wident-ti] = sd[chani, -1] # pad end with last point per chan
 
         memset(&sserrors[0], 0, nbytessserrors) # clear sserrors
         # keep this inner loop as fast as possible:
         for shifti in range(nshifts):
             for chani in range(nchans):
+                spikechani = spikechanis[sidi, chani]
                 for ti in range(subnt):
-                    tempsubshifts[shifti, chani, ti] = wideshortsd[chani, ti+ti0+shifti] # len: subnt
+                    tempsubshifts[shifti, chani, ti] = widesd[spikechani, ti+ti0+shifti] # len: subnt
                     error = <double>tempsubshifts[shifti, chani, ti] - meandata[chani, ti]
                     sserrors[shifti] += error*error
 
