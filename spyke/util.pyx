@@ -480,6 +480,8 @@ def alignbest_cy(sort,
     """Align all sids between tis on chans by best fit according to mean squared error.
     chans are assumed to be a subset of channels of sids. Return sids
     that were actually moved and therefore need to be marked as dirty"""
+    # TODO: make maxshift a f'n of interpolation factor
+    DEF MAXSHIFT = 2 # constant, shift +/- this many timepoints
     spikes = sort.spikes
     # copy needed fields from spikes rect array as simple arrays, should come out as contig:
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] spikes_nchans = spikes['nchans'][sids]
@@ -491,22 +493,14 @@ def alignbest_cy(sort,
     cdef int ti0 = tis[0]
     cdef int ti1 = tis[1]
     cdef int subnt = ti1 - ti0 # num timepoints to slice from each waveform
-    # TODO: make maxshift a f'n of interpolation factor
-    DEF MAXSHIFT = 2 # shift +/- this many timepoints
     cdef int subntdiv2 = subnt // 2
     #print('subntdiv2 on either side of t=0: %d' % subntdiv2)
     if subntdiv2 < MAXSHIFT:
         raise ValueError("Selected waveform duration too short")
     #maxshiftus = MAXSHIFT * self.stream.tres
-    # NOTE: in this case, it may be faster to keep shifts and sti0s and sti1s as lists
-    # of ints instead of np int arrays, maybe because their values are faster to iterate
-    # over or index with in python loops and lists:
     cdef np.ndarray[np.int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1) # from -MAXSHIFT to MAXSHIFT, inclusive
     cdef int nshifts = shifts.shape[0]
-    #sti0s = [ ti0+shifti for shifti in range(nshifts) ] # shifted ti0 values
-    #sti1s = [ ti1+shifti for shifti in range(nshifts) ] # shifted ti1 values
-    #sti0ssti1s = zip(sti0s, sti1s)
-    print("padding waveforms with up to +/- %d points of fake data" % MAXSHIFT)
+    print("padding waveforms with up to +/- %d points of edge data" % MAXSHIFT)
 
     # not worth subsampling here while calculating meandata, since all this
     # stuff in this loop is needed in the shift loop below
@@ -514,8 +508,8 @@ def alignbest_cy(sort,
     cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
     t0 = time.time()
     cdef int sidi, sid
-    cdef int shifti, chani, ti, spikechani = 0
-    cdef long long chan
+    cdef int shifti, chani, ti, spikechani=0
+    cdef long long chansubsd
     for sidi in range(nspikes):
         sid = sids[sidi]
         for chani in range(nchans):
@@ -540,12 +534,13 @@ def alignbest_cy(sort,
     cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd = np.zeros((maxnchans, wident), dtype=wd.dtype)        
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
-    cdef int bestshifti
+    cdef int bestshifti=0, dt, ndirty=0
     cdef long long bestshift
     cdef double error
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
     cdef int nbytessserrors = nshifts*sizeof(np.float64_t)
-    dirtysids = []
+    cdef int tres = sort.tres
+    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] dirtysids = np.empty(nspikes, dtype=np.int64)
     t0 = time.time()
     for sidi in range(nspikes):
         # pad start and end with first and last points per chan:
@@ -558,21 +553,27 @@ def alignbest_cy(sort,
                 widesd[chani, ti] = sd[chani, 0] # pad start with first point per chan
                 widesd[chani, wident-ti] = sd[chani, -1] # pad end with last point per chan
 
+        # calculate sum of squared errors for all possible shifts of each spike:
         memset(&sserrors[0], 0, nbytessserrors) # clear sserrors
-        # keep this inner loop as fast as possible:
         for shifti in range(nshifts):
             for chani in range(nchans):
                 spikechani = spikechanis[sidi, chani]
                 for ti in range(subnt):
-                    tempsubshifts[shifti, chani, ti] = widesd[spikechani, ti+ti0+shifti] # len: subnt
+                    tempsubshifts[shifti, chani, ti] = widesd[spikechani, ti+ti0+shifti]
                     error = <double>tempsubshifts[shifti, chani, ti] - meandata[chani, ti]
                     sserrors[shifti] += error*error
 
-        bestshifti = sserrors.argmin()
+        # find shift with smallest error:
+        error = DBL_MAX
+        for shifti in range(nshifts):
+            if sserrors[shifti] < error:
+                error = sserrors[shifti]
+                bestshifti = shifti
         bestshift = shifts[bestshifti]
         if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
             # update time values:
-            dt = bestshift * sort.tres # time to shift by, signed, in us
+            dt = bestshift * tres # time to shift by, signed, in us
+            ## TODO: update spikes array in pure C:
             spikes['t'][sid] += dt # should remain halfway between t0 and t1
             spikes['t0'][sid] += dt
             spikes['t1'][sid] += dt
@@ -580,12 +581,17 @@ def alignbest_cy(sort,
             # have shifted off the ends. Opposite sign, referencing within wavedata:
             spikes['tis'][sid] -= bestshift
             # update sort.wavedata
-            wd[sid, :, :] = widesd[:, bestshifti:bestshifti+nt]
-            shiftedsubsd[sidi] = tempsubshifts[bestshifti]
-            dirtysids.append(sid) # mark sid as dirty
+            for chani in range(maxnchans):
+                for ti in range(nt):
+                    wd[sid, chani, ti] = widesd[chani, ti+bestshifti]
+            for chani in range(nchans):
+                for ti in range(subnt):
+                    shiftedsubsd[sidi, chani, ti] = tempsubshifts[bestshifti, chani, ti]
+            dirtysids[ndirty] = sid # mark sid as dirty
+            ndirty += 1
     print('shifting loop took %.3f sec' % (time.time()-t0))
     AD2uV = sort.converter.AD2uV
     stdevbefore = AD2uV(subsd.std(axis=0).mean())
     stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
     print('stdev went from %.3f to %.3f uV' % (stdevbefore, stdevafter))
-    return dirtysids
+    return dirtysids[:ndirty]
