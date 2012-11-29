@@ -514,10 +514,18 @@ def alignbest_cy(sort,
     cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
     t0 = time.time()
     cdef int sidi, sid
+    cdef int shifti, chani, ti, spikechani
+    cdef long long chan
     for sidi in range(nspikes):
         sid = sids[sidi]
-        spikechanis[sidi, :] = spikes_chans[sidi, :spikes_nchans[sidi]].searchsorted(chans)
-        subsd[sidi, :, :] = wd[sid, spikechanis[sidi], ti0:ti1]
+        for chani in range(nchans):
+            chan = chans[chani]
+            for spikechani in range(spikes_nchans[sidi]):
+                if spikes_chans[sidi, spikechani] == chan:
+                    spikechanis[sidi, chani] = spikechani
+                    break # out of spikechani loop
+            for ti in range(subnt):
+                subsd[sidi, chani, ti] = wd[sid, spikechani, ti0+ti]
     print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
     t0 = time.time()
     cdef np.ndarray[np.float64_t, ndim=2, mode='c'] meandata = subsd.mean(axis=0) # float64
@@ -532,12 +540,11 @@ def alignbest_cy(sort,
     cdef np.ndarray[np.int16_t, ndim=2, mode='c'] wideshortsd = np.zeros((maxnchans, MAXSHIFT+nt+MAXSHIFT), dtype=wd.dtype)        
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
-    cdef int shifti, chani, ti, bestshifti
+    cdef int bestshifti
     cdef long long bestshift
     cdef double error
     cdef np.ndarray[np.float64_t, ndim=1, mode='c'] sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
     cdef int nbytessserrors = nshifts*sizeof(np.float64_t)
-    print('nbytessserrors %d' % nbytessserrors)
     dirtysids = []
     t0 = time.time()
     for sidi in range(nspikes):
@@ -549,8 +556,7 @@ def alignbest_cy(sort,
         widesd[:, -MAXSHIFT:] = sd[:, -1, None] # pad end with last point per chan
         wideshortsd = widesd[spikechanis[sidi]] # sid's padded spike data on chanis, 2D
 
-        memset(&sserrors[0], 0, nbytessserrors) # clear serrors
-        #sserrors = np.zeros(nshifts, dtype=np.float64)
+        memset(&sserrors[0], 0, nbytessserrors) # clear sserrors
         # keep this inner loop as fast as possible:
         for shifti in range(nshifts):
             for chani in range(nchans):
@@ -558,9 +564,7 @@ def alignbest_cy(sort,
                     tempsubshifts[shifti, chani, ti] = wideshortsd[chani, ti+ti0+shifti] # len: subnt
                     error = <double>tempsubshifts[shifti, chani, ti] - meandata[chani, ti]
                     sserrors[shifti] += error*error
-        #print(sserrors)
-        # get mean squared errors by taking mean across highest two dims - for purpose
-        # of error comparison, don't need to take square root:
+
         bestshifti = sserrors.argmin()
         bestshift = shifts[bestshifti]
         if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
