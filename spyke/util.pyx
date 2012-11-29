@@ -5,6 +5,8 @@ from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
 
+import time
+
 cdef extern from "math.h":
     int abs(int x)
     float fabs(float x)
@@ -19,6 +21,8 @@ cdef extern from "float.h":
 cdef extern from "stdio.h":
     int printf(char *, ...)
 
+cdef extern from "string.h":
+    cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
 
 cdef short select_short(short *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
@@ -356,6 +360,8 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 @cython.profile(False)
+## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
+## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
 def NDsepmetric(np.float32_t[:, :] C0,
                 np.float32_t[:, :] C1,
                 int Nmax=INT_MAX):
@@ -406,8 +412,8 @@ def NDsepmetric(np.float32_t[:, :] C0,
     f0 = <double>nself / <double>N0 # nearest neighbour fraction belonging to same cluster
     O = (1 - f0) / (1 - <double>N0/<double>N) # overlap index
     S = 1 - O # separation metric
-    print('nself=%d, N0=%d, N1=%d'  % (nself, N0, N1))
-    print('f0=%.3f, O=%.3f, S=%.3f' % (f0, O, S))
+    #print('nself=%d, N0=%d, N1=%d'  % (nself, N0, N1))
+    #print('f0=%.3f, O=%.3f, S=%.3f' % (f0, O, S))
     return S
 
 
@@ -415,6 +421,8 @@ def NDsepmetric(np.float32_t[:, :] C0,
 @cython.wraparound(False)
 @cython.cdivision(True) # might be necessary to release the GIL?
 @cython.profile(False)
+## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
+## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
 cdef int NNmembership(int i, int ndim, int N0, int N1,
                       np.float32_t[:, :] C0,
                       np.float32_t[:, :] C1) nogil:
@@ -458,3 +466,119 @@ cdef int NNmembership(int i, int ndim, int N0, int N1,
     # we have min_d02 <= min_d12, so point i's closest neighbour is also in
     # cluster 0, count it as having the same membership
     return 1
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+@cython.profile(False)
+#def alignbest_cy(sort, np.int64_t[:] sids, np.int64_t[:] tis, np.int64_t[:] chans):
+def alignbest_cy(sort,
+                 np.ndarray[np.int64_t, ndim=1, mode='c'] sids,
+                 np.ndarray[np.int64_t, ndim=1, mode='c'] tis,
+                 np.ndarray[np.int64_t, ndim=1, mode='c'] chans):
+    """Align all sids between tis on chans by best fit according to mean squared error.
+    chans are assumed to be a subset of channels of sids. Return sids
+    that were actually moved and therefore need to be marked as dirty"""
+    spikes = sort.spikes
+    # copy needed fields from spikes rect array as simple arrays, should come out as contig:
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] spikes_nchans = spikes['nchans'][sids]
+    cdef np.ndarray[np.uint8_t, ndim=2, mode='c'] spikes_chans = spikes['chans'][sids]
+    cdef int nspikes = sids.shape[0]
+    cdef int nchans = chans.shape[0]
+    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] wd = sort.wavedata
+    cdef int nt = wd.shape[2] # num timepoints in each waveform
+    cdef int ti0 = tis[0]
+    cdef int ti1 = tis[1]
+    cdef int subnt = ti1 - ti0 # num timepoints to slice from each waveform
+    # TODO: make maxshift a f'n of interpolation factor
+    DEF MAXSHIFT = 2 # shift +/- this many timepoints
+    cdef int subntdiv2 = subnt // 2
+    #print('subntdiv2 on either side of t=0: %d' % subntdiv2)
+    if subntdiv2 < MAXSHIFT:
+        raise ValueError("Selected waveform duration too short")
+    #maxshiftus = MAXSHIFT * self.stream.tres
+    # NOTE: in this case, it may be faster to keep shifts and sti0s and sti1s as lists
+    # of ints instead of np int arrays, maybe because their values are faster to iterate
+    # over or index with in python loops and lists:
+    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1) # from -MAXSHIFT to MAXSHIFT, inclusive
+    cdef int nshifts = shifts.shape[0]
+    #sti0s = [ ti0+shifti for shifti in range(nshifts) ] # shifted ti0 values
+    #sti1s = [ ti1+shifti for shifti in range(nshifts) ] # shifted ti1 values
+    #sti0ssti1s = zip(sti0s, sti1s)
+    print("padding waveforms with up to +/- %d points of fake data" % MAXSHIFT)
+
+    # not worth subsampling here while calculating meandata, since all this
+    # stuff in this loop is needed in the shift loop below
+    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype) # subset of spike data
+    cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
+    t0 = time.time()
+    cdef int sidi, sid
+    for sidi in range(nspikes):
+        sid = sids[sidi]
+        spikechanis[sidi, :] = spikes_chans[sidi, :spikes_nchans[sidi]].searchsorted(chans)
+        subsd[sidi, :, :] = wd[sid, spikechanis[sidi], ti0:ti1]
+    print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
+    t0 = time.time()
+    cdef np.ndarray[np.float64_t, ndim=2, mode='c'] meandata = subsd.mean(axis=0) # float64
+    print('mean for best shift took %.3f sec' % (time.time()-t0))
+
+    # choose best shifted waveform for each spike
+    # widesd holds current spike data plus padding on either side
+    # to allow for full width slicing for all time shifts:
+    cdef int maxnchans = spikes_nchans.max() # of all sids
+    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] sd = np.zeros((maxnchans, nt), dtype=wd.dtype)        
+    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd = np.zeros((maxnchans, MAXSHIFT+nt+MAXSHIFT), dtype=wd.dtype)        
+    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] wideshortsd = np.zeros((maxnchans, MAXSHIFT+nt+MAXSHIFT), dtype=wd.dtype)        
+    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
+    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
+    cdef int shifti, chani, ti, bestshifti
+    cdef long long bestshift
+    cdef double error
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
+    cdef int nbytessserrors = nshifts*sizeof(np.float64_t)
+    print('nbytessserrors %d' % nbytessserrors)
+    dirtysids = []
+    t0 = time.time()
+    for sidi in range(nspikes):
+        # for speed, instead of adding real data, pad start and end with fake values
+        sid = sids[sidi]
+        sd[:, :] = wd[sid, :, :] # sid's spike data
+        widesd[:, MAXSHIFT:-MAXSHIFT] = sd[:, :] # 2D
+        widesd[:, :MAXSHIFT] = sd[:, 0, None] # pad start with first point per chan
+        widesd[:, -MAXSHIFT:] = sd[:, -1, None] # pad end with last point per chan
+        wideshortsd = widesd[spikechanis[sidi]] # sid's padded spike data on chanis, 2D
+
+        memset(&sserrors[0], 0, nbytessserrors) # clear serrors
+        #sserrors = np.zeros(nshifts, dtype=np.float64)
+        # keep this inner loop as fast as possible:
+        for shifti in range(nshifts):
+            for chani in range(nchans):
+                for ti in range(subnt):
+                    tempsubshifts[shifti, chani, ti] = wideshortsd[chani, ti+ti0+shifti] # len: subnt
+                    error = <double>tempsubshifts[shifti, chani, ti] - meandata[chani, ti]
+                    sserrors[shifti] += error*error
+        #print(sserrors)
+        # get mean squared errors by taking mean across highest two dims - for purpose
+        # of error comparison, don't need to take square root:
+        bestshifti = sserrors.argmin()
+        bestshift = shifts[bestshifti]
+        if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
+            # update time values:
+            dt = bestshift * sort.tres # time to shift by, signed, in us
+            spikes['t'][sid] += dt # should remain halfway between t0 and t1
+            spikes['t0'][sid] += dt
+            spikes['t1'][sid] += dt
+            # might result in some out of bounds tis because the original peaks
+            # have shifted off the ends. Opposite sign, referencing within wavedata:
+            spikes['tis'][sid] -= bestshift
+            # update sort.wavedata
+            wd[sid, :, :] = widesd[:, bestshifti:bestshifti+nt]
+            shiftedsubsd[sidi] = tempsubshifts[bestshifti]
+            dirtysids.append(sid) # mark sid as dirty
+    print('shifting loop took %.3f sec' % (time.time()-t0))
+    AD2uV = sort.converter.AD2uV
+    stdevbefore = AD2uV(subsd.std(axis=0).mean())
+    stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
+    print('stdev went from %.3f to %.3f uV' % (stdevbefore, stdevafter))
+    return dirtysids

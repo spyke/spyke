@@ -846,15 +846,17 @@ class Sort(object):
             widesd[:, :maxshift] = sd[:, 0, None] # pad start with first point per chan
             widesd[:, -maxshift:] = sd[:, -1, None] # pad end with last point per chan
             wideshortsd = widesd[chanis] # sid's padded spike data on chanis, 2D
-            
+
+            # keep this inner loop as fast as possible:
             for shifti, (sti0, sti1) in enumerate(sti0ssti1s):
                 tempsubshifts[shifti] = wideshortsd[:, sti0:sti1] # len: subnt
             
             errors = tempsubshifts - meandata # (nshifts, nchans, subnt) - (nchans, subnt)
-            # get mean squared errors by taking mean across highest two dims - for purpose
-            # of error comparison, don't need to take square root:
-            mserrors = (errors**2).mean(axis=2).mean(axis=1) # nshifts long
-            bestshifti = mserrors.argmin()
+            # get sum squared errors by taking sum across highest two dims - for purpose
+            # of error comparison, don't need to take mean or square root. Also, order
+            # of summation along axes doesn't matter, as long as it's done on the highest two:
+            sserrors = (errors**2).sum(axis=2).sum(axis=1) # nshifts long
+            bestshifti = sserrors.argmin()
             bestshift = shifts[bestshifti]
             if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
                 # update time values:
@@ -2513,8 +2515,9 @@ class SortWindow(SpykeToolWindow):
                     raise RuntimeError("chan %d not common to all spikes, pick from %r"
                                        % (selchan, list(common_chans)))
             print('best fit aligning %d spikes between tis=%r on chans=%r' %
-                  (len(sids), list(tis), selchans))
-            dirtysids = s.alignbest(sids, tis, selchans)
+                  (len(sids), list(tis), selchans)) # numpy implementation
+            #dirtysids = s.alignbest(sids, tis, selchans) # cython implementation
+            dirtysids = util.alignbest_cy(s, sids, tis, np.asarray(selchans))
         else: # to in ['min', 'max']
             print('aligning %d spikes to %s' % (len(sids), to))
             dirtysids = s.alignminmax(sids, to)
