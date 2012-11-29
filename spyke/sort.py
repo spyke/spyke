@@ -2507,8 +2507,23 @@ class SortWindow(SpykeToolWindow):
             chanss = spikes['chans'][sids]
             nchanss = spikes['nchans'][sids]
             # list of arrays:
+            #t0 = time.time()
             chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
-            common_chans = core.intersect1d(chanslist) # find intersection
+            #print('building chanlist took %.3f sec' % (time.time()-t0))
+            #t0 = time.time()
+            # find intersection:
+            # slow:
+            #common_chans = core.intersect1d(chanslist)
+            # faster:
+            '''
+            common_chans = chanslist[0]
+            for chans in chanslist[1:]:
+                common_chans = np.intersect1d(common_chans, chans, assume_unique=True)
+            '''
+            # fastest:
+            common_chans = util.intersect1d_uint8(chanslist)
+            #print('intersect1d took %.3f sec' % (time.time()-t0))
+            #print('common_chans: %s' % common_chans)
             # check selected chans
             for selchan in selchans:
                 if selchan not in common_chans:

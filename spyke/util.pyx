@@ -506,7 +506,7 @@ def alignbest_cy(sort,
     # stuff in this loop is needed in the shift loop below
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype) # subset of spike data
     cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
-    t0 = time.time()
+    #t0 = time.time()
     cdef int sidi, sid
     cdef int shifti, chani, ti, spikechani=0
     cdef long long chansubsd
@@ -520,10 +520,10 @@ def alignbest_cy(sort,
                     break # out of spikechani loop
             for ti in range(subnt):
                 subsd[sidi, chani, ti] = wd[sid, spikechani, ti0+ti]
-    print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
-    t0 = time.time()
+    #print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
+    #t0 = time.time()
     cdef np.ndarray[np.float64_t, ndim=2, mode='c'] meandata = subsd.mean(axis=0) # float64
-    print('mean for best shift took %.3f sec' % (time.time()-t0))
+    #print('mean for best shift took %.3f sec' % (time.time()-t0))
 
     # choose best shifted waveform for each spike
     # widesd holds current spike data plus padding on either side
@@ -541,7 +541,7 @@ def alignbest_cy(sort,
     cdef int nbytessserrors = nshifts*sizeof(np.float64_t)
     cdef int tres = sort.tres
     cdef np.ndarray[np.int64_t, ndim=1, mode='c'] dirtysids = np.empty(nspikes, dtype=np.int64)
-    t0 = time.time()
+    #t0 = time.time()
     for sidi in range(nspikes):
         # pad start and end with first and last points per chan:
         sid = sids[sidi]
@@ -589,9 +589,52 @@ def alignbest_cy(sort,
                     shiftedsubsd[sidi, chani, ti] = tempsubshifts[bestshifti, chani, ti]
             dirtysids[ndirty] = sid # mark sid as dirty
             ndirty += 1
-    print('shifting loop took %.3f sec' % (time.time()-t0))
+    #print('shifting loop took %.3f sec' % (time.time()-t0))
     AD2uV = sort.converter.AD2uV
     stdevbefore = AD2uV(subsd.std(axis=0).mean())
     stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
     print('stdev went from %.3f to %.3f uV' % (stdevbefore, stdevafter))
     return dirtysids[:ndirty]
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True) # might be necessary to release the GIL?
+@cython.profile(False)
+def intersect1d_uint8(arrs):
+    """Find the intersection of any number of 1D arrays in arrs list.
+    Return the sorted, unique values that are in all of the input arrays.
+    Adapted from numpy.lib.arraysetops.intersect1d"""
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] arr
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] common = np.unique(arrs[0])
+    cdef int ncommon=common.shape[0]
+    cdef int lenarr
+    cdef int i, j, k
+    cdef bint continuei=False
+    #print('common: %s' % common)
+    #print('ncommon: %d' % ncommon)
+    for arr in arrs[1:]:
+        lenarr = arr.shape[0]
+        #print('arr: %s' % arr)
+        i = 0 # reset
+        while i < ncommon:
+            #print('i = %d' % i)
+            for j in range(lenarr):
+                #print('j = %d' % j)
+                if common[i] == arr[j]:
+                    #print('breaking out of j')
+                    continuei = True
+                    break # out of j loop
+            if continuei:
+                continuei = False # reset
+                i += 1
+                continue # to next i
+            # never broke out of j loop, didn't find a value in current arr that matches
+            # common[i], common[i] is no longer common:
+            ncommon -= 1
+            for k in range(i, ncommon):
+                common[k] = common[k+1] # shift values above i down by 1
+            #print('new common: %s' % common)
+            #print('new ncommon: %d' % ncommon)
+            # don't inc i, new value at common[i] has just shifted into view
+    return common[:ncommon]

@@ -1,8 +1,8 @@
 import numpy as np
 import pyximport
-pyximport.install(setup_args={'include_dirs':[np.get_include()]})
-
+pyximport.install()
 import util # .pyx file
+
 import time
 
 '''
@@ -35,7 +35,7 @@ print('Cython mean took %.3f sec' % (time.time()-tcy))
 print('Cython mean: %r' % result)
 print('mydata: %r' % mydata)
 '''
-
+'''
 """Test sharpness2D"""
 signal = np.array([[-3022, -3031, -2423, -1655, -1108,  -864,  -891,  -994,  -908,  -600,  -343,  -304,  -219,    89,   377,   342,   136,    74,   112,    -8,
          -391,  -968, -1691, -2397, -2808, -2729, -2269, -1671, -1099,  -623,  -300,   -82,   235,   652,   804,   566,   308,   453,   817,   893,
@@ -76,3 +76,16 @@ i = np.array([[2, 1],
               [1, 1],
               [0, 0],
               [3, 1]])
+'''
+a = np.arange(10, dtype=np.uint8)
+b = np.arange(1, 11, dtype=np.uint8)
+c = np.arange(2, 12, dtype=np.uint8)
+l = []
+for i in range(100000):
+    l.append(a)
+    l.append(b)
+    l.append(c)
+    
+t0 = time.time()
+print(util.intersect1d_uint8(l))
+print('intersectd1d took %.3f sec' % (time.time()-t0)) # best time is around 0.123 sec
