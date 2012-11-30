@@ -16,7 +16,7 @@ from OpenGL import GL, GLU
 from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
 from plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
 
-CLUSTERPARAMSAMPLESIZE = 1000
+CLUSTERPARAMMAXSAMPLES = 2000
 CLUSTERSELECTMAXNPOINTS = 100
 VIEWDISTANCE = 50
 
@@ -61,19 +61,22 @@ class Cluster(object):
         d['normpos'] = normpos
         return d
 
-    def update_pos(self, dims=None, nsamples=CLUSTERPARAMSAMPLESIZE):
-        """Update unnormalized and normalized cluster position for specified dims.
-        Use median instead of mean to reduce influence of outliers on cluster
+    def update_pos(self, dims=None, nsamples=CLUSTERPARAMMAXSAMPLES):
+        """Update unnormalized and normalized cluster positions for self along specified
+        dims. Use median instead of mean to reduce influence of outliers on cluster
         position. Subsample for speed"""
         sort = self.neuron.sort
         spikes = sort.spikes
         if dims == None: # use all of them
             dims = list(self.pos) # some of these might not exist in spikes array
         sids = self.neuron.sids
-        if nsamples and len(sids) > nsamples: # subsample spikes
-            print('neuron %d: update_pos() random sampling of %d spikes instead '
-                  'of all %d' % (self.id, nsamples, len(sids)))
-            sids = np.asarray(random.sample(sids, nsamples))
+        nspikes = len(sids)
+        if nsamples and nspikes > nsamples: # subsample spikes
+            step = nspikes // nsamples + 1 
+            print('neuron %d: update_pos() sampling every %d spikes instead of all %d'
+                  % (self.id, step, nspikes))
+            sids = sids[::step]
+            nspikes = len(sids) # update
 
         # check for pre-calculated spike param means and stds
         try: sort.means
@@ -116,19 +119,24 @@ class Cluster(object):
             # update normalized position
             self.normpos[dim] = np.median(subdata)
 
-    def update_comppos(self, X, sids, nsamples=CLUSTERPARAMSAMPLESIZE):
-        """Update component analysis (PCA/ICA) values for self"""
+    def update_comppos(self, X, sids, nsamples=CLUSTERPARAMMAXSAMPLES):
+        """Update unnormalized and normalized component analysis (PCA/ICA) values for
+        self. Use median instead of mean to reduce influence of outliers on cluster
+        position. Subsample for speed"""
         sort = self.neuron.sort
         ncomp = X.shape[1]
-        nsids = self.neuron.sids
+        mysids = self.neuron.sids
         # get all sids that belong to self:
-        nsids = np.intersect1d(sids, nsids, assume_unique=True)
-        if nsamples and len(nsids) > nsamples: # subsample spikes
-            print('neuron %d: update_comppos() random sampling %d spikes instead '
-                  'of all %d in last CA' % (self.id, nsamples, len(nsids)))
-            nsids = np.asarray(random.sample(nsids, nsamples))
-        sidis = sids.searchsorted(nsids)
-        subX = X[sidis].copy() # this copy is necessary for in-place subtraction and division
+        mysids = np.intersect1d(sids, mysids, assume_unique=True)
+        nspikes = len(mysids)
+        if nsamples and nspikes > nsamples: # subsample spikes
+            step = nspikes // nsamples + 1 
+            print('neuron %d: update_comppos() sampling every %d spikes instead '
+                  'of all %d in last CA' % (self.id, step, nspikes))
+            mysids = mysids[::step]
+            nspikes = len(mysids) # update
+        sidis = sids.searchsorted(mysids)
+        subX = X[sidis].copy() # this copy is necessary for in-place operations
         medians = np.median(subX, axis=0)
         mean = X.mean(axis=0)
         std = X.std(axis=0)
