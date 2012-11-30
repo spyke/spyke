@@ -20,8 +20,6 @@
 
 - add time in hours and time in fraction of stream trange to tooltips, as alternatives to time in us
 
-- maybe on merge, instead of the final cluster acquiring the id of the lower id'd cluster, it should take on the id of the biggest cluster?
-
 - would be nice to have a translucent plane in the cluster window representing the current time position of the spike slider in the sort window, if time is one of the plotted dimensions
 
 - I'm often duplicating my efforts, comparing the same pair of clusters over and over, even when they haven't changed their spike populations, like when say they've been renumbered and recoloured. This is especially bad when a pair isn't obviously different, and needs to be plotted on a specific set of chans, and maybe needs ICA and/or time. I need two things to solve this:
@@ -1301,7 +1299,7 @@ DONE:
     - it keeps up to Nmax of the first points - increase speed by calling it with a decreased Nmax of 25000. To reduce bias, make it skip an integer number of points when subsampling, instead of just taking the first Nmax points
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading
 rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by stepping by N // MEANWAVEMAXSAMPLES + 1 points, as in NDsepmetric(). This makes calculating a neuron's mean waveform faster *and* deterministic.
-
+- on merge, instead of the final cluster acquiring the id of the lowest id'd cluster, it should take on the id of the biggest cluster
 
 
 

@@ -1967,23 +1967,25 @@ class SortWindow(SpykeToolWindow):
         cc = ClusterChange(sids, spikes, message)
         cc.save_old(clusters, s.norder, s.good)
 
-        # get ordered index of first selected cluster, if any
-        inserti = None
+        # decide on newnid and where to insert it into norder
+        newnid = None # merge by default into a new highest numbered nid
+        inserti = None # order new cluster by default to end of nlist
         if len(clusters) > 0:
-            inserti = s.norder.index(clusters[0].id)
+            oldunids = np.asarray(cc.oldunids)
+            suids = oldunids[oldunids > 0] # single unit nids
+            if len(suids) > 0: # merge into largest selected single unit nid:
+                spikecounts = np.asarray([ s.neurons[suid].nspikes for suid in suids ])
+                newnid = suids[spikecounts.argmax()]
+                inserti = s.norder.index(newnid)
+                # correct for shift due to deletion of oldunids that precede newnid in norder:
+                inserti -= sum([ s.norder.index(oldunid) < inserti for oldunid in oldunids])
 
         # delete selected clusters and deselect selected usids
         spw.DelClusters(clusters, update=False)
         self.uslist.clearSelection()
 
         # create new cluster
-        t0 = time.time()
-        newnid = None # merge by default into new highest nid
-        if len(clusters) > 0:
-            oldunids = np.asarray(cc.oldunids)
-            suids = oldunids[oldunids > 0]
-            if len(suids) > 0:
-                newnid = suids.min() # merge into lowest selected single unit nid
+        #t0 = time.time()
         newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
         neuron = newcluster.neuron
         self.MoveSpikes2Neuron(sids, neuron, update=False)
