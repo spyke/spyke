@@ -140,7 +140,7 @@ class Sort(object):
         d = self.__dict__.copy()
         # Spikes and wavedata arrays are (potentially) saved separately.
         # usids and PCs/ICs can be regenerated from the spikes array.
-        for attr in ['spikes', 'wavedata', 'usids', 'X']:
+        for attr in ['spikes', 'wavedata', 'usids', 'X', 'Xhash']:
             # keep _stream during normal pickling for multiprocessing, but remove it
             # manually when pickling to .sort
             try: del d[attr]
@@ -601,6 +601,7 @@ class Sort(object):
 
         # check if desired components have already been calculated (cache hit):
         Xhash = self.get_Xhash(kind, sids, tis, chans)
+        self.Xhash = Xhash # save as key to most recent component matrix in self.X
         try: self.X
         except AttributeError: self.X = {} # init the dimension reduction cache attrib
         if Xhash in self.X:
@@ -1316,6 +1317,7 @@ class Neuron(object):
         d = self.__dict__.copy()
         # don't save any calculated PCs/ICs:
         #d.pop('X', None)
+        #d.pop('Xhash', None)
         # don't save plot self is assigned to, since that'll change anyway on unpickle
         d['plt'] = None
         return d

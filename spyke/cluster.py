@@ -793,7 +793,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 if dim.startswith('c') and dim[-1].isdigit(): # it's a CA dim
                     compid = int(lstrip(dim, 'c'))
                     sidi = self.sids.searchsorted(sid)
-                    spos.append(sort.X[sidi, compid])
+                    spos.append(sort.X[sort.Xhash][sidi, compid])
                 else: # it's a standard dim stored in spikes array
                     spos.append(sort.spikes[sid][dim])
             tip = 'sid: %d' % sid
