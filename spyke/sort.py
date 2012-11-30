@@ -584,8 +584,12 @@ class Sort(object):
         nt = ti1 - ti0
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
+        #t0 = time.time()
         chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
-        allchans = core.intersect1d(chanslist) # find intersection
+        #print('building chanslist took %.3f sec' % (time.time()-t0))
+        #t0 = time.time()
+        allchans = util.intersect1d_uint8(chanslist) # find intersection
+        #print('intersect1d took %.3f sec' % (time.time()-t0))
         if not chans: # empty list, or None
             chans = allchans
         diffchans = np.setdiff1d(chans, allchans) # values in chans but not in allchans
@@ -2628,7 +2632,7 @@ class SortWindow(SpykeToolWindow):
             #points.append(np.ascontiguousarray(X[sidis]))
         if calc_measures:
             t0 = time.time()
-            NDsep = util.NDsepmetric(*points, Nmax=25000)
+            NDsep = util.NDsepmetric(*points, Nmax=20000)
             print('NDsep calc took %.3f sec' % (time.time()-t0))
             # centers of both clusters, use median:
             c0 = np.median(points[0], axis=0) # ndims vector

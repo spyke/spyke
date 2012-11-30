@@ -925,7 +925,7 @@ class SpykeWindow(QtGui.QMainWindow):
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
-        common_chans = core.intersect1d(chanslist) # find intersection
+        common_chans = util.intersect1d_uint8(chanslist) # find intersection
 
         # get selected chans
         chans = self.get_selchans(sids)
