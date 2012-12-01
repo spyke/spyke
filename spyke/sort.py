@@ -1970,9 +1970,13 @@ class SortWindow(SpykeToolWindow):
         # decide on newnid and where to insert it into norder
         newnid = None # merge by default into a new highest numbered nid
         inserti = None # order new cluster by default to end of nlist
-        if len(clusters) > 0:
+        if len(clusters) == 1:
+            # keep same position of this one nid in norder, regardless of whether it's
+            # single-unit, multiunit, or junk
+            inserti = s.norder.index(clusters[0].id)
+        elif len(clusters) > 1:
             oldunids = np.asarray(cc.oldunids)
-            suids = oldunids[oldunids > 0] # single unit nids
+            suids = oldunids[oldunids > 0] # selected single unit nids
             if len(suids) > 0: # merge into largest selected single unit nid:
                 spikecounts = np.asarray([ s.neurons[suid].nspikes for suid in suids ])
                 newnid = suids[spikecounts.argmax()]
