@@ -582,20 +582,7 @@ class Sort(object):
         ti0, ti1 = tis
         assert ti0 < ti1 <= nt
         nt = ti1 - ti0
-        chanss = spikes['chans'][sids]
-        nchanss = spikes['nchans'][sids]
-        #t0 = time.time()
-        chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
-        #print('building chanslist took %.3f sec' % (time.time()-t0))
-        #t0 = time.time()
-        allchans = util.intersect1d_uint8(chanslist) # find intersection
-        #print('intersect1d took %.3f sec' % (time.time()-t0))
-        if not chans: # empty list, or None
-            chans = allchans
-        diffchans = np.setdiff1d(chans, allchans) # values in chans but not in allchans
-        chans = np.intersect1d(chans, allchans) # values in both
-        if len(diffchans) > 0:
-            print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
+        chans, chanslist = self.get_common_chans(sids, chans)
         nchans = len(chans)
         nspikes = len(sids)
         if nspikes < 2:
@@ -735,6 +722,24 @@ class Sort(object):
             if nid != 0:
                 self.clusters[nid].update_comppos(X, sids)
         return X
+
+    def get_common_chans(self, sids, chans=None):
+        """Find channels common to all sids, and optionally to chans as well. Also,
+        return chanslist, ie list of arrays of chans of sids"""
+        spikes = self.spikes
+        chanss = spikes['chans'][sids]
+        nchanss = spikes['nchans'][sids]
+        #t0 = time.time()
+        chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
+        #print('building chanslist took %.3f sec' % (time.time()-t0))
+        commonchans = util.intersect1d_uint8(chanslist) # find intersection
+        if chans != None and len(chans) > 0:
+            # values in chans but not in commonchans:
+            diffchans = np.setdiff1d(chans, commonchans)
+            commonchans = np.intersect1d(chans, commonchans) # values in both
+            if len(diffchans) > 0:
+                print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
+        return commonchans, chanslist
 
     def get_Xhash(self, kind, sids, tis, chans):
         """Return MD5 hex digest of args, for uniquely identifying the matrix resulting
@@ -2521,33 +2526,15 @@ class SortWindow(SpykeToolWindow):
         sids = np.concatenate((spw.GetClusterSpikes(), spw.GetUnsortedSpikes()))
         if to == 'best':
             tis = self.tis
-            selchans = spw.get_selchans(sids)
             # find which chans are common to all sids:
-            chanss = spikes['chans'][sids]
-            nchanss = spikes['nchans'][sids]
-            # list of arrays:
-            #t0 = time.time()
-            chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ]
-            #print('building chanlist took %.3f sec' % (time.time()-t0))
-            #t0 = time.time()
-            # find intersection:
-            # slow:
-            #common_chans = core.intersect1d(chanslist)
-            # faster:
-            '''
-            common_chans = chanslist[0]
-            for chans in chanslist[1:]:
-                common_chans = np.intersect1d(common_chans, chans, assume_unique=True)
-            '''
-            # fastest:
-            common_chans = util.intersect1d_uint8(chanslist)
-            #print('intersect1d took %.3f sec' % (time.time()-t0))
-            #print('common_chans: %s' % common_chans)
+            commonchans = s.get_common_chans(sids)[0]
             # check selected chans
+            selchans = spw.get_selchans(sids)
             for selchan in selchans:
-                if selchan not in common_chans:
-                    raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                       % (selchan, list(common_chans)))
+                if selchan not in commonchans:
+                    print("chan %d not common to all spikes, pick from %r"
+                          % (selchan, list(commonchans)))
+                    return
             print('best fit aligning %d spikes between tis=%r on chans=%r' %
                   (len(sids), list(tis), selchans)) # numpy implementation
             #dirtysids = s.alignbest(sids, tis, selchans) # cython implementation

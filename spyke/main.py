@@ -922,17 +922,14 @@ class SpykeWindow(QtGui.QMainWindow):
         spikes = s.spikes
 
         # find which chans are common to all sids
-        chanss = spikes['chans'][sids]
-        nchanss = spikes['nchans'][sids]
-        chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # array list
-        common_chans = util.intersect1d_uint8(chanslist) # find intersection
+        commonchans, chanslist = s.get_common_chans(sids)
 
         # get selected chans
         chans = self.get_selchans(sids)
         for chan in chans:
-            if chan not in common_chans:
+            if chan not in commonchans:
                 raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                   % (chan, list(common_chans)))
+                                   % (chan, list(commonchans)))
         nchans = len(chans)
         if nchans == 0:
             raise RuntimeError("no channels selected")
@@ -1088,7 +1085,8 @@ class SpykeWindow(QtGui.QMainWindow):
         kind = str(self.ui.componentAnalysisComboBox.currentText())
         sids = self.GetAllSpikes() # only selected spikes
         tis = sw.tis # waveform time indices to include, centered on spike
-        chans = np.asarray(self.get_selchans(sids))
+        selchans = np.asarray(self.get_selchans(sids))
+        chans = self.sort.get_common_chans(sids, selchans)[0]
         return kind, sids, tis, chans
 
     @QtCore.pyqtSlot()
