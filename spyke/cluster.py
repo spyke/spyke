@@ -171,6 +171,9 @@ class ClusterWindow(SpykeToolWindow):
         else:
             self.glWidget.keyPressEvent(event) # pass it down
 
+    def keyReleaseEvent(self, event):
+        self.glWidget.keyReleaseEvent(event) # pass it down
+
     def plot(self, X, sids, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
         X = tocontig(X) # ensure it's contig
@@ -193,6 +196,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
+        self.selecting = None # True (selecting), False (deselecting), or None
         self.update_sigmasqrtndims()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
@@ -606,6 +610,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         # release multiple buttons simultaneously the way you can press them simultaneously?
         button = event.button()
         if not self.movement: # no mouse movement, handle the clicks
+            pass
+            '''
             if button == QtCore.Qt.LeftButton:
                 self.selectPointsUnderCursor()
             elif button == QtCore.Qt.RightButton:
@@ -613,6 +619,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 if sids == None: # clear current selection
                     sw = self.spw.windows['Sort']
                     sw.clear()
+            '''
         self.movement = False # clear mouse movement flag, for completeness
     '''
     def mouseDoubleClickEvent(self, event):
@@ -623,27 +630,33 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.mousePressEvent(event) # register it as a normal mousePressEvent
     '''
     def mouseMoveEvent(self, event):
-        self.movement = True # mouse has moved since mousePressEvent
         buttons = event.buttons()
-        modifiers = event.modifiers()
-        shift = modifiers == Qt.ShiftModifier # only modifier is shift
-        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
-        dx = event.x() - self.lastPos.x()
-        dy = event.y() - self.lastPos.y()
 
-        if buttons == QtCore.Qt.LeftButton:
-            if shift:
-                self.pan(dx/700, -dy/700) # qt viewport y axis points down
-            elif ctrl:
-                self.roll(-0.5*dx - 0.5*dy)
-            else:
-                self.yaw(0.5*dx)
-                self.pitch(0.5*dy)
-        elif buttons == QtCore.Qt.RightButton:
-            if shift or ctrl:
-                self.spw.ui.sigmaSpinBox.stepBy(-dy)
-            else:
-                self.zoom(-dy/500) # qt viewport y axis points down
+        if buttons != Qt.NoButton:
+            self.movement = True # mouse has moved since mousePressEvent
+            modifiers = event.modifiers()
+            shift = modifiers == Qt.ShiftModifier # only modifier is shift
+            ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
+            dx = event.x() - self.lastPos.x()
+            dy = event.y() - self.lastPos.y()
+            if buttons == QtCore.Qt.LeftButton:
+                if shift:
+                    self.pan(dx/700, -dy/700) # qt viewport y axis points down
+                elif ctrl:
+                    self.roll(-0.5*dx - 0.5*dy)
+                else:
+                    self.yaw(0.5*dx)
+                    self.pitch(0.5*dy)
+            elif buttons == QtCore.Qt.RightButton:
+                if shift or ctrl:
+                    self.spw.ui.sigmaSpinBox.stepBy(-dy)
+                else:
+                    self.zoom(-dy/500) # qt viewport y axis points down
+            self.updateGL()
+            self.lastPos = QtCore.QPoint(event.pos())
+        elif self.selecting != None:
+            self.selectPointsUnderCursor()
+            return
         '''
         # pop up a tooltip on mouse movement, requires mouse tracking enabled
         if buttons == Qt.NoButton:
@@ -651,8 +664,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         else:
             QtGui.QToolTip.hideText()
         '''
-        self.updateGL()
-        self.lastPos = QtCore.QPoint(event.pos())
 
     def wheelEvent(self, event):
         modifiers = event.modifiers()
@@ -740,16 +751,22 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_Z: # make z axis point up
             self.rotateZUp()
         elif key == Qt.Key_S:
+            if event.isAutoRepeat():
+                return # event.ignore()?
             if shift:
                 self.save()
             else: # select points under the cursor, if any
-                self.selectPointsUnderCursor(on=True, clear=False)
+                self.selecting = True
+                self.setMouseTracking(True) # while selecting
+                self.selectPointsUnderCursor()
         elif key == Qt.Key_D: # deselect points under the cursor, if any
-            self.selectPointsUnderCursor(on=False, clear=False)
+            if event.isAutoRepeat():
+                return # event.ignore()?
+            self.selecting = False
+            self.setMouseTracking(True) # while deselecting
+            self.selectPointsUnderCursor()
         elif key == Qt.Key_V: # V for View
             self.showProjectionDialog()            
-        #elif key == Qt.Key_Space: # clear and select points under cursor, if any
-        #    self.selectPointsUnderCursor(on=True, clear=True)
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
@@ -761,6 +778,16 @@ class GLWidget(QtOpenGL.QGLWidget):
             sw.keyPressEvent(event) # pass it on to Sort window
 
         self.updateGL()
+
+    def keyReleaseEvent(self, event):
+        key = event.key()
+        modifiers = event.modifiers()
+        sw = self.spw.windows['Sort']
+        shift = Qt.ShiftModifier == modifiers # only modifier is shift
+        if not event.isAutoRepeat() and not shift and key in [Qt.Key_S, Qt.Key_D]:
+            # stop selecting/deselecting
+            self.setMouseTracking(False)
+            self.selecting = None
 
     def save(self):
         """Save cluster plot to file"""
@@ -808,24 +835,26 @@ class GLWidget(QtOpenGL.QGLWidget):
         else:
             QtGui.QToolTip.hideText()
 
-    def selectPointsUnderCursor(self, on=True, clear=False):
+    def selectPointsUnderCursor(self):
+        """Update point selection with those currently under cursor, within pixel border pb.
+        Call this method on S and D down, and on mouse motion when either S or D are down"""
+        if self.selecting == None: # nothing to do
+            return
         spw = self.spw
         sw = spw.windows['Sort']
-        if clear:
-            sw.uslist.clearSelection()
-            sw.nlist.clearSelection()
-        globalPos = QtGui.QCursor.pos()
-        pos = self.mapFromGlobal(globalPos)
-        x = pos.x()
-        y = self.size().height() - pos.y()
+        #if clear:
+        #    sw.uslist.clearSelection()
+        #    sw.nlist.clearSelection()
+        x, y = self.cursorPosGL()
         sids = self.pick(x, y, pb=10, multiple=True)
-        if sids != None:
-            # select/deselect spikes & their clusters too, if need be.
-            # for speed, cap max number of sids - maybe this should be a random selection:
-            sids = sids[:CLUSTERSELECTMAXNPOINTS]
-            spw.SelectSpikes(sids, on=on)
-        #self.showToolTip()
-        return sids
+        if sids == None:
+            return
+        t0 = time.time()
+        spw.SelectSpikes(sids, on=self.selecting)
+        print('SelectSpikes took %.3f sec' % (time.time()-t0))
+        ## TODO: paint sids appropriately - maybe set to grey, or desaturate when selected,
+        ## when restore colour when reselected, prolly by looking up current colour index
+        ## of each sid.
 
     def showProjectionDialog(self):
         """Get and set OpenGL ModelView matrix and focus.

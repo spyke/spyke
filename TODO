@@ -1,4 +1,4 @@
-- cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window
+- cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window - this would be eqv't to having independent sigmas per dimension
 
 - key bindings:
     - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected

@@ -604,7 +604,8 @@ def alignbest_cy(sort,
 def intersect1d_uint8(arrs):
     """Find the intersection of any number of 1D arrays in arrs list.
     Return the sorted, unique values that are in all of the input arrays.
-    Adapted from numpy.lib.arraysetops.intersect1d"""
+    This is a much faster (at least for many arrs) but type-specific version of
+    core.intersect1d()"""
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] arr
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] common = np.unique(arrs[0])
     cdef int ncommon=common.shape[0]
@@ -619,6 +620,10 @@ def intersect1d_uint8(arrs):
         i = 0 # reset
         while i < ncommon:
             #print('i = %d' % i)
+            ## TODO: this naive search could be sped up by assuming sorted arrs, or by
+            ## first sorting each arr with the quicksort algorithm, although that would
+            ## modify each array in place, and so the caller would need to send a copy
+            ## to prevent modifying the originals:
             for j in range(lenarr):
                 #print('j = %d' % j)
                 if common[i] == arr[j]:

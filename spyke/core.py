@@ -944,11 +944,15 @@ class SpykeListView(QtGui.QListView):
             '''
             nadd = len(addis)
             maxnadd = max(MAXNSPIKEPLOTS - self.nrowsSelected + nadd, 0)
-            if maxnadd < nadd:
+            if nadd > maxnadd:
                 print('randomly adding %d plots of %d selected spikes'
                       % (maxnadd, self.nrowsSelected))
+                if maxnadd == 0:
+                    return
                 addis = random.sample(addis, maxnadd)
+        t0 = time.time()
         panel.addItems([ prefix+str(i) for i in addis ])
+        print('addItems took %.3f sec' % (time.time()-t0))
         #print("done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):
@@ -959,7 +963,7 @@ class SpykeListView(QtGui.QListView):
 
     nrows = property(get_nrows)
 
-    def selectRows(self, rows, on=True, scrollTo=True):
+    def selectRows(self, rows, on=True, scrollTo=False):
         """Row selection in listview is complex. This makes it simpler"""
         ## TODO: There's a bug here, where if you select the last two neurons in nlist,
         ## (perhaps these last two need to be near a list edge), merge them, and then
@@ -1083,6 +1087,11 @@ class NSList(SpykeListView):
         self.model().neurons = neurons
 
     neurons = property(get_neurons, set_neurons)
+
+    def get_nids(self):
+        return np.asarray([ neuron.id for neuron in self.model().neurons ])
+
+    nids = property(get_nids)
 
     def get_sids(self):
         return self.model().sids

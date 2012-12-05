@@ -1476,37 +1476,48 @@ class SpykeWindow(QtGui.QMainWindow):
         return on
 
     def SelectSpikes(self, sids, on=True):
-        """Set selection state of given spike, as well as its current cluster, if any"""
+        """Set selection state of given spikes, as well as their current clusters, if any"""
         sw = self.windows['Sort']
         nids = self.sort.spikes['nid'][sids]
 
         # select/deselect any unclustered spikes:
-
         usids = sids[nids == 0]
-        usrows = self.sort.usids.searchsorted(usids)
-        sw.uslist.selectRows(usrows, on=on)
+        if len(usids) > 0:
+            usrows = self.sort.usids.searchsorted(usids)
+            sw.uslist.selectRows(usrows, on=on)
 
-        # select/deselect any clustered spikes:
-
+        # select/deselect any clustered spikes, as well as their clusters:
         csids = sids[nids != 0] # clustered spike ids
         unids = np.unique(nids)
         unids = unids[unids != 0] # remove cluster 0
-        # all unids will be in sort.norder list, find their positions
-        nlistrows = [ self.sort.norder.index(unid) for unid in unids ]
-        # save any already selected sids in nslist, reselect them later:
+        # get currently selected sids in nslist, and the unids they belong to:
         selsids = sw.nslist.sids[sw.nslist.selectedRows()] # hopefully don't need a copy
-        if on == False: # deselecting spikes:
-            if len(np.intersect1d(csids, selsids, assume_unique=True)) == 0:
-                return # nothing to deselect
-        # select all the involved clusters so nslist has correct contents, this may
-        # change contents of nslist and hence clear any currently selected sids:
-        sw.nlist.selectRows(nlistrows, on=True)
-        # reselect already selected sids in nslist:
-        nslistrows = sw.nslist.sids.searchsorted(selsids)
-        sw.nslist.selectRows(nslistrows, on=True)
-        # now do the actual clustered spike selection:
+        selunids = sw.nslist.nids
+        if on == True: # find clustered spikes to add to selection:
+            # add csids to selsids (get values in csids that aren't in selsids):
+            csids = np.setdiff1d(csids, selsids, assume_unique=True) # to add
+            allcsids = np.union1d(csids, selsids) # final
+        elif on == False: # find clustered spikes to remove from selection:
+            # remove csids from selsids:
+            csids = np.intersect1d(csids, selsids, assume_unique=True) # to remove
+            allcsids = np.setdiff1d(csids, selsids, assume_unique=True) # final
+        else:
+            raise ValueError("invalid 'on' value: %r" % on)
+        if len(csids) == 0:
+            return # no clustered spikes to add or remove
+        newunids = np.unique(self.sort.spikes['nid'][allcsids]) # excludes cluster 0
+        # select any new clusters so nslist has correct contents, this
+        # changes contents of nslist and hence clears any currently selected sids:
+        addunids = np.setdiff1d(newunids, selunids)
+        if len(addunids) > 0:
+            # all nids will be in sort.norder list, find their positions
+            addnlistrows = [ self.sort.norder.index(unid) for unid in addunids ]
+            sw.nlist.selectRows(addnlistrows, on=True)
+        # now do the clustered spike selection:
         nslistrows = sw.nslist.sids.searchsorted(csids) # nslist.sids is sorted
+        t0 = time.time()
         sw.nslist.selectRows(nslistrows, on=on)
+        print('nslist.selectRows took %.3f sec' % (time.time()-t0))
 
     def CreateCluster(self, update=True, id=None, inserti=None):
         """Create a new cluster, add it to the GUI, return it"""
