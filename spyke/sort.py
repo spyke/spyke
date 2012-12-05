@@ -1900,6 +1900,10 @@ class SortWindow(SpykeToolWindow):
             spw.SelectClusters(clusters, on=False)
         else:
             self.nlist.clearSelection()
+        # reset colours in cluster plot:
+        gw = spw.windows['Cluster'].glWidget
+        gw.colour()
+        gw.updateGL()
 
     def on_actionDelete_triggered(self):
         """Delete selected spikes or clusters"""
@@ -2113,6 +2117,8 @@ class SortWindow(SpykeToolWindow):
         del s.neurons[oldid]
         # replace oldid with newid in norder
         s.norder[s.norder.index(oldid)] = newid
+        # update colour of any relevant points in cluster plot
+        spw.ColourPoints(cluster)
         # reselect cluster
         spw.SelectClusters(cluster)
         # some cluster changes in stack may no longer be applicable, reset cchanges

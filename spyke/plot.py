@@ -80,7 +80,7 @@ NCLOSESTCHANSTOSEARCH = 10
 PICKRADIUS = 15 # required for 'line.contains(event)' call
 #PICKTHRESH = 2.0 # in pixels? has to be a float or it won't work?
 
-DEFNPLOTS = 50 # default number of plots to init in SortPanel
+DEFNPLOTS = 200 # default number of plots to init in SortPanel
 DEFNFILLS = 50 # default number of fills to init in SortPanel
 
 CARETZORDER = 0 # layering

@@ -17,7 +17,6 @@ from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
 from plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
 
 CLUSTERPARAMMAXSAMPLES = 2000
-CLUSTERSELECTMAXNPOINTS = 100
 VIEWDISTANCE = 50
 
 
@@ -41,10 +40,10 @@ class Cluster(object):
     id = property(get_id, set_id)
     '''
     # unused:
-    def get_color(self):
+    def get_colour(self):
         return CLUSTERCOLOURRGBDICT[self.id]
 
-    color = property(get_color)
+    colour = property(get_colour)
     '''
     def __getstate__(self):
         """Get object state for pickling"""
@@ -182,9 +181,7 @@ class ClusterWindow(SpykeToolWindow):
         gw.npoints = len(X)
         gw.sids = sids
         gw.nids = nids
-        # uint8, single unit nids are 1-based:
-        gw.colors = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1]
-        gw.colors[nids < 1] = GREYRGB # overwrite unclustered/multiunit points with GREYRGB
+        gw.colour() # set colours
         gw.updateGL()
 
 
@@ -222,6 +219,21 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     sids = property(get_sids, set_sids)
 
+    def colour(self, sids=None, sat=1):
+        """Set colours of points corresponding to sids according to their nids, with
+        saturation level sat. Caller is responsible for calling self.updateGL()"""
+        if sids == None: # init/overwrite self.colours
+            nids = self.nids
+            # uint8, single unit nids are 1-based:
+            self.colours = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
+            # overwrite unclustered/multiunit points with GREYRGB
+            self.colours[nids < 1] = GREYRGB * sat
+        else: # assume self.colours exists
+            sidis = self.sids.searchsorted(sids)
+            nids = self.nids[sidis]
+            self.colours[sidis] = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
+            self.colours[sidis[nids < 1]] = GREYRGB * sat
+
     def initializeGL(self):
         # these are the defaults anyway, but just to be thorough:
         GL.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -251,7 +263,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
-        GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
+        GL.glColorPointerub(self.colours) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
 
@@ -574,7 +586,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         """Convert encoded rgb value to sid"""
         r, g, b = rgb
         sid = r*65536 + g*256 + b
-        if sid != 16777215: # 2**24 - 1
+        if sid < 16777215: # 2**24 - 1
             return sid # it's a valid sid
 
     def cursorPosQt(self):
@@ -849,12 +861,15 @@ class GLWidget(QtOpenGL.QGLWidget):
         sids = self.pick(x, y, pb=10, multiple=True)
         if sids == None:
             return
-        t0 = time.time()
+        #t0 = time.time()
         spw.SelectSpikes(sids, on=self.selecting)
-        print('SelectSpikes took %.3f sec' % (time.time()-t0))
-        ## TODO: paint sids appropriately - maybe set to grey, or desaturate when selected,
-        ## when restore colour when reselected, prolly by looking up current colour index
-        ## of each sid.
+        #print('SelectSpikes took %.3f sec' % (time.time()-t0))
+        if self.selecting == True:
+            sat = 0.2 # desaturate
+        else: # self.selecting == False
+            sat = 1 # resaturate
+        self.colour(sids, sat=sat)
+        self.updateGL()
 
     def showProjectionDialog(self):
         """Get and set OpenGL ModelView matrix and focus.

@@ -56,7 +56,7 @@ MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.
 
 MAXNCLIMBPOINTS = 25000
 
-MAXNSPIKEPLOTS = 500
+MAXNSPIKEPLOTS = 200
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
@@ -950,9 +950,9 @@ class SpykeListView(QtGui.QListView):
                 if maxnadd == 0:
                     return
                 addis = random.sample(addis, maxnadd)
-        t0 = time.time()
+        #t0 = time.time()
         panel.addItems([ prefix+str(i) for i in addis ])
-        print('addItems took %.3f sec' % (time.time()-t0))
+        #print('addItems took %.3f sec' % (time.time()-t0))
         #print("done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):

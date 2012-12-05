@@ -1515,9 +1515,9 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.nlist.selectRows(addnlistrows, on=True)
         # now do the clustered spike selection:
         nslistrows = sw.nslist.sids.searchsorted(csids) # nslist.sids is sorted
-        t0 = time.time()
+        #t0 = time.time()
         sw.nslist.selectRows(nslistrows, on=on)
-        print('nslist.selectRows took %.3f sec' % (time.time()-t0))
+        #print('nslist.selectRows took %.3f sec' % (time.time()-t0))
 
     def CreateCluster(self, update=True, id=None, inserti=None):
         """Create a new cluster, add it to the GUI, return it"""
@@ -1543,8 +1543,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SelectClusters(clusters, on=False) # first deselect them all
         sw = self.windows['Sort']
         cw = self.windows['Cluster']
+        self.ColourPoints(clusters, setnid=0) # decolour before clusters lose their sids
         for cluster in clusters:
-            self.DeColourPoints(cluster.neuron.sids) # decolour before neuron loses its sids
             sw.RemoveNeuron(cluster.neuron, update=update)
         cw.glWidget.updateGL()
         if update:
@@ -1559,30 +1559,25 @@ class SpykeWindow(QtGui.QMainWindow):
         s.update_usids()
         sw.uslist.updateAll()
 
-    def ColourPoints(self, clusters):
+    def ColourPoints(self, clusters, setnid=None):
         """Colour the points that fall within each cluster (as specified
-        by cluster.neuron.sids) the same colour as the cluster itself"""
+        by cluster.neuron.sids) the same colour as the cluster itself. Or, if
+        setnid != None, colour all points in clusters according to setnid value"""
         clusters = toiter(clusters)
         gw = self.windows['Cluster'].glWidget
         for cluster in clusters:
             neuron = cluster.neuron
             # not all (or any) of neuron.sids may currently be plotted
             commonsids = np.intersect1d(neuron.sids, gw.sids)
-            coloris = gw.sids.searchsorted(commonsids)
-            if neuron.id < 1: # junk or multiunit cluster
-                gw.colors[coloris] = GREYRGB
-            else: # single unit nids are 1-based:
-                gw.colors[coloris] = CLUSTERCOLOURSRGB[neuron.id % len(CLUSTERCOLOURSRGB) - 1]
+            if len(commonsids) > 0:
+                sidis = gw.sids.searchsorted(commonsids)
+                # set new nids for commonsids in glWidget:
+                if setnid == None:
+                    gw.nids[sidis] = neuron.id
+                else:
+                    gw.nids[sidis] = setnid
+                gw.colour(commonsids) # recolour commonsids according to their nids
         gw.updateGL()
-
-    def DeColourPoints(self, sids):
-        """Restore spike point colour in cluster plot at spike indices to unclustered GREY.
-        Need to call cw.glWidget.updateGL() afterwards"""
-        gw = self.windows['Cluster'].glWidget
-        # not all (or any) of sids may currently be plotted
-        commonsids = np.intersect1d(sids, gw.sids)
-        coloris = gw.sids.searchsorted(commonsids)
-        gw.colors[coloris] = GREYRGB
 
     def SetClusteringDims(self, dims):
         dimlist = self.ui.dimlist
@@ -2309,7 +2304,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.UpdateClustersGUI() # restore nlist and uslist
         try:
             self.sort.spikes
-            self.ColourPoints(self.sort.clusters.values()) # colour points for all clusters in one shot
+            # colour points for all clusters in one shot:
+            self.ColourPoints(self.sort.clusters.values())
         except AttributeError: pass # no spikes
         self.OpenWindow('Sort')
 
