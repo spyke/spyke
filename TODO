@@ -1300,7 +1300,8 @@ DONE:
 - optimize alignbest() - can be very slow (10s of seconds) for very big clusters (100s of thousands of spikes) - switch to Cython and/or multiprocessing/multithreading
 rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by stepping by N // MEANWAVEMAXSAMPLES + 1 points, as in NDsepmetric(). This makes calculating a neuron's mean waveform faster *and* deterministic.
 - on merge, instead of the final cluster acquiring the id of the lowest id'd cluster, it should take on the id of the biggest cluster
-
+- density split: lets you split a pair of clusters at the point between their centers where the number of spikes is a minimum
+    - problem with GAC sometimes is that when you're splitting a pair of clusters and one is denser than the other, GAC divides them at a point further from the dense cluster than you'd like, ie past the point of lowest total spike density. Although this may be Bayesian optimal, and can be remedied somewhat by using a smaller sigma, but the problem persists. As during many of the calcs done for the cluster histogram in the MPL window, this solution proposes drawing a line between the centers of the two clusters and projecting all of their points onto that line. Then, histogram the projections (use nbins = sqrt(npoints), as usual), then find the smallest bin between the centers, and divide up the spikes according to what side of that division they fall
 
 
 

@@ -795,7 +795,8 @@ class Sort(object):
         # wavedata:
         spikes['tis'][sids] += nt
         # caller should treat all sids as dirty
-
+    '''
+    # replaced by util.alignbest_cy():
     def alignbest(self, sids, tis, chans):
         """Align all sids between tis on chans by best fit according to mean squared error.
         chans are assumed to be a subset of channels of sids. Return sids
@@ -888,7 +889,7 @@ class Sort(object):
         stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
         print('stdev went from %.3f to %.3f uV' % (stdevbefore, stdevafter))
         return dirtysids
-
+    '''
     def alignminmax(self, sids, to):
         """Align sids by their min or max. Return those that were actually moved
         and therefore need to be marked as dirty"""
@@ -1675,6 +1676,14 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionChanSplitClusters_triggered)
         toolbar.addAction(actionChanSplitClusters)
 
+        actionDensitySplit = QAction('P', self)
+        tt = ('<nobr><b>P</b> &nbsp; Split cluster pair by density along line between '
+              'their centers</nobr>')
+        actionDensitySplit.setToolTip(tt)
+        self.connect(actionDensitySplit, QtCore.SIGNAL('triggered()'),
+                     self.on_actionDensitySplit_triggered)
+        toolbar.addAction(actionDensitySplit)
+
         actionRandomSplit = QAction('\\', self)
         tt = ('<nobr><b>\\</b> &nbsp; Randomly split clusters exceeding %d</nobr>'
               % core.MAXNCLIMBPOINTS)
@@ -1843,6 +1852,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionLabelMultiunit_triggered()
         elif key == Qt.Key_Slash: # ignored in SpykeListViews
             self.on_actionChanSplitClusters_triggered()
+        elif key == Qt.Key_P: # ignored in SpykeListViews
+            self.on_actionDensitySplit_triggered()
         elif key == Qt.Key_Backslash: # ignored in SpykeListViews
             self.on_actionRandomSplit_triggered()
         elif key == Qt.Key_NumberSign: # ignored in SpykeListViews
@@ -2077,6 +2088,10 @@ class SortWindow(SpykeToolWindow):
     def on_actionChanSplitClusters_triggered(self):
         """Split by channels button (/) click"""
         self.spykewindow.chansplit()
+
+    def on_actionDensitySplit_triggered(self):
+        """Split cluster pair by density along line between their centers"""
+        self.spykewindow.densitysplit()
 
     def on_actionRandomSplit_triggered(self):
         """Randomly split each selected cluster if it has a population
@@ -2597,7 +2612,7 @@ class SortWindow(SpykeToolWindow):
             self.nslist.neurons = self.nslist.neurons # this triggers a refresh
         neuron.wave.data = None # triggers an update when it's actually needed
 
-    def PlotClusterHistogram(self, X, sids, nids):
+    def PlotClusterHistogram(self, X, nids):
         """Plot histogram of given clusters along a single dimension. If two clusters are
         given, project them onto axis connecting their centers, and calculate separation
         indices between them. Otherwise, plot the distribution of all given clusters
@@ -2649,7 +2664,7 @@ class SortWindow(SpykeToolWindow):
         for cpoints in points:
             projs.append(np.dot(cpoints-c0, line))
         if calc_measures:
-            d = np.linalg.norm(np.median(projs[1]) - np.median(projs[0]))
+            d = np.median(projs[1]) - np.median(projs[0])
             # measure whether centers are at least 3 of the bigger stdevs away from
             # each other:
             oneDsep = d / (3 * max(projs[0].std(), projs[1].std()))

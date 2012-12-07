@@ -717,6 +717,75 @@ class SpykeWindow(QtGui.QMainWindow):
             nids[nidsi] = subnids + nidoffset
         return nids
 
+    def chansplit(self):
+        """Split spikes into clusters of unique channel combinations"""
+        s = self.sort
+        spikes = s.spikes
+        sids = self.GetAllSpikes() # all selected spikes
+        oldclusters = self.GetClusters() # all selected clusters
+        if len(sids) == 0: # nothing selected
+            sids = spikes['id'] # all spikes (sorted)
+            oldclusters = s.clusters.values() # all clusters
+        t0 = time.time()
+        chans = spikes[sids]['chans']
+        chans = tocontig(chans) # string view won't work without contiguity
+        strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
+        # each row in uchancombos is a unique combination of chans:
+        uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
+        if len(uchancombos) == 1:
+            print("selected spikes all share the same set of channels, can't chansplit")
+            return
+        nids = np.zeros(len(sids), dtype=np.int32) # init to unclustered, shouldn't be any once done
+        for comboi, uchancombo in enumerate(uchancombos):
+            nids[(chans == uchancombo).all(axis=1)] = comboi + 1
+        if (nids == 0).any():
+            raise RuntimeError("there shouldn't be any unclustered points from chansplit")
+        print('chansplit took %.3f sec' % (time.time()-t0))
+        self.apply_clustering(oldclusters, sids, nids, verb='channel split')
+
+    def densitysplit(self):
+        """Split cluster pair by density along line between their centers in current
+        cluster space"""
+        s = self.sort
+        spikes = s.spikes
+        oldclusters = self.GetClusters() # all selected clusters
+        if len(oldclusters) != 2:
+            print("need to select exactly 2 clusters to split them by density")
+            return
+        dims = self.GetClusterPlotDims()
+        try:
+            X, sids = self.get_param_matrix(dims=dims)
+        except RuntimeError, errmsg:
+            print(errmsg)
+            return
+
+        nids = s.spikes['nid'][sids] # copy
+        unids = np.unique(nids)
+        assert len(unids) == 2
+        # centers of both clusters, use median:
+        i0 = nids == unids[0]
+        i1 = nids == unids[1]
+        c0 = np.median(X[i0], axis=0) # ndims vector
+        c1 = np.median(X[i1], axis=0)
+        # line connecting the centers of the two clusters, wrt c0
+        line = c1-c0
+        line /= np.linalg.norm(line) # make it unit length
+        #print('c0=%r, c1=%r, line=%r' % (c0, c1, line))
+        proj = np.dot(X-c0, line) # projection of each point onto line
+        nbins = max(intround(np.sqrt(len(proj))), 2) # good heuristic
+        #print('nbins = %d' % nbins)
+        hist, edges = np.histogram(proj, bins=nbins)
+        ei0, ei1 = edges.searchsorted((np.median(proj[i0]), np.median(proj[i1])))
+        # find histogram min between cluster medians:
+        threshi = hist[ei0:ei1].argmin()
+        thresh = edges[ei0:ei1][threshi]
+        #print('thresh is %.3f' % thresh)
+        #print('ei0, ei1: %d, %d' % (ei0, ei1))
+        assert ei0 < ei1 # think this is always the case because projections are wrt c0
+        nids[proj < thresh] = unids[0] # overwrite nid values in nids, since it's a copy
+        nids[proj >= thresh] = unids[1]
+        self.apply_clustering(oldclusters, sids, nids, verb='density split')
+
     def randomsplit(self):
         """Check if any subsids are > MAXNCLIMBPOINTS long, and if so, randomly split them
         into (approximately) equal size clusters of MAXCLIMBPOINTS or less. This is
@@ -754,32 +823,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if (nids == 0).any():
             raise RuntimeError("there shouldn't be any unclustered points from randomsplit")
         self.apply_clustering(oldclusters, sids, nids, verb='randomly split')
-
-    def chansplit(self):
-        """Split spikes into clusters of unique channel combinations"""
-        s = self.sort
-        spikes = s.spikes
-        sids = self.GetAllSpikes() # all selected spikes
-        oldclusters = self.GetClusters() # all selected clusters
-        if len(sids) == 0: # nothing selected
-            sids = spikes['id'] # all spikes (sorted)
-            oldclusters = s.clusters.values() # all clusters
-        t0 = time.time()
-        chans = spikes[sids]['chans']
-        chans = tocontig(chans) # string view won't work without contiguity
-        strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
-        # each row in uchancombos is a unique combination of chans:
-        uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
-        if len(uchancombos) == 1:
-            print("selected spikes all share the same set of channels, can't chansplit")
-            return
-        nids = np.zeros(len(sids), dtype=np.int32) # init to unclustered, shouldn't be any once done
-        for comboi, uchancombo in enumerate(uchancombos):
-            nids[(chans == uchancombo).all(axis=1)] = comboi + 1
-        if (nids == 0).any():
-            raise RuntimeError("there shouldn't be any unclustered points from chansplit")
-        print('chansplit took %.3f sec' % (time.time()-t0))
-        self.apply_clustering(oldclusters, sids, nids, verb='chansplit')
 
     def climb(self, sids, dims):
         """Cluster sids along dims, using NVS's gradient ascent algorithm"""
@@ -1110,7 +1153,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nids = s.spikes['nid'][sids]
         cw.plot(X, sids, nids)
         sw = self.OpenWindow('Sort') # in case it isn't already open
-        sw.PlotClusterHistogram(X, sids, nids) # auto update cluster histogram plot
+        sw.PlotClusterHistogram(X, nids) # auto update cluster histogram plot
 
     @QtCore.pyqtSlot()
     def get_cleaning_density_hist(self):
