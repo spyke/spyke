@@ -2030,14 +2030,15 @@ class SortWindow(SpykeToolWindow):
         print(cc.message)
 
     def on_actionToggleClustersGood_triggered(self):
-        """'Good' button (G) click. For simple merging of clusters, easier to
-        use than running climb() on selected clusters using a really big sigma to force
-        them to all merge"""
+        """'Good' button (G) click. Toggle 'good' flag of all selected clusters"""
         spw = self.spykewindow
         clusters = spw.GetClusters()
+        cids = []
         for cluster in clusters:
             cluster.neuron.good = not cluster.neuron.good
+            cids.append(cluster.id)
         self.nlist.updateAll() # nlist item colouring will change as a result
+        print("toggled 'good' flag of clusters %r" % cids)
 
     def on_actionLabelMultiunit_triggered(self):
         """- button click. Label all selected clusters as multiunit by deleting them
