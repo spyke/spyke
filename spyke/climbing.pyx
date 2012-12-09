@@ -322,7 +322,8 @@ cdef int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
                 mlist[nm] = j
                 nm += 1
         # merge all queued scouts into scout i
-        M = merge(i, mlist, nm, M, sr, still, N, cids)
+        if nm > 0:
+            M = merge(i, mlist, nm, M, sr, still, N, cids)
         i += 1
     return M
 
@@ -455,25 +456,34 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
 cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
                bint *still, int N, int *cids) nogil:
     """Merges ordered scouts in mlist into scouti, where scouti < all scouts in mlist"""
-    cdef Py_ssize_t mi, i, cii
-    # iterate over mlist in reverse order to merge in highest scouts first:
-    for mi in range(nm-1, -1, -1):
+    cdef Py_ssize_t mi, scoutj, src, dst, cii, decr
+    #assert nm > 0
+    mi = 1
+    scoutj = mlist[mi]
+    ## TODO: might be more efficient to call memcpy for every contig block of memory between
+    ## scouts in mlist, but have to be careful about overlapping mem ranges - there's an
+    ## alternative to memcpy in that case...:
+    for src in range(mlist[0]+1, M):
+        if src == scoutj:
+            if mi < nm-1:
+                mi += 1
+                scoutj = mlist[mi]
+        else:
+            dst = src - mi
+            sr[dst] = sr[src]
+            still[dst] = still[src]
+    # update cluster indices, doesn't need to be done in succession, can use prange,
+    # but runs slower than a single thread - operations are too simple?
+    #for cii in prange(N, nogil=True, schedule='static'):
+    ## TODO: try prange here
+    for mi in range(nm-1, -1, -1): # reverse order, decr cids of highest scouts first
         scoutj = mlist[mi]
-        if not scouti < scoutj: # can only merge higher id into lower id!
-            printf('ERROR: scouti >= scoutj: %d >= %d\n', scouti, scoutj)
-        # shift all entries at j and above in sr and still arrays down by one,
-        # needs to be done in succession, can't use prange
-        for i in range(scoutj, M-1):
-            sr[i] = sr[i+1]
-            still[i] = still[i+1]
-        # update cluster indices, doesn't need to be done in succession, can use prange,
-        # but runs slower than a single thread - operations are too simple?
-        #for cii in prange(N, nogil=True, schedule='static'):
+        decr = mi+1
         for cii in range(N):
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
             elif cids[cii] > scoutj:
-                cids[cii] -= 1 # decr all clust indices above scout j
-        #printf(' %d<-%d ', scouti, scoutj)
+                cids[cii] -= decr # decr all clust indices above scout j
+            #printf(' %d<-%d ', scouti, scoutj)
     M -= nm # decr num scouts
     return M
