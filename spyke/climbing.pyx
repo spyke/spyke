@@ -9,7 +9,7 @@
 from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
-#import time
+import time
 
 cdef extern from "math.h":
     double fabs(double x) nogil
@@ -22,10 +22,11 @@ cdef extern from "stdio.h":
     cdef void *malloc(size_t) nogil # allocates without clearing to 0
     cdef void *calloc(size_t, size_t) nogil # allocates with clearing to 0
     cdef void free(void *) nogil
-'''
+
 cdef extern from "string.h":
     cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
-'''
+    cdef void *memcpy(void *, void *, size_t) nogil # copy to *dest from *src n bytes
+
 # NOTE: stdout is buffered by default in linux. This means anything printed to screen from
 # within C code won't show up until it gets a newline, or until you call fflush(stdout).
 # Unbuffered output can be forced by running Python with the "-u" switch
@@ -179,9 +180,13 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     while True:
 
+        t0 = time.time()
         # merge scouts within rmerge of each other
         M = merge_scouts(M, sr, scouts, rmerge, rmerge2, still,
                          N, cids, ndims, &merged)
+        print('merge_scouts took %.3f sec' % (time.time()-t0))
+        break
+
         if merged: # at least one merger happened on this iter
             printf('%d', M) # print the value of M
             nnomerges = 0 # reset
@@ -282,15 +287,24 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
     cdef Py_ssize_t i=0, j, k
     cdef double d, d2
     cdef bint continuej=False
+    cdef int *sr2 = <int *> malloc(M*sizeof(int))
+    if not sr2: raise MemoryError("can't allocate sr2")
+    memcpy(sr2, sr, M*sizeof(int))
+    cdef bint *still2 = <bint *> calloc(M, sizeof(bint))
+    if not still2: raise MemoryError("can't allocate still2")
+    memcpy(still2, still, M*sizeof(bint))
+    cdef long long nloops = 0
+    M = 10000
     while i < M:
         j = i+1
         while j < M:
             if still[i] and still[j]: # both scouts are frozen
                 j += 1
                 continue
-            # for each pair of scouts, check if any pair is within rmerge of each other
+            # for each pair of scouts, check if they're within rmerge of each other
             d2 = 0.0 # reset
             for k in range(ndims):
+                nloops += 1
                 d = scouts[sr[i]][k] - scouts[sr[j]][k]
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
@@ -305,12 +319,17 @@ cdef int merge_scouts(int M, int *sr, float **scouts, double rmerge, double rmer
                 continue # to next j
             if d2 <= rmerge2:
                 # merge the scouts: keep scout i, ditch scout j
-                M = merge(i, j, M, sr, still, N, cids)
+                #M = merge(i, j, M, sr, still, N, cids)
                 # don't inc j, new value at j has just slid into view
+                M = merge(i, j, M, sr2, still2, N, cids)
+                #M -= 1
+                j += 1
                 merged[0] = True
             else:
                 j += 1
         i += 1
+    print('nloops: %d' % nloops)
+    free(sr2)
     return M
 
 
@@ -458,6 +477,6 @@ cdef int merge(Py_ssize_t scouti, Py_ssize_t scoutj, int M, int *sr,
             cids[cii] = scouti # replace all scoutj entries with scouti
         elif cids[cii] > scoutj:
             cids[cii] -= 1 # decr all clust indices above scout j
-    M -= 1 # decr num scouts
+    #M -= 1 # decr num scouts
     #printf(' %d<-%d ', scouti, scoutj)
     return M
