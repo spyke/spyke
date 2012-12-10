@@ -184,15 +184,15 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     while True:
 
-        #t0 = time.time()
+        t0 = time.time()
         # merge scouts within rmerge of each other
         newM = merge_scouts(M, sr, scouts, mlist, rmerge, rmerge2, still, N, cids, ndims)
-        #print('merge_scouts took %.3f sec' % (time.time()-t0))
+        print('merge_scouts took %.3f sec' % (time.time()-t0))
         #break
 
         if newM != M: # at least one merger happened on this iter
             M = newM
-            printf('M=%d\n', M) # print the value of M
+            printf('%d', M) # print the value of M
             nnomerges = 0 # reset
         else: # no mergers happened on this iter
             nnomerges += 1 # inc
@@ -207,7 +207,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 move_scout(scouti, sr, scouts, points, exps, still, maxgrad,
                            N, ndims, alpha, rneigh, rneigh2, minmove2)
 
-        printf('.\n')
+        printf('.')
 
         iteri += 1
 
@@ -466,6 +466,7 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
     """Merge scouts represented by ordered indices into sr in mlist into scouti, where i < j for scouti = sr[i] and scoutj = sr[j]"""
     cdef Py_ssize_t mi, j, scoutj, src, dst, cii, decr
     #assert nm > 0
+    '''
     printf('cids before cids loop: ')
     for cii in range(N):
         printf('%d, ', cids[cii])
@@ -476,15 +477,15 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
     for mi in range(nm):
         printf('%d, ', mlist[mi])
     printf('\n')
-
+    '''
     # cids loop: do this before sr loop, which shifts contents of sr, thereby messing up
     # dereferencing values in mlist
-    for mi in range(nm):
+    for mi in prange(nm, nogil=True):
         scoutj = sr[mlist[mi]]
-        for cii in range(N): ## TODO: try prange here?
+        for cii in range(N):
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
-
+    '''
     printf('cids after cids loop: ')
     for cii in range(N):
         printf('%d, ', cids[cii])
@@ -494,19 +495,19 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
     for j in range(M):
         printf('%d, ', sr[j])
     printf('\n')
-
+    '''
     # init mi and j for sr loop
     mi = 1
-    printf('mi: %d\n', mi)
+    #printf('mi: %d\n', mi)
     if mi < nm:
         j = mlist[mi] # update to mi'th adjusted j value in mlist
     else:
         j = -1
-    printf('j1: %d\n', j)
+    #printf('j1: %d\n', j)
    
     ## TODO: if say M > 10000, might be more efficient to call memcpy for every contig
     ## block of memory between scouts in mlist, but have to be careful about overlapping
-    ## mem ranges - I think there's an alternative to memcpy in that case...
+    ## mem ranges - I think there's an alternative to memcpy in that case: memmove
 
     # various cases:
     # - consecutive values in mlist
@@ -516,27 +517,27 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
     # sr loop: delete all mlist entries from sr
     dst = mlist[0]
     for src in range(mlist[0]+1, M): # start just after the first j value in mlist
-        printf('src: %d\n', src)
+        #printf('src: %d\n', src)
         if src == j:
             # read pointer has reached the next value in mlist, skip this value,
             # ie don't shift contents of sr down at this value of src
             mi += 1
-            printf('mi: %d\n', mi)
+            #printf('mi: %d\n', mi)
             if mi < nm:
                 j = mlist[mi] # update to mi'th adjusted j value in mlist
             else:
                 j = -1
-            printf('j: %d\n', j)
+            #printf('j: %d\n', j)
         else: # shift contents of sr at src down to dst
-            printf('dst: %d\n', dst)
+            #printf('dst: %d\n', dst)
             sr[dst] = sr[src]
             dst += 1
     
     M -= nm # decr num scouts
-
+    '''
     printf('sr after sr loop: ')
     for j in range(M):
         printf('%d, ', sr[j])
     printf('\n')
-
+    '''
     return M
