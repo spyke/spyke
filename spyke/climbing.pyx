@@ -32,6 +32,7 @@ cdef extern from "string.h":
 # Unbuffered output can be forced by running Python with the "-u" switch
 
 #DEF MAXUINT16 = 2**16 - 1
+#DEF MAXINT32 = 2**31 - 1
 
 def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
           double sigma=0.25, double rmergex=0.25, double rneighx=4,
@@ -114,7 +115,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int ndims = data.shape[1] # num cols in data table
     cdef int *dims = <int *> malloc(ndims*sizeof(int)) # dimension sizes
     cdef int *ndi = <int *> malloc(ndims*sizeof(int)) # n-dimensional index working array
-    cdef int *cids = <int *> malloc(N*sizeof(int)) # cluster indices into data
+    cdef int *cids = <int *> malloc(N*sizeof(int)) # cluster indices of data points
     if not cids: raise MemoryError("can't allocate cids")
     irange(cids, N) # init cids to consecutive int values
     cdef int M = N # current num scout points (clusters), each data point starts as its own scout
@@ -169,7 +170,6 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int *mlist = <int *> malloc(M*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist")
 
-
     # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
     randis = np.arange(N)
     np.random.shuffle(randis) # in place
@@ -184,15 +184,15 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     while True:
 
-        t0 = time.time()
+        #t0 = time.time()
         # merge scouts within rmerge of each other
         newM = merge_scouts(M, sr, scouts, mlist, rmerge, rmerge2, still, N, cids, ndims)
-        print('merge_scouts took %.3f sec' % (time.time()-t0))
+        #print('merge_scouts took %.3f sec' % (time.time()-t0))
         #break
 
         if newM != M: # at least one merger happened on this iter
             M = newM
-            printf('%d', M) # print the value of M
+            printf('M=%d\n', M) # print the value of M
             nnomerges = 0 # reset
         else: # no mergers happened on this iter
             nnomerges += 1 # inc
@@ -201,33 +201,35 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             break
 
         # move scouts up their local density gradient
-        for scouti in prange(M, nogil=True, schedule='dynamic'):
+        for i in prange(M, nogil=True, schedule='dynamic'):
+            scouti = sr[i]
             if not still[scouti]: # only move scout points that aren't frozen
                 move_scout(scouti, sr, scouts, points, exps, still, maxgrad,
                            N, ndims, alpha, rneigh, rneigh2, minmove2)
 
-        printf('.')
+        printf('.\n')
 
         iteri += 1
 
         allstill = True
         for i in range(M):
-            if still[i] == False:
+            if still[sr[i]] == False:
                 allstill = False
                 break
         if allstill:
             break
 
     printf('\n')
-
+    
     # remove clusters with less than minpoints
     nm = 0
     npointsremoved = 0
     for i in range(M):
         npoints = 0 # reset
-        # tally up npoints in cluster i
-        for j in range(N): # TODO: this could maybe be prange, inc'ing concurrently won't cause races?
-            if cids[j] == i:
+        # tally up npoints in cluster sr[i]
+        scouti = sr[i]
+        for j in range(N): # TODO: could this maybe be prange?
+            if cids[j] == scouti:
                 npoints += 1
         if npoints < minpoints:
             #printf('cluster %d has only %d points', i, npoints)
@@ -235,7 +237,9 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             mlist[nm] = i
             nm += 1
             npointsremoved += npoints
-    M = merge(-1, mlist, nm, M, sr, still, N, cids)
+
+    if nm > 0:
+        M = merge(-1, mlist, nm, M, sr, still, N, cids)
 
     printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
            npointsremoved, npointsremoved/(<double>N)*100, nm, minpoints)
@@ -247,7 +251,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     cdef int nmoving=0
     for i in range(M):
-        if not still[i]:
+        if not still[sr[i]]:
             nmoving += 1
     printf('nniters: %d\n',iteri)
     printf('nclusters: %d\n', M)
@@ -256,7 +260,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
     printf('still array:\n[')
     for i in range(M):
-        printf('%d, ', still[i])
+        printf('%d, ', still[sr[i]])
     printf(']\n')
 
     # build returnable numpy ndarray for cids
@@ -285,8 +289,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
 cdef int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
                       double rmerge2, bint *still, int N, int *cids, int ndims):
-    """Merge pairs of scout points sufficiently close to each other"""
-    cdef Py_ssize_t i=0, j, k
+    """Merge pairs of scout points within rmerge of each other"""
+    cdef Py_ssize_t i=0, j, k, scouti, scoutj
     cdef int nm # number of inner loop mergers
     cdef double d, d2
     cdef bint continuej=False
@@ -298,15 +302,17 @@ cdef int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
     memcpy(still2, still, M*sizeof(bint))
     '''
     #M = 10000
-    while i < M:
+    while i < M: # iterate i over all (not necessarily consecutively numbered) scouts
+        scouti = sr[i]
         nm = 0 # reset
         for j in range(i+1, M): # this inner loop could prolly be prange!!!!
-            if still[i] and still[j]: # both scouts are frozen
+            scoutj = sr[j]
+            if still[scouti] and still[scoutj]: # both scouts are frozen
                 continue # to next j
             # for each pair of scouts, check if they're within rmerge of each other
             d2 = 0.0 # reset
             for k in range(ndims):
-                d = scouts[sr[i]][k] - scouts[sr[j]][k]
+                d = scouts[scouti][k] - scouts[scoutj][k]
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
@@ -318,17 +324,17 @@ cdef int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
                 continuej = False # reset
                 continue # to next j
             if d2 <= rmerge2:
-                # queue scout j to be merged into scout i
-                mlist[nm] = j
+                # queue scoutj to be merged into scouti
+                mlist[nm] = j # store sr index of scoutj, not its value
                 nm += 1
-        # merge all queued scouts into scout i
+        # merge all queued scouts into scouti
         if nm > 0:
-            M = merge(i, mlist, nm, M, sr, still, N, cids)
+            M = merge(scouti, mlist, nm, M, sr, still, N, cids)
         i += 1
     return M
 
 
-cdef void move_scout(int i, int *sr, float **scouts, float **points,
+cdef void move_scout(int scouti, int *sr, float **scouts, float **points,
                      double *exps, bint *still, int maxgrad,
                      int N, int ndims, double alpha,
                      double rneigh, double rneigh2, double minmove2) nogil:
@@ -350,7 +356,9 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     for j in range(N): # iterate over points, check if any are within rneigh
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
-            ds[k] = points[j][k] - scouts[sr[i]][k]
+            ## TODO: points[j] should be dereferenced as point
+            ## outside of this loop:
+            ds[k] = points[j][k] - scouts[scouti][k]
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
@@ -379,10 +387,10 @@ cdef void move_scout(int i, int *sr, float **scouts, float **points,
     move2 = 0.0 # reset
     for k in range(ndims):
         move = alpha * v[k] / kernel[k] # normalize by kernel, not just nneighs
-        scouts[sr[i]][k] += move
+        scouts[scouti][k] += move
         move2 += move * move
     if move2 < minmove2:
-        still[i] = True # freeze scout
+        still[scouti] = True # freeze scout
             
     free(ds)
     free(d2s)
@@ -455,43 +463,80 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
 '''
 cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
                bint *still, int N, int *cids) nogil:
-    """Merge ordered scouts in mlist into scouti, where scouti < all scouts in mlist"""
-    cdef Py_ssize_t mi, scoutj, src, dst, cii, decr
+    """Merge scouts represented by ordered indices into sr in mlist into scouti, where i < j for scouti = sr[i] and scoutj = sr[j]"""
+    cdef Py_ssize_t mi, j, scoutj, src, dst, cii, decr
     #assert nm > 0
-    mi = 1
-    #printf('scoutj0: %d\n', mlist[0])
-    scoutj = mlist[mi]
-    ## TODO: might be more efficient to call memcpy for every contig block of memory between
-    ## scouts in mlist, but have to be careful about overlapping mem ranges - there's an
-    ## alternative to memcpy in that case...:
-    #printf('scouti: %d\n', scouti)
-    #printf('scoutj: %d\n', scoutj)
-    for src in range(mlist[0]+1, M):
-        #printf('mi: %d\n', mi)
-        #printf('src: %d\n', src)
-        if src == scoutj:
-            if mi < nm-1:
-                mi += 1
-                scoutj = mlist[mi]
-                #printf('scoutj: %d\n', scoutj)
-        else:
-            dst = src - mi
-            #printf('dst: %d\n', dst)
-            sr[dst] = sr[src]
-            still[dst] = still[src]
-    # update cluster indices, doesn't need to be done in succession, can use prange,
-    # but runs slower than a single thread - operations are too simple?
-    #for cii in prange(N, nogil=True, schedule='static'):
-    ## TODO: try prange here
-    #for mi in range(nm):
-    for mi in range(nm-1, -1, -1): # reverse order, decr cids of highest scouts first
-        scoutj = mlist[mi]
-        decr = mi+1
-        for cii in range(N):
+    printf('cids before cids loop: ')
+    for cii in range(N):
+        printf('%d, ', cids[cii])
+    printf('\n')
+    printf('M: %d\n', M)
+    printf('scouti: %d\n', scouti)
+    printf('mlist: ')
+    for mi in range(nm):
+        printf('%d, ', mlist[mi])
+    printf('\n')
+
+    # cids loop: do this before sr loop, which shifts contents of sr, thereby messing up
+    # dereferencing values in mlist
+    for mi in range(nm):
+        scoutj = sr[mlist[mi]]
+        for cii in range(N): ## TODO: try prange here?
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
-            elif cids[cii] > scoutj:
-                cids[cii] -= decr # decr all clust indices above scout j
-            #printf(' %d<-%d ', scouti, scoutj)
+
+    printf('cids after cids loop: ')
+    for cii in range(N):
+        printf('%d, ', cids[cii])
+    printf('\n')
+
+    printf('sr before sr loop: ')
+    for j in range(M):
+        printf('%d, ', sr[j])
+    printf('\n')
+
+    # init mi and j for sr loop
+    mi = 1
+    printf('mi: %d\n', mi)
+    if mi < nm:
+        j = mlist[mi] # update to mi'th adjusted j value in mlist
+    else:
+        j = -1
+    printf('j1: %d\n', j)
+   
+    ## TODO: if say M > 10000, might be more efficient to call memcpy for every contig
+    ## block of memory between scouts in mlist, but have to be careful about overlapping
+    ## mem ranges - I think there's an alternative to memcpy in that case...
+
+    # various cases:
+    # - consecutive values in mlist
+    # - consecutive values at start of mlist
+    # - mlist of length 1
+
+    # sr loop: delete all mlist entries from sr
+    dst = mlist[0]
+    for src in range(mlist[0]+1, M): # start just after the first j value in mlist
+        printf('src: %d\n', src)
+        if src == j:
+            # read pointer has reached the next value in mlist, skip this value,
+            # ie don't shift contents of sr down at this value of src
+            mi += 1
+            printf('mi: %d\n', mi)
+            if mi < nm:
+                j = mlist[mi] # update to mi'th adjusted j value in mlist
+            else:
+                j = -1
+            printf('j: %d\n', j)
+        else: # shift contents of sr at src down to dst
+            printf('dst: %d\n', dst)
+            sr[dst] = sr[src]
+            dst += 1
+    
     M -= nm # decr num scouts
+
+    printf('sr after sr loop: ')
+    for j in range(M):
+        printf('%d, ', sr[j])
+    printf('\n')
+
     return M
