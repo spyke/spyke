@@ -455,27 +455,35 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
 '''
 cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
                bint *still, int N, int *cids) nogil:
-    """Merges ordered scouts in mlist into scouti, where scouti < all scouts in mlist"""
+    """Merge ordered scouts in mlist into scouti, where scouti < all scouts in mlist"""
     cdef Py_ssize_t mi, scoutj, src, dst, cii, decr
     #assert nm > 0
     mi = 1
+    #printf('scoutj0: %d\n', mlist[0])
     scoutj = mlist[mi]
     ## TODO: might be more efficient to call memcpy for every contig block of memory between
     ## scouts in mlist, but have to be careful about overlapping mem ranges - there's an
     ## alternative to memcpy in that case...:
+    #printf('scouti: %d\n', scouti)
+    #printf('scoutj: %d\n', scoutj)
     for src in range(mlist[0]+1, M):
+        #printf('mi: %d\n', mi)
+        #printf('src: %d\n', src)
         if src == scoutj:
             if mi < nm-1:
                 mi += 1
                 scoutj = mlist[mi]
+                #printf('scoutj: %d\n', scoutj)
         else:
             dst = src - mi
+            #printf('dst: %d\n', dst)
             sr[dst] = sr[src]
             still[dst] = still[src]
     # update cluster indices, doesn't need to be done in succession, can use prange,
     # but runs slower than a single thread - operations are too simple?
     #for cii in prange(N, nogil=True, schedule='static'):
     ## TODO: try prange here
+    #for mi in range(nm):
     for mi in range(nm-1, -1, -1): # reverse order, decr cids of highest scouts first
         scoutj = mlist[mi]
         decr = mi+1
