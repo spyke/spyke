@@ -26,6 +26,7 @@ cdef extern from "stdio.h":
 cdef extern from "string.h":
     cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
     cdef void *memcpy(void *, void *, size_t) nogil # copy to *dest from *src n bytes
+    cdef void *memmove(void *, void *, size_t) nogil # copy to *dest from *src n bytes
 
 # NOTE: stdout is buffered by default in linux. This means anything printed to screen from
 # within C code won't show up until it gets a newline, or until you call fflush(stdout).
@@ -167,7 +168,7 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef bint *still = <bint *> calloc(M, sizeof(bint))
     if not still: raise MemoryError("can't allocate still")
     # working list for keeping track of pending scout merges
-    cdef int *mlist = <int *> malloc(M*sizeof(int))
+    cdef int *mlist = <int *> malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist")
 
     # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
@@ -464,47 +465,41 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
 cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
                bint *still, int N, int *cids) nogil:
     """Merge scouts represented by ordered indices into sr in mlist into scouti, where i < j for scouti = sr[i] and scoutj = sr[j]"""
-    cdef Py_ssize_t mi, j, scoutj, src, dst, cii, decr
+    cdef Py_ssize_t mi, j, scoutj, src, dst, cii, decr, n, nbytes
     #assert nm > 0
     '''
     printf('cids before cids loop: ')
     for cii in range(N):
         printf('%d, ', cids[cii])
     printf('\n')
+    '''
+    
     printf('M: %d\n', M)
     printf('scouti: %d\n', scouti)
     printf('mlist: ')
     for mi in range(nm):
         printf('%d, ', mlist[mi])
     printf('\n')
-    '''
+    
     # cids loop: do this before sr loop, which shifts contents of sr, thereby messing up
     # dereferencing values in mlist
-    for mi in prange(nm, nogil=True):
+    for mi in prange(nm, nogil=True): # prange provides moderate speedup
         scoutj = sr[mlist[mi]]
         for cii in range(N):
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
-    '''
+    
     printf('cids after cids loop: ')
     for cii in range(N):
         printf('%d, ', cids[cii])
     printf('\n')
-
+    
+    '''
     printf('sr before sr loop: ')
     for j in range(M):
         printf('%d, ', sr[j])
     printf('\n')
     '''
-    # init mi and j for sr loop
-    mi = 1
-    #printf('mi: %d\n', mi)
-    if mi < nm:
-        j = mlist[mi] # update to mi'th adjusted j value in mlist
-    else:
-        j = -1
-    #printf('j1: %d\n', j)
-   
     ## TODO: if say M > 10000, might be more efficient to call memcpy for every contig
     ## block of memory between scouts in mlist, but have to be careful about overlapping
     ## mem ranges - I think there's an alternative to memcpy in that case: memmove
@@ -513,31 +508,32 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
     # - consecutive values in mlist
     # - consecutive values at start of mlist
     # - mlist of length 1
-
-    # sr loop: delete all mlist entries from sr
+    
+    # sr loop: remove all mlist entries from sr:
     dst = mlist[0]
-    for src in range(mlist[0]+1, M): # start just after the first j value in mlist
-        #printf('src: %d\n', src)
-        if src == j:
-            # read pointer has reached the next value in mlist, skip this value,
-            # ie don't shift contents of sr down at this value of src
-            mi += 1
-            #printf('mi: %d\n', mi)
-            if mi < nm:
-                j = mlist[mi] # update to mi'th adjusted j value in mlist
-            else:
-                j = -1
-            #printf('j: %d\n', j)
-        else: # shift contents of sr at src down to dst
-            #printf('dst: %d\n', dst)
-            sr[dst] = sr[src]
-            dst += 1
+    mlist[nm] = M # make final mlist[mi+1] give correct value
+    for mi in range(nm):
+        src = mlist[mi] + 1
+        printf('src: %d\n', src)
+        printf('dst: %d\n', dst)
+        n = mlist[mi+1] - src
+        if n == 0: # nothing to copy, probably consecutive values in mlist
+            continue
+        nbytes = n * 4
+        printf('nbytes: %d\n', nbytes)
+        # shift contents of sr at src down to dst:
+        #if dst >= src:
+        #    printf('!!!!!!!!!!!!!!!src, dst: %d, %d', src, dst)
+        #memmove(sr+dst, sr+src, nbytes) # slower, but allows src and dst to overlap
+        memcpy(sr+dst, sr+src, nbytes) # faster, but doesn't allow src and dst to overlap
+        printf('sr  after memmove: ')
+        for j in range(M):
+            printf('%d, ', sr[j])
+        printf('\n')
+        
+        dst += n
     
     M -= nm # decr num scouts
-    '''
-    printf('sr after sr loop: ')
-    for j in range(M):
-        printf('%d, ', sr[j])
-    printf('\n')
-    '''
+    
+    
     return M
