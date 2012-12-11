@@ -240,8 +240,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             npointsremoved += npoints
 
     if nm > 0:
-        M = merge(-1, mlist, nm, M, sr, still, N, cids)
-
+        M = merge(-1, mlist, nm, sr, M, cids, N)
+ 
     printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
            npointsremoved, npointsremoved/(<double>N)*100, nm, minpoints)
 
@@ -288,8 +288,8 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     return np_cids, np_scouts
 
 
-cdef int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
-                      double rmerge2, bint *still, int N, int *cids, int ndims):
+cdef inline int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
+                             double rmerge2, bint *still, int N, int *cids, int ndims):
     """Merge pairs of scout points within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k, scouti, scoutj
     cdef int nm # number of inner loop mergers
@@ -330,12 +330,12 @@ cdef int merge_scouts(int M, int *sr, float **scouts, int *mlist, double rmerge,
                 nm += 1
         # merge all queued scouts into scouti
         if nm > 0:
-            M = merge(scouti, mlist, nm, M, sr, still, N, cids)
+            M = merge(scouti, mlist, nm, sr, M, cids, N)
         i += 1
     return M
 
 
-cdef void move_scout(int scouti, int *sr, float **scouts, float **points,
+cdef inline void move_scout(int scouti, int *sr, float **scouts, float **points,
                      double *exps, bint *still, int maxgrad,
                      int N, int ndims, double alpha,
                      double rneigh, double rneigh2, double minmove2) nogil:
@@ -424,7 +424,7 @@ cdef void ifill(int *a, int val, long long n) nogil:
     for i in range(n):
         a[i] = val
 
-cdef void dfill(double *a, double val, long long n) nogil:
+cdef inline void dfill(double *a, double val, long long n) nogil:
     """Fill double array with n values"""
     cdef long long i
     for i in range(n):
@@ -462,10 +462,13 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
         li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
 '''
-cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
-               bint *still, int N, int *cids) nogil:
-    """Merge scouts represented by ordered indices into sr in mlist into scouti, where i < j for scouti = sr[i] and scoutj = sr[j]"""
-    cdef Py_ssize_t mi, j, scoutj, src, dst, cii, decr, n, nbytes
+## TODO: try making this a cdef inline function instead:
+cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M, 
+                      int *cids, int N, ) nogil:
+    """Merge scouts represented by ordered indices into sr in mlist into scouti,
+    where i < j for scouti = sr[i] and scoutj = sr[j]"""
+    cdef Py_ssize_t mi, scoutj, cii, src, dst, n
+    cdef int *dstp, *srcp
     #assert nm > 0
     '''
     printf('cids before cids loop: ')
@@ -473,14 +476,14 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
         printf('%d, ', cids[cii])
     printf('\n')
     '''
-    
+    '''
     printf('M: %d\n', M)
     printf('scouti: %d\n', scouti)
     printf('mlist: ')
     for mi in range(nm):
         printf('%d, ', mlist[mi])
     printf('\n')
-    
+    '''
     # cids loop: do this before sr loop, which shifts contents of sr, thereby messing up
     # dereferencing values in mlist
     for mi in prange(nm, nogil=True): # prange provides moderate speedup
@@ -488,52 +491,75 @@ cdef int merge(Py_ssize_t scouti, int *mlist, int nm, int M, int *sr,
         for cii in range(N):
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
-    
+    '''
     printf('cids after cids loop: ')
     for cii in range(N):
         printf('%d, ', cids[cii])
     printf('\n')
-    
+    '''
     '''
     printf('sr before sr loop: ')
     for j in range(M):
         printf('%d, ', sr[j])
     printf('\n')
     '''
-    ## TODO: if say M > 10000, might be more efficient to call memcpy for every contig
-    ## block of memory between scouts in mlist, but have to be careful about overlapping
-    ## mem ranges - I think there's an alternative to memcpy in that case: memmove
-
-    # various cases:
-    # - consecutive values in mlist
-    # - consecutive values at start of mlist
-    # - mlist of length 1
-    
     # sr loop: remove all mlist entries from sr:
     dst = mlist[0]
+    ## maybe, should this last value be decr by nm? M is constantly changing throughout this loop. Maybe M should be decr by 1 on the fly instead of all at once at the end?
     mlist[nm] = M # make final mlist[mi+1] give correct value
     for mi in range(nm):
         src = mlist[mi] + 1
-        printf('src: %d\n', src)
-        printf('dst: %d\n', dst)
         n = mlist[mi+1] - src
+        #printf('src: %d, dst: %d, n: %d\n', src, dst, n)
         if n == 0: # nothing to copy, probably consecutive values in mlist
             continue
-        nbytes = n * 4
-        printf('nbytes: %d\n', nbytes)
         # shift contents of sr at src down to dst:
+        dstp = sr+dst
+        srcp = sr+src
+        dst += n # inc dst here for next loop, before n gets decr in while loop below
+        #nbytes = n * 4
         #if dst >= src:
         #    printf('!!!!!!!!!!!!!!!src, dst: %d, %d', src, dst)
-        #memmove(sr+dst, sr+src, nbytes) # slower, but allows src and dst to overlap
-        memcpy(sr+dst, sr+src, nbytes) # faster, but doesn't allow src and dst to overlap
-        printf('sr  after memmove: ')
+        #memmove(sr+dst, sr+src, nbytes) # slower? allows src and dst to overlap
+        #memcpy(sr+dst, sr+src, nbytes) # faster? doesn't allow src and dst to overlap
+
+        # roughly what memcpy probably does, but works at word level, not byte level, and
+        # doesn't occasionally erroneously copy the way memcpy does,
+        # translated into valid Cython. Can get away with this pointer method because
+        # dst < src always, and src and dst reference the same object (sr). The fastest
+        # implementation is cited as:
+        #
+        #void *memcpy(void *dest, const void *src, size_t n)
+        #{
+        #    char *dp = dest;
+        #    const char *sp = src;
+        #    while (n--)
+        #        *dp++ = *sp++;
+        #    return dest;
+        #}
+        # on the web, e.g. http://clc-wiki.net/wiki/memcpy
+        
+        while n:
+            dstp[0] = srcp[0]
+            dstp += 1
+            srcp += 1
+            n -= 1
+        
+        '''
+        printf('sr after shift: ')
         for j in range(M):
             printf('%d, ', sr[j])
         printf('\n')
-        
-        dst += n
-    
+        '''
     M -= nm # decr num scouts
-    
-    
+    '''
+    # check if len(unique(cids)) == M:
+    u = []
+    for cii in range(N):
+        val = int(cids[cii])
+        if val not in u:
+            u.append(val)
+    if len(u) != M:
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!len(u): %d, M: %d" % (len(u), M))
+    '''
     return M
