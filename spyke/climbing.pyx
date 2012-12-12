@@ -490,8 +490,9 @@ cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M,
     """Merge scouts represented by ordered indices into sr in mlist into scouti,
     where i < j for scouti = sr[i] and scoutj = sr[j]"""
     cdef Py_ssize_t mi, scoutj, cii, src, dst, n
-    cdef int *dstp, *srcp
+    cdef int *dstp, *srcp, 
     cdef double t0
+
     global CIDSTIME, SRTIME
     #assert nm > 0
     '''
@@ -515,11 +516,32 @@ cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M,
     ## needed. Deref each mlist to get
     ## the scoutj, then build a dict or something of scouti: [scoutjs], and do the whole
     ## search only at the very end.
+
+    ## Er, what I really need to avoid doing this cids loop over and over is a mapping from
+    ## each original scout id to final scout id, for all original N scouts. This can be done
+    ## with just a len N array, say old2new. Then, I loop over nids once, like this:
+    #for cii in range(N):
+    #    cids[cii] = old2new[cids[cii]]
+
     for mi in prange(nm, nogil=True, schedule='static'):
         scoutj = sr[mlist[mi]]
         for cii in range(N):
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
+        # using pointer math like this isn't any faster, especially because it won't run
+        # in a prange loop in Cython 0.17.1 for some reason:
+        '''
+        dstp = cids
+        srcp = sr+mlist[mi]
+        n = N
+        while n:
+            if dstp[0] == srcp[0]:
+                dstp[0] = scouti # replace all scoutj entries with scouti
+                #printf("%d-->%d\n", srcp[0], dstp[0])
+            dstp += 1
+            n -= 1
+        '''
+
     CIDSTIME += (<double>time.time() - t0)
 
     '''
