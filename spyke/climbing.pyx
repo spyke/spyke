@@ -11,6 +11,8 @@ import numpy as np
 cimport numpy as np
 import time
 
+cdef double CIDSTIME, SRTIME, MERGESCOUTSTIME
+
 cdef extern from "math.h":
     double fabs(double x) nogil
     double exp(double x) nogil
@@ -171,6 +173,19 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int *mlist = <int *> malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist")
 
+    global CIDSTIME, SRTIME, MERGESCOUTSTIME
+    CIDSTIME = 0.0
+    SRTIME = 0.0
+    MERGESCOUTSTIME = 0.0
+    
+    ## TODO: sort rows in data according to the first dimension, which is usually the most
+    ## clusterable. This will merge scouts sooner than if they're randomly distributed.
+    ## Then, maybe instead of taking the first maxgrad, I can go in equal steps
+    ## to result in roughly maxgrad points being evenly sampled. Or, I can take the maxgrad
+    ## samples nearest the current scouti along the first dimension to get a better estimate
+    ## of the local density. Then maybe that can allow me to decrease maxgrad.
+    ## Also, think about data contiguity and how that might affect performance. Also, think
+    ## about what's the best ordering if time is one of the dimensions
     # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
     randis = np.arange(N)
     np.random.shuffle(randis) # in place
@@ -185,10 +200,11 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     while True:
 
-        t0 = time.time()
+        t0 = <double>time.time()
         # merge scouts within rmerge of each other
         newM = merge_scouts(M, sr, scouts, mlist, rmerge, rmerge2, still, N, cids, ndims)
-        print('merge_scouts took %.3f sec' % (time.time()-t0))
+        MERGESCOUTSTIME += (<double>time.time() - t0)
+        #print('merge_scouts took %.3f sec' % (time.time()-t0))
         #break
 
         if newM != M: # at least one merger happened on this iter
@@ -221,6 +237,10 @@ def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             break
 
     printf('\n')
+    printf('cids    loop time %.9f sec\n', CIDSTIME)
+    printf('sr      loop time %.9f sec\n', SRTIME)
+    printf('mergescouts  time %.9f sec\n', MERGESCOUTSTIME)
+    
     
     # remove clusters with less than minpoints
     nm = 0
@@ -354,6 +374,9 @@ cdef inline void move_scout(int scouti, int *sr, float **scouts, float **points,
     dfill(kernel, 0, ndims)
     dfill(v, 0, ndims)
     # measure gradient v:
+    ## TODO: step according to some step size that results in roughly maxgrad
+    ## points being used. That way, don't need to shuffle the points at the start,
+    ## and don't need inc and check npoints on every iteration of this loop
     for j in range(N): # iterate over points, check if any are within rneigh
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
@@ -462,13 +485,14 @@ cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
         li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
     return li
 '''
-## TODO: try making this a cdef inline function instead:
 cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M, 
-                      int *cids, int N, ) nogil:
+                      int *cids, int N):
     """Merge scouts represented by ordered indices into sr in mlist into scouti,
     where i < j for scouti = sr[i] and scoutj = sr[j]"""
     cdef Py_ssize_t mi, scoutj, cii, src, dst, n
     cdef int *dstp, *srcp
+    cdef double t0
+    global CIDSTIME, SRTIME
     #assert nm > 0
     '''
     printf('cids before cids loop: ')
@@ -484,13 +508,20 @@ cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M,
         printf('%d, ', mlist[mi])
     printf('\n')
     '''
+    t0 = <double>time.time()
     # cids loop: do this before sr loop, which shifts contents of sr, thereby messing up
-    # dereferencing values in mlist
-    for mi in prange(nm, nogil=True): # prange provides moderate speedup
+    # dereferencing values in mlist. prange provides moderate speedup only for N >~ 100k
+    ## TODO: the inner loop could be done once at the very end, since it's never
+    ## needed. Deref each mlist to get
+    ## the scoutj, then build a dict or something of scouti: [scoutjs], and do the whole
+    ## search only at the very end.
+    for mi in prange(nm, nogil=True, schedule='static'):
         scoutj = sr[mlist[mi]]
         for cii in range(N):
             if cids[cii] == scoutj:
                 cids[cii] = scouti # replace all scoutj entries with scouti
+    CIDSTIME += (<double>time.time() - t0)
+
     '''
     printf('cids after cids loop: ')
     for cii in range(N):
@@ -504,6 +535,7 @@ cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M,
     printf('\n')
     '''
     # sr loop: remove all mlist entries from sr:
+    t0 = <double>time.time()
     dst = mlist[0]
     ## maybe, should this last value be decr by nm? M is constantly changing throughout this loop. Maybe M should be decr by 1 on the fly instead of all at once at the end?
     mlist[nm] = M # make final mlist[mi+1] give correct value
@@ -518,14 +550,12 @@ cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M,
         srcp = sr+src
         dst += n # inc dst here for next loop, before n gets decr in while loop below
         #nbytes = n * 4
-        #if dst >= src:
-        #    printf('!!!!!!!!!!!!!!!src, dst: %d, %d', src, dst)
         #memmove(sr+dst, sr+src, nbytes) # slower? allows src and dst to overlap
         #memcpy(sr+dst, sr+src, nbytes) # faster? doesn't allow src and dst to overlap
 
-        # roughly what memcpy probably does, but works at word level, not byte level, and
+        # Cython translation of what memcpy probably does, but
         # doesn't occasionally erroneously copy the way memcpy does,
-        # translated into valid Cython. Can get away with this pointer method because
+        # Can get away with this pointer method because
         # dst < src always, and src and dst reference the same object (sr). The fastest
         # implementation is cited as:
         #
@@ -537,20 +567,23 @@ cdef inline int merge(Py_ssize_t scouti, int *mlist, int nm, int *sr, int M,
         #        *dp++ = *sp++;
         #    return dest;
         #}
-        # on the web, e.g. http://clc-wiki.net/wiki/memcpy
-        
+        # on the web, e.g. http://clc-wiki.net/wiki/memcpy. Although the above is a byte
+        # level copy, and word level copy should be faster. The following Cython code seems
+        # to run as fast as memmove. Hand optimizing the .c fiel to use -- and * and ++
+        # didn't seem to help:
         while n:
             dstp[0] = srcp[0]
             dstp += 1
             srcp += 1
             n -= 1
-        
         '''
         printf('sr after shift: ')
         for j in range(M):
             printf('%d, ', sr[j])
         printf('\n')
         '''
+    SRTIME += (<double>time.time() - t0)
+        
     M -= nm # decr num scouts
     '''
     # check if len(unique(cids)) == M:
