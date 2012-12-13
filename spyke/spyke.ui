@@ -904,7 +904,7 @@
           </rect>
          </property>
          <property name="toolTip">
-          <string>Climb rate</string>
+          <string>Gradient ascent rate</string>
          </property>
          <property name="decimals">
           <number>2</number>

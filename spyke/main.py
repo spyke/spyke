@@ -9,7 +9,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 import numpy as np
 import pyximport
 pyximport.install()
-from climbing import climb # .pyx file
+from gac import gac # .pyx file
 import util # .pyx file
 
 from IPython import embed
@@ -46,7 +46,7 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, MAXNCLIMBPOINTS, TSFStream
+from core import DJS, g, MAXNGACPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES
@@ -700,7 +700,7 @@ class SpykeWindow(QtGui.QMainWindow):
             msgs.append('%d selected sids' % len(sids))
         nids = self.subcluster(sids, subsidss, msgs, dims)
         print('clustering took %.3f sec' % (time.time()-t0))
-        self.apply_clustering(oldclusters, sids, nids, verb='climb')
+        self.apply_clustering(oldclusters, sids, nids, verb='GAC')
 
     def subcluster(self, sids, subsidss, msgs, dims):
         """Perform (sub)clustering according to subsids in subsidss. Incorporate results
@@ -708,7 +708,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nids = np.zeros(len(sids), dtype=np.int32) # init nids output array to be all unclustered
         for subsids, msg in zip(subsidss, msgs):
             print('clustering %s on dims %r' % (msg, dims))
-            subnids = self.climb(subsids, dims) # subclustering result
+            subnids = self.gac(subsids, dims) # subclustering result
             ci = subnids > 0 # consider only the clustered sids
             subsids = subsids[ci]
             subnids = subnids[ci]
@@ -787,9 +787,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.apply_clustering(oldclusters, sids, nids, verb='density split')
 
     def randomsplit(self):
-        """Check if any subsids are > MAXNCLIMBPOINTS long, and if so, randomly split them
-        into (approximately) equal size clusters of MAXCLIMBPOINTS or less. This is
-        done to increase climb() speed"""
+        """Check if any subsids are > MAXNGACPOINTS long, and if so, randomly split them
+        into (approximately) equal size clusters of MAXNGACPOINTS or less. This is
+        done to increase gac() speed"""
         oldclusters = self.GetClusters() # all selected clusters
         subsidss = []
         for cluster in oldclusters:
@@ -799,8 +799,8 @@ class SpykeWindow(QtGui.QMainWindow):
         destsubsidss = []
         for subsids in subsidss:
             nsids = len(subsids)
-            if nsids > MAXNCLIMBPOINTS:
-                nclusters = nsids // MAXNCLIMBPOINTS + 1 # at least two
+            if nsids > MAXNGACPOINTS:
+                nclusters = nsids // MAXNGACPOINTS + 1 # at least two
                 nsidspercluster = nsids // nclusters
                 remnsids = nsids % nclusters
                 nsidss = [nsidspercluster] * nclusters
@@ -824,7 +824,7 @@ class SpykeWindow(QtGui.QMainWindow):
             raise RuntimeError("there shouldn't be any unclustered points from randomsplit")
         self.apply_clustering(oldclusters, sids, nids, verb='randomly split')
 
-    def climb(self, sids, dims):
+    def gac(self, sids, dims):
         """Cluster sids along dims, using NVS's gradient ascent algorithm"""
         s = self.sort
         waveclustering = np.any([ dim.startswith('pk') for dim in dims ])
@@ -839,21 +839,21 @@ class SpykeWindow(QtGui.QMainWindow):
                 return
         else: # do spike parameter (non-wavefrom) clustering
             data, sids = self.get_param_matrix(sids=sids, dims=dims, scale=True)
-        data = tocontig(data) # ensure it's contiguous for climb()
-        # grab climb() params and run it
+        data = tocontig(data) # ensure it's contiguous for gac()
+        # grab gac() params and run it
         self.update_sort_from_cluster_pane()
         npoints, ndims = data.shape
         s.sigmasqrtndims = s.sigma * np.sqrt(ndims) # scale sigma with dimensionality
         print('clustering %d points in %d-D space' % (npoints, ndims))
         t0 = time.time()
-        results = climb(data, sigma=s.sigmasqrtndims, rmergex=s.rmergex, rneighx=s.rneighx,
-                        alpha=s.alpha, maxgrad=s.maxgrad,
-                        maxnnomerges=1000, minpoints=s.minpoints)
+        results = gac(data, sigma=s.sigmasqrtndims, rmergex=s.rmergex, rneighx=s.rneighx,
+                      alpha=s.alpha, maxgrad=s.maxgrad,
+                      maxnnomerges=1000, minpoints=s.minpoints)
         nids, scoutpositions = results
-        # nids from climb() are 0-based, but we want our single unit nids to be 1-based,
+        # nids from gac() are 0-based, but we want our single unit nids to be 1-based,
         # to leave room for junk cluster at 0 and multiunit clusters at nids < 0. So add 1:
         nids += 1
-        print('climb took %.3f sec' % (time.time()-t0))
+        print('GAC took %.3f sec' % (time.time()-t0))
         return nids
     
     def get_selchans(self, sids):

@@ -113,10 +113,10 @@ cdef struct Scout:
 #DEF MAXUINT16 = 2**16 - 1
 #DEF MAXINT32 = 2**31 - 1
 
-def climb(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
-          double sigma=0.25, double rmergex=0.25, double rneighx=4,
-          double alpha=2.0, int maxgrad=1000,
-          double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
+def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
+        double sigma=0.25, double rmergex=0.25, double rneighx=4,
+        double alpha=2.0, int maxgrad=1000,
+        double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
     """Nicholas Swindale's gradient ascent clustering (GAC) algorithm"""
     cdef Py_ssize_t i, j, k, cid
     cdef bint allstill
@@ -431,70 +431,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     free(kernel)
     free(v)
 
-'''
-cdef void span(long *lohi, int start, int end, int N) nogil:
-    """Fill len(N) lohi array with fairly equally spaced int
-    values, from start to end"""
-    cdef Py_ssize_t i
-    cdef int step
-    step = <int> ceil(<double> (end - start) / N) # round up
-    for i in range(N):
-        lohi[i] = start + step*i
-    lohi[N] = end
-'''
-cdef long long prod(int *a, int n) nogil:
-    """Return product of entries in int array a"""
-    cdef long long result
-    cdef Py_ssize_t i
-    result = 1
-    for i in range(n):
-        result *= a[i] # should I upcast to long long here?
-    return result
 
-cdef void ifill(int *a, int val, long long n) nogil:
-    """Fill int array with n values"""
-    cdef long long i
-    for i in range(n):
-        a[i] = val
-
-cdef inline void dfill(double *a, double val, long long n) nogil:
-    """Fill double array with n values"""
-    cdef long long i
-    for i in range(n):
-        a[i] = val
-
-cdef void irange(int *a, int n) nogil:
-    """Fill int array with n increasing values"""
-    cdef Py_ssize_t i
-    a[0] = 0
-    for i in range(1, n):
-        a[i] = a[i-1] + 1 
-
-cdef unsigned short usmax(unsigned short *a, long long n) nogil:
-    """Return maximum value in array"""
-    cdef unsigned short result=0
-    cdef long long i
-    for i in range(n):
-        if a[i] > result:
-            result = a[i]
-    return result
-'''
-cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
-    """Convert n dimensional index in array ndi to linear index. ndi
-    and dims should be of length ndims, and each entry in ndi should be
-    less than its corresponding dimension size in dims"""
-    ## NOTE: np.unravel_index() and np.ravel_multi_index() are useful!
-    cdef long long li, pr=1
-    cdef Py_ssize_t k
-    li = ndi[ndims-1] # init with index of deepest dimension
-    # iterate from ndims-1 to 0, from 2nd deepest to shallowest dimension
-    # either syntax works, and both seem to be C optimized:
-    #for k from ndims-1 >= k > 0:
-    for k in range(ndims-1, 0, -1):
-        pr *= dims[k] # running product of dimensions
-        li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
-    return li
-'''
 cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil:
     """Take scouts represented by ordered indices into s in mlist and merge them into s[i]"""
     cdef Py_ssize_t mi, src, dst, n, j
@@ -580,3 +517,69 @@ cdef inline np.ndarray[np.int32_t, ndim=1, mode='c'] buildcids(Scout *scouts, in
             scouti = scouti.next # walk scouts[i]'s merge path to its final destination
         cids[i] = scouti.id
     return cids
+
+
+'''
+cdef void span(long *lohi, int start, int end, int N) nogil:
+    """Fill len(N) lohi array with fairly equally spaced int
+    values, from start to end"""
+    cdef Py_ssize_t i
+    cdef int step
+    step = <int> ceil(<double> (end - start) / N) # round up
+    for i in range(N):
+        lohi[i] = start + step*i
+    lohi[N] = end
+'''
+cdef long long prod(int *a, int n) nogil:
+    """Return product of entries in int array a"""
+    cdef long long result
+    cdef Py_ssize_t i
+    result = 1
+    for i in range(n):
+        result *= a[i] # should I upcast to long long here?
+    return result
+
+cdef void ifill(int *a, int val, long long n) nogil:
+    """Fill int array with n values"""
+    cdef long long i
+    for i in range(n):
+        a[i] = val
+
+cdef inline void dfill(double *a, double val, long long n) nogil:
+    """Fill double array with n values"""
+    cdef long long i
+    for i in range(n):
+        a[i] = val
+
+cdef void irange(int *a, int n) nogil:
+    """Fill int array with n increasing values"""
+    cdef Py_ssize_t i
+    a[0] = 0
+    for i in range(1, n):
+        a[i] = a[i-1] + 1 
+
+cdef unsigned short usmax(unsigned short *a, long long n) nogil:
+    """Return maximum value in array"""
+    cdef unsigned short result=0
+    cdef long long i
+    for i in range(n):
+        if a[i] > result:
+            result = a[i]
+    return result
+'''
+cdef long long ndi2li(int *ndi, int *dims, int ndims) nogil:
+    """Convert n dimensional index in array ndi to linear index. ndi
+    and dims should be of length ndims, and each entry in ndi should be
+    less than its corresponding dimension size in dims"""
+    ## NOTE: np.unravel_index() and np.ravel_multi_index() are useful!
+    cdef long long li, pr=1
+    cdef Py_ssize_t k
+    li = ndi[ndims-1] # init with index of deepest dimension
+    # iterate from ndims-1 to 0, from 2nd deepest to shallowest dimension
+    # either syntax works, and both seem to be C optimized:
+    #for k from ndims-1 >= k > 0:
+    for k in range(ndims-1, 0, -1):
+        pr *= dims[k] # running product of dimensions
+        li += ndi[k-1] * pr # accum sum of products of next ndi and all deeper dimensions
+    return li
+'''

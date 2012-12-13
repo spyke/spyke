@@ -54,7 +54,7 @@ TW = -500, 500 # spike time window range, us, centered on thresh xing or main pe
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
-MAXNCLIMBPOINTS = 25000
+MAXNGACPOINTS = 25000
 
 MAXNSPIKEPLOTS = 200
 

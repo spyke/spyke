@@ -1686,7 +1686,7 @@ class SortWindow(SpykeToolWindow):
 
         actionRandomSplit = QAction('\\', self)
         tt = ('<nobr><b>\\</b> &nbsp; Randomly split clusters exceeding %d</nobr>'
-              % core.MAXNCLIMBPOINTS)
+              % core.MAXNGACPOINTS)
         actionRandomSplit.setToolTip(tt)
         self.connect(actionRandomSplit, QtCore.SIGNAL('triggered()'),
                      self.on_actionRandomSplit_triggered)
@@ -1967,7 +1967,7 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionMergeClusters_triggered(self):
         """Merge button (M) click. Merge selected clusters. Easier to use than
-        running climb() on selected clusters using a really big sigma to force
+        running gac() on selected clusters using a really big sigma to force
         them to all merge"""
         spw = self.spykewindow
         clusters = spw.GetClusters()
@@ -2096,7 +2096,7 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionRandomSplit_triggered(self):
         """Randomly split each selected cluster if it has a population
-        of spikes > MAXNCLIMBPOINTS"""
+        of spikes > MAXNGACPOINTS"""
         self.spykewindow.randomsplit()
 
     def on_actionRenumber_triggered(self):

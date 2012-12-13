@@ -1,7 +1,7 @@
 import numpy as np
 import pyximport
 pyximport.install()
-from climbing import climb # .pyx file
+from gac import gac # .pyx file
 
 from pylab import figure, gca, scatter, show
 import scipy.io
@@ -48,20 +48,20 @@ minpoints = 5
 '''
 import pstats, cProfile
 s = """
-cids, pos = climb(data, sigma, alpha,
-                  rneighx=rneighx, rmergex=rmergex,
-                  minmovex=minmovex,
-                  maxnnomerges=maxnnomerges, minpoints=minpoints)
+cids, pos = gac(data, sigma, alpha,
+                rneighx=rneighx, rmergex=rmergex,
+                minmovex=minmovex,
+                maxnnomerges=maxnnomerges, minpoints=minpoints)
 """
 cProfile.runctx(s, globals(), locals(), "Profile.prof")
 s = pstats.Stats("Profile.prof")
 s.strip_dirs().sort_stats("time").print_stats()
 '''
 t0 = time.time()
-cids, pos = climb(data, sigma, rmergex=rmergex, rneighx=rneighx,
-                  alpha=alpha, maxgrad=maxgrad, minmovex=minmovex,
-                  maxnnomerges=maxnnomerges, minpoints=minpoints)
-print('climb took %.3f sec' % (time.time()-t0))
+cids, pos = gac(data, sigma, rmergex=rmergex, rneighx=rneighx,
+                alpha=alpha, maxgrad=maxgrad, minmovex=minmovex,
+                maxnnomerges=maxnnomerges, minpoints=minpoints)
+print('gac took %.3f sec' % (time.time()-t0))
 print cids
 print pos
 
@@ -104,7 +104,7 @@ sigma: 0.303, rneigh: 1.212, rmerge: 0.076, alpha: 1.000
 nmoving: 0, minmove: 0.000003
 still array:
 [200, 200, 200, 200, ]
-climb took 59.251 sec
+gac took 59.251 sec
 [0, 0, 0, ..., 1, 2, 2]
 [[ 0.88302857,  0.84062564,  0.48508993],
  [ 0.56020129, -1.09298003,  0.05824601],
