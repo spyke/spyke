@@ -1827,7 +1827,8 @@ class SortWindow(SpykeToolWindow):
         clicks are (or should be) filtered out"""
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
-            self.on_actionSelectRandomSpikes_activated()
+            #self.on_actionSelectRandomSpikes_activated()
+            self.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif buttons == QtCore.Qt.RightButton:
             self.clear()
 

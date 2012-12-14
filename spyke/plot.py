@@ -1396,7 +1396,8 @@ class SortPanel(PlotPanel):
                 self.chans_selected.remove(chan)
             self.manual_selection = True
         elif button == 2: # middle click
-            self.sortwin.on_actionSelectRandomSpikes_activated()
+            self.sortwin.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            #self.sortwin.on_actionSelectRandomSpikes_activated()
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
             self.manual_selection = False

@@ -613,7 +613,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         sw = self.spw.windows['Sort']
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
-            sw.on_actionSelectRandomSpikes_activated()
+            #sw.on_actionSelectRandomSpikes_activated()
+            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         self.lastPos = QtCore.QPoint(event.pos())
         self.movement = False # no mouse movement yet
     
