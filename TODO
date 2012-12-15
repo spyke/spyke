@@ -1,3 +1,7 @@
+- to decide which dimension to sort by for clustering, instead of using variance, could use the dimension whose dot product with the view normal vector is a minimum (or whose cross product with it is a max)? Or could just always stick with dimension 0, and make the user swap dimensions as he sees fit
+
+- use the same "breaking out of search loop along sorted dimension 0" logic from move_scout in merge_scouts on the first merge step, when all the scouts are still ordered along dimension 0, because they haven't moved yet. This could up the first merge (which is by far the slowest) significantly
+
 - cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window - this would be eqv't to having independent sigmas per dimension
 
 - key bindings:

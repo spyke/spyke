@@ -3,7 +3,7 @@
 # cython: cdivision=True
 # cython: profile=False
 
-"""Nicholas Swindale's gradient-ascent clustering (GAC) algorithm
+"""Nicholas Swindale's gradient ascent clustering (GAC) algorithm
 
     TODO:
         - try using cdef inline instead of just cdef to reduce
@@ -75,7 +75,7 @@ import numpy as np
 cimport numpy as np
 import time
 
-#cdef double MERGESCOUTSTIME, MERGETIME, MOVESCOUTSTIME
+cdef double MERGESCOUTSTIME, MERGETIME, MOVESCOUTSTIME
 
 cdef extern from "math.h":
     double fabs(double x) nogil
@@ -112,6 +112,9 @@ cdef struct Scout:
 
 #DEF MAXUINT16 = 2**16 - 1
 #DEF MAXINT32 = 2**31 - 1
+#DEF DEBUG = 0 # could use this for different levels of debug messages
+DEF PROFILE = True # print timing information
+
 
 def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double sigma=0.25, double rmergex=0.25, double rneighx=4,
@@ -128,7 +131,14 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int M = N # current num scout points, each data point starts as its own scout
     cdef int nm, newM, npoints, npointsremoved
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids # cluster IDs to return for each point
-    
+    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] cpos # cluster positions
+
+    IF PROFILE: 
+        global MERGESCOUTSTIME, MERGETIME, MOVESCOUTSTIME
+        MERGESCOUTSTIME = 0.0
+        MERGETIME = 0.0
+        MOVESCOUTSTIME = 0.0
+   
     # normalize all data related variables by norm to avoid having to
     # do so in move_scout() loop. Note that all of these are also scaled
     # by sqrt(ndims) via sigma scaling in caller:
@@ -160,23 +170,23 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int *mlist = <int *>malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist\n")
     '''
-    global MERGESCOUTSTIME, MERGETIME, MOVESCOUTSTIME
-    MERGESCOUTSTIME = 0.0
-    MERGETIME = 0.0
-    MOVESCOUTSTIME = 0.0
-    '''
     # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
     randis = np.arange(N)
     np.random.shuffle(randis) # in place
     data = data[randis]
     sortis = randis.argsort()
     '''
-    # sort data along first dimension, ostensibly the one with most information about
-    # distance between points - turns out not to be very useful:
-    sortis = data[:, 0].argsort()
+    # sort data along dimension of max variance, ostensibly the one with most information
+    # about distance between points (turns out not to be very useful?):
+    stds = data.var(axis=0)
+    sortdimis = stds.argsort()[::-1] # dim indices in order of decreasing variance
+    data = data[:, sortdimis].copy() # reorder dims by decreasing variance, copy for C contig
+    print('reordered dimensions of data by variance: %s' % sortdimis)
+    sortis = data[:, 0].argsort() # 0'th dimension is now sortdimis[0]
     data = data[sortis]
-    sortis = sortis.argsort()
-    '''
+    sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
+    print('sorted data along dimension %d' % sortdimis[0])
+    
     # declare placeholder scout:
     cdef Scout *scouti
 
@@ -211,9 +221,9 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     while True:
 
         # merge current scouts within rmerge of each other:
-        #t0 = <double>time.time()
+        IF PROFILE: t0 = <double>time.time()
         newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims)
-        #MERGESCOUTSTIME += (<double>time.time() - t0)
+        IF PROFILE: MERGESCOUTSTIME += (<double>time.time() - t0)
 
         if newM != M: # at least one merger happened on this iter
             M = newM
@@ -226,13 +236,13 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             break
 
         # move current scouts up their local density gradient:
-        #t0 = <double>time.time()
+        IF PROFILE: t0 = <double>time.time()
         for i in prange(M, nogil=True, schedule='dynamic'):
             scouti = s[i]
             if not scouti.still: # only move scouts that aren't frozen
                 move_scout(scouti, scouts, exps, maxgrad,
                            N, ndims, alpha, rneigh, rneigh2, minmove2)
-        #MOVESCOUTSTIME += (<double>time.time() - t0)
+        IF PROFILE: MOVESCOUTSTIME += (<double>time.time() - t0)
         printf('.')
 
         iteri += 1
@@ -246,13 +256,13 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             break
     
     printf('\n')
-    '''
-    printf('merge scouts: %.9f sec\n', MERGESCOUTSTIME)
-    printf('     merge(): %.9f sec\n', MERGETIME)
-    printf('move  scouts: %.9f sec\n', MOVESCOUTSTIME)
-    printf('total       : %.9f sec\n', MERGESCOUTSTIME+MOVESCOUTSTIME)
-    '''
-    cids = buildcids(scouts, N) # build cids from merge history in scouts
+    IF PROFILE:
+        printf('merge scouts: %.9f sec\n', MERGESCOUTSTIME)
+        printf('     merge(): %.9f sec\n', MERGETIME)
+        printf(' move scouts: %.9f sec\n', MOVESCOUTSTIME)
+        printf('       total: %.9f sec\n', MERGESCOUTSTIME+MOVESCOUTSTIME)
+    
+    cids = walkscouts(scouts, N) # build cids from merge history in scouts
 
     # remove clusters with less than minpoints
     nm = 0
@@ -277,11 +287,10 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
            npointsremoved, npointsremoved/(<double>N)*100, nm, minpoints)
 
-    cids = buildcids(scouts, N) # rebuild after removing small clusters
+    cids = walkscouts(scouts, N) # rebuild cids after labelling small clusters as junk
     cids = cids[sortis] # restore original point ordering
 
     # build returnable numpy array of cluster positions, scale up by norm again:
-    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] cpos
     cpos = np.zeros((M, ndims), dtype=np.float32)
     for i in range(M): ## TODO: could use prange here
         scouti = s[i]
@@ -326,7 +335,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
     cdef int nm # number of inner loop mergers
     cdef double d, d2
     cdef bint continuej=False
-    #global MERGETIME
+    IF PROFILE: global MERGETIME
 
     while i < M: # iterate i over current scouts
         scouti = s[i]
@@ -355,9 +364,9 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                 nm += 1
         # merge all queued scouts into scouti
         if nm > 0:
-            #t0 = <double>time.time()
+            IF PROFILE: t0 = <double>time.time()
             M = merge(scouti, mlist, nm, s, M)
-            #MERGETIME += (<double>time.time() - t0)
+            IF PROFILE: MERGETIME += (<double>time.time() - t0)
         i += 1
     return M
 
@@ -368,8 +377,9 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
     cdef float *pos, *pos0
+    cdef bint d0_hit_within_rneigh = False
     cdef int npoints = 0
-    cdef bint continuej=False
+    cdef bint continuej = False
     cdef double d2, kern, move, move2
     cdef double *ds = <double *>malloc(ndims*sizeof(double))
     cdef double *d2s = <double *>malloc(ndims*sizeof(double))
@@ -391,14 +401,21 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
+            elif k == 0:
+                d0_hit_within_rneigh = True
             d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
             d2 += d2s[k]
             #if d2 > rneigh2: # no apparent speedup
             #    continuej = True
             #    break # out of k loop
         if continuej:
+            # got fabs(ds[k]) > rneigh
             continuej = False # reset
-            continue # to next j
+            if k == 0 and d0_hit_within_rneigh:
+                # points are sorted along k=0, any subsequent points will have d[0] > rneigh
+                break # out of j loop
+            else:
+                continue # to next j
         if d2 <= rneigh2: # do the calculation
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
@@ -414,10 +431,11 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     # update scouti position in direction of v, normalize by kernel
     # kernel will never be 0, because each scout starts at a point:
     move2 = 0.0 # reset
-    for k in range(ndims):
-        move = alpha * v[k] / kernel[k] # normalize by kernel, not just nneighs
-        pos[k] += move
-        move2 += move * move
+    if npoints > 0:
+        for k in range(ndims):
+            move = alpha * v[k] / kernel[k] # normalize by kernel, not just nneighs
+            pos[k] += move
+            move2 += move * move
     if move2 < minmove2:
         scouti.still = True # freeze it
             
@@ -461,14 +479,12 @@ cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil
         srcp = s+src
         dst += n # inc dst here for next loop, before n gets decr in while loop below
         #nbytes = n * sizeof(Scout)
-        #memmove(s+dst, s+src, nbytes) # slower? allows src and dst to overlap
-        #memcpy(s+dst, s+src, nbytes) # faster? doesn't allow src and dst to overlap
+        #memmove(s+dst, s+src, nbytes) # allows src and dst to overlap
+        #memcpy(s+dst, s+src, nbytes) # doesn't allow src and dst to overlap
 
-        # Cython translation of what memcpy probably does, but
-        # doesn't occasionally erroneously copy the way memcpy does,
-        # Can get away with this pointer method because
-        # dst < src always, and src and dst reference the same object (sr). The fastest
-        # implementation is cited as:
+        # Cython translation of what memcpy and memove probably do. Can get away with this
+        # pointer method because dst < src always, and srcp and dstp reference the same
+        # object (s). The fastest implementation is cited as:
         #
         #void *memcpy(void *dest, const void *src, size_t n)
         #{
@@ -480,8 +496,8 @@ cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil
         #}
         # on the web, e.g. http://clc-wiki.net/wiki/memcpy. Although the above is a byte
         # level copy, and word level copy should be faster. The following Cython code seems
-        # to run as fast as memmove. Hand optimizing the .c file to use -- and * and ++
-        # didn't seem to help:
+        # to run as fast as memmove. Hand optimizing the generated .c file to use -- and *
+        # and ++ didn't seem to help:
         while n:
             dstp[0] = srcp[0]
             dstp += 1
@@ -497,8 +513,9 @@ cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil
     return M
 
 
-cdef inline np.ndarray[np.int32_t, ndim=1, mode='c'] buildcids(Scout *scouts, int N):
-    """Return numpy array of cluster ids"""
+cdef inline np.ndarray[np.int32_t, ndim=1, mode='c'] walkscouts(Scout *scouts, int N):
+    """Return numpy array of cluster ids by walking each scout's merge path
+    to its final destination scout"""
     cdef int i
     cdef Scout *scouti
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids
