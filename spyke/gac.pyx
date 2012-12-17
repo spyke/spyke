@@ -122,7 +122,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
     """Nicholas Swindale's gradient ascent clustering (GAC) algorithm"""
     cdef Py_ssize_t i, j, k, cid
-    cdef bint allstill
+    cdef bint allstill, sorted_k0
     cdef int iteri=0, nnomerges=0
     cdef int N = data.shape[0] # total num rows (points) in data table
     cdef int ndims = data.shape[1] # num cols in data table
@@ -185,6 +185,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     sortis = data[:, 0].argsort() # 0'th dimension is now sortdimis[0]
     data = data[sortis]
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
+    sorted_k0 = True
     print('sorted data along dimension %d' % sortdimis[0])
     
     # declare placeholder scout:
@@ -222,7 +223,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # merge current scouts within rmerge of each other:
         IF PROFILE: t0 = <double>time.time()
-        newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims, iteri)
+        newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims, sorted_k0)
         IF PROFILE: MERGESCOUTSTIME += (<double>time.time() - t0)
 
         if newM != M: # at least one merger happened on this iter
@@ -254,6 +255,13 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 break
         if allstill:
             break
+
+        if sorted_k0:
+            for i in range(1, M):
+                if s[i].pos[0] < s[i-1].pos[0]:
+                    sorted_k0 = False
+                    printf('scouts no longer sorted along dimension 0')
+                    break # out of i loop
     
     printf('\n')
     IF PROFILE:
@@ -328,7 +336,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
 
 cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
-                             double rmerge2, int ndims, int iteri):
+                             double rmerge2, int ndims, bint sorted_k0):
     """Merge pairs of scout points within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k
     cdef Scout *scouti, *scoutj
@@ -352,7 +360,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
-                elif k == 0:
+                elif sorted_k0 and k == 0:
                     d0_hit_within_rmerge = True
                 d2 += d * d
                 #if d2 > rmerge2: # no apparent speedup
@@ -361,7 +369,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
             if continuej:
                 # got fabs(d) > rmerge along k'th dimension
                 continuej = False # reset
-                if iteri == 0 and k == 0 and d0_hit_within_rmerge:
+                if sorted_k0 and k == 0 and d0_hit_within_rmerge:
                     # scouts are initially sorted along k=0, any subsequent scouts will have
                     # d[0] > rmerge
                     d0_hit_within_rmerge = False # reset
