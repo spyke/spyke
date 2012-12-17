@@ -222,7 +222,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # merge current scouts within rmerge of each other:
         IF PROFILE: t0 = <double>time.time()
-        newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims)
+        newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims, iteri)
         IF PROFILE: MERGESCOUTSTIME += (<double>time.time() - t0)
 
         if newM != M: # at least one merger happened on this iter
@@ -328,10 +328,11 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
 
 cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
-                             double rmerge2, int ndims):
+                             double rmerge2, int ndims, int iteri):
     """Merge pairs of scout points within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k
     cdef Scout *scouti, *scoutj
+    cdef bint d0_hit_within_rmerge = False
     cdef int nm # number of inner loop mergers
     cdef double d, d2
     cdef bint continuej=False
@@ -351,13 +352,22 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
+                elif k == 0:
+                    d0_hit_within_rmerge = True
                 d2 += d * d
                 #if d2 > rmerge2: # no apparent speedup
                 #    continuej = True
                 #    break # out of k loop
             if continuej:
+                # got fabs(d) > rmerge along k'th dimension
                 continuej = False # reset
-                continue # to next j
+                if iteri == 0 and k == 0 and d0_hit_within_rmerge:
+                    # scouts are initially sorted along k=0, any subsequent scouts will have
+                    # d[0] > rmerge
+                    d0_hit_within_rmerge = False # reset
+                    break # out of j loop
+                else:
+                    continue # to next j
             if d2 <= rmerge2:
                 # queue scoutj to be merged into scouti
                 mlist[nm] = j # store s index of scoutj, not its scoutj.id
