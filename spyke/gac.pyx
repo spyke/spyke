@@ -77,22 +77,27 @@ import time
 
 cdef double MERGESCOUTSTIME, MERGETIME, MOVESCOUTSTIME
 
-cdef extern from "math.h":
-    double fabs(double x) nogil
-    double exp(double x) nogil
-    double sqrt(double x) nogil
-    #double ceil(double x) nogil
+cdef extern from "math.h" nogil:
+    double fabs(double x)
+    double exp(double x)
+    double sqrt(double x)
+    #double ceil(double x)
 
-cdef extern from "stdio.h":
-    int printf(char *, ...) nogil
-    cdef void *malloc(size_t) nogil # allocates without clearing to 0
-    #cdef void *calloc(size_t, size_t) nogil # allocates with clearing to 0
-    cdef void free(void *) nogil
+cdef extern from "stdio.h" nogil:
+    int printf(char *, ...)
+    cdef void *malloc(size_t) # allocates without clearing to 0
+    #cdef void *calloc(size_t, size_t) # allocates with clearing to 0
+    cdef void free(void *)
+
+cdef extern from "stdlib.h" nogil:
+    ctypedef void const_void "const void"
+    void qsort(void *ARRAY, size_t COUNT, size_t SIZE,
+               int (*COMPARE)(const_void *, const_void *))
 '''
-cdef extern from "string.h":
-    cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
-    cdef void *memcpy(void *, void *, size_t) nogil # copy to *dest from *src n bytes
-    cdef void *memmove(void *, void *, size_t) nogil # copy to *dest from *src n bytes
+cdef extern from "string.h" nogil:
+    cdef void *memset(void *, int, size_t) # sets n bytes in memory to constant
+    cdef void *memcpy(void *, void *, size_t) # copy to *dest from *src n bytes
+    cdef void *memmove(void *, void *, size_t) # copy to *dest from *src n bytes
 '''
 # despite GNU C manual, an initial empty declaration doesn't seem necessary for the
 # recursive struct definition below, maybe not required in Cython:
@@ -122,7 +127,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
     """Nicholas Swindale's gradient ascent clustering (GAC) algorithm"""
     cdef Py_ssize_t i, j, k, cid
-    cdef bint allstill, sorted_k0
+    cdef bint allstill
     cdef int iteri=0, nnomerges=0
     cdef int N = data.shape[0] # total num rows (points) in data table
     cdef int ndims = data.shape[1] # num cols in data table
@@ -185,7 +190,6 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     sortis = data[:, 0].argsort() # 0'th dimension is now sortdimis[0]
     data = data[sortis]
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
-    sorted_k0 = True
     print('sorted data along dimension %d' % sortdimis[0])
     
     # declare placeholder scout:
@@ -223,7 +227,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         # merge current scouts within rmerge of each other:
         IF PROFILE: t0 = <double>time.time()
-        newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims, sorted_k0)
+        newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims)
         IF PROFILE: MERGESCOUTSTIME += (<double>time.time() - t0)
 
         if newM != M: # at least one merger happened on this iter
@@ -255,14 +259,24 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 break
         if allstill:
             break
+        '''
+        printf('before qsort:\n')
+        for i in range(M):
+            printf('%.3f, ', s[i].pos[0])
+        printf('\n')
+        '''
+        qsort(s, M, sizeof(Scout *), cmp_scouts_k0)
+        '''
+        for i in range(1, M):
+            if s[i].pos[0] < s[i-1].pos[0]:
+                printf('scouts no longer sorted along dimension 0\n')
+                break # out of i loop
 
-        if sorted_k0:
-            for i in range(1, M):
-                if s[i].pos[0] < s[i-1].pos[0]:
-                    sorted_k0 = False
-                    printf('scouts no longer sorted along dimension 0')
-                    break # out of i loop
-    
+        printf('after qsort:\n')
+        for i in range(M):
+            printf('%.3f, ', s[i].pos[0])
+        printf('\n')
+        '''
     printf('\n')
     IF PROFILE:
         printf('merge scouts: %.9f sec\n', MERGESCOUTSTIME)
@@ -336,7 +350,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
 
 cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
-                             double rmerge2, int ndims, bint sorted_k0):
+                             double rmerge2, int ndims):
     """Merge pairs of scout points within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k
     cdef Scout *scouti, *scoutj
@@ -360,7 +374,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
-                elif sorted_k0 and k == 0:
+                elif k == 0:
                     d0_hit_within_rmerge = True
                 d2 += d * d
                 #if d2 > rmerge2: # no apparent speedup
@@ -369,7 +383,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
             if continuej:
                 # got fabs(d) > rmerge along k'th dimension
                 continuej = False # reset
-                if sorted_k0 and k == 0 and d0_hit_within_rmerge:
+                if k == 0 and d0_hit_within_rmerge:
                     # scouts are initially sorted along k=0, any subsequent scouts will have
                     # d[0] > rmerge
                     d0_hit_within_rmerge = False # reset
@@ -530,6 +544,16 @@ cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil
     M -= nm # decr num scouts
     return M
 
+
+cdef int cmp_scouts_k0(const_void *dps0, const_void *dps1) nogil:
+    """Return relative positional order of a pair of scouts along their 0'th dimension.
+    In this case, dps0 and dps1 are actually double pointers, each of which is an
+    entry in the s array"""
+    # typecast to Scout double pointers, deref to single pointers, then access .pos:
+    if (<Scout **>dps0)[0].pos[0] < (<Scout **>dps1)[0].pos[0]:
+        return -1
+    return 1 # don't worry about case when they're equal
+    
 
 cdef inline np.ndarray[np.int32_t, ndim=1, mode='c'] walkscouts(Scout *scouts, int N):
     """Return numpy array of cluster ids by walking each scout's merge path

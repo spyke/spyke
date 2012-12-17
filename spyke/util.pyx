@@ -24,6 +24,7 @@ cdef extern from "stdio.h":
 cdef extern from "string.h":
     cdef void *memset(void *, int, size_t) nogil # sets n bytes in memory to constant
 
+
 cdef short select_short(short *a, int l, int r, int k):
     """Returns the k'th (0-based) ranked entry from float array a within left
     and right pointers l and r. This is quicksort partitioning based
@@ -32,7 +33,7 @@ cdef short select_short(short *a, int l, int r, int k):
     cdef int i, j
     cdef short v, temp
     if r < l:
-        raise ValueError, 'bad pointer range in select()'
+        raise ValueError('bad pointer range in select()')
     while r > l:
         v = a[r]
         i = l-1
