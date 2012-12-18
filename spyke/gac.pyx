@@ -417,11 +417,12 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     # search along sorted dim 0 for 1st and last data point within rneigh of scouti:
     cdef int lo = bsearch_points_k0(scouts, N, pos[0]-rneigh)
     cdef int hi = bsearch_points_k0(scouts, N, pos[0]+rneigh)
-    # subsample, though unfortunately, the actual number of points used to calculate the
-    # gradient will depend on what fraction of those within rneigh along 0'th dimension
-    # actually fall within rneigh2 in Euclidean space. To roughly make up for this,
-    # maybe maxgrad should be scaled by ndims? Or by (ndims+1)/ndims*pi*rneigh**ndims,
-    # ie an ndim equivalent of the volume of a sphere?
+    """Subsample, though unfortunately, the actual number of points used to calculate the
+    gradient will depend on what fraction of those within rneigh along 0'th dimension
+    actually fall within rneigh2 in Euclidean space. To roughly make up for this, maybe
+    maxgrad should be scaled by ndims? Or by ndim equivalent of the volume of a sphere? Or
+    maybe nicer solution would be to re-sort and do binary split search along each
+    successive dimension, though that might not pay off"""
     cdef int step = (hi - lo) // maxgrad
     if step == 0:
         step = 1
@@ -429,7 +430,11 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     for j from lo <= j < hi by step:
         pos0 = scouts[j].pos0
         d2 = 0.0 # reset
-        for k in range(ndims): # iterate over dims for each point
+        # for speed, iterate starting from dim 1, then do dim 0 last on its own,
+        # outside the loop. This increases chance of skipping j, because
+        # we already know that scouti is <= rneigh along dim 0, and the rest of the
+        # dims are in order of decreasing variance:
+        for k in range(1, ndims): # iterate over dims for each point
             ds[k] = pos0[k] - pos[k]
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
@@ -442,6 +447,10 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
         if continuej:
             continuej = False # reset
             continue # to next j
+        # now fill in ds[0], d2s[0] and top up d2:
+        ds[0] = pos0[0] - pos[0]
+        d2s[0] = ds[0] * ds[0] # used twice, so calc it only once
+        d2 += d2s[0]
         if d2 <= rneigh2: # do the calculation
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
