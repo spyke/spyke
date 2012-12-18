@@ -174,7 +174,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # working list for keeping track of pending scout merges
     cdef int *mlist = <int *>malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist\n")
-    '''
+    
     # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
     randis = np.arange(N)
     np.random.shuffle(randis) # in place
@@ -191,7 +191,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data = data[sortis]
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
     print('sorted data along dimension %d' % sortdimis[0])
-    
+    '''
     # declare placeholder scout:
     cdef Scout *scouti
 
@@ -354,7 +354,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
     """Merge pairs of scout points within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k
     cdef Scout *scouti, *scoutj
-    cdef bint d0_hit_within_rmerge = False
+    #cdef bint d0_hit_within_rmerge = False
     cdef int nm # number of inner loop mergers
     cdef double d, d2
     cdef bint continuej=False
@@ -374,8 +374,8 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
-                elif k == 0:
-                    d0_hit_within_rmerge = True
+                #elif k == 0:
+                #    d0_hit_within_rmerge = True
                 d2 += d * d
                 #if d2 > rmerge2: # no apparent speedup
                 #    continuej = True
@@ -383,6 +383,7 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
             if continuej:
                 # got fabs(d) > rmerge along k'th dimension
                 continuej = False # reset
+                '''
                 if k == 0 and d0_hit_within_rmerge:
                     # scouts are initially sorted along k=0, any subsequent scouts will have
                     # d[0] > rmerge
@@ -390,6 +391,8 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                     break # out of j loop
                 else:
                     continue # to next j
+                '''
+                continue # to next j
             if d2 <= rmerge2:
                 # queue scoutj to be merged into scouti
                 mlist[nm] = j # store s index of scoutj, not its scoutj.id
@@ -409,7 +412,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
     cdef float *pos, *pos0
-    cdef bint d0_hit_within_rneigh = False
+    #cdef bint d0_hit_within_rneigh = False
     cdef int npoints = 0
     cdef bint continuej = False
     cdef double d2, kern, move, move2
@@ -433,8 +436,8 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
-            elif k == 0:
-                d0_hit_within_rneigh = True
+            #elif k == 0:
+            #    d0_hit_within_rneigh = True
             d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
             d2 += d2s[k]
             #if d2 > rneigh2: # no apparent speedup
@@ -443,11 +446,14 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
         if continuej:
             # got fabs(ds[k]) > rneigh
             continuej = False # reset
+            '''
             if k == 0 and d0_hit_within_rneigh:
                 # points are sorted along k=0, any subsequent points will have d[0] > rneigh
                 break # out of j loop
             else:
                 continue # to next j
+            '''
+            continue # to next j
         if d2 <= rneigh2: # do the calculation
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
