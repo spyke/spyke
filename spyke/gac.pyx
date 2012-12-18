@@ -110,6 +110,8 @@ cdef struct Scout:
     float *pos # current position
     ## TODO: this should probably be a counter, not boolean:
     bint still # has scout stopped moving?
+    int size # number of points belonging to this scout
+
 
 # NOTE: stdout is buffered by default in linux. This means anything printed to screen from
 # within C code won't show up until it gets a newline, or until you call fflush(stdout).
@@ -136,7 +138,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int M = N # current num scout points, each data point starts as its own scout
     cdef int nm, newM, npoints, npointsremoved
     cdef np.ndarray[np.int32_t, ndim=1, mode='c'] cids # cluster IDs to return for each point
-    cdef np.ndarray[np.float32_t, ndim=2, mode='c'] cpos # cluster positions
+    #cdef np.ndarray[np.float32_t, ndim=2, mode='c'] cpos # cluster positions
 
     IF PROFILE: 
         global MERGESCOUTSTIME, MERGETIME, MOVESCOUTSTIME
@@ -156,7 +158,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef double rneigh = sqrt(lenexps)
     cdef double rneigh2 = lenexps # rneigh * rneigh
     #printf('norm: %f, rneigh: %.1f, rneigh2: %.1f\n', norm, rneigh, rneigh2)
-    # radius within which scout points are merged:
+    # radius within which scouts are merged:
     cdef double rmerge = rmergex * sigma / norm
     cdef double rmerge2 = rmerge * rmerge
     # min motion in any direction in ndims space req'd for scout to be considered moving:
@@ -174,15 +176,9 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # working list for keeping track of pending scout merges
     cdef int *mlist = <int *>malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist\n")
-    
-    # shuffle rows in data (spike ids) to prevent temporal bias using maxgrad:
-    randis = np.arange(N)
-    np.random.shuffle(randis) # in place
-    data = data[randis]
-    sortis = randis.argsort()
-    '''
+
     # sort data along dimension of max variance, ostensibly the one with most information
-    # about distance between points (turns out not to be very useful?):
+    # about distance between points:
     stds = data.var(axis=0)
     sortdimis = stds.argsort()[::-1] # dim indices in order of decreasing variance
     data = data[:, sortdimis].copy() # reorder dims by decreasing variance, copy for C contig
@@ -191,7 +187,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data = data[sortis]
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
     print('sorted data along dimension %d' % sortdimis[0])
-    '''
+    
     # declare placeholder scout:
     cdef Scout *scouti
 
@@ -213,12 +209,13 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         scouti.pos0 = <float *>malloc(ndims*sizeof(float))
         scouti.pos = <float *>malloc(ndims*sizeof(float))
         scouti.still = False
+        scouti.size = 1
         for k in range(ndims):
             scouti.pos0[k] = data[i, k] / norm
             scouti.pos[k] = data[i, k] / norm
 
     # init a shrinking view of scouts, s:
-    cdef Scout **s = <Scout **>malloc(N*sizeof(Scout *)) # array of Scout pointers
+    cdef Scout **s = <Scout **>malloc(N*sizeof(Scout *)) # array of pointers to Scout pointers
     if not s: raise MemoryError("can't allocate s\n")
     for i in range(M): ## TODO: could use prange here
         s[i] = scouts+i
@@ -269,8 +266,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         '''
         for i in range(1, M):
             if s[i].pos[0] < s[i-1].pos[0]:
-                printf('scouts no longer sorted along dimension 0\n')
-                break # out of i loop
+                printf('error: scouts aren't sorted along dimension 0\n')
+                return
 
         printf('after qsort:\n')
         for i in range(M):
@@ -283,42 +280,42 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         printf('     merge(): %.9f sec\n', MERGETIME)
         printf(' move scouts: %.9f sec\n', MOVESCOUTSTIME)
         printf('       total: %.9f sec\n', MERGESCOUTSTIME+MOVESCOUTSTIME)
-    
+
     cids = walkscouts(scouts, N) # build cids from merge history in scouts
 
     # remove clusters with less than minpoints
     nm = 0
     npointsremoved = 0
     for i in range(M):
-        npoints = 0 # reset
-        # tally up npoints in cluster s[i]
-        cid = s[i].id
-        for j in range(N): ## TODO: could maybe use prange here, except for npoints inc?
-            if cids[j] == cid:
-                npoints += 1
-        if npoints < minpoints:
+        if s[i].size < minpoints:
             #printf('cluster %d has only %d points', cid, npoints)
             # remove cluster cid by merging it into "cluster" -1
             mlist[nm] = i
             nm += 1
-            npointsremoved += npoints
-    
+            npointsremoved += s[i].size
     if nm > 0:
         M = merge(junk, mlist, nm, s, M)
  
     printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
            npointsremoved, npointsremoved/(<double>N)*100, nm, minpoints)
 
-    cids = walkscouts(scouts, N) # rebuild cids after labelling small clusters as junk
-    cids = cids[sortis] # restore original point ordering
+    # sort s by decreasing cluster size and relabel scouts in that order
+    qsort(s, M, sizeof(Scout *), cmp_scouts_decsize)
+    for i in range(M):
+        s[i].id = i
 
+    # rebuild cids after labelling small clusters as junk and sorting by decreasing
+    # cluster size
+    cids = walkscouts(scouts, N)
+    cids = cids[sortis] # restore original point ordering
+    '''
     # build returnable numpy array of cluster positions, scale up by norm again:
     cpos = np.zeros((M, ndims), dtype=np.float32)
     for i in range(M): ## TODO: could use prange here
         scouti = s[i]
         for k in range(ndims):
             cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
-    
+    '''
     # for display, restore sigma dependent params to be unnormalized by norm:
     rmerge *= norm
     rneigh *= norm
@@ -346,24 +343,26 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     free(scouts)
     free(s)
     
-    return cids, cpos
+    return cids#, cpos
 
 
 cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                              double rmerge2, int ndims):
-    """Merge pairs of scout points within rmerge of each other"""
+    """Merge pairs of scouts within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k
     cdef Scout *scouti, *scoutj
-    #cdef bint d0_hit_within_rmerge = False
     cdef int nm # number of inner loop mergers
+    cdef int lo, hi, step
     cdef double d, d2
     cdef bint continuej=False
     IF PROFILE: global MERGETIME
 
     while i < M: # iterate i over current scouts
         scouti = s[i]
+        lo = bsearch_scouts_k0(s, i+1, M, scouti.pos[0]-rmerge)
+        hi = bsearch_scouts_k0(s, i+1, M, scouti.pos[0]+rmerge)
         nm = 0 # reset
-        for j in range(i+1, M): ## TODO: could maybe use prange here, except for nm inc?
+        for j in range(lo, hi): ## TODO: could maybe use prange here, except for nm inc?
             scoutj = s[j]
             if scouti.still and scoutj.still: # both scouts are frozen
                 continue # to next j
@@ -374,8 +373,6 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                 if fabs(d) > rmerge: # break out of k loop, continue to next j
                     continuej = True
                     break # out of k loop
-                #elif k == 0:
-                #    d0_hit_within_rmerge = True
                 d2 += d * d
                 #if d2 > rmerge2: # no apparent speedup
                 #    continuej = True
@@ -383,15 +380,6 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
             if continuej:
                 # got fabs(d) > rmerge along k'th dimension
                 continuej = False # reset
-                '''
-                if k == 0 and d0_hit_within_rmerge:
-                    # scouts are initially sorted along k=0, any subsequent scouts will have
-                    # d[0] > rmerge
-                    d0_hit_within_rmerge = False # reset
-                    break # out of j loop
-                else:
-                    continue # to next j
-                '''
                 continue # to next j
             if d2 <= rmerge2:
                 # queue scoutj to be merged into scouti
@@ -412,7 +400,6 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
     cdef float *pos, *pos0
-    #cdef bint d0_hit_within_rneigh = False
     cdef int npoints = 0
     cdef bint continuej = False
     cdef double d2, kern, move, move2
@@ -427,8 +414,19 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     
     # measure gradient v:
     pos = scouti.pos
-    # iterate over all original data points, check if any are within rneigh of scouti:
-    for j in range(N):
+    # search along sorted dim 0 for 1st and last data point within rneigh of scouti:
+    cdef int lo = bsearch_points_k0(scouts, N, pos[0]-rneigh)
+    cdef int hi = bsearch_points_k0(scouts, N, pos[0]+rneigh)
+    # subsample, though unfortunately, the actual number of points used to calculate the
+    # gradient will depend on what fraction of those within rneigh along 0'th dimension
+    # actually fall within rneigh2 in Euclidean space. To roughly make up for this,
+    # maybe maxgrad should be scaled by ndims? Or by (ndims+1)/ndims*pi*rneigh**ndims,
+    # ie an ndim equivalent of the volume of a sphere?
+    cdef int step = (hi - lo) // maxgrad
+    if step == 0:
+        step = 1
+    # iterate over evenly subsampled original data points within rneigh of scouti:
+    for j from lo <= j < hi by step:
         pos0 = scouts[j].pos0
         d2 = 0.0 # reset
         for k in range(ndims): # iterate over dims for each point
@@ -436,23 +434,13 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
-            #elif k == 0:
-            #    d0_hit_within_rneigh = True
             d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
             d2 += d2s[k]
             #if d2 > rneigh2: # no apparent speedup
             #    continuej = True
             #    break # out of k loop
         if continuej:
-            # got fabs(ds[k]) > rneigh
             continuej = False # reset
-            '''
-            if k == 0 and d0_hit_within_rneigh:
-                # points are sorted along k=0, any subsequent points will have d[0] > rneigh
-                break # out of j loop
-            else:
-                continue # to next j
-            '''
             continue # to next j
         if d2 <= rneigh2: # do the calculation
             for k in range(ndims):
@@ -464,8 +452,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
                 kernel[k] += kern
                 v[k] += ds[k] * kern # this is why you can't store fabs of ds[k]!
             npoints += 1
-            if npoints == maxgrad: # this is kinda like doing nearest neighbours though...
-                break # out of j loop
+
     # update scouti position in direction of v, normalize by kernel
     # kernel will never be 0, because each scout starts at a point:
     move2 = 0.0 # reset
@@ -474,6 +461,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
             move = alpha * v[k] / kernel[k] # normalize by kernel, not just nneighs
             pos[k] += move
             move2 += move * move
+    #printf('%d,', npoints)
     if move2 < minmove2:
         scouti.still = True # freeze it
             
@@ -483,8 +471,44 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     free(v)
 
 
+cdef inline int bsearch_points_k0(Scout *scouts, int N, float pos0k0) nogil:
+    """Use bisection of point positions in scouts sorted along k=0 to find first
+    entry >= pos0k0. In other words, find the first index i such that
+    pos0k0 <= scouts[i].pos0[0]. When there is no such index i, set i = N = len(scouts).
+
+    Adapted from numpy/core/src/multiarray/item_selection.c/local_search_left(),
+    because C's bsearch only returns an exact hit, not the insertion index of key into arr.
+    """
+    cdef int mini=0, maxi=N, midi
+    while mini < maxi:
+        midi = mini + ((maxi - mini) >> 1) # bitshift right 1 is same as mod 2
+        if scouts[midi].pos0[0] < pos0k0:
+            mini = midi + 1
+        else:
+            maxi = midi
+    return mini
+
+
+cdef inline int bsearch_scouts_k0(Scout **s, int i, int M, float posk0) nogil:
+    """Use bisection of scout positions in s sorted along k=0 to find first
+    entry >= posk0. In other words, find the first index j >= i such that
+    posk0 <= s[j].pos[0]. When there is no such index j, set j = M = len(s).
+
+    Adapted from numpy/core/src/multiarray/item_selection.c/local_search_left(),
+    because C's bsearch only returns an exact hit, not the insertion index of key into arr.
+    """
+    cdef int mini=i, maxi=M, midi
+    while mini < maxi:
+        midi = mini + ((maxi - mini) >> 1) # bitshift right 1 is same as mod 2
+        if s[midi].pos[0] < posk0:
+            mini = midi + 1
+        else:
+            maxi = midi
+    return mini
+
+
 cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil:
-    """Take scouts represented by ordered indices into s in mlist and merge them into s[i]"""
+    """Take scouts represented by ordered s indices in mlist and merge them into scouti"""
     cdef Py_ssize_t mi, src, dst, n, j
     cdef Scout **dstp, **srcp, 
     #assert nm > 0
@@ -506,7 +530,8 @@ cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil
     mlist[nm] = M # make final mlist[mi+1] give correct value
     for mi in range(nm):
         j = mlist[mi]
-        s[j].next = scouti
+        s[j].next = scouti # point s[j] to scouti to record merge history
+        scouti.size += s[j].size # grow scouti's size
         src = j + 1
         n = mlist[mi+1] - src
         #printf('src: %d, dst: %d, n: %d\n', src, dst, n)
@@ -551,15 +576,25 @@ cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil
     return M
 
 
-cdef int cmp_scouts_k0(const_void *dps0, const_void *dps1) nogil:
+cdef inline int cmp_scouts_k0(const_void *dps0, const_void *dps1) nogil:
     """Return relative positional order of a pair of scouts along their 0'th dimension.
     In this case, dps0 and dps1 are actually double pointers, each of which is an
     entry in the s array"""
     # typecast to Scout double pointers, deref to single pointers, then access .pos:
     if (<Scout **>dps0)[0].pos[0] < (<Scout **>dps1)[0].pos[0]:
-        return -1
-    return 1 # don't worry about case when they're equal
+        return -1 # report that s0 should come before s1
+    return 1 # report that s1 should come before s0
+    # don't worry about case when they're equal
     
+cdef inline int cmp_scouts_decsize(const_void *dps0, const_void *dps1) nogil:
+    """Return *decreasing* relative size of a pair of scouts.
+    In this case, dps0 and dps1 are actually double pointers, each of which is an
+    entry in the s array"""
+    # typecast to Scout double pointers, deref to single pointers, then access .size:
+    cdef int d = (<Scout **>dps1)[0].size - (<Scout **>dps0)[0].size
+    # if s1 is bigger than s0, return +ve value; if s1 is smaller than s0, return -ve value;
+    # if equal, return 0. +ve value means they're in the wrong order and need to be swapped
+    return d
 
 cdef inline np.ndarray[np.int32_t, ndim=1, mode='c'] walkscouts(Scout *scouts, int N):
     """Return numpy array of cluster ids by walking each scout's merge path

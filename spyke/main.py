@@ -186,7 +186,8 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveSortAs_triggered(self):
         """Save sort to new .sort file"""
-        if self.sort.fname == '': # sort hasn't been previously saved
+        defaultfname = self.sort.fname
+        if defaultfname == '': # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
             fname = self.hpstream.fname.replace(' ', '_')
             dt = str(datetime.datetime.now()) # get an export timestamp
@@ -846,10 +847,9 @@ class SpykeWindow(QtGui.QMainWindow):
         s.sigmasqrtndims = s.sigma * np.sqrt(ndims) # scale sigma with dimensionality
         print('clustering %d points in %d-D space' % (npoints, ndims))
         t0 = time.time()
-        results = gac(data, sigma=s.sigmasqrtndims, rmergex=s.rmergex, rneighx=s.rneighx,
-                      alpha=s.alpha, maxgrad=s.maxgrad,
-                      maxnnomerges=1000, minpoints=s.minpoints)
-        nids, scoutpositions = results
+        nids = gac(data, sigma=s.sigmasqrtndims, rmergex=s.rmergex, rneighx=s.rneighx,
+                   alpha=s.alpha, maxgrad=s.maxgrad,
+                   maxnnomerges=1000, minpoints=s.minpoints)
         # nids from gac() are 0-based, but we want our single unit nids to be 1-based,
         # to leave room for junk cluster at 0 and multiunit clusters at nids < 0. So add 1:
         nids += 1
