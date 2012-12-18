@@ -120,7 +120,7 @@ cdef struct Scout:
 #DEF MAXUINT16 = 2**16 - 1
 #DEF MAXINT32 = 2**31 - 1
 #DEF DEBUG = 0 # could use this for different levels of debug messages
-DEF PROFILE = True # print timing information
+DEF PROFILE = False # print timing information
 
 
 def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
