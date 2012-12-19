@@ -121,7 +121,7 @@ cdef struct Scout:
 #DEF MAXINT32 = 2**31 - 1
 #DEF DEBUG = 0 # could use this for different levels of debug messages
 DEF PROFILE = False # print timing information
-
+DEF SORTDIMSBYVARIANCE = False
 
 def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double sigma=0.25, double rmergex=0.25, double rneighx=4,
@@ -177,16 +177,26 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cdef int *mlist = <int *>malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist\n")
 
-    # sort data along dimension of max variance, ostensibly the one with most information
-    # about distance between points:
-    stds = data.var(axis=0)
-    sortdimis = stds.argsort()[::-1] # dim indices in order of decreasing variance
-    data = data[:, sortdimis].copy() # reorder dims by decreasing variance, copy for C contig
-    print('reordered dimensions of data by variance: %s' % sortdimis)
-    sortis = data[:, 0].argsort() # 0'th dimension is now sortdimis[0]
+    IF SORTDIMSBYVARIANCE:
+        # sort data along dimension of max variance, ostensibly the one with most information
+        # about distance between points:
+        stds = data.var(axis=0)
+        sortdimis = stds.argsort()[::-1] # dim indices in order of decreasing variance
+        data = data[:, sortdimis].copy() # reorder dims by dec variance, copy for C contig
+        print('reordered dimensions of data by variance: %s' % sortdimis)
+    ELSE:
+        # always sort along dimension 0. Due to subsampling, sorting along various dimensions
+        # can affect clustering results. This can be mitigated by increasing maxgrad.
+        # Sorting along a fixed dimension allows the user to choose which is most important
+        # to split data along
+        pass
+    sortis = data[:, 0].argsort()
     data = data[sortis]
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
-    print('sorted data along dimension %d' % sortdimis[0])
+    IF SORTDIMSBYVARIANCE:
+        print('sorted data along dimension %d' % sortdimis[0])
+    ELSE:
+        print('sorted data along dimension 0')
     
     # declare placeholder scout:
     cdef Scout *scouti
