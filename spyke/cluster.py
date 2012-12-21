@@ -609,22 +609,27 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def mousePressEvent(self, event):
         """Record mouse position on button press, for use in mouseMoveEvent. On middle
-        click, randomly sample spikes"""
+        click, select spikes"""
         sw = self.spw.windows['Sort']
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
             #sw.on_actionSelectRandomSpikes_activated()
-            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            #sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            self.selecting = True
+            self.setMouseTracking(True) # while selecting
+            self.selectPointsUnderCursor()
         self.lastPos = QtCore.QPoint(event.pos())
-        self.movement = False # no mouse movement yet
+        #self.movement = False # no mouse movement yet
     
     def mouseReleaseEvent(self, event):
         # seems have to use event.button(), not event.buttons(). I guess you can't
         # release multiple buttons simultaneously the way you can press them simultaneously?
         button = event.button()
-        if not self.movement: # no mouse movement, handle the clicks
-            pass
-            '''
+        if button == QtCore.Qt.MiddleButton:
+            self.selecting = False
+            self.setMouseTracking(False) # done selecting
+        '''
+        if not self.movement: # no mouse movement
             if button == QtCore.Qt.LeftButton:
                 self.selectPointsUnderCursor()
             elif button == QtCore.Qt.RightButton:
@@ -632,21 +637,20 @@ class GLWidget(QtOpenGL.QGLWidget):
                 if sids == None: # clear current selection
                     sw = self.spw.windows['Sort']
                     sw.clear()
-            '''
-        self.movement = False # clear mouse movement flag, for completeness
-    '''
+        '''
+        #self.movement = False # clear mouse movement flag, for completeness
+    
     def mouseDoubleClickEvent(self, event):
-        """Clear selection and select points under the cursor, if any"""
-        if event.button() == QtCore.Qt.LeftButton:
-            self.selectPointsUnderCursor(clear=True)
-        else:
-            self.mousePressEvent(event) # register it as a normal mousePressEvent
-    '''
+        """Clear selection, if any"""
+        if event.button() == QtCore.Qt.RightButton:
+            sw = self.spw.windows['Sort']
+            sw.clear()
+    
     def mouseMoveEvent(self, event):
         buttons = event.buttons()
 
         if buttons != Qt.NoButton:
-            self.movement = True # mouse has moved since mousePressEvent
+            #self.movement = True # mouse has moved since mousePressEvent
             modifiers = event.modifiers()
             shift = modifiers == Qt.ShiftModifier # only modifier is shift
             ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
@@ -667,9 +671,9 @@ class GLWidget(QtOpenGL.QGLWidget):
                     self.zoom(-dy/500) # qt viewport y axis points down
             self.updateGL()
             self.lastPos = QtCore.QPoint(event.pos())
-        elif self.selecting != None:
+
+        if self.selecting != None:
             self.selectPointsUnderCursor()
-            return
         '''
         # pop up a tooltip on mouse movement, requires mouse tracking enabled
         if buttons == Qt.NoButton:
