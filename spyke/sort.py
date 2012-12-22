@@ -960,6 +960,25 @@ class Sort(object):
         spikes = self.spikes
         ver_lte_03 = float(self.__version__) <= 0.3
         print('reloading %d spikes' % len(sids))
+        """
+        TODO: speed up reloading by getting a single array of all record timestamps (rts)
+        across all streams (or just current stream if stream isn't a TrackStream, ie it
+        doesn't have a .streams attrib), and do rts.searchsorted on wrt the sorted spike
+        start and end times. For those spikes whose start and end time indices fall within
+        contiguous ranges of the rts, retrieve that whole range of records (up to say a
+        limit of a minutes worth, or the usual 10 sec worth, to prevent MemoryErrors) in one
+        swoop by slicing into the stream, and then do the channel and time offset
+        calculations manually. I suspect the huge inefficiency comes from slicing the same
+        record many times to reload the many spikes that fall within a single record. For
+        spikes disparate across time, this won't help, but for reloading all spikes within a
+        stream, this will help immensely. Also, make sure to sort the sids, so reloading is
+        done in temporal order.
+            - Maybe I should make all this functionality a special stream method, like
+            Stream.slice_multiple_tranges() or something...
+            - this could probably also be multiprocessed, like detection, but maybe isn't
+            worth the effort...
+        """
+        t0 = time.time()
         if usemeanchans:
             if ver_lte_03:
                 raise RuntimeError("Best not to choose new chans from mean until after "
@@ -1061,7 +1080,7 @@ class Sort(object):
                 chans = spike['chans'][:nchans]
                 wave = wave[chans]
                 self.wavedata[sid, 0:nchans] = wave.data
-        print('reloaded %d spikes' % len(sids))
+        print('reloaded %d spikes, took %.3f sec' % (len(sids), time.time()-t0))
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
