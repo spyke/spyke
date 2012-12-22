@@ -626,7 +626,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         # release multiple buttons simultaneously the way you can press them simultaneously?
         button = event.button()
         if button == QtCore.Qt.MiddleButton:
-            self.selecting = False
+            self.selecting = None
             self.setMouseTracking(False) # done selecting
         '''
         if not self.movement: # no mouse movement
