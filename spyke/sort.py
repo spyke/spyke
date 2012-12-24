@@ -949,7 +949,7 @@ class Sort(object):
         self.reloadSpikes(sids)
         return sids # mark all sids as dirty
 
-    def reloadSpikes(self, sids, fixtvals=False, usemeanchans=False):
+    def reloadSpikes(self, sids, usemeanchans=False):
         """Update wavedata of designated spikes from stream. Optionally fix incorrect
         time values from .sort 0.3 files. Optionally choose new set of channels for all
         sids based on the chans closest to the mean of the sids. It's the caller's
@@ -961,22 +961,26 @@ class Sort(object):
         ver_lte_03 = float(self.__version__) <= 0.3
         print('reloading %d spikes' % len(sids))
         """
-        TODO: speed up reloading by getting a single array of all record timestamps (rts)
-        across all streams (or just current stream if stream isn't a TrackStream, ie it
-        doesn't have a .streams attrib), and do rts.searchsorted on wrt the sorted spike
-        start and end times. For those spikes whose start and end time indices fall within
-        contiguous ranges of the rts, retrieve that whole range of records (up to say a
-        limit of a minutes worth, or the usual 10 sec worth, to prevent MemoryErrors) in one
-        swoop by slicing into the stream, and then do the channel and time offset
-        calculations manually. I suspect the huge inefficiency comes from slicing the same
-        record many times to reload the many spikes that fall within a single record. For
-        spikes disparate across time, this won't help, but for reloading all spikes within a
-        stream, this will help immensely. Also, make sure to sort the sids, so reloading is
-        done in temporal order.
-            - Maybe I should make all this functionality a special stream method, like
-            Stream.slice_multiple_tranges() or something...
+        TODO: speed up reloading by splitting up spikes into groups with ISIs < some
+        threshold, say 1 sec or so, with a total time span of no more than 10 sec say. Then,
+        slice into stream for each group to get one big waveform object for the whole group,
+        then go slice that waveform for each spike within that group. getting a single array
+        of all record timestamps (rts) across all streams (or just current stream if stream
+        isn't a TrackStream, ie it doesn't have a .streams attrib), and do rts.searchsorted
+        on it wrt the sorted spike start and end times. For those spikes whose start and end
+        time indices fall within contiguous ranges of the rts, retrieve that whole range of
+        records (up to say a limit of a minutes worth, or the usual 10 sec worth, to prevent
+        MemoryErrors) in one swoop by slicing into the stream, and then do the channel and
+        time offset calculations manually. I suspect the huge inefficiency comes from
+        retrieving and resampling the same bit of stream many times to reload the many
+        spikes that fall within a small time range. For spikes disparate across time, this
+        won't help, but for reloading all spikes within a stream, this will help immensely.
+        Also, make sure to sort the sids, so reloading is done in temporal order.
             - this could probably also be multiprocessed, like detection, but maybe isn't
-            worth the effort...
+            worth the effort, because roughly half the time is spent on disk I/O, other half
+            probably on resampling
+            - reloading the first 2.5M spikes of ptc17.tr1 took ~5.25 hours before I cancelled
+            it, has 3.3M to reload in total
         """
         t0 = time.time()
         if usemeanchans:
@@ -1004,18 +1008,20 @@ class Sort(object):
             # just to be sure:
             assert nmeanchans == det.maxnchansperspike
             assert maxchan in meanchans
+            # update spikes array entries for all sids:
+            spikes['nchans'][sids] = nmeanchans
+            spikes['chans'][sids] = meanchans # using max num chans, assign full array
 
-        if fixtvals and ver_lte_03:
+        waves = []
+        
+
+        if ver_lte_03:
             """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
             during alignbest() calls. To fix this, load new data with old potentially
             incorrect t0 and t1 values, and compare this new data to existing old data
             in wavedata array. Find where the non-repeating parts of the old data fits
             into the new, and calculate the correction needed to fix the time values,
             and also reload new data according to these corrected time values."""
-            if usemeanchans == True:
-                # this could be complicated, avoid it
-                raise RuntimeError("Best not to fix time values and simultaneously choose "
-                                   "new chans from mean. Do one, then the other")
             print('fixing potentially wrong time values during spike reloading')
             nfixed = 0
             for sid in sids:
@@ -1061,10 +1067,6 @@ class Sort(object):
                 self.wavedata[sid, 0:nchans] = newwave.data # update wavedata
             print('fixed time values of %d spikes' % nfixed)
         else: # assume time values for all spikes are accurate
-            if usemeanchans:
-                # update spikes array entries for all sids:
-                spikes['nchans'][sids] = nmeanchans
-                spikes['chans'][sids] = meanchans # using max num chans, assign full array
             for sid in sids:
                 spike = spikes[sid]
                 wave = stream[spike['t0']:spike['t1']]
@@ -1080,6 +1082,7 @@ class Sort(object):
                 chans = spike['chans'][:nchans]
                 wave = wave[chans]
                 self.wavedata[sid, 0:nchans] = wave.data
+
         print('reloaded %d spikes, took %.3f sec' % (len(sids), time.time()-t0))
     '''
     def get_component_matrix(self, dims=None, weighting=None):
@@ -2373,7 +2376,7 @@ class SortWindow(SpykeToolWindow):
         usemeanchans = False
         if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
-        self.sort.reloadSpikes(sids, fixtvals=True, usemeanchans=usemeanchans)
+        self.sort.reloadSpikes(sids, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
         spw.dirtysids.update(sids)
         # update neuron templates:

@@ -321,13 +321,13 @@ class SpykeWindow(QtGui.QMainWindow):
         print('now save me!')
             
     def update_0_3_to_0_4(self):
-        '''Update sort 0.3 to 0.4:
+        """Update sort 0.3 to 0.4:
             - reload all spike waveforms and fix all of their time values
-        '''        
+        """        
         print('updating sort from version 0.3 to 0.4')
         s = self.sort
         sids = np.arange(s.nspikes)
-        s.reloadSpikes(sids, fixtvals=True)
+        s.reloadSpikes(sids)
         # add sids to the set of dirtysids to be resaved to .wave file:
         self.dirtysids.update(sids)
         s.__version__ = '0.4' # update
@@ -335,9 +335,9 @@ class SpykeWindow(QtGui.QMainWindow):
         return float(s.__version__)
         
     def update_0_4_to_0_5(self):
-        '''Update sort 0.4 to 0.5:
-            - rename sort.sortfname to sort.fname"""
-        '''        
+        """Update sort 0.4 to 0.5:
+            - rename sort.sortfname to sort.fname
+        """
         print('updating sort from version 0.4 to 0.5')
         s = self.sort
         s.fname = s.sortfname
@@ -347,11 +347,11 @@ class SpykeWindow(QtGui.QMainWindow):
         return float(s.__version__)
 
     def update_0_5_to_0_6(self):
-        '''Update sort 0.5 to 0.6:
+        """Update sort 0.5 to 0.6:
             - rename sort.spikes field names 'phasetis' and 'dphase' to
-            'tis' and 'dt' respectively"""
+            'tis' and 'dt' respectively
             - remove unused 'cid', 's0' and 's1' fields from sort.spikes, reorder fields
-        '''        
+        """
         print('updating sort from version 0.5 to 0.6')
         s = self.sort
         names = list(s.spikes.dtype.names) # convert from tuple
