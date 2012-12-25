@@ -982,7 +982,7 @@ class Sort(object):
             - reloading the first 2.5M spikes of ptc17.tr1 took ~5.25 hours before I cancelled
             it, has 3.3M to reload in total
         """
-        t0 = time.time()
+        treload = time.time()
         if usemeanchans:
             if ver_lte_03:
                 raise RuntimeError("Best not to choose new chans from mean until after "
@@ -1012,8 +1012,57 @@ class Sort(object):
             spikes['nchans'][sids] = nmeanchans
             spikes['chans'][sids] = meanchans # using max num chans, assign full array
 
+        # split up sids into groups efficient for loading from stream:
+        ts = spikes[sids]['t'] # noncontig, not a copy
+        # ensure they're in temporal order, but maybe this requirement can be somewhat lax:
+        assert (np.diff(ts) >= 0).all()
+        MAXISI = 1000000 # us (1 sec)
+        MAXGROUPDT = 10000000 # us (10 sec)
+        # break up spikes by ISIs >= MAXISI:
+        splitis = np.where(np.diff(ts) >= MAXISI)[0] + 1
+        groups = np.split(sids, splitis)
+        # limit each group of sids to no more than MAXGROUPDT:
+        groupi = 0
+        while groupi < len(groups):
+            group = groups[groupi] # group of sids all with ISIs < MAXISI
+            ## TODO: not a copy: is this the optimal way to get the times in this case?
+            relts = spikes[group]['t'] - spikes[group[0]]['t']
+            splitis = np.where(np.diff(relts // MAXGROUPDT) > 0)[0] + 1
+            nsubgroups = len(splitis) + 1
+            if nsubgroups > 1:
+                # del original group, replace with subgroups
+                del groups[groupi]
+                subgroups = np.split(group, splitis)
+                for subgroup in subgroups:
+                    groups.insert(groupi, subgroup)
+                    groupi += 1
+            else:
+                groupi += 1
+
+        print('ngroups: %d' % len(groups))
+        #import pdb; pdb.set_trace()
+                
         waves = []
-        
+        for group in groups:
+            assert len(group) > 0 # otherwise something went wrong above
+            t0 = spikes[group[0]]['t0']
+            t1 = spikes[group[-1]]['t1']
+            tempwave = stream[t0:t1] # load and resample a nice big chunk
+            # slice out each spike's wave:
+            for sid in group:
+                if usemeanchans:
+                    # check that each spike's maxchan is in meanchans:
+                    chan = spikes[sid]['chan']
+                    if chan not in meanchans:
+                        # replace furthest chan with spike's maxchan:
+                        print("spike %d: replacing furthestchan %d with spike's maxchan %d"
+                              % (sid, furthestchan, chan))
+                        spikes['chans'][sid][furthestchani] = chan
+                spike = spikes[sid]
+                nchans = spike['nchans']
+                chans = spike['chans'][:nchans]
+                wave = tempwave[spike['t0']:spike['t1']][chans]
+                waves.append(wave)
 
         if ver_lte_03:
             """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
@@ -1024,20 +1073,16 @@ class Sort(object):
             and also reload new data according to these corrected time values."""
             print('fixing potentially wrong time values during spike reloading')
             nfixed = 0
-            for sid in sids:
+            for sid, wave in zip(sids, waves):
                 #print('reloading sid: %d' % sid)
-                spike = spikes[sid]
-                nchans = spike['nchans']
-                chans = spike['chans'][:nchans]
+                nchans = len(wave.chans)
                 od = self.wavedata[sid, 0:nchans] # old data
                 # indices that strip const values from left and right ends:
                 lefti, righti = lrrep2Darrstripis(od)
                 od = od[:, lefti:righti] # stripped old data
-                # load new data, use old incorrect t0 and t1, but they should be wide
+                # get new data, use old incorrect t0 and t1, but they should be wide
                 # enough to encompass the old data:
-                newwave = stream[spike['t0']:spike['t1']]
-                newwave = newwave[chans]
-                nd = newwave.data # new data
+                nd = wave.data # new data
                 width = od.shape[1] # rolling window width
                 assert width <= nd.shape[1]
                 odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
@@ -1057,33 +1102,21 @@ class Sort(object):
                     spikes['t1'][sid] += dt
                     # might result in some out of bounds tis because the original peaks
                     # have shifted off the ends. Opposite sign, referencing within wavedata:
-                    # in versions <= 0.3, this 'tis' was named 'phasetis':
+                    # in versions <= 0.3, 'tis' were named 'phasetis':
                     spikes['phasetis'][sid] -= dnt
-                    spike = spikes[sid] # update local var
+                    spike = spikes[sid]
                     # reload spike data again now that t0 and t1 have changed
-                    newwave = stream[spike['t0']:spike['t1']]
-                    newwave = newwave[chans]
+                    chans = wave.chans
+                    wave = stream[spike['t0']:spike['t1']][chans]
                     nfixed += 1
-                self.wavedata[sid, 0:nchans] = newwave.data # update wavedata
+                self.wavedata[sid, 0:nchans] = wave.data # update wavedata
             print('fixed time values of %d spikes' % nfixed)
         else: # assume time values for all spikes are accurate
-            for sid in sids:
-                spike = spikes[sid]
-                wave = stream[spike['t0']:spike['t1']]
-                if usemeanchans:
-                    # check that each spike's maxchan is in meanchans:
-                    chan = spike['chan']
-                    if chan not in meanchans:
-                        # replace furthest chan with spike's maxchan:
-                        print("spike %d: replacing furthestchan %d with spike's maxchan %d"
-                              % (sid, furthestchan, chan))
-                        spikes['chans'][sid][furthestchani] = chan
-                nchans = spike['nchans']
-                chans = spike['chans'][:nchans]
-                wave = wave[chans]
+            for sid, wave in zip(sids, waves):
+                nchans = len(wave.chans)
                 self.wavedata[sid, 0:nchans] = wave.data
 
-        print('reloaded %d spikes, took %.3f sec' % (len(sids), time.time()-t0))
+        print('reloaded %d spikes, took %.3f sec' % (len(sids), time.time()-treload))
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""

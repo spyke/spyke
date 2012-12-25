@@ -497,6 +497,13 @@ class Stream(object):
         indicating start and end timepoints in us. Returns the corresponding WaveForm
         object, which has as its attribs the 2D multichannel waveform array as well
         as the timepoints, potentially spanning multiple ContinuousRecords"""
+
+        ## TODO: rename this get_timeslice_chans(start, stop, chans), so that unwanted
+        ## channels don't have to be resampled (although they pretty much have to be read
+        ## from disk). Then, make __getitem__ call get_timeslice_chans with the full set of
+        ## chans. Hopefully won't be too hard to do. Need to replace use of self.chans with
+        ## chans arg
+
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
 
