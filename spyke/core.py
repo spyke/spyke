@@ -276,6 +276,12 @@ class TrackStream(object):
         for stream in self.streams:
             stream.close()
 
+    def get_dt(self):
+        """Get self's duration"""
+        return self.t1 - self.t0
+
+    dt = property(get_dt)
+
     def get_chans(self):
         return self.streams[0].chans # assume they're identical
 
@@ -436,6 +442,12 @@ class Stream(object):
 
     def close(self):
         self.srff.close()
+
+    def get_dt(self):
+        """Get self's duration"""
+        return self.t1 - self.t0
+
+    dt = property(get_dt)
 
     def get_fname(self):
         return self.srff.fname
