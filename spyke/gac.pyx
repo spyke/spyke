@@ -272,6 +272,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             printf('%.3f, ', s[i].pos[0])
         printf('\n')
         '''
+        # resort scouts along dimension 0:
         qsort(s, M, sizeof(Scout *), cmp_scouts_k0)
         '''
         for i in range(1, M):
@@ -443,7 +444,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
         # for speed, iterate starting from dim 1, then do dim 0 last on its own,
         # outside the loop. This increases chance of skipping j, because
         # we already know that scouti is <= rneigh along dim 0, and the rest of the
-        # dims are in order of decreasing variance:
+        # dims are (maybe) in order of decreasing variance:
         for k in range(1, ndims): # iterate over dims for each point
             ds[k] = pos0[k] - pos[k]
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
@@ -451,7 +452,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
                 break # out of k loop
             d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
             d2 += d2s[k]
-            #if d2 > rneigh2: # no apparent speedup
+            #if d2 > rneigh2: # no apparent speedup for 3D
             #    continuej = True
             #    break # out of k loop
         if continuej:
@@ -472,7 +473,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
                 v[k] += ds[k] * kern # this is why you can't store fabs of ds[k]!
             npoints += 1
 
-    # update scouti position in direction of v, normalize by kernel
+    # update scouti position in direction of v, normalize by kernel.
     # kernel will never be 0, because each scout starts at a point:
     move2 = 0.0 # reset
     if npoints > 0:
@@ -500,7 +501,7 @@ cdef inline int bsearch_points_k0(Scout *scouts, int N, float pos0k0) nogil:
     """
     cdef int mini=0, maxi=N, midi
     while mini < maxi:
-        midi = mini + ((maxi - mini) >> 1) # bitshift right 1 is same as mod 2
+        midi = mini + ((maxi - mini) >> 1) # bitshift right 1 is same as div 2
         if scouts[midi].pos0[0] < pos0k0:
             mini = midi + 1
         else:
@@ -518,7 +519,7 @@ cdef inline int bsearch_scouts_k0(Scout **s, int i, int M, float posk0) nogil:
     """
     cdef int mini=i, maxi=M, midi
     while mini < maxi:
-        midi = mini + ((maxi - mini) >> 1) # bitshift right 1 is same as mod 2
+        midi = mini + ((maxi - mini) >> 1) # bitshift right 1 is same as div 2
         if s[midi].pos[0] < posk0:
             mini = midi + 1
         else:

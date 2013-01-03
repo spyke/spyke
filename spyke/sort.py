@@ -954,10 +954,12 @@ class Sort(object):
         time values from .sort 0.3 files. Optionally choose new set of channels for all
         sids based on the chans closest to the mean of the sids. It's the caller's
         responsibility to mark sids as dirty and trigger resaving of .wave file"""
+        nsids = len(sids)
         stream = self.stream
         if not stream.is_open():
             raise RuntimeError("no open stream to reload spikes from")
         spikes = self.spikes
+        det = self.detector
         ver_lte_03 = float(self.__version__) <= 0.3
         print('reloading %d spikes' % len(sids))
         """
@@ -993,7 +995,6 @@ class Sort(object):
             meanwave = self.get_mean_wave(sids)
             # mean chan with max Vpp:
             maxchan = meanwave.chans[meanwave.data.ptp(axis=1).argmax()]
-            det = self.detector
             maxchani = det.chans.searchsorted(maxchan)
             distances = det.dm.data[maxchani]
             # keep the maxnchansperspike closest chans to maxchan, including maxchan:
@@ -1046,7 +1047,10 @@ class Sort(object):
 
         print('ngroups: %d' % len(groups))
         #import pdb; pdb.set_trace()
-                
+
+        #waves = np.zeros((nsids, self.wavedata.shape[1], self.wavedata.shape[1]),
+        #                 dtype=wavedata.dtype)
+        #sidi = 0
         waves = []
         for group in groups:
             assert len(group) > 0 # otherwise something went wrong above
@@ -1067,7 +1071,7 @@ class Sort(object):
                 nchans = spike['nchans']
                 chans = spike['chans'][:nchans]
                 wave = tempwave[spike['t0']:spike['t1']][chans]
-                waves.append(wave)
+                waves[sidi, ] = wave.data
 
         if ver_lte_03:
             """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
@@ -1089,9 +1093,15 @@ class Sort(object):
                 # enough to encompass the old data:
                 nd = wave.data # new data
                 width = od.shape[1] # rolling window width
-                if not width <= nd.shape[1]: ## TODO: if not, just skip this sid?
-                    print("WARNING: od.shape[1] > nd.shape[1] for sid %d" % sid)
-                    import pdb; pdb.set_trace()
+                if not width <= nd.shape[1]: ## TODO: if not, just skip this sid with continue?
+                    print("WARNING: od.shape[1]=%d > nd.shape[1]=%d for sid %d" %
+                          (od.shape[1], nd.shape[1], sid))
+                    # this is understandable if last spike happens within 1 ms of end of
+                    # stream, but really, such spikes should've been ignored during detection
+                    # anyway...
+                    if sid != sids[-1]:
+                        import pdb; pdb.set_trace()
+                    continue
                 odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
                 if len(odinndis) == 0: # no hits of old data in new
                     dnt = 0 # reload data based on current timepoints
