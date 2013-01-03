@@ -1015,9 +1015,14 @@ class Sort(object):
         # split up sids into groups efficient for loading from stream:
         ts = spikes[sids]['t'] # noncontig, not a copy
         # ensure they're in temporal order, but maybe this requirement can be somewhat lax:
-        assert (np.diff(ts) >= 0).all()
-        MAXISI = 1000000 # us (1 sec)
-        MAXGROUPDT = 10000000 # us (10 sec)
+        if not (np.diff(ts) >= 0).all():
+            print("reloadspikes(): sids aren't in temporal order, might slow things down "
+                  "or cause indexing problems, sorting by time...")
+            tsis = ts.argsort()
+            sids = sids[tsis]
+            print("done sorting sids by time")
+        MAXISI = 100000 # us (100 ms)
+        MAXGROUPDT = 10000000 # us (10 s)
         # break up spikes by ISIs >= MAXISI:
         splitis = np.where(np.diff(ts) >= MAXISI)[0] + 1
         groups = np.split(sids, splitis)
@@ -1084,7 +1089,9 @@ class Sort(object):
                 # enough to encompass the old data:
                 nd = wave.data # new data
                 width = od.shape[1] # rolling window width
-                assert width <= nd.shape[1]
+                if not width <= nd.shape[1]: ## TODO: if not, just skip this sid?
+                    print("WARNING: od.shape[1] > nd.shape[1] for sid %d" % sid)
+                    import pdb; pdb.set_trace()
                 odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
                 if len(odinndis) == 0: # no hits of old data in new
                     dnt = 0 # reload data based on current timepoints
