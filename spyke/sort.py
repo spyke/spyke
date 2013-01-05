@@ -1044,14 +1044,11 @@ class Sort(object):
                     groupi += 1
             else:
                 groupi += 1
-
         print('ngroups: %d' % len(groups))
-        #import pdb; pdb.set_trace()
 
-        #waves = np.zeros((nsids, self.wavedata.shape[1], self.wavedata.shape[1]),
-        #                 dtype=wavedata.dtype)
-        #sidi = 0
-        waves = []
+        waves = np.zeros((nsids, self.wavedata.shape[1], self.wavedata.shape[2]),
+                         dtype=self.wavedata.dtype)
+        sidi = 0
         for group in groups:
             assert len(group) > 0 # otherwise something went wrong above
             t0 = spikes[group[0]]['t0']
@@ -1073,8 +1070,9 @@ class Sort(object):
                 nchans = spike['nchans']
                 chans = spike['chans'][:nchans]
                 wave = tempwave[spike['t0']:spike['t1']][chans]
-                waves.append(wave)
-                #waves[sidi, ] = wave.data
+                nt = wave.data.shape[1]
+                waves[sidi, :nchans, :nt] = wave.data
+                sidi += 1
 
         if ver_lte_03:
             """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
