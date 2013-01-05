@@ -1059,6 +1059,8 @@ class Sort(object):
             tempwave = stream[t0:t1] # load and resample a nice big chunk
             # slice out each spike's wave:
             for sid in group:
+                if sid == 100000:
+                    print('up to sid 100000 took %.3f sec' % (time.time()-treload)) 
                 if usemeanchans:
                     # check that each spike's maxchan is in meanchans:
                     chan = spikes[sid]['chan']
@@ -1071,7 +1073,8 @@ class Sort(object):
                 nchans = spike['nchans']
                 chans = spike['chans'][:nchans]
                 wave = tempwave[spike['t0']:spike['t1']][chans]
-                waves[sidi, ] = wave.data
+                waves.append(wave)
+                #waves[sidi, ] = wave.data
 
         if ver_lte_03:
             """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
