@@ -1,6 +1,7 @@
 """Spike sorting classes and window"""
 
 from __future__ import division
+from __future__ import print_function
 from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
@@ -1039,16 +1040,15 @@ class Sort(object):
                 # del original group, replace with subgroups
                 del groups[groupi]
                 subgroups = np.split(group, splitis)
-                for subgroup in subgroups:
-                    groups.insert(groupi, subgroup)
-                    groupi += 1
+                groups[groupi:groupi] = subgroups
+                groupi += len(subgroups)
             else:
                 groupi += 1
         print('ngroups: %d' % len(groups))
 
-        waves = np.zeros((nsids, self.wavedata.shape[1], self.wavedata.shape[2]),
-                         dtype=self.wavedata.dtype)
-        sidi = 0
+        newwavedata = np.zeros((nsids, self.wavedata.shape[1], self.wavedata.shape[2]),
+                               dtype=self.wavedata.dtype)
+        sidi = 0 # init sid index across all groups
         for group in groups:
             assert len(group) > 0 # otherwise something went wrong above
             t0 = spikes[group[0]]['t0']
@@ -1056,8 +1056,12 @@ class Sort(object):
             tempwave = stream[t0:t1] # load and resample a nice big chunk
             # slice out each spike's wave:
             for sid in group:
-                if sid == 100000:
-                    print('up to sid 100000 took %.3f sec' % (time.time()-treload)) 
+                # print out status:
+                if sidi % 1000 == 0:
+                    if sid % 10000 == 0:
+                        print('%d', % sidi, end='')
+                    else:
+                        print('.', end='') 
                 if usemeanchans:
                     # check that each spike's maxchan is in meanchans:
                     chan = spikes[sid]['chan']
@@ -1071,7 +1075,7 @@ class Sort(object):
                 chans = spike['chans'][:nchans]
                 wave = tempwave[spike['t0']:spike['t1']][chans]
                 nt = wave.data.shape[1]
-                waves[sidi, :nchans, :nt] = wave.data
+                newwavedata[sidi, :nchans, :nt] = wave.data
                 sidi += 1
 
         if ver_lte_03:
@@ -1083,25 +1087,22 @@ class Sort(object):
             and also reload new data according to these corrected time values."""
             print('fixing potentially wrong time values during spike reloading')
             nfixed = 0
-            for sid, wave in zip(sids, waves):
+            for sidi in range(nsids):
+                sid = sids[sidi]
                 #print('reloading sid: %d' % sid)
-                nchans = len(wave.chans)
-                od = self.wavedata[sid, 0:nchans] # old data
+                nchans = spikes['nchans'][sid]
+                od = self.wavedata[sid, :nchans] # old data
                 # indices that strip const values from left and right ends:
                 lefti, righti = lrrep2Darrstripis(od)
                 od = od[:, lefti:righti] # stripped old data
                 # get new data, use old incorrect t0 and t1, but they should be wide
                 # enough to encompass the old data:
-                nd = wave.data # new data
+                nd = newwavedata[sidi, :nchans] # new data
                 width = od.shape[1] # rolling window width
-                if not width <= nd.shape[1]: ## TODO: if not, just skip this sid with continue?
+                if not width <= nd.shape[1]:
                     print("WARNING: od.shape[1]=%d > nd.shape[1]=%d for sid %d" %
                           (od.shape[1], nd.shape[1], sid))
-                    # this is understandable if first or last spike happens within 1 ms of
-                    # start or end of stream, but really, such spikes should've been ignored
-                    # during detection anyway...
-                    if sid not in (sids[0], sids[-1]):
-                        import pdb; pdb.set_trace()
+                    import pdb; pdb.set_trace()
                     continue
                 odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
                 if len(odinndis) == 0: # no hits of old data in new
@@ -1127,12 +1128,13 @@ class Sort(object):
                     chans = wave.chans
                     wave = stream[spike['t0']:spike['t1']][chans]
                     nfixed += 1
-                self.wavedata[sid, 0:nchans] = wave.data # update wavedata
+                self.wavedata[sid, :nchans] = nd # update wavedata
             print('fixed time values of %d spikes' % nfixed)
         else: # assume time values for all spikes are accurate
-            for sid, wave in zip(sids, waves):
-                nchans = len(wave.chans)
-                self.wavedata[sid, 0:nchans] = wave.data
+            for sidi in range(nsids):
+                sid = sids[sidi]
+                nchans = spikes['nchans'][sid]
+                self.wavedata[sid, :nchans] = newwavedata[sidi, :nchans]
 
         print('reloaded %d spikes, took %.3f sec' % (len(sids), time.time()-treload))
     '''
