@@ -1099,10 +1099,10 @@ class Sort(object):
                 if not width <= nd.shape[1]: ## TODO: if not, just skip this sid with continue?
                     print("WARNING: od.shape[1]=%d > nd.shape[1]=%d for sid %d" %
                           (od.shape[1], nd.shape[1], sid))
-                    # this is understandable if last spike happens within 1 ms of end of
-                    # stream, but really, such spikes should've been ignored during detection
-                    # anyway...
-                    if sid != sids[-1]:
+                    # this is understandable if first or last spike happens within 1 ms of
+                    # start or end of stream, but really, such spikes should've been ignored
+                    # during detection anyway...
+                    if sid not in (sids[0], sids[-1]):
                         import pdb; pdb.set_trace()
                     continue
                 odinndis = np.where((rollwin2D(nd, width) == od).all(axis=1).all(axis=1))[0]
