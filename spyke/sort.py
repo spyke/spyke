@@ -1059,7 +1059,7 @@ class Sort(object):
                 # print out status:
                 if sidi % 1000 == 0:
                     if sid % 10000 == 0:
-                        print('%d', % sidi, end='')
+                        print('%d' % sidi, end='')
                     else:
                         print('.', end='') 
                 if usemeanchans:
