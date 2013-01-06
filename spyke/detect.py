@@ -337,7 +337,7 @@ class Detector(object):
         info('%s: blockrange: %s, cutrange: %s' % (ps().name, blockrange, cutrange))
         tslice = time.time()
         # get WaveForm of multichan data, including excess, ignores out of range data requests:
-        wave = stream[blockrange[0]:blockrange[1]]
+        wave = stream(blockrange[0], blockrange[1])
         print('%s: Stream slice took %.3f sec' % (ps().name, time.time()-tslice))
         tres = stream.tres
 
@@ -684,8 +684,7 @@ class Detector(object):
             # from stream:
             data = []
             for blockrange in blockranges:
-                wave = self.sort.stream[blockrange[0]:blockrange[1]]
-                wave = wave[self.chans] # keep just the enabled chans
+                wave = self.sort.stream(blockrange[0], blockrange[1], self.chans)
                 data.append(wave.data)
             data = np.concatenate(data, axis=1) # int16 AD units
             info('loading data to calc noise took %.3f sec' % (time.time()-tload))

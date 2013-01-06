@@ -331,20 +331,32 @@ class TrackStream(object):
             stream.pickle()
 
     def __getitem__(self, key):
+        """Called when Stream object is indexed into using [] or with a slice object,
+        indicating start and end timepoints in us. Returns the corresponding WaveForm
+        object with the full set of chans"""
+        if key.step not in [None, 1]:
+            raise ValueError('unsupported slice step size: %s' % key.step)
+        return self(key.start, key.stop, self.chans)
+
+    def __call__(self, start, stop, chans=None):
         """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
         2), send the request to the stream(s), generate the appropriate timestamps, and
         return the waveform"""
-        if key.step not in [None, 1]:
-            raise ValueError('unsupported slice step size: %s' % key.step)
-        tres = self.tres
-        start, stop = max(key.start, self.t0), min(key.stop, self.t1) # stay in bounds
+        if chans == None:
+            chans = self.chans
+        if not set(chans).issubset(self.chans):
+            raise ValueError("requested chans %r are not a subset of available enabled "
+                             "chans %r in %s stream" % (chans, self.chans, self.kind))
+        nchans = len(chans)
+        start, stop = max(start, self.t0), min(stop, self.t1) # stay in bounds
         streamis = []
-        # TODO: this could probably be more efficient by not iterating over all streams:
+        ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.streamtranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
+        tres = self.tres
         ts = np.arange(start, stop, tres)
-        data = np.zeros((self.nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
+        data = np.zeros((nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
             abst0 = self.streamtranges[streami, 0] # absolute start time of stream
@@ -354,12 +366,12 @@ class TrackStream(object):
             # source slice times:
             st0 = relt0 + stream.t0
             st1 = relt1 + stream.t0
-            sdata = stream[st0:st1].data # source data
+            sdata = stream(st0, st1, chans).data # source data
             # destination time indices:
             dt0i = (abst0 + relt0 - start) // tres # absolute index
             dt1i = dt0i + sdata.shape[1]
             data[:, dt0i:dt1i] = sdata
-        return WaveForm(data=data, ts=ts, chans=self.chans)
+        return WaveForm(data=data, ts=ts, chans=chans)
 
 
 class Stream(object):
@@ -507,19 +519,21 @@ class Stream(object):
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object,
         indicating start and end timepoints in us. Returns the corresponding WaveForm
-        object, which has as its attribs the 2D multichannel waveform array as well
-        as the timepoints, potentially spanning multiple ContinuousRecords"""
-
-        ## TODO: rename this get_timeslice_chans(start, stop, chans), so that unwanted
-        ## channels don't have to be resampled (although they pretty much have to be read
-        ## from disk). Then, make __getitem__ call get_timeslice_chans with the full set of
-        ## chans. Hopefully won't be too hard to do. Need to replace use of self.chans with
-        ## chans arg
-
+        object with the full set of chans"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
+        return self(key.start, key.stop, self.chans)
 
-        nADchans = self.nADchans
+    def __call__(self, start, stop, chans=None):
+        """Called when Stream object is called using (). start and stop indicate start
+        and end timepoints in us. Returns the corresponding WaveForm object with just the
+        specificed chans"""
+        if chans == None:
+            chans = self.chans
+        if not set(chans).issubset(self.chans):
+            raise ValueError("requested chans %r are not a subset of available enabled "
+                             "chans %r in %s stream" % (chans, self.chans, self.kind))
+        nchans = len(chans)
         rawtres = self.rawtres
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
@@ -529,8 +543,8 @@ class Stream(object):
         else:
             xs = 0
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = (key.start - xs) // rawtres # round down to nearest mult of rawtres
-        t1xsi = ((key.stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        t0xsi = (start - xs) // rawtres # round down to nearest mult of rawtres
+        t1xsi = ((stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
         t0xsi = max(t0xsi, self.t0 // rawtres)
         t1xsi = min(t1xsi, self.t1 // rawtres)
@@ -540,13 +554,13 @@ class Stream(object):
         tsxs = np.arange(t0xs, t1xs, rawtres)
         ntxs = len(tsxs)
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
-        dataxs = np.zeros((nADchans, ntxs), dtype=np.int32) # any gaps will have zeros
+        dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
 
         # find all contiguous tranges that t0xs and t1xs span, if any:
         ## TODO: this is wrong, doesn't deal with case where trange0i or trange1i
         ## have lengths > 1. Trigger this error by asking for a slice longer than any
         ## one trange or gap between tranges, like by calling:
-        ## >>> self.hpstream[self.hpstream[201900000:336700000]
+        ## >>> self.hpstream(201900000, 336700000)
         ## on file ptc15.74:
         trange0i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
         trange1i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
@@ -573,8 +587,9 @@ class Stream(object):
         # TODO: fix code duplication
         #tload = time.time()
         if self.kind == 'highpass': # straightforward
+            chanis = self.layout.ADchanlist.searchsorted(chans)
             for record in records: # iterating over highpass records
-                d = self.srff.loadContinuousRecord(record) # get record's data
+                d = self.srff.loadContinuousRecord(record)[chanis] # record's data on chans
                 nt = d.shape[1]
                 t0i = record['TimeStamp'] // rawtres
                 t1i = t0i + nt
@@ -586,12 +601,14 @@ class Stream(object):
                 dt1i = min(t1i - t0xsi, ntxs)
                 dataxs[:, dt0i:dt1i] = d[:, st0i:st1i]
         else: # kind == 'lowpass', need to load chans from subsequent records
-            nt = records[0]['NumSamples'] / nADchans # assume all lpmc records are same length
-            d = np.zeros((nADchans, nt), dtype=np.int32)
+            chanis = [ np.where(chan == self.layout.chans)[0] for chan in chans ]
+            # assume all lpmc records are same length:
+            nt = records[0]['NumSamples'] / self.nADchans
+            d = np.zeros((nchans, nt), dtype=np.int32)
             for record in records: # iterating over lowpassmultichan records
-                for chani in range(nADchans):
+                for i, chani in enumerate(chanis):
                     lprec = self.srff.lowpassrecords[record['lpreci']+chani]
-                    d[chani] = self.srff.loadContinuousRecord(lprec)
+                    d[i] = self.srff.loadContinuousRecord(lprec)
                 t0i = record['TimeStamp'] // rawtres
                 t1i = t0i + nt
                 # source indices
@@ -608,30 +625,22 @@ class Stream(object):
         # AD to about 0.02
         dataxs <<= 4 # data is still int32 at this point
 
-        # do any resampling if necessary, returning only self.chans data
+        # do any resampling if necessary:
         if resample:
             #tresample = time.time()
-            dataxs, tsxs = self.resample(dataxs, tsxs)
+            dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
-        else: # don't resample, just cut out self.chans data, if necessary
-            if self.kind == 'highpass':
-                if range(nADchans) != list(self.chans):
-                    # some chans are disabled. This is kind of a hack, but works because
-                    # because ADchans map to probe chans 1 to 1, and both start from 0
-                    dataxs = dataxs[self.chans]
-            else: # self.kind == 'lowpass'
-                # self.chans is a sorted subset of layout.chans, layout.chans are not sorted:
-                chanis = [ int(np.where(chan == self.layout.chans)[0]) for chan in self.chans ]
-                dataxs = dataxs[chanis]
-        # now trim down to just the requested time range
-        lo, hi = tsxs.searchsorted([key.start, key.stop])
+
+        # now trim down to just the requested time range:
+        lo, hi = tsxs.searchsorted([start, stop])
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        data = np.int16(data) # should be safe to convert back down to int16 now
-        return WaveForm(data=data, ts=ts, chans=self.chans)
+        # should be safe to convert back down to int16 now:
+        data = np.int16(data)
+        return WaveForm(data=data, ts=ts, chans=chans)
 
-    def resample(self, rawdata, rawts):
+    def resample(self, rawdata, rawts, chans):
         """Return potentially sample-and-hold corrected and Nyquist interpolated
         data and timepoints. See Blanche & Swindale, 2006"""
         #print('sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' %
@@ -642,43 +651,41 @@ class Stream(object):
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        # pretty basic assumption which might change if chans are disabled:
-        #assert self.nchans == len(self.chans) == len(ADchans)
         # check if kernels have been generated already
         try:
             self.kernels
         except AttributeError:
-            ADchans = self.layout.ADchanlist
-            self.kernels = self.get_kernels(ADchans, resamplex, N)
+            self.kernels = self.get_kernels(self.layout.ADchanlist, resamplex, N)
 
         # convolve the data with each kernel
         nrawts = len(rawts)
+        nchans = len(chans)
         # all the interpolated points have to fit in between the existing raw
         # points, so there's nrawts - 1 of each of the interpolated points:
         #nt = nrawts + (resamplex-1) * (nrawts - 1)
         # the above can be simplified to:
-        nt = nrawts*resamplex - (resamplex - 1)
+        nt = nrawts*resamplex - resamplex + 1
         tstart = rawts[0]
         ts = np.arange(tstart, tstart+tres*nt, tres) # generate interpolated timepoints
         #print 'len(ts) is %r' % len(ts)
         assert len(ts) == nt
         # resampled data, leave as int32 for convolution, then convert to int16:
-        data = np.empty((self.nchans, nt), dtype=np.int32)
+        data = np.empty((nchans, nt), dtype=np.int32)
         #print 'data.shape = %r' % (data.shape,)
         #tconvolve = time.time()
         tconvolvesum = 0
         # assume chans map onto ADchans 1 to 1, ie chan 0 taps off of ADchan 0
         # this way, only the chans that are actually needed are resampled and returned
-        for chani, chan in enumerate(self.chans):
+        for chani, chan in enumerate(chans):
             for point, kernel in enumerate(self.kernels[chan]):
                 """np.convolve(a, v, mode)
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 where K = len(a)-1 and M = len(v) - 1 and K >= M
                 for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
                 #tconvolveonce = time.time()
-                row = np.convolve(rawdata[chan], kernel, mode='same')
+                row = np.convolve(rawdata[chani], kernel, mode='same')
                 #tconvolvesum += (time.time()-tconvolveonce)
-                #print 'len(rawdata[ADchani]) = %r' % len(rawdata[ADchani])
+                #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
                 #print 'len(kernel) = %r' % len(kernel)
                 #print 'len(row): %r' % len(row)
                 # interleave by assigning from point to end in steps of resamplex
@@ -817,6 +824,8 @@ class TSFStream(Stream):
         object, which has as its attribs the 2D multichannel waveform array as well
         as the timepoints, potentially spanning multiple ContinuousRecords. Lots of
         unavoidable code duplication from Stream.__getitem__"""
+        raise NotImplementedError("TODO: TSFStream needs to have its __getitem__ method "
+                                  "replaced with __call__ like the other stream types")
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
 

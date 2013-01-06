@@ -886,7 +886,7 @@ class PlotPanel(FigureCanvas):
         t1 = t + sort.TW[1]
         spikes[sid]['t0'] = t0 # us
         spikes[sid]['t1'] = t1
-        wave = spw.hpstream[t0:t1][chans]
+        wave = spw.hpstream(t0, t1, chans)
         sort.wavedata[sid][:nchans] = wave.data
         assert t != spw.secondarypeakt
         if t < spw.secondarypeakt:

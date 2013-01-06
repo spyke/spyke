@@ -189,8 +189,7 @@ class Sort(object):
                    "Can't get spike %d's wave" %
                    (sid, det.srffname, self.stream.srffname, sid))
             raise RuntimeError(msg)
-        wave = self.stream[t0:t1]
-        return wave[chans]
+        return self.stream(t0, t1, chans)
 
     def get_mean_wave(self, sids, nid=None):
         """Return the mean and std waveform of spike waveforms in sids"""
@@ -1038,7 +1037,16 @@ class Sort(object):
                 # last spike in this group
                 t0 -= 5000 # -5 ms
                 t1 += 5000 # +5 ms
-            tempwave = stream[t0:t1] # load and resample only what's needed for this group
+            # find chans common to sids in this group, ask stream for only those
+            # so that no unnecessary resampling on unneeded chans takes place.
+            # Don't bother cutting out the correct nchans for each sid. At worst,
+            # chan 0 (the "empty" chans array value) will be unnecessarily added to
+            # commonchans:
+            commonchans = np.unique(spikes['chans'][group])
+            if 0 not in stream.chans: # in case chan 0 is disabled in stream
+                commonchans = np.delete(commonchans, 0) # otherwise an error would be raised
+            # load and resample only what's needed for this group:
+            tempwave = stream(t0, t1, commonchans)
             # slice out each spike's reloaded data from tempwave:
             for sid in group:
                 # print status:

@@ -2675,11 +2675,11 @@ class SpykeWindow(QtGui.QMainWindow):
         for windowtype, window in zip(windowtypes, windows):
             if window.isVisible(): # for performance, only update if window is shown
                 if windowtype == 'Spike':
-                    wave = self.hpstream[self.t+self.spiketw[0] : self.t+self.spiketw[1]]
+                    wave = self.hpstream(self.t+self.spiketw[0], self.t+self.spiketw[1])
                 elif windowtype == 'Chart':
-                    wave = self.hpstream[self.t+self.charttw[0] : self.t+self.charttw[1]]
+                    wave = self.hpstream(self.t+self.charttw[0], self.t+self.charttw[1])
                 elif windowtype == 'LFP':
-                    wave = self.lpstream[self.t+self.lfptw[0] : self.t+self.lfptw[1]]
+                    wave = self.lpstream(self.t+self.lfptw[0], self.t+self.lfptw[1])
                 window.panel.plot(wave, tref=self.t) # plot it
 
 
