@@ -1,13 +1,15 @@
-- to decide which dimension to sort by for clustering, instead of using variance, could use the dimension whose dot product with the view normal vector is a minimum (or whose cross product with it is a max)? Or could just always stick with dimension 0, and make the user swap dimensions as he sees fit
+- consider using projection pursuit + Silverman's critical bandwidth (Menardi2012) instead of PCA or ICA to maximize clusterability during dimension reduction
 
-- use the same "breaking out of search loop along sorted dimension 0" logic from move_scout in merge_scouts on the first merge step, when all the scouts are still ordered along dimension 0, because they haven't moved yet. This could up the first merge (which is by far the slowest) significantly
+- consider implementing Ester1996 - use k-dist metric to help automatically decide the most useful value of sigma
+
+- to decide which dimension to sort by for clustering, instead of using variance, could use the dimension whose dot product with the view normal vector is a minimum (or whose cross product with it is a max)? Or could just always stick with dimension 0, and make the user swap dimensions as he sees fit
 
 - cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window - this would be eqv't to having independent sigmas per dimension
 
 - key bindings:
     - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected
 
-- maybe each neuron's dt value should be the mean of all its constituent spikes (a float), not simply the (integer) value of the mean template
+- maybe each neuron's dt value (time difference between the two peaks) should be the mean of all its constituent spikes (a float), not simply the (integer) value of the mean template
 
 - NVS: as a cleaning step (not alignment step): take rms difference between spike and template across all temporal shifts (in my case, 5 of them), find shift with min rms difference, as before. Then, take that shift and the two on either side (at least one of which is already calculated), and take the 2nd derivative of all 3 (left - 2*mid + right). Then, plot distribution of these 2nd dtive values, see if get some bimodality. NVS says that even with a threshold that's constant across clusters and even .srf files, this is a great way to pull out crap spikes that don't match the template very well at all, ie have very little sharpness in their rms fit, even at the best shift.
 
@@ -269,11 +271,6 @@
 
 - normalize spike density by Gaussian volume, and measure density across all spikes within rneigh, not just those that belong to the cluster - this should make densities more comparable across multiple climb() runs
     - not necessary now that I've turned off density thresh
-
-- discovered the bug in naming LFP chans in SURF has hit us again (see 2008-11-13 note): in ptc18.14, and probably lots of others. Crap! This probably means I'll have to go in and manually edit lots of .srf files, and all their copies. I thought I had this problem figured out a long time ago. Some kind of sloppy memory management in surf causes characters from the previous LFP chan to remain for the next LFP chan - think it's a single digit number vs a 2 digit number problem. Maybe I should be putting leading zeros in the LFP chan field names in the surf .cfg files...
-    - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
-        - for a given probe type (1a, 2a, whatever the layout happens to be), if you parse out a list of chans that matches a known hard-coded "bad" LFP chan list, then simply replace it with the appropriate correct hard-coded LFP chan list
-        - just have to go through a few .srf files, (one per track, or really just one per probe ID, since LFP chan layout stays constant across tracks for a given probe), and create the bad to good chanlist mapping
 
 - to ignore correlated ripple, add something during detection that checks if signal is too distributed over too many chans to qualify as a spike - that way you could lower the median noise multiplier a bit and catch smaller spikes, while ignoring bigger ripple
 
@@ -1306,7 +1303,11 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - on merge, instead of the final cluster acquiring the id of the lowest id'd cluster, it should take on the id of the biggest cluster
 - density split: lets you split a pair of clusters at the point between their centers where the number of spikes is a minimum
     - problem with GAC sometimes is that when you're splitting a pair of clusters and one is denser than the other, GAC divides them at a point further from the dense cluster than you'd like, ie past the point of lowest total spike density. Although this may be Bayesian optimal, and can be remedied somewhat by using a smaller sigma, but the problem persists. As during many of the calcs done for the cluster histogram in the MPL window, this solution proposes drawing a line between the centers of the two clusters and projecting all of their points onto that line. Then, histogram the projections (use nbins = sqrt(npoints), as usual), then find the smallest bin between the centers, and divide up the spikes according to what side of that division they fall
-
+- use the same "breaking out of search loop along sorted dimension 0" logic from move_scout in merge_scouts on the first merge step, when all the scouts are still ordered along dimension 0, because they haven't moved yet. This could speed up the first merge (which is by far the slowest) significantly
+- discovered the bug in naming LFP chans in SURF has hit us again (see 2008-11-13 note): in ptc18.14, and probably lots of others. Crap! This probably means I'll have to go in and manually edit lots of .srf files, and all their copies. I thought I had this problem figured out a long time ago. Some kind of sloppy memory management in surf causes characters from the previous LFP chan to remain for the next LFP chan - think it's a single digit number vs a 2 digit number problem. Maybe I should be putting leading zeros in the LFP chan field names in the surf .cfg files...
+    - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
+        - for a given probe type (1a, 2a, whatever the layout happens to be), if you parse out a list of chans that matches a known hard-coded "bad" LFP chan list, then simply replace it with the appropriate correct hard-coded LFP chan list
+        - just have to go through a few .srf files, (one per track, or really just one per probe ID, since LFP chan layout stays constant across tracks for a given probe), and create the bad to good chanlist mapping
 
 
 
