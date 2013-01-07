@@ -601,7 +601,7 @@ class Stream(object):
                 dt1i = min(t1i - t0xsi, ntxs)
                 dataxs[:, dt0i:dt1i] = d[:, st0i:st1i]
         else: # kind == 'lowpass', need to load chans from subsequent records
-            chanis = [ np.where(chan == self.layout.chans)[0] for chan in chans ]
+            chanis = [ int(np.where(chan == self.layout.chans)[0]) for chan in chans ]
             # assume all lpmc records are same length:
             nt = records[0]['NumSamples'] / self.nADchans
             d = np.zeros((nchans, nt), dtype=np.int32)

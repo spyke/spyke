@@ -425,6 +425,7 @@ class File(object):
             else:
                 raise ValueError('cannot parse LFP chan from probe description: %r' %
                                  layout.probe_descrip)
+        chans = self.fixLFPlabels(chans, hplayout.electrode_name)
         lpmclayout.chans = np.asarray(chans)
         # replace single chan A/D chanlist with our new multichan highpass probe based one:
         lpmclayout.ADchanlist = np.asarray(ADchanlist)
@@ -435,6 +436,22 @@ class File(object):
         lpmclayout.electrode_name = hplayout.electrode_name
         lpmclayout.probewinlayout = hplayout.probewinlayout
         return lpmclayout
+
+    def fixLFPlabels(self, chans, electrode_name):
+        """Some kind of memory management problem in Surf causes characters from the
+        previous LFP chan to remain for the next LFP chan. For recordings where a channel
+        is represented by just a single digit (like say 'ch5') and the subsequent one is
+        two digit (like say 'ch23'), what actually gets saved for the subsequent one is
+        'ch53'. Or, if the sequence is 'ch11' and then 'ch8', instead of 'ch8' we get
+        'ch81'. Later recordings (post ptc18?) where all single digit LFP chans were given
+        leading 0s ('ch08') work around this bug. But for those that didn't, this is a
+        mapping from known incorrect LFP chan lists to their manually corrected versions"""
+        chans = list(chans)
+        if electrode_name == '\xb5Map54_2b':
+            if chans == [20, 17, 14, 11, 81, 51, 22, 22, 24, 25]:
+                return  [20, 17, 14, 11, 8,  5,  22, 2,  24, 25]
+        # there are undoubtedly more that need to be filled in...
+        return chans
 
     def pickle(self):
         """Pickle self to a .parse file"""
