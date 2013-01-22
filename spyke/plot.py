@@ -96,7 +96,7 @@ class ColourDict(dict):
     """Just an easy way to cycle through colours given some index,
     like say a chan id or a neuron id. Better than using a generator,
     cuz you don't need to keep calling .next(). This is like a dict
-    of inifite length"""
+    of infinite length"""
     def __init__(self, colours=None, nocolour=None):
         self.colours = colours
         self.nocolour = nocolour

@@ -602,6 +602,9 @@ class Stream(object):
                 dataxs[:, dt0i:dt1i] = d[:, st0i:st1i]
         else: # kind == 'lowpass', need to load chans from subsequent records
             chanis = [ int(np.where(chan == self.layout.chans)[0]) for chan in chans ]
+            """NOTE: if the above raises an error it may be because this particular
+            combination of LFP chans was incorrectly parsed due to a bug in the .srf file,
+            and a manual remapping needs to be added to Surf.File.fixLFPlabels()"""
             # assume all lpmc records are same length:
             nt = records[0]['NumSamples'] / self.nADchans
             d = np.zeros((nchans, nt), dtype=np.int32)
@@ -1555,7 +1558,7 @@ def savez(file, *args, **kwargs):
         os.remove(name)
 
 def get_sha1(fname, blocksize=2**20):
-    """Gets the sha1 hash of fname (with full path)"""
+    """Gets the sha1 hash of file designated by fname (with full path)"""
     m = hashlib.sha1()
     with file(fname, 'rb') as f:
         # continually update hash until EOF
