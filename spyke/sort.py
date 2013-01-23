@@ -526,10 +526,11 @@ class Sort(object):
             data.shape = nspikes, nchans*nt
         stream = self.stream
         assert stream.kind == 'highpass' # should be the only type ever saved to self
-        uVperAD = stream.converter.AD2uV(1) # convert 1 AD unit to uV
         if format == 'binary':
-            savez(fname, compress=True,
-                  data=data, sids=sids, chans=chans, tis=tis, uVperAD=uVperAD)
+            chanpos = stream.probe.siteloc_arr()
+            uVperAD = stream.converter.AD2uV(1) # convert 1 AD unit to uV
+            savez(fname, compress=True, data=data, sids=sids, chans=chans, tis=tis,
+                  chanpos=chanpos, uVperAD=uVperAD)
         elif format == 'text':
             np.savetxt(fname, data, fmt='%d', delimiter=',')
         else:
@@ -1545,7 +1546,8 @@ class PTCSHeader(object):
          indexed by 0-based channel IDs)
     nsrcfnamebytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
     srcfname: nsrcfnamebytes of ASCII text
-        (source file name, probably .srf, padded with null bytes if needed for 8 byte alignment)
+        (source file name, probably .srf, padded with null bytes if needed for
+         8 byte alignment)
     datetime: float64
         (absolute datetime corresponding to t=0 us timestamp, stored as days since
          epoch: December 30, 1899 at 00:00)
