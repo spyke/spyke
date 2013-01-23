@@ -507,18 +507,43 @@ class Sort(object):
         self.exportdin(basepath)
         self.exporttextheader(basepath)
 
-    def exportlfp(self, basepath):
-        """Export LFP data to binary .lfp file"""
+    def exportspikewaves(self, fname, format='binary'):
+        """Export spike waveform data to binary .spikes.zip file or text .spikes.csv file"""
+
+        # select clusters and chans to export
+        sids = self.GetAllSpikes()
+        selchans = self.get_selchans(sids)
+        chans, chanslist = self.sort.get_common_chans(sids, selchans)
+        nspikes = len(sids)
+        nchans = len(chans)
+        nt = 50 # for now
+        data = np.zeros((nspikes, nchans, nt), dtype=np.int64)
+        for sii, sid in enumerate(sids):
+            spikechans = chanslist[sii]
+            spikechanis = np.searchsorted(spikechans, chans)
+            data[sii] = self.sort.wavedata[sid][spikechanis, :]
+        data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+        stream = self.stream
+        assert stream.kind == 'highpass' # should be the only type ever saved to self
+        uVperAD = stream.converter.AD2uV(1) # convert 1 AD unit to uV
+        if format == 'binary':
+            savez(fname, compress=True,
+                  data=data, sids=sids, chans=chans, tis=tis, uVperAD=uVperAD)
+        elif format == 'text':
+            np.savetxt(fname, data, fmt='%d', delimiter=',')
+
+    def exportLFPwaves(self, basepath, format='binary'):
+        """Export LFP waveform data to binary .lfp.zip file or text .lfp.csv file"""
+        if format != 'binary':
+            raise NotImplementedError('text csv lowpass waveform export not implemented')
         raise NotImplementedError('needs to be redone to work with multiple streams')
         srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
-        lfpfname = srcfnameroot + '.lfp'
+        lfpfname = srcfnameroot + '.lfp.zip'
         lps = lpstream
         wave = lps[lps.t0:lps.t1]
         uVperAD = lps.converter.AD2uV(1)
         savez(os.path.join(path, lfpfname), compress=True,
-              data=wave.data, chans=wave.chans,
-              t0=lps.t0, t1=lps.t1, tres=lps.tres, # for easy ts reconstruction
-              uVperAD=uVperAD) # save it
+              data=wave.data, ts=wave.ts, chans=wave.chans, uVperAD=uVperAD) # save it
         print(lfpfname)
 
     def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, dims=None,

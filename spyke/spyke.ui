@@ -1861,13 +1861,23 @@ If 1 neuron selected, plot autocorrelogram</string>
       <addaction name="actionExportGdfFiles"/>
       <addaction name="actionExportSpkFiles"/>
       <addaction name="actionExportTsChIDFiles"/>
+      <addaction name="separator"/>
+      <addaction name="actionExportSpikesZipFile"/>
+      <addaction name="actionExportSpikesCSVFile"/>
+     </widget>
+     <widget class="QMenu" name="menuLFP">
+      <property name="title">
+       <string>LFP</string>
+      </property>
+      <addaction name="actionExportLFPZipFiles"/>
+      <addaction name="actionExportLFPCSVFiles"/>
      </widget>
      <addaction name="menuSpikes"/>
      <addaction name="actionExportDIN"/>
      <addaction name="actionExportTextheader"/>
      <addaction name="actionExportAll"/>
      <addaction name="separator"/>
-     <addaction name="actionExportLFP"/>
+     <addaction name="menuLFP"/>
     </widget>
     <addaction name="actionNew"/>
     <addaction name="actionOpen"/>
@@ -2091,11 +2101,6 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Export tschid Files</string>
-   </property>
-  </action>
-  <action name="actionExportLFP">
-   <property name="text">
-    <string>LFP</string>
    </property>
   </action>
   <action name="actionCloseStream">
@@ -2412,6 +2417,26 @@ If 1 neuron selected, plot autocorrelogram</string>
    </property>
    <property name="toolTip">
     <string>Close sort</string>
+   </property>
+  </action>
+  <action name="actionExportSpikesZipFile">
+   <property name="text">
+    <string>spikes.zip File</string>
+   </property>
+  </action>
+  <action name="actionExportSpikesCSVFile">
+   <property name="text">
+    <string>spikes.csv File</string>
+   </property>
+  </action>
+  <action name="actionExportLFPZipFiles">
+   <property name="text">
+    <string>lfp.zip Files</string>
+   </property>
+  </action>
+  <action name="actionExportLFPCSVFiles">
+   <property name="text">
+    <string>lfp.csv Files</string>
    </property>
   </action>
  </widget>

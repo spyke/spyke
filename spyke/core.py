@@ -1518,7 +1518,7 @@ def save(fname, arr):
         arrravel[lo:hi].tofile(f) # these are contiguous views, not copies
     f.close()
 '''
-def savez(file, *args, **kwargs):
+def savez(zipfname, *args, **kwargs):
     """Save several arrays into a single, possibly compressed, binary file.
     Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
     allow for any file extension. For full docs, see numpy.savez()"""
@@ -1535,24 +1535,24 @@ def savez(file, *args, **kwargs):
     for i, val in enumerate(args):
         key = 'arr_%d' % i
         if key in namedict.keys():
-            raise ValueError, "Cannot use un-named variables and keyword %s" % key
+            raise ValueError("Cannot use unnamed variables and keyword %s" % key)
         namedict[key] = val
 
     compression = zipfile.ZIP_STORED # no compression
     if compress:
         compression = zipfile.ZIP_DEFLATED # compression
-    zip = zipfile.ZipFile(file, mode="w", compression=compression)
+    zip = zipfile.ZipFile(zipfname, mode="w", compression=compression)
     # place to write temporary .npy files before storing them in the zip
     direc = tempfile.gettempdir()
     todel = []
     for key, val in namedict.iteritems():
         fname = key + '.npy'
-        filename = os.path.join(direc, fname)
-        todel.append(filename)
-        fid = open(filename,'wb')
+        fullfname = os.path.join(direc, fname)
+        todel.append(fullfname)
+        fid = open(fullfname,'wb')
         format.write_array(fid, np.asanyarray(val))
         fid.close()
-        zip.write(filename, arcname=fname)
+        zip.write(fullfname, arcname=fname)
     zip.close()
     for name in todel:
         os.remove(name)

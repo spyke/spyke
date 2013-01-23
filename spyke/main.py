@@ -290,13 +290,65 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
-    def on_actionExportLFP_triggered(self):
+    def on_actionExportSpikesZipFile_triggered(self):
+        """Save selected spikes on selected channels and timepoints to
+        binary .spikes.zip file"""
+        self.exportSpikeWaveforms(format='binary')
+
+    @QtCore.pyqtSlot()
+    def on_actionExportSpikesCSVFile_triggered(self):
+        """Save selected spikes on selected channels and timepoints to
+        text .spikes.csv file"""
+        self.exportSpikeWaveforms(format='text')
+
+    def exportSpikeWaveforms(self, format):
+        if format == 'binary':
+            ext = '.spikes.zip'
+        elif format == 'text':
+            ext = '.spikes.csv'
+        else:
+            raise ValueError("invalid format: %r" % format)
+        defaultfname = self.sort.fname
+        if defaultfname == '': # sort hasn't been previously saved
+            # generate default fname with hpstream.fname and datetime
+            fname = self.hpstream.fname.replace(' ', '_')
+            dt = str(datetime.datetime.now()) # get an export timestamp
+            dt = dt.split('.')[0] # ditch the us
+            dt = dt.replace(' ', '_')
+            dt = dt.replace(':', '.')
+            defaultfname = fname + '_' + dt
+        defaultfname = defaultfname + ext
+        caption = "Export spike waveforms to %s %s file" % (format, ext)
+        getSaveFileName = QtGui.QFileDialog.getSaveFileName
+        fname = getSaveFileName(self, caption=caption,
+                                directory=defaultfname,
+                                filter="%s spike waveform files (*%s);;" % (format, ext)
+                                       "All files (*.*)")
+        fname = str(fname)
+        if fname:
+            before, sep, after = fname.partition(ext)
+            if sep != ext:
+                fname = before + ext # make sure it has extension
+            self.sort.exportspikewaves(fname, format=format)
+
+    @QtCore.pyqtSlot()
+    def on_actionExportLFPZipFiles_triggered(self):
+        caption = "Export LFP waveforms to binary .lfp.zip files"
         getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption="Export LFP(s) to",
-                                    directory=self.sortpath)
+        path = getExistingDirectory(self, caption=caption, directory=self.sortpath)
         path = str(path)
         if path:
-            self.sort.exportlfp(path)
+            self.sort.exportLFPwaves(path, format='binary')
+            # don't update path
+
+    @QtCore.pyqtSlot()
+    def on_actionExportLFPCSVFiles_triggered(self):
+        caption = "Export LFP waveforms to text .lfp.csv files"
+        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
+        path = getExistingDirectory(self, caption=caption, directory=self.sortpath)
+        path = str(path)
+        if path:
+            self.sort.exportLFPwaves(path, format='text')
             # don't update path
 
     def update_sort_version(self):
