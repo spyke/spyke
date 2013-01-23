@@ -1,3 +1,11 @@
 *.pyc
 *.pyxbldc
 /MANIFEST
+/demo/doublevsint.c
+/demo/doublevsint.html
+/demo/neural_noise.f
+/spyke/gac.c
+/spyke/gac.html
+/spyke/ica_data.npy
+/spyke/util.c
+/spyke/util.html
