@@ -507,22 +507,23 @@ class Sort(object):
         self.exportdin(basepath)
         self.exporttextheader(basepath)
 
-    def exportspikewaves(self, fname, format='binary'):
-        """Export spike waveform data to binary .spikes.zip file or text .spikes.csv file"""
-
-        # select clusters and chans to export
-        sids = self.GetAllSpikes()
-        selchans = self.get_selchans(sids)
-        chans, chanslist = self.sort.get_common_chans(sids, selchans)
+    def exportspikewaves(self, sids, selchans, tis, fname, format):
+        """Export waveform data of selected sids, selchans and tis to binary
+        .spikes.zip file or text .spikes.csv file"""
         nspikes = len(sids)
+        chans, chanslist = self.get_common_chans(sids, selchans)
         nchans = len(chans)
-        nt = 50 # for now
-        data = np.zeros((nspikes, nchans, nt), dtype=np.int64)
+        ti0, ti1 = tis
+        nt = ti1 - ti0
+        # fill in 3D data array:
+        dtype = self.wavedata.dtype
+        data = np.zeros((nspikes, nchans, nt), dtype=dtype)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
-            spikechanis = np.searchsorted(spikechans, chans)
-            data[sii] = self.sort.wavedata[sid][spikechanis, :]
-        data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+            spikechanis = spikechans.searchsorted(chans)
+            data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
+        if format == 'text': # flatten timepoints of all chans into columns
+            data.shape = nspikes, nchans*nt
         stream = self.stream
         assert stream.kind == 'highpass' # should be the only type ever saved to self
         uVperAD = stream.converter.AD2uV(1) # convert 1 AD unit to uV
@@ -531,6 +532,11 @@ class Sort(object):
                   data=data, sids=sids, chans=chans, tis=tis, uVperAD=uVperAD)
         elif format == 'text':
             np.savetxt(fname, data, fmt='%d', delimiter=',')
+        else:
+            raise ValueError('unknown format: %r' % format)
+        print('exported %d spikes on chans=%r and tis=%r to %s'
+              % (nspikes, list(chans), list(tis), fname))
+        
 
     def exportLFPwaves(self, basepath, format='binary'):
         """Export LFP waveform data to binary .lfp.zip file or text .lfp.csv file"""
@@ -634,7 +640,7 @@ class Sort(object):
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
-            spikechanis = np.searchsorted(spikechans, chans)
+            spikechanis = spikechans.searchsorted(chans)
             data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
         print('input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
@@ -700,12 +706,13 @@ class Sort(object):
             ## Another possibility might be to sort according to the energy in each column
             ## of node.filter (see sorting of components at end of JADENode). See McKeown 2003.
             
-            ## TODO: damn, what's the different between a node's filters and a node's
-            ## projection matrix????????????? They're the same shape.. Are they perhaps the
+            ## TODO: what's the different between a node's filters and a node's
+            ## projection matrix? They're the same shape. Are they perhaps the
             ## inverse or pseudo inverse of each other?
             
             ## TODO: sounds like nonlineariy g and fine_g = 'gaus' or maybe 'tanh' might be
-            ## better choice than default 'pow3', though they might be slower. See Hyvarinen 1999
+            ## better choice than default 'pow3', though they might be slower. See Hyvarinen
+            ## 1999
             
             ## TODO: perhaps when using PCA before ICA, since the PCA comes out ordered by
             ## captured variance, maybe the ICs will come out that way too, and I don't

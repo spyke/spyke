@@ -186,7 +186,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSaveSortAs_triggered(self):
         """Save sort to new .sort file"""
-        defaultfname = self.sort.fname
+        defaultfname = os.path.join(self.sortpath, self.sort.fname)
         if defaultfname == '': # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
             fname = self.hpstream.fname.replace(' ', '_')
@@ -302,13 +302,15 @@ class SpykeWindow(QtGui.QMainWindow):
         self.exportSpikeWaveforms(format='text')
 
     def exportSpikeWaveforms(self, format):
+        """Save selected spikes on selected channels and timepoints to
+        binary .spikes.zip file or text .spikes.csv file"""
         if format == 'binary':
             ext = '.spikes.zip'
         elif format == 'text':
             ext = '.spikes.csv'
         else:
             raise ValueError("invalid format: %r" % format)
-        defaultfname = self.sort.fname
+        defaultfname = os.path.join(self.sortpath, self.sort.fname)
         if defaultfname == '': # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
             fname = self.hpstream.fname.replace(' ', '_')
@@ -319,17 +321,21 @@ class SpykeWindow(QtGui.QMainWindow):
             defaultfname = fname + '_' + dt
         defaultfname = defaultfname + ext
         caption = "Export spike waveforms to %s %s file" % (format, ext)
+        filter = "%s spike waveform files (*%s);;All files (*.*)" % (format, ext)
         getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption=caption,
                                 directory=defaultfname,
-                                filter="%s spike waveform files (*%s);;" % (format, ext)
-                                       "All files (*.*)")
+                                filter=filter)
         fname = str(fname)
         if fname:
             before, sep, after = fname.partition(ext)
             if sep != ext:
                 fname = before + ext # make sure it has extension
-            self.sort.exportspikewaves(fname, format=format)
+            sids = self.GetAllSpikes()
+            selchans = self.get_selchans(sids)
+            sw = self.OpenWindow('Sort') # in case it isn't already open
+            tis = sw.tis
+            self.sort.exportspikewaves(sids, selchans, tis, fname, format)
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
@@ -758,7 +764,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def subcluster(self, sids, subsidss, msgs, dims):
         """Perform (sub)clustering according to subsids in subsidss. Incorporate results
         from each (sub)clustering into a single nids output array"""
-        nids = np.zeros(len(sids), dtype=np.int32) # init nids output array to be all unclustered
+        # init nids output array to be all unclustered:
+        nids = np.zeros(len(sids), dtype=np.int32)
         for subsids, msg in zip(subsidss, msgs):
             print('clustering %s on dims %r' % (msg, dims))
             subnids = self.gac(subsids, dims) # subclustering result
@@ -782,13 +789,15 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         chans = spikes[sids]['chans']
         chans = tocontig(chans) # string view won't work without contiguity
-        strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1])) # each row becomes a string
+        # each row becomes a string:
+        strchans = chans.view('S%d' % (chans.itemsize*chans.shape[1]))
         # each row in uchancombos is a unique combination of chans:
         uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
         if len(uchancombos) == 1:
             print("selected spikes all share the same set of channels, can't chansplit")
             return
-        nids = np.zeros(len(sids), dtype=np.int32) # init to unclustered, shouldn't be any once done
+        # init to unclustered, shouldn't be any once done:
+        nids = np.zeros(len(sids), dtype=np.int32)
         for comboi, uchancombo in enumerate(uchancombos):
             nids[(chans == uchancombo).all(axis=1)] = comboi + 1
         if (nids == 0).any():
