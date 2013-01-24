@@ -21,7 +21,6 @@ import random
 import shutil
 import hashlib
 
-
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QAction, QIcon, QApplication
@@ -32,6 +31,7 @@ import scipy
 #from scipy.cluster.hierarchy import fclusterdata
 
 import pylab as pl
+import matplotlib as mpl
 
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
@@ -284,8 +284,7 @@ class Sort(object):
         nneurons = len(nrecs)
 
         # create the header and write everything to file
-        srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
-        path = os.path.join(basepath, srcfnameroot)
+        path = os.path.join(basepath, stream.srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
         fname = exportdt.replace(' ', '_')
@@ -300,15 +299,6 @@ class Sort(object):
             for nrec in nrecs:
                 nrec.write(f)
         print(fullfname)
-
-    def process_srcfnameroot(self, srcfnameroot):
-        """Process srcfnameroot to make older recording names more compact"""
-        srcfnameroot = srcfnameroot.replace(' - track 5 ', '-tr5-')
-        srcfnameroot = srcfnameroot.replace(' - track 6 ', '-tr6-')
-        srcfnameroot = srcfnameroot.replace(' - track 7c ', '-tr7c-')
-        # replace any remaining spaces with underscores
-        srcfnameroot = srcfnameroot.replace(' ', '_')
-        return srcfnameroot
 
     def exportgdffiles(self, basepath=None):
         """Export spike and stim data to text .gdf files under basepath, one file per
@@ -368,8 +358,7 @@ class Sort(object):
         idts = idts[sortis]
 
         # write the file
-        srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
-        path = os.path.join(basepath, srcfnameroot)
+        path = os.path.join(basepath, stream.srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
         fname = exportdt.replace(' ', '_')
@@ -378,10 +367,12 @@ class Sort(object):
         fullfname = os.path.join(path, fname)
         np.savetxt(fullfname, idts, '%d') # default delimiter is ' '
         print(fullfname)
-
+    
     def exportspkfiles(self, basepath):
         """Export spike data to binary .spk files under basepath, one file per neuron"""
-        raise NotImplementedError("this hasn't been tested in a long time and is likely buggy")
+        raise NotImplementedError("this hasn't been updated or tested in a long time and "
+                                  "is likely buggy")
+        '''
         spikes = self.spikes
         dt = str(datetime.datetime.now()) # get an export datetime stamp
         dt = dt.split('.')[0] # ditch the us
@@ -421,7 +412,7 @@ class Sort(object):
                 neuronfname = '%s_t%03d.spk' % (dt, nid)
                 spikets.tofile(os.path.join(path, neuronfname)) # save it
             print(path)
-
+        '''
     def exporttschid(self, basepath):
         """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
@@ -451,11 +442,10 @@ class Sort(object):
             digitalsvalrecords = stream.srff.digitalsvalrecords
             if len(digitalsvalrecords) == 0: # no din to export for this stream
                 continue
-            srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
-            path = os.path.join(basepath, srcfnameroot)
+            path = os.path.join(basepath, stream.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
-            dinfname = srcfnameroot + '.din'
+            dinfname = stream.srcfnameroot + '.din'
             fullfname = os.path.join(path, dinfname)
             # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
@@ -490,12 +480,11 @@ class Sort(object):
                 print("*** WARNING: multiple display records for file %r\n"
                       "Exporting textheader from only the first display record"
                       % stream.srff.fname)
-            srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
-            path = os.path.join(basepath, srcfnameroot)
+            path = os.path.join(basepath, stream.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
             textheader = displayrecords[0].Header.python_tbl
-            textheaderfname = srcfnameroot + '.textheader'
+            textheaderfname = stream.srcfnameroot + '.textheader'
             fullfname = os.path.join(path, textheaderfname)
             with open(fullfname, 'w') as f:
                 f.write(textheader) # save it
@@ -508,7 +497,7 @@ class Sort(object):
         self.exporttextheader(basepath)
 
     def exportspikewaves(self, sids, selchans, tis, fname, format):
-        """Export waveform data of selected sids, selchans and tis to binary
+        """Export spike waveform data of selected sids, selchans and tis to binary
         .spikes.zip file or text .spikes.csv file"""
         nspikes = len(sids)
         chans, chanslist = self.get_common_chans(sids, selchans)
@@ -538,21 +527,6 @@ class Sort(object):
         print('exported %d spikes on chans=%r and tis=%r to %s'
               % (nspikes, list(chans), list(tis), fname))
         
-
-    def exportLFPwaves(self, basepath, format='binary'):
-        """Export LFP waveform data to binary .lfp.zip file or text .lfp.csv file"""
-        if format != 'binary':
-            raise NotImplementedError('text csv lowpass waveform export not implemented')
-        raise NotImplementedError('needs to be redone to work with multiple streams')
-        srcfnameroot = self.process_srcfnameroot(stream.srcfnameroot)
-        lfpfname = srcfnameroot + '.lfp.zip'
-        lps = lpstream
-        wave = lps[lps.t0:lps.t1]
-        uVperAD = lps.converter.AD2uV(1)
-        savez(os.path.join(path, lfpfname), compress=True,
-              data=wave.data, ts=wave.ts, chans=wave.chans, uVperAD=uVperAD) # save it
-        print(lfpfname)
-
     def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, dims=None,
                          scale=True):
         """Organize dims parameters from sids into a data matrix, each column
@@ -2473,13 +2447,15 @@ class SortWindow(SpykeToolWindow):
         """Save sort panel to file"""
         f = self.panel.figure
 
-        # copied from matplotlib.backend_qt4.NavigationToolbar2QT.save_figure():
+        # copied and adapted from mpl.backend_qt4.NavigationToolbar2QT.save_figure():
         filetypes = f.canvas.get_supported_filetypes_grouped()
         sorted_filetypes = filetypes.items()
         sorted_filetypes.sort()
         default_filetype = f.canvas.get_default_filetype()
 
-        start = f.canvas.get_default_filename()
+        startpath = mpl.rcParams.get('savefig.directory', '')
+        startpath = os.path.expanduser(startpath)
+        start = os.path.join(startpath, f.canvas.get_default_filename())
         filters = []
         selectedFilter = None
         for name, exts in sorted_filetypes:
@@ -2489,12 +2465,16 @@ class SortWindow(SpykeToolWindow):
                 selectedFilter = filter
             filters.append(filter)
         filters = ';;'.join(filters)
-
-        #from matplotlib.backends.qt4_compat import _getSaveFileName
-        fname = QtGui.QFileDialog.getSaveFileName(self.panel, "Save sort panel to",
-                                                  start, filters, selectedFilter)
+        fname = getSaveFileName(self.panel, "Save sort panel to",
+                                start, filters, selectedFilter)
         if fname:
             fname = str(fname) # convert from QString
+            if startpath == '':
+                # explicitly missing key or empty str signals to use cwd
+                mpl.rcParams['savefig.directory'] = startpath
+            else:
+                # save dir for next time
+                mpl.rcParams['savefig.directory'] = os.path.dirname(str(fname))
             try:
                 f.canvas.print_figure(fname, facecolor=None, edgecolor=None)
             except Exception as e:

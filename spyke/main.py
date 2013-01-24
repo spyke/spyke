@@ -18,6 +18,7 @@ from IPython.frontend.terminal.ipapp import load_default_config
 
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
+from PyQt4.QtGui.QFileDialog import getSaveFileName, getExistingDirectory
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 
 from scipy.misc import comb
@@ -195,7 +196,6 @@ class SpykeWindow(QtGui.QMainWindow):
             dt = dt.replace(' ', '_')
             dt = dt.replace(':', '.')
             defaultfname = fname + '_' + dt + '.sort'
-        getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption="Save sort As",
                                 directory=defaultfname,
                                 filter="Sort files (*.sort);;"
@@ -220,7 +220,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportPtcsFiles_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .ptcs file(s) to",
                                     directory=self.sortpath)
         path = str(path)
@@ -230,7 +229,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportGdfFiles_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .gdf file(s) to",
                                     directory=self.sortpath)
         path = str(path)
@@ -240,7 +238,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportSpkFiles_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .spk files to",
                                     directory=self.sortpath)
         path = str(path)
@@ -250,7 +247,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportTsChIdFiles_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .tschid file(s) to",
                                     directory=self.sortpath)
         path = str(path)
@@ -260,7 +256,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportDIN_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .din file(s) to",
                                     directory=self.sortpath)
         path = str(path)
@@ -270,7 +265,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportTextheader_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self, caption="Export .textheader file(s) to",
                                     directory=self.sortpath)
         path = str(path)
@@ -280,7 +274,6 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportAll_triggered(self):
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
         path = getExistingDirectory(self,
                                     caption="Export .ptcs, .din and .textheader file(s) to",
                                     directory=self.sortpath)
@@ -322,7 +315,6 @@ class SpykeWindow(QtGui.QMainWindow):
         defaultfname = defaultfname + ext
         caption = "Export spike waveforms to %s %s file" % (format, ext)
         filter = "%s spike waveform files (*%s);;All files (*.*)" % (format, ext)
-        getSaveFileName = QtGui.QFileDialog.getSaveFileName
         fname = getSaveFileName(self, caption=caption,
                                 directory=defaultfname,
                                 filter=filter)
@@ -339,23 +331,48 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
-        caption = "Export LFP waveforms to binary .lfp.zip files"
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption=caption, directory=self.sortpath)
-        path = str(path)
-        if path:
-            self.sort.exportLFPwaves(path, format='binary')
-            # don't update path
+        self.exportLFPWaveforms(format='binary')
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPCSVFiles_triggered(self):
-        caption = "Export LFP waveforms to text .lfp.csv files"
-        getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
-        path = getExistingDirectory(self, caption=caption, directory=self.sortpath)
-        path = str(path)
-        if path:
-            self.sort.exportLFPwaves(path, format='text')
-            # don't update path
+        self.exportLFPWaveforms(format='text')
+
+    def exportLFPWaveforms(self, format='binary'):
+        """Export LFP waveform data to binary .lfp.zip file(s) or text .lfp.csv file(s)
+        to user-designated basepath"""
+        caption = "Export LFP waveforms to binary .lfp.zip files"
+        basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
+        basepath = str(basepath)
+        if not basepath:
+            return
+        try: # self.lpstream is a TrackStream?
+            streams = self.lpstream.streams
+        except AttributeError: # self.lpstream is a normal Stream
+            streams = [self.lpstream]
+        if format == 'binary':
+            ext = '.lfp.zip'
+        elif format == 'text':
+            ext = '.lfp.csv'
+        else:
+            raise ValueError("invalid format: %r" % format)
+        print('exporting LFP waveform data to:')
+        for stream in streams:
+            lfpfname = stream.srcfnameroot + ext
+            lps = lpstream
+            wave = lps[lps.t0:lps.t1]
+            uVperAD = lps.converter.AD2uV(1)
+            savez(os.path.join(basepath, lfpfname), compress=True,
+                  data=wave.data, ts=wave.ts, chans=wave.chans, uVperAD=uVperAD) # save it
+            print(lfpfname)
+
+
+
+
+
+
+
+
+
 
     def update_sort_version(self):
         """Update self.sort to latest version"""
@@ -407,7 +424,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def update_0_5_to_0_6(self):
         """Update sort 0.5 to 0.6:
             - rename sort.spikes field names 'phasetis' and 'dphase' to
-            'tis' and 'dt' respectively
+              'tis' and 'dt' respectively
             - remove unused 'cid', 's0' and 's1' fields from sort.spikes, reorder fields
         """
         print('updating sort from version 0.5 to 0.6')

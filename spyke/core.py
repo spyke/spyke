@@ -472,7 +472,15 @@ class Stream(object):
     srffnames = property(get_srffnames)
 
     def get_srcfnameroot(self):
-        return lrstrip(self.fname, '../', '.srf')
+        """Get root of filename of source data. Also filter it to make recording
+        names from older .srf files more succint"""
+        srcfnameroot = lrstrip(self.fname, '../', '.srf')
+        srcfnameroot = srcfnameroot.replace(' - track 5 ', '-tr5-')
+        srcfnameroot = srcfnameroot.replace(' - track 6 ', '-tr6-')
+        srcfnameroot = srcfnameroot.replace(' - track 7c ', '-tr7c-')
+        # replace any remaining spaces with underscores
+        srcfnameroot = srcfnameroot.replace(' ', '_')
+        return srcfnameroot
 
     srcfnameroot = property(get_srcfnameroot)
 
@@ -801,11 +809,6 @@ class TSFStream(Stream):
         return self._fname
 
     fname = property(get_fname)
-
-    def get_srcfnameroot(self):
-        return lrstrip(self.fname, '../', '.tsf')
-
-    srcfnameroot = property(get_srcfnameroot)
 
     def get_datetime(self):
         """.tsf files don't currently have a datetime stamp, return Unix epoch instead"""
