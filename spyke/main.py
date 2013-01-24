@@ -18,7 +18,8 @@ from IPython.frontend.terminal.ipapp import load_default_config
 
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
-from PyQt4.QtGui.QFileDialog import getSaveFileName, getExistingDirectory
+getSaveFileName = QtGui.QFileDialog.getSaveFileName
+getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 
 from scipy.misc import comb
@@ -47,7 +48,7 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, MAXNGACPOINTS, TSFStream
+from core import DJS, g, MAXNGACPOINTS, TSFStream, savez
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES
@@ -357,22 +358,22 @@ class SpykeWindow(QtGui.QMainWindow):
             raise ValueError("invalid format: %r" % format)
         print('exporting LFP waveform data to:')
         for stream in streams:
-            lfpfname = stream.srcfnameroot + ext
-            lps = lpstream
-            wave = lps[lps.t0:lps.t1]
-            uVperAD = lps.converter.AD2uV(1)
-            savez(os.path.join(basepath, lfpfname), compress=True,
-                  data=wave.data, ts=wave.ts, chans=wave.chans, uVperAD=uVperAD) # save it
-            print(lfpfname)
-
-
-
-
-
-
-
-
-
+            path = os.path.join(basepath, stream.srcfnameroot)
+            try: os.mkdir(path)
+            except OSError: pass # path already exists?
+            fullfname = os.path.join(path, stream.srcfnameroot+ext)
+            s = stream
+            wave = s[s.t0:s.t1]
+            if format == 'binary':
+                chanpos = s.probe.siteloc_arr()
+                uVperAD = s.converter.AD2uV(1)
+                savez(fullfname, compress=True, data=wave.data, chans=wave.chans,
+                      t0=s.t0, t1=s.t1, tres=s.tres, chanpos=chanpos, uVperAD=uVperAD)
+            elif format == 'text':
+                np.savetxt(fullfname, wave.data, fmt='%d', delimiter=',') # data should be int
+            else:
+                raise ValueError('unknown format: %r' % format)
+            print(fullfname)
 
     def update_sort_version(self):
         """Update self.sort to latest version"""

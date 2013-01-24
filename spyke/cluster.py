@@ -11,6 +11,7 @@ import numpy as np
 
 from PyQt4 import QtCore, QtGui, QtOpenGL, uic
 from PyQt4.QtCore import Qt
+getSaveFileName = QtGui.QFileDialog.getSaveFileName
 from OpenGL import GL, GLU
 
 from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
@@ -808,8 +809,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def save(self):
         """Save cluster plot to file"""
-        fname = QtGui.QFileDialog.getSaveFileName(self, "Save cluster plot to",
-                                                  'cluster_plot.png')
+        fname = getSaveFileName(self, "Save cluster plot to", 'cluster_plot.png')
         if fname:
             fname = str(fname) # convert from QString
             image = self.grabFrameBuffer() # defaults to withAlpha=False, makes no difference

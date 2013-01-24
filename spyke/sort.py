@@ -24,6 +24,7 @@ import hashlib
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QAction, QIcon, QApplication
+getSaveFileName = QtGui.QFileDialog.getSaveFileName
 
 import numpy as np
 from numpy import sqrt
@@ -521,7 +522,7 @@ class Sort(object):
             savez(fname, compress=True, data=data, sids=sids, chans=chans, tis=tis,
                   chanpos=chanpos, uVperAD=uVperAD)
         elif format == 'text':
-            np.savetxt(fname, data, fmt='%d', delimiter=',')
+            np.savetxt(fname, data, fmt='%d', delimiter=',') # data should be int
         else:
             raise ValueError('unknown format: %r' % format)
         print('exported %d spikes on chans=%r and tis=%r to %s'
