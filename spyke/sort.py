@@ -517,9 +517,12 @@ class Sort(object):
         stream = self.stream
         assert stream.kind == 'highpass' # should be the only type ever saved to self
         if format == 'binary':
+            nids = self.spikes['nid'][sids]
+            spiketimes = self.spikes['t'][sids]
             chanpos = stream.probe.siteloc_arr()
             uVperAD = stream.converter.AD2uV(1) # convert 1 AD unit to uV
-            savez(fname, compress=True, data=data, sids=sids, chans=chans, tis=tis,
+            savez(fname, compress=True, data=data, sids=sids, nids=nids,
+                  spiketimes=spiketimes, chans=chans, tis=tis,
                   chanpos=chanpos, uVperAD=uVperAD)
         elif format == 'text':
             np.savetxt(fname, data, fmt='%d', delimiter=',') # data should be int
