@@ -1,8 +1,10 @@
+- JMS: try optionally adding spike time to the input data matrix before sending it off for dimension reduction. This means that spikes that cluster in time may somewhat cluster in PCA/ICA space, and may reduce the need to plot against time. Could help when you have a cluster that stretches out over a long period of time, and for parts of that period, looks like it needs cleaning/splitting, whereas other parts are fine. If spike time and some waveform feature correlate, they might cluster out.
+    - maybe add a checkbox next to the tis dropdown box to toggle this feature, to indicate that time, in addition to waveform data on the selected time range and channels, will go into dimension reduction. Or, maybe it should go in the cluster tab somewhere around the dimension reduction dropdown box
+
 - consider using projection pursuit + Silverman's critical bandwidth (Menardi2012) instead of PCA or ICA to maximize clusterability during dimension reduction
+    - this seems to be too slow, and so far hasn't shown any ability to improve clusterability on any of our data 
 
 - consider implementing Ester1996 - use k-dist metric to help automatically decide the most useful value of sigma
-
-- to decide which dimension to sort by for clustering, instead of using variance, could use the dimension whose dot product with the view normal vector is a minimum (or whose cross product with it is a max)? Or could just always stick with dimension 0, and make the user swap dimensions as he sees fit
 
 - cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window - this would be eqv't to having independent sigmas per dimension
 
@@ -1308,6 +1310,8 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - here's a pretty easy way around it in spyke that doesn't require going through all the .srf files and modifying them:
         - for a given probe type (1a, 2a, whatever the layout happens to be), if you parse out a list of chans that matches a known hard-coded "bad" LFP chan list, then simply replace it with the appropriate correct hard-coded LFP chan list
         - just have to go through a few .srf files, (one per track, or really just one per probe ID, since LFP chan layout stays constant across tracks for a given probe), and create the bad to good chanlist mapping
+- to decide which dimension to sort by for clustering, instead of using variance, could use the dimension whose dot product with the view normal vector is a minimum (or whose cross product with it is a max)? Or could just always stick with dimension 0, and make the user swap dimensions as he sees fit. That's what I've settled on.
+
 
 
 
