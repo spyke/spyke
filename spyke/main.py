@@ -1276,6 +1276,7 @@ class SpykeWindow(QtGui.QMainWindow):
         a.set_title('%dD cluster density histogram, DJS = %.3f' % (ndims, djs))
         a.set_xlabel('nstdevs')
         a.set_ylabel('normalized density')
+        mplw.f.tight_layout(pad=0.3) # crop figure to contents
         mplw.figurecanvas.draw()
 
     @QtCore.pyqtSlot()
@@ -1431,6 +1432,7 @@ class SpykeWindow(QtGui.QMainWindow):
         c = 'black'
         a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
         a.set_xlim(trange)
+        mplw.f.tight_layout(pad=0.3) # crop figure to contents
         mplw.figurecanvas.draw()
 
     @QtCore.pyqtSlot()

@@ -2794,4 +2794,5 @@ class SortWindow(SpykeToolWindow):
         # plot the smaller cluster last, to maximize visibility:
         for i in sortedmassis[::-1]:
             a.bar(ledges, hist[i], width=binwidth, color=cs[i], edgecolor=cs[i])
+        mplw.f.tight_layout(pad=0.3) # crop figure to contents
         mplw.figurecanvas.draw()
