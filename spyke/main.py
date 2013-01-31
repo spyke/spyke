@@ -2853,8 +2853,7 @@ class MPLWindow(SpykeToolWindow):
         self.resize(*size)
         self.move(*pos)
         self.setWindowTitle("MPL Window")
-        self.ax = self.f.add_axes([0.1, 0.1, 0.85, 0.8])
-        
+        self.ax = figure.add_subplot(111)
 
 class Match(object):
     """Just an object to store rmserror calculations between all clusters
