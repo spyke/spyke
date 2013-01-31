@@ -17,10 +17,6 @@
 
 - maybe I should freeze scouts only if they haven't moved less than a threshold distance some threshold number of iterations, as NVS does. Currently, I freeze a scout as soon as it moves less than 10^-5 in a single iteration. This could be pretty easily done by changing the still boolean array into an int array, and then instead of checking whether it's true or false at certain parts of the code, check if its still count has reached threshold
 
-- consider implementing NVS's measure of cluster overlap. for a pair of clusters:
-    o_kl = (1 - p_k)/(1 - e_kl) where p_k = u_k/N_k and u_k is the number of points in cluster k whose nearest neighbour is also in k. Cluster k is the smaller of k and l (N_k < N_l). e_kl = N_k / (N_k + N_l)
-    - this wouldn't suffer from the 1D limitation that projecting onto the line connecting the cluster centers has. But, it would be slow, because for each point in each cluster
-
 - consider implementing NVS's 2nd derivative weighted measure of template center, which effectively aligns to the sharpest peak in the template. All the member spikes then go along for the ride. Good for accurately comparing templates.
     - also, consider using it on a single spike basis? maybe this could be a more principled replacement for my own sharpness measure
 
@@ -64,7 +60,7 @@
 
 - if num selected spikes is <= 1 and you hit cluster, print an error and return
 
-- NVS says Vpp**2 fits a Gaussian better fit than Vpp. Maybe I should try this during spatial localization
+- NVS says Vpp**2 fits a Gaussian better than Vpp. Maybe I should try this during spatial localization
 
 - to improve axes contrast against data points, especially for mini axes, first draw three fat black lines, then clear depth buffer, then draw the 3 coloured lines on top
 
@@ -1311,6 +1307,11 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
         - for a given probe type (1a, 2a, whatever the layout happens to be), if you parse out a list of chans that matches a known hard-coded "bad" LFP chan list, then simply replace it with the appropriate correct hard-coded LFP chan list
         - just have to go through a few .srf files, (one per track, or really just one per probe ID, since LFP chan layout stays constant across tracks for a given probe), and create the bad to good chanlist mapping
 - to decide which dimension to sort by for clustering, instead of using variance, could use the dimension whose dot product with the view normal vector is a minimum (or whose cross product with it is a max)? Or could just always stick with dimension 0, and make the user swap dimensions as he sees fit. That's what I've settled on.
+- consider implementing NVS's measure of cluster overlap. for a pair of clusters:
+    o_kl = (1 - p_k)/(1 - e_kl) where p_k = u_k/N_k and u_k is the number of points in cluster k whose nearest neighbour is also in k. Cluster k is the smaller of k and l (N_k < N_l). e_kl = N_k / (N_k + N_l)
+    - this wouldn't suffer from the 1D limitation that projecting onto the line connecting the cluster centers has. But, it would be slow, because for each point in each cluster
+    - implemented the complement, a separation measure called NDsep
+
 
 
 
