@@ -1183,7 +1183,8 @@ class Sort(object):
         dt = dt.replace(' ', '_')
         dt = dt.replace(':', '.')
         self.spcdatfname = os.path.join(spykedir, 'spc', dt+'.dat')
-        self.spclabfname = os.path.join(spykedir, 'spc', dt+'.dg_01.lab') # not sure why spc adds the dg_01 part
+        # not sure why spc adds the dg_01 part:
+        self.spclabfname = os.path.join(spykedir, 'spc', dt+'.dg_01.lab')
         f = open(self.spcdatfname, 'w')
         for params in X: # write text data to file, one row at a time
             params.tofile(f, sep='  ', format='%.6f')
@@ -1191,14 +1192,16 @@ class Sort(object):
         f.close()
 
     def parse_spc_lab_file(self, fname=None):
-        """Parse output .lab file from SPC. Each row in the file is the assignment of each spin
-        (datapoint) to a cluster, one row per temperature datapoint. First column is temperature
-        run number (0-based). 2nd column is the temperature. All remaining columns correspond
-        to the datapoints in the order presented in the input .dat file. Returns (Ts, cids)"""
+        """Parse output .lab file from SPC. Each row in the file is the assignment of each
+        spin (datapoint) to a cluster, one row per temperature datapoint. First column is
+        temperature run number (0-based). 2nd column is the temperature. All remaining
+        columns correspond to the datapoints in the order presented in the input .dat file.
+        Returns (Ts, cids)"""
         #spikes = self.get_spikes_sortedby('id')
         if fname == None:
+            defaultDir = r"C:\Documents and Settings\Administrator\Desktop\Charlie\From"
             dlg = wx.FileDialog(None, message="Open SPC .lab file",
-                                defaultDir=r"C:\Documents and Settings\Administrator\Desktop\Charlie\From", defaultFile='',
+                                defaultDir=defaultDir, defaultFile='',
                                 wildcard="All files (*.*)|*.*|.lab files (*.lab)|*.lab|",
                                 style=wx.OPEN)
             if dlg.ShowModal() == wx.ID_OK:
@@ -1210,7 +1213,10 @@ class Sort(object):
         print('Parsed %r' % fname)
         return Ts, cids
 
-    def parse_charlies_output(self, fname=r'C:\Documents and Settings\Administrator\Desktop\Charlie\From\2009-07-20\clustered_events_coiflet_T0.125.txt'):
+    def parse_charlies_output(self, fname=None):
+        if fname == None:
+            fname = (r'C:\Documents and Settings\Administrator\Desktop\Charlie\'
+                      'From\2009-07-20\clustered_events_coiflet_T0.125.txt')
         nids = np.loadtxt(fname, dtype=int) # one neuron id per spike
         return nids
 
@@ -1218,7 +1224,8 @@ class Sort(object):
         """Generate input data file to spc_app"""
         spikes = self.get_spikes_sortedby('id')
         X = self.get_component_matrix()
-        # write to tab-delimited data file. Each row is a param, each column a spike (this is the transpose of X)
+        # write to tab-delimited data file. Each row is a param, each column a spike
+        # (this is the transpose of X)
         # first row has labels "AFFX", "NAME", and then spike ids
         # first col has labels "AFFX", and then param names
         f = open(r'C:\home\mspacek\Desktop\Work\SPC\Weizmann\spc_app\spc_app_input.txt', 'w')
@@ -1313,21 +1320,26 @@ class Sort(object):
         Unless something's done about that in advance, don't bother optimizing here much.
         Right now, once waves are loaded, performance is roughly 20000 matches/sec
 
-        TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean template, and an stdev
-        template, and weight the error between each matched spike and the mean on each chan at each timepoint by
-        the corresponding stdev value (divide the error by the stdev, so that timepoints with low stdev are more
-        sensitive to error)
+        TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean
+        template, and an stdev        template, and weight the error between each matched
+        spike and the mean on each chan at each timepoint by the corresponding stdev value
+        (divide the error by the stdev, so that timepoints with low stdev are more sensitive
+        to error)
 
-        TODO: looks like I still need to make things more nonlinear - errors at high signal values aren't penalized enough,
-        while errors at small signal values are penalized too much. Try cubing both signals, then taking sum(err**2)
+        TODO: looks like I still need to make things more nonlinear - errors at high signal
+        values aren't penalized enough, while errors at small signal values are penalized
+        too much. Try cubing both signals, then taking sum(err**2)
 
-        DONE: maybe even better, instead of doing an elaborate cubing of signal, followed by a rather elaborate
-        gaussian spatiotemporal weighting of errors, just take difference of signals, and weight the error according
-        to the abs(template_signal) at each point in time and across chans. That way, error in parts of the signal far from
-        zero are considered more important than deviance of perhaps similar absolute value for signal close to zero
+        DONE: maybe even better, instead of doing an elaborate cubing of signal, followed by
+        a rather elaborate gaussian spatiotemporal weighting of errors, just take difference
+        of signals, and weight the error according to the abs(template_signal) at each point
+        in time and across chans. That way, error in parts of the signal far from zero are
+        considered more important than deviance of perhaps similar absolute value for signal
+        close to zero
 
         """
-        templates = templates or self.templates.values() # None defaults to matching all templates
+        # None defaults to matching all templates:
+        templates = templates or self.templates.values()
         sys.stdout.write('matching')
         t0 = time.time()
         nspikes = len(self.spikes)
@@ -1337,21 +1349,28 @@ class Sort(object):
             tw = template.tw
             templatewave = template.wave[template.chans] # pull out template's enabled chans
             #stdev = template.get_stdev()[template.chans] # pull out template's enabled chans
-            #stdev[stdev == 0] = 1 # replace any 0s with 1s - TODO: what's the best way to avoid these singularities?
+            # replace any 0s with 1s - TODO: what's best way to avoid singularities?:
+            #stdev[stdev == 0] = 1
+            # Gaussian weighting in space and/or time:
             weights = template.get_weights(weighting=weighting, sstdev=self.detector.slock/2,
-                                           tstdev=self.detector.tlock/2) # Gaussian weighting in space and/or time
+                                           tstdev=self.detector.tlock/2)
             for spike in self.spikes.values():
                 # check if spike.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, spike.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
                 if spike.wave.data == None or template.tw != TW: # make sure their data line up
                     spike.update_wave(tw) # this slows things down a lot, but is necessary
-                # slice template's enabled chans out of spike, calculate sum of squared weighted error
+                # slice template's enabled chans out of spike, calculate sum of
+                # squared weighted error
                 # first impression is that dividing by stdev makes separation worse, not better
-                #err = (templatewave.data - spike.wave[template.chans].data) / stdev * weights # low stdev means more sensitive to error
-                spikewave = spike.wave[template.chans] # pull out template's enabled chans from spike
+                # low stdev means more sensitive to error:
+                #err = (templatewave.data - spike.wave[template.chans].data) / stdev * weights
+                # pull out template's enabled chans from spike:
+                spikewave = spike.wave[template.chans]
                 if weighting == 'signal':
-                    weights = np.abs(np.asarray([templatewave.data, spikewave.data])).max(axis=0) # take elementwise max of abs of template and spike data
+                    tsdata = np.asarray([templatewave.data, spikewave.data])
+                    # take elementwise max of abs of template and spike data:
+                    weights = np.abs(tsdata).max(axis=0)
                 err = (templatewave.data - spikewave.data) * weights # weighted error
                 err = (err**2).sum(axis=None) # sum of squared weighted error
                 template.err.append((spike.id, intround(err)))
@@ -1372,7 +1391,9 @@ class Neuron(object):
         self.id = id # neuron id
         self.wave = WaveForm() # init to empty waveform
         self.sids = np.array([], dtype=int) # indices of spikes that make up this neuron
-        self.t = 0 # relative reference timestamp, here for symmetry with fellow spike rec (obj.t comes up sometimes)
+        # relative reference timestamp, here for symmetry with fellow spike rec
+        # (obj.t comes up sometimes):
+        self.t = 0
         self.plt = None # Plot currently holding self
         self.cluster = None
         self.good = False # user can mark this neuron as "good" if so desired
@@ -1487,7 +1508,8 @@ class Neuron(object):
         """Return a vector that weights self.chans according to a 2D gaussian
         centered on self.maxchan with standard deviation stdev in um"""
         g = Gaussian(mean=0, stdev=stdev)
-        d = self.sort.detector.dm[self.maxchan, self.chans] # distances between maxchan and all enabled chans
+        # distances between maxchan and all enabled chans:
+        d = self.sort.detector.dm[self.maxchan, self.chans]
         weights = g[d]
         weights.shape = (-1, 1) # vertical vector with nchans rows, 1 column
         return weights
