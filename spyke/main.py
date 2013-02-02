@@ -120,22 +120,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
         
-        # TODO: load recent file history
-
-        # automatically load some files, for testing:
-        '''
-        srffname = "/home/mspacek/data/ptc22/03-tr1-driftbar_shortbar.srf"
-        self.OpenFile(srffname)
-        sortfname = "/home/mspacek/data/ptc22/tr1/03-tr1-driftbar_shortbar.srf_2012-02-07_21.25.19.sort"
-        self.OpenFile(sortfname)
-        '''
-        '''
-        trackfname = "/media/NVS-07/data/ptc22/tr1/track1.track"
-        self.OpenFile(trackfname)
-        sortfname = "/home/mspacek/data/ptc22/tr1/track1.track_2012-03-02_15.56.59.sort"
-        self.OpenFile(sortfname)
-        '''
-
     def addRecentFileActions(self):
         """Init recent file QActions and insert them into the right place in the
         File menu. Leave them invisible until needed"""
@@ -1393,7 +1377,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ## if no array ops are involved. Should check all the code that pulls stuff out of
         ## the spikes recarray, and choose the best one more carefully!
         
-        trange = self.ui.xcorrsRangeSpinBox.value() * 1000 # us
+        trange = self.ui.xcorrsRangeSpinBox.value() * 1000 # convert to us
         trange = max(1000, trange) # enforce min trange, in us
         trange = np.array([-trange, trange]) # convert to a +/- array, in us
         
@@ -2881,7 +2865,7 @@ class Match(object):
         
 
 def set_excepthook():
-    """Drops us into IPython's debugger on any error"""
+    """Drop into IPython's debugger on any error"""
     sys.excepthook = ultratb.FormattedTB(mode='Verbose', call_pdb=1)
 
 
