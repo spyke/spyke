@@ -272,7 +272,8 @@ class Sort(object):
         for nid in sorted(self.good):
             neuron = self.neurons[nid]
             spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
-            assert spikets.flags['OWNDATA'] # should now be safe to modify in place
+            assert spikets.flags['OWNDATA'] # safe to modify in place
+            spikets.sort() # just in case it isn't perfectly sorted
             spikets -= td2usec(td) # export spike times relative to t=0 of this recording
             # only include spikes that occurred during this recording
             lo, hi = spikets.searchsorted([stream.t0, stream.t1])
