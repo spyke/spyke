@@ -1393,29 +1393,28 @@ class SpykeWindow(QtGui.QMainWindow):
         nbins = intround(np.sqrt(len(dts))) # good heuristic
         nbins = max(20, nbins) # enforce min nbins
         nbins = min(100, nbins) # enforce max nbins
-        dtshist, edges = np.histogram(dts, bins=nbins)
-        ledges = edges[:-1] # keep just the left edges, discard the last right edge
-        assert len(ledges) == nbins
-        binwidth = ledges[1] - ledges[0]
-        #dtshist = dtshist / (1000*binwidth) # spikes/bin / (1000*ms/bin) == spikes/second
+        t = np.linspace(start=trange[0], stop=trange[1], num=nbins, endpoint=True)
+        n = np.histogram(dts, bins=t, density=False)[0]
+        binwidth = t[1] - t[0] # all should be equal width
 
         # plot:
         mplw = self.OpenWindow('MPL')
         a = mplw.ax
         a.clear()
+        # omit last right edge in t:
+        a.bar(t[:-1], height=n, width=binwidth, color='k', edgecolor='k')
+        a.set_xlim(t[0], t[-1])
+        a.set_xlabel('ISI (ms)')
+        a.set_ylabel('count')
         if autocorr:
             windowtitle = "n%d autocorr" % clusters[0].id
         else:
             windowtitle = "n%d xcorr with n%d" % (clusters[0].id, clusters[1].id)
         mplw.setWindowTitle(windowtitle)
-        title = windowtitle + '; binwidth: %.2f ms' % binwidth
+        title = windowtitle + ', binwidth: %.2f ms' % binwidth
         print(title)
         a.set_title(title)
-        a.set_xlabel('ISI (ms)')
         #a.set_ylabel('ISI rate (Hz)')
-        c = 'black'
-        a.bar(ledges, dtshist, width=binwidth, color=c, edgecolor=c)
-        a.set_xlim(trange)
         mplw.f.tight_layout(pad=0.3) # crop figure to contents
         mplw.figurecanvas.draw()
 
