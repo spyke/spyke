@@ -1,6 +1,6 @@
 import numpy as np
 import pyximport
-pyximport.install(setup_args={'include_dirs':[np.get_include()]})
+pyximport.install(build_in_temp=False, inplace=True)
 
 import cy_select
 #data = np.float32(np.random.rand(10000001)) # odd number of values ensures there's a middle value

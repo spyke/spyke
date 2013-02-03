@@ -1,6 +1,6 @@
 import pyximport
 
-pyximport.install()
+pyximport.install(build_in_temp=False, inplace=True)
 
 from testing import testing, testing2 # .pyx file
 

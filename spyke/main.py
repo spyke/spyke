@@ -8,7 +8,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
 import pyximport
-pyximport.install()
+pyximport.install(build_in_temp=False, inplace=True)
 from gac import gac # .pyx file
 import util # .pyx file
 

@@ -1,5 +1,6 @@
 *.pyc
 *.pyxbldc
+*.so
 /MANIFEST
 /demo/doublevsint.c
 /demo/doublevsint.html

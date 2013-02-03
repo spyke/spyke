@@ -1,6 +1,6 @@
 import numpy as np
 import pyximport
-pyximport.install()
+pyximport.install(build_in_temp=False, inplace=True)
 from gac import gac # .pyx file
 
 from pylab import figure, gca, scatter, show
