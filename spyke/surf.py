@@ -14,7 +14,7 @@ import re
 import time
 import datetime
 
-from core import Stream, iterable, toiter, ordered, intround
+from core import Stream, iterable, toiter, issorted, intround
 
 NULL = '\x00'
 
@@ -384,14 +384,14 @@ class File(object):
         for attrname, attr in self.__dict__.items():
             if attrname.endswith('records') and iterable(attr):
                 ts = get_record_timestamps(attr)
-                if not ordered(ts):
+                if not issorted(ts):
                     print('sorting %s' % attrname)
                     if type(attr) == list:
                         attr = list(np.asarray(attr)[ts.argsort()])
                     else:
                         attr = attr[ts.argsort()]
                     ts = get_record_timestamps(attr)
-                    assert ordered(ts)
+                    assert issorted(ts)
                     self.__dict__[attrname] = attr # update
 
     def get_LowPassMultiChanLayout(self, probes, probe):

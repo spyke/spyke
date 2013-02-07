@@ -1846,10 +1846,9 @@ def td2days(td):
     days = sec / 3600 / 24
     return days
 
-def ordered(ts):
-    """Check if ts is ordered"""
-    # is difference between subsequent entries >= 0?
-    return (np.diff(ts) >= 0).all()
+def issorted(x):
+    """Check if x is sorted"""
+    return (np.diff(x) >= 0).all() # is difference between consecutive entries >= 0?
     # or, you could compare the array to an explicitly sorted version of itself,
     # and see if they're identical
 

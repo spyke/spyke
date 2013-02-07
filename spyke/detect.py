@@ -41,7 +41,7 @@ IOError: [Errno 4] Interrupted system call
 which has to be caught and retried using _eintr_retry_call.
 '''
 import core
-from core import eucd, ordered, concatenate_destroy, intround, g2, cauchy2
+from core import eucd, issorted, concatenate_destroy, intround, g2, cauchy2
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 
@@ -282,7 +282,7 @@ class Detector(object):
         spikes['nid'] = 0
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
-        if not ordered(spikes['t']):
+        if not issorted(spikes['t']):
             raise RuntimeError("spikes aren't sorted for some reason")
         spikes['id'] = np.arange(self.nspikes) # assign ids (should be in temporal order)
         self.datetime = datetime.datetime.now()
