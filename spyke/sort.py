@@ -36,7 +36,7 @@ import matplotlib as mpl
 
 import core
 from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
-from core import toiter, savez, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
+from core import toiter, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
 from core import lrrep2Darrstripis, rollwin2D
 from surf import EPOCH
@@ -522,9 +522,10 @@ class Sort(object):
             spiketimes = self.spikes['t'][sids]
             chanpos = stream.probe.siteloc_arr()
             uVperAD = stream.converter.AD2uV(1) # convert 1 AD unit to uV
-            savez(fname, compress=True, data=data, sids=sids, nids=nids,
-                  spiketimes=spiketimes, chans=chans, tis=tis,
-                  chanpos=chanpos, uVperAD=uVperAD)
+            with open(fname, 'wb') as f:
+                np.savez_compressed(f, data=data, sids=sids, nids=nids,
+                                    spiketimes=spiketimes, chans=chans, tis=tis,
+                                    chanpos=chanpos, uVperAD=uVperAD)
         elif format == 'text':
             np.savetxt(fname, data, fmt='%d', delimiter=',') # data should be int
         else:

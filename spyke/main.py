@@ -48,7 +48,7 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, MAXNGACPOINTS, TSFStream, savez
+from core import DJS, g, MAXNGACPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES
@@ -351,8 +351,10 @@ class SpykeWindow(QtGui.QMainWindow):
             if format == 'binary':
                 chanpos = s.probe.siteloc_arr()
                 uVperAD = s.converter.AD2uV(1)
-                savez(fullfname, compress=True, data=wave.data, chans=wave.chans,
-                      t0=s.t0, t1=s.t1, tres=s.tres, chanpos=chanpos, uVperAD=uVperAD)
+                with open(fullfname, 'wb') as f:
+                    np.savez_compressed(f, data=wave.data, chans=wave.chans, t0=s.t0,
+                                        t1=s.t1, tres=s.tres, chanpos=chanpos,
+                                        uVperAD=uVperAD)
             elif format == 'text':
                 np.savetxt(fullfname, wave.data, fmt='%d', delimiter=',') # data should be int
             else:

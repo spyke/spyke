@@ -1482,49 +1482,10 @@ class ClusterChange(object):
         self.newnorder = copy(newnorder)
         self.newgood = copy(newgood)
 
-def savez(zipfname, *args, **kwargs):
-    """Save several arrays into a single, possibly compressed, binary file.
-    Taken from numpy.io.lib.savez. Add a compress=False|True keyword, and
-    allow for any file extension. For full docs, see numpy.savez()"""
-
-    # Import is postponed to here since zipfile depends on gzip, an optional
-    # component of the so-called standard library.
-    import zipfile
-    import tempfile
-    import numpy.lib.format as format
-
-    compress = kwargs.pop('compress', False) # defaults to False
-    assert type(compress) == bool
-    namedict = kwargs
-    for i, val in enumerate(args):
-        key = 'arr_%d' % i
-        if key in namedict.keys():
-            raise ValueError("Cannot use unnamed variables and keyword %s" % key)
-        namedict[key] = val
-
-    compression = zipfile.ZIP_STORED # no compression
-    if compress:
-        compression = zipfile.ZIP_DEFLATED # compression
-    zip = zipfile.ZipFile(zipfname, mode="w", compression=compression)
-    # place to write temporary .npy files before storing them in the zip
-    direc = tempfile.gettempdir()
-    todel = []
-    for key, val in namedict.iteritems():
-        fname = key + '.npy'
-        fullfname = os.path.join(direc, fname)
-        todel.append(fullfname)
-        fid = open(fullfname,'wb')
-        format.write_array(fid, np.asanyarray(val))
-        fid.close()
-        zip.write(fullfname, arcname=fname)
-    zip.close()
-    for name in todel:
-        os.remove(name)
-
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of file designated by fname (with full path)"""
     m = hashlib.sha1()
-    with file(fname, 'rb') as f:
+    with open(fname, 'rb') as f:
         # continually update hash until EOF
         while True:
             block = f.read(blocksize)
