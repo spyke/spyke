@@ -1848,6 +1848,12 @@ def td2days(td):
 
 def issorted(x):
     """Check if x is sorted"""
+    try:
+        if x.dtype.kind == 'u':
+            # x is unsigned int array, risk of int underflow in np.diff
+            x = np.int64(x)
+    except AttributeError:
+        pass # no dtype, not an array
     return (np.diff(x) >= 0).all() # is difference between consecutive entries >= 0?
     # or, you could compare the array to an explicitly sorted version of itself,
     # and see if they're identical
