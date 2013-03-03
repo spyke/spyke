@@ -1,3 +1,8 @@
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: cdivision=True
+# cython: profile=False
+
 """Some functions written in Cython for max performance"""
 
 cimport cython
@@ -57,8 +62,6 @@ cdef short select_short(short *a, int l, int r, int k):
     return a[k] # return kth in 0-based
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
 def median_inplace_2Dshort(np.ndarray[np.int16_t, ndim=2, mode='c'] arr):
     """Assumes C-contig 2D input array. arr will probably be from a copy anyway,
     since it modifies in-place"""
@@ -111,9 +114,6 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
     return s
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 cpdef dostuff(np.ndarray[np.float64_t, ndim=1] a):
     """Just a f'n to do some stuff in place with the GIL released"""
     cdef Py_ssize_t i, N = len(a)
@@ -124,9 +124,6 @@ cpdef dostuff(np.ndarray[np.float64_t, ndim=1] a):
             #a[i] *= 2.0
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 def dostuffthreads(np.ndarray[np.float64_t, ndim=1] a):
     """Demo use of multithreading pool from within Cython"""
     from spyke import threadpool_alt
@@ -138,9 +135,6 @@ def dostuffthreads(np.ndarray[np.float64_t, ndim=1] a):
     pool.terminate()
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True)
 def testrange(np.ndarray[np.int32_t, ndim=1] a,
               int start, int end):
     """Testing cython range f'n"""
@@ -149,9 +143,6 @@ def testrange(np.ndarray[np.int32_t, ndim=1] a,
         printf('%d\n', i)
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
 def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     """Spike peak sharpness measure which takes (height)**2 / width
     for each peak, and relies on zero crossings to demarcate borders between peaks.
@@ -222,9 +213,6 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     return sharp
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
 def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
                    np.ndarray[np.int16_t, ndim=1] thresh,
                    np.ndarray[np.float32_t, ndim=2] sharp):
@@ -254,9 +242,6 @@ def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
     return peakis[:npeaks]
 
 '''
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
 def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
     """Given sharpness array, return a temporally sorted n x 2 (ti, ci) array
     of peak indices"""
@@ -280,9 +265,6 @@ def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
     return peakis[:npeaks]
 '''
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
 def rowtake_cy(np.ndarray[np.int32_t, ndim=2] a,
                np.ndarray[np.int32_t, ndim=2] i):
     """For each row in a, return values according to column indices in the
@@ -304,10 +286,6 @@ def rowtake_cy(np.ndarray[np.int32_t, ndim=2] a,
     return out
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
-@cython.profile(False)
 def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
           np.ndarray[np.int64_t, ndim=1, mode='c'] y,
           np.ndarray[np.int64_t, ndim=1, mode='c'] trange):
@@ -357,10 +335,6 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
     return dts
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
-@cython.profile(False)
 ## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
 ## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
 def NDsepmetric(np.float32_t[:, :] C0,
@@ -418,10 +392,6 @@ def NDsepmetric(np.float32_t[:, :] C0,
     return S
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
-@cython.profile(False)
 ## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
 ## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
 cdef int NNmembership(int i, int ndim, int N0, int N1,
@@ -469,10 +439,6 @@ cdef int NNmembership(int i, int ndim, int N0, int N1,
     return 1
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
-@cython.profile(False)
 #def alignbest_cy(sort, np.int64_t[:] sids, np.int64_t[:] tis, np.int64_t[:] chans):
 def alignbest_cy(sort,
                  np.ndarray[np.int64_t, ndim=1, mode='c'] sids,
@@ -606,10 +572,6 @@ def alignbest_cy(sort,
     return dirtysids[:ndirty]
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.cdivision(True) # might be necessary to release the GIL?
-@cython.profile(False)
 def intersect1d_uint8(arrs):
     """Find the intersection of any number of 1D arrays in arrs list.
     Return the sorted, unique values that are in all of the input arrays.
