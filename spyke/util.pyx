@@ -394,6 +394,7 @@ def NDsepmetric(np.float32_t[:, :] C0,
 
 ## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
 ## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
+## However, Cython says memoryview slices in arg def are necessary in order to allow nogil.
 cdef int NNmembership(int i, int ndim, int N0, int N1,
                       np.float32_t[:, :] C0,
                       np.float32_t[:, :] C1) nogil:
