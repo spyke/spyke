@@ -1697,8 +1697,7 @@ def hamming(t, N):
 
 def hex2rgb(hexcolours):
     """Convert colours RGB hex string list into an RGB int array"""
-    if type(hexcolours) not in (list, tuple):
-        hexcolours = [hexcolours] # enclose in list
+    hexcolours = toiter(hexcolours)
     rgb = []
     for s in hexcolours:
         s = s[len(s)-6:len(s)] # get last 6 characters
@@ -1723,8 +1722,7 @@ def hex2floatrgba(hexcolours, alpha=255):
 
 def rgb2hex(rgbcolours):
     """Convert RGB int array into a hex string list"""
-    if type(rgbcolours) not in (list, tuple):
-        rgbcolours = [rgbcolours] # enclose in list
+    rgbcolours = toiter(rgbcolours)
     hx = []
     for rgb in rgbcolours:
         r, g, b = rgb

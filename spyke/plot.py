@@ -38,7 +38,7 @@ VIOLET = '#7f00ff'
 MAGENTA = '#ff00ff'
 GREY = '#555555'
 WHITE = '#ffffff'
-BROWN = '#Af5050'
+BROWN = '#af5050'
 DARKGREY = '#303030'
 LIGHTBLACK = '#202020'
 

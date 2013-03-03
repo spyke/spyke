@@ -52,7 +52,7 @@ from core import DJS, g, MAXNGACPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES
-from plot import SpikePanel, ChartPanel, LFPPanel, CLUSTERCOLOURSRGB, GREYRGB
+from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
 
