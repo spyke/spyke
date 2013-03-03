@@ -531,6 +531,7 @@ def alignbest_cy(sort,
     # to allow for full width slicing for all time shifts:
     cdef int maxnchans = spikes_nchans.max() # of all sids
     cdef int wident = MAXSHIFT+nt+MAXSHIFT
+    cdef int maxwidesdi = wident - 1
     cdef np.ndarray[np.int16_t, ndim=2, mode='c'] sd = np.zeros((maxnchans, nt), dtype=wd.dtype)        
     cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd = np.zeros((maxnchans, wident), dtype=wd.dtype)        
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
@@ -552,7 +553,7 @@ def alignbest_cy(sort,
                 widesd[chani, ti+MAXSHIFT] = sd[chani, ti] # 2D
             for ti in range(MAXSHIFT):
                 widesd[chani, ti] = sd[chani, 0] # pad start with first point per chan
-                widesd[chani, wident-ti] = sd[chani, -1] # pad end with last point per chan
+                widesd[chani, maxwidesdi-ti] = sd[chani, -1] # pad end with last point per chan
 
         # calculate sum of squared errors for all possible shifts of each spike:
         memset(&sserrors[0], 0, nbytessserrors) # clear sserrors
