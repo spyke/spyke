@@ -499,14 +499,17 @@ def alignbest_cy(sort,
     if subntdiv2 < MAXSHIFT:
         raise ValueError("Selected waveform duration too short")
     #maxshiftus = MAXSHIFT * self.stream.tres
-    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1) # from -MAXSHIFT to MAXSHIFT, inclusive
+    # from -MAXSHIFT to MAXSHIFT, inclusive:
+    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1)
     cdef int nshifts = shifts.shape[0]
     print("padding waveforms with up to +/- %d points of edge data" % MAXSHIFT)
 
     # not worth subsampling here while calculating meandata, since all this
     # stuff in this loop is needed in the shift loop below
-    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype) # subset of spike data
-    cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
+    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] subsd
+    subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype) # subset of spike data
+    cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis
+    spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
     #t0 = time.time()
     cdef int sidi, sid
     cdef int shifti, chani, ti, spikechani=0
@@ -532,14 +535,18 @@ def alignbest_cy(sort,
     cdef int maxnchans = spikes_nchans.max() # of all sids
     cdef int wident = MAXSHIFT+nt+MAXSHIFT
     cdef int maxwidesdi = wident - 1
-    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] sd = np.zeros((maxnchans, nt), dtype=wd.dtype)        
-    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd = np.zeros((maxnchans, wident), dtype=wd.dtype)        
+    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] sd
+    sd = np.zeros((maxnchans, nt), dtype=wd.dtype)
+    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd
+    widesd = np.zeros((maxnchans, wident), dtype=wd.dtype)
     cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
-    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
+    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts
+    tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
     cdef int bestshifti=0, dt, ndirty=0
     cdef long long bestshift
     cdef double error
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
+    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] sserrors
+    sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
     cdef int nbytessserrors = nshifts*sizeof(np.float64_t)
     cdef int tres = sort.tres
     cdef np.ndarray[np.int64_t, ndim=1, mode='c'] dirtysids = np.empty(nspikes, dtype=np.int64)
