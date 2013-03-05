@@ -564,19 +564,16 @@ class Stream(object):
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
 
-        # find all contiguous tranges that t0xs and t1xs span, if any:
-        ## TODO: this is wrong, doesn't deal with case where trange0i or trange1i
-        ## have lengths > 1. Trigger this error by asking for a slice longer than any
-        ## one trange or gap between tranges, like by calling:
-        ## >>> self.hpstream(201900000, 336700000)
-        ## on file ptc15.74:
-        trange0i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
-        trange1i, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
+        # Find all contiguous tranges that t0xs and t1xs span, if any. Note that this
+        # can now deal with case where len(trangeis) > 1. Test by asking for a slice
+        # longer than any one trange or gap between tranges, like by calling:
+        # >>> self.hpstream(201900000, 336700000)
+        # on file ptc15.74.
+        trangeis, = np.where((self.tranges[:, 0] <= t1xs) & (t0xs < self.tranges[:, 1]))
         tranges = []
-        if len(trange0i) > 0 and len(trange1i) > 0:
-            trangeis = np.arange(trange0i, trange1i+1)
+        if len(trangeis) > 0:
             tranges = self.tranges[trangeis]
-        #print('tranges:', tranges)
+        #print('tranges:'); print(tranges)
         # collect relevant records from spanned tranges, if any:
         records = []
         for trange in tranges:
