@@ -245,6 +245,8 @@ class SpykeWindow(QtGui.QMainWindow):
                                     directory=self.sortpath)
         path = str(path)
         if path:
+            ## TODO: if sort doesn't exist, make a temporary fake with hpstream
+            ## as its stream. That's all that's needed.
             self.sort.exportdin(path)
             # don't update path
 
@@ -254,6 +256,8 @@ class SpykeWindow(QtGui.QMainWindow):
                                     directory=self.sortpath)
         path = str(path)
         if path:
+            ## TODO: if sort doesn't exist, make a temporary fake with hpstream
+            ## as its stream. That's all that's needed.
             self.sort.exporttextheader(path)
             # don't update path
 

@@ -449,10 +449,14 @@ class Sort(object):
             except OSError: pass # path already exists?
             dinfname = stream.srcfnameroot + '.din'
             fullfname = os.path.join(path, dinfname)
-            # upcast SVal field from uint16 to int64, creates a copy, but it's not too expensive
+            # upcast SVal field from uint16 to int64, creates a copy,
+            # but it's not too expensive:
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
             # convert to normal n x 2 int64 array
             digitalsvalrecords = digitalsvalrecords.view(np.int64).reshape(-1, 2)
+            ## TODO: some old recordings (<=ptc15) contain multiple expriments.
+            ## To deal with this, iterate over stream.tranges, export one .din per trange.
+            ## Append experiment ID to each .din filename?
             digitalsvalrecords.tofile(fullfname) # save it
             print(fullfname)
 
@@ -477,6 +481,9 @@ class Sort(object):
             path = os.path.join(basepath, stream.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
+            ## TODO: some old recordings (<=ptc15) contain multiple expriments.
+            ## To deal with this, iterate over stream.tranges, export one .textheader per
+            ## trange. Append experiment ID to each .textheader filename?
             textheader = displayrecords[0].Header.python_tbl
             textheaderfname = stream.srcfnameroot + '.textheader'
             fullfname = os.path.join(path, textheaderfname)
