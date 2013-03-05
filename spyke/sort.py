@@ -453,14 +453,6 @@ class Sort(object):
             digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
             # convert to normal n x 2 int64 array
             digitalsvalrecords = digitalsvalrecords.view(np.int64).reshape(-1, 2)
-            # NOTE: offset correction is a bad idea. Leave disabled. Spike times and DIN should
-            # be exported without offsets in their timestamps. .ptcs files have a datetime field,
-            # which can be used later to calculate offsets between recordings
-            '''
-            # calculate offset for din values, get time delta between stream i and stream 0
-            td = td2usec(stream.datetime - streams[0].datetime)
-            digitalsvalrecords[:, 0] += td # add offset
-            '''
             digitalsvalrecords.tofile(fullfname) # save it
             print(fullfname)
 
