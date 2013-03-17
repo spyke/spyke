@@ -12,7 +12,8 @@ pyximport.install(build_in_temp=False, inplace=True)
 from gac import gac # .pyx file
 import util # .pyx file
 
-# instantiate an IPython embedded shell:
+# instantiate an IPython embedded shell which shows up in the terminal on demand
+# and on every exception:
 from IPython.frontend.terminal.ipapp import load_default_config
 from IPython.frontend.terminal.embed import InteractiveShellEmbed
 config = load_default_config()
