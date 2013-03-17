@@ -1,5 +1,3 @@
-- BUG: make dropping into IPython (0.14dev) work again
-
 - BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported?
 
 - JMS: try optionally adding spike time to the input data matrix before sending it off for dimension reduction. This means that spikes that cluster in time may somewhat cluster in PCA/ICA space, and may reduce the need to plot against time. Could help when you have a cluster that stretches out over a long period of time, and for parts of that period, looks like it needs cleaning/splitting, whereas other parts are fine. If spike time and some waveform feature correlate, they might cluster out.
@@ -1315,6 +1313,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     o_kl = (1 - p_k)/(1 - e_kl) where p_k = u_k/N_k and u_k is the number of points in cluster k whose nearest neighbour is also in k. Cluster k is the smaller of k and l (N_k < N_l). e_kl = N_k / (N_k + N_l)
     - this wouldn't suffer from the 1D limitation that projecting onto the line connecting the cluster centers has. But, it would be slow, because for each point in each cluster
     - implemented the complement, a separation measure called NDsep
+- BUG: make dropping into IPython (1.0.dev) work again
 
 
 

@@ -12,9 +12,13 @@ pyximport.install(build_in_temp=False, inplace=True)
 from gac import gac # .pyx file
 import util # .pyx file
 
-from IPython import embed
-from IPython.core import ultratb
+# instantiate an IPython embedded shell:
 from IPython.frontend.terminal.ipapp import load_default_config
+from IPython.frontend.terminal.embed import InteractiveShellEmbed
+config = load_default_config()
+# automatically call the pdb debugger after every exception, override default config:
+config.TerminalInteractiveShell.pdb = True
+ipshell = InteractiveShellEmbed(display_banner=False, config=config)
 
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
@@ -553,9 +557,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Shell window toggle menu/button event"""
         #self.ToggleWindow('Shell')
         # FIXME: this blocks until you Ctrl-D out of ipython:
-        embed(display_banner=False, config=load_default_config()) # "self" is accessible
-        # embed() seems to override the excepthook, need to reset it:
-        set_excepthook()
+        ipshell()
 
     @QtCore.pyqtSlot()
     def on_actionRasters_triggered(self):
@@ -2869,14 +2871,9 @@ class Match(object):
         return self.errs[cidi, bestsidis]
         
 
-def set_excepthook():
-    """Drop into IPython's debugger on any error"""
-    sys.excepthook = ultratb.FormattedTB(mode='Verbose', call_pdb=1)
-
-
 if __name__ == '__main__':
-    QtCore.pyqtRemoveInputHook() # prevents "The event loop is already running" errors
-    set_excepthook()
+    # prevents "The event loop is already running" messages when calling ipshell():
+    QtCore.pyqtRemoveInputHook()
     app = QtGui.QApplication(sys.argv)
     spykewindow = SpykeWindow()
     spykewindow.show()
