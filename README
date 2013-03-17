@@ -1,8 +1,10 @@
-spyke is a Python package for visualizing, navigating, and spike sorting extracellular
-waveform data. It currently works with Swindale Lab (http://swindale.ecc.ubc.ca) .srf files.
-Some of its functionality was inherited from Tim Blanche's Delphi program "SurfBawd".
+spyke is a Python package for visualizing, navigating, and spike sorting
+extracellular waveform data. It currently works with Swindale Lab
+(http://swindale.ecc.ubc.ca) .srf files. Some of its functionality was
+inherited from Tim Blanche's Delphi program "SurfBawd".
 
-Some icons were copied from Ubuntu's Humanity icon theme: http://launchpad.net/humanity
+Some icons were copied from Ubuntu's Humanity icon theme:
+http://launchpad.net/humanity
 
 Dependencies:
 
@@ -17,8 +19,8 @@ PyQt4 (PySide will probably work, but is untested)
 PyOpenGL
 Cython
 
-spyke is developed in Ubuntu 12.10. It should work in other Linux distributions. In principle,
-it should also work in Windows and OSX as well.
+spyke is developed in Xubuntu 12.10. It should work in other Linux distributions.
+In principle, it should also work in Windows and OSX.
 
 To run:
 
@@ -32,5 +34,5 @@ To develop:
 
 $ python setup.py build_ext --inplace
 
-Many keyboard shortcuts are available. Tooltips give some hints. You can also discover them
-by searching for "keyPressEvent" methods in the code.
+Many keyboard shortcuts are available. Tooltips give some hints. You can also
+discover them by searching for "keyPressEvent" methods in the code.
