@@ -22,6 +22,9 @@ Cython
 spyke is developed in Xubuntu 12.10. It should work in other Linux distributions.
 In principle, it should also work in Windows and OSX.
 
+An older version is described in the paper "Python for large-scale electrophysiology".
+doi: 10.3389/neuro.11.009.2008
+
 To run:
 
 $ python main.py # in the spyke folder
