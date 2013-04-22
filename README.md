@@ -1,8 +1,9 @@
 spyke is a Python package for visualizing, navigating, and spike sorting
 neuronal extracellular waveform data.
 
-Spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` files.
-Some of its functionality was inherited from Tim Blanche's Delphi program "SurfBawd".
+Spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` files,
+but may be extended to work with other electrophysiology file formats. Some of its
+functionality was inherited from Tim Blanche's Delphi program "SurfBawd".
 
 Some icons were copied from Ubuntu's [Humanity](http://launchpad.net/humanity)
 icon theme.
