@@ -194,7 +194,8 @@ class Detector(object):
         # num timepoints to allocate per spike:
         self.maxnt = int(sort.stream.sampfreq * spikewidth)
 
-        assert (self.dt < np.abs(sort.TW)).all() # necessary when calling sort.align_neuron()
+        # not sure this is valid any more:
+        #assert (self.dt < np.abs(sort.TW)).all() # necessary when calling sort.align_neuron()
 
         print('Detection trange: %r' % (self.trange,))
 

@@ -61,7 +61,7 @@ from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
 
-DEFSPIKETW = -500, 500 # spike window temporal window (us)
+DEFSPIKETW = -400, 600 # spike window temporal window (us)
 DEFCHARTTW = -25000, 25000 # chart window temporal window (us)
 DEFLFPTW = -500000, 500000 # lfp window temporal window (us)
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks

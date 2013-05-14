@@ -1417,7 +1417,9 @@ class SortPanel(PlotPanel):
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             xpos = self.pos[chan][0] # chan xpos center (us)
             if inclt != None: # modify the x values of this segment:                
-                segments[vrefsegmenti][:, 0] = xpos-incltdiv2, xpos+incltdiv2
+                xmin, xmax = xpos-incltdiv2, xpos+incltdiv2
+                segments[vrefsegmenti][:, 0] = xmin, xmax
+                print(xmin, xmax)
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
         self.vlc.set_segments(segments)
