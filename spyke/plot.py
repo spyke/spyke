@@ -985,7 +985,7 @@ class PlotPanel(FigureCanvas):
 
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
-    layed out according to self.siteloc"""
+    laid out according to self.siteloc"""
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
@@ -998,7 +998,8 @@ class SpikePanel(PlotPanel):
         # ordered bottom to top, left to right
         self.vchans = self.get_spatialchans('vertical')
         #print 'horizontal ordered chans in Spikepanel:\n%r' % self.hchans
-        # x origin at center:
+        # x origin is somewhere in between the xlimits. xlimits are asymmetric
+        # if self.tw is asymmetric:
         self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) + self.tw[0],
                          self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1])
         self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
@@ -1413,13 +1414,13 @@ class SortPanel(PlotPanel):
         inclt = self.sortwin.inclt
         if inclt != None: # None means plot vref as default full width
             incltdiv2 = self.sortwin.inclt // 2
+            meantw = (self.tw[0] + self.tw[1]) / 2
         for chan in self.chans_selected: # set line colour of selected chans
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             xpos = self.pos[chan][0] # chan xpos center (us)
-            if inclt != None: # modify the x values of this segment:                
-                xmin, xmax = xpos-incltdiv2, xpos+incltdiv2
-                segments[vrefsegmenti][:, 0] = xmin, xmax
-                print(xmin, xmax)
+            if inclt != None: # modify the x values of this segment:
+                x0, x1 = xpos+meantw-incltdiv2, xpos+meantw+incltdiv2
+                segments[vrefsegmenti][:, 0] = x0, x1
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
         self.vlc.set_segments(segments)
