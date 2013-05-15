@@ -1322,7 +1322,7 @@ class Sort(object):
         Right now, once waves are loaded, performance is roughly 20000 matches/sec
 
         TODO: Nick's alternative to gaussian distance weighting: have two templates: a mean
-        template, and an stdev        template, and weight the error between each matched
+        template, and an stdev template, and weight the error between each matched
         spike and the mean on each chan at each timepoint by the corresponding stdev value
         (divide the error by the stdev, so that timepoints with low stdev are more sensitive
         to error)
