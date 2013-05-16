@@ -15,8 +15,6 @@
     - reload spikes in existing sorts to new time windows, but first update t0, t1, and tis spikes array fields appropriately
     - add time window as a user adjustable parameter in GUI?
 
-- BUG: make stdev around the mean in sort panel observe voltage display gain
-
 - BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported?
 
 - JMS: try optionally adding spike time to the input data matrix before sending it off for dimension reduction. This means that spikes that cluster in time may somewhat cluster in PCA/ICA space, and may reduce the need to plot against time. Could help when you have a cluster that stretches out over a long period of time, and for parts of that period, looks like it needs cleaning/splitting, whereas other parts are fine. If spike time and some waveform feature correlate, they might cluster out.
@@ -1336,6 +1334,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - implemented the complement, a separation measure called NDsep
 - BUG: make dropping into IPython (1.0.dev) work again
 - BUG: make scale bars observe voltage display gain
+- BUG: make stdev around the mean in sort panel observe voltage display gain
 
 
 

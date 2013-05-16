@@ -233,8 +233,8 @@ class Fill(object):
             y = []
         else:
             x = wave.ts-tref
-            lower = self.panel.gain * data - err
-            upper = self.panel.gain * data + err
+            lower = self.panel.gain * (data - err)
+            upper = self.panel.gain * (data + err)
             for chani, chan in enumerate(wave.chans):
                 vert = poly_between(x, lower[chani], upper[chani])
                 vert = np.asarray(vert).T
