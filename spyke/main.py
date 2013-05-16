@@ -2093,6 +2093,13 @@ class SpykeWindow(QtGui.QMainWindow):
         if float(sort.__version__) < float(__version__):
             self.update_sort_version()
         
+        # restore Sort's tw to self and to spike window, if applicable:
+        self.spiketw = sort.tw
+        try:
+            self.windows['Spike'].panel.update_tw(sort.tw)
+        except KeyError:
+            pass
+        # restore sampling variables:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)

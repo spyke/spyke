@@ -578,6 +578,13 @@ class PlotPanel(FigureCanvas):
         self.vlc.set_segments(segments)
         self.segments = segments # save for potential later use
 
+    def _update_scale_pos(self):
+        """Update scale bar position based on current axes limits"""
+        l, b = self.ax.get_xlim()[0] + 50, self.ax.get_ylim()[0] + 15
+        tbar = (l, b), (l+SCALE[0], b) # us
+        vbar = (l, b), (l, b+SCALE[1]) # uV
+        self.scale.set_segments([tbar, vbar])
+
     def _update_caret_width(self):
         """Update caret width"""
         self.caret.set_x(self.cw[0]) # bottom left coord of rectangle
@@ -740,20 +747,25 @@ class PlotPanel(FigureCanvas):
 
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
-        self.tw = self.tw[0]/x, self.tw[1]/x # scale time window endpoints
         self.usperum /= x
+        self.update_tw(self.tw[0]/x, self.tw[1]/x) # scale time window endpoints
+    def update_tw(self, tw):
+        """Required housekeeping when changing tw"""
+        self.tw = tw
         self.do_layout() # resets axes lims and recalcs self.pos
         self._update_tref()
         self._update_vref()
-        self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
-
+        self._update_scale_pos()
+        self.draw_refs()
+        #self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
+    '''
     def post_motion_notify_event(self):
         """Posts a motion_notify_event to mpl's event queue"""
         x, y = wx.GetMousePosition() - self.GetScreenPosition() # get mouse pos relative to this window
         # now just mimic what mpl FigureCanvasWx._onMotion does
         y = self.figure.bbox.height - y
         FigureCanvasBase.motion_notify_event(self, x, y, guiEvent=None) # no wx event to pass as guiEvent
-
+    '''
     def um2uv(self, um):
         """Vertical conversion from um in channel siteloc
         space to uV in signal space"""
@@ -1126,7 +1138,7 @@ class LFPPanel(ChartPanel):
         """Reset chans for this LFPPanel, triggering colour update.
         Take intersection of lpstream.layout.chans and chans_enabled,
         conserving order in lpstream.layout.chans"""
-        chans = [ chan for chan in self.stream.layout.chans if chan in chans ]        
+        chans = [ chan for chan in self.stream.layout.chans if chan in chans ]
         ChartPanel.set_chans(self, chans)
 
     def _zoomx(self, x):
