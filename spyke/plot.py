@@ -744,11 +744,12 @@ class PlotPanel(FigureCanvas):
         """Show/hide all rasters in this panel"""
         if self.rasters != None:
             self.rasters.show(enable)
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         self.usperum /= x
         self.update_tw(self.tw[0]/x, self.tw[1]/x) # scale time window endpoints
+    '''
     def update_tw(self, tw):
         """Required housekeeping when changing tw"""
         self.tw = tw
@@ -1023,7 +1024,7 @@ class SpikePanel(PlotPanel):
                               self.um2uv(self.siteloc[chan][1]))
             # assign colours so that they cycle vertically in space:
             self.vcolours[chan] = colourgen.next()
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
@@ -1032,7 +1033,7 @@ class SpikePanel(PlotPanel):
         self.spykewindow.frames['chart'].panel.cw = self.tw # update caret width
         self.spykewindow.frames['chart'].panel._update_caret_width()
         self.spykewindow.plot(frametypes='spike') # replot
-
+    '''
     def _add_caret(self):
         """Disable for SpikePanel"""
         pass
@@ -1071,7 +1072,7 @@ class ChartPanel(PlotPanel):
             self.pos[chan] = (0, chani*vspace)
             # assign colours so that they cycle vertically in space:
             self.vcolours[chan] = colourgen.next()
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
@@ -1080,7 +1081,7 @@ class ChartPanel(PlotPanel):
         self.spykewindow.frames['lfp'].panel.cw = self.tw # update caret width
         self.spykewindow.frames['lfp'].panel._update_caret_width()
         self.spykewindow.plot(frametypes='chart') # replot
-
+    '''
     def _add_vref(self):
         """Disable for ChartPanel"""
         pass
@@ -1140,14 +1141,14 @@ class LFPPanel(ChartPanel):
         conserving order in lpstream.layout.chans"""
         chans = [ chan for chan in self.stream.layout.chans if chan in chans ]
         ChartPanel.set_chans(self, chans)
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
         self.spykewindow.lfptw = self.tw
         self.spykewindow.plot(frametypes='lfp') # replot
-
+    '''
     def _add_vref(self):
         """Override ChartPanel"""
         PlotPanel._add_vref(self)
