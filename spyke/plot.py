@@ -25,7 +25,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.mlab import poly_between
 
-from core import MICRO, hex2rgb, toiter
+from core import MICRO, hex2rgb, toiter, intround
 
 RED = '#ff0000'
 ORANGE = '#ff7f00'
@@ -1413,13 +1413,14 @@ class SortPanel(PlotPanel):
         linewidths = np.repeat(VREFLINEWIDTH, len(self.pos)) # clear all lines
         inclt = self.sortwin.inclt
         if inclt != None: # None means plot vref as default full width
-            incltdiv2 = self.sortwin.inclt // 2
+            incltd2 = self.sortwin.inclt / 2
             meantw = (self.tw[0] + self.tw[1]) / 2
         for chan in self.chans_selected: # set line colour of selected chans
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             xpos = self.pos[chan][0] # chan xpos center (us)
             if inclt != None: # modify the x values of this segment:
-                x0, x1 = xpos+meantw-incltdiv2, xpos+meantw+incltdiv2
+                mid = xpos + meantw
+                x0, x1 = intround(mid-incltd2), intround(mid+incltd2)
                 segments[vrefsegmenti][:, 0] = x0, x1
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
