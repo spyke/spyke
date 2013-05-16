@@ -1353,8 +1353,8 @@ class SortPanel(PlotPanel):
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateAllItems(self):
-        """Shortcut for updating all items in plots"""
-        items = [ plt.id for plt in self.used_plots.values() ]
+        """Shortcut for updating all items in used_plots"""
+        items = list(self.used_plots) # dict keys are plot ids
         self.updateItems(items)
 
     def updateItem(self, item):
