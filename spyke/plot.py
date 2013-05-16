@@ -25,7 +25,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.mlab import poly_between
 
-from core import MICRO, TW, hex2rgb, toiter
+from core import MICRO, hex2rgb, toiter
 
 RED = '#ff0000'
 ORANGE = '#ff7f00'
@@ -882,8 +882,8 @@ class PlotPanel(FigureCanvas):
                 spikes[sid]['chani'] = chans.searchsorted(chan) # chans are always sorted
         except AttributeError:
             pass
-        t0 = t + sort.TW[0]
-        t1 = t + sort.TW[1]
+        t0 = t + sort.tw[0]
+        t1 = t + sort.tw[1]
         spikes[sid]['t0'] = t0 # us
         spikes[sid]['t1'] = t1
         wave = spw.hpstream(t0, t1, chans)
@@ -1157,8 +1157,8 @@ class LFPPanel(ChartPanel):
 
 class SortPanel(PlotPanel):
     """A plot panel specialized for overplotting spikes and neurons"""
-    def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
+    def __init__(self, parent, tw=None):
+        PlotPanel.__init__(self, parent, tw=tw)
         self.manual_selection = False
         self.sortwin = self.parent()
 
@@ -1429,9 +1429,8 @@ class SortPanel(PlotPanel):
 
 
 class SpikeSortPanel(SortPanel, SpikePanel):
-    def __init__(self, *args, **kwargs):
-        kwargs['tw'] = TW
-        SortPanel.__init__(self, *args, **kwargs)
+    def __init__(self, parent, tw=None):
+        SortPanel.__init__(self, parent, tw=tw)
         self.gain = 1.5
 
     def wheelEvent(self, event):

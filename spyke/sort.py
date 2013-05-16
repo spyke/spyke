@@ -35,7 +35,7 @@ import pylab as pl
 import matplotlib as mpl
 
 import core
-from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
+from core import WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
 from core import lrrep2Darrstripis, rollwin2D
@@ -56,12 +56,11 @@ MEANWAVEMAXSAMPLES = 2000
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
     A .sort file is a single pickled Sort object"""
-    DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
-    TW = TW # save a reference
-    def __init__(self, detector=None, stream=None):
+    def __init__(self, detector=None, stream=None, tw=None):
         self.__version__ = __version__
         self.fname = ''
         self.detector = detector # this Sort's current Detector object
+        self.tw = tw # time window (us) relative to spike time
         self.stream = stream
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
@@ -126,15 +125,26 @@ class Sort(object):
         except AttributeError:
             pass # either stream is None or self.sampfreq/shcorrect aren't bound
         self._stream = stream
-        tres = stream.tres
-        twts = np.arange(self.TW[0], self.TW[1], tres) # temporal window timepoints wrt thresh xing or spike time
+        # now that tres is known, calculate window timepoints wrt spike time:
+        self.calc_twts_twi()
+
+    stream = property(get_stream, set_stream)
+
+    def calc_twts_twi(self):
+        """Calculate temporal window timepoints wrt spike time, and the indices of these
+        timepoints wrt spike time"""
+        tres = self.tres
+        tw = self.tw
+        twts = np.arange(tw[0], tw[1], tres)
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twts = twts
-        # time window indices of a spike wrt thresh xing or its 1st peak:
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres)
         #info('twi = %s' % (self.twi,))
 
-    stream = property(get_stream, set_stream)
+    def get_tres(self):
+        return self.stream.tres
+
+    tres = property(get_tres)
 
     def __getstate__(self):
         """Get object state for pickling"""
@@ -1701,7 +1711,8 @@ class SortWindow(SpykeToolWindow):
         self.nslist.setToolTip('Sorted spike list')
         self.uslist = USList(self) # should really be multicolumn tableview
         self.uslist.setToolTip('Unsorted spike list')
-        self.panel = SpikeSortPanel(self)
+        tw = self.spykewindow.sort.tw
+        self.panel = SpikeSortPanel(self, tw=tw)
 
         self.hsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.hsplitter.addWidget(self.nlist)
@@ -2658,8 +2669,10 @@ class SortWindow(SpykeToolWindow):
                           % (selchan, list(commonchans)))
                     return
             print('best fit aligning %d spikes between tis=%r on chans=%r' %
-                  (len(sids), list(tis), selchans)) # numpy implementation
-            #dirtysids = s.alignbest(sids, tis, selchans) # cython implementation
+                  (len(sids), list(tis), selchans))
+            # numpy implementation:
+            #dirtysids = s.alignbest(sids, tis, selchans)
+            # cython implementation:
             dirtysids = util.alignbest_cy(s, sids, tis, np.asarray(selchans))
         else: # to in ['min', 'max']
             print('aligning %d spikes to %s' % (len(sids), to))

@@ -49,8 +49,6 @@ KERNELSIZE = 12
 assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
-TW = -400, 600 # spike time window range, us, centered on thresh xing or main peak of spike
-
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 

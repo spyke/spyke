@@ -3,10 +3,16 @@
         - getting wavedata from xCA
         - findmostsimilar()
         - align()
-        - reload()
-        - self.inclt
-        - self.tis
-    - realigning existing sorts to new time windows
+        - Sort.reloadSpikes()
+        - SortWindow.inclt
+        - SortWindow.tis
+        - Sort.TW
+        - Sort.twts
+        - Sort.twi
+    - rename sort.TW to sort.tw
+    - when updating MainWindow.spiketw, make sure to also update Sort.tw
+    - when updating Sort.tw, make sure to also update Sort.twts and Sort.twi by calling Sort.calc_twts_twi()
+    - reload spikes in existing sorts to new time windows, but first update t0, t1, and tis spikes array fields appropriately
     - add time window as a user adjustable parameter in GUI?
 
 - BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported?

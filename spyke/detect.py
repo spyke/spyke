@@ -190,12 +190,9 @@ class Detector(object):
         self.calc_chans()
         sort = self.sort
         self.mpmethod = MPMETHOD
-        spikewidth = (sort.TW[1] - sort.TW[0]) / 1000000 # sec
+        spikewidth = (sort.tw[1] - sort.tw[0]) / 1000000 # sec
         # num timepoints to allocate per spike:
         self.maxnt = int(sort.stream.sampfreq * spikewidth)
-
-        # not sure this is valid any more:
-        #assert (self.dt < np.abs(sort.TW)).all() # necessary when calling sort.align_neuron()
 
         print('Detection trange: %r' % (self.trange,))
 

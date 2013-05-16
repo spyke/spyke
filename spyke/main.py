@@ -670,7 +670,6 @@ class SpykeWindow(QtGui.QMainWindow):
         sort.update_usids()
         sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
         sort.shcorrect = sort.stream.shcorrect
-        sort.tres = sort.stream.tres # for convenience
 
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSortWidgets(True)
@@ -2191,7 +2190,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Create a new Sort, bind it to self, and return it"""
         self.DeleteSort()
         self.sort = Sort(detector=None, # detector is assigned in on_detectButton_clicked
-                         stream=self.hpstream)
+                         stream=self.hpstream,
+                         tw=self.spiketw)
         self.EnableSortWidgets(True)
         return self.sort
 
