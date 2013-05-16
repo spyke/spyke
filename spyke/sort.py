@@ -2404,8 +2404,12 @@ class SortWindow(SpykeToolWindow):
 
     def on_gainComboBox_activated(self):
         """Set gain of panel based on gainComboBox selection"""
-        self.panel.gain = float(self.gainComboBox.currentText())
-        self.panel.updateAllItems()
+        panel = self.panel
+        panel.gain = float(self.gainComboBox.currentText())
+        panel.do_layout() # resets axes lims and recalcs panel.pos
+        panel._update_scale()
+        panel.draw_refs()
+        panel.updateAllItems()
 
     def on_actionAlignMin_triggered(self):
         self.Align('min')

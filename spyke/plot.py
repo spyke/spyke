@@ -58,6 +58,8 @@ SELECTEDVREFLINEWIDTH = 3
 VREFCOLOUR = DARKGREY
 VREFSELECTEDCOLOUR = GREEN
 SCALE = 500, 100 # scalebar size in (us, uV)
+SCALEXOFFSET = 25
+SCALEYOFFSET = 15
 SCALELINEWIDTH = 2
 SCALECOLOUR = WHITE
 CARETCOLOUR = LIGHTBLACK
@@ -514,9 +516,9 @@ class PlotPanel(FigureCanvas):
     def _add_scale(self):
         """Add time and voltage "L" scale bar, as a LineCollection"""
         # left and bottom offsets fine tuned for SpikeSortPanel
-        l, b = self.ax.get_xlim()[0] + 50, self.ax.get_ylim()[0] + 15
+        l, b = self.ax.get_xlim()[0] + SCALEXOFFSET, self.ax.get_ylim()[0] + SCALEYOFFSET
         tbar = (l, b), (l+SCALE[0], b) # us
-        vbar = (l, b), (l, b+SCALE[1]) # uV
+        vbar = (l, b), (l, b+SCALE[1]*self.gain) # uV
         self.scale = LineCollection([tbar, vbar], linewidth=SCALELINEWIDTH,
                                     colors=SCALECOLOUR,
                                     zorder=SCALEZORDER,
@@ -578,11 +580,11 @@ class PlotPanel(FigureCanvas):
         self.vlc.set_segments(segments)
         self.segments = segments # save for potential later use
 
-    def _update_scale_pos(self):
-        """Update scale bar position based on current axes limits"""
-        l, b = self.ax.get_xlim()[0] + 50, self.ax.get_ylim()[0] + 15
+    def _update_scale(self):
+        """Update scale bar position and size, based on current axes limits"""
+        l, b = self.ax.get_xlim()[0] + SCALEXOFFSET, self.ax.get_ylim()[0] + SCALEYOFFSET
         tbar = (l, b), (l+SCALE[0], b) # us
-        vbar = (l, b), (l, b+SCALE[1]) # uV
+        vbar = (l, b), (l, b+SCALE[1]*self.gain) # uV
         self.scale.set_segments([tbar, vbar])
 
     def _update_caret_width(self):
@@ -756,7 +758,7 @@ class PlotPanel(FigureCanvas):
         self.do_layout() # resets axes lims and recalcs self.pos
         self._update_tref()
         self._update_vref()
-        self._update_scale_pos()
+        self._update_scale()
         self.draw_refs()
         #self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
     '''
@@ -1002,8 +1004,8 @@ class SpikePanel(PlotPanel):
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
+        PlotPanel.__init__(self, *args, **kwargs)
 
     def do_layout(self):
         # ordered left to right, bottom to top:
@@ -1053,8 +1055,8 @@ class ChartPanel(PlotPanel):
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1
+        PlotPanel.__init__(self, *args, **kwargs)
 
     def do_layout(self):
         """Sets axes limits and calculates self.pos"""
@@ -1104,8 +1106,8 @@ class ChartPanel(PlotPanel):
 class LFPPanel(ChartPanel):
     """LFP Panel"""
     def __init__(self, *args, **kwargs):
-        ChartPanel.__init__(self, *args, **kwargs)
         self.gain = 1
+        ChartPanel.__init__(self, *args, **kwargs)
 
     def init_plots(self):
         ChartPanel.init_plots(self)
@@ -1444,8 +1446,8 @@ class SortPanel(PlotPanel):
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, parent, tw=None):
-        SortPanel.__init__(self, parent, tw=tw)
         self.gain = 1.5
+        SortPanel.__init__(self, parent, tw=tw)
 
     def wheelEvent(self, event):
         """Scroll gainComboBox or incltComboBox on mouse wheel scroll"""
