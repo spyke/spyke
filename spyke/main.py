@@ -2644,20 +2644,20 @@ class SpykeWindow(QtGui.QMainWindow):
         self.update_sort_from_gui()
 
     def update_spiketw(self, spiketw):
-        """Update tw of Spike and Sort windows, and of self.sort, if applicable
-        For efficiency, only update windows and sort when necessary. This is appropriate
+        """Update tw of self.sort and of Spike and Sort windows. For efficiency,
+        only update windows and sort when necessary. This is appropriate
         for the user to call directly from the command line."""
         assert len(spiketw) == 2
         assert spiketw[0] < 0 and spiketw[1] > 0
         self.spiketw = spiketw
+        if hasattr(self, 'sort'):
+            if self.sort.tw != spiketw:
+                self.sort.update_tw(spiketw)
         for wintype in ['Spike', 'Sort']:
             if wintype in self.windows:
                 panel = self.windows[wintype].panel
                 if panel.tw != spiketw:
                     panel.update_tw(spiketw)
-        if hasattr(self, 'sort'):
-            if self.sort.tw != spiketw:
-                self.sort.update_tw(spiketw)
  
     def update_sort_from_gui(self):
         self.update_sort_from_detector_pane()
