@@ -2456,8 +2456,12 @@ class SortWindow(SpykeToolWindow):
         inclt = self.inclt # length of waveform to include, centered on spike (us)
         if inclt == None: # use full waveform
             inclt = sys.maxint
-        incltdiv2 = inclt // 2
-        return s.twts.searchsorted([-incltdiv2, incltdiv2])
+        incltd2 = inclt / 2
+        tw = self.panel.tw
+        meantw = (tw[0] + tw[1]) / 2
+        left, right = meantw-incltd2, meantw+incltd2
+        tis = s.twts.searchsorted([left, right])
+        return tis
 
     tis = property(get_tis)
 
