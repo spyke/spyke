@@ -760,6 +760,8 @@ class PlotPanel(FigureCanvas):
         self._update_vref()
         self._update_scale()
         self.draw_refs()
+        # auto-refresh all plots
+        self.updateAllItems()
         #self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
     '''
     def post_motion_notify_event(self):

@@ -151,6 +151,10 @@ class Sort(object):
         self.spikes['t0'] += dtw[0]
         self.spikes['t1'] += dtw[1]
         self.spikes['tis'] -= dtw[0] / self.tres
+        # recalculate any existing templates:
+        for neuron in self.neurons.values():
+            if neuron.wave.data != None:
+                neuron.update_wave()
         print('WARNING: all spike waveforms need to be reloaded!')
 
     def get_tres(self):
@@ -1921,7 +1925,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionFindNextMostSimilar)
 
         actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
-        tt = ('<nobr>Reload selected spikes</nobr>\n'
+        tt = ('<nobr>Reload selected spikes - if none selected, reload all</nobr>\n'
               '<nobr><b>CTRL</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
         actionReloadSpikes.setToolTip(tt)
         self.connect(actionReloadSpikes, QtCore.SIGNAL('triggered()'),
