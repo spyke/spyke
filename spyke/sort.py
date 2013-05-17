@@ -141,6 +141,18 @@ class Sort(object):
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres)
         #info('twi = %s' % (self.twi,))
 
+    def update_tw(self, tw):
+        """Update tw and everything that depends on it. Note that this shouldn't
+        be called directly by the user. Call SpykeWindow.update_spiketw() instead"""
+        oldtw = self.tw
+        self.tw = tw
+        self.calc_twts_twi()
+        dtw = np.asarray(tw) - np.asarray(oldtw) # new minus old
+        self.spikes['t0'] += dtw[0]
+        self.spikes['t1'] += dtw[1]
+        self.spikes['tis'] -= dtw[0] / self.tres
+        print('WARNING: all spike waveforms need to be reloaded!')
+
     def get_tres(self):
         return self.stream.tres
 

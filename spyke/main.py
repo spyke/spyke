@@ -2647,6 +2647,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update tw of Spike and Sort windows, and of self.sort, if applicable
         For efficiency, only update windows and sort when necessary. This is appropriate
         for the user to call directly from the command line."""
+        assert len(spiketw) == 2
+        assert spiketw[0] < 0 and spiketw[1] > 0
         self.spiketw = spiketw
         for wintype in ['Spike', 'Sort']:
             if wintype in self.windows:
