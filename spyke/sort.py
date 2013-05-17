@@ -2469,6 +2469,9 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         sids = spw.GetAllSpikes()
         sort = self.sort
+        if len(sids) == 0:
+            # if no spikes specified, reload all spikes
+            sids = sort.spikes['id']
         usemeanchans = False
         if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
@@ -2477,6 +2480,7 @@ class SortWindow(SpykeToolWindow):
         spw.dirtysids.update(sids)
         # update neuron templates:
         unids = np.unique(sort.spikes['nid'][sids])
+        unids = unids[unids != 0] # exclude junk cluster, which doesn't have a neuron
         neurons = [ sort.neurons[nid] for nid in unids ]
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
