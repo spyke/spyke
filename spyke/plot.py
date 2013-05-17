@@ -753,7 +753,7 @@ class PlotPanel(FigureCanvas):
         self.update_tw(self.tw[0]/x, self.tw[1]/x) # scale time window endpoints
     '''
     def update_tw(self, tw):
-        """Required housekeeping when changing tw"""
+        """Update tw and everything that depends on it"""
         self.tw = tw
         self.do_layout() # resets axes lims and recalcs self.pos
         self._update_tref()

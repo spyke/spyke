@@ -2107,12 +2107,9 @@ class SpykeWindow(QtGui.QMainWindow):
         if float(sort.__version__) < float(__version__):
             self.update_sort_version()
         
-        # restore Sort's tw to self and to spike window, if applicable:
-        self.spiketw = sort.tw
-        try:
-            self.windows['Spike'].panel.update_tw(sort.tw)
-        except KeyError:
-            pass
+        # restore Sort's tw to self and to spike and sort windows, if applicable:
+        #print('sort.tw is %r' % (sort.tw,))
+        self.update_spiketw(sort.tw)
         # restore sampling variables:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
@@ -2646,6 +2643,20 @@ class SpykeWindow(QtGui.QMainWindow):
         self.sort.detector = Detector(sort=self.sort)
         self.update_sort_from_gui()
 
+    def update_spiketw(self, spiketw):
+        """Update tw of Spike and Sort windows, and of self.sort, if applicable
+        For efficiency, only update windows and sort when necessary. This is appropriate
+        for the user to call directly from the command line."""
+        self.spiketw = spiketw
+        for wintype in ['Spike', 'Sort']:
+            if wintype in self.windows:
+                panel = self.windows[wintype].panel
+                if panel.tw != spiketw:
+                    panel.update_tw(spiketw)
+        if hasattr(self, 'sort'):
+            if self.sort.tw != spiketw:
+                self.sort.update_tw(spiketw)
+ 
     def update_sort_from_gui(self):
         self.update_sort_from_detector_pane()
         self.update_sort_from_cluster_pane()
