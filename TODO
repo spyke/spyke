@@ -1,3 +1,20 @@
+- TODO for asymmetric time windows:
+    - check:
+        - getting wavedata from xCA
+        - findmostsimilar()
+        - align()
+        - Sort.reloadSpikes()
+        - SortWindow.inclt
+        - SortWindow.tis
+        - Sort.TW
+        - Sort.twts
+        - Sort.twi
+    - rename sort.TW to sort.tw
+    - when updating MainWindow.spiketw, make sure to also update Sort.tw
+        - when updating Sort.tw, make sure to also update Sort.twts and Sort.twi by calling Sort.calc_twts_twi()
+        - reload spikes in existing sorts to new time windows, but first update t0, t1, and tis spikes array fields appropriately
+    - add time window as a user adjustable parameter in GUI? No, leave it as an infrequently used command line option (SpykeWindow.update_spiketw)
+
 - BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported?
 
 - JMS: try optionally adding spike time to the input data matrix before sending it off for dimension reduction. This means that spikes that cluster in time may somewhat cluster in PCA/ICA space, and may reduce the need to plot against time. Could help when you have a cluster that stretches out over a long period of time, and for parts of that period, looks like it needs cleaning/splitting, whereas other parts are fine. If spike time and some waveform feature correlate, they might cluster out.
@@ -1316,7 +1333,8 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - this wouldn't suffer from the 1D limitation that projecting onto the line connecting the cluster centers has. But, it would be slow, because for each point in each cluster
     - implemented the complement, a separation measure called NDsep
 - BUG: make dropping into IPython (1.0.dev) work again
-
+- BUG: make scale bars observe voltage display gain
+- BUG: make stdev around the mean in sort panel observe voltage display gain
 
 
 

@@ -25,7 +25,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.mlab import poly_between
 
-from core import MICRO, TW, hex2rgb, toiter
+from core import MICRO, hex2rgb, toiter, intround
 
 RED = '#ff0000'
 ORANGE = '#ff7f00'
@@ -58,6 +58,8 @@ SELECTEDVREFLINEWIDTH = 3
 VREFCOLOUR = DARKGREY
 VREFSELECTEDCOLOUR = GREEN
 SCALE = 500, 100 # scalebar size in (us, uV)
+SCALEXOFFSET = 25
+SCALEYOFFSET = 15
 SCALELINEWIDTH = 2
 SCALECOLOUR = WHITE
 CARETCOLOUR = LIGHTBLACK
@@ -231,8 +233,8 @@ class Fill(object):
             y = []
         else:
             x = wave.ts-tref
-            lower = self.panel.gain * data - err
-            upper = self.panel.gain * data + err
+            lower = self.panel.gain * (data - err)
+            upper = self.panel.gain * (data + err)
             for chani, chan in enumerate(wave.chans):
                 vert = poly_between(x, lower[chani], upper[chani])
                 vert = np.asarray(vert).T
@@ -514,9 +516,9 @@ class PlotPanel(FigureCanvas):
     def _add_scale(self):
         """Add time and voltage "L" scale bar, as a LineCollection"""
         # left and bottom offsets fine tuned for SpikeSortPanel
-        l, b = self.ax.get_xlim()[0] + 50, self.ax.get_ylim()[0] + 15
+        l, b = self.ax.get_xlim()[0] + SCALEXOFFSET, self.ax.get_ylim()[0] + SCALEYOFFSET
         tbar = (l, b), (l+SCALE[0], b) # us
-        vbar = (l, b), (l, b+SCALE[1]) # uV
+        vbar = (l, b), (l, b+SCALE[1]*self.gain) # uV
         self.scale = LineCollection([tbar, vbar], linewidth=SCALELINEWIDTH,
                                     colors=SCALECOLOUR,
                                     zorder=SCALEZORDER,
@@ -577,6 +579,13 @@ class PlotPanel(FigureCanvas):
         segments[:, :, 1] = y
         self.vlc.set_segments(segments)
         self.segments = segments # save for potential later use
+
+    def _update_scale(self):
+        """Update scale bar position and size, based on current axes limits"""
+        l, b = self.ax.get_xlim()[0] + SCALEXOFFSET, self.ax.get_ylim()[0] + SCALEYOFFSET
+        tbar = (l, b), (l+SCALE[0], b) # us
+        vbar = (l, b), (l, b+SCALE[1]*self.gain) # uV
+        self.scale.set_segments([tbar, vbar])
 
     def _update_caret_width(self):
         """Update caret width"""
@@ -737,23 +746,31 @@ class PlotPanel(FigureCanvas):
         """Show/hide all rasters in this panel"""
         if self.rasters != None:
             self.rasters.show(enable)
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
-        self.tw = self.tw[0]/x, self.tw[1]/x # scale time window endpoints
         self.usperum /= x
+        self.update_tw(self.tw[0]/x, self.tw[1]/x) # scale time window endpoints
+    '''
+    def update_tw(self, tw):
+        """Update tw and everything that depends on it"""
+        self.tw = tw
         self.do_layout() # resets axes lims and recalcs self.pos
         self._update_tref()
         self._update_vref()
-        self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
-
+        self._update_scale()
+        self.draw_refs()
+        # auto-refresh all plots
+        self.updateAllItems()
+        #self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
+    '''
     def post_motion_notify_event(self):
         """Posts a motion_notify_event to mpl's event queue"""
         x, y = wx.GetMousePosition() - self.GetScreenPosition() # get mouse pos relative to this window
         # now just mimic what mpl FigureCanvasWx._onMotion does
         y = self.figure.bbox.height - y
         FigureCanvasBase.motion_notify_event(self, x, y, guiEvent=None) # no wx event to pass as guiEvent
-
+    '''
     def um2uv(self, um):
         """Vertical conversion from um in channel siteloc
         space to uV in signal space"""
@@ -882,8 +899,8 @@ class PlotPanel(FigureCanvas):
                 spikes[sid]['chani'] = chans.searchsorted(chan) # chans are always sorted
         except AttributeError:
             pass
-        t0 = t + sort.TW[0]
-        t1 = t + sort.TW[1]
+        t0 = t + sort.tw[0]
+        t1 = t + sort.tw[1]
         spikes[sid]['t0'] = t0 # us
         spikes[sid]['t1'] = t1
         wave = spw.hpstream(t0, t1, chans)
@@ -985,12 +1002,12 @@ class PlotPanel(FigureCanvas):
 
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
-    layed out according to self.siteloc"""
+    laid out according to self.siteloc"""
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1.5
+        PlotPanel.__init__(self, *args, **kwargs)
 
     def do_layout(self):
         # ordered left to right, bottom to top:
@@ -998,7 +1015,8 @@ class SpikePanel(PlotPanel):
         # ordered bottom to top, left to right
         self.vchans = self.get_spatialchans('vertical')
         #print 'horizontal ordered chans in Spikepanel:\n%r' % self.hchans
-        # x origin at center:
+        # x origin is somewhere in between the xlimits. xlimits are asymmetric
+        # if self.tw is asymmetric:
         self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) + self.tw[0],
                          self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1])
         self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
@@ -1010,7 +1028,7 @@ class SpikePanel(PlotPanel):
                               self.um2uv(self.siteloc[chan][1]))
             # assign colours so that they cycle vertically in space:
             self.vcolours[chan] = colourgen.next()
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
@@ -1019,7 +1037,7 @@ class SpikePanel(PlotPanel):
         self.spykewindow.frames['chart'].panel.cw = self.tw # update caret width
         self.spykewindow.frames['chart'].panel._update_caret_width()
         self.spykewindow.plot(frametypes='spike') # replot
-
+    '''
     def _add_caret(self):
         """Disable for SpikePanel"""
         pass
@@ -1039,8 +1057,8 @@ class ChartPanel(PlotPanel):
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
         self.gain = 1
+        PlotPanel.__init__(self, *args, **kwargs)
 
     def do_layout(self):
         """Sets axes limits and calculates self.pos"""
@@ -1058,7 +1076,7 @@ class ChartPanel(PlotPanel):
             self.pos[chan] = (0, chani*vspace)
             # assign colours so that they cycle vertically in space:
             self.vcolours[chan] = colourgen.next()
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
@@ -1067,7 +1085,7 @@ class ChartPanel(PlotPanel):
         self.spykewindow.frames['lfp'].panel.cw = self.tw # update caret width
         self.spykewindow.frames['lfp'].panel._update_caret_width()
         self.spykewindow.plot(frametypes='chart') # replot
-
+    '''
     def _add_vref(self):
         """Disable for ChartPanel"""
         pass
@@ -1090,8 +1108,8 @@ class ChartPanel(PlotPanel):
 class LFPPanel(ChartPanel):
     """LFP Panel"""
     def __init__(self, *args, **kwargs):
-        ChartPanel.__init__(self, *args, **kwargs)
         self.gain = 1
+        ChartPanel.__init__(self, *args, **kwargs)
 
     def init_plots(self):
         ChartPanel.init_plots(self)
@@ -1125,16 +1143,16 @@ class LFPPanel(ChartPanel):
         """Reset chans for this LFPPanel, triggering colour update.
         Take intersection of lpstream.layout.chans and chans_enabled,
         conserving order in lpstream.layout.chans"""
-        chans = [ chan for chan in self.stream.layout.chans if chan in chans ]        
+        chans = [ chan for chan in self.stream.layout.chans if chan in chans ]
         ChartPanel.set_chans(self, chans)
-
+    '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
         PlotPanel._zoomx(self, x)
         # update main spyke frame so its plot calls send the right amount of data
         self.spykewindow.lfptw = self.tw
         self.spykewindow.plot(frametypes='lfp') # replot
-
+    '''
     def _add_vref(self):
         """Override ChartPanel"""
         PlotPanel._add_vref(self)
@@ -1156,8 +1174,8 @@ class LFPPanel(ChartPanel):
 
 class SortPanel(PlotPanel):
     """A plot panel specialized for overplotting spikes and neurons"""
-    def __init__(self, *args, **kwargs):
-        PlotPanel.__init__(self, *args, **kwargs)
+    def __init__(self, parent, tw=None):
+        PlotPanel.__init__(self, parent, tw=tw)
         self.manual_selection = False
         self.sortwin = self.parent()
 
@@ -1339,8 +1357,8 @@ class SortPanel(PlotPanel):
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateAllItems(self):
-        """Shortcut for updating all items in plots"""
-        items = [ plt.id for plt in self.used_plots.values() ]
+        """Shortcut for updating all items in used_plots"""
+        items = list(self.used_plots) # dict keys are plot ids
         self.updateItems(items)
 
     def updateItem(self, item):
@@ -1412,12 +1430,15 @@ class SortPanel(PlotPanel):
         linewidths = np.repeat(VREFLINEWIDTH, len(self.pos)) # clear all lines
         inclt = self.sortwin.inclt
         if inclt != None: # None means plot vref as default full width
-            incltdiv2 = self.sortwin.inclt // 2
+            incltd2 = self.sortwin.inclt / 2
+            meantw = (self.tw[0] + self.tw[1]) / 2
         for chan in self.chans_selected: # set line colour of selected chans
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             xpos = self.pos[chan][0] # chan xpos center (us)
-            if inclt != None: # modify the x values of this segment:                
-                segments[vrefsegmenti][:, 0] = xpos-incltdiv2, xpos+incltdiv2
+            if inclt != None: # modify the x values of this segment:
+                mid = xpos + meantw
+                x0, x1 = intround(mid-incltd2), intround(mid+incltd2)
+                segments[vrefsegmenti][:, 0] = x0, x1
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
         self.vlc.set_segments(segments)
@@ -1426,10 +1447,9 @@ class SortPanel(PlotPanel):
 
 
 class SpikeSortPanel(SortPanel, SpikePanel):
-    def __init__(self, *args, **kwargs):
-        kwargs['tw'] = TW
-        SortPanel.__init__(self, *args, **kwargs)
+    def __init__(self, parent, tw=None):
         self.gain = 1.5
+        SortPanel.__init__(self, parent, tw=tw)
 
     def wheelEvent(self, event):
         """Scroll gainComboBox or incltComboBox on mouse wheel scroll"""

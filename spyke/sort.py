@@ -35,7 +35,7 @@ import pylab as pl
 import matplotlib as mpl
 
 import core
-from core import TW, WaveForm, Gaussian, MAXLONGLONG, R
+from core import WaveForm, Gaussian, MAXLONGLONG, R
 from core import toiter, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
 from core import lrrep2Darrstripis, rollwin2D
@@ -56,12 +56,11 @@ MEANWAVEMAXSAMPLES = 2000
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
     A .sort file is a single pickled Sort object"""
-    DEFWAVEDATANSPIKES = 100000 # length (nspikes) to init contiguous wavedata array
-    TW = TW # save a reference
-    def __init__(self, detector=None, stream=None):
+    def __init__(self, detector=None, stream=None, tw=None):
         self.__version__ = __version__
         self.fname = ''
         self.detector = detector # this Sort's current Detector object
+        self.tw = tw # time window (us) relative to spike time
         self.stream = stream
         self.probe = stream.probe # only one probe design per sort allowed
         self.converter = stream.converter
@@ -126,15 +125,42 @@ class Sort(object):
         except AttributeError:
             pass # either stream is None or self.sampfreq/shcorrect aren't bound
         self._stream = stream
-        tres = stream.tres
-        twts = np.arange(self.TW[0], self.TW[1], tres) # temporal window timepoints wrt thresh xing or spike time
+        # now that tres is known, calculate window timepoints wrt spike time:
+        self.calc_twts_twi()
+
+    stream = property(get_stream, set_stream)
+
+    def calc_twts_twi(self):
+        """Calculate temporal window timepoints wrt spike time, and the indices of these
+        timepoints wrt spike time"""
+        tres = self.tres
+        tw = self.tw
+        twts = np.arange(tw[0], tw[1], tres)
         twts += twts[0] % tres # get rid of mod, so twts go through zero
         self.twts = twts
-        # time window indices of a spike wrt thresh xing or its 1st peak:
         self.twi = intround(twts[0] / tres), intround(twts[-1] / tres)
         #info('twi = %s' % (self.twi,))
 
-    stream = property(get_stream, set_stream)
+    def update_tw(self, tw):
+        """Update tw and everything that depends on it. Note that this shouldn't
+        be called directly by the user. Call SpykeWindow.update_spiketw() instead"""
+        oldtw = self.tw
+        self.tw = tw
+        self.calc_twts_twi()
+        dtw = np.asarray(tw) - np.asarray(oldtw) # new minus old
+        self.spikes['t0'] += dtw[0]
+        self.spikes['t1'] += dtw[1]
+        self.spikes['tis'] -= dtw[0] / self.tres
+        # recalculate any existing templates:
+        for neuron in self.neurons.values():
+            if neuron.wave.data != None:
+                neuron.update_wave()
+        print('WARNING: all spike waveforms need to be reloaded!')
+
+    def get_tres(self):
+        return self.stream.tres
+
+    tres = property(get_tres)
 
     def __getstate__(self):
         """Get object state for pickling"""
@@ -1701,7 +1727,8 @@ class SortWindow(SpykeToolWindow):
         self.nslist.setToolTip('Sorted spike list')
         self.uslist = USList(self) # should really be multicolumn tableview
         self.uslist.setToolTip('Unsorted spike list')
-        self.panel = SpikeSortPanel(self)
+        tw = self.spykewindow.sort.tw
+        self.panel = SpikeSortPanel(self, tw=tw)
 
         self.hsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.hsplitter.addWidget(self.nlist)
@@ -1898,7 +1925,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionFindNextMostSimilar)
 
         actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
-        tt = ('<nobr>Reload selected spikes</nobr>\n'
+        tt = ('<nobr>Reload selected spikes - if none selected, reload all</nobr>\n'
               '<nobr><b>CTRL</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
         actionReloadSpikes.setToolTip(tt)
         self.connect(actionReloadSpikes, QtCore.SIGNAL('triggered()'),
@@ -2393,8 +2420,12 @@ class SortWindow(SpykeToolWindow):
 
     def on_gainComboBox_activated(self):
         """Set gain of panel based on gainComboBox selection"""
-        self.panel.gain = float(self.gainComboBox.currentText())
-        self.panel.updateAllItems()
+        panel = self.panel
+        panel.gain = float(self.gainComboBox.currentText())
+        panel.do_layout() # resets axes lims and recalcs panel.pos
+        panel._update_scale()
+        panel.draw_refs()
+        panel.updateAllItems()
 
     def on_actionAlignMin_triggered(self):
         self.Align('min')
@@ -2441,8 +2472,12 @@ class SortWindow(SpykeToolWindow):
         inclt = self.inclt # length of waveform to include, centered on spike (us)
         if inclt == None: # use full waveform
             inclt = sys.maxint
-        incltdiv2 = inclt // 2
-        return s.twts.searchsorted([-incltdiv2, incltdiv2])
+        incltd2 = inclt / 2
+        tw = self.panel.tw
+        meantw = (tw[0] + tw[1]) / 2
+        left, right = meantw-incltd2, meantw+incltd2
+        tis = s.twts.searchsorted([left, right])
+        return tis
 
     tis = property(get_tis)
 
@@ -2450,6 +2485,9 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         sids = spw.GetAllSpikes()
         sort = self.sort
+        if len(sids) == 0:
+            # if no spikes specified, reload all spikes
+            sids = sort.spikes['id']
         usemeanchans = False
         if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
@@ -2458,6 +2496,7 @@ class SortWindow(SpykeToolWindow):
         spw.dirtysids.update(sids)
         # update neuron templates:
         unids = np.unique(sort.spikes['nid'][sids])
+        unids = unids[unids != 0] # exclude junk cluster, which doesn't have a neuron
         neurons = [ sort.neurons[nid] for nid in unids ]
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
@@ -2658,8 +2697,10 @@ class SortWindow(SpykeToolWindow):
                           % (selchan, list(commonchans)))
                     return
             print('best fit aligning %d spikes between tis=%r on chans=%r' %
-                  (len(sids), list(tis), selchans)) # numpy implementation
-            #dirtysids = s.alignbest(sids, tis, selchans) # cython implementation
+                  (len(sids), list(tis), selchans))
+            # numpy implementation:
+            #dirtysids = s.alignbest(sids, tis, selchans)
+            # cython implementation:
             dirtysids = util.alignbest_cy(s, sids, tis, np.asarray(selchans))
         else: # to in ['min', 'max']
             print('aligning %d spikes to %s' % (len(sids), to))
