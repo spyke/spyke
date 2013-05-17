@@ -2262,10 +2262,10 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         s.windowGeometries = {}
         s.windowStates = {}
-        for windowtype, window in self.windows.items():
-            #print('saving state of %s window' % windowtype)
-            s.windowGeometries[windowtype] = window.saveGeometry()
-            s.windowStates[windowtype] = window.saveState()
+        for wintype, window in self.windows.items():
+            #print('saving state of %s window' % wintype)
+            s.windowGeometries[wintype] = window.saveGeometry()
+            s.windowStates[wintype] = window.saveState()
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
@@ -2390,10 +2390,10 @@ class SpykeWindow(QtGui.QMainWindow):
                 self._chans_enabled[chan] = False
 
         # now set chans in plotpanels to reset colours:
-        for windowtype in WINDOWUPDATEORDER:
+        for wintype in WINDOWUPDATEORDER:
             try:
-                self.windows[windowtype].panel.set_chans(self.chans_enabled)
-            except KeyError: # windowtype hasn't been opened yet
+                self.windows[wintype].panel.set_chans(self.chans_enabled)
+            except KeyError: # wintype hasn't been opened yet
                 pass
 
         # update stream
@@ -2413,9 +2413,9 @@ class SpykeWindow(QtGui.QMainWindow):
         """Close data windows and stream (both hpstream and lpstream)"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
-        for windowtype in self.windows.keys():
-            if windowtype in ['Spike', 'Chart', 'LFP']:
-                self.CloseWindow(windowtype) # deletes from dict
+        for wintype in self.windows.keys():
+            if wintype in ['Spike', 'Chart', 'LFP']:
+                self.CloseWindow(wintype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
             if stream: stream.close()
         self.hpstream = None
@@ -2444,32 +2444,32 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: pass # no spikes
         self.OpenWindow('Sort')
 
-    def OpenWindow(self, windowtype):
+    def OpenWindow(self, wintype):
         """Create and bind a window, show it, plot its data if applicable. Much of this
         BORDER stuff is just an empirically derived hack"""
-        new = windowtype not in self.windows
+        new = wintype not in self.windows
         if new:
-            if windowtype == 'Spike':
+            if wintype == 'Spike':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = SpikeWindow(parent=self, tw=self.spiketw, pos=(x, y),
                                      size=(self.SPIKEWINDOWWIDTH, SPIKEWINDOWHEIGHT))
-            elif windowtype == 'Chart':
+            elif wintype == 'Chart':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + 2*BORDER
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = ChartWindow(parent=self, tw=self.charttw, cw=self.spiketw,
                                      pos=(x, y), size=CHARTWINDOWSIZE)
-            elif windowtype == 'LFP':
+            elif wintype == 'LFP':
                 x = self.pos().x() + self.SPIKEWINDOWWIDTH + CHARTWINDOWSIZE[0] + 4*BORDER
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = LFPWindow(parent=self, tw=self.lfptw, cw=self.charttw,
                                    pos=(x, y), size=LFPWINDOWSIZE)
-            elif windowtype == 'Sort':
+            elif wintype == 'Sort':
                 x = self.pos().x() + self.size().width() + 2*BORDER
                 y = self.pos().y()
                 #print('sort x: %d' % x)
                 window = SortWindow(parent=self, pos=(x, y))
-            elif windowtype == 'Cluster':
+            elif wintype == 'Cluster':
                 x = self.pos().x() + self.size().width() + self.windows['Sort'].size().width() + 4*BORDER
                 y = self.pos().y()
                 from cluster import ClusterWindow # can't delay this any longer
@@ -2477,57 +2477,57 @@ class SpykeWindow(QtGui.QMainWindow):
                 #print('cluster x: %d' % x)
                 #print('cluster size: %r' % (size,))
                 window = ClusterWindow(parent=self, pos=(x, y), size=size)
-            elif windowtype == 'MPL':
+            elif wintype == 'MPL':
                 x = self.pos().x()
                 y = self.pos().y() + self.size().height() + WINDOWTITLEHEIGHT
                 window = MPLWindow(parent=self, pos=(x, y),
                                    size=(self.size().width(), self.size().width()))
-            self.windows[windowtype] = window
+            self.windows[wintype] = window
             try: # try and load saved window geometry and state from sort
-                window.restoreGeometry(self.sort.windowGeometries[windowtype])
-                window.restoreState(self.sort.windowStates[windowtype])
+                window.restoreGeometry(self.sort.windowGeometries[wintype])
+                window.restoreState(self.sort.windowStates[wintype])
             except(AttributeError, KeyError):
                 pass
-        self.ShowWindow(windowtype) # just show it
+        self.ShowWindow(wintype) # just show it
         if new: # do stuff that only works after first show
-            if windowtype not in ['Cluster', 'MPL']:
+            if wintype not in ['Cluster', 'MPL']:
                 window.panel.draw_refs() # prevent plot artifacts
             # should be unnecessary after restoring window state above, but vsplitter
             # and hsplitter aren't restored properly, set them manually:
-            if windowtype == 'Sort':
+            if wintype == 'Sort':
                 #window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
                 window.vsplitter.moveSplitter(VSPLITTERPOS, 1)
                 window.hsplitter.moveSplitter(window.hsplitter.width()-NSLISTWIDTH, 1)
-        return self.windows[windowtype] # 'window' isn't necessarily in local namespace
+        return self.windows[wintype] # 'window' isn't necessarily in local namespace
 
-    def ShowWindow(self, windowtype, enable=True):
+    def ShowWindow(self, wintype, enable=True):
         """Show/hide a window, force menu and toolbar states to correspond"""
-        window = self.windows[windowtype]
+        window = self.windows[wintype]
         if enable:
             window.show()
         else:
             window.hide()
-        self.ui.__dict__['action%sWindow' % windowtype].setChecked(enable)
+        self.ui.__dict__['action%sWindow' % wintype].setChecked(enable)
         if enable and isinstance(window, DataWindow):
             # update the newly shown data window's data, in case self.t changed since
             # it was last visible
-            self.plot(windowtype)
+            self.plot(wintype)
 
-    def HideWindow(self, windowtype):
-        self.ShowWindow(windowtype, False)
+    def HideWindow(self, wintype):
+        self.ShowWindow(wintype, False)
 
-    def ToggleWindow(self, windowtype):
+    def ToggleWindow(self, wintype):
         """Toggle visibility of a data window"""
         try:
-            window = self.windows[windowtype]
-            self.ShowWindow(windowtype, not window.isVisible()) # toggle it
+            window = self.windows[wintype]
+            self.ShowWindow(wintype, not window.isVisible()) # toggle it
         except KeyError: # window hasn't been opened yet
-            self.OpenWindow(windowtype)
+            self.OpenWindow(wintype)
 
-    def CloseWindow(self, windowtype):
+    def CloseWindow(self, wintype):
         """Hide window, remove it from windows dict, destroy it"""
-        self.HideWindow(windowtype)
-        window = self.windows.pop(windowtype)
+        self.HideWindow(wintype)
+        window = self.windows.pop(wintype)
         window.destroy()
 
     def ToggleRasters(self):
@@ -2538,10 +2538,10 @@ class SpykeWindow(QtGui.QMainWindow):
     def ShowRasters(self, enable=True):
         """Show/hide rasters for all applicable windows. Force menu states to correspond"""
         self.ui.actionRasters.setChecked(enable)
-        for windowtype, window in self.windows.iteritems():
-            if windowtype in ['Spike', 'Chart', 'LFP']:
+        for wintype, window in self.windows.iteritems():
+            if wintype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_rasters(enable=enable)
-                self.plot(windowtype)
+                self.plot(wintype)
 
     def ToggleRef(self, ref):
         """Toggle visibility of TimeRef, VoltageRef, Scale, or the Caret"""
@@ -2551,8 +2551,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def ShowRef(self, ref, enable=True):
         """Show/hide a TimeRef, VoltageRef, Scale, or the Caret. Force menu states to correspond"""
         self.ui.__dict__['action%s' % ref].setChecked(enable)
-        for windowtype, window in self.windows.items():
-            if windowtype in ['Spike', 'Chart', 'LFP', 'Sort']:
+        for wintype, window in self.windows.items():
+            if wintype in ['Spike', 'Chart', 'LFP', 'Sort']:
                 window.panel.show_ref(ref, enable=enable)
 
     def SetSampfreq(self, sampfreq):
@@ -2757,22 +2757,22 @@ class SpykeWindow(QtGui.QMainWindow):
         """Return current position in surf file"""
         return self.t
 
-    def plot(self, windowtypes=None):
+    def plot(self, wintypes=None):
         """Update the contents of all the data windows, or just specific ones.
         Center each data window on self.t"""
-        if windowtypes == None: # update all visible windows
-            windowtypes = self.windows.keys()
+        if wintypes == None: # update all visible windows
+            wintypes = self.windows.keys()
         else: # update only specific windows, if visible
-            windowtypes = toiter(windowtypes)
-        windowtypes = [ windowtype for windowtype in WINDOWUPDATEORDER if windowtype in windowtypes ] # reorder
-        windows = [ self.windows[windowtype] for windowtype in windowtypes ] # get windows in order
-        for windowtype, window in zip(windowtypes, windows):
+            wintypes = toiter(wintypes)
+        wintypes = [ wintype for wintype in WINDOWUPDATEORDER if wintype in wintypes ] # reorder
+        windows = [ self.windows[wintype] for wintype in wintypes ] # get windows in order
+        for wintype, window in zip(wintypes, windows):
             if window.isVisible(): # for performance, only update if window is shown
-                if windowtype == 'Spike':
+                if wintype == 'Spike':
                     wave = self.hpstream(self.t+self.spiketw[0], self.t+self.spiketw[1])
-                elif windowtype == 'Chart':
+                elif wintype == 'Chart':
                     wave = self.hpstream(self.t+self.charttw[0], self.t+self.charttw[1])
-                elif windowtype == 'LFP':
+                elif wintype == 'LFP':
                     wave = self.lpstream(self.t+self.lfptw[0], self.t+self.lfptw[1])
                 window.panel.plot(wave, tref=self.t) # plot it
 
