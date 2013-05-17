@@ -389,6 +389,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_4_to_0_5()
         if v == 0.5:
             v = self.update_0_5_to_0_6()
+        if v == 0.6:
+            v = self.update_0_6_to_0_7()
         print('now save me!')
             
     def update_0_3_to_0_4(self):
@@ -463,6 +465,18 @@ class SpykeWindow(QtGui.QMainWindow):
 
         s.__version__ = '0.6' # update
         print('done updating sort from version 0.5 to 0.6')
+        return float(s.__version__)
+
+    def update_0_6_to_0_7(self):
+        """Update sort 0.6 to 0.7:
+            - replace sort.TW class attribute with sort.tw instance attribute
+        """
+        print('updating sort from version 0.6 to 0.7')
+        s = self.sort
+        # Sort.TW class attrib was (-500, 500) in version 0.6
+        s.tw = -500, 500
+        s.__version__ = '0.7' # update
+        print('done updating sort from version 0.6 to 0.7')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
