@@ -1925,7 +1925,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionFindNextMostSimilar)
 
         actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
-        tt = ('<nobr>Reload selected spikes - if none selected, reload all</nobr>\n'
+        tt = ('<nobr>Reload selected spikes. If none selected, reload all</nobr>\n'
               '<nobr><b>CTRL</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
         actionReloadSpikes.setToolTip(tt)
         self.connect(actionReloadSpikes, QtCore.SIGNAL('triggered()'),

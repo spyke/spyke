@@ -760,8 +760,6 @@ class PlotPanel(FigureCanvas):
         self._update_vref()
         self._update_scale()
         self.draw_refs()
-        # auto-refresh all plots
-        self.updateAllItems()
         #self.post_motion_notify_event() # forces tooltip update, even if mouse hasn't moved
     '''
     def post_motion_notify_event(self):
@@ -1207,6 +1205,11 @@ class SortPanel(PlotPanel):
     def init_rasters(self):
         """Disable for SortPanel"""
         pass
+
+    def update_tw(self, tw):
+        """Same as parent, but auto-refresh all plots after"""
+        PlotPanel.update_tw(self, tw)
+        self.updateAllItems()
 
     def _add_vref(self):
         """Increase pick radius for vrefs from default zero, since we're
