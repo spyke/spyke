@@ -1,4 +1,4 @@
-spyke is a Python package for visualizing, navigating, and spike sorting
+spyke is a Python application for visualizing, navigating, and spike sorting
 neuronal extracellular waveform data.
 
 spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` files,
