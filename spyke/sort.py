@@ -51,6 +51,7 @@ SPIKESORTPANELWIDTHPERCOLUMN = 120
 SORTWINDOWHEIGHT = 1032 # TODO: this should be set programmatically
 
 MEANWAVEMAXSAMPLES = 2000
+NPCSPERCHAN = 7
 
 
 class Sort(object):
@@ -628,7 +629,7 @@ class Sort(object):
             raise RuntimeError("Spikes have no common chans for %s" % kind)
 
         # check if desired components have already been calculated (cache hit):
-        Xhash = self.get_Xhash(kind, sids, tis, chans)
+        Xhash = self.get_Xhash(kind, sids, tis, chans, self.npcsperchan)
         self.Xhash = Xhash # save as key to most recent component matrix in self.X
         try: self.X
         except AttributeError: self.X = {} # init the dimension reduction cache attrib
@@ -683,8 +684,8 @@ class Sort(object):
             else: # kind == 'PCA+ICA'
                 # do PCA first, to reduce dimensionality and speed up ICA:
                 data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-                # keep up to 7 components per chan on average:
-                ncomp = min((7*nchans, maxncomp, data.shape[1]))
+                # keep up to npcsperchan components per chan on average:
+                ncomp = min((self.npcsperchan*nchans, maxncomp, data.shape[1]))
                 print('ncomp = %d' % ncomp)
                 data = mdp.pca(data, output_dim=ncomp)
             print('reshaped input for %s: %r' % (kind, data.shape))
@@ -779,7 +780,7 @@ class Sort(object):
                 print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
         return commonchans, chanslist
 
-    def get_Xhash(self, kind, sids, tis, chans):
+    def get_Xhash(self, kind, sids, tis, chans, npcsperchan):
         """Return MD5 hex digest of args, for uniquely identifying the matrix resulting
         from dimension reduction of spike data"""
         h = hashlib.md5()
@@ -787,6 +788,8 @@ class Sort(object):
         h.update(sids)
         h.update(tis)
         h.update(chans)
+        if kind == 'PCA+ICA': # consider npcsperchan only if doing ICA
+            h.update(str(npcsperchan))
         return h.hexdigest()
 
     def create_neuron(self, id=None, inserti=None):
@@ -1910,6 +1913,16 @@ class SortWindow(SpykeToolWindow):
         #incltunitsLabel = QtGui.QLabel('us', self)
         #toolbar.addWidget(incltunitsLabel)
 
+        nPCsPerChanSpinBox = QtGui.QSpinBox(self)
+        nPCsPerChanSpinBox.setToolTip("Number of PCs to use per channel to feed into ICA")
+        nPCsPerChanSpinBox.setFocusPolicy(Qt.NoFocus)
+        toolbar.addWidget(nPCsPerChanSpinBox)
+        nPCsPerChanSpinBox.setMinimum(1)
+        self.connect(nPCsPerChanSpinBox, QtCore.SIGNAL('valueChanged(int)'),
+                     self.on_nPCsPerChanSpinBox_valueChanged)
+        nPCsPerChanSpinBox.setValue(NPCSPERCHAN)
+        self.nPCsPerChanSpinBox = nPCsPerChanSpinBox
+
         actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)
         tt = '<nobr><b>&lt;</b> &nbsp; Find previous most similar cluster</nobr>'
         actionFindPrevMostSimilar.setToolTip(tt)
@@ -2480,6 +2493,9 @@ class SortWindow(SpykeToolWindow):
         return tis
 
     tis = property(get_tis)
+
+    def on_nPCsPerChanSpinBox_valueChanged(self, val):
+        self.sort.npcsperchan = val
 
     def on_actionReloadSpikes_triggered(self):
         spw = self.spykewindow
