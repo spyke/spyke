@@ -56,7 +56,7 @@ from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWind
 from core import DJS, g, MAXNGACPOINTS, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
-from sort import MEANWAVEMAXSAMPLES
+from sort import MEANWAVEMAXSAMPLES, NPCSPERCHAN
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
@@ -1215,7 +1215,11 @@ class SpykeWindow(QtGui.QMainWindow):
         tis = sw.tis # waveform time indices to include, centered on spike
         selchans = np.asarray(self.get_selchans(sids))
         chans = self.sort.get_common_chans(sids, selchans)[0]
-        return kind, sids, tis, chans
+        try:
+            npcsperchan = self.sort.npcsperchan
+        except AttributeError: # hasn't been set yet
+            npcsperchan = NPCSPERCHAN
+        return kind, sids, tis, chans, npcsperchan
 
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
@@ -1317,7 +1321,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 chan = spikes['chan'][sid]
                 nchans = spikes['nchans'][sid]
                 chans = spikes['chans'][sid][:nchans]
-                sdata = wavedata[sid, :nchans] # TODO: this is a bit wasteful if no chans are in common
+                # TODO: this is a bit wasteful if no chans are in common:
+                sdata = wavedata[sid, :nchans]
                 try:
                     ndata, sdata = neuron.getCommonWaveData(chan, chans, sdata)
                 except ValueError: # not comparable
