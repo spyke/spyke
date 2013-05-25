@@ -82,7 +82,7 @@ WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
 # if updating at least this many select spikes in .wave file, update them all
 # instead for speed:
-NDIRTYSIDSTHRESH = 50000
+NDIRTYSIDSTHRESH = 200000
 
 
 class SpykeWindow(QtGui.QMainWindow):
