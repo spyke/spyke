@@ -1335,6 +1335,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
         - reload spikes in existing sorts to new time windows, but first update t0, t1, and tis spikes array fields appropriately
     - add time window as a user adjustable parameter in GUI? No, leave it as an infrequently used command line option (SpykeWindow.update_spiketw)
 - add ability to vary the number of PCs to keep per channel before doing ICA. Scholz2004 suggests that more input PCs into ICA isn't always better, so 7 per channel may be too many in some cases.
+- make "+" split off selected spikes: same as deleting selected spikes and then promoting them to a cluster
 
 
 

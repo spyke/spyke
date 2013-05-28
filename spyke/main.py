@@ -971,7 +971,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return selchans
 
     def apply_clustering(self, oldclusters, sids, nids, verb=''):
-        """Replace old clusters and apply the clustering described by sids
+        """Delete old clusters and replace the existing clustering of the desired sids
         with their new nids"""
         s = self.sort
         spikes = s.spikes
@@ -1817,9 +1817,10 @@ class SpykeWindow(QtGui.QMainWindow):
         #print('newclusters: %r' % [c.id for c in newclusters])
         #print('bystanders: %r' % [c.id for c in bystanders])
 
-    def DeleteSpikes(self):
-        """Uncluster explicitly selected spikes. More accurately, split selected cluster(s)
-        into new cluster(s) plus a junk cluster 0. This is required to allow undo/redo"""
+    def SplitSpikes(self, delete=False):
+        """Split off explicitly selected spikes from their clusters (if any). More accurately,
+        split selected cluster(s) into new cluster(s) plus a destination cluster, whose ID
+        depends on the delete arg. This process is required to allow undo/redo"""
         oldclusters = self.GetClusters()
         s = self.sort
         spikes = s.spikes
@@ -1827,10 +1828,14 @@ class SpykeWindow(QtGui.QMainWindow):
         sids.sort()
         if len(sids) == 0:
             return # do nothing
-        delsids = self.GetSpikes() # explicitly selected spikes
-        delsidis = sids.searchsorted(delsids)
+        if delete:
+            newnid = 0 # junk cluster
+        else:
+            newnid = s.nextnid
+        selsids = self.GetSpikes() # explicitly selected spikes
+        selsidis = sids.searchsorted(selsids)
         nids = spikes[sids]['nid'] # seems to return a copy
-        nids[delsidis] = 0 # doesn't seem to overwrite nid values in spikes recarray
+        nids[selsidis] = newnid # doesn't seem to overwrite nid values in spikes recarray
         self.apply_clustering(oldclusters, sids, nids, verb='split')
 
     def updateTitle(self):

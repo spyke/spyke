@@ -1791,7 +1791,14 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionToggleClustersGood_triggered)
         toolbar.addAction(actionToggleClustersGood)
 
-        actionLabelMultiunit = QAction(QIcon('res/window-close.svg'), '-', self)
+        actionSplit = QAction('+', self)
+        tt = '<nobr><b>+</b> &nbsp; Split off selected spikes</nobr>'
+        actionSplit.setToolTip(tt)
+        self.connect(actionSplit, QtCore.SIGNAL('triggered()'),
+                     self.on_actionSplit_triggered)
+        toolbar.addAction(actionSplit)
+
+        actionLabelMultiunit = QAction('-', self)
         tt = '<nobr><b>-</b> &nbsp; Label clusters as multiunit</nobr>'
         actionLabelMultiunit.setToolTip(tt)
         self.connect(actionLabelMultiunit, QtCore.SIGNAL('triggered()'),
@@ -1988,6 +1995,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionMergeClusters_triggered()
         elif key == Qt.Key_G: # ignored in SpykeListViews
             self.on_actionToggleClustersGood_triggered()
+        elif key == Qt.Key_Equal: # ignored in SpykeListViews
+            self.on_actionSplit_triggered()
         elif key == Qt.Key_Minus: # ignored in SpykeListViews
             self.on_actionLabelMultiunit_triggered()
         elif key == Qt.Key_Slash: # ignored in SpykeListViews
@@ -2103,7 +2112,11 @@ class SortWindow(SpykeToolWindow):
 
     def delete_spikes(self):
         """CTRL+Del button press/click"""
-        self.spykewindow.DeleteSpikes()
+        self.spykewindow.SplitSpikes(delete=True)
+
+    def on_actionSplit_triggered(self):
+        """+ button click. Split off selected clusters into their own cluster"""
+        self.spykewindow.SplitSpikes(delete=False)
 
     def on_actionMergeClusters_triggered(self):
         """Merge button (M) click. Merge selected clusters. Easier to use than
