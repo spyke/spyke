@@ -5,6 +5,8 @@
 
 - try PCA and FastICA implementations in sklearn instead of MDP - there are indications they might be faster.
 
+- try adding ISO distance (Harris2001) - need to calculate Mahalanobis distance, which requires the covariance matrix of the cluster, which assumes the cluster is Gaussian. Consider adding Lratio (Schmitzer-Torbert2005) as well
+
 - consider using projection pursuit + Silverman's critical bandwidth (Menardi2012) instead of PCA or ICA to maximize clusterability during dimension reduction
     - this seems to be too slow, and so far hasn't shown any ability to improve clusterability on any of our data 
 
