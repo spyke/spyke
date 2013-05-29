@@ -1557,7 +1557,7 @@ class PTCSHeader(object):
     """
     Polytrode clustered spikes file header:
 
-    formatversion: int64 (currently version 2, identical to version 1)
+    formatversion: int64 (currently version 3)
     ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
     descr: ndescrbytes of ASCII text
         (padded with null bytes if needed for 8 byte alignment)
@@ -1586,7 +1586,7 @@ class PTCSHeader(object):
         (human readable string representation of datetime, preferrably ISO 8601,
          padded with null bytes if needed for 8 byte alignment)
     """
-    FORMATVERSION = 2 # overall .ptcs file format version, not header format version
+    FORMATVERSION = 3 # overall .ptcs file format version, not header format version
     def __init__(self, sort, sortpath, stream, nneurons, nspikes, userdescr,
                  nsamplebytes, fullfname, exportdt):
         self.sort = sort
@@ -1653,7 +1653,7 @@ class PTCSNeuronRecord(object):
     clusterscore: float64
     xpos: float64 (um)
     ypos: float64 (um)
-    zpos: float64 (um) (defaults to NaN)
+    sigma: float64 (um) (Gaussian spatial sigma)
     nchans: uint64 (num chans in template waveforms)
     chanids: nchans * uint64 (0 based IDs of channels in template waveforms)
     maxchanid: uint64 (0 based ID of max channel in template waveforms)
@@ -1690,7 +1690,7 @@ class PTCSNeuronRecord(object):
         np.float64(np.nan).tofile(f) # clusterscore
         np.float64(n.cluster.pos['x0']).tofile(f) # xpos (um)
         np.float64(n.cluster.pos['y0']).tofile(f) # ypos (um)
-        np.float64(np.nan).tofile(f) # zpos (um)
+        np.float64(n.cluster.pos['sx']).tofile(f) # sigma (um)
         np.uint64(len(n.wave.chans)).tofile(f) # nchans
         np.uint64(n.wave.chans).tofile(f) # chanids
         np.uint64(n.chan).tofile(f) # maxchanid

@@ -1,5 +1,5 @@
 .ptcs (polytrode clustered spikes) files
-version 2
+version 3
 
 Stick to 8 byte alignment for consistency and easy reading by eye in hex editor. Some fields are floats, most are ints.
 
@@ -14,7 +14,7 @@ Neuron description field might contain: cortical layer, neuron type (FS, RS, etc
 
 file header:
 -------------------
-formatversion: int64 (currently version 2, identical to version 1)
+formatversion: int64 (currently version 3)
 ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment)
 descr: ndescrbytes of ASCII text
     (padded with null bytes if needed for 8 byte alignment)
@@ -52,7 +52,7 @@ descr: ndescrbytes of ASCII text
 clusterscore: float64
 xpos: float64 (um)
 ypos: float64 (um)
-zpos: float64 (um) (defaults to NaN)
+sigma: float64 (um) (Gaussian spatial sigma)
 nchans: uint64 (num chans in template waveforms)
 chanids: nchans * uint64 (0 based IDs of channels in template waveforms)
 maxchanid: uint64 (0 based ID of max channel in template waveforms)
