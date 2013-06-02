@@ -2655,7 +2655,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def update_spiketw(self, spiketw):
         """Update tw of self.sort and of Spike and Sort windows. For efficiency,
-        only update windows and sort when necessary. This is appropriate
+        only update sort and windows when necessary. This is appropriate
         for the user to call directly from the command line."""
         assert len(spiketw) == 2
         assert spiketw[0] < 0 and spiketw[1] > 0
