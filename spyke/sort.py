@@ -1031,9 +1031,6 @@ class Sort(object):
             # just to be sure:
             assert nmeanchans == det.maxnchansperspike
             assert maxchan in meanchans
-            # update spikes array entries for all sids:
-            spikes['nchans'][sids] = nmeanchans
-            spikes['chans'][sids] = meanchans # using max num chans, assign full array
 
         # split up sids into groups efficient for loading from stream:
         ts = spikes[sids]['t'] # noncontig, not a copy
@@ -1084,6 +1081,14 @@ class Sort(object):
             # chan 0 (the "empty" chans array value) will be unnecessarily added to
             # commonchans:
             commonchans = np.unique(spikes['chans'][group])
+            if usemeanchans:
+                # now that we have common original chans of this group,
+                # update this group's spikes array entries with meanchans:
+                spikes['nchans'][group] = nmeanchans
+                # we're using the max num chans, so assign the full array:
+                spikes['chans'][group] = meanchans
+                # now update commonchans as well:
+                commonchans = np.unique(np.hstack((commonchans, meanchans)))
             if 0 not in stream.chans: # if chan 0 is disabled in stream
                 # remove 0 from commonchans, otherwise an error would be raised when
                 # calling stream()
@@ -1097,15 +1102,23 @@ class Sort(object):
                     if sidi % 10000 == 0:
                         print('%d' % sidi, end='')
                     else:
-                        print('.', end='') 
+                        print('.', end='')
                 if usemeanchans: # already checked above that ver_lte_03 == False
+                    # this spike's chans have been set to meanchans, now
                     # check that each spike's maxchan is in meanchans:
                     chan = spikes[sid]['chan']
                     if chan not in meanchans:
                         # replace furthest chan with spike's maxchan:
                         print("spike %d: replacing furthestchan %d with spike's maxchan %d"
                               % (sid, furthestchan, chan))
-                        spikes['chans'][sid][furthestchani] = chan
+                        nchans = spikes[sid]['nchans']
+                        chans = spikes[sid]['chans'][:nchans]
+                        # replace furthest chan with max chan, modifies spikes array in-place
+                        chans[furthestchani] = chan
+                        # make sure chans remain sorted"
+                        chans.sort()
+                        # this isn't necessary, because all the above was in-place
+                        #spikes['chans'][sid][:nchans] = chans
                 spike = spikes[sid]
                 nchans = spike['nchans']
                 chans = spike['chans'][:nchans]
