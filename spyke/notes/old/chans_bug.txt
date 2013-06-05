@@ -1,0 +1,77 @@
+one of these nids has chan 59 as one of its chans:
+
+[395047 395048 395049 395050 395051 395052 395053 395054 395055 395056 395057 395058 395059 395060 395061 395062 395063 395064 395065 395066 395067
+ 395068 395069 395070 395071 395072 395073 395074 395075 395076 395077 395078 395079 395080 395081 395082 395083 395084 395085 395086 395087 395088
+ 395089 395090 395091 395092 395093 395094 395095 395096 395097 395098 395099 395100 395101 395102 395103 395104 395105 395106 395107 395108 395109
+ 395110 395111 395112 395113 395114 395115 395116 395117 395118 395119 395120 395122 395121 395123 395124 395125 395126 395127 395128 395129 395130
+ 395131]
+
+this happened around spike 395000 out of 2M
+
+it's spike id 395052 that somehow has chan 59 as one of its chans (looks like it should've been 49). Bit flip? That's the only one that's out of range in all of ptc22.tr1. Or more likely, this has something to do with a reload which fixed stuff from a bug in a previous .sort file???
+
+----
+
+It seems there are several spikes that have their chans array out of order:
+
+x = np.int64(self.sort.spikes['chans'])
+nchans = self.sort.spikes['nchans']
+sids = []
+for i, (chans, nchan) in enumerate(zip(x, nchans)):
+    if not (np.diff(chans[:nchan]) >= 0).all():
+        sids.append(i)
+
+np.asarray(sids) for ptc22.tr1 gives:
+
+array([  10009,   31166,   53873,   54424,  161581,  188928,  199833,
+        233410,  236857,  237510,  243499,  256461,  265070,  265321,
+        285005,  293653,  296310,  296374,  296745,  299822,  307691,
+        308771,  308984,  312529,  314489,  315965,  319778,  327623,
+        331288,  335520,  336647,  338672,  341380,  342011,  346011,
+        350049,  362744,  372397,  420007,  453310,  492048,  496164,
+        511737,  513925,  514738,  518421,  520198,  522073,  532145,
+        532262,  535710,  537028,  538436,  543720,  545142,  548407,
+        548422,  549419,  550668,  550809,  551346,  553479,  574771,
+        577160,  581163,  589036,  590704,  598958,  598994,  599137,
+        600164,  603977,  605165,  607091,  607749,  615008,  615545,
+        623896,  626779,  627507,  627634,  628767,  628953,  630666,
+        631073,  634863,  637698,  644464,  650608,  653439,  656750,
+        660630,  662615,  663322,  664385,  664789,  669756,  671670,
+        672196,  673090,  681080,  683112,  689930,  696267,  702072,
+        707026,  713818,  716079,  720168,  721814,  724298,  724520,
+        724578,  726370,  730251,  733628,  776303,  779758,  781715,
+        784143,  796592,  800459,  812561,  828113,  887539,  890377,
+        891147,  900043,  905744,  927795,  948452,  954703,  966971,
+        993410, 1013372, 1120273, 1274199, 1397899, 1454154, 1498522,
+       1525808, 1574440, 1575202, 1598904, 1659008, 1738151, 1851782,
+       1852183, 1874814, 1942469, 1990294, 1993353, 2002524, 2015197])
+
+Almost all of these belong to nid 139. A few are nid 0. One is nid 133.
+
+
+-----
+this problem exists in ptc22.tr1 (created 2012-03) but doesn't exist in ptc22.tr2 (created 2012-10)
+
+It does exist in ptc15.tr7c (created 2012-08) for just one spike: 6847387. Its chans:
+
+array([  1, 130,   3,   4,  49,  50,  51,  53,   0], dtype=uint8)
+
+130 is crazy. Should probably be 2? Maybe due to overflow?
+
+But, this suggests that although only one has its chans out of order, there may be others that have incorrect chans, but are not out of order.
+
+ptc15.tr7c (created 2011-02) doesn't have the problem.
+
+ptc18.tr1 (created 2013-04) doesn't have the problem.
+
+ptc18.tr1 (created 2011-05) doesn't have the problem.
+
+
+Solution:
+
+For each affected track, check each spike that has chans out of order. Replace any obviously wrong chans. Make sure the spike's max chan is one of the chans. Sort them. Test to make sure no chans are out of order. Save. Reload. Save.
+
+Fixed:
+
+ptc15.tr7c (created 2012-03)
+ptc22.tr1

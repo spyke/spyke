@@ -1,5 +1,7 @@
 - BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported?
 
+- add option to align to max -ve )or maybe +ve?) slope - good theoretical basis, since extracellular spike is the derivative of the intracellular spike, and the max extracellular slope should correspond to the max sodium current
+
 - JMS: try optionally adding spike time to the input data matrix before sending it off for dimension reduction. This means that spikes that cluster in time may somewhat cluster in PCA/ICA space, and may reduce the need to plot against time. Could help when you have a cluster that stretches out over a long period of time, and for parts of that period, looks like it needs cleaning/splitting, whereas other parts are fine. If spike time and some waveform feature correlate, they might cluster out.
     - maybe add a checkbox next to the tis dropdown box to toggle this feature, to indicate that time, in addition to waveform data on the selected time range and channels, will go into dimension reduction. Or, maybe it should go in the cluster tab somewhere around the dimension reduction dropdown box
 
@@ -13,6 +15,8 @@
 - consider implementing Ester1996 - use k-dist metric to help automatically decide the most useful value of sigma
 
 - cluster window dimensional gain, maybe have spin box or combo box next to each of x, y, z in main spyke window - this would be eqv't to having independent sigmas per dimension
+
+- add ability to restore a spike's channels to those chosen during detection: take maxchan, choose chans within the inclusion radius, reload wavedata. This would effectively allow undoing the replacement of spikes' chans with meanchans of the nid to which they belong.
 
 - key bindings:
     - Ctrl+D in cluster window deselect the cluster under the cursor, if it's selected
