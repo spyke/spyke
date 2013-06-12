@@ -52,8 +52,6 @@ NCHANSPERBOARD = 32 # TODO: stop hard coding this
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
-MAXNGACPOINTS = 25000
-
 MAXNSPIKEPLOTS = 200
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file

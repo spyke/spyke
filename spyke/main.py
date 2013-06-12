@@ -53,7 +53,7 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, MAXNGACPOINTS, TSFStream
+from core import DJS, g, TSFStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -873,9 +873,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.apply_clustering(oldclusters, sids, nids, verb='density split')
 
     def randomsplit(self):
-        """Check if any subsids are > MAXNGACPOINTS long, and if so, randomly split them
-        into (approximately) equal size clusters of MAXNGACPOINTS or less. This is
-        done to increase gac() speed"""
+        """Randomly split each selected cluster in half. This is done to increase
+        gac() speed"""
         oldclusters = self.GetClusters() # all selected clusters
         subsidss = []
         for cluster in oldclusters:
@@ -884,26 +883,16 @@ class SpykeWindow(QtGui.QMainWindow):
         sids.sort()
         destsubsidss = []
         for subsids in subsidss:
-            nsids = len(subsids)
-            if nsids > MAXNGACPOINTS:
-                nclusters = nsids // MAXNGACPOINTS + 1 # at least two
-                nsidspercluster = nsids // nclusters
-                remnsids = nsids % nclusters
-                nsidss = [nsidspercluster] * nclusters
-                nsidss[-1] += remnsids # throw any remainder into the last replacement subcluster
-                assert sum(nsidss) == nsids
-                np.random.shuffle(subsids)
-            else:
-                nsidss = [nsids]
-            start = 0
-            end = 0
-            for nsids in nsidss:
-                end += nsids
-                destsubsids = subsids[start:end]
-                destsubsids.sort() # sids should always go out sorted
-                destsubsidss.append(destsubsids)
-                start = end
-        nids = np.zeros(len(sids), dtype=np.int32) # init to unclustered, shouldn't be any once done
+            np.random.shuffle(subsids) # shuffle in-place
+            spliti = len(subsids) // 2
+            destsubsids0 = subsids[:spliti]
+            destsubsids0.sort() # sids should always go out sorted
+            destsubsidss.append(destsubsids0)
+            destsubsids1 = subsids[spliti:]
+            destsubsids1.sort()
+            destsubsidss.append(destsubsids1)
+        # init to unclustered, shouldn't be any once done:
+        nids = np.zeros(len(sids), dtype=np.int32)
         for i, destsubsids in enumerate(destsubsidss):
             nids[sids.searchsorted(destsubsids)] = i + 1
         if (nids == 0).any():

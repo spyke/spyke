@@ -1834,8 +1834,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionDensitySplit)
 
         actionRandomSplit = QAction('\\', self)
-        tt = ('<nobr><b>\\</b> &nbsp; Randomly split clusters exceeding %d</nobr>'
-              % core.MAXNGACPOINTS)
+        tt = ('<nobr><b>\\</b> &nbsp; Randomly split each selected cluster in half</nobr>')
         actionRandomSplit.setToolTip(tt)
         self.connect(actionRandomSplit, QtCore.SIGNAL('triggered()'),
                      self.on_actionRandomSplit_triggered)
@@ -2261,8 +2260,7 @@ class SortWindow(SpykeToolWindow):
         self.spykewindow.densitysplit()
 
     def on_actionRandomSplit_triggered(self):
-        """Randomly split each selected cluster if it has a population
-        of spikes > MAXNGACPOINTS"""
+        """Randomly split each selected cluster in half"""
         self.spykewindow.randomsplit()
 
     def on_actionRenumber_triggered(self):
