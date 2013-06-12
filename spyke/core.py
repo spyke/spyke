@@ -921,7 +921,13 @@ class SpykeListView(QtGui.QListView):
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
         self.setLayoutMode(QtGui.QListView.Batched) # prevents lockup during huge layout ops
-        self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
+        # Setting resize mode to "adjust" sometimes results in a bug where Qt seems to
+        # be reflowing the contents many times over before it finally stops, resulting in
+        # very slow operations when changing list contents (like adding/removing neurons).
+        # But, with this disabled, the contents no longer reflow, and you're forced to use
+        # scrollbars unnecessarily to see all the list contents. This might also be
+        # interacting with the setWrapping and/or setBatchSize features:
+        #self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
         self.setUniformItemSizes(True) # speeds up listview
         self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
         self.setWrapping(True)
