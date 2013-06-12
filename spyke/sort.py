@@ -1113,11 +1113,11 @@ class Sort(object):
                               % (sid, furthestchan, chan))
                         nchans = spikes[sid]['nchans']
                         chans = spikes[sid]['chans'][:nchans]
-                        # replace furthest chan with max chan, modifies spikes array in-place
+                        # replace furthest chan with max chan, modifies spikes array in-place:
                         chans[furthestchani] = chan
-                        # make sure chans remain sorted"
+                        # make sure chans remain sorted:
                         chans.sort()
-                        # this isn't necessary, because all the above was in-place
+                        # this isn't necessary, because all the above was in-place:
                         #spikes['chans'][sid][:nchans] = chans
                 spike = spikes[sid]
                 nchans = spike['nchans']
