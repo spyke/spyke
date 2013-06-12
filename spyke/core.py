@@ -979,12 +979,18 @@ class SpykeListView(QtGui.QListView):
             '''
             nadd = len(addis)
             maxnadd = max(MAXNSPIKEPLOTS - self.nrowsSelected + nadd, 0)
+            if maxnadd == 0:
+                return
             if nadd > maxnadd:
-                print('randomly adding %d plots of %d selected spikes'
+                # if we can't add all the requested spikes to the sort panel without
+                # exceeding MAXNSPIKEPLOTS, then randomly sample however many we can still
+                # add (maxnadd), and add them to the sort panel
+                print('adding %d randomly sampled plots of %d selected spikes'
                       % (maxnadd, self.nrowsSelected))
-                if maxnadd == 0:
-                    return
                 addis = random.sample(addis, maxnadd)
+                panel.maxed_out = True
+            else:
+                panel.maxed_out = False
         #t0 = time.time()
         panel.addItems([ prefix+str(i) for i in addis ])
         #print('addItems took %.3f sec' % (time.time()-t0))

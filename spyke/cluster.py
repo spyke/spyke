@@ -195,6 +195,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.focus = np.float32([0, 0, 0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
+        self.collected_sids = []
         self.update_sigmasqrtndims()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
@@ -543,8 +544,8 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def pick(self, x, y, pb=2, multiple=False):
         """Return sid of point at window coords x, y (bottom left origin),
-        or first or multiple sids that fall within 2*pb+1 pix on a side square centered
-        on x, y. pb is the pixel border to include around x, y"""
+        or first or multiple sids that fall within a square 2*pb+1 pix on a side,
+        centered on x, y. pb is the pixel border to include around x, y"""
         width = self.size().width()
         height = self.size().height()
         #print('coords: %d, %d' % (x, y))
@@ -574,7 +575,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             if sid != None:
                 #print('hit at exact cursor pos')
                 return sid # hit at exact cursor position
-        hitpix = (backbuffer != [255, 255, 255]).sum(axis=2) # 2D array with nonzero entries at hits
+        # 2D array with nonzero entries at hits:
+        hitpix = (backbuffer != [255, 255, 255]).sum(axis=2)
         if not multiple:
             ri = np.where(hitpix.ravel())[0][0] # get ravelled index of first hit
             i, j = np.unravel_index(ri, dims=hitpix.shape) # unravel to 2D index
@@ -627,6 +629,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         # release multiple buttons simultaneously the way you can press them simultaneously?
         button = event.button()
         if button == QtCore.Qt.MiddleButton:
+            if self.collected_sids:
+                self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
+                self.collected_sids = [] # clear it
             self.selecting = None
             self.setMouseTracking(False) # done selecting
         '''
@@ -805,8 +810,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         shift = Qt.ShiftModifier == modifiers # only modifier is shift
         if not event.isAutoRepeat() and not shift and key in [Qt.Key_S, Qt.Key_D]:
             # stop selecting/deselecting
-            self.setMouseTracking(False)
+            if self.collected_sids:
+                self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
+                self.collected_sids = [] # clear it
             self.selecting = None
+            self.setMouseTracking(False)
 
     def save(self):
         """Save cluster plot to file"""
@@ -856,8 +864,6 @@ class GLWidget(QtOpenGL.QGLWidget):
     def selectPointsUnderCursor(self):
         """Update point selection with those currently under cursor, within pixel border pb.
         Call this method on S and D down, and on mouse motion when either S or D are down"""
-        if self.selecting == None: # nothing to do
-            return
         spw = self.spw
         sw = spw.windows['Sort']
         #if clear:
@@ -868,7 +874,12 @@ class GLWidget(QtOpenGL.QGLWidget):
         if sids == None:
             return
         #t0 = time.time()
-        spw.SelectSpikes(sids, on=self.selecting)
+        if not sw.panel.maxed_out:
+            spw.SelectSpikes(sids, on=self.selecting)
+        else:
+            # for speed, while the mouse is held down and the sort panel is maxed out,
+            # don't call SelectSpikes, only call it once when the mouse is released
+            self.collected_sids.append(sids)
         #print('SelectSpikes took %.3f sec' % (time.time()-t0))
         if self.selecting == True:
             sat = 0.2 # desaturate

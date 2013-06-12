@@ -1175,6 +1175,7 @@ class SortPanel(PlotPanel):
     def __init__(self, parent, tw=None):
         PlotPanel.__init__(self, parent, tw=tw)
         self.manual_selection = False
+        self.maxed_out = False # has hit its maximum number of spike plots
         self.sortwin = self.parent()
 
     def get_AD2uV(self):
