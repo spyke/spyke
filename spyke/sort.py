@@ -692,11 +692,30 @@ class Sort(object):
             if data.shape[0] <= data.shape[1]:
                 raise RuntimeError('need more observations than dimensions for ICA')
             trycount = 0
+
+            lib = 'mdp'
             while True:
                 try:
                     node = mdp.nodes.FastICANode()
                     X = node(data)
                     pm = node.get_projmatrix()
+                    if lib == 'mdp':
+                        # nonlinearity g='pow3', ie x**3
+                        # defaults to whitened=False, ie assumes data isn't whitened
+                        node = mdp.nodes.FastICANode()
+                        X = node(data)
+                        pm = node.get_projmatrix()
+                        '''
+                    # for now, I can't install sklearn given the old version of scipy I'm using
+                    elif lib == 'sklearn':
+                        import sklearn
+                        #fun = 'logcosh', 'exp', or 'cube'
+                        fastica = sklearn.decomposition.FastICA(fun='logcosh', whiten=True)
+                        X = fastica.fit_transform(data)
+                        pm = fastica.something # ???????
+                        '''
+                    else:
+                        raise ValueError('invalid FastICA lib')
                     X = X[:, np.any(pm, axis=0)] # keep only the non zero columns
                     if X.shape[1] < 3:
                         raise RuntimeError('need at least 3 columns')
