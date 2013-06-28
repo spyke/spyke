@@ -1773,6 +1773,8 @@ class SortWindow(SpykeToolWindow):
         self.vsplitter.addWidget(self.slider)
         self.vsplitter.addWidget(self.hsplitter)
         self.vsplitter.addWidget(self.uslist)
+        # more useable at bottom when dealing with second half of neurons in a huge list:
+        #self.vsplitter.addWidget(self.slider)
 
         self.mainsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
