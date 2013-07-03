@@ -483,6 +483,12 @@ class File(object):
             # don't overwrite fnames, fnames in .track files have a leading '../'
             if name not in ['fname', 'parsefname', 'path']:
                 setattr(self, name, getattr(other, name))
+        # Though empty high volume records were removed before being saved to .parse,
+        # when opening a .srf file anew, self is re-init'd (see SpykeWindow.OpenStreamFile)
+        # every time, which means the full set of high volume records is re-init'd (see
+        # self.__init__) and therefore needs to be checked for any that are empty
+        # (digitalsvalrecords is the occasional example for recordings <= ptc15)
+        self._trimRecords()
         print('Recovered parse info from %r' % self.parsefname)
         
 
