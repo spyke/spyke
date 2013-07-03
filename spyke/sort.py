@@ -514,27 +514,30 @@ class Sort(object):
         print('exporting text header(s) to:')
         for stream in streams:
             try:
-                displayrecords = stream.srff.displayrecords
-            except AttributeError: # no displayrecords
-                displayrecords = []
-            if len(displayrecords) == 0: # no textheader to export for this stream
+                dsprecs = stream.srff.displayrecords
+            except AttributeError: # no textheader to export for this stream
                 continue
-            if len(displayrecords) > 1:
-                print("*** WARNING: multiple display records for file %r\n"
-                      "Exporting textheader from only the first display record"
-                      % stream.srff.fname)
+            if len(dsprecs) == 0:
+                raise ValueError("displayrecords are empty for stream %r. Attribute "
+                                 "shouldn't exist" % stream.fname)
             path = os.path.join(basepath, stream.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
-            ## TODO: some old recordings (<=ptc15) contain multiple expriments.
-            ## To deal with this, iterate over stream.tranges, export one .textheader per
-            ## trange. Append experiment ID to each .textheader filename?
-            textheader = displayrecords[0].Header.python_tbl
-            textheaderfname = stream.srcfnameroot + '.textheader'
-            fullfname = os.path.join(path, textheaderfname)
-            with open(fullfname, 'w') as f:
-                f.write(textheader) # save it
-            print(fullfname)
+            # Some old recordings (<= ptc15) contain multiple experiments.
+            # To deal with this, iterate over stream.srff.displayrecords, export one
+            # .textheader per displayrecord. Append experiment ID to each .textheader
+            # filename, if necessary.
+            for eid, dsprec in enumerate(dsprecs):
+                textheader = dsprec.Header.python_tbl
+                if eid == 0 and len(dsprecs) == 1:
+                    eidstr = ''
+                else:
+                    eidstr = '.%d' % eid
+                textheaderfname = stream.srcfnameroot + eidstr + '.textheader'
+                fullfname = os.path.join(path, textheaderfname)
+                with open(fullfname, 'w') as f:
+                    f.write(textheader) # save it
+                print(fullfname)
 
     def exportall(self, basepath, sortpath):
         """Export spike data, stimulus din and textheader to basepath"""
