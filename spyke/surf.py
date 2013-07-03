@@ -440,8 +440,8 @@ class File(object):
     def fixLFPlabels(self, chans, electrode_name):
         """Some kind of memory management problem in Surf causes characters from the
         previous LFP chan to remain for the next LFP chan. For recordings where a channel
-        is represented by just a single digit (like say 'ch5') and the subsequent one is
-        two digit (like say 'ch23'), what actually gets saved for the subsequent one is
+        is represented by just a single digit (like say 'ch5') and the preceding one is
+        two digit (like say 'ch23'), what actually gets saved for the single digit one is
         'ch53'. Or, if the sequence is 'ch11' and then 'ch8', instead of 'ch8' we get
         'ch81'. Later recordings (post ptc18?) where all single digit LFP chans were given
         leading 0s ('ch08') work around this bug. But for those that didn't, this is a
