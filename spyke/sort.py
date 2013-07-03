@@ -502,7 +502,7 @@ class Sort(object):
                     eidstr = '.%d' % eid
                 dinfname = stream.srcfnameroot + eidstr + '.din'
                 fullfname = os.path.join(path, dinfname)
-                svrecs.tofile(fullfname) # save it
+                din.tofile(fullfname) # save it
                 print(fullfname)
 
     def exporttextheader(self, basepath):
