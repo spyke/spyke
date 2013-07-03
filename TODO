@@ -1,8 +1,6 @@
-- BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported?
-
 - when selecting points in the cluster window, instead of only displaying in the sort window the first 200 waveforms selected, treat the plots like a stack, removing the oldest selected ones to make way for the newest selected ones, keeping the max displayed the same at 200. This would allow for easier exploration of waveform features of cluster lobes.
 
-- add option to align to max -ve )or maybe +ve?) slope - good theoretical basis, since extracellular spike is the derivative of the intracellular spike, and the max extracellular slope should correspond to the max sodium current
+- add option to align to max -ve (or maybe +ve?) slope - good theoretical basis, since extracellular spike is the derivative of the intracellular spike, and the max extracellular slope should correspond to the max sodium current
 
 - JMS: try optionally adding spike time to the input data matrix before sending it off for dimension reduction. This means that spikes that cluster in time may somewhat cluster in PCA/ICA space, and may reduce the need to plot against time. Could help when you have a cluster that stretches out over a long period of time, and for parts of that period, looks like it needs cleaning/splitting, whereas other parts are fine. If spike time and some waveform feature correlate, they might cluster out.
     - maybe add a checkbox next to the tis dropdown box to toggle this feature, to indicate that time, in addition to waveform data on the selected time range and channels, will go into dimension reduction. Or, maybe it should go in the cluster tab somewhere around the dimension reduction dropdown box
@@ -1344,6 +1342,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - add time window as a user adjustable parameter in GUI? No, leave it as an infrequently used command line option (SpykeWindow.update_spiketw)
 - add ability to vary the number of PCs to keep per channel before doing ICA. Scholz2004 suggests that more input PCs into ICA isn't always better, so 7 per channel may be too many in some cases.
 - make "+" split off selected spikes: same as deleting selected spikes and then promoting them to a cluster
+- BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported
 
 
 
