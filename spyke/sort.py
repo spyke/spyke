@@ -498,8 +498,10 @@ class Sort(object):
             for eid, din in enumerate(dins):
                 if eid == 0 and len(dins) == 1:
                     eidstr = ''
-                else:
+                elif len(dins) < 10:
                     eidstr = '.%d' % eid
+                else: # include leading zero to maintain alphabetical fname order
+                    eidstr = '.%02d' % eid
                 dinfname = stream.srcfnameroot + eidstr + '.din'
                 fullfname = os.path.join(path, dinfname)
                 din.tofile(fullfname) # save it
@@ -531,8 +533,10 @@ class Sort(object):
                 textheader = dsprec.Header.python_tbl
                 if eid == 0 and len(dsprecs) == 1:
                     eidstr = ''
-                else:
+                elif len(dsprecs) < 10:
                     eidstr = '.%d' % eid
+                else: # include leading zero to maintain alphabetical fname order
+                    eidstr = '.%02d' % eid
                 textheaderfname = stream.srcfnameroot + eidstr + '.textheader'
                 fullfname = os.path.join(path, textheaderfname)
                 with open(fullfname, 'w') as f:
