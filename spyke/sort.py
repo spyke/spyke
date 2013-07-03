@@ -468,24 +468,42 @@ class Sort(object):
         dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
         print('exporting DIN(s) to:')
         for stream in streams:
-            digitalsvalrecords = stream.srff.digitalsvalrecords
-            if len(digitalsvalrecords) == 0: # no din to export for this stream
-                continue
+            try: # neither of these attribs should exist for recordings with no stimuli:
+                svrecs = stream.srff.digitalsvalrecords
+                dsprecs = stream.srff.displayrecords
+            except AttributeError:
+                continue # no din to export for this stream
+            if len(svrecs) == 0:
+                raise ValueError("digitalsvalrecords are empty for stream %r. Attribute "
+                                 "shouldn't exist")
             path = os.path.join(basepath, stream.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
-            dinfname = stream.srcfnameroot + '.din'
-            fullfname = os.path.join(path, dinfname)
             # upcast SVal field from uint16 to int64, creates a copy,
             # but it's not too expensive:
-            digitalsvalrecords = digitalsvalrecords.astype(dinfiledtype)
+            svrecs = svrecs.astype(dinfiledtype)
             # convert to normal n x 2 int64 array
-            digitalsvalrecords = digitalsvalrecords.view(np.int64).reshape(-1, 2)
-            ## TODO: some old recordings (<=ptc15) contain multiple expriments.
-            ## To deal with this, iterate over stream.tranges, export one .din per trange.
-            ## Append experiment ID to each .din filename?
-            digitalsvalrecords.tofile(fullfname) # save it
-            print(fullfname)
+            svrecs = svrecs.view(np.int64).reshape(-1, 2)
+            # Some old recordings (<= ptc15) contain multiple experiments.
+            # To deal with this, iterate over stream.srff.displayrecords, export one .din
+            # per displayrecord. Append experiment ID to each .din filename, if necessary.
+            svrects = svrecs[:, 0]
+            dsprects = [ dsprec.TimeStamp for dsprec in dsprecs ]
+            svalrecis = svrects.searchsorted(dsprects)
+            assert svalrecis[0] == 0
+            svalrecis = svalrecis[1:] # exclude the trivial 0 index
+            # split sval records according to displayrecord timestamps:
+            dins = np.split(svrecs, svalrecis)
+            assert len(dins) == len(dsprects)
+            for eid, din in enumerate(dins):
+                if eid == 0 and len(dins) == 1:
+                    eidstr = ''
+                else:
+                    eidstr = '.%d' % eid
+                dinfname = stream.srcfnameroot + eidstr + '.din'
+                fullfname = os.path.join(path, dinfname)
+                svrecs.tofile(fullfname) # save it
+                print(fullfname)
 
     def exporttextheader(self, basepath):
         """Export stimulus text header(s) to .textheader file(s) in basepath"""
