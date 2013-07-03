@@ -473,9 +473,9 @@ class Sort(object):
                 dsprecs = stream.srff.displayrecords
             except AttributeError:
                 continue # no din to export for this stream
-            if len(svrecs) == 0:
+            if len(svrecs) == 0 or stream.srff.ndigitalsvalrecords == 0:
                 raise ValueError("digitalsvalrecords are empty for stream %r. Attribute "
-                                 "shouldn't exist")
+                                 "shouldn't exist" % stream.fname)
             path = os.path.join(basepath, stream.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
@@ -494,7 +494,7 @@ class Sort(object):
             svalrecis = svalrecis[1:] # exclude the trivial 0 index
             # split sval records according to displayrecord timestamps:
             dins = np.split(svrecs, svalrecis)
-            assert len(dins) == len(dsprects)
+            assert len(dins) == len(dsprecs)
             for eid, din in enumerate(dins):
                 if eid == 0 and len(dins) == 1:
                     eidstr = ''
