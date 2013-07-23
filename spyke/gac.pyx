@@ -148,34 +148,18 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         MERGETIME = 0.0
         MOVESCOUTSTIME = 0.0
    
-    # Normalize all data related variables by norm to avoid having to
-    # do so in move_scout() loop. The data itself is also normalized in the scouti
-    # declaration and initialization loop below. Note that all of these are also scaled
-    # by sqrt(ndims) via sigma scaling in caller:
-    cdef int lenexps = 1000000
-    cdef double norm0 = sqrt(2) * sigma
-    cdef double rneigh0 = rneighx * sigma / norm0
-    cdef double rneigh02 = rneigh0 * rneigh0
-    cdef double norm = norm0 * rneigh0 / sqrt(lenexps)
+    # Note that sigma scaled by sqrt(ndims) in caller:
+    sigma2 = sigma * sigma
     # radius around scout to include data for gradient calc:
-    cdef double rneigh = sqrt(lenexps)
-    cdef double rneigh2 = lenexps # rneigh * rneigh
-    #printf('norm: %f, rneigh: %.1f, rneigh2: %.1f\n', norm, rneigh, rneigh2)
+    cdef double rneigh = rneighx * sigma
+    cdef double rneigh2 = rneigh * rneigh
     # radius within which scouts are merged:
-    cdef double rmerge = rmergex * sigma / norm
+    cdef double rmerge = rmergex * sigma
     cdef double rmerge2 = rmerge * rmerge
     # min motion in any direction in ndims space req'd for scout to be considered moving:
-    cdef double minmove = minmovex * sigma * alpha / norm
+    cdef double minmove = minmovex * sigma * alpha
     cdef double minmove2 = minmove * minmove
 
-    # pre-calc exp function:
-    #t0 = time.time()
-    cdef double *exps = <double *>malloc(lenexps*sizeof(double)) # pre-calced exp function
-    if not exps: raise MemoryError("can't allocate exps\n")
-    for i in range(lenexps): ## TODO: could use prange here
-        exps[i] = exp(-<double>i / lenexps * rneigh02) # watch out for int div
-    #print('exps malloc took %.3f sec' % (time.time()-t0))
-    
     # working list for keeping track of pending scout merges
     cdef int *mlist = <int *>malloc((M+1)*sizeof(int))
     if not mlist: raise MemoryError("can't allocate mlist\n")
@@ -212,7 +196,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     junk.pos = NULL
     junk.still = False
 
-    # declare and init scouts, normalize data:
+    # declare and init scouts
     cdef Scout *scouts = <Scout *>malloc(N*sizeof(Scout))
     if not scouts: raise MemoryError("can't allocate scouts\n")
     for i in range(N): ## TODO: could use prange here
@@ -224,8 +208,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         scouti.still = False
         scouti.size = 1
         for k in range(ndims):
-            scouti.pos0[k] = data[i, k] / norm
-            scouti.pos[k] = data[i, k] / norm
+            scouti.pos0[k] = data[i, k]
+            scouti.pos[k] = data[i, k]
 
     # init a shrinking view of scouts, s:
     cdef Scout **s = <Scout **>malloc(N*sizeof(Scout *)) # array of pointers to Scout pointers
@@ -255,8 +239,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         for i in prange(M, nogil=True, schedule='dynamic'):
             scouti = s[i]
             if not scouti.still: # only move scouts that aren't frozen
-                move_scout(scouti, scouts, exps, maxgrad,
-                           N, ndims, alpha, rneigh, rneigh2, minmove2)
+                move_scout(scouti, scouts, maxgrad,
+                           N, ndims, alpha, sigma2, rneigh, rneigh2, minmove2)
         IF PROFILE: MOVESCOUTSTIME += (<double>time.time() - t0)
         printf('.')
 
@@ -322,18 +306,6 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # cluster size
     cids = walkscouts(scouts, N)
     cids = cids[sortis] # restore original point ordering
-    '''
-    # build returnable numpy array of cluster positions, scale up by norm again:
-    cpos = np.zeros((M, ndims), dtype=np.float32)
-    for i in range(M): ## TODO: could use prange here
-        scouti = s[i]
-        for k in range(ndims):
-            cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
-    '''
-    # for display, restore sigma dependent params to be unnormalized by norm:
-    rmerge *= norm
-    rneigh *= norm
-    minmove *= norm
 
     cdef int nmoving=0
     for i in range(M): ## TODO: could use prange here
@@ -351,7 +323,6 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     free(dims)
     free(ndi)
-    free(exps)
     free(mlist)
     ## TODO: do the pos and pos0 fields of each scout need to be freed explicitly?
     free(scouts)
@@ -408,8 +379,8 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
     return M
 
 
-cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
-                            int maxgrad, int N, int ndims, double alpha,
+cdef inline void move_scout(Scout *scouti, Scout *scouts,
+                            int maxgrad, int N, int ndims, double alpha, double sigma2,
                             double rneigh, double rneigh2, double minmove2) nogil:
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
@@ -469,8 +440,7 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
                 # scouti and all points within rneigh
-                #kern = exp(-d2s[k] / (2 * sigma2)) # Gaussian kernel
-                kern = exps[<int>(d2s[k])] # data rescaled for Gaussian lookup table
+                kern = exp(-d2s[k] / (2 * sigma2)) # Gaussian kernel
                 #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel
                 kernel[k] += kern
                 v[k] += ds[k] * kern # this is why you can't store fabs of ds[k]!
