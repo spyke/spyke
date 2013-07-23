@@ -3,7 +3,8 @@
 # cython: cdivision=True
 # cython: profile=False
 
-"""Nicholas Swindale's gradient ascent clustering (GAC) algorithm
+"""Nicholas Swindale's gradient ascent clustering (GAC) algorithm, a variant of the
+mean-shift algorithm
 
     TODO:
         - try using cdef inline instead of just cdef to reduce
@@ -127,7 +128,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double sigma=0.25, double rmergex=0.25, double rneighx=4,
         double alpha=2.0, int maxgrad=1000,
         double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
-    """Nicholas Swindale's gradient ascent clustering (GAC) algorithm"""
+    """Nicholas Swindale's gradient ascent clustering (GAC) algorithm, a variant
+    of the mean-shift algorithm"""
     cdef Py_ssize_t i, j, k, cid
     cdef bint allstill
     cdef int iteri=0, nnomerges=0
@@ -146,8 +148,9 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         MERGETIME = 0.0
         MOVESCOUTSTIME = 0.0
    
-    # normalize all data related variables by norm to avoid having to
-    # do so in move_scout() loop. Note that all of these are also scaled
+    # Normalize all data related variables by norm to avoid having to
+    # do so in move_scout() loop. The data itself is also normalized in the scouti
+    # declaration and initialization loop below. Note that all of these are also scaled
     # by sqrt(ndims) via sigma scaling in caller:
     cdef int lenexps = 1000000
     cdef double norm0 = sqrt(2) * sigma
@@ -209,7 +212,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     junk.pos = NULL
     junk.still = False
 
-    # declare and init scouts:
+    # declare and init scouts, normalize data:
     cdef Scout *scouts = <Scout *>malloc(N*sizeof(Scout))
     if not scouts: raise MemoryError("can't allocate scouts\n")
     for i in range(N): ## TODO: could use prange here
