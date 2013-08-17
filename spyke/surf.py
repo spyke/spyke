@@ -187,11 +187,13 @@ class File(object):
             self._verifyParsing()
 
             if hasattr(self, 'highpassrecords'):
-                self.hpstream = Stream(self, kind='highpass') # highpass record (spike) stream
+                # highpass record (spike) stream:
+                self.hpstream = Stream(self, kind='highpass')
             else:
                 self.hpstream = None
             if hasattr(self, 'lowpassmultichanrecords'):
-                self.lpstream = Stream(self, kind='lowpass') # lowpassmultichan record (LFP) stream
+                # lowpassmultichan record (LFP) stream:
+                self.lpstream = Stream(self, kind='lowpass')
             else:
                 self.lpstream = None
 
@@ -237,8 +239,10 @@ class File(object):
         """Parse a continuous record (high or low pass).
         Its length in the file in bytes is 26 + self.NumSamples*2, not including the
         2 byte flag at the beginning"""
-
-        #junk, junk, r['TimeStamp'], r['Probe'], junk, junk, NumSamples = unpack('<hiqhhii', f.read(26))
+        '''
+        junk, junk, r['TimeStamp'], r['Probe'], junk, junk, NumSamples =
+            unpack('<hiqhhii', f.read(26))
+        '''
         #junk, r['TimeStamp'], r['Probe'], junk, junk, NumSamples = unpack('qqhhii', f.read(28))
         junk, r['TimeStamp'], r['Probe'], junk, junk, NumSamples = unpackctsrec(f.read(28))
         r['NumSamples'] = NumSamples
@@ -253,7 +257,8 @@ class File(object):
             newsize = len(self.highpassrecords) + DEFNHIGHPASSRECORDS
             self.highpassrecords.resize(newsize, refcheck=False)
             r = self.highpassrecords[self.nhighpassrecords] # gives a np.void with named fields
-        self.parseContinuousRecord(f, r) # writes to the np.void, and therefore to the struct array
+        # writes to the np.void, and therefore to the struct array:
+        self.parseContinuousRecord(f, r)
         self.nhighpassrecords += 1
 
     def parseLowPassRecord(self, f):
@@ -263,25 +268,28 @@ class File(object):
             newsize = len(self.lowpassrecords) + DEFNLOWPASSRECORDS
             self.lowpassrecords.resize(newsize, refcheck=False)
             r = self.lowpassrecords[self.nlowpassrecords] # gives a np.void with named fields
-        self.parseContinuousRecord(f, r) # writes to the np.void, and therefore to the struct array
+        # writes to the np.void, and therefore to the struct array:
+        self.parseContinuousRecord(f, r)
         self.nlowpassrecords += 1
 
     def parseDigitalSValRecord(self, f):
         """Parse a digital SVal record. Its length in the file in bytes is 22,
         not including the 2 byte flag at the beginning"""
         try:
-            r = self.digitalsvalrecords[self.ndigitalsvalrecords] # gives a np.void with named fields
+            # gives an np.void with named fields:
+            r = self.digitalsvalrecords[self.ndigitalsvalrecords]
         except IndexError:
             newsize = len(self.digitalsvalrecords) + DEFNDIGITALSVALRECORDS
             self.digitalsvalrecords.resize(newsize, refcheck=False)
-            r = self.digitalsvalrecords[self.ndigitalsvalrecords] # gives a np.void with named fields
+            # gives an np.void with named fields:
+            r = self.digitalsvalrecords[self.ndigitalsvalrecords]
         #junk, junk, r['TimeStamp'], r['SVal'], junk, junk = unpack('<hiqhhi', f.read(22))
         #junk, r['TimeStamp'], r['SVal'], junk, junk = unpack('qqhhi', f.read(24))
         junk, r['TimeStamp'], r['SVal'], junk, junk = unpackdsvalrec(f.read(24))
         self.ndigitalsvalrecords += 1
 
     def loadContinuousRecord(self, record):
-        """Load waveform data for this continuous record"""
+        """Load continuous waveform data from record"""
         # TODO: add chans arg to pull out only certain chans, and maybe a ti arg
         # to pull out less than the full set of sample points for this record
         self.f.seek(record['dataoffset'])
@@ -760,8 +768,10 @@ class LayoutRecord(object):
         # us, store it here for convenience
         self.tres = intround(1 / float(self.sampfreqperchan) * 1e6) # us
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999
-        # only the first self.nchans are filled (5000), the rest are junk values that pad to 64 channels
-        self.extgain = np.asarray(unpack('H'*self.SURF_MAX_CHANNELS, f.read(2*self.SURF_MAX_CHANNELS)))
+        # only the first self.nchans are filled (5000), the rest are junk values that
+        # pad to 64 channels
+        self.extgain = np.asarray(unpack('H'*self.SURF_MAX_CHANNELS,
+                                  f.read(2*self.SURF_MAX_CHANNELS)))
         # throw away the junk values
         self.extgain = self.extgain[:self.nchans]
         # A/D board internal gain (1,2,4,8) <--MOVE BELOW extgain after finished with CAT9!!!!!
@@ -783,7 +793,8 @@ class LayoutRecord(object):
         # hack to skip next 2 bytes
         f.seek(2, 1)
         # MOVE BELOW ADCHANLIST FOR CAT 9
-        # v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes, so add 240 bytes of pad
+        # v1.0 had ProbeWinLayout to be 4*32*2=256 bytes, now only 4*4=16 bytes,
+        # so add 240 bytes of pad
         self.probewinlayout = ProbeWinLayout()
         self.probewinlayout.parse(f)
         # array[0..879 {remove for cat 9!!!-->}- 4{pts_per_buffer} - 2{SHOffset}] of BYTE;
@@ -807,7 +818,8 @@ class ProbeWinLayout(object):
 
 class EpochRecord(object):
     def __init__(self):
-        raise NotImplementedError('Spike epoch (non-continous) recordings currently unsupported')
+        raise NotImplementedError('Spike epoch (non-continous) recordings currently '
+                                  'unsupported')
 
 
 class AnalogSValRecord(object):
@@ -885,7 +897,8 @@ class StimulusHeader(object):
         if self.version == 100: # Cat < 15
             return 4 + self.OLD_STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + 28
         elif self.version == 110: # Cat >= 15
-            return 4 + self.STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 + self.PYTHON_TBL_LEN + 28
+            return (4 + self.STIMULUS_HEADER_FILENAME_LEN + self.NVS_PARAM_LEN*4 +
+                    self.PYTHON_TBL_LEN + 28)
 
     def parse(self, f):
         self.header = f.read(2).rstrip(NULL) # always 'DS'?
@@ -893,7 +906,8 @@ class StimulusHeader(object):
         if self.version not in (100, 110): # Cat < 15, Cat >= 15
             raise ValueError, 'Unknown stimulus header version %d' % self.version
         if self.version == 100: # Cat < 15 has filename field length == 16
-            # ends with a NULL followed by spaces for some reason, at least in Cat 13 file 03 - ptumap#751a_track5_m-seq.srf
+            # ends with a NULL followed by spaces for some reason,
+            # at least in Cat 13 file 03 - ptumap#751a_track5_m-seq.srf
             self.filename = f.read(self.OLD_STIMULUS_HEADER_FILENAME_LEN).rstrip().rstrip(NULL)
         elif self.version == 110: # Cat >= 15 has filename field length == 64
             self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
