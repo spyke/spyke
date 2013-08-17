@@ -117,21 +117,29 @@ class WaveForm(object):
                 else:
                     std = self.std[:, lo:hi]
                 ts = self.ts[lo:hi]
-                #if np.asarray(data == self.data).all() and np.asarray(ts == self.ts).all():
-                #    return self # no need for a new WaveForm - but new WaveForms aren't expensive, only new data are
-                return WaveForm(data=data, std=std, ts=ts, chans=self.chans) # return a new WaveForm
+                '''
+                if np.asarray(data == self.data).all() and np.asarray(ts == self.ts).all():
+                    # no need for a new WaveForm, though new WaveForms aren't expensive,
+                    # only new data are
+                    return self
+                '''
+                # return a new WaveForm:
+                return WaveForm(data=data, std=std, ts=ts, chans=self.chans)
         else: # index into self by channel id(s)
             keys = toiter(key)
             #try: assert (self.chans == np.sort(self.chans)).all() # testing code
             #except AssertionError: import pdb; pdb.set_trace() # testing code
             try:
-                assert set(keys).issubset(self.chans), "requested channels outside of channels in waveform"
-                #assert len(set(keys)) == len(keys), "same channel specified more than once" # this is fine
+                assert set(keys).issubset(self.chans), ("requested channels outside of "
+                                                        "channels in waveform")
+                # this is fine:
+                #assert len(set(keys)) == len(keys), "same channel specified more than once"
             except AssertionError:
                 raise IndexError('invalid index %r' % key)
             #i = self.chans.searchsorted(keys) # indices into rows of data
-            # best not to assume that chans are sorted, often the case in LFP data:
-            i = [ int(np.where(chan == self.chans)[0]) for chan in keys ] # indices into rows of data
+            # best not to assume that chans are sorted, often the case in LFP data;
+            # i are indices into rows of data:
+            i = [ int(np.where(chan == self.chans)[0]) for chan in keys ]
             data = self.data[i] # grab the appropriate rows of data
             if self.std == None:
                 std = None
@@ -171,7 +179,8 @@ class WaveForm(object):
         padded with zeros for chans that don't exist in self"""
         common = set(self.chans).intersection(chans) # overlapping chans
         dtype = self.data.dtype # self.data corresponds to self.chans
-        padded_data = np.zeros((len(chans), len(self.ts)), dtype=dtype) # padded_data corresponds to chans
+        # padded_data corresponds to chans:
+        padded_data = np.zeros((len(chans), len(self.ts)), dtype=dtype)
         chanis = [] # indices into self.chans corresponding to overlapping chans
         commonis = [] # indices into chans corresponding to overlapping chans
         for chan in common:
@@ -181,7 +190,8 @@ class WaveForm(object):
             commonis.append(commoni)
         chanis = np.concatenate(chanis)
         commonis = np.concatenate(commonis)
-        padded_data[commonis] = self.data[chanis] # for overlapping chans, overwrite the zeros with data
+        # for overlapping chans, overwrite the zeros with data:
+        padded_data[commonis] = self.data[chanis]
         return padded_data
     '''
 
@@ -243,7 +253,8 @@ class TrackStream(object):
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
-        if not contiguous.all() and kind == 'highpass': # don't bother reporting again for lowpass
+        if not contiguous.all() and kind == 'highpass':
+            # don't bother reporting again for lowpass
             fnames = [ s.fname for s, c in zip(streams, contiguous) if not c ]
             print("some .srf files are non contiguous:")
             for fname in fnames:
@@ -651,7 +662,8 @@ class Stream(object):
         #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
         rawtres = self.rawtres # us
         tres = self.tres # us
-        resamplex = intround(self.sampfreq / self.rawsampfreq) # resample factor: n output resampled points per input raw point
+        # resample factor: n output resampled points per input raw point:
+        resamplex = intround(self.sampfreq / self.rawsampfreq)
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
@@ -1202,7 +1214,8 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
         Hard to believe this doesn't already exist in some form"""
         i0 = self.createIndex(0, 0) # row, col
         i1 = self.createIndex(self.rowCount()-1, 0) # seems this isn't necessary
-        #self.dataChanged.emit(i0, i0) # seems to refresh all, though should only refresh 1st row
+        # seems to refresh all, though should only refresh 1st row:
+        #self.dataChanged.emit(i0, i0)
         self.dataChanged.emit(i0, i1) # refresh all
 
 
@@ -1569,11 +1582,14 @@ def argcut(ts, trange):
     It returns an index where the values would fit in ts. The index is such that
     ts[index-1] < value <= ts[index]. In this formula ts[ts.size]=inf and ts[-1]= -inf
     '''
-    lo, hi = ts.searchsorted([tstart, tend]) # returns indices where tstart and tend would fit in ts
-    # can probably avoid all this end inclusion code by using the 'side' kwarg, not sure if I want end inclusion anyway
+    lo, hi = ts.searchsorted([tstart, tend]) # indices where tstart and tend would fit in ts
+    # can probably avoid all this end inclusion code by using the 'side' kwarg,
+    # not sure if I want end inclusion anyway:
     '''
-    if tend == ts[min(hi, len(ts)-1)]: # if tend matches a timestamp (protect from going out of index bounds when checking)
-        hi += 1 # inc to include a timestamp if it happens to exactly equal tend. This gives us end inclusion
+    if tend == ts[min(hi, len(ts)-1)]:
+        # if tend matches a timestamp (protect from going out of index bounds when checking)
+        hi += 1 # inc to include a timestamp if it happens to exactly equal tend.
+                # This gives us end inclusion
         hi = min(hi, len(ts)) # limit hi to max slice index (==max value index + 1)
     '''
     return lo, hi
@@ -1975,10 +1991,12 @@ def padarr(x, align=8):
     if npadbytes == 0:
         return x
     if npadbytes % dtypenbytes != 0:
-        raise RuntimeError("Can't pad %d byte array to %d byte alignment" % (dtypenbytes, align))
+        raise RuntimeError("Can't pad %d byte array to %d byte alignment" %
+                           (dtypenbytes, align))
     npaditems = npadbytes / dtypenbytes
     x = x.ravel().copy() # don't modify in place
-    x.resize(nitems + npaditems, refcheck=False) # pads with npaditems zeros, each of length dtypenbytes
+    # pads with npaditems zeros, each of length dtypenbytes:
+    x.resize(nitems + npaditems, refcheck=False)
     assert x.nbytes % align == 0
     return x
 
