@@ -14,7 +14,7 @@ Dependencies:
 spyke requires recent versions of the following to be installed:
 
 * [Python](http://python.org) (2.7.x, 3.x hasn't been tested)
-* [IPython](http://ipython.org) 1.0.dev
+* [IPython](http://ipython.org) 1.0
 * [numpy](http://numpy.org)
 * [scipy](http://scipy.org)
 * [matplotlib](http://matplotlib.org)

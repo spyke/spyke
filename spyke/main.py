@@ -14,8 +14,8 @@ import util # .pyx file
 
 # instantiate an IPython embedded shell which shows up in the terminal on demand
 # and on every exception:
-from IPython.frontend.terminal.ipapp import load_default_config
-from IPython.frontend.terminal.embed import InteractiveShellEmbed
+from IPython.terminal.ipapp import load_default_config
+from IPython.terminal.embed import InteractiveShellEmbed
 config = load_default_config()
 # automatically call the pdb debugger after every exception, override default config:
 config.TerminalInteractiveShell.pdb = True
