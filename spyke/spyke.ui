@@ -1420,7 +1420,7 @@ pair has far more points than the other</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Set plot dimensions to first 3 PCs/ICs
+          <string>Set plot dimensions to first 2 PCs/ICs and time
 Ctrl+click forces recalculation of components</string>
          </property>
          <property name="text">
