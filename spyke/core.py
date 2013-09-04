@@ -1247,12 +1247,16 @@ class NListModel(SpykeAbstractListModel):
                 return nid # no need to use QVariant() apparently
             elif role == Qt.ToolTipRole:
                 neuron = neurons[nid]
+                try:
+                    chan = neuron.chan
+                except ValueError: # probably not enough overlapping chans for a template
+                    chan = None
                 pos = neuron.cluster.pos
                 return ('nid: %d\n' % nid +
                         '%d spikes\n' % neuron.nspikes +
-                        'chan: %d\n' % neuron.chan +
+                        'chan: %r\n' % chan +
                         't: %d us\n' % pos['t'] +
-                        'dt: %.4g us\n' % pos['dt'] + 
+                        'dt: %.4g us\n' % pos['dt'] +
                         'x0: %.4g um\n' % pos['x0'] +
                         'y0: %.4g um\n' % pos['y0'] +
                         'Vpp: %.4g uV\n' % pos['Vpp'] +
