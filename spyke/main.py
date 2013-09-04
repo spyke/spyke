@@ -967,10 +967,10 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.windows['Sort']
         cw = self.windows['Cluster']
         
-        # deselect selected clusters before potentially deleting unselected junk
-        # cluster, to avoid lack of Qt selection event when selection values
+        # deselect all clusters before potentially deleting any unselected
+        # clusters, to avoid lack of Qt selection event when selection values
         # (not rows) change. Also, deselect usids while we're at it:
-        self.SelectClusters(oldclusters, on=False)
+        self.SelectClusters(s.clusters, on=False)
         sw.uslist.clearSelection()
 
         # delete junk cluster if it exists and is unselected,
