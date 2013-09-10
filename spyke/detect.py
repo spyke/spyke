@@ -224,7 +224,7 @@ class Detector(object):
 
         # prevent out of memory errors due to copying of large stream.wavedata array
         # when spawning multiple processes
-        if type(self.sort.stream) == core.TSFStream:
+        if type(self.sort.stream) == core.SimpleStream:
             self.mpmethod = 'singleprocess'
 
         ncores = mp.cpu_count()

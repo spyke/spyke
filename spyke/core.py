@@ -767,8 +767,8 @@ class Stream(object):
         return kernels
 
 
-class TSFStream(Stream):
-    """Stream based on wavedata from a .tsf file instead of a .srf file"""
+class SimpleStream(Stream):
+    """Simple Stream loaded in full in advance"""
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
                  extgain, intgain, sampfreq=None, shcorrect=None):
         self._fname = fname
@@ -832,15 +832,21 @@ class TSFStream(Stream):
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object,
         indicating start and end timepoints in us. Returns the corresponding WaveForm
-        object, which has as its attribs the 2D multichannel waveform array as well
-        as the timepoints, potentially spanning multiple ContinuousRecords. Lots of
-        unavoidable code duplication from Stream.__getitem__"""
-        raise NotImplementedError("TODO: TSFStream needs to have its __getitem__ method "
-                                  "replaced with __call__ like the other stream types")
+        object with the full set of chans"""
         if key.step not in [None, 1]:
             raise ValueError('unsupported slice step size: %s' % key.step)
+        return self(key.start, key.stop, self.chans)
 
-        nADchans = self.nADchans
+    def __call__(self, start, stop, chans=None):
+        """Called when Stream object is called using (). start and stop indicate start
+        and end timepoints in us. Returns the corresponding WaveForm object with just the
+        specificed chans"""
+        if chans == None:
+            chans = self.chans
+        if not set(chans).issubset(self.chans):
+            raise ValueError("requested chans %r are not a subset of available enabled "
+                             "chans %r in %s stream" % (chans, self.chans, self.kind))
+        nchans = len(chans)
         rawtres = self.rawtres
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
@@ -850,8 +856,8 @@ class TSFStream(Stream):
         else:
             xs = 0
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = (key.start - xs) // rawtres # round down to nearest mult of rawtres
-        t1xsi = ((key.stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        t0xsi = (start - xs) // rawtres # round down to nearest mult of rawtres
+        t1xsi = ((stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
         t0xsi = max(t0xsi, self.t0 // rawtres)
         t1xsi = min(t1xsi, self.t1 // rawtres)
@@ -860,7 +866,6 @@ class TSFStream(Stream):
         t1xs = t1xsi * rawtres
         tsxs = np.arange(t0xs, t1xs, rawtres)
         ntxs = len(tsxs)
-
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.int32(self.wavedata[:, t0xsi:t1xsi])
 
@@ -869,23 +874,25 @@ class TSFStream(Stream):
         # AD to about 0.02
         dataxs <<= 4 # data is still int32 at this point
 
-        # do any resampling if necessary, returning only self.chans data
+        # do any resampling if necessary:
         if resample:
             #tresample = time.time()
-            dataxs, tsxs = self.resample(dataxs, tsxs)
+            dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
         else: # don't resample, just cut out self.chans data, if necessary
-            if range(nADchans) != list(self.chans):
-                # some chans are disabled. This is kind of a hack, but works because
+            if range(nchans) != list(self.chans):
+                # some chans are disabled. This is kind of a hack, but works
                 # because ADchans map to probe chans 1 to 1, and both start from 0
                 dataxs = dataxs[self.chans]
-        # now trim down to just the requested time range
-        lo, hi = tsxs.searchsorted([key.start, key.stop])
+
+        # now trim down to just the requested time range:
+        lo, hi = tsxs.searchsorted([start, stop])
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        data = np.int16(data) # should be safe to convert back down to int16 now
-        return WaveForm(data=data, ts=ts, chans=self.chans)
+        # should be safe to convert back down to int16 now:
+        data = np.int16(data)
+        return WaveForm(data=data, ts=ts, chans=chans)
 
             
 class SpykeToolWindow(QtGui.QMainWindow):

@@ -53,7 +53,7 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, TSFStream
+from core import DJS, g, SimpleStream
 import surf
 from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -1956,7 +1956,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Open NVS's "test spike file" .tsf format for testing spike sorting
         performance. This describes a single 2D contiguous array of raw waveform
         data, within which are embedded a number of spikes from a number of neurons.
-        The ground truth is typically listed at the end of the file. Return a TSFStream.
+        The ground truth is typically listed at the end of the file. Return a SimpleStream.
 
         fname is assumed to be relative to self.streampath.
 
@@ -2015,8 +2015,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # read row major data, ie, chan loop is outer loop
         wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
         wavedata.shape = nchans, nt
-        stream = TSFStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                           extgain, intgain)
+        stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
+                              extgain, intgain)
         # not all .tsf files have ground truth data at end:
         pos = f.tell()
         groundtruth = f.read()
