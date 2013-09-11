@@ -43,7 +43,7 @@ class Probe(object):
 
 
 class uMap54_1a(Probe):
-    """uMap54_1a, 65um spacing, 3 column hexagonal"""
+    """uMap54_1a, 65 um spacing, 3 column hexagonal"""
     def __init__(self):
         self.layout = '1a'
         self.name = 'uMap54_1a'
@@ -109,7 +109,7 @@ class uMap54_1a(Probe):
 
 
 class uMap54_1b(Probe):
-    """uMap54_1b, 50um horizontal/46um vertical spacing, 3 column collinear"""
+    """uMap54_1b, 50 um horizontal/43 um vertical spacing, 3 column collinear"""
     def __init__(self):
         self.layout = '1b'
         self.name = 'uMap54_1b'
@@ -175,7 +175,7 @@ class uMap54_1b(Probe):
 
 
 class uMap54_1c(Probe):
-    """uMap54_1c, 75um spacing, 3 column, hexagonal"""
+    """uMap54_1c, 75 um spacing, 3 column, hexagonal"""
     def __init__(self):
         self.layout = '1c'
         self.name = 'uMap54_1c'
@@ -241,7 +241,7 @@ class uMap54_1c(Probe):
 
 
 class uMap54_2a(Probe):
-    """uMap54_2a, 65um spacing, 2 column, staggered"""
+    """uMap54_2a, 65 um spacing, 2 column, staggered"""
     def __init__(self):
         self.layout = '2a'
         self.name = 'uMap54_2a'
@@ -307,7 +307,7 @@ class uMap54_2a(Probe):
 
 
 class uMap54_2b(Probe):
-    """uMap54_2b, 50um spacing, 2 column, staggered"""
+    """uMap54_2b, 50 um spacing, 2 column, staggered"""
     def __init__(self):
         self.layout = '2b'
         self.name = 'uMap54_2b'
