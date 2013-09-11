@@ -64,10 +64,9 @@ class EmptyClass(object):
 
 
 class Converter(object):
-    """Simple object to store intgain and extgain values and
-    provide methods to convert between AD and uV values, even
-    when a .srf file (and associated Stream where intgain
-    and extgain are stored) isn't available"""
+    """Simple object to store intgain and extgain values and provide methods to
+    convert between AD and uV values, even when a Stream (where intgain and extgain
+    are stored) isn't available"""
     def __init__(self, intgain, extgain):
         self.intgain = intgain
         self.extgain = extgain
@@ -82,9 +81,9 @@ class Converter(object):
         """
         return np.float32(AD) * 10000000 / (2**15 * self.intgain * self.extgain)
 
-    def uV2AD(self, uV):
-        """Convert uV to signed rescaled int16 AD values"""
-        return np.int16(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
+    def uV2AD(self, uV, inttype=np.int16):
+        """Convert uV to signed rescaled AD values of type inttype"""
+        return inttype(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
 
 
 class WaveForm(object):
