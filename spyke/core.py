@@ -769,7 +769,7 @@ class Stream(object):
 class SimpleStream(Stream):
     """Simple Stream loaded fully in advance"""
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                 intgain, extgain, sampfreq=None, shcorrect=None):
+                 intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4):
         self._fname = fname
         self.wavedata = wavedata
         nchans, nt = wavedata.shape
@@ -796,6 +796,7 @@ class SimpleStream(Stream):
         self.converter = Converter(intgain, extgain)
         self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
         self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
+        self.bitshift = bitshift
         self.t0 = 0 # us
         self.t1 = nt * self.rawtres
         self.tranges = np.int64([[self.t0, self.t1]])
@@ -868,10 +869,11 @@ class SimpleStream(Stream):
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.int32(self.wavedata[:, t0xsi:t1xsi])
 
-        # bitshift left to scale 12 bit values to use full 16 bit dynamic range, same as
+        # bitshift left by 4 to scale 12 bit values to use full 16 bit dynamic range, same as
         # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
         # AD to about 0.02
-        dataxs <<= 4 # data is still int32 at this point
+        if self.bitshift:
+            dataxs <<= self.bitshift # data is still int32 at this point
 
         # do any resampling if necessary:
         if resample:
