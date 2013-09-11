@@ -438,3 +438,18 @@ class pt16b_HS27(Probe):
         sl[19] = 27, 124
         assert len(sl) == self.nchans
         self.SiteLoc = sl
+
+class single(Probe):
+    """Single channel"""
+    def __init__(self):
+        self.layout = 'single'
+        self.name = 'single'
+        self.nchans = 1
+        self.ncols = 1
+        sl = {}
+        sl[0] = 0, 0
+        self.SiteLoc = sl
+
+
+TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
+         pt16a_HS27, pt16b_HS27, single]

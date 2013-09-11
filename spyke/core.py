@@ -33,7 +33,6 @@ np.set_printoptions(suppress=True)
 np.seterr(all='raise')
 
 import probes
-from probes import uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b
 
 UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
@@ -780,7 +779,7 @@ class SimpleStream(Stream):
         self.layout = EmptyClass()
         self.layout.ADchanlist = self.ADchans # for the sake of self.resample()
         probematch = False
-        for probetype in [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b]:
+        for probetype in probes.TYPES:
             probe = probetype()
             if (probe.siteloc_arr() == siteloc).all():
                 self.probe = probe
