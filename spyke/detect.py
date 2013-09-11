@@ -311,7 +311,7 @@ class Detector(object):
 
         self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16),
                            ('chan', np.uint8), ('nchans', np.uint8),
-                           ('chans', np.uint8, self.maxnchansperspike),
+                           ('chans', np.uint8, (self.maxnchansperspike,)),
                            ('chani', np.uint8),
                            ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
                            ('dt', np.int16), # time between peaks, in us
