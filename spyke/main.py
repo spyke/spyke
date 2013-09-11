@@ -156,8 +156,8 @@ class SpykeWindow(QtGui.QMainWindow):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
         fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
-                                filter="Surf, track, tsf & sort files "
-                                       "(*.srf *.track *.tsf *.sort );;"
+                                filter="Surf, track, tsf, mat & sort files "
+                                       "(*.srf *.track *.tsf *.mat *.sort );;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
@@ -1879,7 +1879,7 @@ class SpykeWindow(QtGui.QMainWindow):
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
         ext = os.path.splitext(tail)[1]
-        if ext in ['.srf', '.track', '.tsf']:
+        if ext in ['.srf', '.track', '.tsf', '.mat']:
             self.streampath = head
             self.OpenStreamFile(tail)
         elif ext == '.sort':
@@ -1914,6 +1914,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.lpstream = core.TrackStream(srffs, fname, kind='lowpass')
         elif ext == '.tsf':
             self.hpstream = self.OpenTSFFile(fname)
+        elif ext == '.mat':
+            self.hpstream = self.OpenQuirogaMATFile(fname)
         else:
             raise ValueError('unknown extension %r' % ext)
 
@@ -1951,6 +1953,51 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.slider.setInvertedControls(True)
 
         self.EnableStreamWidgets(True)
+
+    def OpenQuirogaMATFile(self, fname):
+        """Open Quiroga's .mat files containing single channel synthetic spike data.
+        Return a SimpleStream"""
+        import scipy.io
+        fname = join(self.streampath, fname)
+        d = scipy.io.loadmat(fname, squeeze_me=True)
+        #chan = d['chan'] # this field isn't always present
+        #assert chan == 1
+        nchans = 1
+        wavedata = d['data'] # float64, mV
+        wavedata = wavedata * 1000 # uV
+        assert wavedata.ndim == 1
+        nt = len(wavedata)
+        wavedata.shape = nchans, -1 # enforce 2D
+        # convert to int16, assume ADC resolution for this data was <= 16 bits,
+        # use some reasonable gain values, check they don't saturate 16 bits:
+        intgain = 1
+        extgain = 2000
+        converter = core.Converter(intgain=intgain, extgain=extgain)
+        wavedata = converter.uV2AD(wavedata, inttype=np.int64)
+        # check for saturation:
+        wdmin, wdmax = wavedata.min(), wavedata.max()
+        print('gain = %d' % (intgain*extgain))
+        print('wavedata.min() = %d, wavedata.max() = %d' % (wdmin, wdmax))
+        if wdmin <= -2**15 or wdmax >= 2**15-1:
+            raise RuntimeError("wavedata has saturated int16. Try reducing gain")
+        wavedata = np.int16(wavedata) # downcast to int16
+        siteloc = np.empty((nchans, 2))
+        siteloc[0] = 0, 0
+        rawtres = float(d['samplingInterval']) # ms
+        rawtres = rawtres / 1000 # sec
+        rawsampfreq = intround(1 / rawtres) # Hz
+        masterclockfreq = None
+        stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
+                              intgain, extgain, bitshift=None)
+        truth = core.EmptyClass()
+        truth.spiketis = d['spike_times']
+        assert truth.spiketis[-1] < nt
+        truth.spikets = truth.spiketis * rawtres
+        # unsure what the other arrays in this field are for:
+        truth.sids = d['spike_class'][0]
+        assert int(d['startData']) == 0
+        stream.truth = truth
+        return stream
 
     def OpenTSFFile(self, fname):
         """Open NVS's "test spike file" .tsf format for testing spike sorting

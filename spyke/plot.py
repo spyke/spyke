@@ -1065,7 +1065,8 @@ class ChartPanel(PlotPanel):
         miny = self.um2uv(self.siteloc[self.vchans[0]][1])
         maxy = self.um2uv(self.siteloc[self.vchans[-1]][1])
         # average vertical spacing between chans, in uV:
-        vspace = (maxy - miny) / (self.nchans-1)
+        ngaps = max(self.nchans-1, 1) # at least 1
+        vspace = (maxy - miny) / ngaps
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
         colourgen = itertools.cycle(iter(PLOTCOLOURS))
         for chani, chan in enumerate(self.vchans):
