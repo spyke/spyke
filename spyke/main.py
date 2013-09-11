@@ -2016,7 +2016,7 @@ class SpykeWindow(QtGui.QMainWindow):
         wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
         wavedata.shape = nchans, nt
         stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                              extgain, intgain)
+                              intgain, extgain)
         # not all .tsf files have ground truth data at end:
         pos = f.tell()
         groundtruth = f.read()

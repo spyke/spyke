@@ -767,9 +767,9 @@ class Stream(object):
 
 
 class SimpleStream(Stream):
-    """Simple Stream loaded in full in advance"""
+    """Simple Stream loaded fully in advance"""
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                 extgain, intgain, sampfreq=None, shcorrect=None):
+                 intgain, extgain, sampfreq=None, shcorrect=None):
         self._fname = fname
         self.wavedata = wavedata
         nchans, nt = wavedata.shape
