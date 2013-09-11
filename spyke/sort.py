@@ -614,10 +614,9 @@ class Sort(object):
         if scale:
             # ensure 0 mean, and unit variance/stdev
             x0std = spikes['x0'].std()
-            assert x0std != 0.0
             for dim, d in zip(dims, data.T): # d iterates over columns
                 d -= d.mean()
-                if dim in ['x0', 'y0']:
+                if dim in ['x0', 'y0'] and x0std != 0.0:
                     d /= x0std
                 #elif dim == 't': # the longer the recording in hours, the greater the
                 #                 # scaling in time
