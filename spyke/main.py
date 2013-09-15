@@ -1494,9 +1494,68 @@ class SpykeWindow(QtGui.QMainWindow):
         pl.plot(rpc[:, 4], 'k-', linewidth=4)
         pl.xlabel('pair number')
         #pl.ylabel(r'$\Delta$RPC for ISI $\leq$ %.2f ms' % (RP/1000))
-        pl.ylabel(r'$\Delta$RPC')        
+        pl.ylabel(r'$\Delta$RPC')
         import pdb; pdb.set_trace()
-        
+
+    @QtCore.pyqtSlot()
+    def on_ISICleanButton_clicked(self):
+        """Remove any duplicate spikes within each neuron, according to an ISI threshold"""
+        minISI = self.ui.minISISpinBox.value()
+        spikes = self.sort.spikes
+        rmsidss = [] # list of lists
+        print('removing duplicate spikes:')
+        for nid in sorted(self.sort.neurons):
+            if nid == 0:
+                # skip any duplicate spikes that are already unclustered:
+                continue
+            # for each pair of duplicate spikes, keep whichever has the most channel overlap
+            # with neuron template. If they have same amount of overlap, keep the first one
+            neuron = self.sort.neurons[nid]
+            rmsids = [] # reset
+            # pick out the first sid of each pair of duplicate sids, if any:
+            sidis = np.where(np.diff(spikes['t'][neuron.sids]) <= minISI)[0]
+            if len(sidis) == 0:
+                continue # skip to next nid
+            sids = neuron.sids[sidis]
+            #x0, y0 = neuron.cluster.pos['x0'], neuron.cluster.pos['y0']
+            for sid in sids:
+                if spikes['nid'][sid+1] != nid:
+                    # second spike in this "duplicate" pair belongs to another neuron,
+                    # or maybe even junk neuron 0, skip to next pair
+                    continue
+                nchans0 = spikes['nchans'][sid]
+                chans0 = spikes['chans'][sid][:nchans0]
+                nchans1 = spikes['nchans'][sid+1]
+                chans1 = spikes['chans'][sid+1][:nchans0]
+                ncommon0 = len(np.intersect1d(neuron.chans, chans0))
+                ncommon1 = len(np.intersect1d(neuron.chans, chans1))
+                if ncommon0 >= ncommon1:
+                    #keepsid = sid
+                    rmsid = sid + 1
+                else:
+                    #keepsid = sid + 1
+                    rmsid = sid
+                #print('  removing sid %d:' % rmsid, ncommon0, ncommon1)
+                
+                """
+                # code for choosing the one closest to template mean position, not as robust:
+                d02 = (spikes['x0'][sid] - x0)**2 + (spikes['y0'][sid] - y0)**2
+                d12 = (spikes['x0'][sid+1] - x0)**2 + (spikes['y0'][sid+1] - y0)**2
+                if d02 <= d12:
+                    keep = sid
+                else:
+                    keep = sid + 1
+                print('kept sid %d:' % keep, d02, d12)
+                """
+                rmsids.append(rmsid)
+            print('neuron %d: %r' % (nid, rmsids))
+            #print()
+            rmsidss.append(rmsids) # list of lists
+        # do the actual removal
+        rmsids = np.concatenate(rmsidss) # flat array
+        nrm = len(rmsids)
+        # recalculate template means
+
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
         sw = self.windows['Sort']
