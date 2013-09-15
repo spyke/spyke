@@ -959,7 +959,7 @@ class SpykeWindow(QtGui.QMainWindow):
         panel.manual_selection = False
         return selchans
 
-    def apply_clustering(self, oldclusters, sids, nids, verb=''):
+    def apply_clustering(self, oldclusters, sids, nids, autogen=True, verb=''):
         """Delete old clusters and replace the existing clustering of the desired sids
         with their new nids"""
         s = self.sort
@@ -1000,17 +1000,26 @@ class SpykeWindow(QtGui.QMainWindow):
             startinserti = s.norder.index(oldclusters[0].id)
             insertis = range(startinserti, startinserti+nnids)
 
-        # delete old clusters
-        self.DelClusters(oldclusters, update=False)
+        if autogen:
+            # delete old clusters
+            self.DelClusters(oldclusters, update=False)
 
         # apply new clusters
         newclusters = []
         for nid, inserti in zip(unids, insertis):
             ii, = np.where(nids == nid)
             nsids = sids[ii] # sids belonging to this nid
-            if nid != 0:
-                nid = None # auto generate a new nid
-            cluster = self.CreateCluster(update=False, id=nid, inserti=inserti)
+            if autogen: # auto generate a new cluster
+                if nid != 0:
+                    nid = None # auto generate a new nid
+                cluster = self.CreateCluster(update=False, id=nid, inserti=inserti)
+            else: # try and keep current cluster
+                try:
+                    cluster = s.clusters[nid]
+                except KeyError:
+                    if nid != 0:
+                        nid = None # auto generate a new nid
+                    cluster = self.CreateCluster(update=False, id=nid, inserti=inserti)
             newclusters.append(cluster)
             neuron = cluster.neuron
             sw.MoveSpikes2Neuron(nsids, neuron, update=False)
@@ -1554,7 +1563,11 @@ class SpykeWindow(QtGui.QMainWindow):
         # do the actual removal
         rmsids = np.concatenate(rmsidss) # flat array
         nrm = len(rmsids)
+        if nrm > 0:
+            self.SplitSpikes(sids=rmsids, delete=True, autogen=False)
+        #self.apply_clustering([], rmsids, np.zeros(nrm, dtype=np.int16), verb='clean')
         # recalculate template means
+        print('removed %d duplicate spikes' % nrm)
 
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
@@ -1865,14 +1878,27 @@ class SpykeWindow(QtGui.QMainWindow):
         #print('newclusters: %r' % [c.id for c in newclusters])
         #print('bystanders: %r' % [c.id for c in bystanders])
 
-    def SplitSpikes(self, delete=False):
+    def SplitSpikes(self, sids=None, delete=False, autogen=True):
         """Split off explicitly selected spikes from their clusters (if any). More accurately,
         split selected cluster(s) into new cluster(s) plus a destination cluster, whose ID
-        depends on the delete arg. This process is required to allow undo/redo"""
-        oldclusters = self.GetClusters()
+        depends on the delete arg. This process is required to allow undo/redo.
+        If sids arg isn't None, use them instead of getting them from selected clusters"""
         s = self.sort
         spikes = s.spikes
-        sids = np.concatenate([self.GetClusterSpikes(), self.GetUnsortedSpikes()])
+        if sids == None: # splitting via GUI
+            sids = self.GetSpikes() # explicitly selected spikes (sorted and unsorted)
+            # all spikes of all affected clusters:
+            supersids = np.unique(np.concatenate([sids, self.GetClusterSpikes()]))
+            oldclusters = self.GetClusters()
+        else: # splitting programmatically, ignore any spike selection
+            unids = np.unique(spikes['nid'][sids]) # associated set of neuron ids
+            # sort by norder:
+            uniis = np.argsort([ s.norder.index(unid) for unid in unids ])
+            unids = unids[uniis] # in norder
+            oldclusters = [ s.clusters[unid] for unid in unids ]
+            # all spikes of all affected clusters:
+            supersids = np.concatenate([ oc.neuron.sids for oc in oldclusters ])
+            supersids.sort()
         sids.sort()
         if len(sids) == 0:
             return # do nothing
@@ -1880,11 +1906,10 @@ class SpykeWindow(QtGui.QMainWindow):
             newnid = 0 # junk cluster
         else:
             newnid = s.nextnid
-        selsids = self.GetSpikes() # explicitly selected spikes
-        selsidis = sids.searchsorted(selsids)
-        nids = spikes[sids]['nid'] # seems to return a copy
-        nids[selsidis] = newnid # doesn't seem to overwrite nid values in spikes recarray
-        self.apply_clustering(oldclusters, sids, nids, verb='split')
+        supersidis = supersids.searchsorted(sids) # where sids fit into supersids
+        nids = spikes[supersids]['nid'] # seems to return a copy
+        nids[supersidis] = newnid # doesn't seem to overwrite nid values in spikes recarray
+        self.apply_clustering(oldclusters, supersids, nids, autogen=autogen, verb='split')
 
     def updateTitle(self):
         """Update main spyke window title based on open stream and sort, if any"""
