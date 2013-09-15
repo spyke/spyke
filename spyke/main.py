@@ -973,9 +973,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SelectClusters(s.clusters, on=False)
         sw.uslist.clearSelection()
 
-        # delete junk cluster if it exists and is unselected,
+        # delete junk cluster if it exists and isn't in oldclusters,
         # add this deletion to cluster change stack
-        if 0 not in [ c.id for c in oldclusters ] and 0 in s.clusters:
+        if 0 in s.clusters and 0 not in [ c.id for c in oldclusters ]:
             # save some undo/redo stuff
             message = 'delete junk cluster 0'
             cc = ClusterChange(s.neurons[0].sids, spikes, message)
