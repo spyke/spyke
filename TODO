@@ -1,3 +1,12 @@
+- add a step that tests for duplicate spikes within each neuron (single or multiunit), and maybe even just duplicate spikes in general in the spikes list
+    - do diff on spike times for all spikes in each neuron
+    - if diff == 0, of the pair, find the spike whose channels most overlap with those of the neuron template, or whose maxchan is closest to x, y position of the neuron. keep that one, discard the other (set it to nid 0, but there's more to it than that, need to find the right functions)
+    - there's already a clean ISIs widget in verify tab, now make it work
+
+- during detection, check for any DC offset (perhaps due to ADC issues?) by randomly sampling each channel (maybe do this during the noise estimation), and subtract the DC offset from the raw data
+
+- disable LFP Window button when lpstream is None
+
 - when selecting points in the cluster window, instead of only displaying in the sort window the first 200 waveforms selected, treat the plots like a stack, removing the oldest selected ones to make way for the newest selected ones, keeping the max displayed the same at 200. This would allow for easier exploration of waveform features of cluster lobes.
 
 - add option to align to max -ve (or maybe +ve?) slope - good theoretical basis, since extracellular spike is the derivative of the intracellular spike, and the max extracellular slope should correspond to the max sodium current
