@@ -1739,7 +1739,7 @@ If 1 neuron selected, plot autocorrelogram</string>
        </widget>
        <widget class="QGroupBox" name="ISIsGroupBox">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="geometry">
          <rect>
@@ -1762,7 +1762,7 @@ If 1 neuron selected, plot autocorrelogram</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Remove points &gt; nstds from origin of cluster density histogram</string>
+          <string>Clean duplicate spikes from each neuron, according to ISI threshold</string>
          </property>
          <property name="text">
           <string>Clean</string>
@@ -1803,6 +1803,9 @@ If 1 neuron selected, plot autocorrelogram</string>
            <height>25</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Interspike interval threshold for cleaning out duplicate spikes</string>
+         </property>
          <property name="maximum">
           <number>9999</number>
          </property>
@@ -1810,7 +1813,7 @@ If 1 neuron selected, plot autocorrelogram</string>
           <number>20</number>
          </property>
          <property name="value">
-          <number>500</number>
+          <number>0</number>
          </property>
         </widget>
        </widget>
