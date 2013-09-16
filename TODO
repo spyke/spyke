@@ -1,8 +1,3 @@
-- add a step that tests for duplicate spikes within each neuron (single or multiunit), and maybe even just duplicate spikes in general in the spikes list
-    - do diff on spike times for all spikes in each neuron
-    - if diff == 0, of the pair, find the spike whose channels most overlap with those of the neuron template, or whose maxchan is closest to x, y position of the neuron. keep that one, discard the other (set it to nid 0, but there's more to it than that, need to find the right functions)
-    - there's already a clean ISIs widget in verify tab, now make it work
-
 - during detection, check for any DC offset (perhaps due to ADC issues?) by randomly sampling each channel (maybe do this during the noise estimation), and subtract the DC offset from the raw data
 
 - disable LFP Window button when lpstream is None
@@ -1352,6 +1347,10 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - add ability to vary the number of PCs to keep per channel before doing ICA. Scholz2004 suggests that more input PCs into ICA isn't always better, so 7 per channel may be too many in some cases.
 - make "+" split off selected spikes: same as deleting selected spikes and then promoting them to a cluster
 - BUG: for files with multiple experiments in them, multiple .din and .textheader are not being exported. Just the first one is being exported
+- add a step that tests for duplicate spikes within each neuron (single or multiunit), and maybe even just duplicate spikes in general in the spikes list
+    - do diff on spike times for all spikes in each neuron
+    - if diff == 0, of the pair, find the spike whose channels most overlap with those of the neuron template, or whose maxchan is closest to x, y position of the neuron. keep that one, discard the other (set it to nid 0, but there's more to it than that, need to find the right functions)
+    - there's already a clean ISIs widget in verify tab, now make it work
 
 
 
