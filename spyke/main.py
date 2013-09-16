@@ -1499,11 +1499,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_ISICleanButton_clicked(self):
-        """Remove any duplicate spikes within each neuron, according to an ISI threshold"""
+        """Remove any duplicate spikes within each neuron, according to an ISI threshold.
+        As implemented, this is not undoable"""
         minISI = self.ui.minISISpinBox.value()
         spikes = self.sort.spikes
-        rmsidss = [] # list of lists
-        print('removing duplicate spikes:')
+        rmsidss = {} # dict of lists of sids to remove, indexed by nid
+        print('duplicate spikes:')
         for nid in sorted(self.sort.neurons):
             if nid == 0:
                 # skip any duplicate spikes that are already unclustered:
@@ -1511,7 +1512,7 @@ class SpykeWindow(QtGui.QMainWindow):
             # for each pair of duplicate spikes, keep whichever has the most channel overlap
             # with neuron template. If they have same amount of overlap, keep the first one
             neuron = self.sort.neurons[nid]
-            rmsids = [] # reset
+            rmsids = [] # list of sids to remove for this neuron
             # pick out the first sid of each pair of duplicate sids, if any:
             sidis = np.where(np.diff(spikes['t'][neuron.sids]) <= minISI)[0]
             if len(sidis) == 0:
@@ -1530,31 +1531,41 @@ class SpykeWindow(QtGui.QMainWindow):
                 ncommon0 = len(np.intersect1d(neuron.chans, chans0))
                 ncommon1 = len(np.intersect1d(neuron.chans, chans1))
                 if ncommon0 >= ncommon1:
-                    #keepsid = sid
                     rmsid = sid + 1
                 else:
-                    #keepsid = sid + 1
                     rmsid = sid
-                #print('  removing sid %d:' % rmsid, ncommon0, ncommon1)
-                
                 """
                 # code for choosing the one closest to template mean position, not as robust:
                 d02 = (spikes['x0'][sid] - x0)**2 + (spikes['y0'][sid] - y0)**2
                 d12 = (spikes['x0'][sid+1] - x0)**2 + (spikes['y0'][sid+1] - y0)**2
                 if d02 <= d12:
-                    keep = sid
+                    rmsid = sid + 1
                 else:
-                    keep = sid + 1
-                print('kept sid %d:' % keep, d02, d12)
+                    rmsid = sid
                 """
                 rmsids.append(rmsid)
             print('neuron %d: %r' % (nid, rmsids))
-            #print()
-            rmsidss.append(rmsids) # list of lists
-        # do the actual removal
-        rmsids = np.concatenate(rmsidss) # flat array
-        nrm = len(rmsids)
-        # recalculate template means
+            rmsidss[nid] = rmsids
+        nrm = sum([ len(rmsids) for rmsids in rmsidss.values() ])
+        print('found %d duplicate spikes, use CTRL+click to remove them' % nrm)
+        ctrl = QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier
+        if nrm == 0 or not ctrl:
+            return
+        # do the actual removal:
+        sw = self.windows['Sort']
+        for nid, rmsids in rmsidss.items():
+            neuron = self.sort.neurons[nid]
+            neuron.sids = np.setdiff1d(neuron.sids, rmsids) # remove from source neuron
+            spikes['nid'][rmsids] = 0 # set to junk in spikes struct array
+            neuron.wave.data = None # trigger template mean update
+            if neuron in sw.nslist.neurons:
+                sw.nslist.neurons = sw.nslist.neurons # trigger nslist refresh
+        # update usids and uslist:
+        self.sort.update_usids()
+        sw.uslist.updateAll()
+        # cluster changes in stack no longer applicable, reset cchanges:
+        del self.cchanges[:]
+        print('removed %d duplicate spikes' % nrm)
 
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
