@@ -1143,7 +1143,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_c0c1c2Button_clicked(self):
         """Cluster pane c0c1c2 button click. Set plot dims to c0, c1, and c2"""
         s = self.sort
-        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
+        ctrl = QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier
+        if ctrl:
             try:
                 del s.X[s.get_Xhash(*self.get_Xhash_args())] # force recalc
             except (AttributeError, KeyError): pass
@@ -1153,7 +1154,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_c0c1tButton_clicked(self):
         """Cluster pane c0c1t button click. Set plot dims to c0, c1, and t"""
         s = self.sort
-        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
+        ctrl = QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier
+        if ctrl:
             try:
                 del s.X[s.get_Xhash(*self.get_Xhash_args())] # force recalc
             except (AttributeError, KeyError): pass
@@ -1215,7 +1217,8 @@ class SpykeWindow(QtGui.QMainWindow):
         """Cluster pane plot button click. Plot points and colour them
         according to their clusters."""
         s = self.sort
-        if QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier:
+        ctrl = QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier
+        if ctrl:
             try:
                 del s.X[s.get_Xhash(*self.get_Xhash_args())] # force recalc
             except (AttributeError, KeyError): pass

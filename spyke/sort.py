@@ -183,7 +183,7 @@ class Sort(object):
     nspikes = property(get_nspikes)
 
     def update_usids(self):
-        """Update usids, which is an array of struct array indices of unsorted spikes"""
+        """Update usids, which is an array of indices of unsorted spikes"""
         nids = self.spikes['nid']
         self.usids, = np.where(nids == 0) # 0 means unclustered
 
@@ -2808,8 +2808,8 @@ class SortWindow(SpykeToolWindow):
             self.nlist.updateAll()
 
     def MoveSpikes2Neuron(self, sids, neuron=None, update=True):
-        """Assign spikes from sort.spikes to a neuron, and update mean wave.
-        If neuron is None, create a new one"""
+        """Assign spikes from sort.spikes to a neuron, and trigger eventual update of
+        mean wave. If neuron is None, create a new one"""
         sids = toiter(sids)
         spikes = self.sort.spikes
         if neuron == None:
@@ -2820,10 +2820,10 @@ class SortWindow(SpykeToolWindow):
             self.sort.update_usids()
             self.uslist.updateAll()
         if neuron in self.nslist.neurons:
-            self.nslist.neurons = self.nslist.neurons # triggers nslist refresh
+            self.nslist.neurons = self.nslist.neurons # trigger nslist refresh
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.uslist.Select(row) # automatically select the new item at that position
-        neuron.wave.data = None # triggers an update when it's actually needed
+        neuron.wave.data = None # trigger template mean update
         #neuron.update_wave() # update mean neuron waveform
         return neuron
 
