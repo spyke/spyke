@@ -1550,9 +1550,13 @@ class SpykeWindow(QtGui.QMainWindow):
             print('neuron %d: %r' % (nid, rmsids))
             rmsidss[nid] = rmsids
         nrm = sum([ len(rmsids) for rmsids in rmsidss.values() ])
-        print('found %d duplicate spikes, use CTRL+click to remove them' % nrm)
-        ctrl = QtGui.QApplication.instance().keyboardModifiers() == Qt.ControlModifier
-        if nrm == 0 or not ctrl:
+        print('found %d duplicate spikes' % nrm)
+        if nrm == 0:
+            return
+        val = QtGui.QMessageBox.question(self, "Remove %d duplicate spikes" % nrm,
+              "Are you sure? This will clear the undo/redo stack, and is not undoable.",
+              QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+        if val == QtGui.QMessageBox.No:
             return
         # do the actual removal:
         sw = self.windows['Sort']

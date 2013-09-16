@@ -1762,8 +1762,7 @@ If 1 neuron selected, plot autocorrelogram</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>&lt;nobr&gt;Detect duplicate spikes from each neuron, according to ISI threshold&lt;/nobr&gt;
-&lt;nobr&gt;&lt;b&gt;CTRL&lt;/b&gt;&amp;nbsp; Remove any such spikes&lt;/nobr&gt;</string>
+          <string>Remove duplicate spikes from each neuron, according to ISI threshold</string>
          </property>
          <property name="text">
           <string>Clean</string>
