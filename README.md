@@ -1,9 +1,11 @@
 [spyke](http://spyke.github.io) is a Python application for visualizing, navigating,
 and spike sorting neuronal extracellular waveform data.
 
-spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` files,
-but may be extended to work with other electrophysiology file formats. Some
-[sample data](http://swindale.ecc.ubc.ca/spyke) is available.
+spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` and `.tsf` files,
+and Rodrigo Quian Quiroga's [simulated
+data](http://www.vis.caltech.edu/~rodri/Wave_clus/Simulator.zip) MATLAB files. spyke can be
+extended to work with other electrophysiology file formats. Some [sample
+data](http://swindale.ecc.ubc.ca/spyke) is available.
 
 Some functionality was inherited from Tim Blanche's Delphi program "SurfBawd".
 Some icons were copied from Ubuntu's [Humanity](http://launchpad.net/humanity)
