@@ -407,10 +407,11 @@ class Stream(object):
         if kind == 'highpass':
             ADchans = self.layout.ADchanlist
             if list(self.layout.ADchanlist) != range(self.nADchans):
-                raise ValueError("ADchans aren't contiguous from 0, highpass recordings are "
-                                 "nonstandard, and assumptions made for resampling are wrong")
-            # probe chans, as opposed to AD chans. Don't know yet of any probe
-            # type whose chans aren't contiguous from 0 (see probes.py)
+                print("WARNING: ADchans aren't contiguous from 0, highpass recordings are "
+                      "nonstandard. Sample and hold delay correction in self.resample() "
+                      "may not be exactly correct")
+            # probe chans, as opposed to AD chans. Most probe types are contiguous from 0,
+            # but there are some exceptions (like pt16a_HS27 and pt16b_HS27):
             self.chans = np.arange(self.nADchans)
             self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
             self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
@@ -688,8 +689,11 @@ class Stream(object):
         #print 'data.shape = %r' % (data.shape,)
         #tconvolve = time.time()
         tconvolvesum = 0
-        # assume chans map onto ADchans 1 to 1, ie chan 0 taps off of ADchan 0
-        # this way, only the chans that are actually needed are resampled and returned
+        # Only the chans that are actually needed are resampled and returned.
+        # Assume that chans index into ADchans. Normally they should map 1 to 1, ie chan 0
+        # taps off of ADchan 0, but for probes like pt16a_HS27 and pt16b_HS27, it seems
+        # ADchans start at 4. However, because self.kernels is indexed into using chans, and
+        # chans are always assumed to be contiguous from 0, this shouldn't cause a problem
         for chani, chan in enumerate(chans):
             for point, kernel in enumerate(self.kernels[chan]):
                 """np.convolve(a, v, mode)
@@ -720,7 +724,8 @@ class Stream(object):
 
     def get_kernels(self, ADchans, resamplex, N):
         """Generate a different set of kernels for each ADchan to correct each ADchan's
-        s+h delay.
+        s+h delay. ADchans may not always be contiguous from 0, but chans are assumed
+        to always be, and to always be in same order as ADchans.
 
         TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
         You don't need a kernel for the original raw data points. Those won't be shifted,
@@ -737,7 +742,8 @@ class Stream(object):
         Should probably take this into account, although it doesn't affect relative delays
         between chans, I think. I think it's usually 1us.
         """
-        i = ADchans % NCHANSPERBOARD # ordinal position of each chan in the hold queue
+        # ordinal position of each ADchan in the hold queue of its ADC board:
+        i = ADchans % NCHANSPERBOARD
         if self.shcorrect:
             dis = 1 * i # per channel delays, us
             # TODO: stop hard coding 1us delay per ordinal position
@@ -746,9 +752,8 @@ class Stream(object):
         ds = dis / self.rawtres # normalized per channel delays
         wh = hamming # window function
         h = np.sinc # sin(pi*t) / pi*t
-        kernels = [] # list of list of kernels, indexed by [ADchani][resample point]
-        for ADchan in ADchans:
-            d = ds[ADchan] # delay for this chan
+        kernels = [] # list of array of kernels, indexed by [chan][resample point]
+        for d in ds: # delay for this ADchan
             kernelrow = []
             for point in xrange(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
