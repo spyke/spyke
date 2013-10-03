@@ -388,7 +388,7 @@ class pt16a_HS27(Probe):
         sl[5] = -27, 341
         sl[6] = -27, 403
         sl[7] = -27, 465
-        # Gap of 4 (grounded) chans in the adapter, give them sites below the probe
+        # Gap of 4 (grounded) chans in the adapter, give them sites below the probe:
         sl[8] = -27, 650
         sl[9] = -27, 700
         sl[10] = 27, 650
@@ -422,7 +422,7 @@ class pt16b_HS27(Probe):
         sl[5] = -27, 279
         sl[6] = -27, 403
         sl[7] = -27, 465
-        # Gap of 4 (grounded) chans in the adapter, give them sites below the probe
+        # Gap of 4 (grounded) chans in the adapter, give them sites below the probe:
         sl[8] = -27, 650
         sl[9] = -27, 700
         sl[10] = 27, 650
