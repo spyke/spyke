@@ -287,22 +287,22 @@ def rowtake_cy(np.ndarray[int32_t, ndim=2] a,
     return out
 
 
-def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
-          np.ndarray[np.int64_t, ndim=1, mode='c'] y,
-          np.ndarray[np.int64_t, ndim=1, mode='c'] trange):
+def xcorr(int64_t[::1] x,
+          int64_t[::1] y,
+          int64_t[::1] trange):
     """Calculate cross-correlation of timepoints in x with y, constrained to lower
-    and upper bounds in trange. Assume timepoints in x and y are sorted"""
-    # should assert contig of x and y, this seems to happen automatically though
-    cdef long long ntx, nty, loti, dtsi, xti, yti, maxxti, maxyti, t, dt
-    cdef long long low = trange[0]
-    cdef long long high = trange[1]
-    cdef long long DTSALLOCSIZE = 1000000
+    and upper bounds in trange. Assume timepoints in x and y are sorted. Return spike times
+    of y relative to x."""
+    cdef int64_t ntx, nty, loti, dtsi, xti, yti, maxxti, maxyti, t, dt
+    cdef int64_t low = trange[0]
+    cdef int64_t high = trange[1]
+    cdef int64_t DTSALLOCSIZE = 1000000
     ntx = x.shape[0]
     nty = y.shape[0]
     maxxti = ntx - 1
     maxyti = nty - 1
-    cdef np.ndarray[np.int64_t, ndim=1] dts = np.zeros(DTSALLOCSIZE, dtype=np.int64)
-    cdef long long maxdtsi = dts.shape[0] - 1
+    cdef int64_t[::1] dts = np.zeros(DTSALLOCSIZE, dtype=np.int64)
+    cdef int64_t maxdtsi = dts.shape[0] - 1
 
     loti = 0
     dtsi = 0
@@ -317,7 +317,7 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
         if loti > maxyti: # no y timepoints fall within trange of t
             continue # to next xti
         yti = loti
-        dt = y[yti] - t
+        dt = y[yti] - t # dt is y relative to x
         while dt < high: # keep checking upper trange bound
             if dtsi > maxdtsi:
                 # when growing an array, pretty much need to allocate a new one,
@@ -332,8 +332,7 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
             if yti > maxyti: # don't exceed maxyti when indexing into y
                 break
             dt = y[yti] - t # update for next loop iter
-    dts = dts[:dtsi] # trim it down
-    return dts
+    return np.asarray(dts[:dtsi]) # trim it down, convert memory view slice to array
 
 
 ## TODO: it may be that np.ndarray[float32_t, ndim=2, mode='c'] definitions run faster
