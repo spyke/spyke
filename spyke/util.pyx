@@ -9,6 +9,7 @@ cimport cython
 from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
+from numpy cimport uint8_t, int16_t, int32_t, int64_t, float32_t, float64_t
 
 import time
 
@@ -62,11 +63,11 @@ cdef short select_short(short *a, int l, int r, int k):
     return a[k] # return kth in 0-based
 
 
-def median_inplace_2Dshort(np.ndarray[np.int16_t, ndim=2, mode='c'] arr):
+def median_inplace_2Dshort(np.ndarray[int16_t, ndim=2, mode='c'] arr):
     """Assumes C-contig 2D input array. arr will probably be from a copy anyway,
     since it modifies in-place"""
     cdef Py_ssize_t nchans, nt, k, i
-    cdef np.ndarray[np.int16_t, ndim=1] result
+    cdef np.ndarray[int16_t, ndim=1] result
     cdef short *a
     nchans = arr.shape[0]
     nt = arr.shape[1]
@@ -87,7 +88,7 @@ cdef double mean_short(short *a, int N):
     return s
 
 
-def mean(np.ndarray[np.float64_t, ndim=1] a):
+def mean(np.ndarray[float64_t, ndim=1] a):
     """Uses new simpler numpy type notation for fast indexing, but is still a
     bit slower than the classical way, because you currently can't
     use the new notation with cdefs. (This may no longer be true...)"""
@@ -99,14 +100,14 @@ def mean(np.ndarray[np.float64_t, ndim=1] a):
     return s
 
 
-def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
+def mean_2Dshort(np.ndarray[int16_t, ndim=2] a):
     """Uses new simpler numpy type notation for fast indexing, but is still a
     bit slower than the classical way, because you currently can't
     use the new notation with cdefs"""
     cdef Py_ssize_t i, j, nchans, nt
     nchans = a.shape[0]
     nt = a.shape[1]
-    cdef np.ndarray[np.float64_t, ndim=1] s = np.zeros(nchans)
+    cdef np.ndarray[float64_t, ndim=1] s = np.zeros(nchans)
     for i in range(nchans):
         for j in range(nt):
             s[i] += a[i, j]
@@ -114,7 +115,7 @@ def mean_2Dshort(np.ndarray[np.int16_t, ndim=2] a):
     return s
 
 
-cpdef dostuff(np.ndarray[np.float64_t, ndim=1] a):
+cpdef dostuff(np.ndarray[float64_t, ndim=1] a):
     """Just a f'n to do some stuff in place with the GIL released"""
     cdef Py_ssize_t i, N = len(a)
     cdef float b = 1.2345
@@ -124,7 +125,7 @@ cpdef dostuff(np.ndarray[np.float64_t, ndim=1] a):
             #a[i] *= 2.0
 
 
-def dostuffthreads(np.ndarray[np.float64_t, ndim=1] a):
+def dostuffthreads(np.ndarray[float64_t, ndim=1] a):
     """Demo use of multithreading pool from within Cython"""
     from spyke import threadpool_alt
     from multiprocessing import cpu_count
@@ -135,7 +136,7 @@ def dostuffthreads(np.ndarray[np.float64_t, ndim=1] a):
     pool.terminate()
 
 
-def testrange(np.ndarray[np.int32_t, ndim=1] a,
+def testrange(np.ndarray[int32_t, ndim=1] a,
               int start, int end):
     """Testing cython range f'n"""
     cdef Py_ssize_t i, N = len(a)
@@ -143,7 +144,7 @@ def testrange(np.ndarray[np.int32_t, ndim=1] a,
         printf('%d\n', i)
 
 
-def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
+def sharpness2D(np.ndarray[int16_t, ndim=2] signal):
     """Spike peak sharpness measure which takes (height)**2 / width
     for each peak, and relies on zero crossings to demarcate borders between peaks.
     First, update npoints, check for extremum and update ext. Then, look one step ahead
@@ -176,7 +177,7 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
 
     nchans = signal.shape[0]
     nt = signal.shape[1]
-    cdef np.ndarray[np.float32_t, ndim=2] sharp = np.zeros((nchans, nt), dtype=np.float32)
+    cdef np.ndarray[float32_t, ndim=2] sharp = np.zeros((nchans, nt), dtype=np.float32)
 
     assert nt < 2**31 # make sure time indices don't overflow
 
@@ -213,9 +214,9 @@ def sharpness2D(np.ndarray[np.int16_t, ndim=2] signal):
     return sharp
 
 
-def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
-                   np.ndarray[np.int16_t, ndim=1] thresh,
-                   np.ndarray[np.float32_t, ndim=2] sharp):
+def argthreshsharp(np.ndarray[int16_t, ndim=2] signal,
+                   np.ndarray[int16_t, ndim=1] thresh,
+                   np.ndarray[float32_t, ndim=2] sharp):
     """Given original signal, threshold array, and sharpness array,
     return a temporally sorted n x 2 (ti, ci) array of peak indices that exceed
     thresh for the appropriate chan"""
@@ -230,7 +231,7 @@ def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
     assert thresh.shape[0] == nchans
 
     # worst case scenario: we find as many thresh exceeding peaks as nt
-    cdef np.ndarray[np.int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
+    cdef np.ndarray[int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
 
     for ti in range(nt):
         for ci in range(nchans):
@@ -242,7 +243,7 @@ def argthreshsharp(np.ndarray[np.int16_t, ndim=2] signal,
     return peakis[:npeaks]
 
 '''
-def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
+def argsharp(np.ndarray[float32_t, ndim=2] sharp):
     """Given sharpness array, return a temporally sorted n x 2 (ti, ci) array
     of peak indices"""
 
@@ -253,7 +254,7 @@ def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
     nt = sharp.shape[1]
 
     # worst case scenario: we find as many thresh exceeding peaks as nt
-    cdef np.ndarray[np.int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
+    cdef np.ndarray[int32_t, ndim=2] peakis = np.empty((nt, 2), dtype=np.int32)
 
     for ti in range(nt):
         for ci in range(nchans):
@@ -265,13 +266,13 @@ def argsharp(np.ndarray[np.float32_t, ndim=2] sharp):
     return peakis[:npeaks]
 '''
 
-def rowtake_cy(np.ndarray[np.int32_t, ndim=2] a,
-               np.ndarray[np.int32_t, ndim=2] i):
+def rowtake_cy(np.ndarray[int32_t, ndim=2] a,
+               np.ndarray[int32_t, ndim=2] i):
     """For each row in a, return values according to column indices in the
     corresponding row in i. Returned shape == i.shape"""
 
     cdef Py_ssize_t nrows, ncols, rowi, coli
-    cdef np.ndarray[np.int32_t, ndim=2] out
+    cdef np.ndarray[int32_t, ndim=2] out
 
     nrows = i.shape[0]
     ncols = i.shape[1] # num cols to take for each row
@@ -335,10 +336,10 @@ def xcorr(np.ndarray[np.int64_t, ndim=1, mode='c'] x,
     return dts
 
 
-## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
-## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
-def NDsepmetric(np.float32_t[:, :] C0,
-                np.float32_t[:, :] C1,
+## TODO: it may be that np.ndarray[float32_t, ndim=2, mode='c'] definitions run faster
+## than float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
+def NDsepmetric(float32_t[:, :] C0,
+                float32_t[:, :] C1,
                 int Nmax=INT_MAX):
     """Calculate N-dimensional cluster seperation metric, for a pair of clusters. This is
     based on nearest neighbour membership: assuming cluster 0 is smaller than cluster 1,
@@ -392,12 +393,12 @@ def NDsepmetric(np.float32_t[:, :] C0,
     return S
 
 
-## TODO: it may be that np.ndarray[np.float32_t, ndim=2, mode='c'] definitions run faster
-## than np.float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
+## TODO: it may be that np.ndarray[float32_t, ndim=2, mode='c'] definitions run faster
+## than float32_t[:, :] definitions. Or at least they seem to in 1D in alignbest_cy.
 ## However, Cython says memoryview slices in arg def are necessary in order to allow nogil.
 cdef int NNmembership(int i, int ndim, int N0, int N1,
-                      np.float32_t[:, :] C0,
-                      np.float32_t[:, :] C1) nogil:
+                      float32_t[:, :] C0,
+                      float32_t[:, :] C1) nogil:
     """Determine membership of nearest neighbour of point i, assumed to be a point
     in cluster C0. Return 1 if nearest neighbour is in C0, 0 otherwise"""
     cdef int j, k
@@ -440,11 +441,11 @@ cdef int NNmembership(int i, int ndim, int N0, int N1,
     return 1
 
 
-#def alignbest_cy(sort, np.int64_t[:] sids, np.int64_t[:] tis, np.int64_t[:] chans):
+#def alignbest_cy(sort, int64_t[:] sids, int64_t[:] tis, int64_t[:] chans):
 def alignbest_cy(sort,
-                 np.ndarray[np.int64_t, ndim=1, mode='c'] sids,
-                 np.ndarray[np.int64_t, ndim=1, mode='c'] tis,
-                 np.ndarray[np.int64_t, ndim=1, mode='c'] chans):
+                 np.ndarray[int64_t, ndim=1, mode='c'] sids,
+                 np.ndarray[int64_t, ndim=1, mode='c'] tis,
+                 np.ndarray[int64_t, ndim=1, mode='c'] chans):
     """Align all sids between tis on chans by best fit according to mean squared error.
     chans are assumed to be a subset of channels of sids. Return sids
     that were actually moved and therefore need to be marked as dirty"""
@@ -452,11 +453,11 @@ def alignbest_cy(sort,
     DEF MAXSHIFT = 2 # constant, shift +/- this many timepoints
     spikes = sort.spikes
     # copy needed fields from spikes rect array as simple arrays, should come out as contig:
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] spikes_nchans = spikes['nchans'][sids]
-    cdef np.ndarray[np.uint8_t, ndim=2, mode='c'] spikes_chans = spikes['chans'][sids]
+    cdef np.ndarray[uint8_t, ndim=1, mode='c'] spikes_nchans = spikes['nchans'][sids]
+    cdef np.ndarray[uint8_t, ndim=2, mode='c'] spikes_chans = spikes['chans'][sids]
     cdef int nspikes = sids.shape[0]
     cdef int nchans = chans.shape[0]
-    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] wd = sort.wavedata
+    cdef np.ndarray[int16_t, ndim=3, mode='c'] wd = sort.wavedata
     cdef int nt = wd.shape[2] # num timepoints in each waveform
     cdef int ti0 = tis[0]
     cdef int ti1 = tis[1]
@@ -467,15 +468,15 @@ def alignbest_cy(sort,
         raise ValueError("Selected waveform duration too short")
     #maxshiftus = MAXSHIFT * self.stream.tres
     # from -MAXSHIFT to MAXSHIFT, inclusive:
-    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1)
+    cdef np.ndarray[int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1)
     cdef int nshifts = shifts.shape[0]
     print("padding waveforms with up to +/- %d points of edge data" % MAXSHIFT)
 
     # not worth subsampling here while calculating meandata, since all this
     # stuff in this loop is needed in the shift loop below
-    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] subsd
+    cdef np.ndarray[int16_t, ndim=3, mode='c'] subsd
     subsd = np.zeros((nspikes, nchans, subnt), dtype=wd.dtype) # subset of spike data
-    cdef np.ndarray[np.int64_t, ndim=2, mode='c'] spikechanis
+    cdef np.ndarray[int64_t, ndim=2, mode='c'] spikechanis
     spikechanis = np.zeros((nspikes, nchans), dtype=np.int64)
     #t0 = time.time()
     cdef int sidi, sid
@@ -493,7 +494,7 @@ def alignbest_cy(sort,
                 subsd[sidi, chani, ti] = wd[sid, spikechani, ti0+ti]
     #print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
     #t0 = time.time()
-    cdef np.ndarray[np.float64_t, ndim=2, mode='c'] meandata = subsd.mean(axis=0) # float64
+    cdef np.ndarray[float64_t, ndim=2, mode='c'] meandata = subsd.mean(axis=0) # float64
     #print('mean for best shift took %.3f sec' % (time.time()-t0))
 
     # choose best shifted waveform for each spike
@@ -502,21 +503,21 @@ def alignbest_cy(sort,
     cdef int maxnchans = spikes_nchans.max() # of all sids
     cdef int wident = MAXSHIFT+nt+MAXSHIFT
     cdef int maxwidesdi = wident - 1
-    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] sd
+    cdef np.ndarray[int16_t, ndim=2, mode='c'] sd
     sd = np.zeros((maxnchans, nt), dtype=wd.dtype)
-    cdef np.ndarray[np.int16_t, ndim=2, mode='c'] widesd
+    cdef np.ndarray[int16_t, ndim=2, mode='c'] widesd
     widesd = np.zeros((maxnchans, wident), dtype=wd.dtype)
-    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
-    cdef np.ndarray[np.int16_t, ndim=3, mode='c'] tempsubshifts
+    cdef np.ndarray[int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
+    cdef np.ndarray[int16_t, ndim=3, mode='c'] tempsubshifts
     tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
     cdef int bestshifti=0, dt, ndirty=0
     cdef long long bestshift
     cdef double error
-    cdef np.ndarray[np.float64_t, ndim=1, mode='c'] sserrors
+    cdef np.ndarray[float64_t, ndim=1, mode='c'] sserrors
     sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
-    cdef int nbytessserrors = nshifts*sizeof(np.float64_t)
+    cdef int nbytessserrors = nshifts*sizeof(float64_t)
     cdef int tres = sort.tres
-    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] dirtysids = np.empty(nspikes, dtype=np.int64)
+    cdef np.ndarray[int64_t, ndim=1, mode='c'] dirtysids = np.empty(nspikes, dtype=np.int64)
     #t0 = time.time()
     for sidi in range(nspikes):
         # pad start and end with first and last points per chan:
@@ -578,8 +579,8 @@ def intersect1d_uint8(arrs):
     Return the sorted, unique values that are in all of the input arrays.
     This is a much faster (at least for many arrs) but type-specific version of
     core.intersect1d()"""
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] arr
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] common = np.unique(arrs[0])
+    cdef np.ndarray[uint8_t, ndim=1, mode='c'] arr
+    cdef np.ndarray[uint8_t, ndim=1, mode='c'] common = np.unique(arrs[0])
     cdef int ncommon=common.shape[0]
     cdef int lenarr
     cdef int i, j, k
