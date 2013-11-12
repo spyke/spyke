@@ -71,10 +71,16 @@ so the cluster window does not update automatically.
 details, such as using PCA+ICA instead of just PCA, and exhaustively comparing all
 neighbouring clusters with each other, but I'll leave that for another day.
 
-12. Periodically save your results using `Ctrl+S` or pressing the save button on the main
+12. Periodically save your results using `Ctrl+S` or by pressing the save button on the main
 window toolbar, or File->Save in the main menu. This will create a trio of files with the same
 base name: a `.wave` file that stores the waveforms of all the spikes, a `.spikes` file that
 stores other per-spike data, and a `.sort` file which stores more general information,
 allowing you to return to exactly where you currently are in your spike sorting session.
 Sorting information is split up into these three files purely for the sake of minimizing
-saving and loading times. You should treat them as an inseperable group.
+saving and loading times of millions of spikes taking up many GBs of space. You should treat
+them as an inseperable group. You can load, or reload, a previous sort session using `Ctrl+L`
+or by pressing the load button on the main window toolbar, or File->Load in the main menu.
+Generally, you need not have the original source data file (a `.srf` file in this case) on
+hand, because all the relevant spike waveforms are already stored in the `.wave` file. This is
+good, because in general the original source file will be at least an order of magnitude
+greater in size, and therefore potentially inconvenient to keep on hand.
