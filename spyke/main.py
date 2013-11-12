@@ -1501,7 +1501,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print(f)
         print('first <= 50 pairs:')
         print(f[:50])
-        f = pl.figure()
+        fig = pl.figure()
         pl.get_current_fig_manager().set_window_title('delta f')
         pl.plot(f[:, 4], 'k-', linewidth=4)
         pl.xlabel('pair number')
