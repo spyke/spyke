@@ -1,3 +1,5 @@
+- NVS: make NDsep less biased when comparing a pair of very unequally sized clusters, by taking sampling the same fraction of spikes from each cluster, not the same number of spikes
+
 - during detection, check for any DC offset (perhaps due to ADC issues?) by randomly sampling each channel (maybe do this during the noise estimation), and subtract the DC offset from the raw data
 
 - add option to export multiunit spikes (those that aren't classified as "good", but also aren't "junk" nid 0 spikes) to .ptcs files. This could greatly increase the spike count when calculating MUA in neuropy. These could be exported to a neuron with ID -1 in the .ptcs file. To prevent any potential conflict, should add check to make sure there aren't any multiunit neurons (-ve numbered) in spyke that are also classified as "good".
