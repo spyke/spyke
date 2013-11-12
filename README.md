@@ -39,5 +39,7 @@ To install for use as a library:
 ```
 $ python setup.py install
 ```
+See [TUTORIAL.md](TUTORIAL.md) for a fairly brief tutorial.
+
 Many keyboard shortcuts are available. Tooltips give some hints. You can also
 discover them by searching for `keyPressEvent` methods in the code.
