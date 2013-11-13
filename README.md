@@ -1,5 +1,5 @@
 [spyke](http://spyke.github.io) is a Python application for visualizing, navigating,
-and spike sorting neuronal extracellular waveform data.
+and spike sorting high-density multichannel extracellular neuronal waveform data.
 
 spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` and `.tsf` files,
 and Rodrigo Quian Quiroga's [simulated
