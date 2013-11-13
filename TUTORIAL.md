@@ -4,7 +4,7 @@ Here's a tutorial that goes over the basics:
 back to the command line, so it's a good idea to keep an eye on it, at least initially.
 
 2. Open a data file, typically a `.srf` file, such as this [sample
-file](http://swindale.ecc.ubc.ca/spyke?action=AttachFile&do=get&target=ptc15_tr7c_r87_spont_1sec.srf).
+file](http://swindale.ecc.ubc.ca/spyke?action=AttachFile&do=get&target=ptc15_tr7c_r87_spont_20sec.srf).
 
 3. Press the `Detect` button in the Detect tab. This will run spike detection on the entire
 file, given the current detection settings.
@@ -33,7 +33,7 @@ probably have to select at least a few clusters to display a decent number of sp
 the sort window toolbar (looks like a pencil on my system), or press the `#` keyboard
 character. This will renumber all clusters in vertical spatial order. Hit `Yes`.
 
-7. Select clusters 5 and 6 in the sort window (or any few units that have some channel
+7. Select clusters 11 and 12 in the sort window (or any few units that have some channel
 overlap). Once selected, hit `Enter`, and they're plotted in the cluster window. Back in the
 main window, in the Cluster tab, there's a section labelled Plotting, where you can control
 the dimensions plotted in the cluster window. It defaults to x0, y0 and Vpp for the 3
@@ -49,36 +49,42 @@ window. Those are the channels that were automatically selected for component an
 timepoints used for component analysis using the mouse scrollwheel over the sort window. When
 you're done changing channel selection, hit `Enter` to see the result in the cluster window.
 
-9. You should see that the darker blue of the two clusters selected above (cluster 6) looks
-like it needs splitting. Select only cluster 6, and hit `Enter`. Now press the `Cluster`
-button in the Cluster tab, or hit `Space` in the cluster window. This will run what we call
-gradient ascent clustering (GAC, submitted paper) on the points, and should split the cluster
-fairly well into two new clusters. You can always undo a clustering operation by hitting
-`Ctrl+Z`, or redo it with `Ctrl+Y`. If it seems the clustering algorithm didn't split the
-points up enough, you can decrease the value of sigma in the cluster tab. If it seems the
-algorithm oversplit the points into too many clusters, you can increase the value of sigma.
-Use `Ctrl` or `Shift` in tandem with the mouse scrollwheel or the mouse right button in the
-cluster window to manipulate sigma more conveniently.
+9. You should see that the orange cluster (cluster 12) of the two clusters selected above
+looks like it needs splitting. Select only cluster 12, and hit `Enter`. Now press the
+`Cluster` button in the Cluster tab, or hit `Space` in the cluster window. This will run what
+we call gradient ascent clustering (GAC, submitted paper) on the points, and should split the
+cluster fairly well into two new clusters (grey points are classified as outliers and left
+unsorted). You can always undo a clustering operation by hitting `Ctrl+Z`, or redo it with
+`Ctrl+Y`. If it seems the clustering algorithm didn't split the points up enough, you can
+decrease the value of sigma in the cluster tab. If it seems the algorithm oversplit the points
+into too many clusters, you can increase the value of sigma. Use `Ctrl` or `Shift` in tandem
+with the mouse scrollwheel or the mouse right button in the cluster window to manipulate sigma
+more conveniently. You'll see that the red/green/blue axes in the center of the cluster window
+scale in proportion to the value of sigma. Before running GAC, you generally want those axes
+to be roughly the size of the minimum separation distance between points that you want to
+split. To change the 3D focal point of the cluster window (and hence the position of the
+central axes), hover over a data point and hit the `F` key. To select and deselect points
+under the cursor, use the `S` and `D` keys, respectively.
 
 10. You can compare a given selected cluster to its most similar neighbours by selecting it
-and using the `>` and `<` keys on the keyboard, or buttons in the sort window toolbar. For a
-given selection change (whether clusters or channels or timepoints), press `Enter` to update
-the display in the cluster window. This can sometimes be an expensive operation, depending on
-the number of spikes, channels, and timepoints selected and the component analysis involved,
-so the cluster window does not update automatically.
+and using the `>` and `<` keys on the keyboard, or the respective buttons in the sort window
+toolbar. For a given selection change (whether clusters or channels or timepoints), press
+`Enter` to update the display in the cluster window. This can sometimes be an expensive
+operation, depending on the number of spikes, channels, and timepoints selected and the
+component analysis involved, so the cluster window does not update automatically.
 
 11. Repeat the above until you're happy with all the clusters. There are of course many other
 details, such as using PCA+ICA instead of just PCA, and exhaustively comparing all
 neighbouring clusters with each other, but I'll leave that for another day.
 
-12. Periodically save your results using `Ctrl+S` or by pressing the save button on the main
+12. Periodically save your results using `Ctrl+S`, or by pressing the save button on the main
 window toolbar, or File->Save in the main menu. This will create a trio of files with the same
 base name: a `.wave` file that stores the waveforms of all the spikes, a `.spikes` file that
 stores other per-spike data, and a `.sort` file which stores more general information,
 allowing you to return to exactly where you currently are in your spike sorting session.
 Sorting information is split up into these three files purely for the sake of minimizing
 saving and loading times of millions of spikes taking up many GBs of space. You should treat
-them as an inseperable group. You can load, or reload, a previous sort session using `Ctrl+L`
+them as an inseperable group. You can load, or reload, a previous sort session using `Ctrl+L`,
 or by pressing the load button on the main window toolbar, or File->Load in the main menu.
 Generally, you need not have the original source data file (a `.srf` file in this case) on
 hand, because all the relevant spike waveforms are already stored in the `.wave` file. This is
