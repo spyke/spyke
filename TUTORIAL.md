@@ -33,15 +33,16 @@ probably have to select at least a few clusters to display a decent number of sp
 the sort window toolbar (looks like a pencil on my system), or press the `#` keyboard
 character. This will renumber all clusters in vertical spatial order. Hit `Yes`.
 
-7. Select clusters 11 and 12 in the sort window (or any few units that have some channel
-overlap). Once selected, hit `Enter`, and they're plotted in the cluster window. Back in the
-main window, in the Cluster tab, there's a section labelled Plotting, where you can control
-the dimensions plotted in the cluster window. It defaults to x0, y0 and Vpp for the 3
-dimensions. x0 and y0 are the estimated positions of each spike along the polytrode, and Vpp
-is the peak to peak voltage on the maximum channel. You can change these dimensions to c0, c1,
-c2 via the dropdown lists (labelled x, y and z, coloured red, green and blue respectively), or
-by pressing the `c0c1c2` button. The c stands for "component", and since the `c =` dropdown is
-set to PCA, the cluster window is now showing the first 3 principal components.
+7. Assuming you're working on the sample file linked to above, select clusters 11 and 12 in
+the sort window (or any few units that have some channel overlap). Once selected, hit `Enter`,
+and they're plotted in the cluster window. Back in the main window, in the Cluster tab,
+there's a section labelled Plotting, where you can control the dimensions plotted in the
+cluster window. It defaults to x0, y0 and Vpp for the 3 dimensions. x0 and y0 are the
+estimated positions of each spike along the polytrode, and Vpp is the peak to peak voltage on
+the maximum channel. You can change these dimensions to c0, c1, c2 via the dropdown lists
+(labelled x, y and z, coloured red, green and blue respectively), or by pressing the `c0c1c2`
+button. The c stands for "component", and since the `c =` dropdown is set to PCA, the cluster
+window is now showing the first 3 principal components.
 
 8. Notice that green horizontal lines have now appeared on a few of the channels in the sort
 window. Those are the channels that were automatically selected for component analysis
