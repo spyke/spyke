@@ -715,7 +715,7 @@ class Detector(object):
             #noise = util.mean_2Dshort(np.abs(data)) / 0.6745 # see Quiroga2004
         elif self.noisemethod == 'stdev':
             #noise = pool.map(self.get_stdev, data) # multithreads over rows in data
-            noise = np.stdev(data, axis=-1)
+            noise = np.std(data, axis=-1)
         else:
             raise ValueError
         #pool.terminate() # pool.close() doesn't allow Python to exit when spyke is closed
