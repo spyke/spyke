@@ -1817,23 +1817,6 @@ If 1 neuron selected, plot autocorrelogram</string>
          </property>
         </widget>
        </widget>
-       <widget class="QPushButton" name="compareAllAutoCorrPairs">
-        <property name="geometry">
-         <rect>
-          <x>205</x>
-          <y>25</y>
-          <width>166</width>
-          <height>27</height>
-         </rect>
-        </property>
-        <property name="toolTip">
-         <string>If 2 neurons selected, plot crosscorrelogram
-If 1 neuron selected, plot autocorrelogram</string>
-        </property>
-        <property name="text">
-         <string>compareAllAutoCorrPairs</string>
-        </property>
-       </widget>
       </widget>
      </widget>
     </item>
