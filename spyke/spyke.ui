@@ -2492,7 +2492,7 @@ If 1 neuron selected, plot autocorrelogram</string>
  <connections>
   <connection>
    <sender>xDimComboBox</sender>
-   <signal>activated(int)</signal>
+   <signal>triggered(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
@@ -2508,7 +2508,7 @@ If 1 neuron selected, plot autocorrelogram</string>
   </connection>
   <connection>
    <sender>yDimComboBox</sender>
-   <signal>activated(int)</signal>
+   <signal>triggered(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
@@ -2524,7 +2524,7 @@ If 1 neuron selected, plot autocorrelogram</string>
   </connection>
   <connection>
    <sender>zDimComboBox</sender>
-   <signal>activated(int)</signal>
+   <signal>triggered(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
@@ -2540,7 +2540,7 @@ If 1 neuron selected, plot autocorrelogram</string>
   </connection>
   <connection>
    <sender>componentAnalysisComboBox</sender>
-   <signal>activated(int)</signal>
+   <signal>triggered(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>

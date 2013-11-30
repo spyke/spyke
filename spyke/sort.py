@@ -1907,7 +1907,7 @@ class SortWindow(SpykeToolWindow):
         tt = '<nobr><b>R</b> &nbsp; Select random sample of spikes of current clusters</nobr>'
         actionSelectRandomSpikes.setToolTip(tt)
         self.connect(actionSelectRandomSpikes, QtCore.SIGNAL('triggered()'),
-                     self.on_actionSelectRandomSpikes_activated)
+                     self.on_actionSelectRandomSpikes_triggered)
         toolbar.addAction(actionSelectRandomSpikes)
 
         nsamplesComboBox = QtGui.QComboBox(self)
@@ -1916,8 +1916,8 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox.addItems(['100', '50', '20', '10', '5', '1'])
         nsamplesComboBox.setCurrentIndex(2)
         toolbar.addWidget(nsamplesComboBox)
-        self.connect(nsamplesComboBox, QtCore.SIGNAL('activated(int)'),
-                     self.on_actionSelectRandomSpikes_activated)
+        self.connect(nsamplesComboBox, QtCore.SIGNAL('triggered(int)'),
+                     self.on_actionSelectRandomSpikes_triggered)
         self.nsamplesComboBox = nsamplesComboBox
 
         gainComboBox = QtGui.QComboBox(self)
@@ -1926,8 +1926,8 @@ class SortWindow(SpykeToolWindow):
         gainComboBox.addItems(['2.25', '2', '1.75', '1.5', '1.25', '1', '0.75', '0.5', '0.25'])
         gainComboBox.setCurrentIndex(3)
         toolbar.addWidget(gainComboBox)
-        self.connect(gainComboBox, QtCore.SIGNAL('activated(int)'),
-                     self.on_gainComboBox_activated)
+        self.connect(gainComboBox, QtCore.SIGNAL('triggered(int)'),
+                     self.on_gainComboBox_triggered)
         self.gainComboBox = gainComboBox
 
         #actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
@@ -1976,8 +1976,8 @@ class SortWindow(SpykeToolWindow):
                                 '200', '100', '50'])
         incltComboBox.setCurrentIndex(0)
         toolbar.addWidget(incltComboBox)
-        self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
-                     self.on_incltComboBox_activated)
+        self.connect(incltComboBox, QtCore.SIGNAL('triggered(int)'),
+                     self.on_incltComboBox_triggered)
         self.incltComboBox = incltComboBox
         #incltunitsLabel = QtGui.QLabel('us', self)
         #toolbar.addWidget(incltunitsLabel)
@@ -2037,7 +2037,7 @@ class SortWindow(SpykeToolWindow):
         clicks are (or should be) filtered out"""
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
-            #self.on_actionSelectRandomSpikes_activated()
+            #self.on_actionSelectRandomSpikes_triggered()
             self.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif buttons == QtCore.Qt.RightButton:
             self.clear()
@@ -2077,7 +2077,7 @@ class SortWindow(SpykeToolWindow):
             else:
                 self.FindCluster()
         elif key == Qt.Key_R: # ignored in SpykeListViews
-            self.on_actionSelectRandomSpikes_activated()
+            self.on_actionSelectRandomSpikes_triggered()
         elif key == Qt.Key_Space: # ignored in SpykeListViews
             if ctrl:
                 SpykeToolWindow.keyPressEvent(self, event) # pass it on
@@ -2496,7 +2496,7 @@ class SortWindow(SpykeToolWindow):
         gw.panTo() # pan to new focus
         gw.updateGL()
 
-    def on_actionSelectRandomSpikes_activated(self):
+    def on_actionSelectRandomSpikes_triggered(self):
         """Select random sample of spikes in current cluster(s), or random sample
         of unsorted spikes if no cluster(S) selected"""
         nsamples = int(self.nsamplesComboBox.currentText())
@@ -2507,7 +2507,7 @@ class SortWindow(SpykeToolWindow):
         slist.clearSelection() # emits selectionChanged signal, .reset() doesn't
         slist.selectRandom(nsamples)
 
-    def on_gainComboBox_activated(self):
+    def on_gainComboBox_triggered(self):
         """Set gain of panel based on gainComboBox selection"""
         panel = self.panel
         panel.gain = float(self.gainComboBox.currentText())
@@ -2539,7 +2539,7 @@ class SortWindow(SpykeToolWindow):
             nt = 2
         self.Shift(nt)
 
-    def on_incltComboBox_activated(self):
+    def on_incltComboBox_triggered(self):
         """Change length of chan selection lines, optionally trigger cluster replot"""
         self.panel.update_selvrefs()
         self.panel.draw_refs()

@@ -509,7 +509,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if key == Qt.Key_Escape: # deselect all spikes and all clusters in Sort window
             sw.clear()
         elif key == Qt.Key_R: # doesn't fire when certain widgets have focus
-            sw.on_actionSelectRandomSpikes_activated()
+            sw.on_actionSelectRandomSpikes_triggered()
 
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):

@@ -1420,7 +1420,7 @@ class SortPanel(PlotPanel):
             self.manual_selection = True
         elif button == 2: # middle click
             self.sortwin.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
-            #self.sortwin.on_actionSelectRandomSpikes_activated()
+            #self.sortwin.on_actionSelectRandomSpikes_triggered()
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
             self.manual_selection = False
@@ -1463,16 +1463,16 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         sw = self.topLevelWidget() # SortWindow
         if ctrl: # scroll gainComboBox
             cbox = sw.gainComboBox
-            on_box_activated = sw.on_gainComboBox_activated
+            on_box_triggered = sw.on_gainComboBox_triggered
         else: # scroll incltComboBox
             cbox = sw.incltComboBox
-            on_box_activated = sw.on_incltComboBox_activated
+            on_box_triggered = sw.on_incltComboBox_triggered
         nitems = cbox.count()
         # event.delta() seems to always be a multiple of 120 for some reason:
         di = event.delta() / 120
         # both combo boxes are sorted in decreasing order, hence the negation of di:
         i = min(max(cbox.currentIndex()-di, 0), nitems-1)
         cbox.setCurrentIndex(i)
-        on_box_activated() # as if it were user selected
+        on_box_triggered() # as if it were user selected
 
 #class ChartSortPanel(SortPanel, ChartPanel):
