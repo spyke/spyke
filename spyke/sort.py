@@ -1896,8 +1896,7 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionRenumber)
 
         actionFind = QAction(QIcon('res/edit-find.svg'), 'Find', self)
-        tt = ('<nobr><b>F</b> &nbsp; Find cluster in cluster plot</nobr>\n'
-              '<nobr><b>CTRL+F</b> &nbsp; Find spike in cluster plot</nobr>')
+        tt = ('<nobr><b>CTRL+F</b> &nbsp; Find spike in cluster plot</nobr>')
         actionFind.setToolTip(tt)
         self.connect(actionFind, QtCore.SIGNAL('triggered()'),
                      self.on_actionFind_triggered)
@@ -2121,7 +2120,7 @@ class SortWindow(SpykeToolWindow):
             else:
                 spw.on_c0c1tButton_clicked() # plot against time
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
-            # this is handled at a lower level by on_actionItem_activated
+            # this is handled at a lower level by on_actionItem_triggered
             # in the various listview controls
             pass
         else:
