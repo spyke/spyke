@@ -1842,7 +1842,8 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
 
-        actionToggleClustersGood = QAction(QIcon('res/dialog-apply.svg'), 'G', self)
+        #actionToggleClustersGood = QAction(QIcon('res/dialog-apply.svg'), 'G', self)
+        actionToggleClustersGood = QAction('G', self)
         tt = '<nobr><b>G</b> &nbsp; Toggle clusters as "good"</nobr>'
         actionToggleClustersGood.setToolTip(tt)
         self.connect(actionToggleClustersGood, QtCore.SIGNAL('triggered()'),
@@ -1885,7 +1886,8 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionRandomSplit_triggered)
         toolbar.addAction(actionRandomSplit)
 
-        actionRenumber = QAction(QIcon('res/gtk-edit.svg'), '#', self)
+        #actionRenumber = QAction(QIcon('res/gtk-edit.svg'), '#', self)
+        actionRenumber = QAction('#', self)
         tt = ('<nobr><b>#</b> &nbsp; Renumber all clusters in vertical spatial order</nobr>\n'
               '<nobr><b>CTRL+#</b> &nbsp; Renumber selected cluster</nobr>')
         actionRenumber.setToolTip(tt)
@@ -1928,19 +1930,22 @@ class SortWindow(SpykeToolWindow):
                      self.on_gainComboBox_activated)
         self.gainComboBox = gainComboBox
 
-        actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
+        #actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
+        actionAlignMin = QAction('Min', self)
         actionAlignMin.setToolTip('Align selected spikes to min')
         self.connect(actionAlignMin, QtCore.SIGNAL('triggered()'),
                      self.on_actionAlignMin_triggered)
         toolbar.addAction(actionAlignMin)
 
-        actionAlignMax = QAction(QIcon('res/go-top.svg'), 'Max', self)
+        #actionAlignMax = QAction(QIcon('res/go-top.svg'), 'Max', self)
+        actionAlignMax = QAction('Max', self)
         actionAlignMax.setToolTip('Align selected spikes to max')
         self.connect(actionAlignMax, QtCore.SIGNAL('triggered()'),
                      self.on_actionAlignMax_triggered)
         toolbar.addAction(actionAlignMax)
 
-        actionAlignBest = QAction(QIcon('res/emblem-OK.png'), 'Best', self)
+        #actionAlignBest = QAction(QIcon('res/emblem-OK.png'), 'Best', self)
+        actionAlignBest = QAction('B', self)
         tt = '<nobr><b>B</b> &nbsp; Align selected spikes by best fit</nobr>'
         actionAlignBest.setToolTip(tt)
         self.connect(actionAlignBest, QtCore.SIGNAL('triggered()'),
@@ -1987,14 +1992,16 @@ class SortWindow(SpykeToolWindow):
         nPCsPerChanSpinBox.setValue(NPCSPERCHAN)
         self.nPCsPerChanSpinBox = nPCsPerChanSpinBox
 
-        actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)
+        #actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)
+        actionFindPrevMostSimilar = QAction('<', self)
         tt = '<nobr><b>&lt;</b> &nbsp; Find previous most similar cluster</nobr>'
         actionFindPrevMostSimilar.setToolTip(tt)
         self.connect(actionFindPrevMostSimilar, QtCore.SIGNAL('triggered()'),
                      self.on_actionFindPrevMostSimilar_triggered)
         toolbar.addAction(actionFindPrevMostSimilar)
 
-        actionFindNextMostSimilar = QAction(QIcon('res/go-next.svg'), '>', self)
+        #actionFindNextMostSimilar = QAction(QIcon('res/go-next.svg'), '>', self)
+        actionFindNextMostSimilar = QAction('>', self)
         tt = '<nobr><b>&gt;</b> &nbsp; Find next most similar cluster</nobr>'
         actionFindNextMostSimilar.setToolTip(tt)
         self.connect(actionFindNextMostSimilar, QtCore.SIGNAL('triggered()'),
