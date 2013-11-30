@@ -1910,6 +1910,16 @@ class SortWindow(SpykeToolWindow):
                      self.on_actionSelectRandomSpikes_triggered)
         toolbar.addAction(actionSelectRandomSpikes)
 
+        actionToggleErrors = QAction('E', self)
+        actionToggleErrors.setCheckable(True)
+        actionToggleErrors.setChecked(self.panel.enable_fills)
+        tt = '<nobr><b>E</b> &nbsp; Toggle visibility of template error limits</nobr>'
+        actionToggleErrors.setToolTip(tt)
+        self.connect(actionToggleErrors, QtCore.SIGNAL('toggled(bool)'),
+                     self.on_actionToggleErrors_toggled)
+        toolbar.addAction(actionToggleErrors)
+        self.actionToggleErrors = actionToggleErrors
+
         nsamplesComboBox = QtGui.QComboBox(self)
         nsamplesComboBox.setToolTip('Number of spikes per cluster to randomly select')
         nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
@@ -2093,6 +2103,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
+        elif  key == Qt.Key_E: # ignored in SpykeListViews
+            self.actionToggleErrors.toggle()
         elif key == Qt.Key_C: # toggle between PCA and PCA+ICA, ignored in SpykeListViews
             c = str(spw.ui.componentAnalysisComboBox.currentText())
             if c == 'PCA':
@@ -2640,7 +2652,10 @@ class SortWindow(SpykeToolWindow):
                     self.panel, "Error saving file", str(e),
                     QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
             print('sort panel saved to %r' % fname)
-        
+
+    def on_actionToggleErrors_toggled(self, checked):
+        self.panel.showFills(checked)
+
     def on_slider_valueChanged(self, slideri):
         self.nslist.clearSelection() # emits selectionChanged signal, .reset() doesn't
         if self.nslist.model().sliding == False:

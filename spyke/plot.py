@@ -167,6 +167,9 @@ class Plot(object):
         """Show/hide LC"""
         self.lc.set_visible(enable)
         if self.fill != None:
+            if enable and not self.panel.enable_fills:
+                # don't enable fill if global flag says to not do so
+                return
             self.fill.show(enable)
 
     def hide(self):
@@ -1177,6 +1180,7 @@ class SortPanel(PlotPanel):
         PlotPanel.__init__(self, parent, tw=tw)
         self.manual_selection = False
         self.maxed_out = False # has hit its maximum number of spike plots
+        self.enable_fills = True # global enable flag for all fills
         self.sortwin = self.parent()
 
     def get_AD2uV(self):
@@ -1336,9 +1340,23 @@ class SortPanel(PlotPanel):
             fill.hide()
             plt.fill = None
             self.available_fills.append(fill)
-        plt.hide() # hide all chan lines
+        plt.hide() # hide all chan lines and fills
         self.available_plots.append(plt)
         return plt
+
+    def showFills(self, enable=True):
+        """Toggle visibility of all currently bound fills"""
+        self.enable_fills = enable # update global flag
+        self.restore_region(self.reflines_background)
+        for item, plt in self.used_plots.items():
+            if item[0] == 'n': # only neuron plots have fills
+                plt.fill.show(enable)
+            plt.draw() # redraw each plot with a bound fill
+        # what was background is no longer useful for quick restoration on any other
+        # item removal:
+        self.background = None
+        self.qrplt = None # qrplt set in addItems is no longer quickly removable
+        self.blit(self.ax.bbox) # blit everything to screen
 
     def updateItems(self, items):
         """Re-plot items, potentially because their WaveForms have changed.
