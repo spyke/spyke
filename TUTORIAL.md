@@ -53,26 +53,26 @@ you're done changing channel selection, hit `Enter` to see the result in the clu
 9. You should see that the orange cluster (cluster 12) of the two clusters selected above
 looks like it needs splitting. Select only cluster 12, and hit `Enter`. Now press the
 `Cluster` button in the Cluster tab, or hit `Space` in the cluster window. This will run what
-we call gradient ascent clustering (GAC, submitted paper) on the points, and should split the
-cluster fairly well into two new clusters (grey points are classified as outliers and left
-unsorted). You can always undo a clustering operation by hitting `Ctrl+Z`, or redo it with
-`Ctrl+Y`. If it seems the clustering algorithm didn't split the points up enough, you can
-decrease the value of sigma in the cluster tab. If it seems the algorithm oversplit the points
-into too many clusters, you can increase the value of sigma. Use `Ctrl` or `Shift` in tandem
-with the mouse scrollwheel or the mouse right button in the cluster window to manipulate sigma
-more conveniently. You'll see that the red/green/blue axes in the center of the cluster window
-scale in proportion to the value of sigma. Before running GAC, you generally want those axes
-to be roughly the size of the minimum separation distance between points that you want to
-split. To change the 3D focal point of the cluster window (and hence the position of the
-central axes), hover over a data point and hit the `F` key. To select and deselect points
-under the cursor, use the `S` and `D` keys, respectively.
+we call gradient ascent clustering (GAC, see http://dx.doi.org/10.3389/fnsys.2014.00006) on
+the points, and should split the cluster fairly well into two new clusters (grey points are
+classified as outliers and left unsorted). You can always undo a clustering operation by
+hitting `Ctrl+Z`, or redo it with `Ctrl+Y`. If it seems the clustering algorithm didn't split
+the points up enough, you can decrease the value of sigma in the cluster tab. If it seems the
+algorithm oversplit the points into too many clusters, you can increase the value of sigma.
+Use `Ctrl` or `Shift` in tandem with the mouse scrollwheel or the mouse right button in the
+cluster window to manipulate sigma more conveniently. You'll see that the red/green/blue axes
+in the center of the cluster window scale in proportion to the value of sigma. Before running
+GAC, you generally want those axes to be roughly the size of the minimum separation distance
+between points that you want to split. To change the 3D focal point of the cluster window (and
+hence the position of the central axes), hover over a data point and hit the `F` key. To
+select and deselect points under the cursor, use the `S` and `D` keys, respectively.
 
 10. You can compare a given selected cluster to its most similar neighbours by selecting it
 and using the `>` and `<` keys on the keyboard, or the respective buttons in the sort window
 toolbar. For a given selection change (whether clusters or channels or timepoints), press
-`Enter` to update the display in the cluster window. This can sometimes be an expensive
-operation, depending on the number of spikes, channels, and timepoints selected and the
-component analysis involved, so the cluster window does not update automatically.
+`Enter` to update the display in the cluster window. The cluster window does not update
+automatically because updating it can sometimes be an expensive operation, depending on the
+number of spikes, channels, and timepoints selected and the component analysis involved.
 
 11. Repeat the above until you're happy with all the clusters. There are of course many other
 details, such as using PCA+ICA instead of just PCA, and exhaustively comparing all
@@ -85,8 +85,8 @@ stores other per-spike data, and a `.sort` file which stores more general inform
 allowing you to return to exactly where you currently are in your spike sorting session.
 Sorting information is split up into these three files purely for the sake of minimizing
 saving and loading times of millions of spikes taking up many GBs of space. You should treat
-them as an inseperable group. You can load, or reload, a previous sort session using `Ctrl+L`,
-or by pressing the load button on the main window toolbar, or File->Load in the main menu.
+them as an inseperable group. You can open, or reopen, a previous sort session using `Ctrl+O`,
+or by pressing the open button on the main window toolbar, or File->Open in the main menu.
 Generally, you need not have the original source data file (a `.srf` file in this case) on
 hand, because all the relevant spike waveforms are already stored in the `.wave` file. This is
 good, because in general the original source file will be at least an order of magnitude
