@@ -2156,6 +2156,28 @@ def normpdf(p, lapcorrect=1e-10):
         p /= psum
     return p
 
+def negentropy(x, axis=0):
+    """Return estimate of negative entropy (and differential entropy) of ndarray x along axis.
+    Adapted from Aapo Hyvarinen's mentappr.m dated May 2012, which is based on hist NIPS*97
+    paper: http://www.cs.helsinki.fi/u/ahyvarin/papers/NIPS97.pdf - "New approximations of
+    differential entropy for independent component analysis and projection pursuit"
+    """
+    # constants:
+    k1 = 36 / (8*np.sqrt(3) - 9)
+    gamma = 0.37457
+    k2 = 79.047
+    # entropy of a standard Gaussian, 1.4189 (in bits? maybe not, since it's natural log):
+    gaussianEntropy = np.log(2*pi) / 2 + 0.5
+    # normalize to 0 mean and unit variance:
+    x = x - x.mean(axis=axis) # don't do this in place
+    stdx = x.std(axis=axis)
+    x = x / stdx
+
+    negentropy = ( k2*((np.log(np.cosh(x))).mean(axis=axis) - gamma)**2 +
+                   k1*((x*np.exp(-x**2/2)).mean(axis=axis))**2 )
+    #diffentropy = gaussianEntropy - negentropy + np.log(stdx)
+    return negentropy
+
 def DKL(p, q):
     """Kullback-Leibler divergence from true probability distribution p to arbitrary
     distribution q"""

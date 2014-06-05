@@ -749,8 +749,11 @@ class Sort(object):
                     trycount += 1
                     if trycount > 10:
                         break # give up
-            # sort ICs by decreasing kurtosis, as in Scholz et al, 2004 (or rather,
-            # opposite to their approach, which picked ICs with most negative kurtosis)
+
+            # Sort ICs by decreasing kurtosis or negentropy. For kurtosis, see Scholz2004 (or
+            # rather, opposite to their approach, which picked ICs with most negative
+            # kurtosis). For methods of estimating negentropy, see Hyvarinen1997.
+
             ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
             ## returns the "largest local maxima" of the previous node
             ## Another possibility might be to sort according to the energy in each column
@@ -760,25 +763,28 @@ class Sort(object):
             ## projection matrix? They're the same shape. Are they perhaps the
             ## inverse or pseudo inverse of each other?
             
-            ## TODO: sounds like nonlineariy g and fine_g = 'gaus' or maybe 'tanh' might be
+            ## TODO: sounds like nonlinearity g and fine_g = 'gaus' or maybe 'tanh' might be
             ## better choice than default 'pow3', though they might be slower. See Hyvarinen
             ## 1999
             
             ## TODO: perhaps when using PCA before ICA, since the PCA comes out ordered by
             ## captured variance, maybe the ICs will come out that way too, and I don't
             ## need to measure kurtosis anymore? Nope, not the case it seems.
-            
-            k = scipy.stats.kurtosis(X, axis=0) # find kurtosis of each IC (column)
-            ki = k.argsort()[::-1] # decreasing order of kurtosis
-            #std = X.std(axis=0)
-            #stdi = std.argsort()[::-1] # decreasing order of std
-            X = X[:, ki] # sort them
-            #X = X[:, :5] # keep just 1st 5 components
-            #print(pm)
-            #print('k:', k)
-            #print('by k: ', ki)
-            #print('std:', std)
-            #print('by std: ', stdi)
+            '''
+            # sort by abs(kurtosis) of each IC (column)
+            k = scipy.stats.kurtosis(X, axis=0)
+            ki = abs(k).argsort()[::-1] # decreasing order of abs(kurtosis)
+            print('sort by abs(kurtosis):')
+            print(k[ki])
+            X = X[:, ki] # sort the ICs
+            '''
+            # sort by negentropy of each IC (column):
+            ne = core.negentropy(X, axis=0)
+            assert (ne > 0).all()
+            nei = ne.argsort()[::-1] # decreasing order of negentropy
+            print('sort by negentropy:')
+            print(ne[nei])
+            X = X[:, nei] # sort the ICs
             '''
             import pylab as pl
             pl.figure()
@@ -788,11 +794,11 @@ class Sort(object):
             pl.figure()
             pl.imshow(pm[:, ki])
             pl.colorbar()
-            pl.title('decreasing kurtosis projmatrix')
+            pl.title('decreasing abs(kurtosis) projmatrix')
             pl.figure()
-            pl.imshow(pm[:, stdi])
+            pl.imshow(pm[:, nei])
             pl.colorbar()
-            pl.title('decreasing std projmatrix')
+            pl.title('decreasing negentropy projmatrix')
             '''
         print('output shape for %s: %r' % (kind, X.shape))
         self.X[Xhash] = X # cache for fast future retrieval
