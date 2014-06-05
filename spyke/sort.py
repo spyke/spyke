@@ -724,9 +724,11 @@ class Sort(object):
                     X = node(data)
                     pm = node.get_projmatrix()
                     if lib == 'mdp':
-                        # nonlinearity g='pow3', ie x**3
+                        # nonlinearity g='pow3', ie x**3. tanh seems to separate better,
+                        # but is a bit slower. gaus seems to be slower still, and no better
+                        # than tanh, but these are just vague impressions.
                         # defaults to whitened=False, ie assumes data isn't whitened
-                        node = mdp.nodes.FastICANode()
+                        node = mdp.nodes.FastICANode(g='pow3')
                         X = node(data)
                         pm = node.get_projmatrix()
                         '''
@@ -754,6 +756,9 @@ class Sort(object):
             # rather, opposite to their approach, which picked ICs with most negative
             # kurtosis). For methods of estimating negentropy, see Hyvarinen1997.
 
+            ## TODO: make FastICA nonlinearity (pow3, tanh, gaus) and IC sort method
+            ## (abs(kurtosis) vs. negentropy) GUI options
+
             ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
             ## returns the "largest local maxima" of the previous node
             ## Another possibility might be to sort according to the energy in each column
@@ -778,7 +783,8 @@ class Sort(object):
             print(k[ki])
             X = X[:, ki] # sort the ICs
             '''
-            # sort by negentropy of each IC (column):
+            # sort by negentropy of each IC (column), this seems to work better than kurtosis
+            # at separating clusters of similar size:
             ne = core.negentropy(X, axis=0)
             assert (ne > 0).all()
             nei = ne.argsort()[::-1] # decreasing order of negentropy
