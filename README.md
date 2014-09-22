@@ -26,7 +26,7 @@ spyke requires recent versions of the following to be installed:
 * [PyOpenGL](http://pyopengl.sourceforge.net/)
 * [Cython](http://cython.org)
 
-spyke is developed in Xubuntu 12.10. It should work in other Linux distributions. In
+spyke is developed in Xubuntu 14.04. It should work in other Linux distributions. In
 principle, it should also work in Windows and OSX.
 
 A much older version is described in the paper [Python for large-scale electrophysiology]
