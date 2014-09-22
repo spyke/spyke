@@ -639,10 +639,11 @@ class SpykeWindow(QtGui.QMainWindow):
                                  QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR,
                                  platform.platform())
         text = """
-        <h2><a href=http://swindale.ecc.ubc.ca/spyke>spyke</a> %s</h2>
+        <h2><a href=http://spyke.github.io>spyke</a> %s</h2>
         <p>A tool for neuronal waveform visualization and spike sorting</p>
 
-        <p>Copyright &copy; 2008-2014 Martin Spacek, Reza Lotun<br>
+        <p>Copyright &copy; 2008-2014 <a href=http://mspacek.github.io>Martin Spacek</a>,
+                                                                       Reza Lotun<br>
            <a href=http://swindale.ecc.ubc.ca>Swindale</a> Lab,
            University of British Columbia</p>
 
