@@ -2158,7 +2158,7 @@ def normpdf(p, lapcorrect=1e-10):
 
 def negentropy(x, axis=0):
     """Return estimate of negative entropy (and differential entropy) of ndarray x along axis.
-    Adapted from Aapo Hyvarinen's mentappr.m dated May 2012, which is based on hist NIPS*97
+    Adapted from Aapo Hyvarinen's mentappr.m dated May 2012, which is based on his NIPS*97
     paper: http://www.cs.helsinki.fi/u/ahyvarin/papers/NIPS97.pdf - "New approximations of
     differential entropy for independent component analysis and projection pursuit"
     """
