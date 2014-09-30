@@ -121,6 +121,7 @@ cdef struct Scout:
 #DEF MAXUINT16 = 2**16 - 1
 #DEF MAXINT32 = 2**31 - 1
 #DEF DEBUG = 0 # could use this for different levels of debug messages
+DEF MANHATTAN = True # use Manhattan distance for estimating density? if not, use Euclidean
 DEF CPOS = False # return final cluster positions
 DEF CPOSHIST = True # return cluster position history on every iteration
 assert CPOS != CPOSHIST # only one or the other
@@ -440,12 +441,16 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     cdef bint continuej = False
     cdef double d2, kern, move, move2
     cdef double *ds = <double *>malloc(ndims*sizeof(double))
-    cdef double *d2s = <double *>malloc(ndims*sizeof(double))
-    cdef double *kernel = <double *>malloc(ndims*sizeof(double))
+    IF MANHATTAN:
+        cdef double *d2s = <double *>malloc(ndims*sizeof(double))
+        cdef double *kernel = <double *>malloc(ndims*sizeof(double))
+    ELSE:
+        cdef double kernel = 0
     cdef double *v = <double *>malloc(ndims*sizeof(double))
     
     # set some local vars:
-    dfill(kernel, 0, ndims)
+    IF MANHATTAN:
+        dfill(kernel, 0, ndims)
     dfill(v, 0, ndims)
     
     # measure gradient v:
@@ -475,27 +480,38 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
             if fabs(ds[k]) > rneigh: # break out of k loop, continue to next j
                 continuej = True
                 break # out of k loop
-            d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
-            d2 += d2s[k]
+            IF MANHATTAN:
+                d2s[k] = ds[k] * ds[k] # used twice, so calc it only once
+                d2 += d2s[k]
+            ELSE:
+                d2 += ds[k] * ds[k]
             #if d2 > rneigh2: # no apparent speedup for 3D
             #    continuej = True
             #    break # out of k loop
         if continuej:
             continuej = False # reset
             continue # to next j
-        # now fill in ds[0], d2s[0] and top up d2:
+        # now fill in ds[0], d2s[0], and top up d2:
         ds[0] = pos0[0] - pos[0]
-        d2s[0] = ds[0] * ds[0] # used twice, so calc it only once
-        d2 += d2s[0]
+        IF MANHATTAN:
+            d2s[0] = ds[0] * ds[0] # used twice, so calc it only once
+            d2 += d2s[0]
+        ELSE:
+            d2 += ds[0] * ds[0]
         if d2 <= rneigh2: # do the calculation
+            IF not MANHATTAN:
+                kern = exps[<int>(d2)] # data rescaled for Gaussian lookup table
             for k in range(ndims):
                 # v is ndim vector of sum of kernel-weighted distances between
                 # scouti and all points within rneigh
                 #kern = exp(-d2s[k] / (2 * sigma2)) # Gaussian kernel
-                kern = exps[<int>(d2s[k])] # data rescaled for Gaussian lookup table
-                #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel
-                kernel[k] += kern
+                IF MANHATTAN:
+                    kern = exps[<int>(d2s[k])] # data rescaled for Gaussian lookup table
+                    #kern = sigma2 / (d2s[k] + sigma2) # Cauchy kernel
+                    kernel[k] += kern
                 v[k] += ds[k] * kern # this is why you can't store fabs of ds[k]!
+            IF not MANHATTAN:
+                kernel += kern
             npoints += 1
 
     # update scouti position in direction of v, normalize by kernel.
@@ -503,7 +519,10 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
     move2 = 0.0 # reset
     if npoints > 0:
         for k in range(ndims):
-            move = alpha * v[k] / kernel[k] # normalize by kernel, not just nneighs
+            IF MANHATTAN:
+                move = alpha * v[k] / kernel[k] # normalize by kernel, not just nneighs
+            ELSE:
+                move = alpha * v[k] / kernel # normalize by kernel, not just nneighs
             pos[k] += move
             move2 += move * move
     #printf('%d,', npoints)
@@ -511,8 +530,9 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
         scouti.still = True # freeze it
             
     free(ds)
-    free(d2s)
-    free(kernel)
+    IF MANHATTAN:
+        free(d2s)
+        free(kernel)
     free(v)
 
 
