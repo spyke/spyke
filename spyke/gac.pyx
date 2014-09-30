@@ -339,7 +339,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     for i in range(M): ## TODO: could use prange here
         if not s[i].still:
             nmoving += 1
-    printf('nniters: %d\n',iteri)
+    printf('niters: %d\n', iteri)
     printf('nclusters: %d\n', M)
     printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f, maxgrad: %d\n',
            sigma, rneigh, rmerge, alpha, maxgrad)
