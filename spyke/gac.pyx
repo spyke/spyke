@@ -121,6 +121,9 @@ cdef struct Scout:
 #DEF MAXUINT16 = 2**16 - 1
 #DEF MAXINT32 = 2**31 - 1
 #DEF DEBUG = 0 # could use this for different levels of debug messages
+DEF CPOS = False # return final cluster positions
+DEF CPOSHIST = True # return cluster position history on every iteration
+assert CPOS != CPOSHIST # only one or the other
 DEF PROFILE = False # print timing information
 DEF SORTDIMSBYVARIANCE = False
 
@@ -233,6 +236,9 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     for i in range(M): ## TODO: could use prange here
         s[i] = scouts+i
 
+    IF CPOSHIST:
+        cposhist = [] # cluster position history list, one entry per timepoint
+
     while True:
 
         # merge current scouts within rmerge of each other:
@@ -288,6 +294,16 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             printf('%.3f, ', s[i].pos[0])
         printf('\n')
         '''
+        IF CPOSHIST:
+            # store history of cluster positions, scale up by norm again:
+            cpos = np.zeros((M, ndims), dtype=np.float32)
+            ## TODO: for clarity, maybe exclude scouts with < minpoints
+            for i in range(M): ## TODO: could use prange here
+                scouti = s[i]
+                for k in range(ndims):
+                    cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
+            cposhist.append(cpos)
+        
     printf('\n')
     IF PROFILE:
         printf('merge scouts: %.9f sec\n', MERGESCOUTSTIME)
@@ -322,14 +338,15 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # cluster size
     cids = walkscouts(scouts, N)
     cids = cids[sortis] # restore original point ordering
-    '''
-    # build returnable numpy array of cluster positions, scale up by norm again:
-    cpos = np.zeros((M, ndims), dtype=np.float32)
-    for i in range(M): ## TODO: could use prange here
-        scouti = s[i]
-        for k in range(ndims):
-            cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
-    '''
+
+    IF CPOS:
+        # build returnable numpy array of cluster positions, scale up by norm again:
+        cpos = np.zeros((M, ndims), dtype=np.float32)
+        for i in range(M): ## TODO: could use prange here
+            scouti = s[i]
+            for k in range(ndims):
+                cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
+
     # for display, restore sigma dependent params to be unnormalized by norm:
     rmerge *= norm
     rneigh *= norm
@@ -357,7 +374,12 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     free(scouts)
     free(s)
     
-    return cids#, cpos
+    IF CPOSHIST:
+        return cids, cposhist
+    ELIF CPOS:
+        return cids, cpos
+    ELSE:
+        return cids
 
 
 cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
