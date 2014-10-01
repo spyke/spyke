@@ -121,10 +121,11 @@ cdef struct Scout:
 #DEF MAXUINT16 = 2**16 - 1
 #DEF MAXINT32 = 2**31 - 1
 #DEF DEBUG = 0 # could use this for different levels of debug messages
-DEF MANHATTAN = True # use Manhattan distance for estimating density? if not, use Euclidean
+DEF MANHATTAN = False # use Manhattan distance for estimating density? if not, use Euclidean
+DEF CPOSHIST = False # return cluster position history on every iteration
 DEF CPOS = False # return final cluster positions
-DEF CPOSHIST = True # return cluster position history on every iteration
-assert CPOS != CPOSHIST # only one or the other
+IF CPOSHIST:
+    assert CPOS != True # at most one or the other, not both
 DEF PROFILE = False # print timing information
 DEF SORTDIMSBYVARIANCE = False
 
