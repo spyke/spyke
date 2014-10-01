@@ -906,7 +906,8 @@ class SpykeWindow(QtGui.QMainWindow):
         waveclustering = np.any([ dim.startswith('pk') for dim in dims ])
         if waveclustering: # do waveform clustering
             if len(dims) > 1:
-                raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem with any other spike parameters as dimensions")
+                raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem "
+                                   "with any other spike parameters as dimensions")
             wctype = dims[0]
             try:
                 data = self.get_waveclustering_data(sids, wctype=wctype)
@@ -919,10 +920,9 @@ class SpykeWindow(QtGui.QMainWindow):
         # grab gac() params and run it
         self.update_sort_from_cluster_pane()
         npoints, ndims = data.shape
-        s.sigmasqrtndims = s.sigma * np.sqrt(ndims) # scale sigma with dimensionality
         print('clustering %d points in %d-D space' % (npoints, ndims))
         t0 = time.time()
-        nids = gac(data, sigma=s.sigmasqrtndims, rmergex=s.rmergex, rneighx=s.rneighx,
+        nids = gac(data, sigma=s.sigma, rmergex=s.rmergex, rneighx=s.rneighx,
                    alpha=s.alpha, maxgrad=s.maxgrad,
                    maxnnomerges=1000, minpoints=s.minpoints)
         # nids from gac() are 0-based, but we want our single unit nids to be 1-based,

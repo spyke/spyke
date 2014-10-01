@@ -155,8 +155,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
    
     # Normalize all data related variables by norm to avoid having to
     # do so in move_scout() loop. The data itself is also normalized in the scouti
-    # declaration and initialization loop below. Note that all of these are also scaled
-    # by sqrt(ndims) via sigma scaling in caller:
+    # declaration and initialization loop below:
     cdef int lenexps = 1000000
     cdef double norm0 = sqrt(2) * sigma
     cdef double rneigh0 = rneighx * sigma / norm0

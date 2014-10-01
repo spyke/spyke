@@ -196,7 +196,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
         self.collected_sids = []
-        self.update_sigmasqrtndims()
+        self.update_sigma()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
         format = QtOpenGL.QGLFormat()
@@ -301,21 +301,17 @@ class GLWidget(QtOpenGL.QGLWidget):
     def paint_focal_axes(self):
         """Paint xyz axes proportional in size to sigma, at focus"""
         GL.glTranslate(*self.focus) # translate to focus
-        self.paint_axes(self.sigmasqrtndims)
+        self.paint_axes(self.sigma)
         GL.glTranslate(*-self.focus) # translate back
 
     def update_focal_axes(self):
-        """Called ever time sigma is changed in main spyke window"""
-        self.update_sigmasqrtndims()
+        """Called every time sigma is changed in main spyke window"""
+        self.update_sigma()
         self.updateGL()
 
-    def update_sigmasqrtndims(self):
-        """Calculate sigma * sqrt(ndims) from main spyke window.
-        This is what's used for clustering. Save value as widget attrib"""
-        dims = self.spw.GetClusteringDims()
-        ndims = len(dims)
-        sigma = self.spw.ui.sigmaSpinBox.value()
-        self.sigmasqrtndims = sigma * np.sqrt(ndims)
+    def update_sigma(self):
+        """Update self.sigma from main spyke window"""
+        self.sigma = self.spw.ui.sigmaSpinBox.value()
 
     def paint_axes(self, l=1):
         """Paint axes at origin, with lines of length l"""
