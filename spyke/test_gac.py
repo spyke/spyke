@@ -32,20 +32,47 @@ BROWN = '#AF5050'
 GREY = '#555555' # reserve as junk cluster colour
 
 COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
+'''
+data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
+data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
+'''
 
-#data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
-#data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
-
-#data = np.load('/home/mspacek/data/ptc18/tr1/tr1_chanclust51_ch1,24,25_3PCs.npy')
-# just keep the 1st two dimensions, need to copy to make it contiguous:
+# real data, just keep the first two dimensions, need to copy to make it contiguous:
 data = np.load('/home/mspacek/data/ptc18/tr1/tr1_chanclust51_ch1,24,25_3PCs.npy')[:, :2].copy()
+sigma = 0.25
 
-#data = np.load('/home/mspacek/Desktop/gauss2D.npy')
-
-#data = np.float32(np.random.normal(scale=1, size=(100000, 2)))
+'''
+#g = np.float32(np.random.normal(scale=1, size=(100000, 2)))
+#np.save('/home/mspacek/Desktop/g.npy', g)
+data = np.load('/home/mspacek/Desktop/g.npy')
+sigma = 0.2
+'''
+'''
+#x = np.float32(np.random.normal(scale=0.1, size=(100000)))
+#y = np.float32(np.random.normal(scale=0.1, size=(100000)))
+#c1 = np.column_stack([3*x, y]) # center origin, elongated along x axis
+#c2 = np.column_stack([2*x, y+0.5]) # (0, 0.5) origin, elongated along x axis
+#g2 = np.vstack([c1, c2])
+#plot(g2[:, 0], g2[:, 1], 'k.', ms=1)
+#np.save('/home/mspacek/Desktop/g2.npy', g2)
+data = np.load('/home/mspacek/Desktop/g2.npy')
+sigma = 0.1
+'''
+'''
+#x = np.float32(np.random.normal(scale=0.1, size=(100000)))
+#y = np.float32(np.random.normal(scale=0.1, size=(100000)))
+#c1 = np.column_stack([x, 2*y]) # center origin, elongated along y axis
+#c2 = np.column_stack([2*x+0.5, y+0.5]) # (0.5, 0.5) origin, elongated along x axis
+#c3 = np.column_stack([np.sqrt(2)*x+0.5, np.sqrt(2)*x-0.25+y/3]) # (0.5, -0.25) origin, elongated along y=x
+#g3 = np.vstack([c1, c2, c3])
+#plot(g3[:, 0], g3[:, 1], 'k.', ms=1)
+#np.save('/home/mspacek/Desktop/g3.npy', g3)
+data = np.load('/home/mspacek/Desktop/g3.npy')
+sigma = 0.1
+'''
 
 nd = data.shape[1]
-sigma = 0.175 * np.sqrt(nd)
+#sigma = 0.19#0.175 * np.sqrt(nd)
 rmergex = 0.25
 rneighx = 4
 alpha = 1.0
@@ -72,10 +99,17 @@ cids, poshist = gac(data, sigma, rmergex=rmergex, rneighx=rneighx,
 print('gac took %.3f sec' % (time.time()-t0))
 print cids
 
-np.save('/home/mspacek/Desktop/poshist_euclid_real.npy', poshist)
-#np.save('/home/mspacek/Desktop/poshist_manhattan_real.npy', poshist)
-#np.save('/home/mspacek/Desktop/poshist_euclid.npy', poshist)
-#np.save('/home/mspacek/Desktop/poshist_manhattan.npy', poshist)
+np.save('/home/mspacek/Desktop/poshist_manhattan_real.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_real.npy', poshist)
+
+#np.save('/home/mspacek/Desktop/poshist_manhattan_g.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_g.npy', poshist)
+
+#np.save('/home/mspacek/Desktop/poshist_manhattan_g2.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_g2.npy', poshist)
+
+#np.save('/home/mspacek/Desktop/poshist_manhattan_g3.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_g3.npy', poshist)
 
 #import pdb; pdb.set_trace()
 
