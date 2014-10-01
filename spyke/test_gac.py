@@ -39,7 +39,7 @@ data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
 
 # real data, just keep the first two dimensions, need to copy to make it contiguous:
 data = np.load('/home/mspacek/data/ptc18/tr1/tr1_chanclust51_ch1,24,25_3PCs.npy')[:, :2].copy()
-sigma = 0.25
+sigma = 0.2
 
 '''
 #g = np.float32(np.random.normal(scale=1, size=(100000, 2)))
@@ -99,8 +99,14 @@ cids, poshist = gac(data, sigma, rmergex=rmergex, rneighx=rneighx,
 print('gac took %.3f sec' % (time.time()-t0))
 print cids
 
-np.save('/home/mspacek/Desktop/poshist_manhattan_real.npy', poshist)
-#np.save('/home/mspacek/Desktop/poshist_euclid_real.npy', poshist)
+np.save('/home/mspacek/Desktop/poshist_manhattan_real_sigma_0.2.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_real_sigma_0.2.npy', poshist)
+
+#np.save('/home/mspacek/Desktop/poshist_manhattan_real_sigma_0.25.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_real_sigma_0.25.npy', poshist)
+
+#np.save('/home/mspacek/Desktop/poshist_manhattan_real_sigma_0.3.npy', poshist)
+#np.save('/home/mspacek/Desktop/poshist_euclid_real_sigma_0.3.npy', poshist)
 
 #np.save('/home/mspacek/Desktop/poshist_manhattan_g.npy', poshist)
 #np.save('/home/mspacek/Desktop/poshist_euclid_g.npy', poshist)
