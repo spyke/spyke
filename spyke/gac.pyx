@@ -242,6 +242,16 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     while True:
 
+        IF CPOSHIST:
+            # store history of cluster positions, scale up by norm again:
+            cpos = np.zeros((M, ndims), dtype=np.float32)
+            ## TODO: for clarity, maybe exclude scouts with < minpoints
+            for i in range(M): ## TODO: could use prange here
+                scouti = s[i]
+                for k in range(ndims):
+                    cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
+            cposhist.append(cpos)
+
         # merge current scouts within rmerge of each other:
         IF PROFILE: t0 = <double>time.time()
         newM = merge_scouts(M, s, mlist, rmerge, rmerge2, ndims)
@@ -295,15 +305,6 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             printf('%.3f, ', s[i].pos[0])
         printf('\n')
         '''
-        IF CPOSHIST:
-            # store history of cluster positions, scale up by norm again:
-            cpos = np.zeros((M, ndims), dtype=np.float32)
-            ## TODO: for clarity, maybe exclude scouts with < minpoints
-            for i in range(M): ## TODO: could use prange here
-                scouti = s[i]
-                for k in range(ndims):
-                    cpos[i, k] = scouti.pos[k] * norm # undo previous normalization
-            cposhist.append(cpos)
         
     printf('\n')
     IF PROFILE:
