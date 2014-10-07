@@ -340,7 +340,7 @@ class Detector(object):
         tres = stream.tres
 
         if self.threshmethod == 'Dynamic':
-            # update thresh for each channel for this new block of data
+            # update threshold for each channel for this new block of data
             tnoise = time.time()
             noise = self.get_noise(wave.data) # float AD units
             info('%s: get_noise took %.3f sec' % (ps().name, time.time()-tnoise))
@@ -377,12 +377,8 @@ class Detector(object):
     def check_wave(self, wave, cutrange):
         """Check which threshold exceeding peaks in wave data look like spikes
         and return only events that fall within cutrange. Search local spatiotemporal
-        window around thresh exceeding peak for biggest peak-to-peak sharpness.
-        Test that together they exceed Vpp thresh.
-
-        TODO: keep an eye on broad spike at ptc15.87.1024880, about 340 us wide.
-        Should be counted though
-        """
+        window around threshold exceeding peak for biggest peak-to-peak sharpness.
+        Finally, test that the sharpest peak and its neighbour exceed Vp and Vpp thresholds"""
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
@@ -397,7 +393,7 @@ class Detector(object):
         sharp = util.sharpness2D(wave.data)
         info('%s: sharpness2D() took %.3f sec' % (ps().name, time.time()-tsharp))
         targthreshsharp = time.time()
-        # thresh exceeding peak indices:
+        # threshold exceeding peak indices:
         peakis = util.argthreshsharp(wave.data, self.thresh, sharp)
         info('%s: argthreshsharp() took %.3f sec' % (ps().name, time.time()-targthreshsharp))
 
@@ -410,11 +406,11 @@ class Detector(object):
         spikes = np.zeros(npeaks, self.SPIKEDTYPE) # nspikes will always be <= npeaks
         # TODO: test whether np.empty or np.zeros is faster overall in this case
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
-        # check each peak for validity
+        # check each threshold exceeding peak for validity:
         for ti, chani in peakis:
             if DEBUG: debug('*** trying thresh peak at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
-            # is this thresh exceeding peak locked out?
+            # is this threshold exceeding peak locked out?
             if ti <= lockouts[chani]:
                 if DEBUG: debug('peak is locked out')
                 continue # skip to next peak
@@ -468,7 +464,7 @@ class Detector(object):
 
             # choose chan with biggest ppsharp as maxchan, check that this is identical to
             # the trigger chan, that its sharpest peak isn't locked out, that it falls within
-            # cutrange, and that it meets both Vp and Vpp thresh criteria
+            # cutrange, and that it meets both Vp and Vpp threshold criteria
             maxcii = abs(ppsharp).argmax()
             chani = chanis[maxcii] # update maxchan
             if chani != oldchani:
@@ -494,7 +490,7 @@ class Detector(object):
                     debug("spike time %r falls outside cutrange for this searchblock "
                           "call, discarding" % wave.ts[ti])
                 continue # skip to next peak
-            # check that Vp thresh is exceeded by one of the two sharpest peaks
+            # check that Vp threshold is exceeded by one of the two sharpest peaks
             adjpi = adjpeakis[maxcii, maxadjiis[maxcii]]
             # relative to t0i, not necessarily in temporal order:
             maxchantis = np.array([maxsharpi, adjpi])
@@ -503,7 +499,7 @@ class Detector(object):
                 if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both < Vp'
                                 % (wave.ts[ti], self.chans[chani]))
                 continue
-            # check that Vpp thresh is exceeded by the two sharpest peaks
+            # check that the two sharpest peaks together exceed Vpp threshold:
             Vs = window[maxcii, maxchantis]
             Vpp = abs(Vs).sum() # Vs are of opposite sign
             if Vpp < self.ppthresh[chani]:
@@ -664,9 +660,9 @@ class Detector(object):
         """Return array of thresholds in AD units, one per chan in self.chans,
         according to threshmethod and noisemethod"""
         self.fixedthresh = self.sort.converter.uV2AD(self.fixedthreshuV) # convert to AD units
-        if self.threshmethod == 'GlobalFixed': # all chans have the same fixed thresh
+        if self.threshmethod == 'GlobalFixed': # all chans have the same fixed threshold
             thresh = np.tile(self.fixedthresh, len(self.chans))
-        elif self.threshmethod == 'ChanFixed': # each chan has its own fixed thresh
+        elif self.threshmethod == 'ChanFixed': # each chan has its own fixed threshold
             # randomly sample self.fixednoisewin's worth of data from self.trange in
             # blocks of self.blocksize, without replacement
             tload = time.time()
@@ -691,10 +687,10 @@ class Detector(object):
             info('get_noise took %.3f sec' % (time.time()-tnoise))
             thresh = noise * self.noisemult # float AD units
             thresh = np.int16(np.round(thresh)) # int16 AD units
-            # clip so that all threshes are at least fixedthresh
+            # clip so that all thresholds are at least fixedthresh
             thresh = thresh.clip(self.fixedthresh, thresh.max())
         elif self.threshmethod == 'Dynamic':
-            # dynamic threshes are calculated on the fly during the search, so leave
+            # dynamic thresholds are calculated on the fly during the search, so leave
             # as zero for now
             thresh = np.zeros(len(self.chans), dtype=np.int16)
         else:

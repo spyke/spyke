@@ -153,7 +153,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         MERGETIME = 0.0
         MOVESCOUTSTIME = 0.0
    
-    # Normalize all data related variables by norm to avoid having to
+    # Normalize all data-related variables by norm to avoid having to
     # do so in move_scout() loop. The data itself is also normalized in the scouti
     # declaration and initialization loop below:
     cdef int lenexps = 1000000
