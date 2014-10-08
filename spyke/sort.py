@@ -24,7 +24,6 @@ import hashlib
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QAction, QIcon, QApplication
-getSaveFileName = QtGui.QFileDialog.getSaveFileName
 
 import numpy as np
 from numpy import sqrt
@@ -32,7 +31,6 @@ import scipy
 #from scipy.cluster.hierarchy import fclusterdata
 
 import pylab as pl
-import matplotlib as mpl
 
 import core
 from core import WaveForm, Gaussian, MAXLONGLONG, R
@@ -2623,46 +2621,6 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionFindNextMostSimilar_triggered(self):
         self.findMostSimilarCluster('next')
-
-    def on_actionSave_triggered(self):
-        """Save sort panel to file"""
-        f = self.panel.figure
-
-        # copied and adapted from mpl.backend_qt4.NavigationToolbar2QT.save_figure():
-        filetypes = f.canvas.get_supported_filetypes_grouped()
-        sorted_filetypes = filetypes.items()
-        sorted_filetypes.sort()
-        default_filetype = f.canvas.get_default_filetype()
-
-        startpath = mpl.rcParams.get('savefig.directory', '')
-        startpath = os.path.expanduser(startpath)
-        start = os.path.join(startpath, f.canvas.get_default_filename())
-        filters = []
-        selectedFilter = None
-        for name, exts in sorted_filetypes:
-            exts_list = " ".join(['*.%s' % ext for ext in exts])
-            filter = '%s (%s)' % (name, exts_list)
-            if default_filetype in exts:
-                selectedFilter = filter
-            filters.append(filter)
-        filters = ';;'.join(filters)
-        fname = getSaveFileName(self.panel, "Save sort panel to",
-                                start, filters, selectedFilter)
-        if fname:
-            fname = str(fname) # convert from QString
-            if startpath == '':
-                # explicitly missing key or empty str signals to use cwd
-                mpl.rcParams['savefig.directory'] = startpath
-            else:
-                # save dir for next time
-                mpl.rcParams['savefig.directory'] = os.path.dirname(str(fname))
-            try:
-                f.canvas.print_figure(fname, facecolor=None, edgecolor=None)
-            except Exception as e:
-                QtGui.QMessageBox.critical(
-                    self.panel, "Error saving file", str(e),
-                    QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
-            print('sort panel saved to %r' % fname)
 
     def on_actionToggleErrors_toggled(self, checked):
         self.panel.showFills(checked)
