@@ -423,12 +423,12 @@ class Detector(object):
             # get sharpness window DT on either side of this peak
             t0i = max(ti-dti, 0) # check for lockouts a bit later
             t1i = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
-            window = wave.data[chanis, t0i:t1i] # multichan data window, might not be contig
+            window = wave.data[chanis, t0i:t1i] # spatiotemporal window, might not be contig
 
-            # collect peak-to-peak sharpness for all chans
-            # save max and adjacent sharpness timepoints for each chan, and keep track
-            # of which of the two adjacent non locked out peaks is the sharpest
-            localsharp = sharp[chanis, t0i:t1i]
+            # Collect peak-to-peak sharpness for all chans. Save max and adjacent sharpness
+            # timepoints for each chan, and keep track of which of the two adjacent non locked
+            # out peaks is the sharpest
+            localsharp = sharp[chanis, t0i:t1i] # sliced the same way as window
             ppsharp = np.zeros(nchans, dtype=np.float32)
             maxsharpis = np.zeros(nchans, dtype=int)
             adjpeakis = np.zeros((nchans, 2), dtype=int)
@@ -440,7 +440,7 @@ class Detector(object):
                 except ValueError: continue # localpeakis is empty
                 maxsharpi = localpeakis[maxsharpii]
                 maxsharpis[cii] = maxsharpi
-                # get one adjacent peak to left and right each, due to limits, either or
+                # Get one adjacent peak to left and right each. Due to limits, either or
                 # both may be identical to the max sharpness peak
                 adjpeakis[cii] = localpeakis[[max(maxsharpii-1, 0), min(maxsharpii+1,
                                               lastpeakii)]]
@@ -453,7 +453,7 @@ class Detector(object):
                     maxadjii = 1 # choose adjacent peak that falls after maxsharpi
                 maxadjiis[cii] = maxadjii # save
                 adjpi = adjpeakis[cii, maxadjii]
-                # if max sharpness peak is the only one, then I think ppsharp comes out
+                # TODO: if max sharpness peak is the only one, then I think ppsharp comes out
                 # as zero, and chan cii is therefore ignored when searching for biggest
                 # ppsharp. Not sure if that's ideal, maybe ppsharp in such a case should
                 # just be the max sharpness value
