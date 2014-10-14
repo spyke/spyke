@@ -375,9 +375,9 @@ class Detector(object):
         return spikes, wavedata
 
     def check_wave(self, wave, cutrange):
-        """Check which threshold exceeding peaks in wave data look like spikes
+        """Check which threshold-exceeding peaks in wave data look like spikes
         and return only events that fall within cutrange. Search local spatiotemporal
-        window around threshold exceeding peak for biggest peak-to-peak sharpness.
+        window around threshold-exceeding peak for biggest peak-to-peak sharpness.
         Finally, test that the sharpest peak and its neighbour exceed Vp and Vpp thresholds"""
         sort = self.sort
         AD2uV = sort.converter.AD2uV
@@ -393,7 +393,7 @@ class Detector(object):
         sharp = util.sharpness2D(wave.data)
         info('%s: sharpness2D() took %.3f sec' % (ps().name, time.time()-tsharp))
         targthreshsharp = time.time()
-        # threshold exceeding peak indices:
+        # threshold-exceeding peak indices (2D, columns are [tis, cis])
         peakis = util.argthreshsharp(wave.data, self.thresh, sharp)
         info('%s: argthreshsharp() took %.3f sec' % (ps().name, time.time()-targthreshsharp))
 
@@ -406,11 +406,11 @@ class Detector(object):
         spikes = np.zeros(npeaks, self.SPIKEDTYPE) # nspikes will always be <= npeaks
         # TODO: test whether np.empty or np.zeros is faster overall in this case
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
-        # check each threshold exceeding peak for validity:
+        # check each threshold-exceeding peak for validity:
         for ti, chani in peakis:
             if DEBUG: debug('*** trying thresh peak at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
-            # is this threshold exceeding peak locked out?
+            # is this threshold-exceeding peak locked out?
             if ti <= lockouts[chani]:
                 if DEBUG: debug('peak is locked out')
                 continue # skip to next peak
@@ -420,10 +420,10 @@ class Detector(object):
             chanis = self.locknbhdi[chani]
             nchans = len(chanis)
 
-            # get sharpness window DT on either side of this peak
+            # get search window DT on either side of this peak, for checking sharpness
             t0i = max(ti-dti, 0) # check for lockouts a bit later
             t1i = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
-            window = wave.data[chanis, t0i:t1i] # spatiotemporal window, might not be contig
+            window = wave.data[chanis, t0i:t1i] # search window, might not be contig
 
             # Collect peak-to-peak sharpness for all chans. Save max and adjacent sharpness
             # timepoints for each chan, and keep track of which of the two adjacent non locked
@@ -490,7 +490,7 @@ class Detector(object):
                     debug("spike time %r falls outside cutrange for this searchblock "
                           "call, discarding" % wave.ts[ti])
                 continue # skip to next peak
-            # check that Vp threshold is exceeded by one of the two sharpest peaks
+            # check that Vp threshold is exceeded by at least one of the two sharpest peaks
             adjpi = adjpeakis[maxcii, maxadjiis[maxcii]]
             # relative to t0i, not necessarily in temporal order:
             maxchantis = np.array([maxsharpi, adjpi])
