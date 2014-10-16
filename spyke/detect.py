@@ -527,7 +527,7 @@ class Detector(object):
             if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
 
-            # get new spatiotemporal neighbourhood, with full window
+            # get new spatiotemporal neighbourhood, with full window,
             # align to -ve of the two sharpest peaks
             aligni = localsharp[maxcii, maxchantis].argmin()
             #oldti = ti # save
@@ -547,7 +547,7 @@ class Detector(object):
             # chan, just their proximity in time. In other words, allow for spike
             # inversion across space
             localsharp = sharp[chanis, t0i:t1i]
-            peak0ti, peak1ti = maxchantis
+            peak0ti, peak1ti = maxchantis # primary and 2ndary peak tis of maxchan
             for cii in range(nchans):
                 if cii == maxcii: # already set
                     continue
@@ -626,8 +626,8 @@ class Detector(object):
                 y = self.siteloc[inclchanis, 1]
                 s['x0'], s['y0'], s['sx'], s['sy'] = weights2f(f, w, x, y, inclchani)
 
-            if DEBUG: debug('*** found new spike %d: %r @ (%d, %d)'
-                            % (nspikes+self.nspikes, s['t'], self.siteloc[chani, 0],
+            if DEBUG: debug('*** found new spike %d: t=%d chan=%d (%d, %d)'
+                            % (nspikes+self.nspikes, s['t'], chan, self.siteloc[chani, 0],
                                self.siteloc[chani, 1]))
 
             # give each chan a distinct lockout, based on how each chan's
@@ -638,7 +638,7 @@ class Detector(object):
                            (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
             nspikes += 1
 
-        # shrink spikes and wavedata down to actual needed size
+        # trim spikes and wavedata arrays down to size
         spikes.resize(nspikes, refcheck=False)
         wds = wavedata.shape
         wavedata.resize((nspikes, wds[1], wds[2]), refcheck=False)
