@@ -411,7 +411,8 @@ class Detector(object):
             if DEBUG: debug('*** trying thresh peak at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
             # is this threshold-exceeding peak locked out?
-            if ti <= lockouts[chani]:
+            lockoutchani = lockouts[chani]
+            if ti <= lockoutchani:
                 if DEBUG: debug('peak is locked out')
                 continue # skip to next peak
 
@@ -435,9 +436,12 @@ class Detector(object):
             maxadjiis = np.zeros(nchans, dtype=int)
             for cii in range(nchans):
                 localpeakis, = np.where(localsharp[cii] != 0.0)
+                # keep only non-locked out localpeakis on this channel:
+                localpeakis = localpeakis[(t0i+localpeakis) > lockouts[chanis[cii]]]
+                if len(localpeakis) == 0:
+                    continue # localpeakis is empty
                 lastpeakii = len(localpeakis) - 1
-                try: maxsharpii = abs(localsharp[cii, localpeakis]).argmax()
-                except ValueError: continue # localpeakis is empty
+                maxsharpii = abs(localsharp[cii, localpeakis]).argmax()
                 maxsharpi = localpeakis[maxsharpii]
                 maxsharpis[cii] = maxsharpi
                 # Get one adjacent peak to left and right each. Due to limits, either or
@@ -480,7 +484,7 @@ class Detector(object):
                                 "pass on this peak and wait for the true sharpest peak "
                                 "to come later")
                 continue
-            if ti <= lockouts[chani]: # sharpest peak is locked out
+            if ti <= lockoutchani: # sharpest peak is locked out
                 if DEBUG: debug('sharpest peak at t=%d chan=%d is locked out'
                                 % (wave.ts[ti], self.chans[chani]))
                 continue
@@ -534,7 +538,9 @@ class Detector(object):
                 if cii == maxcii: # already set
                     continue
                 localpeakis, = np.where(localsharp[cii] != 0.0)
-                if len(localpeakis) == 0: # empty
+                # keep only non-locked out localpeakis on this channel:
+                localpeakis = localpeakis[(t0i+localpeakis) > lockouts[chanis[cii]]]
+                if len(localpeakis) == 0: # localpeakis is empty
                     tis[cii] = maxchantis # use same tis as maxchan
                     continue
                 lastpeakii = len(localpeakis) - 1
@@ -610,9 +616,9 @@ class Detector(object):
                                self.siteloc[chani, 1]))
 
             # give each chan a distinct lockout, based on how each chan's
-            # sharpest peaks line up with those of the maxchan. This fixes double
-            # triggers that happened about 1% of the time (ptc18.14.7166200 & ptc18.14.9526000)
-            lockouts[chanis] = t0i + tis.max(axis=1)
+            # sharpest peaks line up with those of the maxchan. Respect existing lockouts:
+            # on each of the relvant chans, keep whichever lockout ends last
+            lockouts[chanis] = np.max([lockouts[chanis], t0i+tis.max(axis=1)], axis=0)
             if DEBUG: debug('lockouts=%r\nfor chans=%r' %
                            (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
             nspikes += 1
