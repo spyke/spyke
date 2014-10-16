@@ -434,6 +434,7 @@ class Detector(object):
             maxsharpis = np.zeros(nchans, dtype=int)
             adjpeakis = np.zeros((nchans, 2), dtype=int)
             maxadjiis = np.zeros(nchans, dtype=int)
+            continuepeaki = False # signal to skip to next peaki
             for cii in range(nchans):
                 localpeakis, = np.where(localsharp[cii] != 0.0)
                 # keep only non-locked out localpeakis on this channel:
@@ -452,17 +453,25 @@ class Detector(object):
                     maxadjii = localsharp[cii, adjpeakis[cii]].argmax() # look for +ve adj peak
                 else:
                     maxadjii = localsharp[cii, adjpeakis[cii]].argmin() # look for -ve adj peak
-                if maxadjii == 0 and (t0i+adjpeakis[cii, maxadjii] < lockouts[chanis[cii]]):
-                    # adjacent peak comes before maxsharpi and is locked out
-                    maxadjii = 1 # choose adjacent peak that falls after maxsharpi
                 maxadjiis[cii] = maxadjii # save
                 adjpi = adjpeakis[cii, maxadjii]
-                # TODO: if max sharpness peak is the only one, then I think ppsharp comes out
-                # as zero, and chan cii is therefore ignored when searching for biggest
-                # ppsharp. Not sure if that's ideal, maybe ppsharp in such a case should
-                # just be the max sharpness value
-                ppsharp[cii] = localsharp[cii, maxsharpi] - localsharp[cii, adjpi]
+                if maxsharpi != adjpi:
+                    ppsharp[cii] = localsharp[cii, maxsharpi] - localsharp[cii, adjpi]
+                else: # monophasic spike, set ppsharp == sharpness of single peak:
+                    ppsharp[cii] = localsharp[cii, maxsharpi]
+                    if chanis[cii] == chani: # trigger chan is monophasic
+                        # ensure ppsharp of monophasic spike >= Vppthresh**2/dt, ie ensure that
+                        # its Vpp exceeds Vppthresh and has zero crossings on either side,
+                        # with no more than dt between. Avoids excessively wide
+                        # monophasic peaks from being considered as spikes:
+                        if DEBUG: debug("found monophasic spike")
+                        if abs(ppsharp[cii]) < self.ppthresh[chani]**2 / dti:
+                            continuepeaki = True
+                            if DEBUG: debug("peak wasn't sharp enough for a monophasic spike")
+                            break # out of cii loop
 
+            if continuepeaki:
+                continue # to next peaki
             oldti = ti # save
             oldchani = chani # save
 
@@ -498,18 +507,23 @@ class Detector(object):
             adjpi = adjpeakis[maxcii, maxadjiis[maxcii]]
             # relative to t0i, not necessarily in temporal order:
             maxchantis = np.array([maxsharpi, adjpi])
-            Vp = abs(window[maxcii, maxchantis]).max() # grab biggest peak
+            # voltages of the two sharpest peaks, convert int16 to int64 to prevent overflow
+            Vs = np.int64(window[maxcii, maxchantis])
+            Vp = abs(Vs).max() # grab biggest peak
             if Vp < self.thresh[chani]:
                 if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both < Vp'
                                 % (wave.ts[ti], self.chans[chani]))
                 continue
             # check that the two sharpest peaks together exceed Vpp threshold:
-            Vs = window[maxcii, maxchantis]
-            Vpp = abs(Vs).sum() # Vs are of opposite sign
+            Vpp = abs(Vs[0] - Vs[1]) # Vs are of opposite sign, unless monophasic
+            if Vpp == 0: # monophasic spike
+                Vpp = Vp # use Vp as Vpp
+            
             if Vpp < self.ppthresh[chani]:
                 if DEBUG: debug('peaks at t=%r chan=%d are < Vpp'
                                 % (wave.ts[[ti, t0i+adjpi]], self.chans[chani]))
                 continue
+
             if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
 
@@ -558,6 +572,9 @@ class Detector(object):
                 # save 2ndary peak for this cii
                 if peak0ti < peak1ti: # primary peak comes first (more common case)
                     peak1ii = peak0ii + 1 # 2ndary peak is 1 to the right
+                if len(localpeakis) == 1: # monophasic, set 2ndary peak same as primary
+                    tis[cii, 1] = tis[cii, 0]
+                    continue
                 else: # peak1ti < peak0ti, ie 2ndary peak comes first
                     peak1ii = peak0ii - 1 # 2ndary peak is 1 to the left
                 dt1is = abs(localpeakis-peak1ti)
