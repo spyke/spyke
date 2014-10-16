@@ -559,10 +559,12 @@ class Detector(object):
                     continue
                 lastpeakii = len(localpeakis) - 1
                 # find peak on this chan that's temporally closest to primary peak on maxchan.
-                # If two peaks are equally close, this picks the first one, although we should
-                # probably pick the sharpest one instead:
+                # If two peaks are equally close, pick the sharpest one
                 dt0is = abs(localpeakis-peak0ti)
-                peak0ii = dt0is.argmin()
+                if (np.diff(dt0is) == 0).any(): # two peaks equally close, pick sharpest one
+                    peak0ii = abs(localsharp[cii, localpeakis]).argmax()
+                else:
+                    peak0ii = dt0is.argmin()
                 # save primary peak for this cii
                 dt0i = dt0is[peak0ii]
                 if dt0i > sdti: # too distant in time
@@ -570,19 +572,15 @@ class Detector(object):
                 else: # give it its own t0i
                     tis[cii, 0] = localpeakis[peak0ii]
                 # save 2ndary peak for this cii
-                if peak0ti < peak1ti: # primary peak comes first (more common case)
-                    peak1ii = peak0ii + 1 # 2ndary peak is 1 to the right
                 if len(localpeakis) == 1: # monophasic, set 2ndary peak same as primary
                     tis[cii, 1] = tis[cii, 0]
                     continue
+                if peak0ti <= peak1ti: # primary peak comes first (more common case)
+                    peak1ii = min(peak0ii+1, lastpeakii) # 2ndary peak is 1 to the right
                 else: # peak1ti < peak0ti, ie 2ndary peak comes first
-                    peak1ii = peak0ii - 1 # 2ndary peak is 1 to the left
+                    peak1ii = max(peak0ii-1, 0) # 2ndary peak is 1 to the left
                 dt1is = abs(localpeakis-peak1ti)
-                try:
-                    dt1i = dt1is[peak1ii]
-                except IndexError: # no local peak relative to primary peak
-                    tis[cii, 1] = peak1ti # use same t1i as maxchan
-                    continue
+                dt1i = dt1is[peak1ii]
                 if dt1i > sdti: # too distant in time
                     tis[cii, 1] = peak1ti # use same t1i as maxchan
                 else:
