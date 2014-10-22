@@ -23,6 +23,7 @@ from core import g
 DEFSX = 50 # default spatial decay along x axis, in um
 DEFSY = 50
 MAXSIGMA = DEFSX * 10 # any sigma that comes out greater than this is bogus
+SIGMA2MAXD = 3 # multiple of each spike's sigma allowed for its maxd
 
 
 def callspike2XY(args):
@@ -219,8 +220,6 @@ class Extractor(object):
         self.choose_XY_fun()
         self.sls = SpatialLeastSquares(self.debug)
         self.tls = TemporalLeastSquares(self.debug)
-        self.MAXX0 = max(abs(sort.probe.unique_coords('x'))) * 3
-        self.MAXY0 = max(abs(sort.probe.unique_coords('y'))) * 3
         # best wave coeffs according kstest of wavedec of full ptc18.14 sort,
         # using Haar wavelets:
         #self.ksis = [41, 11, 39, 40, 20]
@@ -730,7 +729,7 @@ class Extractor(object):
         sls.p0 = np.array([sls.sx])
         sls.calc_s(f, x, y, w) # s free (sx == sy)
         if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
-            print("%s: *** Spatial sigma was way off, falling back to defaults ***"
+            print("%s: *** Spatial sigma was too far from default, falling back ***"
                   % ps().name)
             sls.sx, sls.sy = DEFSX, DEFSY
 
@@ -738,8 +737,11 @@ class Extractor(object):
         sls.p0 = np.array([x0, y0])
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
 
-        if abs(sls.x0) > self.MAXX0 or abs(sls.y0) > self.MAXY0:
-            print("%s: *** Spatial location was way off, falling back to spatial mean ***"
-                  % ps().name)
+        # squared distance between initial and final position estimates:
+        d2 = (x0-sls.x0)**2 + (y0-sls.y0)**2
+        maxd = SIGMA2MAXD * sls.sx
+        if d2 > maxd**2:
+            print("%s: *** Spatial position was too far from spatial mean "
+                  "(d = %.2f > %.2f um), falling back ***" % (ps().name, np.sqrt(d2), maxd))
             sls.x0, sls.y0 = x0, y0
         return sls.x0, sls.y0, sls.sx, sls.sy
