@@ -343,10 +343,9 @@ def NDsepmetric(float32_t[:, :] C0,
     """Calculate N-dimensional cluster seperation metric, for a pair of clusters. This is
     based on nearest neighbour membership: assuming cluster 0 is smaller than cluster 1,
     calculate fraction of points in cluster 0 whose nearest neighbour is another point in
-    cluster 0.
-
-    Points are down each array's rows, dimensions are across columns.
-    This returns 1 - overlap index in Swindale & Spacek, 2012"""
+    cluster 0. Each row in the arrays is a point, each column a dimension.
+    This returns 1 - overlap index in Swindale & Spacek, 2014"""
+    
     cdef int N, N0, N1, ndim, ci, i, j, k, nself
     cdef double f0, O, S
     assert C0.shape[1] == C1.shape[1]

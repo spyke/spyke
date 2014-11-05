@@ -89,3 +89,11 @@ for i in range(100000):
 t0 = time.time()
 print(util.intersect1d_uint8(l))
 print('intersectd1d took %.3f sec' % (time.time()-t0)) # best time is around 0.123 sec
+
+
+'''
+# test NDsepmetric:
+i = np.row_stack(np.float32(np.random.normal(loc=0, scale=1, size=5000))) # 2D
+j = np.row_stack(np.float32(np.random.normal(loc=2, scale=1, size=1000))) # 2D
+util.NDsepmetric(i, j, Nmax=20000)
+'''
