@@ -802,7 +802,6 @@ class GLWidget(QtOpenGL.QGLWidget):
     def keyReleaseEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-        sw = self.spw.windows['Sort']
         shift = Qt.ShiftModifier == modifiers # only modifier is shift
         if not event.isAutoRepeat() and not shift and key in [Qt.Key_S, Qt.Key_D]:
             # stop selecting/deselecting
