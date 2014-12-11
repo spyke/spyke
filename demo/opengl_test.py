@@ -5,18 +5,21 @@ from __future__ import division
 
 import sys
 import time
+
+# instantiate an IPython embedded shell which shows up in the terminal on demand
+# and on every exception:
+from IPython.terminal.ipapp import load_default_config
+from IPython.terminal.embed import InteractiveShellEmbed
+config = load_default_config()
+# automatically call the pdb debugger after every exception, override default config:
+config.TerminalInteractiveShell.pdb = True
+ipshell = InteractiveShellEmbed(display_banner=False, config=config)
+
 from PyQt4 import QtCore, QtGui, QtOpenGL
 from PyQt4.QtCore import Qt
 
 from OpenGL import GL, GLU
 import numpy as np
-
-# this will drop us into ipdb on any error, won't work in IPy 0.11?:
-QtCore.pyqtRemoveInputHook()
-# TODO: update for more recent version of IPython:
-#from IPython.Shell import IPShellEmbed
-#ipshell = IPShellEmbed(banner='Dropping into IPython',
-#                       exit_msg='Leaving IPython, back to program')
 
 RED = 255, 0, 0
 ORANGE = 255, 127, 0
@@ -29,8 +32,8 @@ VIOLET = 127, 0, 255
 MAGENTA = 255, 0, 255
 GREY = 85, 85, 85
 WHITE = 255, 255, 255
-CMAP = np.array([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, BLUE, VIOLET, MAGENTA, GREY, WHITE],
-                dtype=np.uint8)
+CMAP = np.array([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, BLUE, VIOLET, MAGENTA,
+                 GREY, WHITE], dtype=np.uint8)
 
 '''
 def normdeg(angle):
@@ -118,7 +121,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         # identity matrix before doing the transforms
         #GL.glLoadIdentity() # loads identity matrix into top of matrix stack
 
-        #GLU.gluLookAt() # viewing transform for camera: where placed, where pointed, which way is up
+        # viewing transform for camera: where placed, where pointed, which way is up:
+        #GLU.gluLookAt()
         #GL.glScale() # modelling transformation, lets you stretch your objects
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY);
@@ -132,7 +136,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         # color arrays?
 
         #GL.glFlush() # forces drawing to begin, only makes difference for client-server?
-        self.swapBuffers() # doesn't seem to be necessary, even though I'm in double-buffered mode with the back buffer for RGB sid encoding, but do it anyway for completeness
+        self.swapBuffers() # doesn't seem to be necessary, even though I'm in double-buffered
+                           # mode with the back buffer for RGB sid encoding, but do it anyway
+                           # for completeness
 
         # print the modelview matrix
         #print(self.MV)
@@ -142,7 +148,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glMatrixMode(GL.GL_PROJECTION)
         GL.glLoadIdentity()
         # fov (deg) controls amount of perspective, and as a side effect initial apparent size
-        GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
+        GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz
+                                                           # clip planes
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
     def get_MV(self):
@@ -275,7 +282,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glReadBuffer(GL.GL_BACK)
 
         # find rgb at cursor coords, decode sid
-        backbuffer = GL.glReadPixelsub(x, y, 1, 1, GL.GL_RGB) # unsigned byte, x, y is bottom left
+        # unsigned byte, x, y is bottom left:
+        backbuffer = GL.glReadPixelsub(x, y, 1, 1, GL.GL_RGB)
         rgb = backbuffer[0, 0]
         r, g, b = rgb
         sid = r*256**2 + g*256 + b
@@ -288,7 +296,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         print rgb
         print('sid, nid, color: %d, %d, %r' % (sid, nid, color))
         '''
-        # TODO: this isn't even necessary, since back buffer gets overdrawn anyway on next updateGL()
+        # TODO: this isn't even necessary, since back buffer gets overdrawn anyway on next
+        # updateGL():
         # restore front buffer to back
         GL.glReadBuffer(GL.GL_FRONT)
         #GL.glDrawBuffer(GL_BACK) # shouldn't be necessary, defaults to back
@@ -367,8 +376,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_P:
                 self.pick()
             elif key == Qt.Key_S:
-                print("TODO: update for more recent version of IPython")
-                #ipshell()
+                ipshell()
 
         self.updateGL()
 
@@ -450,11 +458,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glVertex3d(x1, y1, -0.05)
     '''
 if __name__ == '__main__':
+    # prevents "The event loop is already running" messages when calling ipshell():
+    QtCore.pyqtRemoveInputHook()
     app = QtGui.QApplication(sys.argv)
     window = Window()
     window.show()
-    try:
-        from IPython import appstart_qt4
-        appstart_qt4(app)
-    except ImportError:
-        sys.exit(app.exec_())
+    sys.exit(app.exec_())
+
