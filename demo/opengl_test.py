@@ -13,9 +13,10 @@ import numpy as np
 
 # this will drop us into ipdb on any error, won't work in IPy 0.11?:
 QtCore.pyqtRemoveInputHook()
-from IPython.Shell import IPShellEmbed
-ipshell = IPShellEmbed(banner='Dropping into IPython',
-                       exit_msg='Leaving IPython, back to program')
+# TODO: update for more recent version of IPython:
+#from IPython.Shell import IPShellEmbed
+#ipshell = IPShellEmbed(banner='Dropping into IPython',
+#                       exit_msg='Leaving IPython, back to program')
 
 RED = 255, 0, 0
 ORANGE = 255, 127, 0
@@ -366,7 +367,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             elif key == Qt.Key_P:
                 self.pick()
             elif key == Qt.Key_S:
-                ipshell()
+                print("TODO: update for more recent version of IPython")
+                #ipshell()
 
         self.updateGL()
 
