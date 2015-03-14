@@ -1152,8 +1152,12 @@ class NList(SpykeListView):
         SpykeListView.__init__(self, parent)
         self.setModel(NListModel(parent))
         self.setItemDelegate(NListDelegate(parent))
-        self.connect(self, QtCore.SIGNAL("triggered(QModelIndex)"),
-                     self.on_actionItem_triggered)
+        #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
+        #             self.on_actionItem_triggered)
+        # alternate style of connecting signals, seems "activated" is needed now with
+        # new style signals and slots, instead of "triggered", even though "activated"
+        # is supposed to be deprecated:
+        self.activated.connect(self.on_actionItem_triggered)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
@@ -1173,8 +1177,9 @@ class NSList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(NSListModel(parent))
-        self.connect(self, QtCore.SIGNAL("triggered(QModelIndex)"),
-                     self.on_actionItem_triggered)
+        #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
+        #            self.on_actionItem_triggered)
+        self.activated.connect(self.on_actionItem_triggered)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
@@ -1235,8 +1240,9 @@ class USList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(USListModel(parent))
-        self.connect(self, QtCore.SIGNAL("triggered(QModelIndex)"),
-                     self.on_actionItem_triggered)
+        #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
+        #             self.on_actionItem_triggered)
+        self.activated.connect(self.on_actionItem_triggered)
 
     def keyPressEvent(self, event):
         sw = self.sortwin

@@ -1935,7 +1935,7 @@ class SortWindow(SpykeToolWindow):
         nsamplesComboBox.addItems(['100', '50', '20', '10', '5', '1'])
         nsamplesComboBox.setCurrentIndex(2)
         toolbar.addWidget(nsamplesComboBox)
-        self.connect(nsamplesComboBox, QtCore.SIGNAL('triggered(int)'),
+        self.connect(nsamplesComboBox, QtCore.SIGNAL('activated(int)'),
                      self.on_actionSelectRandomSpikes_triggered)
         self.nsamplesComboBox = nsamplesComboBox
 
@@ -1945,7 +1945,7 @@ class SortWindow(SpykeToolWindow):
         gainComboBox.addItems(['2.25', '2', '1.75', '1.5', '1.25', '1', '0.75', '0.5', '0.25'])
         gainComboBox.setCurrentIndex(3)
         toolbar.addWidget(gainComboBox)
-        self.connect(gainComboBox, QtCore.SIGNAL('triggered(int)'),
+        self.connect(gainComboBox, QtCore.SIGNAL('activated(int)'),
                      self.on_gainComboBox_triggered)
         self.gainComboBox = gainComboBox
 
@@ -1995,7 +1995,7 @@ class SortWindow(SpykeToolWindow):
                                 '200', '100', '50'])
         incltComboBox.setCurrentIndex(0)
         toolbar.addWidget(incltComboBox)
-        self.connect(incltComboBox, QtCore.SIGNAL('triggered(int)'),
+        self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
                      self.on_incltComboBox_triggered)
         self.incltComboBox = incltComboBox
         #incltunitsLabel = QtGui.QLabel('us', self)
