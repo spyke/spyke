@@ -1,4 +1,4 @@
-- NVS: make NDsep less biased when comparing a pair of very unequally sized clusters, by taking sampling the same fraction of spikes from each cluster, not the same number of spikes
+- NVS: make NDsep less biased when comparing a pair of very unequally sized clusters, by sampling the same fraction of spikes from each cluster, not the same number of spikes
 
 - do a screencast of core features on sample data: detection, initial clustering, renumbering, viewing clusters in various spaces, projecting multiple clusters simultaneously, exporting. Should give voiceover
 
