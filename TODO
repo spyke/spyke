@@ -199,7 +199,7 @@
 
 - remove "cid" as much as possible, maybe even altogether, maybe even from spikes array. Replace with "nid".
 
-- yup, populating an nslist with 100s of thousands of entries is slow, and uses 100% CPU. setting UniformItemSizes to True and layoutMode to Batched helps. Messed around with fetchMore and canFetchMore and rowCount, but that's just a shitty hack (see fetchMore Qt example - scrollbar doesn't work properly, can't easily scroll to the end). It seems there's no way to display a huge list immediately, irrespective of the number of entries in it, like you can with Wx's virtual list. Very disappointing.
+- populating an nslist with 100s of thousands of entries is slow, and uses 100% CPU. setting UniformItemSizes to True and layoutMode to Batched helps. Messed around with fetchMore and canFetchMore and rowCount, but that's just a bad hack (see fetchMore Qt example - scrollbar doesn't work properly, can't easily scroll to the end). It seems there's no way to display a huge list immediately, irrespective of the number of entries in it, like you can with Wx's virtual list. Very disappointing.
     - why does nslist take longer to populate than a same-sized demo listview in listview_test.py?
 
 - when hitting 'C' or 'X' to focus current cluster or spike, if more than one is selected (for either type), take average position of all those selected and focus that average position
@@ -212,9 +212,7 @@
     - see http://www.qtcentre.org/threads/38355-QListView-keyboard-navigation-doesn-t-wrap-when-Wrapping-is-enabled
     - posted to list, didn't get a reply
 
-- I know I've been through this before, but why are neuron.sids int64? int32 should be enough, no?
-    - this could make the 30MB difference between November's track7c sort and today's track7c sort
-    - nope, November's sort used int64 sids as well. And now the recent sort is even bigger for some reason. Don't know what's causing the difference - more clusters maybe?
+- why are neuron.sids int64? shouldn't int32 be enough?
 
 - consider deleting all lowpassrecords from srff when saving to .sort. They take up half the space in a .sort file. Could do the same for highpass and lowpass records
 
@@ -272,8 +270,6 @@
 - add ability to cycle through plotting all of a cluster's waveforms, 50 or 100 at a time, ala NVS, to more thoroughly check how clean the cluster really is
     - maybe select a range of spikes to display, and then have a keyboard command that lets you scroll that selection range up and down by half its length. So, for example, you select spikes 50-100 by hand, and then hit Alt+Pgdn (or Alt+down) to change selection to spikes 75-125. Or there could be no overlap too. If initial selection is less than say 25, make Alt+down select at least 25 at a time.
     - going Ctrl+PgDwn or PgUp in the sort window does the same thing, 50 at a time. Works well enough
-
-- spawn multiple minimalist processes first thing on program startup - this will be quick, but best of all, you won't get errors trying to pickle the damned mayavi stuff which opens automatically after loading a .sort file. Might have problems with needing to import some stuff that isn't initially required, but is required later once you actually go to use the multiple processes, like during detection, or during param extraction
 
 - try leaving spikes aligned to their sharpest peak by default instead of their min peak, this might make cleaning by maxchan waveform shape more effective
 
@@ -767,7 +763,7 @@ QT rewrite DONE:
     - on R keypress, select random sample of current cluster's spikes. This way you don't have to go manually selecting spikes to evaluate cluster cleanliness. Also, this way, every time you hit R, you get a new random sample of spikes plotted, which potentially makes cluster evaluation less biased
 - make cluster points single pixel in full screen (they seem to be 2x2 for some reason)
     - actually, none of my interactivity code works in the fullscreen window, seems it's a distinct window from the normal cluster window
-    - programatically resize the cluster window to take up the full screen on F11. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's stupid separate fullscreen window
+    - programatically resize the cluster window to take up the full screen on F11. Maybe catch double click on the titlebar. This way, you don't need to use Mayavi's separate fullscreen window
     - for ease of setting fullscreen or maximized state, might need to change window type to proper window, ie QDialog, or widget with Qt::Window flag set
 - update cluster plot immediately on dim change
 - add Apply Clusters button, to recolour cluster points after hitting Plot button after hitting Cluster button
@@ -781,9 +777,9 @@ QT rewrite DONE:
 - if number of points > some threshold, disable cluster tooltips on hover, and only trigger them with a keyboard command or something
     - simpler to just require keyboard command for all tooltips
 - maybe now that I'm no longer plotting ellipsoids, switching from the whole mess of mayavi/vtk/etc to OpenGL might be quite easy, and might perform a lot better, and use less RAM, and have fewer dependencies?
-    - and omg! imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
+    - imagine how fast sorts will load when I no longer have to wait around for mayavi/vtk to do init!
     - plotting and rotating 7 million points in opengl in qt is super fast!
-- LOOKS LIKE A BIG BUG: many of the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
+- BIG BUG: many of the weird artifactual spikes are wrong - they're not there when you go take a look in the raw data - something wrong with spike detection in linux? Get them even in first 30 sec of file 87, which I definitely wasn't getting before
     - a symptom of this is that I get a lot of "spatial location way off" messages, and this seems to slow down detection a whole lot when it happens. In first 30 sec, only seems to happen in the first detection process
         - actually, sometimes it happens on multiple processes simultaneously
     - when I click on the spike to go to its position in the raw data, it goes to a raster line, but the raw data at that time doesn't match the spike data in the sort window
