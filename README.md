@@ -40,6 +40,11 @@ To install for use as a library:
 ```
 $ python setup.py install
 ```
+
+For the NVIDIA 340 driver in Linux, it seems the "Allow Flipping" option must be disabled in
+the OpenGL settings in the `nvidia-settings` app, otherwise the 3D cluster plot will not
+update properly.
+
 See [TUTORIAL.md](TUTORIAL.md) for a fairly brief tutorial.
 
 Many keyboard shortcuts are available. Tooltips give some hints. You can also discover them by
