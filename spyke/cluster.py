@@ -191,6 +191,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.spw = self.parent().spykewindow
         #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, slow
+        self.lastPressPos = QtCore.QPoint()
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
@@ -617,12 +618,14 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.selecting = True
             self.setMouseTracking(True) # while selecting
             self.selectPointsUnderCursor()
+        self.lastPressPos = QtCore.QPoint(event.pos())
         self.lastPos = QtCore.QPoint(event.pos())
         #self.movement = False # no mouse movement yet
     
     def mouseReleaseEvent(self, event):
         # seems have to use event.button(), not event.buttons(). I guess you can't
         # release multiple buttons simultaneously the way you can press them simultaneously?
+        sw = self.spw.windows['Sort']
         button = event.button()
         if button == QtCore.Qt.MiddleButton:
             if self.collected_sids:
@@ -630,6 +633,9 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.collected_sids = [] # clear it
             self.selecting = None
             self.setMouseTracking(False) # done selecting
+        elif button == QtCore.Qt.RightButton:
+            if QtCore.QPoint(event.pos()) == self.lastPressPos: # mouse didn't move
+                sw.on_actionSelectRandomSpikes_triggered()
         '''
         if not self.movement: # no mouse movement
             if button == QtCore.Qt.LeftButton:
@@ -641,10 +647,10 @@ class GLWidget(QtOpenGL.QGLWidget):
                     sw.clear()
         '''
         #self.movement = False # clear mouse movement flag, for completeness
-    
+
     def mouseDoubleClickEvent(self, event):
         """Clear selection, if any"""
-        if event.button() == QtCore.Qt.RightButton:
+        if event.button() == QtCore.Qt.LeftButton:
             sw = self.spw.windows['Sort']
             sw.clear()
     
