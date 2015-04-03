@@ -620,7 +620,6 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.selectPointsUnderCursor()
         self.lastPressPos = QtCore.QPoint(event.pos())
         self.lastPos = QtCore.QPoint(event.pos())
-        #self.movement = False # no mouse movement yet
     
     def mouseReleaseEvent(self, event):
         # seems have to use event.button(), not event.buttons(). I guess you can't
@@ -636,17 +635,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif button == QtCore.Qt.RightButton:
             if QtCore.QPoint(event.pos()) == self.lastPressPos: # mouse didn't move
                 sw.on_actionSelectRandomSpikes_triggered()
-        '''
-        if not self.movement: # no mouse movement
-            if button == QtCore.Qt.LeftButton:
-                self.selectPointsUnderCursor()
-            elif button == QtCore.Qt.RightButton:
-                sids = self.selectPointsUnderCursor(on=False)
-                if sids == None: # clear current selection
-                    sw = self.spw.windows['Sort']
-                    sw.clear()
-        '''
-        #self.movement = False # clear mouse movement flag, for completeness
 
     def mouseDoubleClickEvent(self, event):
         """Clear selection, if any"""
@@ -658,7 +646,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         buttons = event.buttons()
 
         if buttons != Qt.NoButton:
-            #self.movement = True # mouse has moved since mousePressEvent
             modifiers = event.modifiers()
             shift = modifiers == Qt.ShiftModifier # only modifier is shift
             ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
