@@ -40,7 +40,7 @@ from core import lrrep2Darrstripis, rollwin2D
 from surf import EPOCH
 from plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
 
-MAXCHANTOLERANCE = 100 # um
+#MAXCHANTOLERANCE = 100 # um
 
 MAINSPLITTERPOS = 300
 VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
@@ -1831,13 +1831,10 @@ class SortWindow(SpykeToolWindow):
         self.vsplitter.addWidget(self.slider)
         self.vsplitter.addWidget(self.hsplitter)
         self.vsplitter.addWidget(self.uslist)
-        # more useable at bottom when dealing with second half of neurons in a huge list:
-        #self.vsplitter.addWidget(self.slider)
 
         self.mainsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
         self.mainsplitter.addWidget(self.panelscrollarea)
-        #self.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1) # only works after self is shown
 
         self.layout = QtGui.QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -1848,12 +1845,7 @@ class SortWindow(SpykeToolWindow):
         self.setCentralWidget(mainwidget)
 
         self.toolbar = self.setupToolbar()
-        #toolbar2 = self.setupToolbar()
         self.addToolBar(self.toolbar)
-        #self.addToolBarBreak(Qt.TopToolBarArea) # stack the 2nd toolbar at top edge too
-        #self.addToolBar(toolbar2)
-
-        #QtCore.QMetaObject.connectSlotsByName(self)
 
     def setupToolbar(self):
         toolbar = QtGui.QToolBar(self)
