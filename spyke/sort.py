@@ -46,7 +46,7 @@ MAINSPLITTERPOS = 300
 VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
 NSLISTWIDTH = 70 # minimize nslist width, enough for 7 digit spike IDs
 SPIKESORTPANELWIDTHPERCOLUMN = 120
-SORTWINDOWHEIGHT = 1032 # TODO: this should be set programmatically
+SORTWINDOWHEIGHT = 1035 # TODO: this should be set programmatically
 
 MEANWAVEMAXSAMPLES = 2000
 NPCSPERCHAN = 7
