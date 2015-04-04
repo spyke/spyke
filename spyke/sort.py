@@ -46,7 +46,10 @@ MAINSPLITTERPOS = 300
 VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
 NSLISTWIDTH = 70 # minimize nslist width, enough for 7 digit spike IDs
 SPIKESORTPANELWIDTHPERCOLUMN = 120
+PANELHEIGHT = 1400
+VSCROLLBARWIDTH = 14 # hack
 SORTWINDOWHEIGHT = 1035 # TODO: this should be set programmatically
+MINSORTWINDOWWIDTH = 566
 
 MEANWAVEMAXSAMPLES = 2000
 NPCSPERCHAN = 7
@@ -1769,13 +1772,27 @@ class PTCSNeuronRecord(object):
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
 
 
+class PanelScrollArea(QtGui.QScrollArea):
+    """A scroll area for the spikesortpanel"""
+    def keyPressEvent(self, event):
+        key = event.key()
+        # seems the ENTER key needs be handled to directly call plot, unlike in sortwin
+        # where the event is passed on to be handled by the list widgets
+        if key in [Qt.Key_Enter, Qt.Key_Return]:
+            sortwin = self.topLevelWidget()
+            sortwin.parent().ui.plotButton.click()
+        else:
+            QtGui.QScrollArea.keyPressEvent(self, event) # pass it on
+
+
 class SortWindow(SpykeToolWindow):
     """Sort window"""
     def __init__(self, parent, pos=None):
         SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
-        width = max(MAINSPLITTERPOS + SPIKESORTPANELWIDTHPERCOLUMN*ncols, 566)
+        panelwidth = SPIKESORTPANELWIDTHPERCOLUMN * ncols
+        width = max(MAINSPLITTERPOS + panelwidth + VSCROLLBARWIDTH, MINSORTWINDOWWIDTH)
         size = (width, SORTWINDOWHEIGHT)
         self.setWindowTitle('Sort Window')
         self.move(*pos)
@@ -1797,7 +1814,14 @@ class SortWindow(SpykeToolWindow):
         self.uslist = USList(self) # should really be multicolumn tableview
         self.uslist.setToolTip('Unsorted spike list')
         tw = self.spykewindow.sort.tw
+
         self.panel = SpikeSortPanel(self, tw=tw)
+        self.panel.setMinimumSize(QtCore.QSize(panelwidth, PANELHEIGHT))
+
+        self.panelscrollarea = PanelScrollArea(self)
+        self.panelscrollarea.setWidget(self.panel)
+        self.panelscrollarea.setMinimumWidth(panelwidth + VSCROLLBARWIDTH)
+        self.panelscrollarea.setWidgetResizable(True) # allows panel to size bigger than min
 
         self.hsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.hsplitter.addWidget(self.nlist)
@@ -1812,7 +1836,7 @@ class SortWindow(SpykeToolWindow):
 
         self.mainsplitter = QtGui.QSplitter(Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
-        self.mainsplitter.addWidget(self.panel)
+        self.mainsplitter.addWidget(self.panelscrollarea)
         #self.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1) # only works after self is shown
 
         self.layout = QtGui.QVBoxLayout()
