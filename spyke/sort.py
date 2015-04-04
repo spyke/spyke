@@ -1823,13 +1823,10 @@ class SortWindow(SpykeToolWindow):
         self.panelscrollarea.setMinimumWidth(panelwidth + VSCROLLBARWIDTH)
         self.panelscrollarea.setWidgetResizable(True) # allows panel to size bigger than min
 
-        self.hsplitter = QtGui.QSplitter(Qt.Horizontal)
-        self.hsplitter.addWidget(self.nlist)
-        self.hsplitter.addWidget(self.nslist)
-
         self.vsplitter = QtGui.QSplitter(Qt.Vertical)
         self.vsplitter.addWidget(self.slider)
-        self.vsplitter.addWidget(self.hsplitter)
+        self.vsplitter.addWidget(self.nlist)
+        self.vsplitter.addWidget(self.nslist)
         self.vsplitter.addWidget(self.uslist)
 
         self.mainsplitter = QtGui.QSplitter(Qt.Horizontal)

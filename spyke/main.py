@@ -2553,9 +2553,8 @@ class SpykeWindow(QtGui.QMainWindow):
             # should be unnecessary after restoring window state above, but vsplitter
             # and hsplitter aren't restored properly, set them manually:
             if wintype == 'Sort':
-                #window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
+                window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
                 window.vsplitter.moveSplitter(VSPLITTERPOS, 1)
-                window.hsplitter.moveSplitter(window.hsplitter.width()-NSLISTWIDTH, 1)
         return self.windows[wintype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, wintype, enable=True):
