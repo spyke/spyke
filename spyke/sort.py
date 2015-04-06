@@ -46,6 +46,8 @@ MAINSPLITTERPOS = 300
 VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
 NSLISTWIDTH = 70 # minimize nslist width, enough for 7 digit spike IDs
 SPIKESORTPANELWIDTHPERCOLUMN = 120
+# TODO: instead of hard-coding, make PANELHEIGHT a function of the number of unique vertical
+# channel positions:
 PANELHEIGHT = 1400
 VSCROLLBARWIDTH = 14 # hack
 SORTWINDOWHEIGHT = 1035 # TODO: this should be set programmatically
