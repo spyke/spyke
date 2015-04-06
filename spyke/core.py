@@ -1218,7 +1218,7 @@ class NSList(SpykeListView):
         key = event.key()
         # passing horizontal keys to nlist assumes nslist is a single column
         # and are therefore not needed:
-        if key in [Qt.Key_Enter, Qt.Key_Return, Qt.Key_Left, Qt.Key_Right]:
+        if key in [Qt.Key_Enter, Qt.Key_Return]:
             sw.nlist.keyPressEvent(event) # pass on to nlist
         else:
             SpykeListView.keyPressEvent(self, event) # handle it as usual
