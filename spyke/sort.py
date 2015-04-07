@@ -2085,7 +2085,9 @@ class SortWindow(SpykeToolWindow):
         modifiers = event.modifiers()
         ctrl = Qt.ControlModifier & modifiers # ctrl is down
         spw = self.spykewindow
-        if key == Qt.Key_Escape: # deselect all spikes and all clusters
+        if key == Qt.Key_A:
+            spw.ui.plotButton.click() # same as hitting ENTER in nslist
+        elif key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
         elif key == Qt.Key_Delete:
             self.on_actionDelete_triggered()
@@ -2128,7 +2130,10 @@ class SortWindow(SpykeToolWindow):
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
         elif  key == Qt.Key_E: # ignored in SpykeListViews
-            self.actionToggleErrors.toggle()
+            if ctrl:
+                self.actionToggleErrors.toggle()
+            else:
+                self.clear() # E is synonymous with ESC
         elif key == Qt.Key_C: # toggle between PCA and PCA+ICA, ignored in SpykeListViews
             c = str(spw.ui.componentAnalysisComboBox.currentText())
             if c == 'PCA':
