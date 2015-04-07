@@ -2085,7 +2085,7 @@ class SortWindow(SpykeToolWindow):
         modifiers = event.modifiers()
         ctrl = Qt.ControlModifier & modifiers # ctrl is down
         spw = self.spykewindow
-        if key == Qt.Key_A:
+        if key == Qt.Key_A: # ignored in SpykeListViews
             spw.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
