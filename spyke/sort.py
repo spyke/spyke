@@ -723,9 +723,6 @@ class Sort(object):
             lib = 'mdp'
             while True:
                 try:
-                    node = mdp.nodes.FastICANode()
-                    X = node(data)
-                    pm = node.get_projmatrix()
                     if lib == 'mdp':
                         # nonlinearity g='pow3', ie x**3. tanh seems to separate better,
                         # but is a bit slower. gaus seems to be slower still, and no better
