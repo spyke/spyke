@@ -76,8 +76,8 @@ automatically because updating it can sometimes be an expensive operation, depen
 number of spikes, channels, and timepoints selected and the component analysis involved.
 
 11. Repeat the above until you're happy with all the clusters. There are of course many other
-details, such as using PCA+ICA instead of just PCA, and exhaustively comparing all
-neighbouring clusters with each other, but I'll leave that for another day.
+details, such as using ICA instead of just PCA, and exhaustively comparing all neighbouring
+clusters with each other, but I'll leave that for another day.
 
 12. Periodically save your results using `Ctrl+S`, or by pressing the save button on the main
 window toolbar, or File->Save in the main menu. This will create a trio of files with the same

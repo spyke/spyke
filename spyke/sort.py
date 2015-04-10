@@ -638,8 +638,6 @@ class Sort(object):
         least minncomp dimensions"""
         import mdp # delay as late as possible
         spikes = self.spikes
-        if kind not in ['PCA', 'ICA', 'PCA+ICA']:
-            raise ValueError('unknown kind %r' % kind)
         nt = self.wavedata.shape[2]
         if tis == None: # use full waveform
             tis = np.asarray([0, nt])
@@ -678,103 +676,64 @@ class Sort(object):
             data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
         print('input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
+        data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
+        print('reshaped input for %s: %r' % (kind, data.shape))
         if kind == 'PCA':
-            data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
             #X = mdp.pca(data, output_dim=5, svd=False)
             X = mdp.pca(data, output_dim=5) # keep just 1st 5 components
             if X.shape[1] < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
-            print('reshaped input for %s: %r' % (kind, data.shape))
-        else: # kind in ['ICA', 'PCA+ICA']:
+        elif kind == 'ICA':
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(sqrt(nspikes))
             if maxncomp < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
-            if kind == 'ICA':
-                # for speed, keep only the largest 14% of points, per chan. Largest points are
-                # probably the most important ones
-                mean = data.mean(axis=0) # mean across all spikes
-                datai = abs(mean).argsort(axis=1)[:, ::-1] # highest to lowest amplitude points, per chan
-                ntkeep = nt // 7
-                datai = datai[:, :ntkeep]
-                datai += np.row_stack(np.arange(nchans)) * nt
-                datai = datai.ravel() # 1D of len nchans*ntkeep
-                data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-                data = data[:, datai] # nspikes x (nchans*ntkeep)
-                print('datai: %r' % datai)
-                if data.shape[1] > maxncomp:
-                    mean = data.mean(axis=0) # mean across all spikes, gives nchans*ntkeep vector
-                    pointis = abs(mean).argsort()[::-1] # highest to lowest amplitude points
-                    pointis = pointis[:maxncomp]
-                    data = data[:, pointis]
-                    print('restrict to maxncomp=%d: %r' % (maxncomp, datai[:, pointis]))
-            else: # kind == 'PCA+ICA'
-                # do PCA first, to reduce dimensionality and speed up ICA:
-                data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-                # keep up to npcsperchan components per chan on average:
-                ncomp = min((self.npcsperchan*nchans, maxncomp, data.shape[1]))
-                print('ncomp = %d' % ncomp)
-                data = mdp.pca(data, output_dim=ncomp)
-            print('reshaped input for %s: %r' % (kind, data.shape))
             if data.shape[0] <= data.shape[1]:
                 raise RuntimeError('need more observations than dimensions for ICA')
-            trycount = 0
-
-            lib = 'mdp'
-            while True:
-                try:
-                    if lib == 'mdp':
-                        # nonlinearity g='pow3', ie x**3. tanh seems to separate better,
-                        # but is a bit slower. gaus seems to be slower still, and no better
-                        # than tanh, but these are just vague impressions.
-                        # defaults to whitened=False, ie assumes data isn't whitened
-                        node = mdp.nodes.FastICANode(g='pow3')
-                        X = node(data)
-                        pm = node.get_projmatrix()
-                        '''
-                    # for now, I can't install sklearn given the old version of scipy I'm using
-                    elif lib == 'sklearn':
-                        import sklearn
-                        #fun = 'logcosh', 'exp', or 'cube'
-                        fastica = sklearn.decomposition.FastICA(fun='logcosh', whiten=True)
-                        X = fastica.fit_transform(data)
-                        pm = fastica.something # ???????
-                        '''
-                    else:
-                        raise ValueError('invalid FastICA lib')
-                    X = X[:, np.any(pm, axis=0)] # keep only the non zero columns
-                    if X.shape[1] < 3:
-                        raise RuntimeError('need at least 3 columns')
-                    break
-                except:
-                    print('ICA failed, retrying...')
-                    trycount += 1
-                    if trycount > 10:
-                        break # give up
+            # limit number of PCs to feed into ICA, keep up to npcsperchan components per
+            # chan on average:
+            ncomp = min((self.npcsperchan*nchans, maxncomp, data.shape[1]))
+            lib = 'sklearn'
+            if lib == 'mdp':
+                # do PCA first, to reduce dimensionality and speed up ICA:
+                print('ncomp: %d' % ncomp)
+                data = mdp.pca(data, output_dim=ncomp)
+                # nonlinearity g='pow3', ie x**3. tanh seems to separate better,
+                # but is a bit slower. gaus seems to be slower still, and no better
+                # than tanh, but these are just vague impressions.
+                # defaults to whitened=False, ie assumes data isn't whitened
+                node = mdp.nodes.FastICANode(g='pow3')
+                X = node(data)
+                pm = node.get_projmatrix()
+                X = X[:, np.any(pm, axis=0)] # keep only the non zero columns
+            elif lib == 'sklearn':
+                from sklearn.decomposition import FastICA
+                # when whiten=True (default), FastICA preprocesses the data using PCA, and
+                # n_components is the number of PCs that are kept before doing ICA.
+                alg = 'parallel' # parallel or deflation, default is parallel
+                fun = 'logcosh' # logcosh, exp, or cube, default is logcosh
+                maxiter = 100 # default is 200
+                tol = 0.5 # default is 0.0001, seems need >~ 0.1 to exit faster
+                ## TODO: make FastICA algorithm (parallel, deflation), nonlinearity (logcosh,
+                ## exp, cube) and IC sort method (abs(kurtosis) vs. negentropy) GUI options
+                print('ncomp=%d, alg=%r, fun=%r, maxiter=%d, tol=%g'
+                      % (ncomp, alg, fun, maxiter, tol))
+                fastica = FastICA(n_components=ncomp, algorithm=alg,
+                                  whiten=True, fun=fun, fun_args=None,
+                                  max_iter=maxiter, tol=tol, w_init=None,
+                                  random_state=None)
+                X = fastica.fit_transform(data) # do both the fit and the transform
+                #pm = fastica.components_
+                print('fastica niters: %d' % (fastica.n_iter_))
+            else:
+                raise ValueError('invalid FastICA lib')
+            if X.shape[1] < 3:
+                raise RuntimeError('need at least 3 columns')
 
             # Sort ICs by decreasing kurtosis or negentropy. For kurtosis, see Scholz2004 (or
             # rather, opposite to their approach, which picked ICs with most negative
             # kurtosis). For methods of estimating negentropy, see Hyvarinen1997.
 
-            ## TODO: make FastICA nonlinearity (pow3, tanh, gaus) and IC sort method
-            ## (abs(kurtosis) vs. negentropy) GUI options
-
-            ## TODO: maybe an alternative to this is to ues a HitParade node, which apparently
-            ## returns the "largest local maxima" of the previous node
-            ## Another possibility might be to sort according to the energy in each column
-            ## of node.filter (see sorting of components at end of JADENode). See McKeown 2003.
-            
-            ## TODO: what's the different between a node's filters and a node's
-            ## projection matrix? They're the same shape. Are they perhaps the
-            ## inverse or pseudo inverse of each other?
-            
-            ## TODO: sounds like nonlinearity g and fine_g = 'gaus' or maybe 'tanh' might be
-            ## better choice than default 'pow3', though they might be slower. See Hyvarinen
-            ## 1999
-            
-            ## TODO: perhaps when using PCA before ICA, since the PCA comes out ordered by
-            ## captured variance, maybe the ICs will come out that way too, and I don't
-            ## need to measure kurtosis anymore? Nope, not the case it seems.
             '''
             # sort by abs(kurtosis) of each IC (column)
             k = scipy.stats.kurtosis(X, axis=0)
@@ -806,6 +765,8 @@ class Sort(object):
             pl.colorbar()
             pl.title('decreasing negentropy projmatrix')
             '''
+        else:
+            raise ValueError('unknown kind %r' % kind)
         print('output shape for %s: %r' % (kind, X.shape))
         self.X[Xhash] = X # cache for fast future retrieval
         print('%s took %.3f sec' % (kind, time.time()-t0))
@@ -843,7 +804,7 @@ class Sort(object):
         h.update(sids)
         h.update(tis)
         h.update(chans)
-        if kind == 'PCA+ICA': # consider npcsperchan only if doing ICA
+        if kind == 'ICA': # consider npcsperchan only if doing ICA
             h.update(str(npcsperchan))
         return h.hexdigest()
 
@@ -2131,12 +2092,12 @@ class SortWindow(SpykeToolWindow):
                 self.actionToggleErrors.toggle()
             else:
                 self.clear() # E is synonymous with ESC
-        elif key == Qt.Key_C: # toggle between PCA and PCA+ICA, ignored in SpykeListViews
+        elif key == Qt.Key_C: # toggle between PCA and ICA, ignored in SpykeListViews
             c = str(spw.ui.componentAnalysisComboBox.currentText())
             if c == 'PCA':
-                index = spw.ui.componentAnalysisComboBox.findText('PCA+ICA')
+                index = spw.ui.componentAnalysisComboBox.findText('ICA')
                 spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
-            elif c == 'PCA+ICA':
+            elif c == 'ICA':
                 index = spw.ui.componentAnalysisComboBox.findText('PCA')
                 spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
             spw.on_plotButton_clicked()

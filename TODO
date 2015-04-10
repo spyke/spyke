@@ -4,7 +4,7 @@
 
 - during detection, check for any DC offset (perhaps due to ADC issues?) by randomly sampling each channel (maybe do this during the noise estimation), and subtract the DC offset from the raw data
 
-- instead of keeping time as a separate dimension, try including spike time or ISI as input into dimension reduction (PCA and/or PCA+ICA)
+- instead of keeping time as a separate dimension, try including spike time or ISI as input into dimension reduction (PCA and/or ICA)
     - or maybe use log(ISI), like Delescluse2006
 
 - add option to export multiunit spikes (those that aren't classified as "good", but also aren't "junk" nid 0 spikes) to .ptcs files. This could greatly increase the spike count when calculating MUA in neuropy. These could be exported to a neuron with ID -1 in the .ptcs file. To prevent any potential conflict, should add check to make sure there aren't any multiunit neurons (-ve numbered) in spyke that are also classified as "good".
