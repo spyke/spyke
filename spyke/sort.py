@@ -56,6 +56,9 @@ MINSORTWINDOWWIDTH = 566
 MEANWAVEMAXSAMPLES = 2000
 NPCSPERCHAN = 7
 
+PCALIB = 'mdp'
+ICALIB = 'sklearn'
+
 
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
@@ -636,7 +639,6 @@ class Sort(object):
         """Find set of chans common to all sids, and do PCA/ICA on those waveforms. Or,
         if chans are specified, limit PCA/ICA to them. Return component matrix with at
         least minncomp dimensions"""
-        import mdp # delay as late as possible
         spikes = self.spikes
         nt = self.wavedata.shape[2]
         if tis == None: # use full waveform
@@ -679,8 +681,18 @@ class Sort(object):
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
         print('reshaped input for %s: %r' % (kind, data.shape))
         if kind == 'PCA':
-            #X = mdp.pca(data, output_dim=5, svd=False)
-            X = mdp.pca(data, output_dim=5) # keep just 1st 5 components
+            if PCALIB == 'mdp':
+                import mdp # delay as late as possible
+                X = mdp.pca(data, output_dim=5, svd=False) # svs=False is default
+            elif PCALIB == 'sklearn':
+                # sklearn's PCA is about 8x slower than mdp.pca, I think because it
+                # doesn't tap into scipy.linalg.eig compiled code. RandomizedPCA is faster
+                # than PCA, but isn't deterministic, and is still 2-3x slower than mdp.pca
+                from sklearn.decomposition import PCA
+                pca = PCA(n_components=5)
+                X = pca.fit_transform(data) # do both the fit and the transform
+            else:
+                raise ValueError('invalid PCALIB %r' % PCALIB)
             if X.shape[1] < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
         elif kind == 'ICA':
@@ -693,8 +705,8 @@ class Sort(object):
             # limit number of PCs to feed into ICA, keep up to npcsperchan components per
             # chan on average:
             ncomp = min((self.npcsperchan*nchans, maxncomp, data.shape[1]))
-            lib = 'sklearn'
-            if lib == 'mdp':
+            if ICALIB == 'mdp':
+                import mdp # delay as late as possible
                 # do PCA first, to reduce dimensionality and speed up ICA:
                 print('ncomp: %d' % ncomp)
                 data = mdp.pca(data, output_dim=ncomp)
@@ -706,7 +718,7 @@ class Sort(object):
                 X = node(data)
                 pm = node.get_projmatrix()
                 X = X[:, np.any(pm, axis=0)] # keep only the non zero columns
-            elif lib == 'sklearn':
+            elif ICALIB == 'sklearn':
                 from sklearn.decomposition import FastICA
                 # when whiten=True (default), FastICA preprocesses the data using PCA, and
                 # n_components is the number of PCs that are kept before doing ICA.
@@ -726,7 +738,7 @@ class Sort(object):
                 #pm = fastica.components_
                 print('fastica niters: %d' % (fastica.n_iter_))
             else:
-                raise ValueError('invalid FastICA lib')
+                raise ValueError('invalid ICALIB %r' % ICALIB)
             if X.shape[1] < 3:
                 raise RuntimeError('need at least 3 columns')
 
