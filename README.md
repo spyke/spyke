@@ -25,6 +25,8 @@ spyke requires recent versions of the following to be installed:
   ([PySide](http://pyside.org) will probably work too, but is untested)
 * [PyOpenGL](http://pyopengl.sourceforge.net/)
 * [Cython](http://cython.org)
+* [MDP](http://mdp-toolkit.sourceforge.net/)
+* [scikit-learn](http://scikit-learn.org)
 
 spyke is developed in Xubuntu 14.04. It should work in other Linux distributions. In
 principle, it should also work in Windows and OSX.
