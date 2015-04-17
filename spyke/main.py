@@ -55,7 +55,7 @@ import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g, SimpleStream
 import surf
-from sort import Sort, SortWindow, MAINSPLITTERPOS, VSPLITTERPOS, NSLISTWIDTH
+from sort import Sort, SortWindow, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES, NPCSPERCHAN
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
@@ -2553,8 +2553,8 @@ class SpykeWindow(QtGui.QMainWindow):
             # should be unnecessary after restoring window state above, but vsplitter
             # and hsplitter aren't restored properly, set them manually:
             if wintype == 'Sort':
-                window.mainsplitter.moveSplitter(MAINSPLITTERPOS, 1)
-                window.vsplitter.moveSplitter(VSPLITTERPOS, 1)
+                window.mainsplitter.moveSplitter(window.MAINSPLITTERPOS, 1)
+                window.vsplitter.moveSplitter(window.VSPLITTERPOS, 1)
         return self.windows[wintype] # 'window' isn't necessarily in local namespace
 
     def ShowWindow(self, wintype, enable=True):

@@ -42,8 +42,6 @@ from plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
 
 #MAXCHANTOLERANCE = 100 # um
 
-MAINSPLITTERPOS = 300
-VSPLITTERPOS = 1 # make horizontal sort slider use as little vertical space as possible
 NSLISTWIDTH = 70 # minimize nslist width, enough for 7 digit spike IDs
 SPIKESORTPANELWIDTHPERCOLUMN = 120
 # TODO: instead of hard-coding, make PANELHEIGHT a function of the number of unique vertical
@@ -1763,8 +1761,15 @@ class SortWindow(SpykeToolWindow):
         SpykeToolWindow.__init__(self, parent, flags=QtCore.Qt.Tool)
         self.spykewindow = parent
         ncols = self.sort.probe.ncols
+        # try and allow the same amount of horizontal space per column for 2 and 3 col probes:
+        if ncols <= 2:
+            self.MAINSPLITTERPOS = 300
+        else:
+            self.MAINSPLITTERPOS = 265 # move it more to the left
+        # make horizontal sort slider use as little vertical space as possible
+        self.VSPLITTERPOS = 1
         panelwidth = SPIKESORTPANELWIDTHPERCOLUMN * ncols
-        width = max(MAINSPLITTERPOS + panelwidth + VSCROLLBARWIDTH, MINSORTWINDOWWIDTH)
+        width = max(self.MAINSPLITTERPOS + panelwidth + VSCROLLBARWIDTH, MINSORTWINDOWWIDTH)
         size = (width, SORTWINDOWHEIGHT)
         self.setWindowTitle('Sort Window')
         self.move(*pos)

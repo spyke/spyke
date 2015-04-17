@@ -439,6 +439,7 @@ class pt16b_HS27(Probe):
         assert len(sl) == self.nchans
         self.SiteLoc = sl
 
+
 class single(Probe):
     """Single channel"""
     def __init__(self):
