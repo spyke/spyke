@@ -1179,6 +1179,8 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.OpenWindow('Sort') # in case it isn't already open
         cw = self.OpenWindow('Cluster') # in case it isn't already open
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
+        # calc RMS error between each spike and its clusters median waveform, if any?
+        rmserror = np.any([ dim == 'RMSerror' for dim in dims ])
         if sids == None:
             sids = self.GetAllSpikes() # only selected spikes
         if len(sids) == 0: # if none selected
@@ -1189,10 +1191,11 @@ class SpykeWindow(QtGui.QMainWindow):
         kind = None
         tis = None
         selchans = None
-        if comps: # only do kind, tis and selchans grab if doing CA:
-            kind = str(self.ui.componentAnalysisComboBox.currentText())
+        if comps or rmserror:
             tis = sw.tis # waveform time indices to include, centered on spike
             selchans = self.get_selchans(sids)
+        if comps:
+            kind = str(self.ui.componentAnalysisComboBox.currentText())
         X = s.get_param_matrix(kind=kind, sids=sids, tis=tis, selchans=selchans,
                                dims=dims, scale=scale)
         return X, sids

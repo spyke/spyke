@@ -599,11 +599,15 @@ class Sort(object):
         if sids == None:
             sids = spikes['id'] # default to all spikes
         comps = [ dim for dim in dims if dim.startswith('c') and dim[-1].isdigit() ]
+        rmserror = np.any([ dim == 'RMSerror' for dim in dims ])
         ncomp = len(comps)
         hascomps = ncomp > 0
         if hascomps:
             X = self.get_component_matrix(kind, sids, tis=tis, chans=selchans,
                                           minncomp=ncomp)
+        if rmserror:
+            rms = self.get_rms_error(sids, tis=tis, chans=selchans)
+
         data = []
         for dim in dims:
             if dim in dtypefields:
@@ -611,6 +615,8 @@ class Sort(object):
             elif dim.startswith('c') and dim[-1].isdigit():
                 compid = int(lstrip(dim, 'c'))
                 data.append( np.float32(X[:, compid]) )
+            elif dim == 'RMSerror':
+                data.append( np.float32(rms) )
             else:
                 raise RuntimeError('unknown dim %r' % dim)
         # np.column_stack returns a copy, not modifying the original array
@@ -789,6 +795,48 @@ class Sort(object):
             if nid != 0:
                 self.clusters[nid].update_comppos(X, sids)
         return X
+
+    def get_rms_error(self, sids, tis=None, chans=None):
+        """Calculate RMS error of spike waveforms (all from the same cluster) relative to
+        their cluster's mean waveform. Consider only selected tis and chans"""
+        spikes = self.spikes
+        nids = np.unique(spikes['nid'][sids])
+        nid = nids[0]
+        if len(nids) > 1 or nid == 0:
+            raise RuntimeError("Spikes must all belong to the same (non-junk) cluster for "
+                               "RMS error calculation")
+        nt = self.wavedata.shape[2]
+        if tis == None: # use full waveform
+            tis = np.asarray([0, nt])
+        #print('tis: %r' % (tis,))
+        ti0, ti1 = tis
+        assert ti0 < ti1 <= nt
+        nt = ti1 - ti0
+        chans, chanslist = self.get_common_chans(sids, chans)
+        nchans = len(chans)
+        nspikes = len(sids)
+        if nchans == 0:
+            raise RuntimeError("Spikes have no common chans for RMS error")
+
+        # collect data between tis from chans from all spikes:
+        print('getting RMS error on tis=%r, chans=%r of %d spikes' %
+             (list(tis), list(chans), nspikes))
+        data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
+        for sii, sid in enumerate(sids):
+            spikechans = chanslist[sii]
+            spikechanis = spikechans.searchsorted(chans)
+            data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
+
+        # get cluster mean waveform between tis on chans:
+        wave = self.neurons[nid].get_wave()
+        chanis = wave.chans.searchsorted(chans)
+        meandata = np.float64(wave.data[chanis, ti0:ti1])
+
+        # calculate RMS error between each spike and the cluster mean waveform:
+        se = (data - meandata) ** 2 # squared error
+        # take mean across timepoints and chans, but not across spikes:
+        mse = se.mean(axis=2).mean(axis=1) # mean squared error
+        return np.sqrt(mse)
 
     def get_common_chans(self, sids, chans=None):
         """Find channels common to all sids, and optionally to chans as well. Also,
