@@ -787,7 +787,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                      Qt.Key_Equal, Qt.Key_Minus,
                      Qt.Key_Slash, Qt.Key_P, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_R,
                      Qt.Key_Space, Qt.Key_B, Qt.Key_Comma, Qt.Key_Period,
-                     Qt.Key_E, Qt.Key_C, Qt.Key_T]:
+                     Qt.Key_E, Qt.Key_C, Qt.Key_T, Qt.Key_W]:
             sw.keyPressEvent(event) # pass it on to Sort window
 
         self.updateGL()

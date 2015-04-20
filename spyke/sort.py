@@ -2174,6 +2174,13 @@ class SortWindow(SpykeToolWindow):
                 spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
             else:
                 spw.on_c0c1tButton_clicked() # plot against time
+        elif key == Qt.Key_W: # toggle plotting against RMSError, ignored in SpykeListViews
+            z = str(spw.ui.zDimComboBox.currentText())
+            if z == 'RMSerror':
+                spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
+            else:
+                spw.ui.zDimComboBox.setCurrentIndex(3)
+                spw.on_plotButton_clicked() # plot against RMSError
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             # this is handled at a lower level by on_actionItem_triggered
             # in the various listview controls
