@@ -1077,10 +1077,10 @@ class SpykeListView(QtGui.QListView):
         """Row selection in listview is complex. This makes it simpler"""
         ## TODO: There's a bug here, where if you select the last two neurons in nlist,
         ## (perhaps these last two need to be near a list edge), merge them, and then
-        ## undo,then merge again (instead of just redoing), then undo again, they're
+        ## undo, then merge again (instead of just redoing), then undo again, they're
         ## both selected, but only the first is replotted because the selchanged event
-        ## is only passed the first of the two as being newly selected. If however,
-        ## before remerging, you clear the selection, or select something else, and then
+        ## is only passed the first of the two as being newly selected. If however
+        ## before remerging, you clear the selection or select something else, and then
         ## go back and select those same two neurons and merge, and undo, it works fine,
         ## and the selchanged event gets both items as newly selected. Seems like a Qt
         ## bug, or at least some very subtle timing problem of some kind. This might have
