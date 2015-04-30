@@ -1379,7 +1379,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_plotXcorrsButton_clicked(self):
         """Plot all cross/auto correlograms for all selected neurons, and display
         them in an upper or lower triangle configuration"""
-        ## TODO: for now, just plot a single autocorrelogram
+        ## TODO: for now, just plot a single cross/auto correlogram
         clusters = self.GetClusters()
         xsids = clusters[0].neuron.sids
         if len(clusters) == 1:
@@ -1443,17 +1443,22 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_ISICleanButton_clicked(self):
-        """Remove any duplicate spikes within each neuron, according to an ISI threshold.
-        As implemented, this is not undoable"""
+        """If only one cluster is selected, split off any duplicate spikes within that
+        cluster, according to the ISI threshold. If multiple clusters or no clusters are
+        selected, remove any duplicate spikes within selected clusters or all clusters,
+        respectively, according to the same single ISI threshold. As implemented, the latter
+        is not undoable"""
+        clusters = self.GetClusters()
         minISI = self.ui.minISISpinBox.value()
         spikes = self.sort.spikes
-        rmsidss = {} # dict of lists of sids to remove, indexed by nid
+        nids = [ cluster.id for cluster in clusters ] # selected neurons, in norder
+        if len(nids) == 0: # if no neurons selected, clean all neurons
+            nids = sorted(self.sort.neurons)
+
+        rmsidss = {} # dict of lists of sids to split off or remove, indexed by nid
         print('duplicate spikes:')
-        for nid in sorted(self.sort.neurons):
-            if nid == 0:
-                # skip any duplicate spikes that are already unclustered:
-                continue
-            # for each pair of duplicate spikes, keep whichever has the most channel overlap
+        for nid in nids:
+            # For each pair of duplicate spikes, keep whichever has the most channel overlap
             # with neuron template. If they have same amount of overlap, keep the first one
             neuron = self.sort.neurons[nid]
             rmsids = [] # list of sids to remove for this neuron
@@ -1493,13 +1498,19 @@ class SpykeWindow(QtGui.QMainWindow):
         print('found %d duplicate spikes' % nrm)
         if nrm == 0:
             return
+        sw = self.windows['Sort']
+        if len(nids) == 1: # split duplicate spikes from single cluster into cluster 0
+            sidis = neuron.sids.searchsorted(rmsids)
+            sw.nslist.selectRows(sidis) # select spikes to split off from single cluster
+            self.SplitSpikes(delete=True) # split them off into cluster 0 (undoable)
+            return
+        # otherwise, remove duplicate spikes from multiple clusters:
         val = QtGui.QMessageBox.question(self, "Remove %d duplicate spikes" % nrm,
               "Are you sure? This will clear the undo/redo stack, and is not undoable.",
               QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
         if val == QtGui.QMessageBox.No:
             return
         # do the actual removal:
-        sw = self.windows['Sort']
         for nid, rmsids in rmsidss.items():
             neuron = self.sort.neurons[nid]
             neuron.sids = np.setdiff1d(neuron.sids, rmsids) # remove from source neuron
