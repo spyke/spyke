@@ -1461,23 +1461,22 @@ class SpykeWindow(QtGui.QMainWindow):
             sidis = np.where(np.diff(spikes['t'][neuron.sids]) <= minISI)[0]
             if len(sidis) == 0:
                 continue # skip to next nid
-            sids = neuron.sids[sidis]
             #x0, y0 = neuron.cluster.pos['x0'], neuron.cluster.pos['y0']
-            for sid in sids:
-                if spikes['nid'][sid+1] != nid:
-                    # second spike in this "duplicate" pair belongs to another neuron,
-                    # or maybe even junk neuron 0, skip to next pair
-                    continue
-                nchans0 = spikes['nchans'][sid]
-                chans0 = spikes['chans'][sid][:nchans0]
-                nchans1 = spikes['nchans'][sid+1]
-                chans1 = spikes['chans'][sid+1][:nchans0]
+            for sidi in sidis:
+                sid0 = neuron.sids[sidi] # 1st spike in each pair
+                sid1 = neuron.sids[sidi+1] # 2nd spike in each pair
+                nchans0 = spikes['nchans'][sid0]
+                nchans1 = spikes['nchans'][sid1]
+                chans0 = spikes['chans'][sid0][:nchans0]
+                chans1 = spikes['chans'][sid1][:nchans1]
                 ncommon0 = len(np.intersect1d(neuron.chans, chans0))
                 ncommon1 = len(np.intersect1d(neuron.chans, chans1))
                 if ncommon0 >= ncommon1:
-                    rmsid = sid + 1
+                    # sid0 has more template chan overlap, or both are equal, keep sid0
+                    rmsid = sid1
                 else:
-                    rmsid = sid
+                    # sid1 has more template chan overlap, keep it
+                    rmsid = sid0
                 """
                 # code for choosing the one closest to template mean position, not as robust:
                 d02 = (spikes['x0'][sid] - x0)**2 + (spikes['y0'][sid] - y0)**2
