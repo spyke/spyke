@@ -350,7 +350,7 @@ class Detector(object):
             self.thresh = self.thresh.clip(self.fixedthresh, self.thresh.max())
             # peak-to-peak threshold, abs, in AD units
             self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult))
-            AD2uV = self.sort.converter.AD2uV
+            #AD2uV = self.sort.converter.AD2uV
             #info('%s: thresh:   %r' % (ps().name, AD2uV(self.thresh)))
             #info('%s: ppthresh: %r' % (ps().name, AD2uV(self.ppthresh)))
 

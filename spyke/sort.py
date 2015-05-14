@@ -689,7 +689,7 @@ class Sort(object):
         if kind == 'PCA':
             if PCALIB == 'mdp':
                 import mdp # delay as late as possible
-                X = mdp.pca(data, output_dim=5, svd=False) # svs=False is default
+                X = mdp.pca(data, output_dim=5, svd=False) # svd=False is default
             elif PCALIB == 'sklearn':
                 # sklearn's PCA is about 8x slower than mdp.pca, I think because it
                 # doesn't tap into scipy.linalg.eig compiled code. RandomizedPCA is faster
