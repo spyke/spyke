@@ -388,7 +388,8 @@ cdef inline int merge_scouts(int M, Scout **s, int *mlist, double rmerge,
                              double rmerge2, int ndims):
     """Merge pairs of scouts within rmerge of each other"""
     cdef Py_ssize_t i=0, j, k
-    cdef Scout *scouti, *scoutj
+    cdef Scout *scouti
+    cdef Scout *scoutj
     cdef int nm # number of inner loop mergers
     cdef int lo, hi, step
     cdef double d, d2
@@ -437,7 +438,8 @@ cdef inline void move_scout(Scout *scouti, Scout *scouts, double *exps,
                             double rneigh, double rneigh2, double minmove2) nogil:
     """Move a scout up its local density gradient"""
     cdef Py_ssize_t j, k
-    cdef float *pos, *pos0
+    cdef float *pos
+    cdef float *pos0
     cdef int npoints = 0
     cdef bint continuej = False
     cdef double d2, kern, move, move2
@@ -576,7 +578,8 @@ cdef inline int bsearch_scouts_k0(Scout **s, int i, int M, float posk0) nogil:
 cdef inline int merge(Scout *scouti, int *mlist, int nm, Scout **s, int M) nogil:
     """Take scouts represented by ordered s indices in mlist and merge them into scouti"""
     cdef Py_ssize_t mi, src, dst, n, j
-    cdef Scout **dstp, **srcp, 
+    cdef Scout **dstp
+    cdef Scout **srcp
     #assert nm > 0
     '''
     printf('M: %d\n', M)
