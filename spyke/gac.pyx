@@ -122,17 +122,15 @@ cdef struct Scout:
 #DEF MAXINT32 = 2**31 - 1
 #DEF DEBUG = 0 # could use this for different levels of debug messages
 DEF MANHATTAN = False # use Manhattan distance for estimating density? if not, use Euclidean
-DEF CPOSHIST = False # return cluster position history on every iteration
-DEF CPOS = False # return final cluster positions
-IF CPOSHIST:
-    assert CPOS != True # at most one or the other, not both
+DEF RETURNCPOSHIST = False # return cluster position history on every iteration
 DEF PROFILE = False # print timing information
 DEF SORTDIMSBYVARIANCE = False
 
 def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double sigma=0.25, double rmergex=0.25, double rneighx=4,
         double alpha=2.0, int maxgrad=1000,
-        double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5):
+        double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5,
+        bint returncpos=False):
     """Nicholas Swindale's gradient ascent clustering (GAC) algorithm, a variant
     of the mean-shift algorithm"""
     cdef Py_ssize_t i, j, k, cid
@@ -237,12 +235,12 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     for i in range(M): ## TODO: could use prange here
         s[i] = scouts+i
 
-    IF CPOSHIST:
+    IF RETURNCPOSHIST:
         cposhist = [] # cluster position history list, one entry per timepoint
 
     while True:
 
-        IF CPOSHIST:
+        IF RETURNCPOSHIST:
             # store history of cluster positions, scale up by norm again:
             cpos = np.zeros((M, ndims), dtype=np.float32)
             ## TODO: for clarity, maybe exclude scouts with < minpoints
@@ -341,7 +339,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     cids = walkscouts(scouts, N)
     cids = cids[sortis] # restore original point ordering
 
-    IF CPOS:
+    if returncpos:
         # build returnable numpy array of cluster positions, scale up by norm again:
         cpos = np.zeros((M, ndims), dtype=np.float32)
         for i in range(M): ## TODO: could use prange here
@@ -376,11 +374,11 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     free(scouts)
     free(s)
     
-    IF CPOSHIST:
+    IF RETURNCPOSHIST:
         return cids, cposhist
-    ELIF CPOS:
+    if returncpos:
         return cids, cpos
-    ELSE:
+    else:
         return cids
 
 
