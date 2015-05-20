@@ -200,8 +200,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
     IF SORTDIMSBYVARIANCE:
         print('sorted data along dimension %d' % sortdimis[0])
-    ELSE:
-        print('sorted data along dimension 0')
+    #ELSE:
+    #    print('sorted data along dimension 0')
     
     # declare placeholder scout:
     cdef Scout *scouti
