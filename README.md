@@ -47,6 +47,19 @@ For the NVIDIA 340 driver in Linux, it seems the "Allow Flipping" option must be
 the OpenGL settings in the `nvidia-settings` app, otherwise the 3D cluster plot will not
 update properly.
 
+Plotting of spike waveforms in the Sort window can be slow and generate flicker. This seems to
+be a problem with matplotlib, and can be fixed by applying the following diff to matplotlib:
+
+```
+diff --git a/lib/matplotlib/backends/backend_qt5agg.py b/lib/matplotlib/backends/backend_qt5agg.py
+index 5b8e111..55fdb4f 100644
+@@ -165,3 +165,3 @@ class FigureCanvasQTAggBase(object):
+         t = b + h
+-        self.repaint(l, self.renderer.height-t, w, h)
++        self.update(l, self.renderer.height-t, w, h)
+
+```
+
 See [TUTORIAL.md](TUTORIAL.md) for a fairly brief tutorial.
 
 Many keyboard shortcuts are available. Tooltips give some hints. You can also discover them by
