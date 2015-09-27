@@ -2097,8 +2097,8 @@ class SpykeWindow(QtGui.QMainWindow):
         groundtruth = f.read()
         if groundtruth == '': # reached EOF
             nbytes = f.tell()
-            print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
             f.close()
+            print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
             return stream
         else:
             f.seek(pos) # go back and parse ground truth data
@@ -2119,6 +2119,7 @@ class SpykeWindow(QtGui.QMainWindow):
         pos = f.tell()
         f.seek(0, 2)
         nbytes = f.tell()
+        f.close()
         print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
         return stream
 
