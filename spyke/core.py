@@ -753,8 +753,9 @@ class Stream(object):
         # ordinal position of each ADchan in the hold queue of its ADC board:
         i = ADchans % NCHANSPERBOARD
         if self.shcorrect:
-            dis = 1 * i # per channel delays, us
-            # TODO: stop hard coding 1us delay per ordinal position
+            ## TODO: stop hard-coding 1 masterclockfreq tick delay per ordinal position
+            # per channel delays, us, usually 1 us/chan:
+            dis = 1000000 / self.masterclockfreq * i
         else:
             dis = 0 * i
         ds = dis / self.rawtres # normalized per channel delays
