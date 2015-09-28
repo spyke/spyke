@@ -512,6 +512,11 @@ class Stream(object):
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
+    def get_masterclockfreq(self):
+        return self.srff.layoutrecords[0].MasterClockFreq
+        
+    masterclockfreq = property(get_masterclockfreq)
+
     def get_shcorrect(self):
         return self._shcorrect
 
