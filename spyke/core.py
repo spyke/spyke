@@ -814,7 +814,8 @@ class SimpleStream(Stream):
         probematch = False
         for probetype in probes.TYPES:
             probe = probetype()
-            if (probe.siteloc_arr() == siteloc).all():
+            if (probe.siteloc_arr().shape == siteloc.shape and
+                (probe.siteloc_arr() == siteloc).all()):
                 self.probe = probe
                 probematch = True
                 break

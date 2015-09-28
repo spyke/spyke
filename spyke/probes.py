@@ -452,5 +452,46 @@ class single(Probe):
         self.SiteLoc = sl
 
 
+class IMEC30(Probe):
+    """30 chan IMEC probe snippet, 2 column, 22 um rectangular spacing"""
+    def __init__(self):
+        self.layout = 'IMEC30'
+        self.name = 'IMEC30'
+        self.nchans = 32
+        self.ncols = 2
+        sl = {}
+        sl[0] = 0, 1050
+        sl[1] = 22, 1050
+        sl[2] =  0, 1072
+        sl[3] = 22, 1072
+        sl[4] =  0, 1094
+        sl[5] = 22, 1094
+        sl[6] =  0, 1116
+        sl[7] = 22, 1116
+        sl[8] =  0, 1138
+        sl[9] = 22, 1138
+        sl[10] =  0, 1160
+        sl[11] = 22, 1160
+        sl[12] =  0, 1182
+        sl[13] = 22, 1182
+        sl[14] =  0, 1204
+        sl[15] = 22, 1204
+        sl[16] =  0, 1226
+        sl[17] = 22, 1226
+        sl[18] =  0, 1248
+        sl[19] = 22, 1248
+        sl[20] =  0, 1270
+        sl[21] = 22, 1270
+        sl[22] =  0, 1292
+        sl[23] = 22, 1292
+        sl[24] =  0, 1314
+        sl[25] = 22, 1314
+        sl[26] =  0, 1336
+        sl[27] = 22, 1336
+        sl[28] =  0, 1358
+        sl[29] = 22, 1358
+        self.SiteLoc = sl
+
+
 TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
-         pt16a_HS27, pt16b_HS27, single]
+         pt16a_HS27, pt16b_HS27, single, IMEC30]
