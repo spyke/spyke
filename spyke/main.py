@@ -1984,7 +1984,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenQuirogaMATFile(self, fname):
         """Open Quiroga's .mat files containing single channel synthetic spike data.
-        Return a SimpleStream"""
+        Return a SimpleStream. Assume no sample-and-hold correction is required"""
         import scipy.io
         fname = join(self.streampath, fname)
         d = scipy.io.loadmat(fname, squeeze_me=True)
@@ -2016,7 +2016,7 @@ class SpykeWindow(QtGui.QMainWindow):
         rawsampfreq = intround(1 / rawtres) # Hz
         masterclockfreq = None
         stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                              intgain, extgain, bitshift=None)
+                              intgain, extgain, shcorrect=False, bitshift=None)
         truth = core.EmptyClass()
         truth.spiketis = d['spike_times']
         assert truth.spiketis[-1] < nt
