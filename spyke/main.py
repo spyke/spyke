@@ -2412,7 +2412,8 @@ class SpykeWindow(QtGui.QMainWindow):
         try: s.wavefname
         except AttributeError: # corresponding .wave file hasn't been created yet
             wavefname = os.path.splitext(fname)[0] + '.wave'
-            self.SaveWaveFile(wavefname) # only write whole .wave file if missing s.wavefname attrib
+            # only write whole .wave file if missing s.wavefname attrib:
+            self.SaveWaveFile(wavefname)
             self.dirtysids.clear() # shouldn't be any, but clear anyway just in case
         if len(self.dirtysids) > 0:
             self.SaveWaveFile(s.wavefname, sids=self.dirtysids)
