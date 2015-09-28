@@ -66,7 +66,7 @@ class EmptyClass(object):
 
 
 class Converter(object):
-    """Simple object to store intgain and extgain values and provide methods to
+    """Store intgain and extgain values and provide methods to
     convert between AD and uV values, even when a Stream (where intgain and extgain
     are stored) isn't available"""
     def __init__(self, intgain, extgain):
@@ -86,6 +86,24 @@ class Converter(object):
     def uV2AD(self, uV, inttype=np.int16):
         """Convert uV to signed rescaled AD values of type inttype"""
         return inttype(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
+
+
+class Converter_TSF_1002(object):
+    """Store intgain and extgain values and provide methods to convert between AD and uV
+    values, even when a Stream (where intgain and extgain are stored) isn't available. Meant
+    specifically for .tsf version 1002 files, which have no specific AD voltage limits, and
+    already come as signed values centered around 0 V"""
+    def __init__(self, intgain, extgain):
+        self.intgain = intgain # uV per AD value
+        self.extgain = extgain
+
+    def AD2uV(self, AD):
+        """Convert signed int16 AD values to float32 uV"""
+        return np.float32(AD) * self.intgain * self.extgain
+
+    def uV2AD(self, uV, inttype=np.int16):
+        """Convert float32 uV to signed AD values of type inttype"""
+        return inttype(np.round(uV / (self.intgain * self.extgain)))
 
 
 class WaveForm(object):
@@ -782,7 +800,8 @@ class Stream(object):
 class SimpleStream(Stream):
     """Simple Stream loaded fully in advance"""
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                 intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4):
+                 intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4,
+                 tsfversion=None):
         self._fname = fname
         self.wavedata = wavedata
         nchans, nt = wavedata.shape
@@ -806,9 +825,12 @@ class SimpleStream(Stream):
         self.masterclockfreq = masterclockfreq
         self.extgain = extgain
         self.intgain = intgain
-        self.converter = Converter(intgain, extgain)
+        if tsfversion == 1002:
+            self.converter = Converter_TSF_1002(intgain, extgain)
+        else:
+            self.converter = Converter(intgain, extgain)
         self.sampfreq = sampfreq or DEFHIGHPASSSAMPFREQ # desired sampling frequency
-        self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
+        self.shcorrect = shcorrect
         self.bitshift = bitshift
         self.t0 = 0 # us
         self.t1 = nt * self.rawtres
@@ -833,6 +855,16 @@ class SimpleStream(Stream):
         return UNIXEPOCH
 
     datetime = property(get_datetime)
+
+    # override masterclockfreq property in base Stream class, make it behave like a simple
+    # attribute:
+    def get_masterclockfreq(self):
+        return self._masterclockfreq
+
+    def set_masterclockfreq(self, masterclockfreq):
+        self._masterclockfreq = masterclockfreq
+
+    masterclockfreq = property(get_masterclockfreq, set_masterclockfreq)
     
     def __getstate__(self):
         """Get object state for pickling"""

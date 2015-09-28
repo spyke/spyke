@@ -2067,14 +2067,77 @@ class SpykeWindow(QtGui.QMainWindow):
               and still be detected and clustered correctly
     
         """
+        with open(join(self.streampath, fname), 'rb') as f:
+            header = f.read(16)
+            assert header == 'Test spike file '
+            format, = unpack('i', f.read(4))
+
+        if format == 1002:
+            return self.OpenTSFFile_1002(fname)
+        elif format == 1000:
+            return self.OpenTSFFile_1000(fname)
+
+    def OpenTSFFile_1002(self, fname):
+        """Open TSF file, version 1002. Assume no sample-and-hold correction is required,
+        assume wavedata already has the correct 0 voltage offset (i.e., is signed), assume
+        no bitshift is required (data is 16 bit, not 12)."""
         try: f = open(join(self.streampath, fname), 'rb')
         except IOError:
             print("can't find file %r" % fname)
             return
         header = f.read(16)
         assert header == 'Test spike file '
-        format, = unpack('i', f.read(4))
-        assert format == 1000
+        version, = unpack('i', f.read(4))
+        assert version == 1002
+        rawsampfreq, = unpack('i', f.read(4)) # Hz
+        masterclockfreq = None
+        nchans, = unpack('i', f.read(4))
+        nt, = unpack('i', f.read(4))
+        intgain = 1 # assumed
+        extgain, = unpack('f', f.read(4))
+        print('extgain: %f' % extgain)
+        siteloc = np.zeros((nchans, 2), dtype=np.int16)
+        readloc = np.zeros(nchans, dtype=np.int32) # optimal chan display order
+        #print('readloc:', readloc)
+        for i in range(nchans):
+            # these two data types really shouldn't be intertwined like this:
+            siteloc[i, :] = unpack('hh', f.read(4))
+            readloc[i], = unpack('i', f.read(4))
+        # read row major data, ie, chan loop is outer loop:
+        wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
+        wavedata.shape = nchans, nt
+        nspikes, = unpack('i', f.read(4))
+        print("%d ground truth spikes" % nspikes)
+        # assume all 16 bits are actually used, not just 12 bits, so no bitshift is required:
+        stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
+                              intgain, extgain, shcorrect=False, bitshift=False,
+                              tsfversion=version)
+        if nspikes > 0:
+            truth = core.EmptyClass()
+            truth.spikets = np.fromfile(f, dtype=np.int32, count=nspikes)
+            truth.nids = np.fromfile(f, dtype=np.int32, count=nspikes)
+            truth.maxchans = np.fromfile(f, dtype=np.int32, count=nspikes)
+            assert truth.maxchans.min() >= 1 # NVS stores these as 1-based
+            truth.maxchans -= 1 # convert to proper 0-based maxchan ids
+            self.renumber_tsf_truth(truth, stream)
+            stream.truth = truth
+        pos = f.tell()
+        f.seek(0, 2)
+        nbytes = f.tell()
+        f.close()
+        print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
+        return stream
+
+    def OpenTSFFile_1000(self, fname):
+        """Open TSF file, version 1000"""
+        try: f = open(join(self.streampath, fname), 'rb')
+        except IOError:
+            print("can't find file %r" % fname)
+            return
+        header = f.read(16)
+        assert header == 'Test spike file '
+        version, = unpack('i', f.read(4))
+        assert version == 1000
         nchans = 54 # assumed
         siteloc = np.fromfile(f, dtype=np.int16, count=nchans*2)
         siteloc.shape = nchans, 2
@@ -2087,11 +2150,11 @@ class SpykeWindow(QtGui.QMainWindow):
         nchans2, = unpack('i', f.read(4))
         assert nchans == nchans2 # make sure above assumption was right
         nt, = unpack('i', f.read(4)) # 7.5M, eq'v to 300 sec data total
-        # read row major data, ie, chan loop is outer loop
+        # read row major data, ie, chan loop is outer loop:
         wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
         wavedata.shape = nchans, nt
         stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                              intgain, extgain)
+                              intgain, extgain, shcorrect=True, tsfversion=version)
         # not all .tsf files have ground truth data at end:
         pos = f.tell()
         groundtruth = f.read()
