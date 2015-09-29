@@ -2684,7 +2684,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ShowRef(ref, enable)
 
     def ShowRef(self, ref, enable=True):
-        """Show/hide a TimeRef, VoltageRef, Scale, or the Caret. Force menu states to correspond"""
+        """Show/hide a TimeRef, VoltageRef, Scale, or the Caret. Force menu states to
+        correspond"""
         self.ui.__dict__['action%s' % ref].setChecked(enable)
         for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP', 'Sort']:
@@ -2711,41 +2712,13 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.filePosLineEdit.setEnabled(enable)
         self.ui.filePosEndButton.setEnabled(enable)
         self.ui.slider.setEnabled(enable)
-        '''
-        self.menubar.Enable(wx.ID_NEW, enable)
-        self.menubar.Enable(wx.ID_SPIKEWIN, enable)
-        self.menubar.Enable(wx.ID_CHARTWIN, enable)
-        self.menubar.Enable(wx.ID_LFPWIN, enable)
-        self.menubar.Enable(wx.ID_TREF, enable)
-        self.menubar.Enable(wx.ID_VREF, enable)
-        self.menubar.Enable(wx.ID_CARET, enable)
-        self.menubar.Enable(wx.ID_SAMPLING, enable)
-        self.menubar.Enable(wx.ID_WAVEFORMS, enable)
-        self.toolbar.EnableTool(wx.ID_NEW, enable)
-        self.toolbar.EnableTool(wx.ID_SPIKEWIN, enable)
-        self.toolbar.EnableTool(wx.ID_CHARTWIN, enable)
-        self.toolbar.EnableTool(wx.ID_LFPWIN, enable)
-        self.file_pos_control_panel.Show(enable)
-        self.notebook.Show(enable)
-        self.detect_button.Enable(enable)
-        self.file_min_label.Show(enable)
-        self.file_max_label.Show(enable)
-        '''
+
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require a sort"""
         self.EnableSamplingMenu(not enable)
         self.ui.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
         self.ui.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
-        '''
-        self.menubar.Enable(wx.ID_SORTWIN, enable)
-        self.toolbar.EnableTool(wx.ID_SORTWIN, enable)
-        self.menubar.Enable(wx.ID_CLUSTERWIN, enable)
-        self.toolbar.EnableTool(wx.ID_CLUSTERWIN, enable)
-        self.menubar.Enable(wx.ID_SAVE, enable)
-        self.toolbar.EnableTool(wx.ID_SAVE, enable)
-        self.menubar.Enable(wx.ID_RASTERS, enable)
-        '''
         self.EnableSpikeWidgets(enable)
 
     def EnableSamplingMenu(self, enable):

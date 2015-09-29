@@ -767,10 +767,12 @@ class PlotPanel(FigureCanvas):
     '''
     def post_motion_notify_event(self):
         """Posts a motion_notify_event to mpl's event queue"""
-        x, y = wx.GetMousePosition() - self.GetScreenPosition() # get mouse pos relative to this window
+        # get mouse pos relative to this window:
+        x, y = wx.GetMousePosition() - self.GetScreenPosition()
         # now just mimic what mpl FigureCanvasWx._onMotion does
         y = self.figure.bbox.height - y
-        FigureCanvasBase.motion_notify_event(self, x, y, guiEvent=None) # no wx event to pass as guiEvent
+        # no wx event to pass as guiEvent:
+        FigureCanvasBase.motion_notify_event(self, x, y, guiEvent=None)
     '''
     def um2uv(self, um):
         """Vertical conversion from um in channel siteloc
