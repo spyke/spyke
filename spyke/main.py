@@ -143,8 +143,12 @@ class SpykeWindow(QtGui.QMainWindow):
         QtDesigner 4.7, so it's done here manually instead"""
         ui = self.ui
         samplingGroup = QtGui.QActionGroup(self)
+        samplingGroup.addAction(ui.action20kHz)
         samplingGroup.addAction(ui.action25kHz)
+        samplingGroup.addAction(ui.action40kHz)
         samplingGroup.addAction(ui.action50kHz)
+        samplingGroup.addAction(ui.action60kHz)
+        samplingGroup.addAction(ui.action80kHz)
         samplingGroup.addAction(ui.action100kHz)
 
     @QtCore.pyqtSlot()
@@ -600,14 +604,34 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ToggleRef('Caret')
 
     @QtCore.pyqtSlot()
+    def on_action20kHz_triggered(self):
+        """20kHz menu choice event"""
+        self.SetSampfreq(20000)
+
+    @QtCore.pyqtSlot()
     def on_action25kHz_triggered(self):
         """25kHz menu choice event"""
         self.SetSampfreq(25000)
 
     @QtCore.pyqtSlot()
+    def on_action40kHz_triggered(self):
+        """40kHz menu choice event"""
+        self.SetSampfreq(40000)
+
+    @QtCore.pyqtSlot()
     def on_action50kHz_triggered(self):
         """50kHz menu choice event"""
         self.SetSampfreq(50000)
+
+    @QtCore.pyqtSlot()
+    def on_action60kHz_triggered(self):
+        """60kHz menu choice event"""
+        self.SetSampfreq(60000)
+
+    @QtCore.pyqtSlot()
+    def on_action80kHz_triggered(self):
+        """80kHz menu choice event"""
+        self.SetSampfreq(80000)
 
     @QtCore.pyqtSlot()
     def on_action100kHz_triggered(self):

@@ -1921,8 +1921,12 @@ or remove all duplicate spikes from selected neurons
     <property name="title">
      <string>&amp;Sampling</string>
     </property>
+    <addaction name="action20kHz"/>
     <addaction name="action25kHz"/>
+    <addaction name="action40kHz"/>
     <addaction name="action50kHz"/>
+    <addaction name="action60kHz"/>
+    <addaction name="action80kHz"/>
     <addaction name="action100kHz"/>
     <addaction name="separator"/>
     <addaction name="actionSampleAndHoldCorrect"/>
@@ -2277,6 +2281,14 @@ or remove all duplicate spikes from selected neurons
     <string>Caret</string>
    </property>
   </action>
+  <action name="action20kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>20 kHz</string>
+   </property>
+  </action>
   <action name="action25kHz">
    <property name="checkable">
     <bool>true</bool>
@@ -2285,15 +2297,36 @@ or remove all duplicate spikes from selected neurons
     <string>25 kHz</string>
    </property>
   </action>
+  <action name="action40kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>40 kHz</string>
+   </property>
+  </action>
   <action name="action50kHz">
    <property name="checkable">
     <bool>true</bool>
    </property>
-   <property name="checked">
-    <bool>false</bool>
-   </property>
    <property name="text">
     <string>50 kHz</string>
+   </property>
+  </action>
+  <action name="action60kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>60 kHz</string>
+   </property>
+  </action>
+  <action name="action80kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>80 kHz</string>
    </property>
   </action>
   <action name="action100kHz">
