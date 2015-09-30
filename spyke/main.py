@@ -1939,7 +1939,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.OpenSortFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
-            critical(self, "Error", "%s is not a .srf, .track, .tsf, or .sort file" % fname)
+            critical(self, "Error", "%s is not a .srf, .track, .tsf, .mat or .sort file"
+                     % fname)
 
     def OpenStreamFile(self, fname):
         """Open a stream (.srf, .track, or .tsf file) and update display accordingly.
@@ -2007,8 +2008,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableStreamWidgets(True)
 
     def OpenQuirogaMATFile(self, fname):
-        """Open Quiroga's .mat files containing single channel synthetic spike data.
-        Return a SimpleStream. Assume no sample-and-hold correction is required"""
+        """Open Quiroga's .mat files containing single channel synthetic highpass spike data.
+        Return a SimpleStream. Assume no sample-and-hold correction is required, and no
+        highpass filtering is required"""
         import scipy.io
         fname = join(self.streampath, fname)
         d = scipy.io.loadmat(fname, squeeze_me=True)
@@ -2153,7 +2155,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return stream
 
     def OpenTSFFile_1000(self, fname):
-        """Open TSF file, version 1000"""
+        """Open TSF file, version 1000. Assume wavedata is highpass spike data only"""
         try: f = open(join(self.streampath, fname), 'rb')
         except IOError:
             print("can't find file %r" % fname)
