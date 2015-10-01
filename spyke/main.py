@@ -1966,7 +1966,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.hpstream = core.TrackStream(srffs, fname, kind='highpass')
             self.lpstream = core.TrackStream(srffs, fname, kind='lowpass')
         elif ext == '.tsf':
-            self.hpstream = self.OpenTSFFile(fname)
+            self.hpstream, self.lpstream = self.OpenTSFFile(fname)
         elif ext == '.mat':
             self.hpstream = self.OpenQuirogaMATFile(fname)
         else:
@@ -2054,10 +2054,11 @@ class SpykeWindow(QtGui.QMainWindow):
         return stream
 
     def OpenTSFFile(self, fname):
-        """Open NVS's "test spike file" .tsf format for testing spike sorting
-        performance. This describes a single 2D contiguous array of raw waveform
-        data, within which are embedded a number of spikes from a number of neurons.
-        The ground truth is typically listed at the end of the file. Return a SimpleStream.
+        """Open NVS's "test spike file" .tsf format for testing spike sorting performance.
+        This describes a single 2D contiguous array of raw waveform data, within which are
+        embedded a number of spikes from a number of neurons. The ground truth is typically
+        listed at the end of the file. Return a highpass and lowpass SimpleStream. For .tsf
+        files that only have highpass, return None as a lowpass stream.
 
         fname is assumed to be relative to self.streampath.
 
@@ -2096,17 +2097,18 @@ class SpykeWindow(QtGui.QMainWindow):
         with open(join(self.streampath, fname), 'rb') as f:
             header = f.read(16)
             assert header == 'Test spike file '
-            format, = unpack('i', f.read(4))
+            version, = unpack('i', f.read(4))
 
-        if format == 1002:
+        if version == 1002:
             return self.OpenTSFFile_1002(fname)
-        elif format == 1000:
+        elif version == 1000:
             return self.OpenTSFFile_1000(fname)
 
     def OpenTSFFile_1002(self, fname):
         """Open TSF file, version 1002. Assume no sample-and-hold correction is required,
-        assume wavedata already has the correct 0 voltage offset (i.e., is signed), assume
-        no bitshift is required (data is 16 bit, not 12)."""
+        assume wavedata already has the correct 0 voltage offset (i.e., is signed), assume no
+        bitshift is required (data is 16 bit, not 12). Assume wavedata is wideband, containing
+        both spike and LFP data"""
         try: f = open(join(self.streampath, fname), 'rb')
         except IOError:
             print("can't find file %r" % fname)
@@ -2134,10 +2136,12 @@ class SpykeWindow(QtGui.QMainWindow):
         wavedata.shape = nchans, nt
         nspikes, = unpack('i', f.read(4))
         print("%d ground truth spikes" % nspikes)
+        hpwavedata = wavedata ## TODO: filter this
         # assume all 16 bits are actually used, not just 12 bits, so no bitshift is required:
-        stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                              intgain, extgain, shcorrect=False, bitshift=False,
-                              tsfversion=version)
+        hpstream = SimpleStream(fname, hpwavedata, siteloc, rawsampfreq, masterclockfreq,
+                                intgain, extgain, shcorrect=False, bitshift=False,
+                                tsfversion=version)
+        lpstream = None ## TODO: implement this
         if nspikes > 0:
             truth = core.EmptyClass()
             truth.spikets = np.fromfile(f, dtype=np.int32, count=nspikes)
@@ -2145,14 +2149,14 @@ class SpykeWindow(QtGui.QMainWindow):
             truth.maxchans = np.fromfile(f, dtype=np.int32, count=nspikes)
             assert truth.maxchans.min() >= 1 # NVS stores these as 1-based
             truth.maxchans -= 1 # convert to proper 0-based maxchan ids
-            self.renumber_tsf_truth(truth, stream)
-            stream.truth = truth
+            self.renumber_tsf_truth(truth, hpstream)
+            hpstream.truth = truth
         pos = f.tell()
         f.seek(0, 2)
         nbytes = f.tell()
         f.close()
         print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
-        return stream
+        return hpstream, lpstream
 
     def OpenTSFFile_1000(self, fname):
         """Open TSF file, version 1000. Assume wavedata is highpass spike data only"""
@@ -2179,8 +2183,9 @@ class SpykeWindow(QtGui.QMainWindow):
         # read row major data, ie, chan loop is outer loop:
         wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
         wavedata.shape = nchans, nt
-        stream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                              intgain, extgain, shcorrect=True, tsfversion=version)
+        hpstream = SimpleStream(fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
+                                intgain, extgain, shcorrect=True, tsfversion=version)
+        lpstream = None # no lowpass data in this version
         # not all .tsf files have ground truth data at end:
         pos = f.tell()
         groundtruth = f.read()
@@ -2188,7 +2193,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nbytes = f.tell()
             f.close()
             print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
-            return stream
+            return hpstream, lpstream
         else:
             f.seek(pos) # go back and parse ground truth data
         truth = core.EmptyClass()
@@ -2198,19 +2203,19 @@ class SpykeWindow(QtGui.QMainWindow):
         # sample index of each spike:
         spiketis = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)
         sids = spiketis.argsort() # indices that sort spikes in time
-        truth.spikets = spiketis[sids] * stream.rawtres # in us
+        truth.spikets = spiketis[sids] * hpstream.rawtres # in us
         truth.nids = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)[sids]
         truth.chans = np.fromfile(f, dtype=np.uint32, count=truth.nspikes)[sids]
         assert truth.chans.min() >= 1 # NVS stores these as 1-based
         truth.chans -= 1 # convert to proper 0-based maxchan ids
-        self.renumber_tsf_truth(truth, stream)
-        stream.truth = truth
+        self.renumber_tsf_truth(truth, hpstream)
+        hpstream.truth = truth
         pos = f.tell()
         f.seek(0, 2)
         nbytes = f.tell()
         f.close()
         print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
-        return stream
+        return hpstream, lpstream
 
     def renumber_tsf_truth(self, truth, stream):
         """Renumber .tsf ground truth nids according to vertical spatial order of their
