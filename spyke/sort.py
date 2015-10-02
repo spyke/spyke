@@ -1151,26 +1151,26 @@ class Sort(object):
                 # last spike in this group
                 t0 -= 5000 # -5 ms
                 t1 += 5000 # +5 ms
-            # find chans common to sids in this group, ask stream for only those
+            # find union of chans of sids in this group, ask stream for only those
             # so that no unnecessary resampling on unneeded chans takes place.
             # Don't bother cutting out the correct nchans for each sid. At worst,
             # chan 0 (the "empty" chans array value) will be unnecessarily added to
-            # commonchans:
-            commonchans = np.unique(spikes['chans'][group])
+            # unionchans:
+            unionchans = np.unique(spikes['chans'][group])
             if usemeanchans:
-                # now that we have common original chans of this group,
+                # now that we have the original unionchans of this group,
                 # update this group's spikes array entries with meanchans:
                 spikes['nchans'][group] = nmeanchans
                 # we're using the max num chans, so assign the full array:
                 spikes['chans'][group] = meanchans
-                # now update commonchans as well:
-                commonchans = np.unique(np.hstack((commonchans, meanchans)))
+                # now update unionchans as well:
+                unionchans = np.unique(np.hstack((unionchans, meanchans)))
             if 0 not in stream.chans: # if chan 0 is disabled in stream
-                # remove 0 from commonchans, otherwise an error would be raised when
+                # remove 0 from unionchans, otherwise an error would be raised when
                 # calling stream()
-                commonchans = commonchans[commonchans != 0]
+                unionchans = unionchans[unionchans != 0]
             # load and resample only what's needed for this group:
-            tempwave = stream(t0, t1, commonchans)
+            tempwave = stream(t0, t1, unionchans)
             # slice out each spike's reloaded data from tempwave:
             for sid in group:
                 # print status:
