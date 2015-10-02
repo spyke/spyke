@@ -2136,7 +2136,8 @@ class SpykeWindow(QtGui.QMainWindow):
         wavedata.shape = nchans, nt
         nspikes, = unpack('i', f.read(4))
         print("%d ground truth spikes" % nspikes)
-        hpwavedata = wavedata ## TODO: filter this
+        # filter into highpass data:
+        hpwavedata = core.WMLDR(wavedata)
         # assume all 16 bits are actually used, not just 12 bits, so no bitshift is required:
         hpstream = SimpleStream(fname, hpwavedata, siteloc, rawsampfreq, masterclockfreq,
                                 intgain, extgain, shcorrect=False, bitshift=False,
