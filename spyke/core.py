@@ -2285,6 +2285,27 @@ def DJS(p, q):
     m = (p + q) / 2
     return (DKL(p, m) + DKL(q, m)) / 2
 
+def WMLDR(data, wname="db4", maxlevel=6):
+    """Perform wavelet multi-level decomposition and reconstruction (WMLDR) on multichannel
+    data. See Wiltschko2008. Default to Daubechies(4) wavelet. Modifies data in-place, at
+    least for now.
+
+    ## TODO: for now, this only returns highpass data. In the future, this probably
+    should return both low and highpass data, and not modify it in-place."""
+    import pywt
+
+    data = np.atleast_2d(data)
+    # filter data in place, iterate over channels in rows:
+    for i in range(len(data)):
+        # decompose the signal:
+        c = pywt.wavedec(data[i], wname, level=maxlevel)
+        # destroy the appropriate approximation coefficients to get highpass data:
+        c[0] = None
+        # reconstruct the signal:
+        data[i] = pywt.waverec(c, wname)
+    
+    return data
+
 def updatenpyfilerows(fname, rows, arr):
     """Given a numpy formatted binary file (usually with .npy extension,
     but not necessarily), update 0-based rows (first dimension) of the
