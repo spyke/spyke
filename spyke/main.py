@@ -854,6 +854,30 @@ class SpykeWindow(QtGui.QMainWindow):
         print('chansplit took %.3f sec' % (time.time()-t0))
         self.apply_clustering(oldclusters, sids, nids, verb='channel split')
 
+    def maxchansplit(self):
+        """Split spikes into clusters by maxchan"""
+        s = self.sort
+        spikes = s.spikes
+        sids = self.GetAllSpikes() # all selected spikes
+        oldclusters = self.GetClusters() # all selected clusters
+        if len(sids) == 0: # nothing selected
+            sids = spikes['id'] # all spikes (sorted)
+            oldclusters = s.clusters.values() # all clusters
+        t0 = time.time()
+        maxchans = spikes[sids]['chan']
+        umaxchans = np.unique(maxchans)
+        if len(umaxchans) == 1:
+            print("selected spikes all share the same set of max channels, can't maxchansplit")
+            return
+        # init to unclustered, shouldn't be any once done:
+        nids = np.zeros(len(sids), dtype=np.int32)
+        for maxchani, maxchan in enumerate(umaxchans):
+            nids[maxchans == maxchan] = maxchani + 1
+        if (nids == 0).any():
+            raise RuntimeError("there shouldn't be any unclustered points from maxchansplit")
+        print('maxchansplit took %.3f sec' % (time.time()-t0))
+        self.apply_clustering(oldclusters, sids, nids, verb='maxchan split')
+
     def densitysplit(self):
         """Split cluster pair by density along line between their centers in current
         cluster space"""
