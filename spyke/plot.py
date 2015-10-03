@@ -1452,21 +1452,24 @@ class SortPanel(PlotPanel):
 
     def update_selvrefs(self):
         """Set line widths, lengths, and colours of vrefs according to chans in
-        self.chans_selected"""
+        self.chans_selected. Note that any changes to the display code here should also be
+        made in the timepoint selection code for dimension reduction in
+        SortWindow.get_tis()"""
         segments = self.segments.copy()
         colours = np.repeat(VREFCOLOUR, len(self.pos)) # clear all lines
         linewidths = np.repeat(VREFLINEWIDTH, len(self.pos)) # clear all lines
         inclt = self.sortwin.inclt
-        if inclt != None: # None means plot vref as default full width
-            incltd2 = self.sortwin.inclt / 2
-            meantw = (self.tw[0] + self.tw[1]) / 2
+        # scale time selection around t=0 according to window asymmetry:
+        dtw = self.sort.tw[1] - self.sort.tw[0] # spike time window width
+        incltleft = intround(abs(self.tw[0]) / dtw * inclt) # left fraction wrt xpos
+        incltright = inclt - incltleft # right fraction wrt xpos
+        #print("self.tw, incltleft, incltright", self.tw, incltleft, incltright)
         for chan in self.chans_selected: # set line colour of selected chans
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             xpos = self.pos[chan][0] # chan xpos center (us)
-            if inclt != None: # modify the x values of this segment:
-                mid = xpos + meantw
-                x0, x1 = intround(mid-incltd2), intround(mid+incltd2)
-                segments[vrefsegmenti][:, 0] = x0, x1
+            # modify the x values of this segment:
+            x0, x1 = intround(xpos-incltleft), intround(xpos+incltright)
+            segments[vrefsegmenti][:, 0] = x0, x1
             colours[vrefsegmenti] = VREFSELECTEDCOLOUR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
         self.vlc.set_segments(segments)

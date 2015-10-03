@@ -2028,11 +2028,11 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionShiftRight)
 
         incltComboBox = QtGui.QComboBox(self)
-        incltComboBox.setToolTip("Centered waveform duration (us) to include for component "
-                                 "analysis\n'Full' means use full waveform")
+        incltComboBox.setToolTip("Waveform duration (us) to include for component "
+                                 "analysis,\nasymmetric around spike time")
         incltComboBox.setFocusPolicy(Qt.NoFocus)
         dtw = self.sort.tw[1] - self.sort.tw[0] # spike time window width
-        incltstep = intround(dtw / 10) # get 10 evenly spaced inclt values
+        incltstep = intround(dtw / 10) # evenly spaced inclt values
         incltvals = np.arange(dtw, 0, -incltstep)
         incltComboBox.addItems([ str(incltval) for incltval in incltvals ])
         incltComboBox.setCurrentIndex(0)
@@ -2621,26 +2621,22 @@ class SortWindow(SpykeToolWindow):
         #self.spykewindow.ui.plotButton.click()
 
     def get_inclt(self):
-        """Return inclt value in incltComboBox, replacing 'Full' with None"""
-        try:
-            inclt = int(self.incltComboBox.currentText()) # us
-        except ValueError:
-            inclt = None # means "use full waveform"
-        return inclt
+        """Return inclt value in incltComboBox"""
+        return int(self.incltComboBox.currentText()) # us
 
     inclt = property(get_inclt)
 
     def get_tis(self):
-        """Return tis (start and end timepoint indices) of inclt centered on t=0 spike time"""
+        """Return tis (start and end timepoint indices) of duration inclt, asymmetric around
+        t=0 spike time. Note that any changes to the code here should also be made in the
+        timepoint selection display code in SortPanel.update_selvrefs()"""
         s = self.sort
-        inclt = self.inclt # length of waveform to include, centered on spike (us)
-        if inclt == None: # use full waveform
-            inclt = sys.maxint
-        incltd2 = inclt / 2
+        inclt = self.inclt # duration to include, asymmetric around t=0 spike time (us)
         tw = self.panel.tw
-        meantw = (tw[0] + tw[1]) / 2
-        left, right = meantw-incltd2, meantw+incltd2
-        tis = s.twts.searchsorted([left, right])
+        dtw = tw[1] - tw[0] # spike time window width
+        left = intround(abs(tw[0]) / dtw * inclt) # left fraction wrt t=0 spike time
+        right = inclt - left # right fraction wrt t=0 spike time
+        tis = s.twts.searchsorted([-left, right])
         return tis
 
     tis = property(get_tis)
