@@ -342,7 +342,9 @@ class PlotPanel(FigureCanvas):
 
         self.available_plots = [] # pool of available Plots
         self.available_fills = [] # pool of available Fills
-        self.used_plots = {} # Plots holding currently displayed spikes/neurons, indexed by sid/nid with s or n prepended
+        # plots holding currently displayed spikes/neurons, indexed by sid/nid
+        # with s or n prepended:
+        self.used_plots = {}
         self.qrplt = None # current quickly removable Plot with associated .background
         self.rasters = None # Rasters object
 
@@ -350,7 +352,8 @@ class PlotPanel(FigureCanvas):
         self.cw = cw # temporal window of caret, in plot units
 
         self.figure.set_facecolor(BACKGROUNDCOLOUR)
-        self.figure.set_edgecolor(BACKGROUNDCOLOUR) # should really just turn off the edge line altogether, but how?
+        # should really just turn off the edge line altogether, but how?
+        self.figure.set_edgecolor(BACKGROUNDCOLOUR)
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
 
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind figure mouse click

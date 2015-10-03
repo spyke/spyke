@@ -426,7 +426,6 @@ class Stream(object):
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
         if kind == 'highpass':
-            ADchans = self.layout.ADchanlist
             if list(self.layout.ADchanlist) != range(self.nADchans):
                 print("WARNING: ADchans aren't contiguous from 0, highpass recordings are "
                       "nonstandard. Sample and hold delay correction in self.resample() "

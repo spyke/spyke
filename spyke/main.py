@@ -1225,7 +1225,7 @@ class SpykeWindow(QtGui.QMainWindow):
         return X, sids
 
     def get_Xhash_args(self):
-        """Return currently selected clustering paramater that would be used to generate the
+        """Return currently selected clustering paramaters that would be used to generate the
         identifying hash for the dimension reduced matrix if it were to be calculated at this
         point in time"""
         sw = self.OpenWindow('Sort') # in case it isn't already open
@@ -2514,8 +2514,10 @@ class SpykeWindow(QtGui.QMainWindow):
         gc.collect()
 
     def get_chans_enabled(self):
-        return np.asarray([ chan for (chan, enable) in self._chans_enabled.iteritems()
-                            if enable ], dtype=np.uint8)
+        """Return sorted array of enabled chans"""
+        chans = sorted(self._chans_enabled) # get the keys
+        enables = [ self._chans_enabled[chan] for chan in chans ] # get the boolean values
+        return np.uint8([ chan for (chan, enable) in zip(chans, enables) if enable ])
 
     def set_chans_enabled(self, chans, enable=None):
         """Updates which chans are enabled in ._chans_enabled dict and in the
@@ -2545,12 +2547,14 @@ class SpykeWindow(QtGui.QMainWindow):
                 self._chans_enabled[chan] = enable
         # ...or, leave only chans enabled
         else:
-            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==True ]
-            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems() if enabled==False ]
+            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems()
+                             if enabled==True ]
+            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems()
+                              if enabled==False ]
             notchans = set(allchans).difference(chans) # chans we don't want enabled
-            # find the difference between currently enabled chans and the chans we want enabled
+            # find difference between currently enabled chans and the chans to enable:
             chans2disable = set(enabledchans).difference(chans)
-            # find the difference between currently disabled chans and the chans we want disabled
+            # find difference between currently disabled chans and the chans to disable:
             chans2enable = set(disabledchans).difference(notchans)
             for chan in chans2enable:
                 self._chans_enabled[chan] = True
@@ -2564,14 +2568,14 @@ class SpykeWindow(QtGui.QMainWindow):
             except KeyError: # wintype hasn't been opened yet
                 pass
 
-        # update stream
+        # update stream(s):
         if self.hpstream != None:
             self.hpstream.chans = self.chans_enabled
         if self.lpstream != None:
             # take intersection of lpstream.layout.chans and chans_enabled,
             # conserving ordering in lpstream.layout.chans
             self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
-                                    chan in  self.chans_enabled ]
+                                    chan in self.chans_enabled ]
 
         self.plot() # replot
 
@@ -2920,7 +2924,8 @@ class SpykeWindow(QtGui.QMainWindow):
             wintypes = self.windows.keys()
         else: # update only specific windows, if visible
             wintypes = toiter(wintypes)
-        wintypes = [ wintype for wintype in WINDOWUPDATEORDER if wintype in wintypes ] # reorder
+        # reorder:
+        wintypes = [ wintype for wintype in WINDOWUPDATEORDER if wintype in wintypes ]
         windows = [ self.windows[wintype] for wintype in wintypes ] # get windows in order
         for wintype, window in zip(wintypes, windows):
             if window.isVisible(): # for performance, only update if window is shown
