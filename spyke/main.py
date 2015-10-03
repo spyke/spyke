@@ -2299,22 +2299,22 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         sw = self.OpenWindow('Sort')
         cw = self.OpenWindow('Cluster')
-        # try and restore saved component analysis selection
+        # try and restore saved component analysis selection:
         try:
             i = self.ui.componentAnalysisComboBox.findText(s.selCA)
             self.ui.componentAnalysisComboBox.setCurrentIndex(i)
         except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved cluster selection
+        # try and restore saved cluster selection:
         try: self.SelectClusters(s.selnids)
         except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved sort window channel selection, and manual selection flag
+        # try and restore saved sort window channel selection, and manual selection flag:
         try:
             sw.panel.chans_selected = s.selchans
             sw.panel.manual_selection = s.selchansmanual
             # don't save x, y, z dimension selection, leave it at default xyVpp
             # for maximum speed when loading sort file
         except AttributeError: pass # wasn't saved, loading from old .sort file
-        # try and restore saved inclt selection
+        # try and restore saved inclt selection:
         try:
             i = sw.incltComboBox.findText(s.selinclt)
             sw.incltComboBox.setCurrentIndex(i)
