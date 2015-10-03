@@ -1234,10 +1234,7 @@ class SpykeWindow(QtGui.QMainWindow):
         tis = sw.tis # waveform time indices to include, centered on spike
         selchans = np.asarray(self.get_selchans(sids))
         chans = self.sort.get_common_chans(sids, selchans)[0]
-        try:
-            npcsperchan = self.sort.npcsperchan
-        except AttributeError: # hasn't been set yet
-            npcsperchan = NPCSPERCHAN
+        npcsperchan = self.sort.npcsperchan
         return kind, sids, tis, chans, npcsperchan
 
     @QtCore.pyqtSlot()

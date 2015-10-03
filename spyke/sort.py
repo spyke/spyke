@@ -72,6 +72,7 @@ class Sort(object):
         self.neurons = {}
         self.clusters = {} # neurons with multidm params scaled for plotting
         self.norder = [] # stores order of neuron ids display in nlist
+        self.npcsperchan = NPCSPERCHAN
 
     def get_nextnid(self):
         """nextnid is used to retrieve the next unique single unit ID"""
