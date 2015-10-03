@@ -2031,8 +2031,10 @@ class SortWindow(SpykeToolWindow):
         incltComboBox.setToolTip("Centered waveform duration (us) to include for component "
                                  "analysis\n'Full' means use full waveform")
         incltComboBox.setFocusPolicy(Qt.NoFocus)
-        incltComboBox.addItems(['Full', '900', '800', '700', '600', '500', '400', '300',
-                                '200', '100', '50'])
+        dtw = self.sort.tw[1] - self.sort.tw[0] # spike time window width
+        incltstep = intround(dtw / 10) # get 10 evenly spaced inclt values
+        incltvals = np.arange(dtw, 0, -incltstep)
+        incltComboBox.addItems([ str(incltval) for incltval in incltvals ])
         incltComboBox.setCurrentIndex(0)
         toolbar.addWidget(incltComboBox)
         self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
