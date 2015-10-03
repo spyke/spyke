@@ -808,6 +808,7 @@ class SimpleStream(Stream):
         self.chans = np.arange(nchans) # this sets self.nchans
         self.nt = nt
         self.nADchans = self.nchans
+        # assumes contiguous 0-based channel IDs, used in self.__call__():
         self.ADchans = np.arange(self.nADchans)
         self.layout = EmptyClass()
         self.layout.ADchanlist = self.ADchans # for the sake of self.resample()
@@ -893,6 +894,7 @@ class SimpleStream(Stream):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
+        chanis = self.ADchans.searchsorted(chans)
         rawtres = self.rawtres
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
@@ -912,8 +914,9 @@ class SimpleStream(Stream):
         t1xs = t1xsi * rawtres
         tsxs = np.arange(t0xs, t1xs, rawtres)
         ntxs = len(tsxs)
-        # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
-        dataxs = np.int32(self.wavedata[:, t0xsi:t1xsi])
+        # slice out excess data on requested channels, init as int32 so we have bitwidth
+        # to rescale and zero, convert to int16 later:
+        dataxs = np.int32(self.wavedata[chanis, t0xsi:t1xsi])
 
         # bitshift left by 4 to scale 12 bit values to use full 16 bit dynamic range, same as
         # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
@@ -926,11 +929,6 @@ class SimpleStream(Stream):
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
-        else: # don't resample, just cut out self.chans data, if necessary
-            if range(nchans) != list(self.chans):
-                # some chans are disabled. This is kind of a hack, but works
-                # because ADchans map to probe chans 1 to 1, and both start from 0
-                dataxs = dataxs[self.chans]
 
         # now trim down to just the requested time range:
         lo, hi = tsxs.searchsorted([start, stop])
