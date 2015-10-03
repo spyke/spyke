@@ -2051,7 +2051,7 @@ class SortWindow(SpykeToolWindow):
         nPCsPerChanSpinBox.setMinimum(1)
         self.connect(nPCsPerChanSpinBox, QtCore.SIGNAL('valueChanged(int)'),
                      self.on_nPCsPerChanSpinBox_valueChanged)
-        nPCsPerChanSpinBox.setValue(NPCSPERCHAN)
+        nPCsPerChanSpinBox.setValue(self.sort.npcsperchan)
         self.nPCsPerChanSpinBox = nPCsPerChanSpinBox
 
         #actionFindPrevMostSimilar = QAction(QIcon('res/go-previous.svg'), '<', self)

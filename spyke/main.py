@@ -56,7 +56,7 @@ from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWind
 from core import DJS, g, SimpleStream
 import surf
 from sort import Sort, SortWindow, NSLISTWIDTH
-from sort import MEANWAVEMAXSAMPLES, NPCSPERCHAN
+from sort import MEANWAVEMAXSAMPLES
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
@@ -2318,6 +2318,10 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             i = sw.incltComboBox.findText(s.selinclt)
             sw.incltComboBox.setCurrentIndex(i)
+        except AttributeError: pass # wasn't saved, loading from old .sort file
+        # try and restore saved npcsperchan selection:
+        try:
+            sw.nPCsPerChanSpinBox.setValue(s.npcsperchan)
         except AttributeError: pass # wasn't saved, loading from old .sort file
 
         sw.panel.update_selvrefs()
