@@ -457,7 +457,7 @@ class IMEC30(Probe):
     def __init__(self):
         self.layout = 'IMEC30'
         self.name = 'IMEC30'
-        self.nchans = 32
+        self.nchans = 30
         self.ncols = 2
         sl = {}
         sl[0] = 0, 1050
