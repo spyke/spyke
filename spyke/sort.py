@@ -2401,7 +2401,8 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionChanSplitClusters_triggered(self):
         """Split by channels button (/) click"""
-        self.spykewindow.chansplit()
+        self.spykewindow.maxchansplit()
+        #self.spykewindow.chancombosplit()
 
     def on_actionDensitySplit_triggered(self):
         """Split cluster pair by density along line between their centers"""

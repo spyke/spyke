@@ -853,7 +853,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nids[nidsi] = subnids + nidoffset
         return nids
 
-    def chansplit(self):
+    def chancombosplit(self):
         """Split spikes into clusters of unique channel combinations"""
         s = self.sort
         spikes = s.spikes
@@ -870,16 +870,16 @@ class SpykeWindow(QtGui.QMainWindow):
         # each row in uchancombos is a unique combination of chans:
         uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
         if len(uchancombos) == 1:
-            print("selected spikes all share the same set of channels, can't chansplit")
+            print("selected spikes all share the same set of channels, can't chancombosplit")
             return
         # init to unclustered, shouldn't be any once done:
         nids = np.zeros(len(sids), dtype=np.int32)
-        for comboi, uchancombo in enumerate(uchancombos):
-            nids[(chans == uchancombo).all(axis=1)] = comboi + 1
+        for comboi, chancombo in enumerate(uchancombos):
+            nids[(chans == chancombo).all(axis=1)] = comboi + 1
         if (nids == 0).any():
-            raise RuntimeError("there shouldn't be any unclustered points from chansplit")
-        print('chansplit took %.3f sec' % (time.time()-t0))
-        self.apply_clustering(oldclusters, sids, nids, verb='channel split')
+            raise RuntimeError("there shouldn't be any unclustered points from chancombosplit")
+        print('chancombosplit took %.3f sec' % (time.time()-t0))
+        self.apply_clustering(oldclusters, sids, nids, verb='chancombo split')
 
     def maxchansplit(self):
         """Split spikes into clusters by maxchan"""
