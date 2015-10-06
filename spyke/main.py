@@ -281,6 +281,33 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
+    def on_actionExportCSVFile_triggered(self):
+        """Export "good" spikes to .csv file"""
+        sortfname = os.path.join(self.sortpath, self.sort.fname)
+        if sortfname == '': # sort hasn't been previously saved
+            raise ValueError('Please save .sort file before exporting to .csv')
+        # generate default fname with sort fname + datetime:
+        sortfname = sortfname.replace(' ', '_')
+        dt = str(datetime.datetime.now()) # get an export timestamp
+        dt = dt.split('.')[0] # ditch the us
+        dt = dt.replace(' ', '_')
+        dt = dt.replace(':', '.')
+        ext = '.csv'
+        defaultfname = sortfname + '_' + dt + ext
+        caption = "Export spikes to %s file" % ext
+        filter = "%s spike files (*%s);;All files (*.*)" % (ext, ext)
+        fname = getSaveFileName(self, caption=caption,
+                                directory=defaultfname,
+                                filter=filter)
+        fname = str(fname)
+        if fname:
+            before, sep, after = fname.partition(ext)
+            if sep != ext:
+                fname = before + ext # make sure it has extension
+            sw = self.OpenWindow('Sort') # in case it isn't already open
+            self.sort.exportcsv(fname)
+
+    @QtCore.pyqtSlot()
     def on_actionExportSpikesZipFile_triggered(self):
         """Save selected spikes on selected channels and timepoints to
         binary .spikes.zip file"""

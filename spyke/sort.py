@@ -334,6 +334,26 @@ class Sort(object):
                 nrec.write(f)
         print(fullfname)
 
+    def exportcsv(self, fname):
+        """Export all "good" spikes to a .csv file with time (s), nid, and maxchan as the
+        columns"""
+        sids = []
+        #chans = []
+        for nid in sorted(self.good):
+            neuron = self.neurons[nid]
+            sids.append(neuron.sids)
+            # the alternative is to export each spike's unit's channel:
+            #chans.append(np.tile(neuron.chan, neuron.nspikes))
+        sids = np.hstack(sids)
+        spikes = self.spikes[sids]
+        tsecs = spikes['t'] / 1e6 # convert from us to s
+        nids = spikes['nid']
+        chans = spikes['chan']
+        #chans = np.hstack(chans)
+        data = np.column_stack([tsecs, nids, chans])
+        print('exporting (tsec, nid, chan) of all spikes marked as "good" to %s' % fname)
+        np.savetxt(fname, data, fmt='%.6f, %d, %d')
+
     def exportgdffiles(self, basepath=None):
         """Export spike and stim data to text .gdf files under basepath, one file per
         recording"""

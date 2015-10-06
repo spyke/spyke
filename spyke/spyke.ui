@@ -1856,6 +1856,7 @@ or remove all duplicate spikes from selected neurons
        <string>Spikes</string>
       </property>
       <addaction name="actionExportPtcsFiles"/>
+      <addaction name="actionExportCSVFile"/>
       <addaction name="actionExportGdfFiles"/>
       <addaction name="actionExportSpkFiles"/>
       <addaction name="actionExportTsChIDFiles"/>
@@ -2397,12 +2398,12 @@ or remove all duplicate spikes from selected neurons
     <string>Export ptcs Files</string>
    </property>
   </action>
-  <action name="actionExportSpkFiles">
+  <action name="actionExportCSVFile">
    <property name="text">
-    <string>spk Files</string>
+    <string>csv Files</string>
    </property>
    <property name="toolTip">
-    <string>Export spk Files</string>
+    <string>Export csv Files</string>
    </property>
   </action>
   <action name="actionExportGdfFiles">
@@ -2411,6 +2412,14 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="toolTip">
     <string>Export gdf Files</string>
+   </property>
+  </action>
+  <action name="actionExportSpkFiles">
+   <property name="text">
+    <string>spk Files</string>
+   </property>
+   <property name="toolTip">
+    <string>Export spk Files</string>
    </property>
   </action>
   <action name="actionMPLWindow">
