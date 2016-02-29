@@ -610,7 +610,7 @@ class GLWidget(QtOpenGL.QGLWidget):
     def mousePressEvent(self, event):
         """Record mouse position on button press, for use in mouseMoveEvent. On middle
         click, select spikes"""
-        sw = self.spw.windows['Sort']
+        #sw = self.spw.windows['Sort']
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
             #sw.on_actionSelectRandomSpikes_triggered()
